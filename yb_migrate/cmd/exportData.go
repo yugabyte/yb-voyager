@@ -41,6 +41,6 @@ to quickly create a Cobra application.`,
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
 
-	exportDataCmd.PersistentFlags().StringVar(&sourceDBType, "source-db-type", "",
-		"source database type (Oracle/PostgreSQL/MySQL)")
+	//exportDataCmd.PersistentFlags().StringVar(&sourceDBType, "source-db-type", "",
+	//	"source database type (Oracle/PostgreSQL/MySQL)")
 }

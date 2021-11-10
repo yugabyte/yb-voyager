@@ -39,13 +39,13 @@ also for some of the database objects for which direct support is not there in Y
 func init() {
 	rootCmd.AddCommand(exportGenerateReportCmd)
 
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceDBType, "source-db-type", "",
-		"source database type (Oracle/PostgreSQL/MySQL)")
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceHost, "source-host", "localhost",
-		"The host on which the source database is running")
-	// TODO How to change defaults with the db type
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourcePort, "source-port", "",
-		"The port on which the source database is running")
+	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourceDBType, "source-db-type", "",
+	//	"source database type (Oracle/PostgreSQL/MySQL)")
+	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourceHost, "source-host", "localhost",
+	//	"The host on which the source database is running")
+	//// TODO How to change defaults with the db type
+	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourcePort, "source-port", "",
+	//	"The port on which the source database is running")
 	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceUser, "source-user", "",
 		"The user with which the connection will be made to the source database")
 	// TODO All sensitive parameters can be taken from the environment variable
