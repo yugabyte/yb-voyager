@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+
 	"github.com/spf13/cobra"
 
 	"github.com/spf13/viper"
@@ -26,13 +27,36 @@ import (
 var cfgFile string
 var exportDir string
 
+type Source struct {
+	sourceDBType     string
+	sourceDBHost     string
+	sourceDBPort     string
+	sourceDBUser     string
+	sourceDBPassword string
+	sourceDBName     string
+	sourceDBSchema   string
+	sourceSSLMode    string
+	sourceSSLCert    string
+}
+
+type Target struct {
+	targetDBHost     string
+	targetDBPort     string
+	targetDBUser     string
+	targetDBPassword string
+	targetDBName     string
+	targetSSLMode    string
+	targetSSLCert    string
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "yb_migrate",
 	Short: "A tool to migrate a database to YugabyteDB",
-	Long: `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
-	Run: func(cmd *cobra.Command, args []string) { fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)},
+	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -51,8 +75,8 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.yb_migrate.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory (default is current working directory")
+	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
+		"export directory (default is current working directory") //default value is current dir
 }
 
 // initConfig reads in config file and ENV variables if set.

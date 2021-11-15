@@ -17,11 +17,14 @@ package cmd
 
 import (
 	"fmt"
+	"yb_migrate/migration"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
 
 var schemaName string
+
 // exportSchemaCmd represents the exportSchema command
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
@@ -39,7 +42,7 @@ to quickly create a Cobra application.`,
 		// possibly export dir value as well and then call export Schema with the created arguments
 		// else call the exportSchema directly
 		if len(cfgFile) == 0 {
-			exportSchema(sourceStruct, exportDir)
+			exportSchema(source, exportDir)
 		} else {
 			// read from config // prepare the structs and then call exportSchema
 			fmt.Printf("Config path called")
@@ -48,23 +51,21 @@ to quickly create a Cobra application.`,
 }
 
 func exportSchema(source Source, exportDir string) {
-	//fmt.Printf("Called outside func in export schema and export dir = %s " +
-	//	"and source db type = %s and schemaName = %s\n", exportDir, sourceStruct.sourceDBType, schemaName)
+
 	switch source.sourceDBType {
-	  case "oracle":
-	  	fmt.Printf("Prepare Ora2Pg for schema export from Oracle")
-	  case "postgres":
-		  fmt.Printf("Prepare pgdump for schema export from PG")
-	  case "mysql":
-		  fmt.Printf("Prepare Ora2Pg for schema export from MySQL")
+	case "oracle":
+		fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
+		oracleSchemaExport()
+	case "postgres":
+		fmt.Printf("Prepare pgdump for schema export from PG\n")
+	case "mysql":
+		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
 	}
 }
 
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
-	exportSchemaCmd.PersistentFlags().StringVarP(&schemaName, "schema-name", "", "",
-		"name of the schema to be migrated (default is nothing")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
@@ -74,4 +75,24 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// exportSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func oracleSchemaExport() {
+	migration.CheckOra2pgInstalled()
+
+	migration.CreateMigrationProject(exportDir, source.sourceDBSchema)
+
+	//This is temporary function. In future, there can be someother general function
+	//which can just check the source connectivity separately
+	migrationutil.CheckSourceDBConnectivity(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword)
+
+	migration.PrintSourceDBVersion(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
+		source.sourceDBName, exportDir)
+
+	migration.ExportSchema(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
+		source.sourceDBName, exportDir)
+
 }

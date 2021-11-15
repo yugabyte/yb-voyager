@@ -39,24 +39,24 @@ also for some of the database objects for which direct support is not there in Y
 func init() {
 	rootCmd.AddCommand(exportGenerateReportCmd)
 
-	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourceDBType, "source-db-type", "",
-	//	"source database type (Oracle/PostgreSQL/MySQL)")
-	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourceHost, "source-host", "localhost",
-	//	"The host on which the source database is running")
-	//// TODO How to change defaults with the db type
-	//exportGenerateReportCmd.PersistentFlags().StringVar(&sourcePort, "source-port", "",
-	//	"The port on which the source database is running")
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceUser, "source-user", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBType, "source-db-type", "",
+		"source database type (Oracle/PostgreSQL/MySQL)")
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBHost, "source-db-host", "localhost",
+		"The host on which the source database is running")
+	// TODO How to change defaults with the db type
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBPort, "source-db-port", "",
+		"The port on which the source database is running")
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBUser, "source-db-user", "",
 		"The user with which the connection will be made to the source database")
 	// TODO All sensitive parameters can be taken from the environment variable
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceDBPasswd, "source-db-password", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBPassword, "source-db-password", "",
 		"The user with which the connection will be made to the source database")
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceDatabase, "source-database", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBName, "source-db-name", "",
 		"The source database which needs to be migrated to YugabyteDB")
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceSchema, "source-schema", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceDBSchema, "source-db-schema", "",
 		"The source schema which needs to be migrated to YugabyteDB")
 	// TODO SSL related more args will come. Explore them later.
-	exportGenerateReportCmd.PersistentFlags().StringVar(&sourceSSLCert, "source-ssl-cert", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.sourceSSLCert, "source-ssl-cert", "",
 		"source database type (Oracle/PostgreSQL/MySQL")
 
 	exportGenerateReportCmd.PersistentFlags().StringVar(&destYBVersion, "dest-yb-version", "localhost",
