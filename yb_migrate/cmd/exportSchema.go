@@ -23,8 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var schemaName string
-
 // exportSchemaCmd represents the exportSchema command
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
@@ -55,11 +53,19 @@ func exportSchema(source Source, exportDir string) {
 	switch source.sourceDBType {
 	case "oracle":
 		fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
+		if source.sourceDBPort == "" {
+			source.sourceDBPort = "1521"
+		}
 		oracleSchemaExport()
 	case "postgres":
-		fmt.Printf("Prepare pgdump for schema export from PG\n")
+		fmt.Printf("Prepare ysql_dump for schema export from PG\n")
+		if source.sourceDBPort == "" {
+			source.sourceDBPort = "5432"
+		}
+		postgresSchemaExport()
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
+		mysqlSchemaExport()
 	}
 }
 
@@ -78,21 +84,49 @@ func init() {
 }
 
 func oracleSchemaExport() {
-	migration.CheckOra2pgInstalled()
+	//TODO: make it a general function under migrationutil to check for given source-db-type
+	//function may not be needed if things change going forward.
+	migration.CheckOracleToolsInstalled()
+	// migrationutil.CheckRequiredToolsInstalled(source.sourceDBType)
 
-	migration.CreateMigrationProject(exportDir, source.sourceDBSchema)
-
-	//This is temporary function. In future, there can be someother general function
-	//which can just check the source connectivity separately
+	// Temporary. TODO: One function for checksourcedbendpoint + dbuserpassword + dbversionprint
 	migrationutil.CheckSourceDBConnectivity(source.sourceDBHost, source.sourceDBPort,
 		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword)
 
-	migration.PrintSourceDBVersion(source.sourceDBHost, source.sourceDBPort,
+	//TODO: make this general for every source db type | [Optional Function]
+	migration.PrintOracleSourceDBVersion(source.sourceDBHost, source.sourceDBPort,
 		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
 		source.sourceDBName, exportDir)
 
-	migration.ExportSchema(source.sourceDBHost, source.sourceDBPort,
+	//[Self] It should be source.sourceDBName for other db-source-type
+	projectDirName := "project-" + source.sourceDBSchema + "-migration"
+	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.sourceDBSchema)
+
+	migration.ExportOracleSchema(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
+		source.sourceDBName, exportDir, projectDirName)
+
+}
+
+func postgresSchemaExport() {
+	migration.CheckPostgresToolsInstalled()
+
+	migrationutil.CheckSourceDBConnectivity(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword)
+
+	migration.PrintPostgresSourceDBVersion(source.sourceDBHost, source.sourceDBPort,
 		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
 		source.sourceDBName, exportDir)
+
+	//[Self] It should be source.sourceDBName for other db-source-type
+	projectDirName := "project-" + source.sourceDBName + "-migration"
+	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.sourceDBName)
+
+	migration.ExportPostgresSchema(source.sourceDBHost, source.sourceDBPort,
+		source.sourceDBSchema, source.sourceDBUser, source.sourceDBPassword,
+		source.sourceDBName, exportDir, projectDirName)
+}
+
+func mysqlSchemaExport() {
 
 }
