@@ -78,12 +78,13 @@ func init() {
 
 	exportCmd.PersistentFlags().StringVar(&source.sourceDBName, "source-db-name", "",
 		"The source database which needs to be migrated to YugabyteDB")
+	exportCmd.MarkPersistentFlagRequired("source-db-name")
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	exportCmd.PersistentFlags().StringVar(&source.sourceDBSchema, "source-db-schema", "",
 		"The source schema which needs to be migrated to YugabyteDB")
-	exportCmd.MarkPersistentFlagRequired("source-db-schema")
+	// exportCmd.MarkPersistentFlagRequired("source-db-schema")
 
 	// TODO SSL related more args will come. Explore them later.
 	exportCmd.PersistentFlags().StringVar(&source.sourceSSLCert, "source-ssl-cert", "",

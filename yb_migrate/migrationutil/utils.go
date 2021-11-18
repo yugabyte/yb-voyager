@@ -104,7 +104,7 @@ func CreateMigrationProject(exportDir string, projectDirName string, schemaName 
 	err := exec.Command("mkdir", "-p", projectDirPath).Run()
 
 	if err != nil {
-		log.Fatalf("Could not create a project directory under %s: %s\n", projectDirName, err)
+		log.Fatalf("Could not create a project directory under %s: %s\n", projectDirPath, err)
 	}
 
 	//creating empty dirs for DB objects[TABLES, VIEWS, TYPES, FUNCTIONS, PROCEDURES, SEQUENCES, MVIEWS, GRANTS?]
@@ -122,6 +122,9 @@ func CreateMigrationProject(exportDir string, projectDirName string, schemaName 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/functions"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/procedures"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/sequences"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/triggers"),

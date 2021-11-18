@@ -49,7 +49,6 @@ to quickly create a Cobra application.`,
 }
 
 func exportSchema(source Source, exportDir string) {
-
 	switch source.sourceDBType {
 	case "oracle":
 		fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
