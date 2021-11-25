@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 
@@ -26,28 +27,9 @@ import (
 
 var cfgFile string
 var exportDir string
-
-type Source struct {
-	sourceDBType     string
-	sourceDBHost     string
-	sourceDBPort     string
-	sourceDBUser     string
-	sourceDBPassword string
-	sourceDBName     string
-	sourceDBSchema   string
-	sourceSSLMode    string
-	sourceSSLCert    string
-}
-
-type Target struct {
-	targetDBHost     string
-	targetDBPort     string
-	targetDBUser     string
-	targetDBPassword string
-	targetDBName     string
-	targetSSLMode    string
-	targetSSLCert    string
-}
+var logLevel string
+var source migrationutil.Source
+var target migrationutil.Target
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -77,6 +59,10 @@ func init() {
 		"config file (default is $HOME/.yb_migrate.yaml)")
 	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
 		"export directory (default is current working directory") //default value is current dir
+
+	//Rightnow this is a temporary logging flag
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
+		"Logging level : INFO, WARN, DEBUG")
 }
 
 // initConfig reads in config file and ENV variables if set.

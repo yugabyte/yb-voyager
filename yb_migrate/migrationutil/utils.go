@@ -87,10 +87,10 @@ func CheckSourceDBConnectivity(host string, port string, schema string, user str
 	fmt.Printf("Source Connectivity check command exit status: %s\n", outputbytes)
 }
 
-func CheckRequiredToolsInstalled(sourceDBType string) {
-	if sourceDBType == "oracle" || sourceDBType == "mysql" {
+func CheckRequiredToolsInstalled(DBType string) {
+	if DBType == "oracle" || DBType == "mysql" {
 		// migration.CheckOra2pgInstalled() import cycle not allowed
-	} else if sourceDBType == "postgres" {
+	} else if DBType == "postgres" {
 		// migration.CheckYsqldumpInstalled()
 	}
 
@@ -107,39 +107,42 @@ func CreateMigrationProject(exportDir string, projectDirName string, schemaName 
 		log.Fatalf("Could not create a project directory under %s: %s\n", projectDirPath, err)
 	}
 
-	//creating empty dirs for DB objects[TABLES, VIEWS, TYPES, FUNCTIONS, PROCEDURES, SEQUENCES, MVIEWS, GRANTS?]
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/tables"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	//TODO: add subdirs under tables/ for PKs, FKs, INDEXs - name of dir should be uniform/valid for all sources
-	//Maybe this TODO step can done while parsing or generating schema
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/views"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/types"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/functions"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/procedures"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/sequences"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/triggers"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/mviews"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/grants"),
+	//creating directories: schema, data, temp inside project
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/data"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/temp"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	//Under schema dir, creating subdirs for DB objects[TABLES, VIEWS, TYPES, FUNCTIONS, PROCEDURES, SEQUENCES, MVIEWS, GRANTS?]
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/tables"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+	//TODO: add subdirs under tables/ for PKs, FKs, INDEXs - name of dir should be uniform/valid for all sources
+	//Maybe this TODO step can done while parsing or generating schema
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/views"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/types"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/functions"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/procedures"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/sequences"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/triggers"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/mviews"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/grants"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	fmt.Println("Created a project directory: ", projectDirName)
@@ -149,4 +152,20 @@ func executeCommandAndErrorCheck(command *exec.Cmd, errorPrintStatement string, 
 	err := command.Run()
 
 	CheckErrorSimple(err, errorPrintStatement, stopOnError)
+}
+
+func GetProjectDirPath(DBType string, exportDir string, schemaName string, dbName string) string {
+	projectDirName := GetProjectDirName(DBType, schemaName, dbName)
+
+	projectDirPath := exportDir + "/" + projectDirName
+	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
+	return projectDirPath
+}
+
+func GetProjectDirName(DBType string, schemaName string, dbName string) string {
+	if DBType == "oracle" {
+		return "project-" + schemaName + "-migration"
+	} else {
+		return "project-" + dbName + "-migration"
+	}
 }

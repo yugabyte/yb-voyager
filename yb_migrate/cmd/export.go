@@ -21,21 +21,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type Format interface {
-	PrintFormat(cnt int)
-}
-
-func (s *Source) PrintFormat(cnt int) {
-	fmt.Printf("On type Source\n")
-}
-
-func (s *Target) PrintFormat(cnt int) {
-	fmt.Printf("On type Target\n")
-}
-
-var source Source
-var target Target
-
 // exportCmd represents the export command
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -49,45 +34,45 @@ var exportCmd = &cobra.Command{
 		//exportSchemaCmd.Run(cmd, args)
 		//exportDataCmd.Run(cmd, args)
 		//time.Sleep(3 * time.Second)
-		fmt.Printf("export called with source data type = %s\n", source.sourceDBType)
+		fmt.Printf("export called with source data type = %s\n", source.DBType)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
 
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBType, "source-db-type", "",
+	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type (Oracle/PostgreSQL/MySQL)")
 	exportCmd.MarkPersistentFlagRequired("source-db-type")
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBHost, "source-db-host", "localhost",
+	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"The host on which the source database is running")
 	exportCmd.MarkPersistentFlagRequired("source-db-host")
 
 	// TODO How to change defaults with the db type
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBPort, "source-db-port", "",
+	exportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
 		"The port on which the source database is running")
 
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBUser, "source-db-user", "",
+	exportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
 		"The user with which the connection will be made to the source database")
 	exportCmd.MarkPersistentFlagRequired("source-db-user")
 
 	// TODO All sensitive parameters can be taken from the environment variable
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBPassword, "source-db-password", "",
+	exportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
 		"The user with which the connection will be made to the source database")
 	exportCmd.MarkPersistentFlagRequired("source-db-password")
 
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBName, "source-db-name", "",
+	exportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
 		"The source database which needs to be migrated to YugabyteDB")
 	exportCmd.MarkPersistentFlagRequired("source-db-name")
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
-	exportCmd.PersistentFlags().StringVar(&source.sourceDBSchema, "source-db-schema", "",
+	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"The source schema which needs to be migrated to YugabyteDB")
 	// exportCmd.MarkPersistentFlagRequired("source-db-schema")
 
 	// TODO SSL related more args will come. Explore them later.
-	exportCmd.PersistentFlags().StringVar(&source.sourceSSLCert, "source-ssl-cert", "",
+	exportCmd.PersistentFlags().StringVar(&source.SSLCert, "source-ssl-cert", "",
 		"source database type (Oracle/PostgreSQL/MySQL")
 
 }

@@ -9,8 +9,7 @@ import (
 	"yb_migrate/migrationutil"
 )
 
-// TODO: fill it
-//check for ysqldump and psql/ysqlsh
+// TODO: check for pgdump and psql/ysqlsh - installed/set-in-path
 func CheckPostgresToolsInstalled() {
 }
 
@@ -68,7 +67,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 			i += 2 //jumping to start of sql statement
 			sqlStatement := extractSqlStatement(schemaFileLines, &i)
 
-			//Missing Cases: PARTITIONs, PROCEDUREs, MVIEWs ...
+			//Missing Cases: PARTITIONs, PROCEDUREs, MVIEWs, TABLESPACEs ...
 			switch sqlType {
 			case "TABLE", "DEFAULT":
 				createTableSqls.WriteString(sqlStatement)
@@ -102,21 +101,21 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 	}
 
 	//writing to .sql files in project
-	ioutil.WriteFile(projectDirPath+"/tables/table.sql", []byte(createTableSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/tables/FKEYS_table.sql", []byte(createFkConstraintSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/tables/INDEXES_table.sql", []byte(createIndexSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/functions/function.sql", []byte(createFunctionSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/triggers/trigger.sql", []byte(createTriggerSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/table.sql", []byte(createTableSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/FKEYS_table.sql", []byte(createFkConstraintSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/INDEXES_table.sql", []byte(createIndexSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/functions/function.sql", []byte(createFunctionSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/triggers/trigger.sql", []byte(createTriggerSqls.String()), 0644)
 
 	//to keep the project structure consistent
-	ioutil.WriteFile(projectDirPath+"/types/type.sql", []byte(createTypeSqls.String()+createDomainSqls.String()), 0644)
-	// ioutil.WriteFile(projectDirPath+"/types/domain.sql", []byte(createDomainSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(createTypeSqls.String()+createDomainSqls.String()), 0644)
+	// ioutil.WriteFile(projectDirPath+"/schema/types/domain.sql", []byte(createDomainSqls.String()), 0644)
 
-	ioutil.WriteFile(projectDirPath+"/temp/aggregate.sql", []byte(createAggregateSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/temp/rule.sql", []byte(createRuleSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/sequences/sequence.sql", []byte(createSequenceSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/views/view.sql", []byte(createViewSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/temp/uncategorized.sql", []byte(uncategorizedSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/aggregate.sql", []byte(createAggregateSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/rule.sql", []byte(createRuleSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/sequences/sequence.sql", []byte(createSequenceSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(createViewSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/uncategorized.sql", []byte(uncategorizedSqls.String()), 0644)
 
 }
 
@@ -158,4 +157,28 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	}
 
 	return sqlType.String()
+}
+
+func PostgresExportDataOffline(source *migrationutil.Source, exportDir string) {
+	projectDirPath := migrationutil.GetProjectDirPath(source.DBType, exportDir, source.Schema, source.DBName)
+	dataDirPath := projectDirPath + "/data"
+
+	//using pgdump for exporting data in directory format
+	pgdumpDataExportCommandString := fmt.Sprintf("export PGPASSWORD=%s; pg_dump "+
+		"--dbname %s --compress=0 --verbose --host %s --port %s --username %s --data-only -Fd -f %s",
+		source.Password, source.DBName, source.Host, source.Port, source.User, dataDirPath)
+
+	fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
+
+	pgdumpDataExportCommand := exec.Command("/bin/bash", "-c", pgdumpDataExportCommandString)
+
+	commmandoutput, err := pgdumpDataExportCommand.Output()
+
+	migrationutil.CheckError(err, pgdumpDataExportCommandString, "", true)
+
+	//TODO: modify the data driver file
+
+	//TODO: rename each table file with tablename.sql
+
+	fmt.Printf("Export of data done... %s \n", commmandoutput)
 }
