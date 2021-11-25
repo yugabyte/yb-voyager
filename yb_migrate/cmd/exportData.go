@@ -49,7 +49,7 @@ func init() {
 }
 
 func exportData() {
-	projectDirName := migrationutil.GetProjectDirName(source.DBType, source.Schema, source.DBName)
+	projectDirName := migrationutil.GetProjectDirName(&source)
 
 	if source.DBType == "oracle" {
 		migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
@@ -77,7 +77,7 @@ func exportDataOffline() {
 		}
 		migration.OracleExportDataOffline(&source, exportDir)
 	case "postgres":
-		fmt.Printf("Prepare ysql_dump for data export from PG\n")
+		fmt.Printf("Prepare pg_dump for data export from PG\n")
 		if source.Port == "" {
 			source.Port = "5432"
 		}

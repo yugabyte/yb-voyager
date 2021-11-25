@@ -75,4 +75,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.SSLCert, "source-ssl-cert", "",
 		"source database type (Oracle/PostgreSQL/MySQL")
 
+	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
+		"source database type (Oracle/PostgreSQL/MySQL")
+
 }

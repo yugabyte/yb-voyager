@@ -24,28 +24,26 @@ func CheckOracleToolsInstalled() {
 }
 
 //[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
-func PrintOracleSourceDBVersion(host string, port string, schema string, user string, password string, dbName string, exportDir string) {
-	projectDirectory := migrationutil.GetProjectDirPath("oracle", exportDir, schema, dbName)
-	currentDirectory := "cd " + projectDirectory + ";"
-	sourceDSN := "dbi:Oracle:host=" + host + ";service_name=" + dbName + ";port=" + port
+func PrintOracleSourceDBVersion(source *migrationutil.Source, exportDir string) {
+	sourceDSN := "dbi:Oracle:host=" + source.Host + ";service_name=" + source.DBName +
+		";port=" + source.Port
 
-	testDBVersionCommandString := fmt.Sprintf(currentDirectory+"ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s;",
-		sourceDSN, user, password)
+	testDBVersionCommandString := fmt.Sprintf("ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s;",
+		sourceDSN, source.User, source.Password)
 
-	testVersionCommand := exec.Command("/bin/bash", "-c", testDBVersionCommandString)
+	testDBVersionCommand := exec.Command("/bin/bash", "-c", testDBVersionCommandString)
 
-	fmt.Printf("[Debug]: Test oracle version command: %s\n", testVersionCommand)
+	fmt.Printf("[Debug]: Test oracle version command: %s\n", testDBVersionCommandString)
 
-	dbVersionBytes, err := testVersionCommand.Output()
+	dbVersionBytes, err := testDBVersionCommand.Output()
 
-	migrationutil.CheckError(err, testVersionCommand.String(), string(dbVersionBytes), true)
+	migrationutil.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
 func ExportOracleSchema(source *migrationutil.Source, exportDir string, projectDirName string) {
-	projectDirPath := migrationutil.GetProjectDirPath("oracle", exportDir,
-		source.Schema, source.DBName)
+	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
@@ -110,15 +108,15 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 
 //Using ora2pg tool
 func OracleExportDataOffline(source *migrationutil.Source, exportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source.DBType, exportDir,
-		source.Schema, source.DBName)
+	CheckOracleToolsInstalled()
 
-	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
+	migrationutil.CheckSourceDbAccessibility(source)
+
+	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
+
+	//[Internal]: Decide where to keep it
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
-
-	// exportSchemaObjectCommandString := fmt.Sprintf("ora2pg -p -t %s -o %s -b %s/schema/%s/ -c %s",
-	// 		exportObject, exportObjectFileName, projectDirPath, exportObjectDirName, configFilePath)
 
 	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -o data.sql -b %s/data -c %s",
 		projectDirPath, configFilePath)
@@ -128,13 +126,13 @@ func OracleExportDataOffline(source *migrationutil.Source, exportDir string) {
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
-	fmt.Printf("[Debug] exportDataCommand: %s\n", exportDataCommand.String())
+	fmt.Printf("[Debug] exportDataCommand: %s\n", exportDataCommandString)
 
 	err := exportDataCommand.Run()
-	migrationutil.CheckError(err, exportDataCommand.String(),
-		"Exporting of data, didn't happen, Retry exporting the schema", false)
+	migrationutil.CheckError(err, exportDataCommandString,
+		"Exporting of data failed, retry exporting it", false)
 
 	if err == nil {
-		fmt.Printf("Export of %s done...\n", "data")
+		fmt.Printf("Data export complete...\n")
 	}
 }

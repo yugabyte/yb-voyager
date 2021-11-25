@@ -3,6 +3,7 @@ package migration
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -160,25 +161,63 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 }
 
 func PostgresExportDataOffline(source *migrationutil.Source, exportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source.DBType, exportDir, source.Schema, source.DBName)
+	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format
-	pgdumpDataExportCommandString := fmt.Sprintf("export PGPASSWORD=%s; pg_dump "+
-		"--dbname %s --compress=0 --verbose --host %s --port %s --username %s --data-only -Fd -f %s",
-		source.Password, source.DBName, source.Host, source.Port, source.User, dataDirPath)
+	//pg_dump postgresql://postgres:postgres@127.0.0.1:5432/sakila?sslmode=disable --verbose --compress=0 --data-only -Fd -f sakila-data-dir
+	pgdumpDataExportCommandString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
+		"sslmode=disable --compress=0 --data-only -Fd -f %s", source.User, source.Password,
+		source.Host, source.Port, source.DBName, dataDirPath)
 
 	fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
 
 	pgdumpDataExportCommand := exec.Command("/bin/bash", "-c", pgdumpDataExportCommandString)
 
-	commmandoutput, err := pgdumpDataExportCommand.Output()
+	err := pgdumpDataExportCommand.Run()
 
-	migrationutil.CheckError(err, pgdumpDataExportCommandString, "", true)
+	migrationutil.CheckError(err, pgdumpDataExportCommandString,
+		"Exporting of data failed, retry exporting it", true)
 
-	//TODO: modify the data driver file
+	//TODO: Parse the main toc.dat file. If needed
 
-	//TODO: rename each table file with tablename.sql
+	//TODO: write the mapping creation function
+	requiredMap := getMappingForTableFileNameVsTableName()
 
-	fmt.Printf("Export of data done... %s \n", commmandoutput)
+	for fileName, tableName := range requiredMap {
+		oldFileName := dataDirPath + "/" + fileName + ".dat"
+		newFileName := dataDirPath + "/" + tableName + ".sql"
+		fmt.Printf("Renaming: %s -> %s\n", fileName+".dat", tableName+".sql")
+		os.Rename(oldFileName, newFileName)
+	}
+
+	fmt.Printf("Data  export complete... \n")
+}
+
+func getMappingForTableFileNameVsTableName() map[string]string {
+	requiredMap := map[string]string{
+		"4030": "actor",
+		"4042": "country",
+		"4040": "city",
+		"4038": "address",
+		"4032": "category",
+		"4060": "staff",
+		"4062": "store",
+		"4044": "customer",
+		"4048": "language",
+		"4034": "film",
+		"4035": "film_actor",
+		"4036": "film_category",
+		"4046": "inventory",
+		"4058": "rental",
+		"4050": "payment",
+		"4051": "payment_p2007_01",
+		"4052": "payment_p2007_02",
+		"4053": "payment_p2007_03",
+		"4054": "payment_p2007_04",
+		"4055": "payment_p2007_05",
+		"4056": "payment_p2007_06",
+	}
+
+	return requiredMap
 }

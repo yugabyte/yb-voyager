@@ -89,13 +89,10 @@ func oracleSchemaExport() {
 	// migrationutil.CheckRequiredToolsInstalled(source.DBType)
 
 	// Temporary. TODO: One function for checksourcedbendpoint + dbuserpassword + dbversionprint
-	migrationutil.CheckSourceDBConnectivity(source.Host, source.Port,
-		source.Schema, source.User, source.Password)
+	migrationutil.CheckSourceDbAccessibility(&source)
 
 	//TODO: make this general for every source db type | [Optional Function]
-	migration.PrintOracleSourceDBVersion(source.Host, source.Port,
-		source.Schema, source.User, source.Password,
-		source.DBName, exportDir)
+	migration.PrintOracleSourceDBVersion(&source, exportDir)
 
 	//[Self] There will be source.DBName for other db-source-type
 	//[TODO] Project Name should be based on user input or some other rules?
@@ -109,8 +106,7 @@ func oracleSchemaExport() {
 func postgresSchemaExport() {
 	migration.CheckPostgresToolsInstalled()
 
-	migrationutil.CheckSourceDBConnectivity(source.Host, source.Port,
-		source.Schema, source.User, source.Password)
+	migrationutil.CheckSourceDbAccessibility(&source)
 
 	migration.PrintPostgresSourceDBVersion(source.Host, source.Port,
 		source.Schema, source.User, source.Password,

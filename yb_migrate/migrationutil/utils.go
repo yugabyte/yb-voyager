@@ -39,37 +39,7 @@ func Wait(c chan *int) {
 	}
 }
 
-func CheckError(err error, executedCommand string, possibleReason string, stop bool) {
-	if err != nil {
-		if stop {
-			log.Fatalf("%s \n", err)
-		} else {
-			log.Printf("%s \n", err)
-		}
-
-		if executedCommand != "" {
-			log.Printf("Error caused by : %s\n", executedCommand)
-		}
-
-		if possibleReason != "" {
-			fmt.Printf("HINT: %s\n", possibleReason)
-		}
-	}
-}
-
-func CheckErrorSimple(err error, printStatement string, stop bool) {
-	if err != nil {
-		if stop {
-			log.Fatalf("%s: %s\n", printStatement, err)
-		} else {
-			log.Printf("%s: %s\n", printStatement, err)
-		}
-	}
-}
-
-func CheckSourceDBConnectivity(host string, port string, schema string, user string, password string) {
-
-	//sanity check - event if the machine is reachable or not
+func checkSourceEndpointsReachability(host string, port string) {
 	sourceEndPointConnectivityCommandString := "nc -z -w 30 " + host + " " + port
 	lastCommandExitStatusCommandString := "echo $?"
 
@@ -87,13 +57,33 @@ func CheckSourceDBConnectivity(host string, port string, schema string, user str
 	fmt.Printf("Source Connectivity check command exit status: %s\n", outputbytes)
 }
 
-func CheckRequiredToolsInstalled(DBType string) {
-	if DBType == "oracle" || DBType == "mysql" {
-		// migration.CheckOra2pgInstalled() import cycle not allowed
-	} else if DBType == "postgres" {
-		// migration.CheckYsqldumpInstalled()
-	}
+func CheckSourceDbAccessibility(source *Source) {
+	//sanity check - network connectivity to source endpoints(host, port)
+	checkSourceEndpointsReachability(source.Host, source.Port)
 
+	//Now check for DB accessibility
+	var checkConnectivityCommand string
+
+	if source.DBType == "oracle" {
+		checkConnectivityCommand = fmt.Sprintf("sqlplus '%s/%s@(DESCRIPTION=(ADDRESS="+
+			"(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))'", source.User,
+			source.Password, source.Host, source.Port, source.DBName)
+
+	} else if source.DBType == "postgres" {
+		//URI syntax - "postgresql://user:password@host:port/dbname?sslmode=mode"
+		checkConnectivityCommand = fmt.Sprintf("psql postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+			source.User, source.Password, source.Host, source.Port, source.DBName, source.SSLMode)
+
+	}
+	// else if source.DBType == "mysql" {
+	// 	checkConnectivityCommand = fmt.Sprintf("mysql")
+	// }
+
+	cmdOutput, err := exec.Command("/bin/bash", "-c", checkConnectivityCommand).Output()
+
+	CheckError(err, checkConnectivityCommand, "Unable to connect to the source database", true)
+
+	fmt.Printf("Output of checkConnectivityCommand : %s\n", cmdOutput)
 }
 
 //setup a project having various subdirs for various database objects
@@ -154,18 +144,19 @@ func executeCommandAndErrorCheck(command *exec.Cmd, errorPrintStatement string, 
 	CheckErrorSimple(err, errorPrintStatement, stopOnError)
 }
 
-func GetProjectDirPath(DBType string, exportDir string, schemaName string, dbName string) string {
-	projectDirName := GetProjectDirName(DBType, schemaName, dbName)
+func GetProjectDirPath(source *Source, exportDir string) string {
+	projectDirName := GetProjectDirName(source)
 
 	projectDirPath := exportDir + "/" + projectDirName
 	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
 	return projectDirPath
 }
 
-func GetProjectDirName(DBType string, schemaName string, dbName string) string {
-	if DBType == "oracle" {
-		return "project-" + schemaName + "-migration"
+func GetProjectDirName(source *Source) string {
+	if source.DBType == "oracle" {
+		//schema in oracle is equivalent to database in postgres, mysql
+		return "project-" + source.Schema + "-migration"
 	} else {
-		return "project-" + dbName + "-migration"
+		return "project-" + source.DBName + "-migration"
 	}
 }
