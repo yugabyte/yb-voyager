@@ -35,7 +35,7 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("exportSchema called")
-		// if sourceStruct and exportDir etc are nil or undefined
+		// if sourceStruct and ExportDir etc are nil or undefined
 		// then read the config file and create source struct from config file values
 		// possibly export dir value as well and then call export Schema with the created arguments
 		// else call the exportSchema directly
@@ -65,6 +65,8 @@ func exportSchema() {
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
 		mysqlExportSchema()
+	default:
+		fmt.Printf("Invalid source database type for export\n")
 	}
 }
 
@@ -92,14 +94,14 @@ func oracleExportSchema() {
 	migrationutil.CheckSourceDbAccessibility(&source)
 
 	//TODO: make this general for every source db type | [Optional Function]
-	migration.PrintOracleSourceDBVersion(&source, exportDir)
+	migration.PrintOracleSourceDBVersion(&source, ExportDir)
 
 	//[Self] There will be source.DBName for other db-source-type
 	//[TODO] Project Name should be based on user input or some other rules?
 	projectDirName := "project-" + source.Schema + "-migration"
-	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
+	migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.Schema)
 
-	migration.OracleExportSchema(&source, exportDir, projectDirName)
+	migration.OracleExportSchema(&source, ExportDir, projectDirName)
 }
 
 func postgresExportSchema() {
@@ -109,15 +111,15 @@ func postgresExportSchema() {
 
 	migration.PrintPostgresSourceDBVersion(source.Host, source.Port,
 		source.Schema, source.User, source.Password,
-		source.DBName, exportDir)
+		source.DBName, ExportDir)
 
 	//[Self] It should be source.DBName for other db-source-type
 	projectDirName := "project-" + source.DBName + "-migration"
-	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.DBName)
+	migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.DBName)
 
 	migration.PostgresExportSchema(source.Host, source.Port,
 		source.Schema, source.User, source.Password,
-		source.DBName, exportDir, projectDirName)
+		source.DBName, ExportDir, projectDirName)
 }
 
 func mysqlExportSchema() {

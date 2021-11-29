@@ -21,12 +21,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var importMode string
 // importDataCmd represents the importData command
 var importDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command imports data into YugabyteDB database",
-	Long: `This command will import the data exported from the source database into YugabyteDB database.`,
+	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("import data called")

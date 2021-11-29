@@ -17,6 +17,12 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
+	"strings"
+	"yb_migrate/migration"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
@@ -25,9 +31,10 @@ import (
 var importSchemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "This command imports schema into the destination YugabyteDB database",
-	Long: `Long version This command imports schema into the destination YUgabyteDB database.`,
+	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("import schema called")
+		fmt.Println("Import Schema Command called")
+		importSchema()
 	},
 }
 
@@ -43,4 +50,63 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// importSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+}
+
+func importSchema() {
+
+	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		target.User, target.Password, target.Host, target.Port, target.DBName)
+	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		target.User, target.Password, target.Host, target.Port, "yugabyte")
+
+	checkDatabaseExistenceCommand := exec.Command("psql", targetConnectionURIWithGivenDB,
+		"-Atc", "SELECT datname FROM pg_database where datname='sakila';")
+
+	cmdOutputBytes, _ := checkDatabaseExistenceCommand.CombinedOutput()
+
+	// migrationutil.CheckError(err, checkDatabaseExistenceCommand.String(), string(cmdOutputBytes), true)
+
+	existingDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
+
+	fmt.Printf("[Debug]: %s\n", checkDatabaseExistenceCommand)
+	fmt.Printf("[Debug]: %s\n", existingDatabaseName)
+
+	dropDatabaseSql := "DROP DATABASE " + target.DBName + ";"
+	createDatabaseSql := "CREATE DATABASE " + target.DBName + ";"
+
+	dropDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", dropDatabaseSql)
+	createDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", createDatabaseSql)
+
+	if existingDatabaseName == target.DBName {
+		if migrationutil.AskPrompt("Drop and create a new database named : " + target.DBName + "?") {
+			fmt.Printf("Recreating %s database\n", target.DBName)
+
+			//dropping existing database
+			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
+			migrationutil.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
+
+			//creating required database
+			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
+			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
+
+		} else {
+			//Database exists, use that
+		}
+		migration.YugabyteDBImportSchema(&target, ExportDir)
+	} else if patternMatch, _ := regexp.MatchString("database.*sakila.*does[ ]+not[ ]+exist", existingDatabaseName); patternMatch {
+		if migrationutil.AskPrompt("Create a new database named : " + target.DBName + "?") {
+			fmt.Printf("Creating %s database\n", target.DBName)
+
+			cmdOutputBytes, err := createDatabaseCommand.CombinedOutput()
+			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
+
+			migration.YugabyteDBImportSchema(&target, ExportDir)
+		} else {
+			//Database neither exists nor created
+			fmt.Println("Import Schema Aborted!!")
+		}
+	} else {
+		fmt.Println("Import Schema Aborted!!")
+		os.Exit(126)
+	}
 }

@@ -17,14 +17,18 @@ package cmd
 
 import (
 	"fmt"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
 
+var importMode string
+var target migrationutil.Target
+
 // importCmd represents the import command
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "A brief description of your command",
+	Short: "import schema and data from compatible source database(Oracle, Mysql, Postgres)",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
@@ -32,7 +36,9 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("import called")
+		fmt.Println("Parent Import Command called")
+		importSchema()
+		// importData()
 	},
 }
 
@@ -45,7 +51,40 @@ func init() {
 	// and all subcommands, e.g.:
 	// importCmd.PersistentFlags().String("foo", "", "A help for foo")
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// importCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	importCmd.PersistentFlags().StringVarP(&ExportDir, "export-dir", "e", ".",
+		"export directory (default is current working directory") //default value is current dir
+
+	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "localhost",
+		"target database server host")
+	// importCmd.MarkPersistentFlagRequired("target-db-host")
+
+	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", "5433",
+		"target database server port number")
+
+	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",
+		"connect to target database as specified user")
+	importCmd.MarkPersistentFlagRequired("target-db-user")
+
+	// TODO: All sensitive parameters can be taken from the environment variable
+	importCmd.PersistentFlags().StringVar(&target.Password, "target-db-password", "",
+		"connect to target as specified user")
+	importCmd.MarkPersistentFlagRequired("target-db-password")
+
+	importCmd.PersistentFlags().StringVar(&target.DBName, "target-db-name", "",
+		"target database name to be migrated to YugabyteDB")
+	importCmd.MarkPersistentFlagRequired("target-db-name")
+
+	// importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", "",
+	// 	"target schema name which needs to be migrated to YugabyteDB")
+	// // importCmd.MarkPersistentFlagRequired("target-db-schema")
+
+	// TODO: SSL related more args will come. Explore them later.
+	importCmd.PersistentFlags().StringVar(&target.SSLCert, "target-ssl-cert", "",
+		"provide target SSL Certificate Path")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "disable",
+		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	importCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
+		"offline | online")
 }

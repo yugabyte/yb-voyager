@@ -18,7 +18,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 
@@ -26,10 +25,10 @@ import (
 )
 
 var cfgFile string
-var exportDir string
-var logLevel string
-var source migrationutil.Source
-var target migrationutil.Target
+var ExportDir string
+var MigrationMode string
+
+// var logLevel string
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -37,7 +36,7 @@ var rootCmd = &cobra.Command{
 	Short: "A tool to migrate a database to YugabyteDB",
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
+		fmt.Printf("config = %s\nExportDir = %s\n", cfgFile, ExportDir)
 	},
 }
 
@@ -57,12 +56,10 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.yb_migrate.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
-		"export directory (default is current working directory") //default value is current dir
 
 	//Rightnow this is a temporary logging flag
-	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
-		"Logging level : INFO, WARN, DEBUG")
+	// rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
+	// 	"Logging level : INFO, WARN, DEBUG")
 }
 
 // initConfig reads in config file and ENV variables if set.

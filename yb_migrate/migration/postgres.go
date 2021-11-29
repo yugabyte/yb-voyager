@@ -16,15 +16,15 @@ func CheckPostgresToolsInstalled() {
 }
 
 // TODO: fill it, how to using the tools? [psql -c "Select * from version()"]
-func PrintPostgresSourceDBVersion(host string, port string, schema string, user string, password string, dbName string, exportDir string) {
+func PrintPostgresSourceDBVersion(host string, port string, schema string, user string, password string, dbName string, ExportDir string) {
 }
 
-func PostgresExportSchema(host string, port string, schema string, user string, password string, dbName string, exportDir string, projectDirName string) {
+func PostgresExportSchema(host string, port string, schema string, user string, password string, dbName string, ExportDir string, projectDirName string) {
 	fmt.Printf("Exporting Postgres schema started...\n")
-	projectDirPath := exportDir + "/" + projectDirName
+	projectDirPath := ExportDir + "/" + projectDirName
 
 	//There can be other ways to provide the password like PGPASS file or connection URI
-	prepareYsqldumpCommandString := fmt.Sprintf("export PGPASSWORD=%s && ysql_dump --dbname %s --host %s --port %s "+
+	prepareYsqldumpCommandString := fmt.Sprintf("export PGPASSWORD=%s && pg_dump --dbname %s --host %s --port %s "+
 		"--username %s --schema-only > %s/schema.sql", password, dbName, host, port, user, projectDirPath)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
@@ -34,14 +34,14 @@ func PostgresExportSchema(host string, port string, schema string, user string, 
 	migrationutil.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(host, port, schema, user, password, dbName, exportDir, projectDirName)
+	parseSchemaFile(host, port, schema, user, password, dbName, ExportDir, projectDirName)
 }
 
 //NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
-func parseSchemaFile(host string, port string, schema string, user string, password string, dbName string, exportDir string, projectDirName string) {
+func parseSchemaFile(host string, port string, schema string, user string, password string, dbName string, ExportDir string, projectDirName string) {
 	fmt.Printf("Parsing the schema file...\n")
 
-	projectDirPath := exportDir + "/" + projectDirName
+	projectDirPath := ExportDir + "/" + projectDirName
 	schemaFilePath := projectDirPath + "/schema.sql"
 
 	//CHOOSE - bufio vs ioutil(Memory vs Performance)?
@@ -161,8 +161,8 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PostgresExportDataOffline(source *migrationutil.Source, exportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
+func PostgresExportDataOffline(source *migrationutil.Source, ExportDir string) {
+	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format

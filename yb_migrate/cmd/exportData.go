@@ -22,8 +22,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var exportMode string
-
 // exportDataCmd represents the exportData command
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
@@ -48,16 +46,16 @@ func exportData() {
 
 	/*
 		TODO: Check and Ask if want to use the existing project directory or recreate it
-		
+
 		projectDirName := migrationutil.GetProjectDirName(&source)
 		if source.DBType == "oracle" {
-			migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
+			migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.Schema)
 		} else {
-			migrationutil.CreateMigrationProject(exportDir, projectDirName, source.DBName)
+			migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.DBName)
 		}
 	*/
 
-	if exportMode == "offline" {
+	if MigrationMode == "offline" {
 		exportDataOffline()
 	} else {
 		exportDataOnline()
@@ -75,19 +73,19 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "1521"
 		}
-		migration.OracleExportDataOffline(&source, exportDir)
+		migration.OracleExportDataOffline(&source, ExportDir)
 	case "postgres":
 		fmt.Printf("Prepare pg_dump for data export from PG\n")
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		migration.PostgresExportDataOffline(&source, exportDir)
+		migration.PostgresExportDataOffline(&source, ExportDir)
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
 		if source.Port == "" {
 			source.Port = "3306"
 		}
-		migration.MySQLDataExportOffline(&source, exportDir)
+		migration.MySQLDataExportOffline(&source, ExportDir)
 	}
 
 }

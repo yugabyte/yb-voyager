@@ -17,14 +17,17 @@ package cmd
 
 import (
 	"fmt"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
 
+var source migrationutil.Source
+
 // exportCmd represents the export command
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "Export has various sub-commands to extract schema, data and generate migration report",
+	Short: "export schema and data from compatible source database(Oracle, Mysql, Postgres)",
 	Long: `Export has various sub-commands to extract schema, data and generate migration report.
 `,
 
@@ -35,12 +38,16 @@ var exportCmd = &cobra.Command{
 		//exportDataCmd.Run(cmd, args)
 		//time.Sleep(3 * time.Second)
 		fmt.Printf("Parent Export Commnad called with source data type = %s\n", source.DBType)
-		exportSchemaAndData()
+		exportSchema()
+		exportData()
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
+
+	exportCmd.PersistentFlags().StringVarP(&ExportDir, "export-dir", "e", ".",
+		"export directory (default is current working directory") //default value is current dir
 
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type (Oracle/PostgreSQL/MySQL)")
@@ -78,24 +85,6 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
-	exportCmd.PersistentFlags().StringVar(&exportMode, "export mode", "offline",
+	exportCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
 		"offline | online")
-}
-
-func exportSchemaAndData() {
-
-	switch source.DBType {
-	case "oracle":
-		exportSchema()
-		exportData()
-	case "postgres":
-		exportSchema()
-		exportData()
-	case "mysql":
-		exportSchema()
-		exportData()
-	default:
-		fmt.Printf("Invalid source database type for export\n")
-	}
-
 }

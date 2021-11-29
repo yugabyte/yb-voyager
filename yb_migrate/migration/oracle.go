@@ -24,7 +24,7 @@ func CheckOracleToolsInstalled() {
 }
 
 //[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
-func PrintOracleSourceDBVersion(source *migrationutil.Source, exportDir string) {
+func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) {
 	sourceDSN := "dbi:Oracle:host=" + source.Host + ";service_name=" + source.DBName +
 		";port=" + source.Port
 
@@ -42,8 +42,8 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, exportDir string) 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func OracleExportSchema(source *migrationutil.Source, exportDir string, projectDirName string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
+func OracleExportSchema(source *migrationutil.Source, ExportDir string, projectDirName string) {
+	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
@@ -83,6 +83,7 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 
 	lines := strings.Split(string(sampleOra2pgConfigFile), "\n")
 
+	//TODO: Add support for SSL Enable Connections
 	for i, line := range lines {
 		// fmt.Printf("[Debug]: %d %s\n", i, line)
 		if strings.HasPrefix(line, "ORACLE_DSN") {
@@ -107,12 +108,12 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 }
 
 //Using ora2pg tool
-func OracleExportDataOffline(source *migrationutil.Source, exportDir string) {
+func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	CheckOracleToolsInstalled()
 
 	migrationutil.CheckSourceDbAccessibility(source)
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
+	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
 	//[Internal]: Decide where to keep it
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"

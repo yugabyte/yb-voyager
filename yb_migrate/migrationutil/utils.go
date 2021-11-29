@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -87,10 +88,10 @@ func CheckSourceDbAccessibility(source *Source) {
 }
 
 //setup a project having various subdirs for various database objects
-func CreateMigrationProject(exportDir string, projectDirName string, schemaName string) string {
+func CreateMigrationProject(ExportDir string, projectDirName string, schemaName string) string {
 	fmt.Println("Creating a project directory: ", projectDirName)
 
-	projectDirPath := exportDir + "/" + projectDirName
+	projectDirPath := ExportDir + "/" + projectDirName
 
 	projectDirectoryCreationCommand := exec.Command("mkdir", projectDirPath)
 
@@ -160,10 +161,10 @@ func executeCommandAndErrorCheck(command *exec.Cmd, errorPrintStatement string, 
 	CheckErrorSimple(err, errorPrintStatement, stopOnError)
 }
 
-func GetProjectDirPath(source *Source, exportDir string) string {
+func GetProjectDirPath(source *Source, ExportDir string) string {
 	projectDirName := GetProjectDirName(source)
 
-	projectDirPath := exportDir + "/" + projectDirName
+	projectDirPath := ExportDir + "/" + projectDirName
 	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
 	return projectDirPath
 }
@@ -175,4 +176,22 @@ func GetProjectDirName(source *Source) string {
 	} else {
 		return "project-" + source.DBName + "-migration"
 	}
+}
+
+func AskPrompt(str string) bool {
+	var input string
+	fmt.Printf("%s(Y/N):", str)
+	_, err := fmt.Scan(&input)
+
+	if err != nil {
+		panic(err)
+	}
+
+	input = strings.TrimSpace(input)
+	input = strings.ToUpper(input)
+
+	if input == "Y" || input == "YES" {
+		return true
+	}
+	return false
 }
