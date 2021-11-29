@@ -55,16 +55,16 @@ func exportSchema() {
 		if source.Port == "" {
 			source.Port = "1521"
 		}
-		oracleSchemaExport()
+		oracleExportSchema()
 	case "postgres":
 		fmt.Printf("Prepare ysql_dump for schema export from PG\n")
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		postgresSchemaExport()
+		postgresExportSchema()
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
-		mysqlSchemaExport()
+		mysqlExportSchema()
 	}
 }
 
@@ -82,7 +82,7 @@ func init() {
 	// exportSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func oracleSchemaExport() {
+func oracleExportSchema() {
 	//TODO: make it a general function under migrationutil to check for given source-db-type
 	//function may not be needed if things change going forward.
 	migration.CheckOracleToolsInstalled()
@@ -99,11 +99,10 @@ func oracleSchemaExport() {
 	projectDirName := "project-" + source.Schema + "-migration"
 	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
 
-	migration.ExportOracleSchema(&source, exportDir, projectDirName)
-
+	migration.OracleExportSchema(&source, exportDir, projectDirName)
 }
 
-func postgresSchemaExport() {
+func postgresExportSchema() {
 	migration.CheckPostgresToolsInstalled()
 
 	migrationutil.CheckSourceDbAccessibility(&source)
@@ -116,11 +115,11 @@ func postgresSchemaExport() {
 	projectDirName := "project-" + source.DBName + "-migration"
 	migrationutil.CreateMigrationProject(exportDir, projectDirName, source.DBName)
 
-	migration.ExportPostgresSchema(source.Host, source.Port,
+	migration.PostgresExportSchema(source.Host, source.Port,
 		source.Schema, source.User, source.Password,
 		source.DBName, exportDir, projectDirName)
 }
 
-func mysqlSchemaExport() {
+func mysqlExportSchema() {
 
 }

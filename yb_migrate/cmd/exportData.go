@@ -18,7 +18,6 @@ package cmd
 import (
 	"fmt"
 	"yb_migrate/migration"
-	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
@@ -43,19 +42,20 @@ to quickly create a Cobra application.`,
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
-
-	exportDataCmd.PersistentFlags().StringVar(&exportMode, "export mode", "offline",
-		"offline | online")
 }
 
 func exportData() {
-	projectDirName := migrationutil.GetProjectDirName(&source)
 
-	if source.DBType == "oracle" {
-		migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
-	} else {
-		migrationutil.CreateMigrationProject(exportDir, projectDirName, source.DBName)
-	}
+	/*
+		TODO: Check and Ask if want to use the existing project directory or recreate it
+		
+		projectDirName := migrationutil.GetProjectDirName(&source)
+		if source.DBType == "oracle" {
+			migrationutil.CreateMigrationProject(exportDir, projectDirName, source.Schema)
+		} else {
+			migrationutil.CreateMigrationProject(exportDir, projectDirName, source.DBName)
+		}
+	*/
 
 	if exportMode == "offline" {
 		exportDataOffline()
@@ -66,7 +66,7 @@ func exportData() {
 
 func exportDataOffline() {
 	/*
-		TODO: check and clean the data directory before export everytime this command
+		TODO: check and clean subdirs under the data dir, before exportData everytime
 	*/
 
 	switch source.DBType {
@@ -87,7 +87,7 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "3306"
 		}
-		// migration.mysqlDataExportOffline()
+		migration.MySQLDataExportOffline(&source, exportDir)
 	}
 
 }

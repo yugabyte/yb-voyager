@@ -87,21 +87,36 @@ func CheckSourceDbAccessibility(source *Source) {
 }
 
 //setup a project having various subdirs for various database objects
-func CreateMigrationProject(exportDir string, projectDirName string, schemaName string) {
+func CreateMigrationProject(exportDir string, projectDirName string, schemaName string) string {
 	fmt.Println("Creating a project directory: ", projectDirName)
 
 	projectDirPath := exportDir + "/" + projectDirName
-	err := exec.Command("mkdir", "-p", projectDirPath).Run()
+
+	projectDirectoryCreationCommand := exec.Command("mkdir", projectDirPath)
+
+	// var stdin bytes.Buffer
+	// var stdout bytes.Buffer
+	// var stderr bytes.Buffer
+	// projectDirectoryCreationCommand.Stdin = os.Stdin
+	// projectDirectoryCreationCommand.Stdout = os.Stdout
+	// projectDirectoryCreationCommand.Stderr = &stderr
+
+	cmdOutput, err := projectDirectoryCreationCommand.CombinedOutput()
 
 	if err != nil {
-		log.Fatalf("Could not create a project directory under %s: %s\n", projectDirPath, err)
+		log.Fatalf("%s", cmdOutput)
+		// fmt.Printf("%s : %s \n", err, stderr.String())
 	}
 
 	//creating directories: schema, data, temp inside project
+	//TODO: use a for-loop here
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/data"),
+		"Couldn't create sub-directories under "+projectDirPath, true)
+
+	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/metainfo"),
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/temp"),
@@ -136,6 +151,7 @@ func CreateMigrationProject(exportDir string, projectDirName string, schemaName 
 		"Couldn't create sub-directories under "+projectDirPath, true)
 
 	fmt.Println("Created a project directory: ", projectDirName)
+	return ""
 }
 
 func executeCommandAndErrorCheck(command *exec.Cmd, errorPrintStatement string, stopOnError bool) {

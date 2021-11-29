@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -18,7 +19,7 @@ func CheckPostgresToolsInstalled() {
 func PrintPostgresSourceDBVersion(host string, port string, schema string, user string, password string, dbName string, exportDir string) {
 }
 
-func ExportPostgresSchema(host string, port string, schema string, user string, password string, dbName string, exportDir string, projectDirName string) {
+func PostgresExportSchema(host string, port string, schema string, user string, password string, dbName string, exportDir string, projectDirName string) {
 	fmt.Printf("Exporting Postgres schema started...\n")
 	projectDirPath := exportDir + "/" + projectDirName
 
@@ -51,7 +52,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 	schemaFileLines := strings.Split(string(schemaFileData), "\n")
 	numLines := len(schemaFileLines)
 
-	//For example -> -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 	sqlInfoCommentPattern, err := regexp.Compile("--.*Type:.*")
 
 	migrationutil.CheckErrorSimple(err, "Couldn't generate the schema", true)
@@ -66,7 +67,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
 
 			i += 2 //jumping to start of sql statement
-			sqlStatement := extractSqlStatement(schemaFileLines, &i)
+			sqlStatement := extractSqlStatements(schemaFileLines, &i)
 
 			//Missing Cases: PARTITIONs, PROCEDUREs, MVIEWs, TABLESPACEs ...
 			switch sqlType {
@@ -120,7 +121,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 
 }
 
-func extractSqlStatement(schemaFileLines []string, index *int) string {
+func extractSqlStatements(schemaFileLines []string, index *int) string {
 	// fmt.Println("extracting sql statement started...")
 	var sqlStatement strings.Builder
 
@@ -179,45 +180,64 @@ func PostgresExportDataOffline(source *migrationutil.Source, exportDir string) {
 	migrationutil.CheckError(err, pgdumpDataExportCommandString,
 		"Exporting of data failed, retry exporting it", true)
 
-	//TODO: Parse the main toc.dat file. If needed
+	//Parsing the main toc.dat file
+	parseTocFileCommand := exec.Command("strings", dataDirPath+"/toc.dat")
+
+	cmdOutput, err := parseTocFileCommand.CombinedOutput()
+
+	migrationutil.CheckError(err, parseTocFileCommand.String(), string(cmdOutput), true)
+
+	//Put the data into a toc.txt file
+	tocTextFilePath := dataDirPath + "/toc.txt"
+	tocTextFile, err := os.Create(tocTextFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	writer := bufio.NewWriter(tocTextFile)
+	writer.Write(cmdOutput)
+
+	writer.Flush()
+	tocTextFile.Close()
 
 	//TODO: write the mapping creation function
-	requiredMap := getMappingForTableFileNameVsTableName()
+	requiredMap := getMappingForTableFileNameVsTableName(dataDirPath)
 
 	for fileName, tableName := range requiredMap {
-		oldFileName := dataDirPath + "/" + fileName + ".dat"
+		oldFileName := dataDirPath + "/" + fileName
 		newFileName := dataDirPath + "/" + tableName + ".sql"
-		fmt.Printf("Renaming: %s -> %s\n", fileName+".dat", tableName+".sql")
+		fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+".sql")
 		os.Rename(oldFileName, newFileName)
 	}
 
 	fmt.Printf("Data  export complete... \n")
 }
 
-func getMappingForTableFileNameVsTableName() map[string]string {
-	requiredMap := map[string]string{
-		"4030": "actor",
-		"4042": "country",
-		"4040": "city",
-		"4038": "address",
-		"4032": "category",
-		"4060": "staff",
-		"4062": "store",
-		"4044": "customer",
-		"4048": "language",
-		"4034": "film",
-		"4035": "film_actor",
-		"4036": "film_category",
-		"4046": "inventory",
-		"4058": "rental",
-		"4050": "payment",
-		"4051": "payment_p2007_01",
-		"4052": "payment_p2007_02",
-		"4053": "payment_p2007_03",
-		"4054": "payment_p2007_04",
-		"4055": "payment_p2007_05",
-		"4056": "payment_p2007_06",
+//The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
+func getMappingForTableFileNameVsTableName(dataDirPath string) map[string]string {
+	tocTextFilePath := dataDirPath + "/toc.txt"
+	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
+
+	migrationutil.CheckError(err, "", "", true)
+
+	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
+	numLines := len(tocTextFileData)
+
+	var sequencesPostData strings.Builder
+	fileNameVsTableNameMap := make(map[string]string)
+
+	for i := 0; i < numLines; i++ {
+		if tocTextFileData[i] == "TABLE DATA" {
+			fileNameVsTableNameMap[tocTextFileData[i+5]] = tocTextFileData[i+7]
+		} else if tocTextFileData[i] == "SEQUENCE SET" {
+			sequencesPostData.WriteString(tocTextFileData[i+1])
+			sequencesPostData.WriteString("\n")
+		}
 	}
 
-	return requiredMap
+	//extracted SQL for setval() and put it into a post_data.sql file
+	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
+	ioutil.WriteFile(dataDirPath+"/post_data.sql", []byte(sequencesPostData.String()), 0644)
+
+	return fileNameVsTableNameMap
 }

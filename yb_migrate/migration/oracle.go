@@ -42,7 +42,7 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, exportDir string) 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func ExportOracleSchema(source *migrationutil.Source, exportDir string, projectDirName string) {
+func OracleExportSchema(source *migrationutil.Source, exportDir string, projectDirName string) {
 	projectDirPath := migrationutil.GetProjectDirPath(source, exportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
@@ -55,10 +55,10 @@ func ExportOracleSchema(source *migrationutil.Source, exportDir string, projectD
 	for _, exportObject := range exportObjects {
 		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
 		exportObjectDirName := strings.ToLower(exportObject) + "s"
-		exportSchemaObjectCommandString := fmt.Sprintf("ora2pg -p -t %s -o %s -b %s/schema/%s/ -c %s",
-			exportObject, exportObjectFileName, projectDirPath, exportObjectDirName, configFilePath)
+		exportObjectDirPath := projectDirPath + "/schema/" + exportObjectDirName
 
-		exportSchemaObjectCommand := exec.Command("/bin/bash", "-c", exportSchemaObjectCommandString)
+		exportSchemaObjectCommand := exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
+			exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 
 		fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
 		err := exportSchemaObjectCommand.Run()
@@ -68,7 +68,7 @@ func ExportOracleSchema(source *migrationutil.Source, exportDir string, projectD
 			"Exporting "+exportObject+" didn't happen, Retry exporting the schema", false)
 
 		if err == nil {
-			fmt.Printf("Export of %s schema done...\n", exportObjectDirName)
+			fmt.Printf("Export of %s schema done...\n", exportObject)
 		}
 
 	}
