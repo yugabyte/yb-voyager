@@ -18,13 +18,3 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 		}
 	}
 }
-
-func CheckErrorSimple(err error, printStatement string, stop bool) {
-	if err != nil {
-		if stop {
-			log.Fatalf("%s: %s\n", printStatement, err)
-		} else {
-			log.Printf("%s: %s\n", printStatement, err)
-		}
-	}
-}

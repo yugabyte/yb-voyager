@@ -86,5 +86,8 @@ func init() {
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	importCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
-		"offline | online")
+		"mode can be offline | online(applicable only for data migration)")
+
+	importCmd.PersistentFlags().BoolVar(&target.StartClean, "start-clean", false,
+		"delete all the existing objects and start fresh")
 }

@@ -93,15 +93,13 @@ func oracleExportSchema() {
 	// Temporary. TODO: One function for checksourcedbendpoint + dbuserpassword + dbversionprint
 	migrationutil.CheckSourceDbAccessibility(&source)
 
-	//TODO: make this general for every source db type | [Optional Function]
+	//[TODO]: make this general for every source db type | [Optional Function]
 	migration.PrintOracleSourceDBVersion(&source, ExportDir)
 
-	//[Self] There will be source.DBName for other db-source-type
-	//[TODO] Project Name should be based on user input or some other rules?
-	projectDirName := "project-" + source.Schema + "-migration"
-	migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.Schema)
+	//[TODO]: Project Name can be based on user input or some other rules.
+	migrationutil.CreateMigrationProject(&source, ExportDir)
 
-	migration.OracleExportSchema(&source, ExportDir, projectDirName)
+	migration.OracleExportSchema(&source, ExportDir)
 }
 
 func postgresExportSchema() {
@@ -113,13 +111,11 @@ func postgresExportSchema() {
 		source.Schema, source.User, source.Password,
 		source.DBName, ExportDir)
 
-	//[Self] It should be source.DBName for other db-source-type
-	projectDirName := "project-" + source.DBName + "-migration"
-	migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.DBName)
+	migrationutil.CreateMigrationProject(&source, ExportDir)
 
 	migration.PostgresExportSchema(source.Host, source.Port,
 		source.Schema, source.User, source.Password,
-		source.DBName, ExportDir, projectDirName)
+		source.DBName, ExportDir, migrationutil.GetProjectDirName(&source, nil))
 }
 
 func mysqlExportSchema() {

@@ -15,13 +15,14 @@ type Source struct {
 }
 
 type Target struct {
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	SSLMode  string
-	SSLCert  string
+	Host       string
+	Port       string
+	User       string
+	Password   string
+	DBName     string
+	SSLMode    string
+	SSLCert    string
+	StartClean bool
 }
 
 type Format interface {

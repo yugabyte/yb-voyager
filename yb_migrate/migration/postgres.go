@@ -25,7 +25,7 @@ func PostgresExportSchema(host string, port string, schema string, user string, 
 
 	//There can be other ways to provide the password like PGPASS file or connection URI
 	prepareYsqldumpCommandString := fmt.Sprintf("export PGPASSWORD=%s && pg_dump --dbname %s --host %s --port %s "+
-		"--username %s --schema-only > %s/schema.sql", password, dbName, host, port, user, projectDirPath)
+		"--username %s --schema-only > %s/metainfo/schema/schema.sql", password, dbName, host, port, user, projectDirPath)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
 	fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
@@ -42,34 +42,44 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 	fmt.Printf("Parsing the schema file...\n")
 
 	projectDirPath := ExportDir + "/" + projectDirName
-	schemaFilePath := projectDirPath + "/schema.sql"
+	schemaFilePath := projectDirPath + "/metainfo/schema" + "/schema.sql"
 
 	//CHOOSE - bufio vs ioutil(Memory vs Performance)?
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
 
-	migrationutil.CheckErrorSimple(err, "File not read", true)
+	migrationutil.CheckError(err, "", "File not read", true)
 
 	schemaFileLines := strings.Split(string(schemaFileData), "\n")
 	numLines := len(schemaFileLines)
 
+	sessionVariableStartPattern, err := regexp.Compile("-- Dumped by pg_dump.*")
+	if err != nil {
+		panic(err)
+	}
+
 	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
-	sqlInfoCommentPattern, err := regexp.Compile("--.*Type:.*")
+	sqlTypeInfoCommentPattern, err := regexp.Compile("--.*Type:.*")
+	if err != nil {
+		panic(err)
+	}
 
-	migrationutil.CheckErrorSimple(err, "Couldn't generate the schema", true)
+	migrationutil.CheckError(err, "", "Couldn't generate the schema", true)
 
-	//Naming: createTableSqls vs tableSqls?
 	var createTableSqls, createFkConstraintSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
-		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls strings.Builder
+		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
+		createSchemaSqls, setVariableForCurrentSession strings.Builder
+
+	var isPossibleFlag bool = true
 
 	for i := 0; i < numLines; i++ {
-		if sqlInfoCommentPattern.MatchString(schemaFileLines[i]) {
+		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
 
 			i += 2 //jumping to start of sql statement
 			sqlStatement := extractSqlStatements(schemaFileLines, &i)
 
-			//Missing Cases: PARTITIONs, PROCEDUREs, MVIEWs, TABLESPACEs ...
+			//Missing: PARTITION, PROCEDURE, MVIEW, TABLESPACE, ROLE, GRANT ...
 			switch sqlType {
 			case "TABLE", "DEFAULT":
 				createTableSqls.WriteString(sqlStatement)
@@ -83,10 +93,10 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 			case "TRIGGER":
 				createTriggerSqls.WriteString(sqlStatement)
 
-			case "TYPE", "DOMAIN":
+			case "TYPE":
 				createTypeSqls.WriteString(sqlStatement)
-			// case "DOMAIN":
-			// 	createDomainSqls.WriteString(sqlStatement)
+			case "DOMAIN":
+				createDomainSqls.WriteString(sqlStatement)
 
 			case "AGGREGATE":
 				createAggregateSqls.WriteString(sqlStatement)
@@ -96,28 +106,42 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 				createSequenceSqls.WriteString(sqlStatement)
 			case "VIEW":
 				createViewSqls.WriteString(sqlStatement)
+			case "SCHEMA":
+				createSchemaSqls.WriteString(sqlStatement)
 			default:
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
+		} else if isPossibleFlag && sessionVariableStartPattern.MatchString(schemaFileLines[i]) {
+
+			i++
+
+			sqlStatement := extractSqlStatements(schemaFileLines, &i)
+			setVariableForCurrentSession.WriteString(sqlStatement)
+
+			isPossibleFlag = false
 		}
 	}
 
+	//TODO: convert below code into a for-loop
+
 	//writing to .sql files in project
-	ioutil.WriteFile(projectDirPath+"/schema/tables/table.sql", []byte(createTableSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/tables/FKEYS_table.sql", []byte(createFkConstraintSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/tables/INDEXES_table.sql", []byte(createIndexSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/functions/function.sql", []byte(createFunctionSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/triggers/trigger.sql", []byte(createTriggerSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/table.sql", []byte(setVariableForCurrentSession.String()+createTableSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/FKEYS_table.sql", []byte(setVariableForCurrentSession.String()+createFkConstraintSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/INDEXES_table.sql", []byte(setVariableForCurrentSession.String()+createIndexSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/functions/function.sql", []byte(setVariableForCurrentSession.String()+createFunctionSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/triggers/trigger.sql", []byte(setVariableForCurrentSession.String()+createTriggerSqls.String()), 0644)
 
 	//to keep the project structure consistent
-	ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(createTypeSqls.String()+createDomainSqls.String()), 0644)
-	// ioutil.WriteFile(projectDirPath+"/schema/types/domain.sql", []byte(createDomainSqls.String()), 0644)
+	// ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setVariableForCurrentSession.String() + createTypeSqls.String()+createDomainSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setVariableForCurrentSession.String()+createTypeSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/types/domain.sql", []byte(setVariableForCurrentSession.String()+createDomainSqls.String()), 0644)
 
-	ioutil.WriteFile(projectDirPath+"/schema/others/aggregate.sql", []byte(createAggregateSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/others/rule.sql", []byte(createRuleSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/sequences/sequence.sql", []byte(createSequenceSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(createViewSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/others/uncategorized.sql", []byte(uncategorizedSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/aggregate.sql", []byte(setVariableForCurrentSession.String()+createAggregateSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/rule.sql", []byte(setVariableForCurrentSession.String()+createRuleSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/sequences/sequence.sql", []byte(setVariableForCurrentSession.String()+createSequenceSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(setVariableForCurrentSession.String()+createViewSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/others/uncategorized.sql", []byte(setVariableForCurrentSession.String()+uncategorizedSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/schemas/schema.sql", []byte(setVariableForCurrentSession.String()+createSchemaSqls.String()), 0644)
 
 }
 
@@ -162,11 +186,11 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 }
 
 func PostgresExportDataOffline(source *migrationutil.Source, ExportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format
-	//pg_dump postgresql://postgres:postgres@127.0.0.1:5432/sakila?sslmode=disable --verbose --compress=0 --data-only -Fd -f sakila-data-dir
+	//example: pg_dump postgresql://postgres:postgres@127.0.0.1:5432/sakila?sslmode=disable --verbose --compress=0 --data-only -Fd -f sakila-data-dir
 	pgdumpDataExportCommandString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
 		"sslmode=disable --compress=0 --data-only -Fd -f %s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, dataDirPath)
@@ -205,8 +229,8 @@ func PostgresExportDataOffline(source *migrationutil.Source, ExportDir string) {
 
 	for fileName, tableName := range requiredMap {
 		oldFileName := dataDirPath + "/" + fileName
-		newFileName := dataDirPath + "/" + tableName + ".sql"
-		fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+".sql")
+		newFileName := dataDirPath + "/" + tableName + "_data.sql"
+		fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
 		os.Rename(oldFileName, newFileName)
 	}
 
@@ -228,7 +252,7 @@ func getMappingForTableFileNameVsTableName(dataDirPath string) map[string]string
 
 	for i := 0; i < numLines; i++ {
 		if tocTextFileData[i] == "TABLE DATA" {
-			fileNameVsTableNameMap[tocTextFileData[i+5]] = tocTextFileData[i+7]
+			fileNameVsTableNameMap[tocTextFileData[i+5]] = tocTextFileData[i-1]
 		} else if tocTextFileData[i] == "SEQUENCE SET" {
 			sequencesPostData.WriteString(tocTextFileData[i+1])
 			sequencesPostData.WriteString("\n")

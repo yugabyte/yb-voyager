@@ -24,11 +24,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var ExportDir string
-var MigrationMode string
-
-// var logLevel string
+var (
+	cfgFile       string
+	ExportDir     string
+	MigrationMode string
+	// logLevel string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{

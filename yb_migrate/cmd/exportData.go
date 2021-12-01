@@ -65,6 +65,7 @@ func exportData() {
 func exportDataOffline() {
 	/*
 		TODO: check and clean subdirs under the data dir, before exportData everytime
+		Also if the project is not created then create it
 	*/
 
 	switch source.DBType {

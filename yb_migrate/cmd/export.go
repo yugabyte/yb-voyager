@@ -86,5 +86,5 @@ func init() {
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	exportCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
-		"offline | online")
+		"mode can be offline | online(applicable only for data migration)")
 }

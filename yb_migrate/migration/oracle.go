@@ -42,15 +42,16 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func OracleExportSchema(source *migrationutil.Source, ExportDir string, projectDirName string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+func OracleExportSchema(source *migrationutil.Source, ExportDir string) {
+	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
-	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
+	configFilePath := projectDirPath + "/metainfo/schema/ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
-	//Currently Missing: PARTITION, TABLESPACE, MVIEWs, PACKAGEs(exported as schema)
-	exportObjects := []string{"TABLE", "VIEW", "TYPE", "TRIGGER", "FUNCTION", "PROCEDURE", "SEQUENCE", "GRANT"}
+	//Check forr Missing: PARTITION, TABLESPACE, MVIEWs, PACKAGEs(exported as schema), SYNONYMs
+	exportObjects := []string{"TABLE", "VIEW", "TYPE", "TRIGGER", "FUNCTION", "PROCEDURE", "SEQUENCE",
+		"GRANT", "PACKAGE", "SYNONYM" /*, PARTITION */}
 
 	for _, exportObject := range exportObjects {
 		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
@@ -65,7 +66,7 @@ func OracleExportSchema(source *migrationutil.Source, ExportDir string, projectD
 
 		//TODO: Maybe we can suggest some smart HINT for the error happenend here
 		migrationutil.CheckError(err, exportSchemaObjectCommand.String(),
-			"Exporting "+exportObject+" didn't happen, Retry exporting the schema", false)
+			"Exporting of "+exportObject+" didn't happen, Retry exporting the schema", false)
 
 		if err == nil {
 			fmt.Printf("Export of %s schema done...\n", exportObject)
@@ -113,7 +114,7 @@ func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
 
 	migrationutil.CheckSourceDbAccessibility(source)
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
 
 	//[Internal]: Decide where to keep it
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"

@@ -17,7 +17,6 @@ package migrationutil
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 	"time"
@@ -87,100 +86,80 @@ func CheckSourceDbAccessibility(source *Source) {
 	fmt.Printf("Output of checkConnectivityCommand : %s\n", cmdOutput)
 }
 
-//setup a project having various subdirs for various database objects
-func CreateMigrationProject(ExportDir string, projectDirName string, schemaName string) string {
-	fmt.Println("Creating a project directory: ", projectDirName)
+//setup a project having subdirs for various database objects
+func CreateMigrationProject(source *Source, ExportDir string) {
+	fmt.Println("Creating a project directory...")
 
-	projectDirPath := ExportDir + "/" + projectDirName
+	projectDirPath := GetProjectDirPath(source, nil, ExportDir)
 
-	projectDirectoryCreationCommand := exec.Command("mkdir", projectDirPath)
+	err := exec.Command("mkdir", projectDirPath).Run()
+	CheckError(err, "", "couldn't create sub-directories under "+ExportDir, true)
 
-	// var stdin bytes.Buffer
-	// var stdout bytes.Buffer
-	// var stderr bytes.Buffer
-	// projectDirectoryCreationCommand.Stdin = os.Stdin
-	// projectDirectoryCreationCommand.Stdout = os.Stdout
-	// projectDirectoryCreationCommand.Stderr = &stderr
-
-	cmdOutput, err := projectDirectoryCreationCommand.CombinedOutput()
-
-	if err != nil {
-		log.Fatalf("%s", cmdOutput)
-		// fmt.Printf("%s : %s \n", err, stderr.String())
+	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
+	for _, subdir := range subdirs {
+		err := exec.Command("mkdir", projectDirPath+"/"+subdir).Run()
+		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
 	}
 
-	//creating directories: schema, data, temp inside project
-	//TODO: use a for-loop here
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
+	// Put info to metainfo/schema about the source db
+	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+	_ = exec.Command("touch", sourceInfoFile).Run()
 
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/data"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
+	// creating subdirs under schema dir
+	databaseObjectTypes := []string{"TABLE", "VIEW", "TYPE", "FUNCTION", "PROCEDURE",
+		"SEQUENCE", "SCHEMA", "TRIGGER", "MVIEW", "PACKAGE", "SYNONYM", "OTHER",
+		/*Test Schemas for -> "GRANT", PARTITION, ROLE, TABLESPACE*/}
 
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/metainfo"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
+	for _, databaseObjectType := range databaseObjectTypes {
 
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/temp"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
+		if source.DBType == "postgres" && (databaseObjectType == "PACKAGE" || databaseObjectType == "SYNONYM") {
+			continue
+		} else if source.DBName == "oracle" && (databaseObjectType == "SCHEMA" || databaseObjectType == "OTHER") {
+			continue
+		}
 
-	//Under schema dir, creating subdirs for DB objects[TABLES, VIEWS, TYPES, FUNCTIONS, PROCEDURES, SEQUENCES, MVIEWS, GRANTS?]
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/tables"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	//TODO: add subdirs under tables/ for PKs, FKs, INDEXs - name of dir should be uniform/valid for all sources
-	//Maybe this TODO step can done while parsing or generating schema
+		databaseObjectDirName := strings.ToLower(databaseObjectType) + "s"
 
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/views"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
+		err := exec.Command("mkdir", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
+	}
 
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/types"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/functions"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/procedures"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/sequences"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/triggers"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/mviews"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	executeCommandAndErrorCheck(exec.Command("mkdir", "-p", projectDirPath+"/schema/grants"),
-		"Couldn't create sub-directories under "+projectDirPath, true)
-
-	fmt.Println("Created a project directory: ", projectDirName)
-	return ""
+	fmt.Println("Created a project directory...")
 }
 
-func executeCommandAndErrorCheck(command *exec.Cmd, errorPrintStatement string, stopOnError bool) {
-	err := command.Run()
-
-	CheckErrorSimple(err, errorPrintStatement, stopOnError)
-}
-
-func GetProjectDirPath(source *Source, ExportDir string) string {
-	projectDirName := GetProjectDirName(source)
+func GetProjectDirPath(source *Source, target *Target, ExportDir string) string {
+	projectDirName := GetProjectDirName(source, target)
 
 	projectDirPath := ExportDir + "/" + projectDirName
 	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
 	return projectDirPath
 }
 
-func GetProjectDirName(source *Source) string {
-	if source.DBType == "oracle" {
+func GetProjectDirName(source *Source, target *Target) string {
+	if target != nil {
+		return "project-" + target.DBName + "-migration"
+	} else if source.DBType == "oracle" {
 		//schema in oracle is equivalent to database in postgres, mysql
-		return "project-" + source.Schema + "-migration"
+		return source.DBType + "-" + source.Schema + "-migration"
 	} else {
-		return "project-" + source.DBName + "-migration"
+		return source.DBType + "-" + source.DBName + "-migration"
 	}
 }
 
-func AskPrompt(str string) bool {
+func AskPrompt(args ...string) bool {
 	var input string
-	fmt.Printf("%s(Y/N):", str)
+	var argsLen int = len(args)
+
+	for i := 0; i < argsLen; i++ {
+		if i != argsLen-1 {
+			fmt.Printf("%s ", args[i])
+		} else {
+			fmt.Printf("%s", args[i])
+		}
+
+	}
+	fmt.Printf("?[Y/N]:")
+
 	_, err := fmt.Scan(&input)
 
 	if err != nil {

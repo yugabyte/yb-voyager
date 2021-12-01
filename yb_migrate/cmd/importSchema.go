@@ -60,7 +60,7 @@ func importSchema() {
 		target.User, target.Password, target.Host, target.Port, "yugabyte")
 
 	checkDatabaseExistenceCommand := exec.Command("psql", targetConnectionURIWithGivenDB,
-		"-Atc", "SELECT datname FROM pg_database where datname='sakila';")
+		"-Atc", fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName))
 
 	cmdOutputBytes, _ := checkDatabaseExistenceCommand.CombinedOutput()
 
@@ -69,8 +69,9 @@ func importSchema() {
 	existingDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
 
 	fmt.Printf("[Debug]: %s\n", checkDatabaseExistenceCommand)
-	fmt.Printf("[Debug]: %s\n", existingDatabaseName)
 
+	//TODO: add options for setting client_encoding
+	//TODO: Check if DROP DATABASE in slow in YugabyteDB vs Postgresql?
 	dropDatabaseSql := "DROP DATABASE " + target.DBName + ";"
 	createDatabaseSql := "CREATE DATABASE " + target.DBName + ";"
 
@@ -78,35 +79,36 @@ func importSchema() {
 	createDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", createDatabaseSql)
 
 	if existingDatabaseName == target.DBName {
-		if migrationutil.AskPrompt("Drop and create a new database named : " + target.DBName + "?") {
-			fmt.Printf("Recreating %s database\n", target.DBName)
-
+		if target.StartClean || migrationutil.AskPrompt("Drop and create a new database named: ", target.DBName) {
 			//dropping existing database
+			fmt.Printf("dropping %s database...\n", target.DBName)
 			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
 			migrationutil.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
 
 			//creating required database
+			fmt.Printf("creating %s database...\n", target.DBName)
 			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
 			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
 
-		} else {
-			//Database exists, use that
-		}
-		migration.YugabyteDBImportSchema(&target, ExportDir)
-	} else if patternMatch, _ := regexp.MatchString("database.*sakila.*does[ ]+not[ ]+exist", existingDatabaseName); patternMatch {
-		if migrationutil.AskPrompt("Create a new database named : " + target.DBName + "?") {
-			fmt.Printf("Creating %s database\n", target.DBName)
+		} // else Use the exisitng Database
+
+	} else if patternMatch, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", existingDatabaseName); patternMatch {
+		fmt.Printf("[Info] %s\n", existingDatabaseName)
+		if migrationutil.AskPrompt("Create a new database named:", target.DBName) {
+			fmt.Printf("creating %s database...\n", target.DBName)
 
 			cmdOutputBytes, err := createDatabaseCommand.CombinedOutput()
 			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
 
-			migration.YugabyteDBImportSchema(&target, ExportDir)
 		} else {
-			//Database neither exists nor created
+			//Database neither exists nor created, so exit the process
 			fmt.Println("Import Schema Aborted!!")
+			os.Exit(126)
 		}
 	} else {
 		fmt.Println("Import Schema Aborted!!")
 		os.Exit(126)
 	}
+
+	migration.YugabyteDBImportSchema(&target, ExportDir)
 }
