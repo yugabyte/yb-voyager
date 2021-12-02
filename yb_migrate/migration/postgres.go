@@ -68,7 +68,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 	var createTableSqls, createFkConstraintSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
 		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
-		createSchemaSqls, setVariableForCurrentSession strings.Builder
+		createSchemaSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
 
@@ -81,7 +81,7 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 
 			//Missing: PARTITION, PROCEDURE, MVIEW, TABLESPACE, ROLE, GRANT ...
 			switch sqlType {
-			case "TABLE", "DEFAULT":
+			case "TABLE", "DEFAULT", "CONSTRAINT":
 				createTableSqls.WriteString(sqlStatement)
 			case "FK CONSTRAINT":
 				createFkConstraintSqls.WriteString(sqlStatement)
@@ -90,6 +90,10 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 
 			case "FUNCTION":
 				createFunctionSqls.WriteString(sqlStatement)
+
+			case "PROCEDURE":
+				createProcedureSqls.WriteString(sqlStatement)
+
 			case "TRIGGER":
 				createTriggerSqls.WriteString(sqlStatement)
 
@@ -112,11 +116,11 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
 		} else if isPossibleFlag && sessionVariableStartPattern.MatchString(schemaFileLines[i]) {
-
 			i++
 
+			setSessionVariables.WriteString("-- setting variables for current session")
 			sqlStatement := extractSqlStatements(schemaFileLines, &i)
-			setVariableForCurrentSession.WriteString(sqlStatement)
+			setSessionVariables.WriteString(sqlStatement)
 
 			isPossibleFlag = false
 		}
@@ -125,23 +129,24 @@ func parseSchemaFile(host string, port string, schema string, user string, passw
 	//TODO: convert below code into a for-loop
 
 	//writing to .sql files in project
-	ioutil.WriteFile(projectDirPath+"/schema/tables/table.sql", []byte(setVariableForCurrentSession.String()+createTableSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/tables/FKEYS_table.sql", []byte(setVariableForCurrentSession.String()+createFkConstraintSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/tables/INDEXES_table.sql", []byte(setVariableForCurrentSession.String()+createIndexSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/functions/function.sql", []byte(setVariableForCurrentSession.String()+createFunctionSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/triggers/trigger.sql", []byte(setVariableForCurrentSession.String()+createTriggerSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/table.sql", []byte(setSessionVariables.String()+createTableSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/FKEYS_table.sql", []byte(setSessionVariables.String()+createFkConstraintSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/tables/INDEXES_table.sql", []byte(setSessionVariables.String()+createIndexSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/functions/function.sql", []byte(setSessionVariables.String()+createFunctionSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/procedures/procedure.sql", []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/triggers/trigger.sql", []byte(setSessionVariables.String()+createTriggerSqls.String()), 0644)
 
 	//to keep the project structure consistent
-	// ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setVariableForCurrentSession.String() + createTypeSqls.String()+createDomainSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setVariableForCurrentSession.String()+createTypeSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/types/domain.sql", []byte(setVariableForCurrentSession.String()+createDomainSqls.String()), 0644)
+	// ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setSessionVariables.String() + createTypeSqls.String()+createDomainSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/types/type.sql", []byte(setSessionVariables.String()+createTypeSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/domains/domain.sql", []byte(setSessionVariables.String()+createDomainSqls.String()), 0644)
 
-	ioutil.WriteFile(projectDirPath+"/schema/others/aggregate.sql", []byte(setVariableForCurrentSession.String()+createAggregateSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/others/rule.sql", []byte(setVariableForCurrentSession.String()+createRuleSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/sequences/sequence.sql", []byte(setVariableForCurrentSession.String()+createSequenceSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(setVariableForCurrentSession.String()+createViewSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/others/uncategorized.sql", []byte(setVariableForCurrentSession.String()+uncategorizedSqls.String()), 0644)
-	ioutil.WriteFile(projectDirPath+"/schema/schemas/schema.sql", []byte(setVariableForCurrentSession.String()+createSchemaSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/aggregates/aggregate.sql", []byte(setSessionVariables.String()+createAggregateSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/schemas/schema.sql", []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
 
 }
 

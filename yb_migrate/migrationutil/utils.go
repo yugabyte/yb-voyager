@@ -17,6 +17,7 @@ package migrationutil
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -95,7 +96,7 @@ func CreateMigrationProject(source *Source, ExportDir string) {
 	err := exec.Command("mkdir", projectDirPath).Run()
 	CheckError(err, "", "couldn't create sub-directories under "+ExportDir, true)
 
-	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
+	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema"}
 	for _, subdir := range subdirs {
 		err := exec.Command("mkdir", projectDirPath+"/"+subdir).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
@@ -103,22 +104,21 @@ func CreateMigrationProject(source *Source, ExportDir string) {
 
 	// Put info to metainfo/schema about the source db
 	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	_ = exec.Command("touch", sourceInfoFile).Run()
+	err = exec.Command("touch", sourceInfoFile).Run()
+
+	CheckError(err, "", "", true)
+
+	schemaObjectList := GetSchemaObjectList(source.DBType)
 
 	// creating subdirs under schema dir
-	databaseObjectTypes := []string{"TABLE", "VIEW", "TYPE", "FUNCTION", "PROCEDURE",
-		"SEQUENCE", "SCHEMA", "TRIGGER", "MVIEW", "PACKAGE", "SYNONYM", "OTHER",
-		/*Test Schemas for -> "GRANT", PARTITION, ROLE, TABLESPACE*/}
+	for _, schemaObjectType := range schemaObjectList {
+		// if source.DBType == "postgres" && (databaseObjectType == "PACKAGE" || databaseObjectType == "SYNONYM") {
+		// 	continue
+		// } else if source.DBName == "oracle" && (databaseObjectType == "SCHEMA" || databaseObjectType == "OTHER") {
+		// 	continue
+		// }
 
-	for _, databaseObjectType := range databaseObjectTypes {
-
-		if source.DBType == "postgres" && (databaseObjectType == "PACKAGE" || databaseObjectType == "SYNONYM") {
-			continue
-		} else if source.DBName == "oracle" && (databaseObjectType == "SCHEMA" || databaseObjectType == "OTHER") {
-			continue
-		}
-
-		databaseObjectDirName := strings.ToLower(databaseObjectType) + "s"
+		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
 		err := exec.Command("mkdir", projectDirPath+"/schema/"+databaseObjectDirName).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
@@ -136,9 +136,10 @@ func GetProjectDirPath(source *Source, target *Target, ExportDir string) string 
 }
 
 func GetProjectDirName(source *Source, target *Target) string {
-	if target != nil {
-		return "project-" + target.DBName + "-migration"
-	} else if source.DBType == "oracle" {
+	// if target != nil {
+	// 	return "project-" + target.DBName + "-migration"
+	// }
+	if source.DBType == "oracle" {
 		//schema in oracle is equivalent to database in postgres, mysql
 		return source.DBType + "-" + source.Schema + "-migration"
 	} else {
@@ -173,4 +174,20 @@ func AskPrompt(args ...string) bool {
 		return true
 	}
 	return false
+}
+
+func GetSchemaObjectList(sourceDBType string) []string {
+	var requiredList []string
+	switch sourceDBType {
+	case "oracle":
+		requiredList = oracleSchemaObjectList
+	case "postgres":
+		requiredList = postgresSchemaObjectList
+	case "mysql":
+		requiredList = mysqlSchemaObjectList
+	default:
+		fmt.Printf("Unsupported %s source db type\n", sourceDBType)
+		os.Exit(1)
+	}
+	return requiredList
 }

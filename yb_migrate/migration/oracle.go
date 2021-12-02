@@ -49,11 +49,9 @@ func OracleExportSchema(source *migrationutil.Source, ExportDir string) {
 	configFilePath := projectDirPath + "/metainfo/schema/ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
-	//Check forr Missing: PARTITION, TABLESPACE, MVIEWs, PACKAGEs(exported as schema), SYNONYMs
-	exportObjects := []string{"TABLE", "VIEW", "TYPE", "TRIGGER", "FUNCTION", "PROCEDURE", "SEQUENCE",
-		"GRANT", "PACKAGE", "SYNONYM" /*, PARTITION */}
+	exportObjectList := migrationutil.GetSchemaObjectList(source.DBType)
 
-	for _, exportObject := range exportObjects {
+	for _, exportObject := range exportObjectList {
 		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
 		exportObjectDirName := strings.ToLower(exportObject) + "s"
 		exportObjectDirPath := projectDirPath + "/schema/" + exportObjectDirName
