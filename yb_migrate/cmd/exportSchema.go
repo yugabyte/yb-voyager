@@ -26,7 +26,7 @@ import (
 // exportSchemaCmd represents the exportSchema command
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "A brief description of your command",
+	Short: "This command is used to export the schema from source database into .sql files",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
@@ -35,6 +35,11 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("exportSchema called")
+
+		if migrationutil.AskPrompt("Do you want to delete if a project with similar name exists?") {
+			migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		}
+
 		// if sourceStruct and ExportDir etc are nil or undefined
 		// then read the config file and create source struct from config file values
 		// possibly export dir value as well and then call export Schema with the created arguments
@@ -73,21 +78,17 @@ func exportSchema() {
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// exportSchemaCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// exportSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	// Hide num-connections flag from help description for this command
+	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
+		command.Flags().MarkHidden("num-connections")
+		command.Parent().HelpFunc()(command, strings)
+	})
 }
 
 func oracleExportSchema() {
 	//TODO: make it a general function under migrationutil to check for given source-db-type
 	//function may not be needed if things change going forward.
-	migration.CheckOracleToolsInstalled()
+	migration.CheckToolsRequiredForOracleExport()
 	// migrationutil.CheckRequiredToolsInstalled(source.DBType)
 
 	// Temporary. TODO: One function for checksourcedbendpoint + dbuserpassword + dbversionprint
@@ -97,13 +98,13 @@ func oracleExportSchema() {
 	migration.PrintOracleSourceDBVersion(&source, ExportDir)
 
 	//[TODO]: Project Name can be based on user input or some other rules.
-	migrationutil.CreateMigrationProject(&source, ExportDir)
+	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
 
 	migration.OracleExportSchema(&source, ExportDir)
 }
 
 func postgresExportSchema() {
-	migration.CheckPostgresToolsInstalled()
+	migration.CheckToolsRequiredForPostgresExport()
 
 	migrationutil.CheckSourceDbAccessibility(&source)
 
@@ -111,7 +112,7 @@ func postgresExportSchema() {
 		source.Schema, source.User, source.Password,
 		source.DBName, ExportDir)
 
-	migrationutil.CreateMigrationProject(&source, ExportDir)
+	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
 
 	migration.PostgresExportSchema(source.Host, source.Port,
 		source.Schema, source.User, source.Password,

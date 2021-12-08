@@ -3,15 +3,16 @@ package migrationutil
 import "fmt"
 
 type Source struct {
-	DBType   string
-	Host     string
-	Port     string
-	User     string
-	Password string
-	DBName   string
-	Schema   string
-	SSLMode  string
-	SSLCert  string
+	DBType         string
+	Host           string
+	Port           string
+	User           string
+	Password       string
+	DBName         string
+	Schema         string
+	SSLMode        string
+	SSLCert        string
+	NumConnections int
 }
 
 type Target struct {

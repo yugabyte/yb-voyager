@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"yb_migrate/migration"
+	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
@@ -25,7 +26,7 @@ import (
 // exportDataCmd represents the exportData command
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "A brief description of your command",
+	Short: "This commands is used to export table's data from source database to *.sql files",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
@@ -34,6 +35,11 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data called")
+
+		if migrationutil.AskPrompt("Do you want to delete if a project with similar name exists?") {
+			migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		}
+
 		exportData()
 	},
 }
@@ -49,9 +55,9 @@ func exportData() {
 
 		projectDirName := migrationutil.GetProjectDirName(&source)
 		if source.DBType == "oracle" {
-			migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.Schema)
+			migrationutil.CreateMigrationProjectIfNotExists(ExportDir, projectDirName, source.Schema)
 		} else {
-			migrationutil.CreateMigrationProject(ExportDir, projectDirName, source.DBName)
+			migrationutil.CreateMigrationProjectIfNotExists(ExportDir, projectDirName, source.DBName)
 		}
 	*/
 

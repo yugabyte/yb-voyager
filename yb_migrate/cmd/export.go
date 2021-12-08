@@ -38,6 +38,11 @@ var exportCmd = &cobra.Command{
 		//exportDataCmd.Run(cmd, args)
 		//time.Sleep(3 * time.Second)
 		fmt.Printf("Parent Export Commnad called with source data type = %s\n", source.DBType)
+
+		if migrationutil.AskPrompt("Do you want to delete if a project with similar name exists?") {
+			migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		}
+
 		exportSchema()
 		exportData()
 	},
@@ -87,4 +92,10 @@ func init() {
 
 	exportCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
+
+	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 0,
+		"Number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
+
+	// exportCmd.LocalFlags().MarkHidden("num-connections")
+	// exportCmd.PersistentFlags().MarkHidden("num-connections")
 }

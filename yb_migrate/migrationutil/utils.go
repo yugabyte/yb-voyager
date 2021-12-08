@@ -87,18 +87,30 @@ func CheckSourceDbAccessibility(source *Source) {
 	fmt.Printf("Output of checkConnectivityCommand : %s\n", cmdOutput)
 }
 
-//setup a project having subdirs for various database objects
-func CreateMigrationProject(source *Source, ExportDir string) {
+//Called before export schema command
+func DeleteProjectDirIfPresent(source *Source, ExportDir string) {
+	fmt.Printf("Deleting an exisiting project directory with same project names under %s\n", ExportDir)
+
+	projectDirPath := GetProjectDirPath(source, nil, ExportDir)
+
+	err := exec.Command("rm", "-rf", projectDirPath).Run()
+
+	CheckError(err, "", "Project Directory already exists, remove it first to proceed", true)
+
+}
+
+//setup a project having subdirs for various database objects IF NOT EXISTS
+func CreateMigrationProjectIfNotExists(source *Source, ExportDir string) {
 	fmt.Println("Creating a project directory...")
 
 	projectDirPath := GetProjectDirPath(source, nil, ExportDir)
 
-	err := exec.Command("mkdir", projectDirPath).Run()
+	err := exec.Command("mkdir", "-p", projectDirPath).Run()
 	CheckError(err, "", "couldn't create sub-directories under "+ExportDir, true)
 
-	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema"}
+	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
 	for _, subdir := range subdirs {
-		err := exec.Command("mkdir", projectDirPath+"/"+subdir).Run()
+		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
 	}
 
@@ -120,7 +132,7 @@ func CreateMigrationProject(source *Source, ExportDir string) {
 
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
-		err := exec.Command("mkdir", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
 	}
 

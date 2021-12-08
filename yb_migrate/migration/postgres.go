@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -11,8 +12,27 @@ import (
 	"yb_migrate/migrationutil"
 )
 
+var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
+
 // TODO: check for pgdump and psql/ysqlsh - installed/set-in-path
-func CheckPostgresToolsInstalled() {
+func CheckToolsRequiredForPostgresExport() {
+	toolsRequired := []string{"pg_dump", "strings"}
+
+	for _, tool := range toolsRequired {
+		checkToolPresenceCommand := exec.Command(tool, "--version")
+
+		err := checkToolPresenceCommand.Run()
+
+		if err != nil {
+			if commandNotFoundRegexp.MatchString(err.Error()) {
+				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	fmt.Printf("[Debug] Required tools for export are present...\n")
 }
 
 // TODO: fill it, how to using the tools? [psql -c "Select * from version()"]
@@ -35,6 +55,8 @@ func PostgresExportSchema(host string, port string, schema string, user string, 
 
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(host, port, schema, user, password, dbName, ExportDir, projectDirName)
+
+	fmt.Println("Export Schema Done!!!")
 }
 
 //NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
@@ -191,14 +213,18 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 }
 
 func PostgresExportDataOffline(source *migrationutil.Source, ExportDir string) {
+	CheckToolsRequiredForPostgresExport()
+
+	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)
+
 	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format
 	//example: pg_dump postgresql://postgres:postgres@127.0.0.1:5432/sakila?sslmode=disable --verbose --compress=0 --data-only -Fd -f sakila-data-dir
 	pgdumpDataExportCommandString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
-		"sslmode=disable --compress=0 --data-only -Fd -f %s", source.User, source.Password,
-		source.Host, source.Port, source.DBName, dataDirPath)
+		"sslmode=disable --compress=0 --data-only -Fd --file %s --jobs %d", source.User, source.Password,
+		source.Host, source.Port, source.DBName, dataDirPath, source.NumConnections)
 
 	fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
 

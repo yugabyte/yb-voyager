@@ -3,6 +3,7 @@ package migration
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -12,8 +13,24 @@ import (
 )
 
 //TODO
-func CheckYugabyteDBToolsInstalled() {
+func CheckToolsRequiredForYugabyteDBImport() {
+	toolsRequired := []string{"psql"}
 
+	for _, tool := range toolsRequired {
+		checkToolPresenceCommand := exec.Command(tool, "--version")
+
+		err := checkToolPresenceCommand.Run()
+
+		if err != nil {
+			if commandNotFoundRegexp.MatchString(err.Error()) {
+				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	fmt.Printf("[Debug] Required tools for import are present...\n")
 }
 
 // TODO

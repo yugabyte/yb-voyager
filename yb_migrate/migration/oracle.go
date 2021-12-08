@@ -5,22 +5,33 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
 	"yb_migrate/migrationutil"
 )
 
-//check for ora2pg and psql/ysqlsh installed
-func CheckOracleToolsInstalled() {
-	testCommand := exec.Command("ora2pg", "--version")
-	preparedCommand := testCommand.String()
+func CheckToolsRequiredForOracleExport() {
+	toolsRequired := []string{"ora2pg"}
+	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
 
-	log.Printf("[DEBUG] Prepared Command is: %s\n", preparedCommand)
+	for _, tool := range toolsRequired {
+		checkToolPresenceCommand := exec.Command(tool, "--version")
 
-	outputbytes, err := testCommand.Output()
+		err := checkToolPresenceCommand.Run()
 
-	migrationutil.CheckError(err, preparedCommand, "Ora2pg is not installed in the machine", true)
-	log.Println("[DEBUG] Command output: ", string(outputbytes))
+		if err != nil {
+			if commandNotFoundRegexp.MatchString(err.Error()) {
+				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	fmt.Printf("[Debug] Required tools for export are present...\n")
 }
 
 //[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
@@ -59,6 +70,9 @@ func OracleExportSchema(source *migrationutil.Source, ExportDir string) {
 		exportSchemaObjectCommand := exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
 			exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 
+		exportSchemaObjectCommand.Stdout = os.Stdout
+		exportSchemaObjectCommand.Stderr = os.Stderr
+
 		fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
 		err := exportSchemaObjectCommand.Run()
 
@@ -94,10 +108,9 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 			lines[i] = "ORACLE_PWD	" + source.Password
 		} else if strings.HasPrefix(line, "SCHEMA") {
 			lines[i] = "SCHEMA	" + source.Schema
+		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
+			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		}
-		// else if strings.HasPrefix(line, "TYPE") {
-		// 	lines[i] = "TYPE	" + "TABLE VIEW TYPE" //all the database objects to export
-		// }
 	}
 
 	output := strings.Join(lines, "\n")
@@ -108,9 +121,11 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 
 //Using ora2pg tool
 func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
-	CheckOracleToolsInstalled()
+	CheckToolsRequiredForOracleExport()
 
 	migrationutil.CheckSourceDbAccessibility(source)
+
+	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)
 
 	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
 
@@ -127,6 +142,9 @@ func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
 	fmt.Printf("[Debug] exportDataCommand: %s\n", exportDataCommandString)
+
+	exportDataCommand.Stdout = os.Stdout
+	exportDataCommand.Stderr = os.Stderr
 
 	err := exportDataCommand.Run()
 	migrationutil.CheckError(err, exportDataCommandString,
