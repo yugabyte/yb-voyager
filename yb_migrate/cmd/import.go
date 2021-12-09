@@ -79,7 +79,7 @@ func init() {
 	// // importCmd.MarkPersistentFlagRequired("target-db-schema")
 
 	// TODO: SSL related more args will come. Explore them later.
-	importCmd.PersistentFlags().StringVar(&target.SSLCert, "target-ssl-cert", "",
+	importCmd.PersistentFlags().StringVar(&target.SSLCertPath, "target-ssl-cert", "",
 		"provide target SSL Certificate Path")
 
 	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "disable",

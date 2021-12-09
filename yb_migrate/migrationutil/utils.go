@@ -17,28 +17,29 @@ package migrationutil
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
-	"time"
 )
 
-func Wait(c chan *int) {
-	fmt.Print("\033[?25l") // Hide the cursor
-	chars := [4]byte{'|', '/', '-', '\\'}
-	var i = 0
-	for true {
-		i++
-		select {
-		case <-c:
-			fmt.Printf("\nGot Data on channel. Export Done\n")
-			return
-		default:
-			fmt.Print("\b" + string(chars[i%4]))
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
-}
+// func Wait(c chan *int) {
+// 	fmt.Print("\033[?25l") // Hide the cursor
+// 	chars := [4]byte{'|', '/', '-', '\\'}
+// 	var i = 0
+// 	for true {
+// 		i++
+// 		select {
+// 		case <-c:
+// 			fmt.Printf("\nGot Data on channel. Export Done\n")
+// 			return
+// 		default:
+// 			fmt.Print("\b" + string(chars[i%4]))
+// 			time.Sleep(100 * time.Millisecond)
+// 		}
+// 	}
+// }
 
 func checkSourceEndpointsReachability(host string, port string) {
 	sourceEndPointConnectivityCommandString := "nc -z -w 30 " + host + " " + port
@@ -66,32 +67,43 @@ func CheckSourceDbAccessibility(source *Source) {
 	var checkConnectivityCommand string
 
 	if source.DBType == "oracle" {
-		checkConnectivityCommand = fmt.Sprintf("sqlplus '%s/%s@(DESCRIPTION=(ADDRESS="+
+		checkConnectivityCommand = fmt.Sprintf("sqlcl '%s/%s@(DESCRIPTION=(ADDRESS="+
 			"(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))'", source.User,
 			source.Password, source.Host, source.Port, source.DBName)
+		//PROTOCOL=TCPS if SSL is enabled
 
 	} else if source.DBType == "postgres" {
 		//URI syntax - "postgresql://user:password@host:port/dbname?sslmode=mode"
 		checkConnectivityCommand = fmt.Sprintf("psql postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 			source.User, source.Password, source.Host, source.Port, source.DBName, source.SSLMode)
 
+	} else if source.DBType == "mysql" {
+		/*
+			if mysql client >= 8.0
+				use flag: ssl-mode=VERIFY_CA
+			else
+				use flag: ssl-verify-server-cert
+		*/
+		checkConnectivityCommand = fmt.Sprintf("mysql --user=%s --password=%s --host=%s --port=%s "+
+			"--database=%s --ssl-mode=%s --ssl-cert=%s", source.User, source.Password,
+			source.Host, source.Port, source.DBName, source.SSLMode, source.SSLCertPath)
+
 	}
-	// else if source.DBType == "mysql" {
-	// 	checkConnectivityCommand = fmt.Sprintf("mysql")
-	// }
 
 	cmdOutput, err := exec.Command("/bin/bash", "-c", checkConnectivityCommand).Output()
 
+	fmt.Printf("[Debug] checkConnectivityCommand: %s\n", checkConnectivityCommand)
+	fmt.Printf("[Debug] command output: %s\n", cmdOutput)
 	CheckError(err, checkConnectivityCommand, "Unable to connect to the source database", true)
 
-	fmt.Printf("Output of checkConnectivityCommand : %s\n", cmdOutput)
+	fmt.Printf("Source DB is accessible!!\n")
 }
 
 //Called before export schema command
 func DeleteProjectDirIfPresent(source *Source, ExportDir string) {
-	fmt.Printf("Deleting an exisiting project directory with same project names under %s\n", ExportDir)
+	fmt.Printf("Deleting existing project directory under: \"%s\"\n", ExportDir)
 
-	projectDirPath := GetProjectDirPath(source, nil, ExportDir)
+	projectDirPath := GetProjectDirPath(source, ExportDir)
 
 	err := exec.Command("rm", "-rf", projectDirPath).Run()
 
@@ -103,7 +115,7 @@ func DeleteProjectDirIfPresent(source *Source, ExportDir string) {
 func CreateMigrationProjectIfNotExists(source *Source, ExportDir string) {
 	fmt.Println("Creating a project directory...")
 
-	projectDirPath := GetProjectDirPath(source, nil, ExportDir)
+	projectDirPath := GetProjectDirPath(source, ExportDir)
 
 	err := exec.Command("mkdir", "-p", projectDirPath).Run()
 	CheckError(err, "", "couldn't create sub-directories under "+ExportDir, true)
@@ -139,18 +151,15 @@ func CreateMigrationProjectIfNotExists(source *Source, ExportDir string) {
 	fmt.Println("Created a project directory...")
 }
 
-func GetProjectDirPath(source *Source, target *Target, ExportDir string) string {
-	projectDirName := GetProjectDirName(source, target)
+func GetProjectDirPath(source *Source, ExportDir string) string {
+	projectDirName := GetProjectDirName(source)
 
 	projectDirPath := ExportDir + "/" + projectDirName
 	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
 	return projectDirPath
 }
 
-func GetProjectDirName(source *Source, target *Target) string {
-	// if target != nil {
-	// 	return "project-" + target.DBName + "-migration"
-	// }
+func GetProjectDirName(source *Source) string {
 	if source.DBType == "oracle" {
 		//schema in oracle is equivalent to database in postgres, mysql
 		return source.DBType + "-" + source.Schema + "-migration"
@@ -202,4 +211,58 @@ func GetSchemaObjectList(sourceDBType string) []string {
 		os.Exit(1)
 	}
 	return requiredList
+}
+
+func CheckToolsRequiredInstalledOrNot(dbType string) {
+	var toolsRequired []string
+
+	switch dbType {
+	case "oracle":
+		toolsRequired = []string{"ora2pg", "sqlcl"}
+	case "postgres":
+		toolsRequired = []string{"pg_dump", "strings", "psql"}
+	case "mysql":
+		toolsRequired = []string{"ora2pg", "mysql"}
+	case "yugabytedb":
+		toolsRequired = []string{"psql"}
+	default:
+		log.Fatalf("Invalid DB Type!!")
+	}
+
+	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
+
+	for _, tool := range toolsRequired {
+		var versionFlag string
+		if tool == "sqlcl" {
+			versionFlag = "-V"
+		} else {
+			versionFlag = "--version"
+		}
+
+		checkToolPresenceCommand := exec.Command(tool, versionFlag)
+		err := checkToolPresenceCommand.Run()
+
+		if err != nil {
+			if commandNotFoundRegexp.MatchString(err.Error()) {
+				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+			} else {
+				panic(err)
+			}
+		}
+	}
+
+	fmt.Printf("[Debug] Required tools are present...\n")
+}
+
+func FileOrFolderExists(path string) bool {
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false
+		} else {
+			panic(err)
+		}
+	} else {
+		return true
+	}
 }

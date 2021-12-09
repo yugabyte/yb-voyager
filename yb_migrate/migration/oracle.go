@@ -4,40 +4,16 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 	"yb_migrate/migrationutil"
 )
 
-func CheckToolsRequiredForOracleExport() {
-	toolsRequired := []string{"ora2pg"}
-	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
-
-	for _, tool := range toolsRequired {
-		checkToolPresenceCommand := exec.Command(tool, "--version")
-
-		err := checkToolPresenceCommand.Run()
-
-		if err != nil {
-			if commandNotFoundRegexp.MatchString(err.Error()) {
-				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
-			} else {
-				panic(err)
-			}
-		}
-	}
-
-	fmt.Printf("[Debug] Required tools for export are present...\n")
-}
-
 //[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
 func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) {
-	sourceDSN := "dbi:Oracle:host=" + source.Host + ";service_name=" + source.DBName +
-		";port=" + source.Port
+	sourceDSN := getSourceDSN(source)
 
 	testDBVersionCommandString := fmt.Sprintf("ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s;",
 		sourceDSN, source.User, source.Password)
@@ -53,8 +29,8 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func OracleExportSchema(source *migrationutil.Source, ExportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
+func OracleExtractSchema(source *migrationutil.Source, ExportDir string) {
+	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
 	configFilePath := projectDirPath + "/metainfo/schema/ora2pg.conf"
@@ -88,13 +64,12 @@ func OracleExportSchema(source *migrationutil.Source, ExportDir string) {
 }
 
 //go:embed data/sample-ora2pg.conf
-var sampleOra2pgConfigFile string
+var SampleOra2pgConfigFile string
 
 func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Source) {
-	sourceDSN := "dbi:Oracle:host=" + source.Host + ";service_name=" +
-		source.DBName + ";port=" + source.Port
+	sourceDSN := getSourceDSN(source)
 
-	lines := strings.Split(string(sampleOra2pgConfigFile), "\n")
+	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
 
 	//TODO: Add support for SSL Enable Connections
 	for i, line := range lines {
@@ -106,7 +81,7 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 			lines[i] = "ORACLE_USER	" + source.User
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
-		} else if strings.HasPrefix(line, "SCHEMA") {
+		} else if source.DBType=="oracle" && strings.HasPrefix(line, "SCHEMA") {
 			lines[i] = "SCHEMA	" + source.Schema
 		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
@@ -121,13 +96,13 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 
 //Using ora2pg tool
 func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
-	CheckToolsRequiredForOracleExport()
+	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
 
 	migrationutil.CheckSourceDbAccessibility(source)
 
 	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, nil, ExportDir)
+	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
 	//[Internal]: Decide where to keep it
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
@@ -153,4 +128,22 @@ func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	if err == nil {
 		fmt.Printf("Data export complete...\n")
 	}
+}
+
+func getSourceDSN(source *migrationutil.Source) string {
+	var sourceDSN string
+
+	if source.DBType == "oracle" {
+		sourceDSN = "dbi:Oracle:" + "host=" + source.Host + ";service_name=" +
+			source.DBName + ";port=" + source.Port
+	} else if source.DBType == "mysql" {
+		sourceDSN = "dbi:mysql:" + "host=" + source.Host + ";database=" +
+			source.DBName + ";port=" + source.Port
+	} else {
+		fmt.Println("Invalid Source DB Type!!")
+		os.Exit(1)
+
+	}
+
+	return sourceDSN
 }

@@ -28,7 +28,14 @@ var (
 	cfgFile       string
 	ExportDir     string
 	MigrationMode string
-	// logLevel string
+	startClean    string
+)
+
+const (
+	ORACLE_DEFAULT_PORT     = "1521"
+	MYSQL_DEFAULT_PORT      = "3306"
+	POSTGRES_DEFAULT_PORT   = "5432"
+	YUGABYTEDB_DEFAULT_PORT = "5433"
 )
 
 // rootCmd represents the base command when called without any subcommands

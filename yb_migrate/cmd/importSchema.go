@@ -32,6 +32,14 @@ var importSchemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "This command imports schema into the destination YugabyteDB database",
 	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if startClean != "NO" && startClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+			os.Exit(1)
+		}
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Import Schema Command called")
 		importSchema()
@@ -53,11 +61,12 @@ func init() {
 }
 
 func importSchema() {
+	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
 
-	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, target.DBName)
-	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, "yugabyte")
+	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+		target.User, target.Password, target.Host, target.Port, target.DBName, source.SSLMode)
+	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+		target.User, target.Password, target.Host, target.Port, "yugabyte", source.SSLMode)
 
 	checkDatabaseExistenceCommand := exec.Command("psql", targetConnectionURIWithGivenDB,
 		"-Atc", fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName))

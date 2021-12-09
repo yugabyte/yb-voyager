@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"yb_migrate/migration"
 	"yb_migrate/migrationutil"
 
@@ -33,11 +34,26 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("export data called")
 
-		if migrationutil.AskPrompt("Do you want to delete if a project with similar name exists?") {
-			migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if startClean != "NO" && startClean != "YES" {
+			fmt.Printf("Invalid of flag start-clean as '%s'\n", startClean)
+			os.Exit(1)
+		}
+	},
+
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("export data command called")
+
+		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
+			fmt.Println("Project already exists")
+			if startClean == "YES" {
+				fmt.Printf("Deleting it before continue...\n")
+				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+			} else {
+				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
+				fmt.Println("Aborting...")
+			}
 		}
 
 		exportData()

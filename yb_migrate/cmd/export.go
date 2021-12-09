@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
@@ -31,16 +32,32 @@ var exportCmd = &cobra.Command{
 	Long: `Export has various sub-commands to extract schema, data and generate migration report.
 `,
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if startClean != "NO" && startClean != "YES" {
+			fmt.Printf("Invalid of flag start-clean as '%s'\n", startClean)
+			os.Exit(1)
+		}
+
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		//fmt.Printf("export called with command use = %s and args[0] = %s\n", cmd.Use, args[0])
 		//exportGenerateReportCmd.Run(cmd, args)
 		//exportSchemaCmd.Run(cmd, args)
 		//exportDataCmd.Run(cmd, args)
 		//time.Sleep(3 * time.Second)
-		fmt.Printf("Parent Export Commnad called with source data type = %s\n", source.DBType)
+		fmt.Printf("parent export command called with source data type = %s\n", source.DBType)
 
-		if migrationutil.AskPrompt("Do you want to delete if a project with similar name exists?") {
-			migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		//TODO: NON-interactive with --start-clean option
+		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
+			fmt.Println("Project already exists")
+			if startClean == "YES" {
+				fmt.Printf("Deleting it before continue...\n")
+				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+			} else {
+				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
+				fmt.Println("Aborting...")
+			}
 		}
 
 		exportSchema()
@@ -84,7 +101,7 @@ func init() {
 	// exportCmd.MarkPersistentFlagRequired("source-db-schema")
 
 	// TODO SSL related more args will come. Explore them later.
-	exportCmd.PersistentFlags().StringVar(&source.SSLCert, "source-ssl-cert", "",
+	exportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
 		"provide Source SSL Certificate Path")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
@@ -93,9 +110,9 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 0,
-		"Number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
+	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 1,
+		"number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
 
-	// exportCmd.LocalFlags().MarkHidden("num-connections")
-	// exportCmd.PersistentFlags().MarkHidden("num-connections")
+	exportCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
+		"delete all existing objects inside the project if present and start fresh")
 }

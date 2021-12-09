@@ -7,23 +7,23 @@ type Source struct {
 	Host           string
 	Port           string
 	User           string
-	Password       string
+	Password       string `json:"-"`
 	DBName         string
 	Schema         string
 	SSLMode        string
-	SSLCert        string
+	SSLCertPath    string
 	NumConnections int
 }
 
 type Target struct {
-	Host       string
-	Port       string
-	User       string
-	Password   string
-	DBName     string
-	SSLMode    string
-	SSLCert    string
-	StartClean bool
+	Host        string
+	Port        string
+	User        string
+	Password    string
+	DBName      string
+	SSLMode     string
+	SSLCertPath string
+	StartClean  bool
 }
 
 type Format interface {
@@ -48,10 +48,10 @@ var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
 	/*Test/Read: MVIEW, PARTITION, TABLESPACES, GRANT, ROLE, RULE, AGGREGATE */}
 
-var mysqlSchemaObjectList = []string{"TO-BE-ADDED"}
+var mysqlSchemaObjectList = []string{/*"TYPE", "SEQUENCE",*/ "TABLE", "VIEW", /*"GRANT*/
+	"TRIGGER", "FUNCTION", "PROCEDURE" /*"TABLESPACE", "PARTIITON"*/}
 
 type MetaInfo struct {
 	SourceDBType      string
 	ExportToolUsed    string
-	NumberOfDataFiles int //dummy variable
 }
