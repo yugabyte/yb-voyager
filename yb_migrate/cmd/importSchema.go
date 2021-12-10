@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -48,75 +49,70 @@ var importSchemaCmd = &cobra.Command{
 
 func init() {
 	importCmd.AddCommand(importSchemaCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// importSchemaCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// importSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 func importSchema() {
 	migrationutil.CheckToolsRequiredInstalledOrNot("yugabytedb")
 
-	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-		target.User, target.Password, target.Host, target.Port, target.DBName, source.SSLMode)
-	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-		target.User, target.Password, target.Host, target.Port, "yugabyte", source.SSLMode)
+	// targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+	// 	target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
+	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", target.User,
+		target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, target.SSLMode)
 
-	checkDatabaseExistenceCommand := exec.Command("psql", targetConnectionURIWithGivenDB,
-		"-Atc", fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName))
-
-	cmdOutputBytes, _ := checkDatabaseExistenceCommand.CombinedOutput()
-
-	// migrationutil.CheckError(err, checkDatabaseExistenceCommand.String(), string(cmdOutputBytes), true)
-
-	existingDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
-
-	fmt.Printf("[Info]: %s\n", checkDatabaseExistenceCommand)
-
-	//TODO: add options for setting client_encoding
-	//TODO: Check if DROP DATABASE in slow in YugabyteDB vs Postgresql?
+	//TODO: Explore if DROP DATABASE vs DROP command for all objects
 	dropDatabaseSql := "DROP DATABASE " + target.DBName + ";"
 	createDatabaseSql := "CREATE DATABASE " + target.DBName + ";"
-
 	dropDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", dropDatabaseSql)
 	createDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", createDatabaseSql)
 
-	if existingDatabaseName == target.DBName {
-		if target.StartClean || migrationutil.AskPrompt("Drop and create a new database named: ", target.DBName) {
+	checkDatabaseExistCommand := exec.Command("psql", targetConnectionURIWithDefaultDB,
+		"-Atc", fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName))
+
+	cmdOutputBytes, err := checkDatabaseExistCommand.CombinedOutput()
+
+	fmt.Printf("[Debug]: %s\n", checkDatabaseExistCommand)
+	fmt.Printf("[Info] Command Output: %s\n", cmdOutputBytes)
+	// migrationutil.CheckError(err, "", "", true)
+
+	//removing newline character from the end
+	requiredDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
+
+	if patternMatch, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", requiredDatabaseName); patternMatch {
+		// above if-condition is true if default database - "yugabyte" doesn't exists
+
+		fmt.Printf("Default database '%s' does not exists, please create it and continue!!\n", YUGABYTEDB_DEFAULT_DATABASE)
+		os.Exit(1)
+
+	} else if requiredDatabaseName == target.DBName {
+		if startClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
 			//dropping existing database
-			fmt.Printf("dropping %s database...\n", target.DBName)
+			fmt.Printf("[Info] dropping %s database...\n", target.DBName)
 			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
 			migrationutil.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
 
 			//creating required database
-			fmt.Printf("creating %s database...\n", target.DBName)
+			fmt.Printf("[Info] creating %s database...\n", target.DBName)
 			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
 			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
 
-		} // else Use the exisitng Database
-
-	} else if patternMatch, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", existingDatabaseName); patternMatch {
-		fmt.Printf("[Info] %s\n", existingDatabaseName)
-		if migrationutil.AskPrompt("Create a new database named:", target.DBName) {
-			fmt.Printf("creating %s database...\n", target.DBName)
-
-			cmdOutputBytes, err := createDatabaseCommand.CombinedOutput()
-			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
-
 		} else {
-			//Database neither exists nor created, so exit the process
-			fmt.Println("Import Schema Aborted!!")
+			fmt.Println("[Debug] Using the target database directly wihtout cleaning")
+		}
+
+	} else if requiredDatabaseName == "" {
+		//above if-condition is true if target DB does not exists
+
+		fmt.Printf("Required Database doesn't exists, creating '%s' database...\n", target.DBName)
+
+		err = createDatabaseCommand.Run()
+		migrationutil.CheckError(err, createDatabaseCommand.String(), "couldn't create the target database", true)
+	} else { //cases like user, password are invalid
+		fmt.Println("Import Schema could not proceed, Abort!!")
+		if err != nil {
+			log.Fatal(err.Error())
+		} else {
 			os.Exit(126)
 		}
-	} else {
-		fmt.Println("Import Schema Aborted!!")
-		os.Exit(126)
 	}
 
 	migration.YugabyteDBImportSchema(&target, ExportDir)

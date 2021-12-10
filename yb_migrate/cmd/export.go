@@ -41,11 +41,6 @@ var exportCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		//fmt.Printf("export called with command use = %s and args[0] = %s\n", cmd.Use, args[0])
-		//exportGenerateReportCmd.Run(cmd, args)
-		//exportSchemaCmd.Run(cmd, args)
-		//exportDataCmd.Run(cmd, args)
-		//time.Sleep(3 * time.Second)
 		fmt.Printf("parent export command called with source data type = %s\n", source.DBType)
 
 		//TODO: NON-interactive with --start-clean option

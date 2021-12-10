@@ -6,7 +6,7 @@ import (
 	"yb_migrate/migrationutil"
 )
 
-//TODO: Try to reuse similar function in oracle
+//TODO: Reuse similar function in oracle instead of this
 func PrintMySQLSourceDBVersion(source *migrationutil.Source, ExportDir string) {
 	sourceDSN := getSourceDSN(source)
 
@@ -21,8 +21,3 @@ func PrintMySQLSourceDBVersion(source *migrationutil.Source, ExportDir string) {
 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
-
-/*
-	TODO: Ora2pgExtractSchema() and OracleExtractSchema() are almost similar,
-	Maybe the code reusability can be done here.
-*/

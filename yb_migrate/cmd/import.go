@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
@@ -35,6 +36,14 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if startClean != "NO" && startClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+			os.Exit(1)
+		}
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Parent Import Command called")
 		importSchema()
@@ -45,18 +54,11 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(importCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// importCmd.PersistentFlags().String("foo", "", "A help for foo")
-
 	importCmd.PersistentFlags().StringVarP(&ExportDir, "export-dir", "e", ".",
 		"export directory (default is current working directory") //default value is current dir
 
 	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "localhost",
 		"target database server host")
-	// importCmd.MarkPersistentFlagRequired("target-db-host")
 
 	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", "5433",
 		"target database server port number")
@@ -65,7 +67,7 @@ func init() {
 		"connect to target database as specified user")
 	importCmd.MarkPersistentFlagRequired("target-db-user")
 
-	// TODO: All sensitive parameters can be taken from the environment variable
+	// TODO: All sensitive parameters should be taken from the environment variable
 	importCmd.PersistentFlags().StringVar(&target.Password, "target-db-password", "",
 		"connect to target as specified user")
 	importCmd.MarkPersistentFlagRequired("target-db-password")
@@ -74,11 +76,14 @@ func init() {
 		"target database name to be migrated to YugabyteDB")
 	importCmd.MarkPersistentFlagRequired("target-db-name")
 
-	// importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", "",
-	// 	"target schema name which needs to be migrated to YugabyteDB")
-	// // importCmd.MarkPersistentFlagRequired("target-db-schema")
+	// Might not be needed for import in yugabytedb
+	/*
+		importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", "",
+			"target schema name which needs to be migrated to YugabyteDB")
+		importCmd.MarkPersistentFlagRequired("target-db-schema")
+	*/
 
-	// TODO: SSL related more args will come. Explore them later.
+	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	importCmd.PersistentFlags().StringVar(&target.SSLCertPath, "target-ssl-cert", "",
 		"provide target SSL Certificate Path")
 
@@ -88,6 +93,6 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	importCmd.PersistentFlags().BoolVar(&target.StartClean, "start-clean", false,
+	importCmd.PersistentFlags().StringVar(&startClean, "start-clean", "",
 		"delete all the existing objects and start fresh")
 }
