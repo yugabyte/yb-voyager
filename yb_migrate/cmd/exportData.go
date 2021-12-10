@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"yb_migrate/migration"
-	"yb_migrate/migrationutil"
 
 	"github.com/spf13/cobra"
 )
@@ -37,7 +36,7 @@ to quickly create a Cobra application.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid of flag start-clean as '%s'\n", startClean)
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
 			os.Exit(1)
 		}
 	},
@@ -45,16 +44,17 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data command called")
 
-		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
-			fmt.Println("Project already exists")
-			if startClean == "YES" {
-				fmt.Printf("Deleting it before continue...\n")
-				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
-			} else {
-				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
-				fmt.Println("Aborting...")
-			}
-		}
+		// if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
+		// 	fmt.Println("Project already exists")
+		// 	if startClean == "YES" {
+		// 		fmt.Printf("Deleting it before continue...\n")
+		// 		migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		// 	} else {
+		// 		fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
+		// 		fmt.Println("Aborting...")
+		//		os.Exit(1)
+		// 	}
+		// }
 
 		exportData()
 	},
@@ -96,19 +96,19 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "1521"
 		}
-		migration.OracleExportDataOffline(&source, ExportDir)
+		migration.Ora2PgExportDataOffline(&source, ExportDir)
 	case "postgres":
 		fmt.Printf("Prepare pg_dump for data export from PG\n")
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		migration.PostgresExportDataOffline(&source, ExportDir)
+		migration.PgDumpExportDataOffline(&source, ExportDir)
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
 		if source.Port == "" {
 			source.Port = "3306"
 		}
-		migration.MySQLDataExportOffline(&source, ExportDir)
+		migration.Ora2PgExportDataOffline(&source, ExportDir)
 	}
 
 }

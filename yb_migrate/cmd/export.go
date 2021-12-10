@@ -34,7 +34,7 @@ var exportCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid of flag start-clean as '%s'\n", startClean)
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
 			os.Exit(1)
 		}
 
@@ -57,6 +57,7 @@ var exportCmd = &cobra.Command{
 			} else {
 				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
 				fmt.Println("Aborting...")
+				os.Exit(1)
 			}
 		}
 

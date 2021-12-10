@@ -29,7 +29,7 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func OracleExtractSchema(source *migrationutil.Source, ExportDir string) {
+func Ora2PgExtractSchema(source *migrationutil.Source, ExportDir string) {
 	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
@@ -43,8 +43,15 @@ func OracleExtractSchema(source *migrationutil.Source, ExportDir string) {
 		exportObjectDirName := strings.ToLower(exportObject) + "s"
 		exportObjectDirPath := projectDirPath + "/schema/" + exportObjectDirName
 
-		exportSchemaObjectCommand := exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
-			exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+		var exportSchemaObjectCommand *exec.Cmd
+		if source.DBType == "oracle" {
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+		} else if source.DBType == "mysql" {
+			//TODO: Test if -p flag is required or not here
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-m", "-t", exportObject, "-o",
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+		}
 
 		exportSchemaObjectCommand.Stdout = os.Stdout
 		exportSchemaObjectCommand.Stderr = os.Stderr
@@ -59,7 +66,6 @@ func OracleExtractSchema(source *migrationutil.Source, ExportDir string) {
 		if err == nil {
 			fmt.Printf("Export of %s schema done...\n", exportObject)
 		}
-
 	}
 }
 
@@ -81,7 +87,7 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 			lines[i] = "ORACLE_USER	" + source.User
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
-		} else if source.DBType=="oracle" && strings.HasPrefix(line, "SCHEMA") {
+		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
 			lines[i] = "SCHEMA	" + source.Schema
 		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
@@ -94,8 +100,7 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 	migrationutil.CheckError(err, "Not able to update the config file", "", true)
 }
 
-//Using ora2pg tool
-func OracleExportDataOffline(source *migrationutil.Source, ExportDir string) {
+func Ora2PgExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
 
 	migrationutil.CheckSourceDbAccessibility(source)

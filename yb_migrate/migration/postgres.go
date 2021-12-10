@@ -39,7 +39,7 @@ func CheckToolsRequiredForPostgresExport() {
 func PrintPostgresSourceDBVersion(source *migrationutil.Source, ExportDir string) {
 }
 
-func PostgresExtractSchema(source *migrationutil.Source, ExportDir string) {
+func PgDumpExtractSchema(source *migrationutil.Source, ExportDir string) {
 	fmt.Printf("Exporting Postgres schema started...\n")
 	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
 
@@ -213,7 +213,7 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PostgresExportDataOffline(source *migrationutil.Source, ExportDir string) {
+func PgDumpExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	CheckToolsRequiredForPostgresExport()
 
 	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)

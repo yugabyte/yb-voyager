@@ -56,7 +56,7 @@ func init() {
 	exportGenerateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"The source schema which needs to be migrated to YugabyteDB")
 	// TODO SSL related more args will come. Explore them later.
-	exportGenerateReportCmd.PersistentFlags().StringVar(&source.SSLCert, "source-ssl-cert", "",
+	exportGenerateReportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
 		"source database type (Oracle/PostgreSQL/MySQL")
 
 	exportGenerateReportCmd.PersistentFlags().StringVar(&destYBVersion, "dest-yb-version", "localhost",

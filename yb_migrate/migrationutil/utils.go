@@ -107,7 +107,7 @@ func DeleteProjectDirIfPresent(source *Source, ExportDir string) {
 
 	err := exec.Command("rm", "-rf", projectDirPath).Run()
 
-	CheckError(err, "", "Project Directory already exists, remove it first to proceed", true)
+	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
 
 }
 

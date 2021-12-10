@@ -61,7 +61,7 @@ func init() {
 }
 
 func importSchema() {
-	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
+	migrationutil.CheckToolsRequiredInstalledOrNot("yugabytedb")
 
 	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 		target.User, target.Password, target.Host, target.Port, target.DBName, source.SSLMode)
@@ -77,7 +77,7 @@ func importSchema() {
 
 	existingDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
 
-	fmt.Printf("[Debug]: %s\n", checkDatabaseExistenceCommand)
+	fmt.Printf("[Info]: %s\n", checkDatabaseExistenceCommand)
 
 	//TODO: add options for setting client_encoding
 	//TODO: Check if DROP DATABASE in slow in YugabyteDB vs Postgresql?

@@ -53,6 +53,7 @@ to quickly create a Cobra application.`,
 			} else {
 				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
 				fmt.Println("Aborting...")
+				os.Exit(1)
 			}
 		}
 
@@ -129,7 +130,7 @@ func oracleExportSchema() {
 	//[TODO]: Project Name can be based on user input or some other rules.
 	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
 
-	migration.OracleExtractSchema(&source, ExportDir)
+	migration.Ora2PgExtractSchema(&source, ExportDir)
 }
 
 func postgresExportSchema() {
@@ -142,7 +143,7 @@ func postgresExportSchema() {
 
 	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
 
-	migration.PostgresExtractSchema(&source, ExportDir)
+	migration.PgDumpExtractSchema(&source, ExportDir)
 }
 
 func mysqlExportSchema() {
@@ -150,11 +151,10 @@ func mysqlExportSchema() {
 
 	migrationutil.CheckSourceDbAccessibility(&source)
 
-	//Optional
-	//TODO: causing error, debug this
-	// migration.PrintMySQLSourceDBVersion(&source, ExportDir)
+	//TODO: TEST/DEBUG this , causing error
+	// migration.PrintMySQLSourceDBVersion(&source, ExportDir) //Optional step
 
 	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
 
-	migration.MySQLExtractSchema(&source, ExportDir)
+	migration.Ora2PgExtractSchema(&source, ExportDir)
 }
