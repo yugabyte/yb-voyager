@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
 	"log"
 	"os"
 	"os/exec"
@@ -31,8 +30,10 @@ import (
 	"yb_migrate/src/fwk"
 	"yb_migrate/src/utils"
 
+	"github.com/spf13/cobra"
+
 	"github.com/jackc/pgx/v4"
-    "github.com/tevino/abool/v2"
+	"github.com/tevino/abool/v2"
 )
 
 var importMode string
@@ -42,6 +43,7 @@ var numLinesInASplit = 1000
 var parallelImportJobs = 0
 var Done = abool.New()
 var GenerateSplitsDone = abool.New()
+
 type ExportTool int
 
 const (
@@ -129,7 +131,7 @@ func getTargetFromYBUri(uri string) *Target {
 	port := portDB[0]
 	database := portDB[1]
 	// fmt.Printf("pgdb = %s\nuser = %s\npasswd = %s\nhost = %s\nport = %s\ndatabase = %s\n",
-		// pgdatatbase, user, password, host, port, database)
+	// pgdatatbase, user, password, host, port, database)
 	targetStruct := Target{
 		Host:     host,
 		Port:     port,
@@ -554,7 +556,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *Target) {
 			if err != nil {
 				panic(fp)
 			}
-			defer os.Remove(sqlFile)
+			// defer os.Remove(sqlFile)
 			bufferedWriter := bufio.NewWriter(fp)
 			for _, statement := range IMPORT_SESSION_SETTERS {
 				_, err = bufferedWriter.WriteString(statement)
@@ -600,7 +602,7 @@ func executeSqlFile(file string, server *Target) error {
 func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
 	path := task.SplitFilePath
 	base := filepath.Base(path)
-	dir  := filepath.Dir(path)
+	dir := filepath.Dir(path)
 	parts := strings.Split(base, ".")
 	return fmt.Sprintf("%s/%s.%s.%s.P", dir, parts[0], parts[1], parts[2])
 }
@@ -608,7 +610,7 @@ func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
 func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 	path := task.SplitFilePath
 	base := filepath.Base(path)
-	dir  := filepath.Dir(path)
+	dir := filepath.Dir(path)
 	parts := strings.Split(base, ".")
 	return fmt.Sprintf("%s/%s.%s.%s.D", dir, parts[0], parts[1], parts[2])
 }
@@ -616,7 +618,7 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 func getSqlFilePath(task *fwk.SplitFileImportTask) string {
 	path := task.SplitFilePath
 	base := filepath.Base(path)
-	dir  := filepath.Dir(path)
+	dir := filepath.Dir(path)
 	parts := strings.Split(base, ".")
 	return fmt.Sprintf("%s/%s.%s.%s.sql", dir, parts[0], parts[1], parts[2])
 }
