@@ -13,9 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package utils
 
 import (
+	"bufio"
 	"fmt"
 	"time"
 )
@@ -28,11 +29,24 @@ func Wait(c chan* int) {
 		i++
 		select {
 		case <-c:
-			fmt.Printf("\nGot Data on channel. Export Done\n")
+			//fmt.Printf("\nGot Data on channel. Export Done\n")
+			fmt.Println("\r")
 			return
 		default:
 			fmt.Print("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+}
+
+func Readline(r *bufio.Reader) (string, error) {
+	var (isPrefix bool = true
+		err error = nil
+		line, ln []byte
+	)
+	for isPrefix && err == nil {
+		line, isPrefix, err = r.ReadLine()
+		ln = append(ln, line...)
+	}
+	return string(ln), err
 }

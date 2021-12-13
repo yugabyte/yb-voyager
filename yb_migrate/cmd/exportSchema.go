@@ -51,12 +51,14 @@ func exportSchema(source Source, exportDir string) {
 	//fmt.Printf("Called outside func in export schema and export dir = %s " +
 	//	"and source db type = %s and schemaName = %s\n", exportDir, sourceStruct.sourceDBType, schemaName)
 	switch source.sourceDBType {
-	  case "oracle":
+	  case Oracle:
 	  	fmt.Printf("Prepare Ora2Pg for schema export from Oracle")
-	  case "postgres":
+	  case PostgreSQL:
 		  fmt.Printf("Prepare pgdump for schema export from PG")
-	  case "mysql":
+	  case MySQL:
 		  fmt.Printf("Prepare Ora2Pg for schema export from MySQL")
+	default:
+		// throw exception
 	}
 }
 

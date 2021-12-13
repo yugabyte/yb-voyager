@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var target Target
 // importCmd represents the import command
 var importCmd = &cobra.Command{
 	Use:   "import",
@@ -36,16 +37,21 @@ to quickly create a Cobra application.`,
 	},
 }
 
+var targetDBHost string
+
 func init() {
 	rootCmd.AddCommand(importCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// importCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// importCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "",
+		"Host on which the YugabyteDB server is running")
+	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", "",
+		"Port on which the YugabyteDB database is running")
+	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",
+		"Username with which to connect to the target YugabyteDB server")
+	importCmd.PersistentFlags().StringVar(&target.Password, "target-db-password", "",
+		"Password with which to connect to the target YugabyteDB server")
+	importCmd.PersistentFlags().StringVar(&target.Database, "target-db-name", "",
+		"Name of the database on the target YugabyteDB server on which import needs to be done")
+	importCmd.PersistentFlags().StringVar(&target.Uri, "target-db-uri", "",
+		"Complete connection uri to the target YugabyteDB server")
 }
