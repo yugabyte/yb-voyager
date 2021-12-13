@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"yb_migrate/migration"
 
 	"github.com/spf13/cobra"
@@ -34,19 +33,12 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
-			os.Exit(1)
-		}
-	},
-
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data command called")
 
 		// if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
 		// 	fmt.Println("Project already exists")
-		// 	if startClean == "YES" {
+		// 	if StartClean == "YES" {
 		// 		fmt.Printf("Deleting it before continue...\n")
 		// 		migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
 		// 	} else {

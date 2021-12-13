@@ -20,7 +20,6 @@ import (
 	"os"
 	"yb_migrate/migrationutil"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -33,12 +32,14 @@ var exportCmd = &cobra.Command{
 	Long: `Export has various sub-commands to extract schema, data and generate migration report.
 `,
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("%v\n", source)
+		fmt.Printf("StartClean = %s\n", StartClean)
+		if StartClean != "NO" && StartClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", StartClean)
 			os.Exit(1)
 		}
-
+		fmt.Println("[TRACE] PersistentPreRun done...")
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -46,9 +47,9 @@ var exportCmd = &cobra.Command{
 
 		//TODO: NON-interactive with --start-clean option
 		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
-			log.Info("Project already exists")
-			log.Warn("Project already exists")
-			if startClean == "YES" {
+			// log.Info("Project already exists")
+			// log.Warn("Project already exists")
+			if StartClean == "YES" {
 				fmt.Printf("Deleting it before continue...\n")
 				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
 			} else {
@@ -111,6 +112,7 @@ func init() {
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 1,
 		"number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
 
-	exportCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
+	exportCmd.PersistentFlags().StringVar(&StartClean, "start-clean", "NO",
 		"delete all existing objects inside the project if present and start fresh")
+
 }

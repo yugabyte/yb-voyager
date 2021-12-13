@@ -35,8 +35,8 @@ var importSchemaCmd = &cobra.Command{
 	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+		if StartClean != "NO" && StartClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", StartClean)
 			os.Exit(1)
 		}
 	},
@@ -84,7 +84,7 @@ func importSchema() {
 		os.Exit(1)
 
 	} else if requiredDatabaseName == target.DBName {
-		if startClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
+		if StartClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
 			//dropping existing database
 			fmt.Printf("[Info] dropping %s database...\n", target.DBName)
 			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()

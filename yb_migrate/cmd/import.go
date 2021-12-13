@@ -38,8 +38,8 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+		if StartClean != "NO" && StartClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", StartClean)
 			os.Exit(1)
 		}
 	},
@@ -93,6 +93,6 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	importCmd.PersistentFlags().StringVar(&startClean, "start-clean", "",
+	importCmd.PersistentFlags().StringVar(&StartClean, "start-clean", "",
 		"delete all the existing objects and start fresh")
 }

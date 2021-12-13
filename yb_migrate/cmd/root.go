@@ -28,7 +28,7 @@ var (
 	cfgFile       string
 	ExportDir     string
 	MigrationMode string
-	startClean    string
+	StartClean    string
 )
 
 const (

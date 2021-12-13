@@ -1,7 +1,6 @@
 package migrationutil
 
 import (
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,8 +21,8 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 	}
 }
 
-func GetLogger() *logrus.Logger {
-	log.SetLevel(log.InfoLevel)
+// func GetLogger() *logrus.Logger {
+// 	log.SetLevel(log.InfoLevel)
 
-	return &log.Logger
-}
+// 	return &log.Logger
+// }
