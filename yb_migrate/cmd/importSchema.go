@@ -17,13 +17,12 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"yb_migrate/migration"
-	"yb_migrate/migrationutil"
+	"yb_migrate/src/migration"
+	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -33,13 +32,6 @@ var importSchemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "This command imports schema into the destination YugabyteDB database",
 	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if StartClean != "NO" && StartClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", StartClean)
-			os.Exit(1)
-		}
-	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Import Schema Command called")
@@ -52,7 +44,7 @@ func init() {
 }
 
 func importSchema() {
-	migrationutil.CheckToolsRequiredInstalledOrNot("yugabytedb")
+	utils.CheckToolsRequiredInstalledOrNot("yugabytedb")
 
 	// targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 	// 	target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
@@ -72,7 +64,7 @@ func importSchema() {
 
 	fmt.Printf("[Debug]: %s\n", checkDatabaseExistCommand)
 	fmt.Printf("[Info] Command Output: %s\n", cmdOutputBytes)
-	// migrationutil.CheckError(err, "", "", true)
+	// utils.CheckError(err, "", "", true)
 
 	//removing newline character from the end
 	requiredDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
@@ -84,16 +76,16 @@ func importSchema() {
 		os.Exit(1)
 
 	} else if requiredDatabaseName == target.DBName {
-		if StartClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
+		if startClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
 			//dropping existing database
 			fmt.Printf("[Info] dropping %s database...\n", target.DBName)
 			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
-			migrationutil.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
+			utils.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
 
 			//creating required database
 			fmt.Printf("[Info] creating %s database...\n", target.DBName)
 			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
-			migrationutil.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
+			utils.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
 
 		} else {
 			fmt.Println("[Debug] Using the target database directly wihtout cleaning")
@@ -105,7 +97,7 @@ func importSchema() {
 		fmt.Printf("Required Database doesn't exists, creating '%s' database...\n", target.DBName)
 
 		err = createDatabaseCommand.Run()
-		migrationutil.CheckError(err, createDatabaseCommand.String(), "couldn't create the target database", true)
+		utils.CheckError(err, createDatabaseCommand.String(), "couldn't create the target database", true)
 	} else { //cases like user, password are invalid
 		fmt.Println("Import Schema could not proceed, Abort!!")
 		if err != nil {
@@ -115,5 +107,5 @@ func importSchema() {
 		}
 	}
 
-	migration.YugabyteDBImportSchema(&target, ExportDir)
+	migration.YugabyteDBImportSchema(&target, exportDir)
 }

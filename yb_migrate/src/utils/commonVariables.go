@@ -1,4 +1,4 @@
-package migrationutil
+package utils
 
 import "fmt"
 
@@ -7,7 +7,7 @@ type Source struct {
 	Host           string
 	Port           string
 	User           string
-	Password       string `json:"-"`
+	Password       string
 	DBName         string
 	Schema         string
 	SSLMode        string
@@ -23,6 +23,7 @@ type Target struct {
 	DBName      string
 	SSLMode     string
 	SSLCertPath string
+	Uri         string
 }
 
 type Format interface {
@@ -54,3 +55,5 @@ type MetaInfo struct {
 	SourceDBType   string
 	ExportToolUsed string
 }
+
+var log = GetLogger()

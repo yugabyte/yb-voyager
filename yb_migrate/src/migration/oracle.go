@@ -8,11 +8,11 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
-	"yb_migrate/migrationutil"
+	"yb_migrate/src/utils"
 )
 
 //[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
-func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) {
+func PrintOracleSourceDBVersion(source *utils.Source, exportDir string) {
 	sourceDSN := getSourceDSN(source)
 
 	testDBVersionCommandString := fmt.Sprintf("ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s;",
@@ -24,19 +24,19 @@ func PrintOracleSourceDBVersion(source *migrationutil.Source, ExportDir string) 
 
 	dbVersionBytes, err := testDBVersionCommand.Output()
 
-	migrationutil.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
+	utils.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
 
 	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
-func Ora2PgExtractSchema(source *migrationutil.Source, ExportDir string) {
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
+	projectDirPath := exportDir //utils.GetProjectDirPath(source, exportDir)
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
 	configFilePath := projectDirPath + "/metainfo/schema/ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
-	exportObjectList := migrationutil.GetSchemaObjectList(source.DBType)
+	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
 	for _, exportObject := range exportObjectList {
 		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
@@ -60,7 +60,7 @@ func Ora2PgExtractSchema(source *migrationutil.Source, ExportDir string) {
 		err := exportSchemaObjectCommand.Run()
 
 		//TODO: Maybe we can suggest some smart HINT for the error happenend here
-		migrationutil.CheckError(err, exportSchemaObjectCommand.String(),
+		utils.CheckError(err, exportSchemaObjectCommand.String(),
 			"Exporting of "+exportObject+" didn't happen, Retry exporting the schema", false)
 
 		if err == nil {
@@ -72,7 +72,7 @@ func Ora2PgExtractSchema(source *migrationutil.Source, ExportDir string) {
 //go:embed data/sample-ora2pg.conf
 var SampleOra2pgConfigFile string
 
-func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Source) {
+func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 	sourceDSN := getSourceDSN(source)
 
 	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
@@ -97,17 +97,17 @@ func populateOra2pgConfigFile(configFilePath string, source *migrationutil.Sourc
 	output := strings.Join(lines, "\n")
 	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
 
-	migrationutil.CheckError(err, "Not able to update the config file", "", true)
+	utils.CheckError(err, "Not able to update the config file", "", true)
 }
 
-func Ora2PgExportDataOffline(source *migrationutil.Source, ExportDir string) {
-	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
+func Ora2PgExportDataOffline(source *utils.Source, exportDir string) {
+	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
 
-	migrationutil.CheckSourceDbAccessibility(source)
+	utils.CheckSourceDbAccessibility(source)
 
-	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)
+	utils.CreateMigrationProjectIfNotExists(source, exportDir)
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := exportDir //utils.GetProjectDirPath(source, exportDir)
 
 	//[Internal]: Decide where to keep it
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
@@ -127,7 +127,7 @@ func Ora2PgExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	exportDataCommand.Stderr = os.Stderr
 
 	err := exportDataCommand.Run()
-	migrationutil.CheckError(err, exportDataCommandString,
+	utils.CheckError(err, exportDataCommandString,
 		"Exporting of data failed, retry exporting it", false)
 
 	if err == nil {
@@ -135,7 +135,7 @@ func Ora2PgExportDataOffline(source *migrationutil.Source, ExportDir string) {
 	}
 }
 
-func getSourceDSN(source *migrationutil.Source) string {
+func getSourceDSN(source *utils.Source) string {
 	var sourceDSN string
 
 	if source.DBType == "oracle" {

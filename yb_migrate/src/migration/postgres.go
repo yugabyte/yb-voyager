@@ -4,12 +4,11 @@ import (
 	"bufio"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
-	"yb_migrate/migrationutil"
+	"yb_migrate/src/utils"
 )
 
 var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
@@ -36,12 +35,12 @@ func CheckToolsRequiredForPostgresExport() {
 }
 
 // TODO: fill it, how to using the tools? [psql -c "Select * from version()"]
-func PrintPostgresSourceDBVersion(source *migrationutil.Source, ExportDir string) {
+func PrintPostgresSourceDBVersion(source *utils.Source, exportDir string) {
 }
 
-func PgDumpExtractSchema(source *migrationutil.Source, ExportDir string) {
+func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	fmt.Printf("Exporting Postgres schema started...\n")
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := utils.GetProjectDirPath(source, exportDir)
 
 	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "user=%s password=%s host=%s port=%s dbname=%s sslmode=%s sslrootcert=%s" `+
 		`--schema-only > %s/metainfo/schema/schema.sql`, source.User, source.Password, source.Host,
@@ -52,25 +51,25 @@ func PgDumpExtractSchema(source *migrationutil.Source, ExportDir string) {
 	fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
 
 	err := preparedYsqldumpCommand.Run()
-	migrationutil.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
+	utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(source, ExportDir)
+	parseSchemaFile(source, exportDir)
 
 	fmt.Println("Export Schema Done!!!")
 }
 
 //NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
-func parseSchemaFile(source *migrationutil.Source, ExportDir string) {
+func parseSchemaFile(source *utils.Source, exportDir string) {
 	fmt.Printf("Parsing the schema file...\n")
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := utils.GetProjectDirPath(source, exportDir)
 	schemaFilePath := projectDirPath + "/metainfo/schema" + "/schema.sql"
 
 	//CHOOSE - bufio vs ioutil(Memory vs Performance)?
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
 
-	migrationutil.CheckError(err, "", "File not read", true)
+	utils.CheckError(err, "", "File not read", true)
 
 	schemaFileLines := strings.Split(string(schemaFileData), "\n")
 	numLines := len(schemaFileLines)
@@ -86,7 +85,7 @@ func parseSchemaFile(source *migrationutil.Source, ExportDir string) {
 		panic(err)
 	}
 
-	migrationutil.CheckError(err, "", "Couldn't generate the schema", true)
+	utils.CheckError(err, "", "Couldn't generate the schema", true)
 
 	var createTableSqls, createFkConstraintSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
@@ -213,12 +212,12 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PgDumpExportDataOffline(source *migrationutil.Source, ExportDir string) {
+func PgDumpExportDataOffline(source *utils.Source, exportDir string) {
 	CheckToolsRequiredForPostgresExport()
 
-	migrationutil.CreateMigrationProjectIfNotExists(source, ExportDir)
+	utils.CreateMigrationProjectIfNotExists(source, exportDir)
 
-	projectDirPath := migrationutil.GetProjectDirPath(source, ExportDir)
+	projectDirPath := utils.GetProjectDirPath(source, exportDir)
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format
@@ -233,7 +232,7 @@ func PgDumpExportDataOffline(source *migrationutil.Source, ExportDir string) {
 
 	err := pgdumpDataExportCommand.Run()
 
-	migrationutil.CheckError(err, pgdumpDataExportCommandString,
+	utils.CheckError(err, pgdumpDataExportCommandString,
 		"Exporting of data failed, retry exporting it", true)
 
 	//Parsing the main toc.dat file
@@ -241,7 +240,7 @@ func PgDumpExportDataOffline(source *migrationutil.Source, ExportDir string) {
 
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
 
-	migrationutil.CheckError(err, parseTocFileCommand.String(), string(cmdOutput), true)
+	utils.CheckError(err, parseTocFileCommand.String(), string(cmdOutput), true)
 
 	//Put the data into a toc.txt file
 	tocTextFilePath := dataDirPath + "/toc.txt"
@@ -274,7 +273,7 @@ func getMappingForTableFileNameVsTableName(dataDirPath string) map[string]string
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
 
-	migrationutil.CheckError(err, "", "", true)
+	utils.CheckError(err, "", "", true)
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
 	numLines := len(tocTextFileData)

@@ -13,33 +13,50 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package migrationutil
+package utils
 
 import (
+	"bufio"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 )
 
-// func Wait(c chan *int) {
-// 	fmt.Print("\033[?25l") // Hide the cursor
-// 	chars := [4]byte{'|', '/', '-', '\\'}
-// 	var i = 0
-// 	for true {
-// 		i++
-// 		select {
-// 		case <-c:
-// 			fmt.Printf("\nGot Data on channel. Export Done\n")
-// 			return
-// 		default:
-// 			fmt.Print("\b" + string(chars[i%4]))
-// 			time.Sleep(100 * time.Millisecond)
-// 		}
-// 	}
-// }
+var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
+
+func Wait(c chan *int) {
+	fmt.Print("\033[?25l") // Hide the cursor
+	chars := [4]byte{'|', '/', '-', '\\'}
+	var i = 0
+	for true {
+		i++
+		select {
+		case <-c:
+			//fmt.Printf("\nGot Data on channel. Export Done\n")
+			fmt.Println("\r")
+			return
+		default:
+			fmt.Print("\b" + string(chars[i%4]))
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+func Readline(r *bufio.Reader) (string, error) {
+	var (
+		isPrefix bool  = true
+		err      error = nil
+		line, ln []byte
+	)
+	for isPrefix && err == nil {
+		line, isPrefix, err = r.ReadLine()
+		ln = append(ln, line...)
+	}
+	return string(ln), err
+}
 
 func checkSourceEndpointsReachability(host string, port string) {
 	sourceEndPointConnectivityCommandString := "nc -z -w 30 " + host + " " + port
@@ -79,10 +96,11 @@ func CheckSourceDbAccessibility(source *Source) {
 
 	} else if source.DBType == "mysql" {
 		/*
-			if mysql client >= 8.0
-				use flag: ssl-mode=VERIFY_CA
-			else
-				use flag: ssl-verify-server-cert
+			TODO:
+				if mysql client version >= 8.0
+					use flag: ssl-mode=VERIFY_CA
+				else
+					use flag: ssl-verify-server-cert
 		*/
 		checkConnectivityCommand = fmt.Sprintf("mysql --user=%s --password=%s --host=%s --port=%s "+
 			"--database=%s --ssl-mode=%s --ssl-cert=%s", source.User, source.Password,
@@ -100,35 +118,45 @@ func CheckSourceDbAccessibility(source *Source) {
 }
 
 //Called before export schema command
-func DeleteProjectDirIfPresent(source *Source, ExportDir string) {
-	fmt.Printf("Deleting existing project directory under: \"%s\"\n", ExportDir)
+func DeleteProjectDirIfPresent(source *Source, exportDir string) {
+	log.Debugf("Deleting existing project related directories under: \"%s\"", exportDir)
 
-	projectDirPath := GetProjectDirPath(source, ExportDir)
+	projectDirPath := exportDir
+	// projectDirPath := GetProjectDirPath(source, exportDir)
 
-	err := exec.Command("rm", "-rf", projectDirPath).Run()
+	err := exec.Command("rm", "-rf", projectDirPath+"/schema").Run()
+	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
 
+	err = exec.Command("rm", "-rf", projectDirPath+"/data").Run()
+	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
+
+	err = exec.Command("rm", "-rf", projectDirPath+"/metadata").Run()
+	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
+
+	err = exec.Command("rm", "-rf", projectDirPath+"/temp").Run()
 	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
 
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(source *Source, ExportDir string) {
-	fmt.Println("Creating a project directory...")
+func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
+	log.Debugf("Creating a project directory...")
 
-	projectDirPath := GetProjectDirPath(source, ExportDir)
+	//Assuming export directory as a project directory
+	projectDirPath := exportDir
 
-	err := exec.Command("mkdir", "-p", projectDirPath).Run()
-	CheckError(err, "", "couldn't create sub-directories under "+ExportDir, true)
+	// projectDirPath := GetProjectDirPath(source, exportDir)
+	// err := exec.Command("mkdir", "-p", projectDirPath).Run()
+	// CheckError(err, "", "couldn't create sub-directories under "+exportDir, true)
 
-	subdirs := []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
-	for _, subdir := range subdirs {
+	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
 	}
 
 	// Put info to metainfo/schema about the source db
 	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	err = exec.Command("touch", sourceInfoFile).Run()
+	err := exec.Command("touch", sourceInfoFile).Run()
 
 	CheckError(err, "", "", true)
 
@@ -136,25 +164,19 @@ func CreateMigrationProjectIfNotExists(source *Source, ExportDir string) {
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range schemaObjectList {
-		// if source.DBType == "postgres" && (databaseObjectType == "PACKAGE" || databaseObjectType == "SYNONYM") {
-		// 	continue
-		// } else if source.DBName == "oracle" && (databaseObjectType == "SCHEMA" || databaseObjectType == "OTHER") {
-		// 	continue
-		// }
-
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
 		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
+		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
 	}
 
-	fmt.Println("Created a project directory...")
+	log.Debugf("Created a project directory...")
 }
 
-func GetProjectDirPath(source *Source, ExportDir string) string {
+func GetProjectDirPath(source *Source, exportDir string) string {
 	projectDirName := GetProjectDirName(source)
 
-	projectDirPath := ExportDir + "/" + projectDirName
+	projectDirPath := exportDir + "/" + projectDirName
 	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
 	return projectDirPath
 }
@@ -252,6 +274,15 @@ func CheckToolsRequiredInstalledOrNot(dbType string) {
 	}
 
 	fmt.Printf("[Debug] Required tools are present...\n")
+}
+
+func ProjectSubdirsExists(exportDir string) bool {
+	for _, subdir := range projectSubdirs {
+		if FileOrFolderExists(subdir) {
+			return true
+		}
+	}
+	return false
 }
 
 func FileOrFolderExists(path string) bool {

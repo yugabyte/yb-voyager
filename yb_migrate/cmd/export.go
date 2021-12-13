@@ -18,12 +18,20 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"yb_migrate/migrationutil"
+	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
 
-var source migrationutil.Source
+const (
+	PostgreSQL = iota
+	Oracle
+	MySQL
+	SQLServer
+	DB2
+)
+
+var source utils.Source
 
 // exportCmd represents the export command
 var exportCmd = &cobra.Command{
@@ -34,24 +42,30 @@ var exportCmd = &cobra.Command{
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("%v\n", source)
-		fmt.Printf("StartClean = %s\n", StartClean)
-		if StartClean != "NO" && StartClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", StartClean)
+		fmt.Printf("ExportDir = %s\n", exportDir)
+		fmt.Printf("migrationMode = %s, startClean = %v\n", migrationMode, startClean)
+
+		//TODO: Debug - startClean variable is not getting set after giving the default flag value
+		if startClean == "" {
+			startClean = "NO"
+		}
+
+		if startClean != "NO" && startClean != "YES" {
+			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
 			os.Exit(1)
 		}
-		fmt.Println("[TRACE] PersistentPreRun done...")
+
+		log.Trace("PersistentPreRun done...")
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("parent export command called with source data type = %s\n", source.DBType)
+		log.Infof("parent export command called with source data type = %s", source.DBType)
 
-		//TODO: NON-interactive with --start-clean option
-		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
-			// log.Info("Project already exists")
-			// log.Warn("Project already exists")
-			if StartClean == "YES" {
+		// if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
+		if utils.ProjectSubdirsExists(exportDir) {
+			if startClean == "YES" {
 				fmt.Printf("Deleting it before continue...\n")
-				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+				utils.DeleteProjectDirIfPresent(&source, exportDir)
 			} else {
 				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
 				fmt.Println("Aborting...")
@@ -67,7 +81,7 @@ var exportCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(exportCmd)
 
-	exportCmd.PersistentFlags().StringVarP(&ExportDir, "export-dir", "e", ".",
+	exportCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
 		"export directory (default is current working directory") //default value is current dir
 
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
@@ -97,7 +111,9 @@ func init() {
 
 	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name which needs to be migrated to YugabyteDB")
-	// exportCmd.MarkPersistentFlagRequired("source-db-schema")
+	if source.DBType == "oracle" {
+		exportCmd.MarkPersistentFlagRequired("source-db-schema")
+	}
 
 	// TODO SSL related more args will come. Explore them later.
 	exportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -106,13 +122,13 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
-	exportCmd.PersistentFlags().StringVar(&MigrationMode, "migration-mode", "offline",
+	exportCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 1,
 		"number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
 
-	exportCmd.PersistentFlags().StringVar(&StartClean, "start-clean", "NO",
-		"delete all existing objects inside the project if present and start fresh")
-
+	exportCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
+		"delete all existing files inside the project if present and start fresh")
+	fmt.Printf("[Temporary] Just after declaring the flag: %s\n", startClean)
 }

@@ -13,18 +13,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package fwk
 
-import (
-	"yb_migrate/cmd"
-
-	"github.com/sirupsen/logrus"
-)
-
-var Log *logrus.Logger
-
-func main() {
-	// Log = utils.GetLogger()
-
-	cmd.Execute()
+type SplitFileImportTask struct {
+	TableName           string
+	SchemaName          string
+	SplitFilePath       string
+	OffsetStart         int64
+	OffsetEnd           int64
+	TmpConnectionString string
+	SplitNumber         int
+	Interrupted         bool
 }

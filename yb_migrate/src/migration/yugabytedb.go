@@ -6,38 +6,29 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"yb_migrate/migrationutil"
-
-	"github.com/fatih/color"
+	"yb_migrate/src/utils"
 )
+
+var log = utils.GetLogger()
 
 // TODO
 func PrintYugabyteDBTargetVersion() {
 
 }
 
-func YugabyteDBImportSchema(target *migrationutil.Target, ExportDir string) {
-	metaInfo := extractMetaInfo(ExportDir)
+func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
+	metaInfo := extractMetaInfo(exportDir)
 
-	projectDirPath := ExportDir
+	projectDirPath := exportDir
 
 	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
 		target.User, target.Password, target.Host, target.Port, target.DBName)
 
-	//this list defined the order to create object type in target
-	importObjectOrderList := migrationutil.GetSchemaObjectList(metaInfo.SourceDBType)
-
-	// []string{ /*if source = postgres*/ "SCHEMA", "TYPE",
-	// 	/*if source = postgres*/ "DOMAIN", "SEQUENCE", "TABLE", "FUNCTION", "VIEW", "TRIGGER",
-	// 	/*"MVIEW" , "INDEXES", "FKEYS", GRANT, ROLE, RULE, AGGREGATE */}
-
-	red := color.New(color.FgRed).PrintfFunc()
-	yellow := color.New(color.FgYellow).PrintfFunc()
-	blue := color.New(color.FgBlue).PrintfFunc()
-	green := color.New(color.FgGreen).PrintfFunc()
+	//this list also has defined the order to create object type in target YugabyteDB
+	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)
 
 	for _, importObjectType := range importObjectOrderList {
-		yellow("[Debug]: Import of %s started...\n", importObjectType)
+		log.Debugf("Import of %s started...", importObjectType)
 		// fmt.Printf("[Debug]: Import of %s started...\n", importObjectType)
 
 		importObjectDirPath := projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
@@ -59,29 +50,29 @@ func YugabyteDBImportSchema(target *migrationutil.Target, ExportDir string) {
 		err := createObjectCommand.Run()
 
 		// CheckError(err, createObjectCommand.String(), "couldn't import " + importObjectType + " to target database!!", false)
-		// migrationutil.CheckError(err, createObjectCommand.String(), "couldn't import %s", false)
+		// utils.CheckError(err, createObjectCommand.String(), "couldn't import %s", false)
 
-		blue("%s\n", consoleOutput.String())
+		log.Infof("%s", consoleOutput.String())
 		// fmt.Printf("%s\n", consoleOutput.String())
 
 		if err == nil {
-			green("Import of %s done!!\n", importObjectType)
+			log.Debugf("Import of %s done!!", importObjectType)
 		} else {
-			red("couldn't import any %s, please try again!!", importObjectType)
+			log.Debugf("couldn't import any %s, please try again!!", importObjectType)
 		}
 	}
 
 }
 
 //This function is implementation is rough as of now.
-func extractMetaInfo(ExportDir string) migrationutil.MetaInfo {
+func extractMetaInfo(exportDir string) utils.MetaInfo {
 	fmt.Printf("Extracting the metainfo about the source database...\n")
-	var metaInfo migrationutil.MetaInfo
+	var metaInfo utils.MetaInfo
 
-	metaInfoDirPath := ExportDir + "/metainfo"
+	metaInfoDirPath := exportDir + "/metainfo"
 
 	metaInfoDir, err := os.ReadDir(metaInfoDirPath)
-	migrationutil.CheckError(err, "", "", true)
+	utils.CheckError(err, "", "", true)
 
 	for _, metaInfoSubDir := range metaInfoDir {
 		fmt.Printf("%s\n", metaInfoSubDir.Name())

@@ -17,7 +17,9 @@ package cmd
 
 import (
 	"fmt"
-	"yb_migrate/migration"
+	"os/exec"
+	"yb_migrate/src/migration"
+	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -36,11 +38,11 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data command called")
 
-		// if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
+		// if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
 		// 	fmt.Println("Project already exists")
-		// 	if StartClean == "YES" {
+		// 	if startClean == "YES" {
 		// 		fmt.Printf("Deleting it before continue...\n")
-		// 		migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+		// 		utils.DeleteProjectDirIfPresent(&source, exportDir)
 		// 	} else {
 		// 		fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
 		// 		fmt.Println("Aborting...")
@@ -61,19 +63,22 @@ func exportData() {
 	/*
 		TODO: Check and Ask if want to use the existing project directory or recreate it
 
-		projectDirName := migrationutil.GetProjectDirName(&source)
+		projectDirName := utils.GetProjectDirName(&source)
 		if source.DBType == "oracle" {
-			migrationutil.CreateMigrationProjectIfNotExists(ExportDir, projectDirName, source.Schema)
+			utils.CreateMigrationProjectIfNotExists(exportDir, projectDirName, source.Schema)
 		} else {
-			migrationutil.CreateMigrationProjectIfNotExists(ExportDir, projectDirName, source.DBName)
+			utils.CreateMigrationProjectIfNotExists(exportDir, projectDirName, source.DBName)
 		}
 	*/
 
-	if MigrationMode == "offline" {
+	if migrationMode == "offline" {
 		exportDataOffline()
 	} else {
 		exportDataOnline()
 	}
+
+	err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run()
+	utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
 }
 
 func exportDataOffline() {
@@ -88,19 +93,19 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "1521"
 		}
-		migration.Ora2PgExportDataOffline(&source, ExportDir)
+		migration.Ora2PgExportDataOffline(&source, exportDir)
 	case "postgres":
 		fmt.Printf("Prepare pg_dump for data export from PG\n")
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		migration.PgDumpExportDataOffline(&source, ExportDir)
+		migration.PgDumpExportDataOffline(&source, exportDir)
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
 		if source.Port == "" {
 			source.Port = "3306"
 		}
-		migration.Ora2PgExportDataOffline(&source, ExportDir)
+		migration.Ora2PgExportDataOffline(&source, exportDir)
 	}
 
 }

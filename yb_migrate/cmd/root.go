@@ -18,26 +18,20 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
-
 	"github.com/spf13/viper"
 )
 
 var (
 	cfgFile       string
-	ExportDir     string
-	MigrationMode string
-	StartClean    string
+	exportDir     string
+	migrationMode string
+	startClean    string
 )
 
-const (
-	ORACLE_DEFAULT_PORT         = "1521"
-	MYSQL_DEFAULT_PORT          = "3306"
-	POSTGRES_DEFAULT_PORT       = "5432"
-	YUGABYTEDB_DEFAULT_PORT     = "5433"
-	YUGABYTEDB_DEFAULT_DATABASE = "yugabyte"
-)
+var log = utils.GetLogger()
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -45,7 +39,7 @@ var rootCmd = &cobra.Command{
 	Short: "A tool to migrate a database to YugabyteDB",
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("config = %s\nExportDir = %s\n", cfgFile, ExportDir)
+		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
 	},
 }
 

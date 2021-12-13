@@ -18,8 +18,9 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"yb_migrate/migration"
-	"yb_migrate/migrationutil"
+
+	"yb_migrate/src/migration"
+	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -38,11 +39,11 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export schema command called")
 
-		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
+		if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
 			fmt.Println("Project already exists")
-			if StartClean == "YES" {
+			if startClean == "YES" {
 				fmt.Printf("Deleting it before continue...\n")
-				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)
+				utils.DeleteProjectDirIfPresent(&source, exportDir)
 			} else {
 				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
 				fmt.Println("Aborting...")
@@ -53,7 +54,7 @@ to quickly create a Cobra application.`,
 		exportSchema()
 
 		/*
-			// if sourceStruct and ExportDir etc are nil or undefined
+			// if sourceStruct and exportDir etc are nil or undefined
 			// then read the config file and create source struct from config file values
 			// possibly export dir value as well and then call export Schema with the created arguments
 			// else call the exportSchema directly
@@ -105,7 +106,7 @@ func exportSchema() {
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
-	// Hide num-connections flag from help description for this command
+	// Hide num-connections flag from help description from Export Schema command
 	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
 		command.Flags().MarkHidden("num-connections")
 		command.Parent().HelpFunc()(command, strings)
@@ -113,41 +114,41 @@ func init() {
 }
 
 func oracleExportSchema() {
-	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
 
-	migrationutil.CheckSourceDbAccessibility(&source)
+	utils.CheckSourceDbAccessibility(&source)
 
 	//Optional
-	migration.PrintOracleSourceDBVersion(&source, ExportDir)
+	migration.PrintOracleSourceDBVersion(&source, exportDir)
 
 	//[TODO]: Project Name can be based on user input or some other rules.
-	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 
-	migration.Ora2PgExtractSchema(&source, ExportDir)
+	migration.Ora2PgExtractSchema(&source, exportDir)
 }
 
 func postgresExportSchema() {
-	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
 
-	migrationutil.CheckSourceDbAccessibility(&source)
+	utils.CheckSourceDbAccessibility(&source)
 
 	//Optional
-	migration.PrintPostgresSourceDBVersion(&source, ExportDir)
+	migration.PrintPostgresSourceDBVersion(&source, exportDir)
 
-	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 
-	migration.PgDumpExtractSchema(&source, ExportDir)
+	migration.PgDumpExtractSchema(&source, exportDir)
 }
 
 func mysqlExportSchema() {
-	migrationutil.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
 
-	migrationutil.CheckSourceDbAccessibility(&source)
+	utils.CheckSourceDbAccessibility(&source)
 
 	//TODO: TEST/DEBUG this , causing error
-	// migration.PrintMySQLSourceDBVersion(&source, ExportDir) //Optional step
+	// migration.PrintMySQLSourceDBVersion(&source, exportDir) //Optional step
 
-	migrationutil.CreateMigrationProjectIfNotExists(&source, ExportDir)
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 
-	migration.Ora2PgExtractSchema(&source, ExportDir)
+	migration.Ora2PgExtractSchema(&source, exportDir)
 }
