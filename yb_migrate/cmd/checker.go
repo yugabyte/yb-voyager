@@ -97,6 +97,7 @@ func checkSql(strArray []string, fn string) {
     concurIdxRegex := regexp.MustCompile("(?i)CREATE INDEX CONCURRENTLY")
     trigRefRegex := regexp.MustCompile("(?i)CREATE TRIGGER ([a-zA-Z0-9_]+).*REFERENCING")
     constrTrgRegex := regexp.MustCompile("(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_]+)")
+    currentOfRegex := regexp.MustCompile("(?i)WHERE CURRENT OF")
     for _, line := range strArray {
         if rangeRegex.MatchString(line) {
             reportCase(fn,
@@ -120,6 +121,8 @@ func checkSql(strArray []string, fn string) {
         } else if trig := constrTrgRegex.FindStringSubmatch(line); trig != nil {
             reportCase(fn, "CREATE CONSTRAINT TRIGGER not supported yet. Trigger is: " + trig[1],
                 "https://github.com/YugaByte/yugabyte-db/issues/1709")
+        } else if currentOfRegex.MatchString(line) {
+            reportCase(fn, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737")
         }
     }
 }
@@ -138,7 +141,7 @@ func checkDDL(strArray []string, fn string) {
     createViewRegex := regexp.MustCompile("(?i)CREATE VIEW ")
     likeAllRegex := regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+) .*LIKE .*INCLUDING ALL")
     likeRegex := regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+) .*\\(like")
-    inheritRegex := regexp.MustCompile("(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+).*INHERITS")
+    inheritRegex := regexp.MustCompile("(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+).*INHERITS[ |\\(]")
     withOidsRegex := regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+) .*WITH OIDS")
     intvlRegex := regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+) .*interval PRIMARY")
 
@@ -155,9 +158,11 @@ func checkDDL(strArray []string, fn string) {
     alterOptionsRegex := regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_]+) OPTIONS")
     alterInhRegex := regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_]+) INHERIT")
     valConstrRegex := regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_]+) VALIDATE CONSTRAINT")
+    deferRegex := regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_]+).* unique .*deferrable")
 
     dropAttrRegex := regexp.MustCompile("(?i)ALTER TYPE ([a-zA-Z0-9_]+) DROP ATTRIBUTE")
     alterTypeRegex := regexp.MustCompile("(?i)ALTER TYPE ([a-zA-Z0-9_]+)")
+    alterTblSpcRegex := regexp.MustCompile("(?i)ALTER TABLESPACE ([a-zA-Z0-9_]+) SET")
 
     // table partition. partitioned table is the key in tblParts map
     tblPartitionRegex := regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_]+) .*PARTITION OF ([a-zA-Z0-9_]+)")
@@ -251,6 +256,12 @@ func checkDDL(strArray []string, fn string) {
         } else if tbl := valConstrRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE VALIDATE CONSTRAINT not supported yet. Table is: " + tbl[3],
                 "https://github.com/YugaByte/yugabyte-db/issues/1124");
+        } else if tbl := deferRegex.FindStringSubmatch(line); tbl != nil {
+            reportCase(fn, "DEFERRABLE unique constraints are not supported yet. Table is: " + tbl[3],
+                "https://github.com/YugaByte/yugabyte-db/issues/1129")
+        } else if spc := alterTblSpcRegex.FindStringSubmatch(line); spc != nil {
+            reportCase(fn, "ALTER TABLESPACE not supported yet. Tablespace is: " + spc[1],
+                "https://github.com/YugaByte/yugabyte-db/issues/1153")
         }
     }
 }
