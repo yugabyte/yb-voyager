@@ -15,8 +15,17 @@ limitations under the License.
 */
 package main
 
-import "yb_migrate/cmd"
+import (
+	"yb_migrate/cmd"
+	"yb_migrate/migrationutil"
+
+	"github.com/sirupsen/logrus"
+)
+
+var Log *logrus.Logger
 
 func main() {
+	Log = migrationutil.GetLogger()
+
 	cmd.Execute()
 }

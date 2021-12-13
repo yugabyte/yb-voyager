@@ -20,6 +20,7 @@ import (
 	"os"
 	"yb_migrate/migrationutil"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -45,7 +46,8 @@ var exportCmd = &cobra.Command{
 
 		//TODO: NON-interactive with --start-clean option
 		if migrationutil.FileOrFolderExists(migrationutil.GetProjectDirPath(&source, ExportDir)) {
-			fmt.Println("Project already exists")
+			log.Info("Project already exists")
+			log.Warn("Project already exists")
 			if startClean == "YES" {
 				fmt.Printf("Deleting it before continue...\n")
 				migrationutil.DeleteProjectDirIfPresent(&source, ExportDir)

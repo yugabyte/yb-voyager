@@ -1,6 +1,9 @@
 package migrationutil
 
-import "log"
+import (
+	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
+)
 
 func CheckError(err error, executedCommand string, possibleReason string, stop bool) {
 	if err != nil {
@@ -17,4 +20,10 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 			log.Printf("%s \n", err)
 		}
 	}
+}
+
+func GetLogger() *logrus.Logger {
+	log.SetLevel(log.InfoLevel)
+
+	return &log.Logger
 }

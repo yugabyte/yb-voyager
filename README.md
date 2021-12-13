@@ -18,6 +18,15 @@ YugabyteDB's migration tool
     yb_migrate export --source-db-type postgres --source-db-host 127.0.0.1 --source-db-port 5432 --export-dir /home/centos/yb_migrate_projects --source-db-user postgres --source-db-password postgres --source-db-name sakila
     ```
 
+### Mysql
+1. Example Command:
+    ```
+    yb_migrate export schema \
+    --source-db-type mysql \
+    --source-db-host ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com \
+    --source-db-port 3306 --source-db-user admin \
+    --source-db-password password --source-db-name sakila
+    ```
 
 ***
 ## Export Schema
@@ -45,6 +54,17 @@ YugabyteDB's migration tool
     ```
 
 <br/>
+
+### MySQL
+1. Example Command:
+    ```
+    yb_migrate export schema \
+    --source-db-type mysql \
+    --source-db-host ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com \
+    --source-db-port 3306 --source-db-user admin \
+    --source-db-password password --source-db-name sakila
+    ```
+
 
 ***
 ## Export Data
