@@ -50,7 +50,7 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 			log.Infof("%s", possibleReason)
 		}
 		if stop {
-			log.Infof("%s", err)
+			log.Fatalf("%s", err)
 		} else {
 			log.Infof("%s", err)
 		}

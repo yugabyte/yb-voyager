@@ -40,10 +40,10 @@ func PrintPostgresSourceDBVersion(source *utils.Source, exportDir string) {
 
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	fmt.Printf("Exporting Postgres schema started...\n")
-	projectDirPath := utils.GetProjectDirPath(source, exportDir)
+	projectDirPath := exportDir
 
 	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "user=%s password=%s host=%s port=%s dbname=%s sslmode=%s sslrootcert=%s" `+
-		`--schema-only > %s/metainfo/schema/schema.sql`, source.User, source.Password, source.Host,
+		`--schema-only -f %s/metainfo/schema/schema.sql`, source.User, source.Password, source.Host,
 		source.Port, source.DBName, source.SSLMode, source.SSLCertPath, projectDirPath)
 
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
@@ -63,7 +63,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 func parseSchemaFile(source *utils.Source, exportDir string) {
 	fmt.Printf("Parsing the schema file...\n")
 
-	projectDirPath := utils.GetProjectDirPath(source, exportDir)
+	projectDirPath := exportDir
 	schemaFilePath := projectDirPath + "/metainfo/schema" + "/schema.sql"
 
 	//CHOOSE - bufio vs ioutil(Memory vs Performance)?
@@ -217,7 +217,7 @@ func PgDumpExportDataOffline(source *utils.Source, exportDir string) {
 
 	utils.CreateMigrationProjectIfNotExists(source, exportDir)
 
-	projectDirPath := utils.GetProjectDirPath(source, exportDir)
+	projectDirPath := exportDir
 	dataDirPath := projectDirPath + "/data"
 
 	//using pgdump for exporting data in directory format
@@ -290,9 +290,9 @@ func getMappingForTableFileNameVsTableName(dataDirPath string) map[string]string
 		}
 	}
 
-	//extracted SQL for setval() and put it into a post_data.sql file
+	//extracted SQL for setval() and put it into a postdata.sql file
 	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
-	ioutil.WriteFile(dataDirPath+"/post_data.sql", []byte(sequencesPostData.String()), 0644)
+	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
 
 	return fileNameVsTableNameMap
 }
