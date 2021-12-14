@@ -16,7 +16,7 @@ package cmd
 import (
   "bufio"
   "path/filepath"
-  "fmt"
+  // "fmt"
   "log"
   "os"
   "regexp"
@@ -39,7 +39,8 @@ var (
   viewcnt    = 0
 )
 
-func reportCase(fn string, reason string, issue string) {
+// Reports one case in JSON
+func reportCase(fn string, reason string, issue string, suggestion string) {
     canMigrate = false
     casenum++
     if casenum > 1 {
@@ -48,6 +49,9 @@ func reportCase(fn string, reason string, issue string) {
     report += "\n\"case " + strconv.Itoa(casenum) + "\": {"
     report += "\n\"reason\":\"" + reason + "\","
     report += "\n \"file\": \"" + fn + "\","
+    if suggestion != "" {
+        report += "\n \"suggestion\": \"" + suggestion + "\","
+    }
     report += "\n \"GH\": \"" + issue + "\"}"
 }
 
@@ -60,16 +64,16 @@ func checkGist(strArray []string, fn string) {
     for _, line := range strArray {
         if index := gistRegex.FindStringSubmatch(line); index != nil {
             reportCase(fn, "Schema contains gist index which is not supported. The index is: " + index[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1337")
+                "https://github.com/YugaByte/yugabyte-db/issues/1337", "")
         } else if idx := brinRegex.FindStringSubmatch(line); idx != nil {
             reportCase(fn, "index method \"brin\" not supported yet. Table is: " + idx[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1337")
+                "https://github.com/YugaByte/yugabyte-db/issues/1337", "")
         } else if idx := spgistRegex.FindStringSubmatch(line); idx != nil {
             reportCase(fn, "index method \"spgist\" not supported yet. Table is: " + idx[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1337")
+                "https://github.com/YugaByte/yugabyte-db/issues/1337", "")
         } else if idx := rtreeRegex.FindStringSubmatch(line); idx != nil {
             reportCase(fn, "index method \"rtree\" is superceded by \"gist\" which is not supported yet. Table is: " + idx[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1337")
+                "https://github.com/YugaByte/yugabyte-db/issues/1337", "")
         }
     }
 }
@@ -81,11 +85,26 @@ func checkViews(strArray []string, fn string) {
     for _, line := range strArray {
         if view := matViewRegex.FindStringSubmatch(line); view != nil {
             reportCase(fn, "Schema contains materialized view which is not supported. The view is: " + view[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10102")
+                "https://github.com/yugabyte/yugabyte-db/issues/10102", "")
         } else if view := viewWithCheckRegex.FindStringSubmatch(line); view != nil {
-            reportCase(fn, "Schema containing VIEW WITH CHECK OPTION is not supported yet. The view is: " + view[1], "")
+            reportCase(fn, "Schema containing VIEW WITH CHECK OPTION is not supported yet. The view is: " + view[1], "", "")
         }
     }
+}
+
+// Separates the input line into multiple statements which are accepted by YB.
+func separateMultiObj(objType string, line string) string {
+    multiRegex := regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
+
+    indexes := multiRegex.FindAllStringSubmatchIndex(line, -1)
+    suggestion := ""
+    for _, match := range indexes {
+        start := match[2]
+        end := match[3]
+        obj := strings.Replace(line[start:end], ",", ";", -1)
+        suggestion += "DROP " + objType + " " + obj
+    }
+    return suggestion
 }
 
 // Checks compatibility of SQL statements
@@ -102,34 +121,34 @@ func checkSql(strArray []string, fn string) {
         if rangeRegex.MatchString(line) {
             reportCase(fn,
                 "RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
-                "https://github.com/yugabyte/yugabyte-db/issues/10692")
+                "https://github.com/yugabyte/yugabyte-db/issues/10692", "")
         } else if alterAggRegex.MatchString(line) {
             reportCase(fn, "ALTER AGGREGATE not supported yet.",
-                "https://github.com/YugaByte/yugabyte-db/issues/2717")
+                "https://github.com/YugaByte/yugabyte-db/issues/2717", "")
         } else if dropMultiRegex.MatchString(line) {
             reportCase(fn, "DROP multiple objects not supported yet.",
-                "https://github.com/YugaByte/yugabyte-db/issues/880")
+                "https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("COLLATION", line))
         } else if dropIdxRegex.MatchString(line) {
             reportCase(fn, "DROP multiple objects not supported yet.",
-                "https://github.com/YugaByte/yugabyte-db/issues/880")
+                "https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("INDEX", line))
         } else if concurIdxRegex.MatchString(line) {
             reportCase(fn, "CREATE INDEX CONCURRENTLY not supported yet",
-                "https://github.com/yugabyte/yugabyte-db/issues/10799")
+                "https://github.com/yugabyte/yugabyte-db/issues/10799", "")
         } else if trig := trigRefRegex.FindStringSubmatch(line); trig != nil {
             reportCase(fn, "REFERENCING clause (transition tables) not supported yet. Trigger is: " + trig[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1668")
+                "https://github.com/YugaByte/yugabyte-db/issues/1668", "")
         } else if trig := constrTrgRegex.FindStringSubmatch(line); trig != nil {
             reportCase(fn, "CREATE CONSTRAINT TRIGGER not supported yet. Trigger is: " + trig[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1709")
+                "https://github.com/YugaByte/yugabyte-db/issues/1709", "")
         } else if currentOfRegex.MatchString(line) {
-            reportCase(fn, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737")
+            reportCase(fn, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "")
         }
     }
 }
 
 func reportAddingPrimaryKey(fn string, tbl string) {
     reportCase(fn, "Adding primary key to a partitioned table is not yet implemented. Table is: " + tbl,
-        "https://github.com/yugabyte/yugabyte-db/issues/10074")
+        "https://github.com/yugabyte/yugabyte-db/issues/10074", "")
 }
 
 // Checks unsupported DDL statements
@@ -176,20 +195,20 @@ func checkDDL(strArray []string, fn string) {
         }
         if am := amRegex.FindStringSubmatch(line); am != nil {
             reportCase(fn, "CREATE ACCESS METHOD is not supported. ACCESS METHOD: " + am[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10693")
+                "https://github.com/yugabyte/yugabyte-db/issues/10693", "")
         } else if tbl := idxConcRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "REINDEX CONCURRENTLY is not supported. Table to be indexed: " + tbl[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10694")
+                "https://github.com/yugabyte/yugabyte-db/issues/10694", "")
         } else if col := storedRegex.FindStringSubmatch(line); col != nil {
             reportCase(fn, "Stored generated column is not supported. Column is: " + col[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10695")
+                "https://github.com/yugabyte/yugabyte-db/issues/10695", "")
         } else if tbl := likeAllRegex.FindStringSubmatch(line); tbl != nil {
             modtablecnt++;
             reportCase(fn, "LIKE ALL is not supported yet. Table is: " + tbl[2],
-                "https://github.com/yugabyte/yugabyte-db/issues/10697")
+                "https://github.com/yugabyte/yugabyte-db/issues/10697", "")
         } else if tbl := likeRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "LIKE clause not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1129")
+                "https://github.com/YugaByte/yugabyte-db/issues/1129", "")
         } else if tbl := tblPartitionRegex.FindStringSubmatch(line); tbl != nil {
             tblParts[tbl[2]] = tbl[3]
             if filename, ok := primaryCons[tbl[2]]; ok {
@@ -203,65 +222,65 @@ func checkDDL(strArray []string, fn string) {
         } else if tbl := inheritRegex.FindStringSubmatch(line); tbl != nil {
             modtablecnt++;
             reportCase(fn, "INHERITS not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1129")
+                "https://github.com/YugaByte/yugabyte-db/issues/1129", "")
         } else if tbl := withOidsRegex.FindStringSubmatch(line); tbl != nil {
             modtablecnt++;
             reportCase(fn, "OIDs are not supported for user tables. Table is: " + tbl[2],
-                "https://github.com/yugabyte/yugabyte-db/issues/10273")
+                "https://github.com/yugabyte/yugabyte-db/issues/10273", "")
         } else if tbl := intvlRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "PRIMARY KEY containing column of type 'INTERVAL' not yet supported. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1397")
+                "https://github.com/YugaByte/yugabyte-db/issues/1397", "")
         } else if tbl := alterOfRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE OF not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterNotOfRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE NOT OF not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterColumnRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE ALTER column not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterConstrRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE ALTER CONSTRAINT not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := setOidsRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE SET WITH OIDS not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := withoutClusterRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE SET WITHOUT CLUSTER not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := clusterRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE CLUSTER not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterSetRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE SET not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterIdxRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE SET not supported yet. Table is: " + tbl[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterResetRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE RESET not supported yet. Table is: " + tbl[2],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := alterOptionsRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if typ := dropAttrRegex.FindStringSubmatch(line); typ != nil {
             reportCase(fn, "ALTER TYPE DROP ATTRIBUTE not supported yet. Type is: " + typ[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1893")
+                "https://github.com/YugaByte/yugabyte-db/issues/1893", "")
         } else if typ := alterTypeRegex.FindStringSubmatch(line); typ != nil {
             reportCase(fn, "ALTER TYPE not supported yet. Type is: " + typ[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1893")
+                "https://github.com/YugaByte/yugabyte-db/issues/1893", "")
         } else if tbl := alterInhRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE INHERIT not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124")
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "")
         } else if tbl := valConstrRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "ALTER TABLE VALIDATE CONSTRAINT not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1124");
+                "https://github.com/YugaByte/yugabyte-db/issues/1124", "");
         } else if tbl := deferRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "DEFERRABLE unique constraints are not supported yet. Table is: " + tbl[3],
-                "https://github.com/YugaByte/yugabyte-db/issues/1129")
+                "https://github.com/YugaByte/yugabyte-db/issues/1129", "")
         } else if spc := alterTblSpcRegex.FindStringSubmatch(line); spc != nil {
             reportCase(fn, "ALTER TABLESPACE not supported yet. Tablespace is: " + spc[1],
-                "https://github.com/YugaByte/yugabyte-db/issues/1153")
+                "https://github.com/YugaByte/yugabyte-db/issues/1153", "")
         }
     }
 }
@@ -273,10 +292,10 @@ func checkForeign(strArray []string, fn string) {
     for _, line := range strArray {
         if tbl := primRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "Primary key constraints are not supported on foreign tables. Table is: " + tbl[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10698")
+                "https://github.com/yugabyte/yugabyte-db/issues/10698", "")
         } else if tbl := foreignKeyRegex.FindStringSubmatch(line); tbl != nil {
             reportCase(fn, "Foreign key constraints are not supported on foreign tables. Table is: " + tbl[1],
-                "https://github.com/yugabyte/yugabyte-db/issues/10699")
+                "https://github.com/yugabyte/yugabyte-db/issues/10699", "")
         }
     }
 }
@@ -325,8 +344,7 @@ func checkScript(fn string) {
     if canMigrate {
         log.Println("Schema in " + fn + " can be migrated to Yugabyte DB")
     } else {
-        summary := "\n\n" + fn + " has items to be modified before migration\n"
-        log.Println(summary)
+        // log.Println("\n\n" + fn + " has items to be modified before migration\n")
     }
 }
 
@@ -348,7 +366,7 @@ func checker(args []string) {
         if strings.HasSuffix(info.Name(), ".sql") {
             checkScript(path)
         }
-        fmt.Println(path, info.Size())
+        // fmt.Println(path, info.Size())
         return nil
     })
     if err != nil {
