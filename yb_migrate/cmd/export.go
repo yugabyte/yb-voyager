@@ -41,8 +41,6 @@ var exportCmd = &cobra.Command{
 `,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("%v\n", source)
-		fmt.Printf("ExportDir = %s\n", exportDir)
 		fmt.Printf("migrationMode = %s, startClean = %v\n", migrationMode, startClean)
 
 		//TODO: Debug - startClean variable is not getting set after giving the default flag value
@@ -55,13 +53,6 @@ var exportCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		log.Trace("PersistentPreRun done...")
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		log.Infof("parent export command called with source data type = %s", source.DBType)
-
-		// if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
 		if utils.ProjectSubdirsExists(exportDir) {
 			if startClean == "YES" {
 				fmt.Printf("Deleting it before continue...\n")
@@ -72,6 +63,12 @@ var exportCmd = &cobra.Command{
 				os.Exit(1)
 			}
 		}
+
+		log.Trace("PersistentPreRun done...")
+	},
+
+	Run: func(cmd *cobra.Command, args []string) {
+		log.Infof("parent export command called with source data type = %s", source.DBType)
 
 		exportSchema()
 		exportData()

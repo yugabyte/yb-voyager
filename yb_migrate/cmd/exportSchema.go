@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
@@ -39,20 +38,7 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export schema command called")
 
-		if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
-			fmt.Println("Project already exists")
-			if startClean == "YES" {
-				fmt.Printf("Deleting it before continue...\n")
-				utils.DeleteProjectDirIfPresent(&source, exportDir)
-			} else {
-				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
-				fmt.Println("Aborting...")
-				os.Exit(1)
-			}
-		}
-
 		exportSchema()
-
 		/*
 			// if sourceStruct and exportDir etc are nil or undefined
 			// then read the config file and create source struct from config file values

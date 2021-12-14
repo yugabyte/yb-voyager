@@ -29,6 +29,7 @@ var (
 	exportDir     string
 	migrationMode string
 	startClean    string
+	logLevel      string
 )
 
 var log = utils.GetLogger()
@@ -60,9 +61,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.yb_migrate.yaml)")
 
-	//Rightnow this is a temporary logging flag
-	// rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
-	// 	"Logging level : INFO, WARN, DEBUG")
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
+		"Logging levels: TRACE, DEBUG, INFO, WARN")
 }
 
 // initConfig reads in config file and ENV variables if set.

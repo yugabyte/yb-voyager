@@ -273,12 +273,12 @@ func CheckToolsRequiredInstalledOrNot(dbType string) {
 		}
 	}
 
-	fmt.Printf("[Debug] Required tools are present...\n")
+	log.Debugf("Required tools %v are present...", toolsRequired)
 }
 
 func ProjectSubdirsExists(exportDir string) bool {
 	for _, subdir := range projectSubdirs {
-		if FileOrFolderExists(subdir) {
+		if FileOrFolderExists(exportDir + "/" + subdir) {
 			return true
 		}
 	}

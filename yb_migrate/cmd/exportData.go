@@ -38,18 +38,6 @@ to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data command called")
 
-		// if utils.FileOrFolderExists(utils.GetProjectDirPath(&source, exportDir)) {
-		// 	fmt.Println("Project already exists")
-		// 	if startClean == "YES" {
-		// 		fmt.Printf("Deleting it before continue...\n")
-		// 		utils.DeleteProjectDirIfPresent(&source, exportDir)
-		// 	} else {
-		// 		fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
-		// 		fmt.Println("Aborting...")
-		//		os.Exit(1)
-		// 	}
-		// }
-
 		exportData()
 	},
 }

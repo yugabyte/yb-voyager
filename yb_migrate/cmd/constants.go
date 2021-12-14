@@ -5,7 +5,7 @@ const (
 	SPLIT_FILE_CHANNEL_SIZE     = 200
 	META_INFO_DIR_NAME          = "metainfo"
 	NEWLINE                     = '\n'
-	YSQL                        = "/home/centos/code/yugabyte-db/bin/ysqlsh" //"/Users/kneeraj/code/yugabyte-db/bin/ysqlsh"
+	YSQL                        = "/home/centos/code/yugabyte-db/bin/ysqlsh" // Rightnow this is hard-coded, we need to update this dynamically.
 	GET_SERVERS_QUERY           = "SELECT * FROM yb_servers()"
 	ORACLE_DEFAULT_PORT         = "1521"
 	MYSQL_DEFAULT_PORT          = "3306"

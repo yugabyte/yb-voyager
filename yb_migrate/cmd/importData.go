@@ -554,7 +554,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				panic(fp)
 			}
-			// defer os.Remove(sqlFile)
+			defer os.Remove(sqlFile)
 			bufferedWriter := bufio.NewWriter(fp)
 			for _, statement := range IMPORT_SESSION_SETTERS {
 				_, err = bufferedWriter.WriteString(statement)

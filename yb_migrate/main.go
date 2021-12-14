@@ -17,14 +17,9 @@ package main
 
 import (
 	"yb_migrate/cmd"
-
-	"github.com/sirupsen/logrus"
 )
 
-var Log *logrus.Logger
-
 func main() {
-	// Log = utils.GetLogger()
 
 	cmd.Execute()
 }
