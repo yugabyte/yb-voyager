@@ -48,17 +48,6 @@ func init() {
 
 func exportData() {
 
-	/*
-		TODO: Check and Ask if want to use the existing project directory or recreate it
-
-		projectDirName := utils.GetProjectDirName(&source)
-		if source.DBType == "oracle" {
-			utils.CreateMigrationProjectIfNotExists(exportDir, projectDirName, source.Schema)
-		} else {
-			utils.CreateMigrationProjectIfNotExists(exportDir, projectDirName, source.DBName)
-		}
-	*/
-
 	if migrationMode == "offline" {
 		exportDataOffline()
 	} else {
@@ -70,10 +59,6 @@ func exportData() {
 }
 
 func exportDataOffline() {
-	/*
-		TODO: check and clean subdirs under the data dir, before exportData everytime
-		Also if the project is not created then create it
-	*/
 
 	switch source.DBType {
 	case "oracle":
