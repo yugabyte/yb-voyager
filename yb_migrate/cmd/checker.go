@@ -46,6 +46,10 @@ var (
   matViewRegex = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_]+)")
   viewWithCheckRegex = regexp.MustCompile("(?i)VIEW[ \t\n]+([a-zA-Z0-9_]+).*WITH CHECK OPTION")
   rangeRegex = regexp.MustCompile("(?i)PRECEDING[ \t\n]+and[ \t\n]+.*:float")
+  fetchRegex = regexp.MustCompile("(?i)FETCH .*FROM")
+  fetchRelativeRegex = regexp.MustCompile("(?i)FETCH RELATIVE")
+  backwardRegex = regexp.MustCompile("(?i)MOVE BACKWARD")
+  fetchAbsRegex = regexp.MustCompile("(?i)FETCH ABSOLUTE")
   alterAggRegex = regexp.MustCompile("(?i)ALTER AGGREGATE")
   dropCollRegex = regexp.MustCompile("(?i)DROP COLLATION ([a-zA-Z0-9_]+), ([a-zA-Z0-9_]+)")
   dropIdxRegex = regexp.MustCompile("(?i)DROP INDEX ([a-zA-Z0-9_]+), ([a-zA-Z0-9_]+)")
@@ -164,6 +168,14 @@ func checkSql(strArray []string, fn string) {
             reportCase(fn,
                 "RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
                 "https://github.com/yugabyte/yugabyte-db/issues/10692", "")
+        } else if fetchAbsRegex.MatchString(line) {
+            reportCase(fn, "FETCH ABSOLUTE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "")
+        } else if fetchRelativeRegex.MatchString(line) {
+            reportCase(fn, "FETCH RELATIVE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "")
+        } else if fetchRegex.MatchString(line) {
+            reportCase(fn, "FETCH - not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "")
+        } else if backwardRegex.MatchString(line) {
+            reportCase(fn, "FETCH BACKWARD not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "")
         } else if alterAggRegex.MatchString(line) {
             reportCase(fn, "ALTER AGGREGATE not supported yet.",
                 "https://github.com/YugaByte/yugabyte-db/issues/2717", "")
@@ -331,10 +343,6 @@ func checkScript(fn string) {
     for scanner.Scan() {
         curr := scanner.Text()
         if strings.HasPrefix(curr, "--") {
-            continue
-        }
-        // ignore insertions
-        if strings.HasPrefix(strings.ToLower(curr), "insert") {
             continue
         }
         if strings.HasPrefix(curr, " ") {
