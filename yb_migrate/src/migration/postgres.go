@@ -8,7 +8,10 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"time"
 	"yb_migrate/src/utils"
+
+	"github.com/tevino/abool/v2"
 )
 
 var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
@@ -212,16 +215,14 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PgDumpExportDataOffline(source *utils.Source, exportDir string) {
+func PgDumpExportDataOffline(source *utils.Source, exportDir string, ExportDataDone *abool.AtomicBool) {
 	CheckToolsRequiredForPostgresExport()
 
 	utils.CreateMigrationProjectIfNotExists(source, exportDir)
 
-	projectDirPath := exportDir
-	dataDirPath := projectDirPath + "/data"
+	dataDirPath := exportDir + "/data"
 
 	//using pgdump for exporting data in directory format
-	//example: pg_dump postgresql://postgres:postgres@127.0.0.1:5432/sakila?sslmode=disable --verbose --compress=0 --data-only -Fd -f sakila-data-dir
 	pgdumpDataExportCommandString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
 		"sslmode=%s --compress=0 --data-only -Fd --file %s --jobs %d", source.User, source.Password,
 		source.Host, source.Port, source.DBName, source.SSLMode, dataDirPath, source.NumConnections)
@@ -230,13 +231,96 @@ func PgDumpExportDataOffline(source *utils.Source, exportDir string) {
 
 	pgdumpDataExportCommand := exec.Command("/bin/bash", "-c", pgdumpDataExportCommandString)
 
-	err := pgdumpDataExportCommand.Run()
+	err := pgdumpDataExportCommand.Start()
+	fmt.Println("pg_dump for data export started")
 
 	utils.CheckError(err, pgdumpDataExportCommandString,
 		"Exporting of data failed, retry exporting it", true)
 
 	//Parsing the main toc.dat file
-	parseTocFileCommand := exec.Command("strings", dataDirPath+"/toc.dat")
+	parseAndCreateTocTextFile(dataDirPath)
+
+	//Wait for pg_dump to complete before renaming of data files
+	err = pgdumpDataExportCommand.Wait()
+	utils.CheckError(err, pgdumpDataExportCommandString, "", true)
+
+	requiredMap := getMappingForTableNameVsTableFileName(dataDirPath)
+	for tableName, fileName := range requiredMap {
+		oldFileName := dataDirPath + "/" + fileName
+		newFileName := dataDirPath + "/" + tableName + "_data.sql"
+		// fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
+		os.Rename(oldFileName, newFileName)
+	}
+
+	ExportDataDone.Set()
+}
+
+func ExportDataPostProcessing(exportDir string) {
+	dataDirPath := exportDir + "/data"
+	requiredMap := getMappingForTableNameVsTableFileName(dataDirPath)
+
+	for tableName, fileName := range requiredMap {
+		oldFileName := dataDirPath + "/" + fileName
+		newFileName := dataDirPath + "/" + tableName + "_data.sql"
+		// fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
+		os.Rename(oldFileName, newFileName)
+	}
+}
+
+//The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
+func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
+	tocTextFilePath := dataDirPath + "/toc.txt"
+	waitingFlag := 0
+	for !utils.FileOrFolderExists(tocTextFilePath) {
+		fmt.Printf("Waiting for toc Text file = %s to be created\n", tocTextFilePath)
+		waitingFlag = 1
+		time.Sleep(time.Second * 3)
+	}
+
+	if waitingFlag == 1 {
+		fmt.Println("toc.txt file got created !!")
+	}
+
+	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
+
+	utils.CheckError(err, "", "", true)
+
+	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
+	numLines := len(tocTextFileData)
+
+	var sequencesPostData strings.Builder
+	fileNameVsTableNameMap := make(map[string]string)
+
+	for i := 0; i < numLines; i++ {
+		if tocTextFileData[i] == "TABLE DATA" {
+			fileNameVsTableNameMap[tocTextFileData[i-1]] = tocTextFileData[i+5]
+		} else if tocTextFileData[i] == "SEQUENCE SET" {
+			sequencesPostData.WriteString(tocTextFileData[i+1])
+			sequencesPostData.WriteString("\n")
+		}
+	}
+
+	//extracted SQL for setval() and put it into a postdata.sql file
+	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
+	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
+
+	return fileNameVsTableNameMap
+}
+
+func parseAndCreateTocTextFile(dataDirPath string) {
+	tocFilePath := dataDirPath + "/toc.dat"
+	waitingFlag := 0
+	for !utils.FileOrFolderExists(tocFilePath) {
+		fmt.Printf("Waiting for toc file = %s to be created\n", tocFilePath)
+		waitingFlag = 1
+		time.Sleep(time.Second * 3)
+	}
+
+	if waitingFlag == 1 {
+		fmt.Println("toc.dat file got created !!")
+	}
+
+	parseTocFileCommand := exec.Command("strings", tocFilePath)
 
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
 
@@ -254,45 +338,4 @@ func PgDumpExportDataOffline(source *utils.Source, exportDir string) {
 
 	writer.Flush()
 	tocTextFile.Close()
-
-	//TODO: write the mapping creation function
-	requiredMap := getMappingForTableFileNameVsTableName(dataDirPath)
-
-	for fileName, tableName := range requiredMap {
-		oldFileName := dataDirPath + "/" + fileName
-		newFileName := dataDirPath + "/" + tableName + "_data.sql"
-		fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
-		os.Rename(oldFileName, newFileName)
-	}
-
-	fmt.Printf("Data  export complete... \n")
-}
-
-//The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
-func getMappingForTableFileNameVsTableName(dataDirPath string) map[string]string {
-	tocTextFilePath := dataDirPath + "/toc.txt"
-	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
-
-	utils.CheckError(err, "", "", true)
-
-	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
-	numLines := len(tocTextFileData)
-
-	var sequencesPostData strings.Builder
-	fileNameVsTableNameMap := make(map[string]string)
-
-	for i := 0; i < numLines; i++ {
-		if tocTextFileData[i] == "TABLE DATA" {
-			fileNameVsTableNameMap[tocTextFileData[i+5]] = tocTextFileData[i-1]
-		} else if tocTextFileData[i] == "SEQUENCE SET" {
-			sequencesPostData.WriteString(tocTextFileData[i+1])
-			sequencesPostData.WriteString("\n")
-		}
-	}
-
-	//extracted SQL for setval() and put it into a postdata.sql file
-	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
-	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
-
-	return fileNameVsTableNameMap
 }

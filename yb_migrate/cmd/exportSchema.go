@@ -67,7 +67,7 @@ func exportSchema() {
 		}
 		oracleExportSchema()
 	case "postgres":
-		fmt.Printf("Prepare ysql_dump for schema export from PG\n")
+		fmt.Printf("Prepare pg_dump for schema export from PG\n")
 		if source.Port == "" {
 			source.Port = POSTGRES_DEFAULT_PORT
 		}

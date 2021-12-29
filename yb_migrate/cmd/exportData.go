@@ -18,11 +18,15 @@ package cmd
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
+	"github.com/tevino/abool/v2"
 )
+
+var ExportDataDone = abool.New()
 
 // exportDataCmd represents the exportData command
 var exportDataCmd = &cobra.Command{
@@ -72,7 +76,7 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		migration.PgDumpExportDataOffline(&source, exportDir)
+		go migration.PgDumpExportDataOffline(&source, exportDir, ExportDataDone)
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
 		if source.Port == "" {
@@ -81,6 +85,42 @@ func exportDataOffline() {
 		migration.Ora2PgExportDataOffline(&source, exportDir)
 	}
 
+	tableList := migration.GetTableList(exportDir)
+	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
+
+	migration.UpdateDataFilePath(&source, exportDir, tablesMetadata)
+
+	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
+
+	exportDataStatus(tablesMetadata)
+
+	if source.DBType == "postgres" { //not required for oracle, mysql
+		migration.ExportDataPostProcessing(exportDir)
+	}
 }
 
 func exportDataOnline() {}
+
+func createExportTableMetadataSlice(exportDir string, tableList []string) []utils.ExportTableMetadata {
+	numTables := len(tableList)
+	tablesMetadata := make([]utils.ExportTableMetadata, numTables)
+
+	for i := 0; i < numTables; i++ {
+		tableInfo := strings.Split(tableList[i], ".")
+		if len(tableInfo) > 1 { //postgres
+			tablesMetadata[i].TableSchema = tableInfo[0]
+			tablesMetadata[i].TableName = tableInfo[1]
+		} else { //oracle
+			tablesMetadata[i].TableSchema = source.Schema
+			tablesMetadata[i].TableName = tableInfo[0]
+		}
+
+		// tablesMetadata[i].DataFilePath; will be updated when status changes to IN-PROGRESS
+		// tablesMetadata[i].CountTotalRows; will be done by other func
+		tablesMetadata[i].CountLiveRows = int64(0)
+		tablesMetadata[i].Status = "NOT-STARTED"
+		tablesMetadata[i].FileOffsetToContinue = int64(0)
+	}
+
+	return tablesMetadata
+}

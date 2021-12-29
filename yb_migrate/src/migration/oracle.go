@@ -117,21 +117,32 @@ func Ora2PgExportDataOffline(source *utils.Source, exportDir string) {
 		projectDirPath, configFilePath)
 
 	//TODO: Exporting tables provided in tablelist
-	//TODO: use some number of jobs by default or as provided by the user
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
-	fmt.Printf("[Debug] exportDataCommand: %s\n", exportDataCommandString)
+	log.Debugf("exportDataCommand: %s", exportDataCommandString)
 
-	exportDataCommand.Stdout = os.Stdout
-	exportDataCommand.Stderr = os.Stderr
+	stdOutFile, err := os.OpenFile(exportDir+"/tmp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer stdOutFile.Close()
 
-	err := exportDataCommand.Run()
+	stdErrFile, err := os.OpenFile(exportDir+"/tmp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer stdErrFile.Close()
+
+	exportDataCommand.Stdout = stdOutFile
+	exportDataCommand.Stderr = stdErrFile
+
+	err = exportDataCommand.Start()
 	utils.CheckError(err, exportDataCommandString,
-		"Exporting of data failed, retry exporting it", false)
+		"Exporting of data failed", false)
 
 	if err == nil {
-		fmt.Printf("Data export complete...\n")
+		fmt.Printf("Export Data started\n")
 	}
 }
 
@@ -147,7 +158,6 @@ func getSourceDSN(source *utils.Source) string {
 	} else {
 		fmt.Println("Invalid Source DB Type!!")
 		os.Exit(1)
-
 	}
 
 	return sourceDSN

@@ -1,6 +1,8 @@
 package utils
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Source struct {
 	DBType         string
@@ -28,6 +30,17 @@ type Target struct {
 
 type Format interface {
 	PrintFormat(cnt int)
+}
+
+type ExportTableMetadata struct {
+	TableSchema          string
+	TableName            string
+	DataFilePath         string
+	Status               string //(NOT-STARTED, IN-PROGRESS, DONE)
+	CountLiveRows        int64
+	CountTotalRows       int64
+	FileOffsetToContinue int64 // This might not be removed later
+	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
 func (s *Source) PrintFormat(cnt int) {
