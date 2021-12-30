@@ -80,24 +80,15 @@ func exportDataOffline() bool {
 	}()
 
 	switch source.DBType {
-	case "oracle":
+	case ORACLE:
 		fmt.Printf("Prepare Ora2Pg for data export from Oracle\n")
-		if source.Port == "" {
-			source.Port = "1521"
-		}
 		migration.Ora2PgExportDataOffline(&source, exportDir)
-	case "postgres":
+	case POSTGRESQL:
 		fmt.Printf("Prepare pg_dump for data export from PG\n")
-		if source.Port == "" {
-			source.Port = "5432"
-		}
 		utils.WaitGroup.Add(1)
 		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan)
-	case "mysql":
+	case MYSQL:
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
-		if source.Port == "" {
-			source.Port = "3306"
-		}
 		migration.Ora2PgExportDataOffline(&source, exportDir)
 	}
 
@@ -110,7 +101,7 @@ func exportDataOffline() bool {
 
 	exportDataStatus(ctx, tablesMetadata, quitChan)
 
-	if source.DBType == "postgres" { //not required for oracle, mysql
+	if source.DBType == POSTGRESQL { //not required for oracle, mysql
 		migration.ExportDataPostProcessing(exportDir)
 	}
 

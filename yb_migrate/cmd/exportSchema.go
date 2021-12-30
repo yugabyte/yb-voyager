@@ -56,30 +56,21 @@ to quickly create a Cobra application.`,
 
 func exportSchema() {
 	switch source.DBType {
-	case "oracle":
+	case ORACLE:
 		fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
-		if source.Port == "" {
-			source.Port = ORACLE_DEFAULT_PORT
-		}
 		if source.SSLMode == "" {
 			//findout and add default mode
 			source.SSLMode = ""
 		}
 		oracleExportSchema()
-	case "postgres":
+	case POSTGRESQL:
 		fmt.Printf("Prepare pg_dump for schema export from PG\n")
-		if source.Port == "" {
-			source.Port = POSTGRES_DEFAULT_PORT
-		}
 		if source.SSLMode == "" {
 			source.SSLMode = "disable"
 		}
 		postgresExportSchema()
-	case "mysql":
+	case MYSQL:
 		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
-		if source.Port == "" {
-			source.Port = MYSQL_DEFAULT_PORT
-		}
 		if source.SSLMode == "" {
 			source.SSLMode = "DISABLED"
 		}

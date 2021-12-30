@@ -43,6 +43,10 @@ to quickly create a Cobra application.`,
 			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
 			os.Exit(1)
 		}
+
+		if target.Port == "" {
+			target.Port = YUGABYTEDB_DEFAULT_PORT
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

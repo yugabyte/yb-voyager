@@ -89,7 +89,7 @@ func CheckSourceDbAccessibility(source *Source) {
 			source.Password, source.Host, source.Port, source.DBName)
 		//PROTOCOL=TCPS if SSL is enabled
 
-	} else if source.DBType == "postgres" {
+	} else if source.DBType == "postgresql" {
 		//URI syntax - "postgresql://user:password@host:port/dbname?sslmode=mode"
 		checkConnectivityCommand = fmt.Sprintf("psql postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 			source.User, source.Password, source.Host, source.Port, source.DBName, source.SSLMode)
@@ -140,7 +140,7 @@ func DeleteProjectDirIfPresent(source *Source, exportDir string) {
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
 func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
-	log.Debugf("Creating a project directory...")
+	// log.Debugf("Creating a project directory...")
 
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
@@ -170,7 +170,7 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
 	}
 
-	log.Debugf("Created a project directory...")
+	// log.Debugf("Created a project directory...")
 }
 
 func GetProjectDirPath(source *Source, exportDir string) string {
@@ -224,7 +224,7 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	switch sourceDBType {
 	case "oracle":
 		requiredList = oracleSchemaObjectList
-	case "postgres":
+	case "postgresql":
 		requiredList = postgresSchemaObjectList
 	case "mysql":
 		requiredList = mysqlSchemaObjectList
@@ -241,7 +241,7 @@ func CheckToolsRequiredInstalledOrNot(dbType string) {
 	switch dbType {
 	case "oracle":
 		toolsRequired = []string{"ora2pg", "sqlcl"}
-	case "postgres":
+	case "postgresql":
 		toolsRequired = []string{"pg_dump", "strings", "psql"}
 	case "mysql":
 		toolsRequired = []string{"ora2pg", "mysql"}

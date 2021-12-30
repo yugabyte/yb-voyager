@@ -12,7 +12,7 @@ import (
 func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata []utils.ExportTableMetadata) {
 	var requiredMap map[string]string
 
-	if source.DBType == "postgres" {
+	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
 	} else {
 		//TODO: Implement for Oracle and Mysql

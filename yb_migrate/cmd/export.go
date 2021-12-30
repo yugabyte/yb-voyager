@@ -23,14 +23,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	PostgreSQL = iota
-	Oracle
-	MySQL
-	SQLServer
-	DB2
-)
-
 var source utils.Source
 
 // exportCmd represents the export command
@@ -41,30 +33,49 @@ var exportCmd = &cobra.Command{
 `,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("migrationMode = %s, startClean = %v\n", migrationMode, startClean)
+		// fmt.Printf("migrationMode = %s, startClean = %v\n", migrationMode, startClean)
 
-		//TODO: Debug - startClean variable is not getting set after giving the default flag value
-		if startClean == "" {
-			startClean = "NO"
-		}
+		// //TODO: Debug - startClean variable is not getting set after giving the default flag value
+		// if startClean == "" {
+		// 	startClean = "NO"
+		// }
 
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+		// if startClean != "NO" && startClean != "YES" {
+		// 	fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
+		// 	os.Exit(1)
+		// }
+
+		// if utils.ProjectSubdirsExists(exportDir) {
+		// 	if startClean == "YES" {
+		// 		fmt.Printf("Deleting it before continue...\n")
+		// 		utils.DeleteProjectDirIfPresent(&source, exportDir)
+		// 	} else {
+		// 		fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
+		// 		fmt.Println("Aborting...")
+		// 		os.Exit(1)
+		// 	}
+		// }
+
+		// log.Trace("PersistentPreRun done...")
+
+		switch source.DBType {
+		case ORACLE:
+			if source.Port == "" {
+				source.Port = ORACLE_DEFAULT_PORT
+			}
+		case POSTGRESQL:
+			if source.Port == "" {
+				source.Port = POSTGRES_DEFAULT_PORT
+			}
+		case MYSQL:
+			if source.Port == "" {
+				source.Port = MYSQL_DEFAULT_PORT
+			}
+		default:
+			fmt.Printf("Invalid value of source-db-type=%s!! Only allowed values are %s, %s, %s.\n",
+				source.DBType, ORACLE, POSTGRESQL, MYSQL)
 			os.Exit(1)
 		}
-
-		if utils.ProjectSubdirsExists(exportDir) {
-			if startClean == "YES" {
-				fmt.Printf("Deleting it before continue...\n")
-				utils.DeleteProjectDirIfPresent(&source, exportDir)
-			} else {
-				fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
-				fmt.Println("Aborting...")
-				os.Exit(1)
-			}
-		}
-
-		log.Trace("PersistentPreRun done...")
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -84,6 +95,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type (Oracle/PostgreSQL/MySQL)")
 	exportCmd.MarkPersistentFlagRequired("source-db-type")
+
 	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 	// exportCmd.MarkPersistentFlagRequired("source-db-host")
@@ -108,7 +120,7 @@ func init() {
 
 	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name which needs to be migrated to YugabyteDB")
-	if source.DBType == "oracle" {
+	if source.DBType == ORACLE {
 		exportCmd.MarkPersistentFlagRequired("source-db-schema")
 	}
 
@@ -127,5 +139,4 @@ func init() {
 
 	exportCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
 		"delete all existing files inside the project if present and start fresh")
-	fmt.Printf("[Temporary] Just after declaring the flag: %s\n", startClean)
 }
