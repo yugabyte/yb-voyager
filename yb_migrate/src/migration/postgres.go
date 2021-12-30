@@ -2,16 +2,16 @@ package migration
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 	"yb_migrate/src/utils"
-
-	"github.com/tevino/abool/v2"
 )
 
 var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
@@ -215,7 +215,8 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PgDumpExportDataOffline(source *utils.Source, exportDir string, ExportDataDone *abool.AtomicBool) {
+func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, quitChan chan bool) {
+	defer utils.WaitGroup.Done()
 	CheckToolsRequiredForPostgresExport()
 
 	utils.CreateMigrationProjectIfNotExists(source, exportDir)
@@ -227,32 +228,30 @@ func PgDumpExportDataOffline(source *utils.Source, exportDir string, ExportDataD
 		"sslmode=%s --compress=0 --data-only -Fd --file %s --jobs %d", source.User, source.Password,
 		source.Host, source.Port, source.DBName, source.SSLMode, dataDirPath, source.NumConnections)
 
-	fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
+	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
 
-	pgdumpDataExportCommand := exec.Command("/bin/bash", "-c", pgdumpDataExportCommandString)
+	pgdumpDataExportCommand := exec.CommandContext(ctx, "/bin/bash", "-c", pgdumpDataExportCommandString)
 
 	err := pgdumpDataExportCommand.Start()
 	fmt.Println("pg_dump for data export started")
 
-	utils.CheckError(err, pgdumpDataExportCommandString,
-		"Exporting of data failed, retry exporting it", true)
+	if err != nil {
+		fmt.Println(err)
+		quitChan <- true
+		runtime.Goexit()
+	}
 
 	//Parsing the main toc.dat file
 	parseAndCreateTocTextFile(dataDirPath)
 
 	//Wait for pg_dump to complete before renaming of data files
 	err = pgdumpDataExportCommand.Wait()
-	utils.CheckError(err, pgdumpDataExportCommandString, "", true)
-
-	requiredMap := getMappingForTableNameVsTableFileName(dataDirPath)
-	for tableName, fileName := range requiredMap {
-		oldFileName := dataDirPath + "/" + fileName
-		newFileName := dataDirPath + "/" + tableName + "_data.sql"
-		// fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
-		os.Rename(oldFileName, newFileName)
+	if err != nil {
+		fmt.Println(err)
+		quitChan <- true
+		runtime.Goexit()
 	}
 
-	ExportDataDone.Set()
 }
 
 func ExportDataPostProcessing(exportDir string) {

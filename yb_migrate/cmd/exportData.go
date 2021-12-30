@@ -16,17 +16,16 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
+	"time"
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
-	"github.com/tevino/abool/v2"
 )
-
-var ExportDataDone = abool.New()
 
 // exportDataCmd represents the exportData command
 var exportDataCmd = &cobra.Command{
@@ -51,18 +50,34 @@ func init() {
 }
 
 func exportData() {
-
+	var success bool
 	if migrationMode == "offline" {
-		exportDataOffline()
+		success = exportDataOffline()
 	} else {
-		exportDataOnline()
+		success = exportDataOnline()
 	}
 
-	err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run()
-	utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
+	if success {
+		err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run()
+		utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
+	} else {
+		fmt.Println("Export of data failed, retry!!")
+	}
 }
 
-func exportDataOffline() {
+func exportDataOffline() bool {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	quitChan := make(chan bool)
+	go func() {
+		q := <-quitChan
+		if q {
+			fmt.Println("cancel(), quitchan, main exportDataOffline()")
+			cancel()
+			time.Sleep(time.Second * 5) //give sometime for the
+		}
+	}()
 
 	switch source.DBType {
 	case "oracle":
@@ -76,7 +91,8 @@ func exportDataOffline() {
 		if source.Port == "" {
 			source.Port = "5432"
 		}
-		go migration.PgDumpExportDataOffline(&source, exportDir, ExportDataDone)
+		utils.WaitGroup.Add(1)
+		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan)
 	case "mysql":
 		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
 		if source.Port == "" {
@@ -92,14 +108,19 @@ func exportDataOffline() {
 
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
-	exportDataStatus(tablesMetadata)
+	exportDataStatus(ctx, tablesMetadata, quitChan)
 
 	if source.DBType == "postgres" { //not required for oracle, mysql
 		migration.ExportDataPostProcessing(exportDir)
 	}
+
+	utils.WaitGroup.Wait()
+	return true
 }
 
-func exportDataOnline() {}
+func exportDataOnline() bool {
+	return true // empty function
+}
 
 func createExportTableMetadataSlice(exportDir string, tableList []string) []utils.ExportTableMetadata {
 	numTables := len(tableList)

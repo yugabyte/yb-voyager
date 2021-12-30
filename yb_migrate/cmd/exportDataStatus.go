@@ -17,9 +17,10 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
-	"sync"
+	"runtime"
 	"time"
 	"yb_migrate/src/utils"
 
@@ -43,11 +44,16 @@ to quickly create a Cobra application.`,
 	},
 }
 
-func exportDataStatus(tablesMetadata []utils.ExportTableMetadata) {
-	numTables := len(tablesMetadata)
+func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMetadata, quitChan chan bool) {
+	quitChan2 := make(chan bool)
+	go func() {
+		<-quitChan2
+		quitChan <- true
+	}()
 
-	var exportTableWg sync.WaitGroup
-	progressContainer := mpb.New(mpb.WithWaitGroup(&exportTableWg))
+	numTables := len(tablesMetadata)
+	// progressContainer := mpb.NewWithContext(ctx, mpb.WithWaitGroup(&utils.WaitGroup))
+	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
 	var exportedTables []string
@@ -57,14 +63,14 @@ func exportDataStatus(tablesMetadata []utils.ExportTableMetadata) {
 			if tablesMetadata[i].Status == "NOT-STARTED" &&
 				utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) {
 				tablesMetadata[i].Status = "IN-PROGRESS"
-				exportTableWg.Add(1)
+				// utils.WaitGroup.Add(1)
 
-				go startProgressBar(progressContainer, &tablesMetadata[i], &exportTableWg)
+				go startProgressBar(progressContainer, &tablesMetadata[i], quitChan2)
 
 			} else if tablesMetadata[i].Status == "IN-PROGRESS" &&
 				tablesMetadata[i].CountLiveRows >= tablesMetadata[i].CountTotalRows {
 				tablesMetadata[i].Status = "DONE"
-				exportTableWg.Done()
+
 				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
 				doneCount++
 
@@ -75,13 +81,19 @@ func exportDataStatus(tablesMetadata []utils.ExportTableMetadata) {
 		}
 	}
 
-	progressContainer.Wait()
-	fmt.Printf("Exported tables - %v\n", exportedTables)
+	defer progressContainer.Wait()
+
+	fmt.Printf("Exported tables:- ")
+	for _, table := range exportedTables {
+		fmt.Printf("%s, ", table)
+	}
+	fmt.Println()
+
+	//TODO: print remaining/unable-to-export tables
 }
 
-func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.ExportTableMetadata,
-	exportTableWg *sync.WaitGroup) {
-	// defer exportTableWg.Done()
+func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.ExportTableMetadata, quitChan chan bool) {
+	// defer utils.WaitGroup.Done()
 
 	name := tableMetadata.TableName
 	total := int64(100)
@@ -98,7 +110,8 @@ func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.Expo
 	tableDataFile, err := os.Open(tableMetadata.DataFilePath)
 	if err != nil {
 		fmt.Println(err)
-		os.Exit(1)
+		quitChan <- true
+		runtime.Goexit()
 	}
 
 	reader := bufio.NewReader(tableDataFile)
@@ -108,10 +121,10 @@ func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.Expo
 		return
 	}
 
+	//TODO: Decide buffer size dynamically
 	BUFFER_SIZE := 20
 	for tableMetadata.CountLiveRows < tableMetadata.CountTotalRows {
 		buf := make([]byte, BUFFER_SIZE*1024) //reading x MB size buffer each time
-		//TODO: Decide buffer size dynamically
 
 		n, _ := reader.Read(buf)
 

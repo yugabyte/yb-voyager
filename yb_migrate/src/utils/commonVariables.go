@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"sync"
 )
 
 type Source struct {
@@ -70,3 +71,5 @@ type MetaInfo struct {
 }
 
 var log = GetLogger()
+
+var WaitGroup sync.WaitGroup
