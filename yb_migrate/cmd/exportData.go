@@ -18,12 +18,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 )
 
@@ -58,42 +61,65 @@ func exportData() {
 	}
 
 	if success {
-		err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run()
+		err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run() //to inform import data command
 		utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
+		color.Green("Export of data complete \u2705")
 	} else {
-		fmt.Println("Export of data failed, retry!!")
+		color.Red("Export of data failed, retry!! \u274C")
 	}
 }
 
 func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// defer cancel()
 
-	quitChan := make(chan bool)
+	exportDataStart := make(chan bool)
+	quitChan := make(chan bool) //for checking failure/errors of the parallel goroutines
 	go func() {
 		q := <-quitChan
 		if q {
 			fmt.Println("cancel(), quitchan, main exportDataOffline()")
-			cancel()
-			time.Sleep(time.Second * 5) //give sometime for the
+			cancel()                    //will cancel/stop both dump tool and progress bar
+			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 		}
 	}()
 
 	switch source.DBType {
 	case ORACLE:
-		fmt.Printf("Prepare Ora2Pg for data export from Oracle\n")
-		migration.Ora2PgExportDataOffline(&source, exportDir)
-	case POSTGRESQL:
-		fmt.Printf("Prepare pg_dump for data export from PG\n")
+		fmt.Printf("Preparing for data export from Oracle\n")
 		utils.WaitGroup.Add(1)
-		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+
+	case POSTGRESQL:
+		fmt.Printf("Preparing for data export from Postgres\n")
+
+		dataDirPath := exportDir + "/data"
+		if utils.FileOrFolderExists(dataDirPath) { //pg_dump for directory format throws error if dir exists
+			fmt.Println("Removing the existing data directory in the project")
+			err := os.RemoveAll(dataDirPath)
+			if err != nil {
+				fmt.Println(err)
+				quitChan <- true
+				runtime.Goexit()
+			}
+		}
+
+		utils.WaitGroup.Add(1)
+		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+
 	case MYSQL:
-		fmt.Printf("Prepare Ora2Pg for data export from MySQL\n")
-		migration.Ora2PgExportDataOffline(&source, exportDir)
+		fmt.Printf("Preparing for data export from MySQL\n")
+		utils.WaitGroup.Add(1)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+
 	}
+
+	//wait for the export data to start
+	<-exportDataStart
 
 	tableList := migration.GetTableList(exportDir)
 	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
+	// fmt.Println(tableList, "\n", tablesMetadata)
 
 	migration.UpdateDataFilePath(&source, exportDir, tablesMetadata)
 
@@ -101,11 +127,14 @@ func exportDataOffline() bool {
 
 	exportDataStatus(ctx, tablesMetadata, quitChan)
 
+	utils.WaitGroup.Wait() //waiting for the dump to complete
+
 	if source.DBType == POSTGRESQL { //not required for oracle, mysql
-		migration.ExportDataPostProcessing(exportDir)
+		migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
+	} else {
+		migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
 	}
 
-	utils.WaitGroup.Wait()
 	return true
 }
 
@@ -119,16 +148,17 @@ func createExportTableMetadataSlice(exportDir string, tableList []string) []util
 
 	for i := 0; i < numTables; i++ {
 		tableInfo := strings.Split(tableList[i], ".")
-		if len(tableInfo) > 1 { //postgres
+		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
 			tablesMetadata[i].TableSchema = tableInfo[0]
 			tablesMetadata[i].TableName = tableInfo[1]
-		} else { //oracle
+		} else { //oracle,mysql
 			tablesMetadata[i].TableSchema = source.Schema
 			tablesMetadata[i].TableName = tableInfo[0]
 		}
 
-		// tablesMetadata[i].DataFilePath; will be updated when status changes to IN-PROGRESS
-		// tablesMetadata[i].CountTotalRows; will be done by other func
+		//Initializing all the members of struct
+		tablesMetadata[i].DataFilePath = ""         //will be updated when status changes to IN-PROGRESS
+		tablesMetadata[i].CountTotalRows = int64(0) //will be updated by other func
 		tablesMetadata[i].CountLiveRows = int64(0)
 		tablesMetadata[i].Status = "NOT-STARTED"
 		tablesMetadata[i].FileOffsetToContinue = int64(0)

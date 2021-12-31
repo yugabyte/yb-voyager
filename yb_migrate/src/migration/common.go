@@ -12,14 +12,19 @@ import (
 func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata []utils.ExportTableMetadata) {
 	var requiredMap map[string]string
 
+	// TODO: handle the case if table name has double quotes/case sensitive
+
 	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
-	} else {
-		//TODO: Implement for Oracle and Mysql
-	}
+		for i := 0; i < len(tablesMetadata); i++ {
+			tablesMetadata[i].DataFilePath = exportDir + "/data/" + requiredMap[tablesMetadata[i].TableName]
+		}
+	} else { //for Oracle and MySQL
+		for i := 0; i < len(tablesMetadata); i++ {
+			fileName := "tmp_" + strings.ToUpper(tablesMetadata[i].TableName) + "_data.sql"
+			tablesMetadata[i].DataFilePath = exportDir + "/data/" + fileName
+		}
 
-	for i := 0; i < len(tablesMetadata); i++ {
-		tablesMetadata[i].DataFilePath = exportDir + "/data/" + requiredMap[tablesMetadata[i].TableName]
 	}
 
 	// fmt.Println("After updating datafilepath")
@@ -27,11 +32,11 @@ func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata [
 }
 
 func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.ExportTableMetadata) {
-	//TODO: Change this once report generation code is inplace, rightnow this is hardcoded
+	//TODO: Change this once report generation code is inplace, rightnow this is hardcoded/temporary
 
 	rowCountFilePath := "/home/centos/yb_migrate_projects/"
 	if source.DBType == "oracle" {
-		rowCountFilePath += source.Schema + "_rc.txt"
+		rowCountFilePath += source.Schema + "_rc.txt_o"
 	} else {
 		rowCountFilePath += source.DBName + "_rc.txt"
 	}
@@ -41,8 +46,8 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 		tablesMetadata[i].CountTotalRows = tableRowCountMap[tablesMetadata[i].TableName]
 	}
 
-	fmt.Println("After updating total row count")
-	fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
+	// fmt.Println("After updating total row count")
+	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
 }
 
 func GetTableList(exportDir string) []string {

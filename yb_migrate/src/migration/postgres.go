@@ -2,6 +2,7 @@ package migration
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -215,7 +216,7 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, quitChan chan bool) {
+func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 	CheckToolsRequiredForPostgresExport()
 
@@ -224,22 +225,26 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	dataDirPath := exportDir + "/data"
 
 	//using pgdump for exporting data in directory format
-	pgdumpDataExportCommandString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
+	pgdumpDataExportCommandArgsString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
 		"sslmode=%s --compress=0 --data-only -Fd --file %s --jobs %d", source.User, source.Password,
 		source.Host, source.Port, source.DBName, source.SSLMode, dataDirPath, source.NumConnections)
 
-	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandString)
+	fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)
 
-	pgdumpDataExportCommand := exec.CommandContext(ctx, "/bin/bash", "-c", pgdumpDataExportCommandString)
+	pgdumpDataExportCommand := exec.CommandContext(ctx, "/bin/bash", "-c", pgdumpDataExportCommandArgsString)
+
+	var stderrBuffer bytes.Buffer
+	pgdumpDataExportCommand.Stderr = &stderrBuffer
+	pgdumpDataExportCommand.Stdout = &stderrBuffer
 
 	err := pgdumpDataExportCommand.Start()
 	fmt.Println("pg_dump for data export started")
-
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("%s\n%s\n", stderrBuffer.String(), err)
 		quitChan <- true
 		runtime.Goexit()
 	}
+	exportDataStart <- true
 
 	//Parsing the main toc.dat file
 	parseAndCreateTocTextFile(dataDirPath)
@@ -247,22 +252,23 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	//Wait for pg_dump to complete before renaming of data files
 	err = pgdumpDataExportCommand.Wait()
 	if err != nil {
-		fmt.Println(err)
+		fmt.Printf("%s\n%s\n", stderrBuffer.String(), err)
 		quitChan <- true
 		runtime.Goexit()
 	}
 
 }
 
-func ExportDataPostProcessing(exportDir string) {
+func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.ExportTableMetadata) {
 	dataDirPath := exportDir + "/data"
-	requiredMap := getMappingForTableNameVsTableFileName(dataDirPath)
 
-	for tableName, fileName := range requiredMap {
-		oldFileName := dataDirPath + "/" + fileName
-		newFileName := dataDirPath + "/" + tableName + "_data.sql"
-		// fmt.Printf("Renaming: %s -> %s\n", fileName, tableName+"_data.sql")
-		os.Rename(oldFileName, newFileName)
+	for _, tableMetadata := range *tablesMetadata {
+		oldFilePath := tableMetadata.DataFilePath
+		newFilePath := dataDirPath + "/" + tableMetadata.TableName + "_data.sql"
+		if utils.FileOrFolderExists(oldFilePath) {
+			// fmt.Printf("Renaming: %s -> %s\n", filepath.Base(oldFilePath), filepath.Base(newFilePath))
+			os.Rename(oldFilePath, newFilePath)
+		}
 	}
 }
 
@@ -271,7 +277,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
-		fmt.Printf("Waiting for toc Text file = %s to be created\n", tocTextFilePath)
+		fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
@@ -310,7 +316,7 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocFilePath) {
-		fmt.Printf("Waiting for toc file = %s to be created\n", tocFilePath)
+		fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}

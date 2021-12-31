@@ -108,10 +108,10 @@ func CheckSourceDbAccessibility(source *Source) {
 
 	}
 
-	cmdOutput, err := exec.Command("/bin/bash", "-c", checkConnectivityCommand).Output()
+	_, err := exec.Command("/bin/bash", "-c", checkConnectivityCommand).Output()
 
-	fmt.Printf("[Debug] checkConnectivityCommand: %s\n", checkConnectivityCommand)
-	fmt.Printf("[Debug] command output: %s\n", cmdOutput)
+	// fmt.Printf("[Debug] checkConnectivityCommand: %s\n", checkConnectivityCommand)
+	// fmt.Printf("[Debug] command output: %s\n", cmdOutput)
 	CheckError(err, checkConnectivityCommand, "Unable to connect to the source database", true)
 
 	fmt.Printf("Source DB is accessible!!\n")
@@ -145,10 +145,6 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
 
-	// projectDirPath := GetProjectDirPath(source, exportDir)
-	// err := exec.Command("mkdir", "-p", projectDirPath).Run()
-	// CheckError(err, "", "couldn't create sub-directories under "+exportDir, true)
-
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
@@ -156,9 +152,9 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 
 	// Put info to metainfo/schema about the source db
 	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	err := exec.Command("touch", sourceInfoFile).Run()
+	cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
 
-	CheckError(err, "", "", true)
+	CheckError(err, "", string(cmdOutput), true)
 
 	schemaObjectList := GetSchemaObjectList(source.DBType)
 

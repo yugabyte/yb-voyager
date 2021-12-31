@@ -24,6 +24,7 @@ import (
 	"time"
 	"yb_migrate/src/utils"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -57,23 +58,23 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 
 	doneCount := 0
 	var exportedTables []string
-
-	for doneCount < numTables {
+	tempFile, _ := os.Create(exportDir + "/temp/debug.txt")
+	for doneCount < numTables { //TODO: wait for export data to start
 		for i := 0; i < numTables; i++ {
 			if tablesMetadata[i].Status == "NOT-STARTED" &&
-				utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) {
+				(utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) || tablesMetadata[i].CountTotalRows == 0) {
 				tablesMetadata[i].Status = "IN-PROGRESS"
 				// utils.WaitGroup.Add(1)
 
 				go startProgressBar(progressContainer, &tablesMetadata[i], quitChan2)
 
-			} else if tablesMetadata[i].Status == "IN-PROGRESS" &&
+			} else if tablesMetadata[i].Status == "DONE" &&
 				tablesMetadata[i].CountLiveRows >= tablesMetadata[i].CountTotalRows {
-				tablesMetadata[i].Status = "DONE"
+				tablesMetadata[i].Status = "COMPLETED"
 
 				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
 				doneCount++
-
+				fmt.Fprintf(tempFile, "tname=%s, doneCount=%d\n", tablesMetadata[i].TableName, doneCount)
 				if doneCount == numTables {
 					break
 				}
@@ -81,13 +82,9 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 		}
 	}
 
-	defer progressContainer.Wait()
+	progressContainer.Wait()
 
-	fmt.Printf("Exported tables:- ")
-	for _, table := range exportedTables {
-		fmt.Printf("%s, ", table)
-	}
-	fmt.Println()
+	printExportedTables(exportedTables)
 
 	//TODO: print remaining/unable-to-export tables
 }
@@ -98,14 +95,26 @@ func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.Expo
 	name := tableMetadata.TableName
 	total := int64(100)
 	bar := progressContainer.AddBar(total,
+		mpb.BarFillerClearOnComplete(),
+		// mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			// display our name with one space on the right
 			decor.Name(name),
 		),
 		mpb.AppendDecorators(
-			decor.Percentage(decor.WCSyncSpace),
+			decor.Percentage(decor.WCSyncSpaceR),
+			decor.OnComplete(
+				//TODO: default feature by package, need to verify the correctness/algorithm for ETA
+				decor.AverageETA(decor.ET_STYLE_GO), "done",
+			),
 		),
 	)
+
+	if tableMetadata.CountTotalRows == 0 { // if row count = 0, then return
+		bar.IncrInt64(100)
+		tableMetadata.Status = "DONE"
+		return
+	}
 
 	tableDataFile, err := os.Open(tableMetadata.DataFilePath)
 	if err != nil {
@@ -115,11 +124,6 @@ func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.Expo
 	}
 
 	reader := bufio.NewReader(tableDataFile)
-
-	if tableMetadata.CountTotalRows == 0 { // if row count = 0, then return
-		bar.IncrInt64(100)
-		return
-	}
 
 	//TODO: Decide buffer size dynamically
 	BUFFER_SIZE := 20
@@ -151,8 +155,25 @@ func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.Expo
 		buf = nil //making it eligible for GC
 	}
 
+	tableMetadata.Status = "DONE" //before return
 }
 
 func init() {
 	exportDataCmd.AddCommand(exportDataStatusCmd)
+}
+
+func printExportedTables(exportedTables []string) {
+	output := "Exported tables:- {"
+	nt := len(exportedTables)
+	for i := 0; i < nt; i++ {
+		output += exportedTables[i]
+		if i < nt-1 {
+			output += ",  "
+		}
+
+	}
+
+	output += "}"
+
+	color.Yellow(output)
 }
