@@ -246,8 +246,8 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	}
 	exportDataStart <- true
 
-	//Parsing the main toc.dat file
-	parseAndCreateTocTextFile(dataDirPath)
+	//Parsing the main toc.dat file in parallel
+	go parseAndCreateTocTextFile(dataDirPath)
 
 	//Wait for pg_dump to complete before renaming of data files
 	err = pgdumpDataExportCommand.Wait()

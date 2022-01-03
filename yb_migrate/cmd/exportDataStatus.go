@@ -47,9 +47,12 @@ to quickly create a Cobra application.`,
 
 func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMetadata, quitChan chan bool) {
 	quitChan2 := make(chan bool)
+	quit := false
 	go func() {
-		<-quitChan2
-		quitChan <- true
+		quit = <-quitChan2
+		if quit {
+			quitChan <- true
+		}
 	}()
 
 	numTables := len(tablesMetadata)
@@ -58,9 +61,9 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 
 	doneCount := 0
 	var exportedTables []string
-	tempFile, _ := os.Create(exportDir + "/temp/debug.txt")
-	for doneCount < numTables { //TODO: wait for export data to start
-		for i := 0; i < numTables; i++ {
+	// tempFile, _ := os.Create(exportDir + "/temp/debug.txt")
+	for doneCount < numTables && !quit { //TODO: wait for export data to start
+		for i := 0; i < numTables && !quit; i++ {
 			if tablesMetadata[i].Status == "NOT-STARTED" &&
 				(utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) || tablesMetadata[i].CountTotalRows == 0) {
 				tablesMetadata[i].Status = "IN-PROGRESS"
@@ -74,15 +77,26 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 
 				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
 				doneCount++
-				fmt.Fprintf(tempFile, "tname=%s, doneCount=%d\n", tablesMetadata[i].TableName, doneCount)
+				// fmt.Fprintf(tempFile, "tname=%s, doneCount=%d\n", tablesMetadata[i].TableName, doneCount)
 				if doneCount == numTables {
 					break
 				}
 			}
+
+			//for failure/error handling. TODO: test it more
+			if ctx.Err() != nil {
+				fmt.Println("Ctx error(inside for-loop)", ctx.Err())
+				break
+			}
+		}
+
+		if ctx.Err() != nil {
+			fmt.Println("Ctx error(outside for-loop)", ctx.Err())
+			break
 		}
 	}
 
-	progressContainer.Wait()
+	progressContainer.Wait() //shouldn't be needed as the previous loop is doing the same
 
 	printExportedTables(exportedTables)
 

@@ -81,6 +81,7 @@ func exportDataOffline() bool {
 			fmt.Println("cancel(), quitchan, main exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
+			fmt.Println("Cancelled the context having dump command and progress bar")
 		}
 	}()
 
@@ -95,7 +96,7 @@ func exportDataOffline() bool {
 
 		dataDirPath := exportDir + "/data"
 		if utils.FileOrFolderExists(dataDirPath) { //pg_dump for directory format throws error if dir exists
-			fmt.Println("Removing the existing data directory in the project")
+			color.Red("Removing the existing data directory in the project")
 			err := os.RemoveAll(dataDirPath)
 			if err != nil {
 				fmt.Println(err)
@@ -115,7 +116,9 @@ func exportDataOffline() bool {
 	}
 
 	//wait for the export data to start
+	fmt.Println("passing the exportDataStart channel receiver")
 	<-exportDataStart
+	fmt.Println("passed the exportDataStart channel receiver")
 
 	tableList := migration.GetTableList(exportDir)
 	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
@@ -128,6 +131,11 @@ func exportDataOffline() bool {
 	exportDataStatus(ctx, tablesMetadata, quitChan)
 
 	utils.WaitGroup.Wait() //waiting for the dump to complete
+
+	if ctx.Err() != nil {
+		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
+		return false
+	}
 
 	if source.DBType == POSTGRESQL { //not required for oracle, mysql
 		migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
