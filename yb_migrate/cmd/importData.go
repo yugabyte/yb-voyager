@@ -17,14 +17,17 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 	"yb_migrate/src/fwk"
 	"yb_migrate/src/utils"
@@ -170,7 +173,7 @@ func importData() {
 	splitFilesChannel := make(chan *fwk.SplitFileImportTask, SPLIT_FILE_CHANNEL_SIZE)
 	targetServerChannel := make(chan *utils.Target, 1)
 	go roundRobinTargets(targets, targetServerChannel)
-	go generateSmallerSplits(splitFilesChannel)
+	generateSmallerSplits(splitFilesChannel)
 	go doImport(splitFilesChannel, parallelism, targetServerChannel)
 	checkForDone()
 	fmt.Printf("\nDone. Exiting\n")
@@ -216,7 +219,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 	truncateRemainingTables(remainingTables)
 	// fmt.Printf("%v, %v, %v, %s", done, interrupted, remaining, err)
-	splitDataFiles(doneTables, interruptedTables, remainingTables, taskQueue)
+	go splitDataFiles(doneTables, interruptedTables, remainingTables, taskQueue)
 }
 
 func truncateRemainingTables(tables []string) {
@@ -510,31 +513,41 @@ func getTablesToImport() ([]string, []string, []string, error) {
 }
 
 func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *utils.Target) {
-	parallelImportChannel := make(chan *fwk.SplitFileImportTask, parallelism)
-	go doImportInParallel(parallelImportChannel, targetChan)
+	// parallelImportChannel := make(chan *fwk.SplitFileImportTask, parallelism)
+	parallelImportCount := int64(0)
+
 	for Done.IsNotSet() {
 		select {
 		case t := <-taskQueue:
-			// fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
-			parallelImportChannel <- t
+			fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
+			// parallelImportChannel <- t
+			for parallelImportCount >= int64(parallelism) {
+				time.Sleep(time.Second * 2)
+			}
+			atomic.AddInt64(&parallelImportCount, 1)
+			go doImportInParallel(t, targetChan, &parallelImportCount)
 		default:
-			// fmt.Printf("No file sleeping for 2 seconds\n")
+			fmt.Printf("No file sleeping for 2 seconds\n")
 			time.Sleep(2 * time.Second)
 		}
 	}
 }
 
-func doImportInParallel(channel chan *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
-	for Done.IsNotSet() {
-		select {
-		case t := <-channel:
-			// fmt.Printf("Got taskfile from parallel = %s\n", t.SplitFilePath)
-			go doOneImport(t, targetChan)
-		default:
-			// fmt.Printf("No file sleeping for 2 seconds\n")
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *utils.Target, parallelImportCount *int64) {
+	// for Done.IsNotSet() {
+	// select {
+	// case t := <-channel:
+	// 	// fmt.Printf("Got taskfile from parallel = %s\n", t.SplitFilePath)
+	// 	doOneImport(t, targetChan)
+	// default:
+	// 	// fmt.Printf("No file sleeping for 2 seconds\n")
+	// 	time.Sleep(100 * time.Millisecond)
+	// }
+	// }
+	// t := <-channel
+	fmt.Printf("Got taskfile from parallel = %s\n", t.SplitFilePath)
+	doOneImport(t, targetChan)
+	atomic.AddInt64(parallelImportCount, -1)
 }
 
 func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
@@ -554,7 +567,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				panic(fp)
 			}
-			defer os.Remove(sqlFile)
+			// defer os.Remove(sqlFile)
 			bufferedWriter := bufio.NewWriter(fp)
 			for _, statement := range IMPORT_SESSION_SETTERS {
 				_, err = bufferedWriter.WriteString(statement)
@@ -566,7 +579,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 					panic(err)
 				}
 			}
-			copyCommand := fmt.Sprintf("COPY %s from '%s';", t.TableName, getInProgressFilePath(t))
+			copyCommand := fmt.Sprintf("\\copy %s from '%s';", t.TableName, getInProgressFilePath(t))
 			_, err = bufferedWriter.WriteString(copyCommand)
 			if err != nil {
 				panic(err)
@@ -575,14 +588,19 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				panic(err)
 			}
-			err = executeSqlFile(sqlFile, targetServer)
-			if err != nil {
-				panic(err)
+			fmt.Printf("Processing sqlfile: %s\n", filepath.Base(sqlFile))
+			errStr := executeSqlFile(sqlFile, targetServer)
+			if len(errStr) > 0 {
+				fmt.Printf("error from sqlfile: %s\n", errStr)
+				runtime.Goexit()
 			}
+
+			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
 			err = os.Rename(getInProgressFilePath(t), getDoneFilePath(t))
 			if err != nil {
 				panic(err)
 			}
+			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 			fmt.Printf("Inserted a batch of %d or less in table %s\n", numLinesInASplit, t.TableName)
 			splitImportDone = true
 		default:
@@ -592,11 +610,39 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 	}
 }
 
-func executeSqlFile(file string, server *utils.Target) error {
+func executeSqlFile(file string, server *utils.Target) string {
+	fmt.Printf("Executing Sql file %s on server: %s\n", filepath.Base(file), server.Host)
 	connectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
 		server.User, server.Password, server.Host, server.Port, server.DBName)
 	cmd := exec.Command(YSQL, connectionURI, "-b", "-f", file)
-	return cmd.Run()
+
+	var errorBuffer bytes.Buffer
+
+	cmd.Stderr = &errorBuffer
+	cmd.Stdout = os.Stdout
+
+	retryCount := 5
+	for retryCount > 0 {
+		cmd.Run()
+
+		if len(errorBuffer.String()) > 0 {
+			fmt.Printf("Buffered ERROR String: %s\n", errorBuffer.String())
+		}
+
+		pattern := regexp.MustCompile("(pgsql error 40001)")
+		index := pattern.FindIndex(errorBuffer.Bytes())
+
+		if index == nil {
+			break
+		} else {
+			fmt.Printf("FOUND ERROR at index: %v\n", index)
+			fmt.Println("RETRYING....")
+		}
+
+		retryCount--
+	}
+
+	return errorBuffer.String()
 }
 
 func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
@@ -628,7 +674,7 @@ func init() {
 
 	importDataCmd.PersistentFlags().StringVar(&importMode, "offline", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
-	importDataCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 1000,
+	importDataCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 256,
 		"Maximum size of each batch import ")
 	importDataCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"-1 means number of servers in the Yugabyte cluster")
