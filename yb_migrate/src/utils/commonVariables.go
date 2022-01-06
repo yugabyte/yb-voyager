@@ -40,7 +40,7 @@ type ExportTableMetadata struct {
 	Status               string //(NOT-STARTED, IN-PROGRESS, DONE)
 	CountLiveRows        int64
 	CountTotalRows       int64
-	FileOffsetToContinue int64 // This might not be removed later
+	FileOffsetToContinue int64 // This might be removed later
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 

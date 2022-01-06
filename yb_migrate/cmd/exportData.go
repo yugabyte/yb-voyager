@@ -116,9 +116,9 @@ func exportDataOffline() bool {
 	}
 
 	//wait for the export data to start
-	fmt.Println("passing the exportDataStart channel receiver")
+	// fmt.Println("passing the exportDataStart channel receiver")
 	<-exportDataStart
-	fmt.Println("passed the exportDataStart channel receiver")
+	// fmt.Println("passed the exportDataStart channel receiver")
 
 	tableList := migration.GetTableList(exportDir)
 	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)

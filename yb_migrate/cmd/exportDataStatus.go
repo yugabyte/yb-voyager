@@ -69,7 +69,7 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 				tablesMetadata[i].Status = "IN-PROGRESS"
 				// utils.WaitGroup.Add(1)
 
-				go startProgressBar(progressContainer, &tablesMetadata[i], quitChan2)
+				go startExportPB(progressContainer, &tablesMetadata[i], quitChan2)
 
 			} else if tablesMetadata[i].Status == "DONE" &&
 				tablesMetadata[i].CountLiveRows >= tablesMetadata[i].CountTotalRows {
@@ -103,7 +103,7 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 	//TODO: print remaining/unable-to-export tables
 }
 
-func startProgressBar(progressContainer *mpb.Progress, tableMetadata *utils.ExportTableMetadata, quitChan chan bool) {
+func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.ExportTableMetadata, quitChan chan bool) {
 	// defer utils.WaitGroup.Done()
 
 	name := tableMetadata.TableName

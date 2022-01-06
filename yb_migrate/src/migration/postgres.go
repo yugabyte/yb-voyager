@@ -277,13 +277,13 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
-		fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
+		// fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
 
 	if waitingFlag == 1 {
-		fmt.Println("toc.txt file got created !!")
+		// fmt.Println("toc.txt file got created !!")
 	}
 
 	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
@@ -305,9 +305,9 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 		}
 	}
 
-	//extracted SQL for setval() and put it into a postdata.sql file
+	//extracted SQL for setval() and put it into a postexport.sql file
 	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
-	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
+	ioutil.WriteFile(dataDirPath+"/postexport.sql", []byte(sequencesPostData.String()), 0644)
 
 	return fileNameVsTableNameMap
 }
@@ -316,13 +316,13 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocFilePath) {
-		fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
+		// fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
 
 	if waitingFlag == 1 {
-		fmt.Println("toc.dat file got created !!")
+		// fmt.Println("toc.dat file got created !!")
 	}
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
