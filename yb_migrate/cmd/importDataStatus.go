@@ -42,22 +42,20 @@ func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 }
 
-func importDataStatus(progressContainer *mpb.Progress, tablesProgressMetadata *[]utils.ExportTableMetadata) {
-	numTables := len(*tablesProgressMetadata)
+func importDataStatus() {
 	// debugFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
 
 	for Done.IsNotSet() {
-		for i := 0; i < numTables; i++ {
-			tableProgressMetadata := &(*tablesProgressMetadata)[i]
-			if tableProgressMetadata.Status == "NOT-STARTED" && tableProgressMetadata.CountLiveRows > 0 {
+		for _, table := range importTables {
+			// fmt.Fprintf(debugFile, table, tablesProgressMetadata[table], tablesProgressMetadata[table].Status, tablesProgressMetadata[table].CountLiveRows)
+			if tablesProgressMetadata[table].Status == "NOT-STARTED" && tablesProgressMetadata[table].CountLiveRows >= 0 {
+				tablesProgressMetadata[table].Status = "IN-PROGRESS"
+				go startImportPB(table)
 
-				tableProgressMetadata.Status = "IN-PROGRESS"
-				go startImportPB(progressContainer, tableProgressMetadata)
+			} else if tablesProgressMetadata[table].Status == "DONE" &&
+				tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
 
-			} else if tableProgressMetadata.Status == "DONE" &&
-				tableProgressMetadata.CountLiveRows >= tableProgressMetadata.CountTotalRows {
-
-				tableProgressMetadata.Status = "COMPLETED"
+				tablesProgressMetadata[table].Status = "COMPLETED"
 				// fmt.Fprintf(debugFile, "Completed: table:%s  LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
 				// 	tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
 
@@ -65,15 +63,15 @@ func importDataStatus(progressContainer *mpb.Progress, tablesProgressMetadata *[
 		}
 	}
 
-	progressContainer.Wait()
+	importProgressContainer.Wait()
 }
 
-func startImportPB(progressContainer *mpb.Progress, tableProgressMetadata *utils.ExportTableMetadata) {
-	name := tableProgressMetadata.TableName
+func startImportPB(table string) {
+	name := table
 	total := int64(100)
 	// tempFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
 
-	bar := progressContainer.AddBar(total,
+	bar := importProgressContainer.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
 		// mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
@@ -88,18 +86,18 @@ func startImportPB(progressContainer *mpb.Progress, tableProgressMetadata *utils
 		),
 	)
 
-	if tableProgressMetadata.CountLiveRows >= tableProgressMetadata.CountTotalRows ||
-		tableProgressMetadata.CountTotalRows == 0 { // if row count = 0, then return
+	if tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows ||
+		tablesProgressMetadata[table].CountTotalRows == 0 { // if row count = 0, then return
 		// fmt.Fprintf(tempFile, "PBreturn: table:%s IncValue: %d, percent:%d, LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
 		// 	100, 100, tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
 
 		bar.IncrInt64(100)
-		tableProgressMetadata.Status = "DONE"
+		tablesProgressMetadata[table].Status = "DONE"
 		return
 	}
 
 	for {
-		PercentageValueFloat := (float64(tableProgressMetadata.CountLiveRows) / float64(tableProgressMetadata.CountTotalRows)) * 100
+		PercentageValueFloat := (float64(tablesProgressMetadata[table].CountLiveRows) / float64(tablesProgressMetadata[table].CountTotalRows)) * 100
 		PercentageValueInt64 := int64(PercentageValueFloat)
 		incrementValue := (PercentageValueInt64) - bar.Current()
 		bar.IncrInt64(incrementValue)
@@ -112,27 +110,29 @@ func startImportPB(progressContainer *mpb.Progress, tableProgressMetadata *utils
 		}
 	}
 
-	tableProgressMetadata.Status = "DONE" //before return
+	tablesProgressMetadata[table].Status = "DONE" //before return
 }
 
 func initializeImportDataStatus(exportDir string, tables []string) {
+	log.Infof("Initializing import data status\n")
+	tablesProgressMetadata = make(map[string]*utils.ExportTableMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
+	//Temporary: Till the migration checker code is not in-place
+	totalRowCountMap := migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt")
+
 	for _, tableName := range tables {
-		currentTableStruct := utils.ExportTableMetadata{
-			TableSchema:   "",
-			TableName:     tableName,
-			Status:        "NOT-STARTED",
-			CountLiveRows: importedRowCount[tableName],
+		tablesProgressMetadata[tableName] = &utils.ExportTableMetadata{
+			TableSchema:    "", //TODO
+			TableName:      tableName,
+			Status:         "NOT-STARTED",
+			CountLiveRows:  importedRowCount[tableName],
+			CountTotalRows: totalRowCountMap[tableName],
 		}
-		tablesProgressMetadata = append(tablesProgressMetadata, currentTableStruct)
 	}
 
-	//Temporary: Till the migration checker code is not in-place
-	tableRowCountMap := migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt")
-	for i := 0; i < len(tablesProgressMetadata); i++ {
-		tablesProgressMetadata[i].CountTotalRows = tableRowCountMap[tablesProgressMetadata[i].TableName]
-	}
+	// fmt.Println(tablesProgressMetadata)
+	log.Infof("Initialization of import data status done\n")
 }
 
 func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
@@ -160,6 +160,10 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 				importedRowCount[table] += cnt
 			}
 
+		}
+
+		if importedRowCount[table] == 0 { //if it zero, then its import not started yet
+			importedRowCount[table] = -1
 		}
 		// fmt.Printf("Previous count %s = %d\n", table, importedRowCount[table])
 	}

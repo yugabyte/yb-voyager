@@ -46,8 +46,9 @@ var parallelImportJobs = 0
 var Done = abool.New()
 var GenerateSplitsDone = abool.New()
 
-var tablesProgressMetadata []utils.ExportTableMetadata
-var progressContainer *mpb.Progress
+var tablesProgressMetadata map[string]*utils.ExportTableMetadata
+var importProgressContainer *mpb.Progress
+var importTables []string
 
 type ExportTool int
 
@@ -223,28 +224,41 @@ func acquireImportLock() {
 
 func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
+
+	//TODO: print in verbose mode
 	fmt.Printf("doneTables: %s\n", doneTables)
 	fmt.Printf("interruptedTables: %s\n", interruptedTables)
 	fmt.Printf("remainingTables: %s\n", remainingTables)
 
-	allTables := append(interruptedTables, remainingTables...)
+	if startClean == "YES" { //starting data migraiton from beginning
+		importTables = append(doneTables, interruptedTables...)
+		importTables = append(importTables, remainingTables...)
 
-	if len(allTables) == 0 {
+		truncateTables(importTables)
+		cleanMetaInfoDir()
+	} else { //restarting data migration from where left last time
+		importTables = append(interruptedTables, remainingTables...)
+	}
+
+	if len(importTables) == 0 {
 		fmt.Printf("All the tables are already imported\n")
 		Done.Set()
 		return
 	}
 
-	truncateRemainingTables(remainingTables)
 	// fmt.Printf("%v, %v, %v, %s", done, interrupted, remaining, err)
-	fmt.Println("starting import data...")
-	go splitDataFiles(doneTables, allTables, taskQueue)
+	log.Info("Preparing tables for import...")
 
 	//Preparing the tablesProgressMetadata array
-	initializeImportDataStatus(exportDir, allTables)
+	initializeImportDataStatus(exportDir, importTables)
+	// fmt.Printf("TablesProgresMetadata after initializing: %v\n", tablesProgressMetadata)
+
+	go splitDataFiles(doneTables, importTables, taskQueue)
 }
 
-func truncateRemainingTables(tables []string) {
+func truncateTables(tables []string) {
+	fmt.Println("Truncating all the tables in the schema")
+
 	url := getTargetConnectionUri(&target)
 	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
@@ -254,7 +268,7 @@ func truncateRemainingTables(tables []string) {
 	defer conn.Close(context.Background())
 
 	for _, tab := range tables {
-		// fmt.Printf("Truncating table %s\n", tab)
+		// log.Infof("Truncating table %s\n", tab)
 		truncateStmnt := fmt.Sprintf("truncate table %s", tab)
 		rows, err := conn.Query(context.Background(), truncateStmnt)
 		if err != nil {
@@ -264,11 +278,9 @@ func truncateRemainingTables(tables []string) {
 	}
 }
 
-func splitDataFiles(doneTables []string, allTables []string, taskQueue chan *fwk.SplitFileImportTask) {
-	// fmt.Printf("all tables = %v\n", allTables)
-	// fmt.Printf("done tables = %v\n", doneTables)
+func splitDataFiles(doneTables []string, importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 
-	for _, t := range allTables {
+	for _, t := range importTables {
 		origDataFile := exportDir + "/data/" + t + "_data.sql"
 		// collect interrupted splits
 		// make an import task and schedule them
@@ -373,7 +385,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	for readLineErr == nil {
 		line, readLineErr = utils.Readline(r)
 
-		if readLineErr == nil && !isDataLine(line) { //TODO: test with and without this check
+		if readLineErr == nil && !isDataLine(line) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
 			numLinesTaken += 1
@@ -557,8 +569,8 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 
 	parallelImportCount := int64(0)
 
-	progressContainer = mpb.New()
-	go importDataStatus(progressContainer, &tablesProgressMetadata)
+	importProgressContainer = mpb.New()
+	go importDataStatus()
 
 	for Done.IsNotSet() {
 		select {
@@ -576,7 +588,7 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 		}
 	}
 
-	progressContainer.Wait()
+	importProgressContainer.Wait()
 }
 
 func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *utils.Target, parallelImportCount *int64) {
@@ -590,6 +602,12 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 		select {
 		case targetServer := <-targetChan:
 			// fmt.Printf("Got taskfile %s and target for that = %s\n", t.SplitFilePath, targetServer.Host)
+
+			//this is done to signal start progress bar for this table
+			if tablesProgressMetadata[t.TableName].CountLiveRows == -1 {
+				tablesProgressMetadata[t.TableName].CountLiveRows = 0
+			}
+
 			// Rename the file to .P
 			err := os.Rename(t.SplitFilePath, getInProgressFilePath(t))
 			if err != nil {
@@ -658,6 +676,7 @@ func executeSqlFile(file string, server *utils.Target) string {
 
 	cmd.Stderr = &errorBuffer
 
+	//TODO: move to constants.go
 	retryOnErrors := []string{"pgsql error 40001"}
 	ignoreOnErrors := []string{"duplicate key value violates unique constraint"}
 
@@ -714,12 +733,7 @@ func getSqlFilePath(task *fwk.SplitFileImportTask) string {
 
 func incrementImportedRowCount(tableName string) {
 	//TODO: some optimization can be done here
-	for i := 0; i < len(tablesProgressMetadata); i++ {
-		if tablesProgressMetadata[i].TableName == tableName {
-			tablesProgressMetadata[i].CountLiveRows += int64(numLinesInASplit)
-			break
-		}
-	}
+	tablesProgressMetadata[tableName].CountLiveRows += int64(numLinesInASplit)
 }
 
 func init() {
@@ -731,4 +745,12 @@ func init() {
 		"Maximum size of each batch import ")
 	importDataCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"-1 means number of servers in the Yugabyte cluster")
+}
+
+func cleanMetaInfoDir() {
+	// metaInfoDataDir := exportDir + "/metainfo/data"
+
+	// pattern := fmt.Sprintf("%s/*.[CPD]")
+	// filepath.Glob()
+
 }
