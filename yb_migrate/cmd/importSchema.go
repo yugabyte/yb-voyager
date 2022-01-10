@@ -33,8 +33,12 @@ var importSchemaCmd = &cobra.Command{
 	Short: "This command imports schema into the destination YugabyteDB database",
 	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
 
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+		// fmt.Println("Import Schema PersistentPreRun")
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Import Schema Command called")
 		importSchema()
 	},
 }
@@ -44,6 +48,7 @@ func init() {
 }
 
 func importSchema() {
+	fmt.Printf("\nimport of schema in '%s' database started\n", target.DBName)
 	utils.CheckToolsRequiredInstalledOrNot("yugabytedb")
 
 	// targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
@@ -62,30 +67,32 @@ func importSchema() {
 
 	cmdOutputBytes, err := checkDatabaseExistCommand.CombinedOutput()
 
-	fmt.Printf("[Debug]: %s\n", checkDatabaseExistCommand)
-	fmt.Printf("[Info] Command Output: %s\n", cmdOutputBytes)
+	// fmt.Printf("[Debug]: %s\n", checkDatabaseExistCommand)
+	// fmt.Printf("[Info] Command Output: %s\n", cmdOutputBytes)
 	// utils.CheckError(err, "", "", true)
 
 	//removing newline character from the end
 	requiredDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
 
+	//TODO: make error matching/handling better
 	if patternMatch, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", requiredDatabaseName); patternMatch {
-		// above if-condition is true if default database - "yugabyte" doesn't exists
+		// above if-condition is only true if default database - "yugabyte" doesn't exists
 
 		fmt.Printf("Default database '%s' does not exists, please create it and continue!!\n", YUGABYTEDB_DEFAULT_DATABASE)
 		os.Exit(1)
 
 	} else if requiredDatabaseName == target.DBName {
-		if startClean == "YES" && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
+		if startClean && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
 			//dropping existing database
-			fmt.Printf("[Info] dropping %s database...\n", target.DBName)
+			fmt.Printf("dropping '%s' database...\n", target.DBName)
+
 			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
-			utils.CheckError(err, dropDatabaseCommand.String(), string(cmdOutputBytes), true)
+			utils.CheckError(err, "", string(cmdOutputBytes), true)
 
 			//creating required database
-			fmt.Printf("[Info] creating %s database...\n", target.DBName)
+			fmt.Printf("creating '%s' database...\n", target.DBName)
 			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
-			utils.CheckError(err, createDatabaseCommand.String(), string(cmdOutputBytes), true)
+			utils.CheckError(err, "", string(cmdOutputBytes), true)
 
 		} else {
 			fmt.Println("[Debug] Using the target database directly wihtout cleaning")
@@ -97,7 +104,7 @@ func importSchema() {
 		fmt.Printf("Required Database doesn't exists, creating '%s' database...\n", target.DBName)
 
 		err = createDatabaseCommand.Run()
-		utils.CheckError(err, createDatabaseCommand.String(), "couldn't create the target database", true)
+		utils.CheckError(err, "", "couldn't create the target database", true)
 	} else { //cases like user, password are invalid
 		fmt.Println("Import Schema could not proceed, Abort!!")
 		if err != nil {

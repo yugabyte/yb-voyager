@@ -24,9 +24,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"yb_migrate/src/fwk"
@@ -46,9 +46,16 @@ var parallelImportJobs = 0
 var Done = abool.New()
 var GenerateSplitsDone = abool.New()
 
-var tablesProgressMetadata map[string]*utils.ExportTableMetadata
-var importProgressContainer *mpb.Progress
+var tablesProgressMetadata map[string]*utils.TableProgressMetadata
+
+type ProgressContainer struct {
+	mu        sync.Mutex
+	container *mpb.Progress
+}
+
+var importProgressContainer ProgressContainer
 var importTables []string
+var allTables []string
 
 type ExportTool int
 
@@ -63,6 +70,11 @@ var importDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command imports data into YugabyteDB database",
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
+
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+		// fmt.Println("Import Data PersistentPreRun")
+	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// exportTool := getExportTool()
@@ -169,12 +181,18 @@ func importData() {
 	// TODO: Add later
 	// acquireImportLock()
 	// defer os.Remove(importLockFile)
+
+	fmt.Printf("\nimport of data in '%s' database started\n", target.DBName)
+
 	targets := getYBServers()
 	var parallelism = parallelImportJobs
 	if parallelism == -1 {
 		parallelism = len(targets)
 	}
-	fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
+
+	if verboseMode {
+		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
+	}
 
 	splitFilesChannel := make(chan *fwk.SplitFileImportTask, SPLIT_FILE_CHANNEL_SIZE)
 	targetServerChannel := make(chan *utils.Target, 1)
@@ -184,6 +202,7 @@ func importData() {
 	go doImport(splitFilesChannel, parallelism, targetServerChannel)
 	checkForDone()
 
+	time.Sleep(time.Second * 2)
 	fmt.Printf("\nexiting...\n")
 }
 
@@ -201,7 +220,6 @@ func checkForDone() {
 				time.Sleep(2 * time.Second)
 			} else {
 				// doLoop = false
-				fmt.Printf("All imports done\n")
 				Done.Set()
 			}
 		} else {
@@ -226,34 +244,40 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
 	//TODO: print in verbose mode
-	fmt.Printf("doneTables: %s\n", doneTables)
-	fmt.Printf("interruptedTables: %s\n", interruptedTables)
-	fmt.Printf("remainingTables: %s\n", remainingTables)
+	// fmt.Printf("doneTables: %s\n", doneTables)
+	// fmt.Printf("interruptedTables: %s\n", interruptedTables)
+	// fmt.Printf("remainingTables: %s\n", remainingTables)
 
-	if startClean == "YES" { //starting data migraiton from beginning
-		importTables = append(doneTables, interruptedTables...)
-		importTables = append(importTables, remainingTables...)
+	importTables = append(interruptedTables, remainingTables...)
+	allTables = append(importTables, doneTables...)
 
-		truncateTables(importTables)
-		cleanMetaInfoDir()
-	} else { //restarting data migration from where left last time
-		importTables = append(interruptedTables, remainingTables...)
+	if startClean { //start data migraiton from beginning
+		fmt.Println("cleaning the database and project directory")
+		truncateTables(allTables)
+
+		utils.CleanDir(exportDir + "/metainfo/data")
+
+		importTables = allTables //since all tables needs to imported now
+	}
+
+	if verboseMode {
+		fmt.Printf("all the tables to be imported: %v\n", allTables)
+		fmt.Printf("tables left to import: %v\n", importTables)
 	}
 
 	if len(importTables) == 0 {
 		fmt.Printf("All the tables are already imported\n")
 		Done.Set()
 		return
+	} else {
+		fmt.Printf("Preparing the tables for import...\n")
 	}
 
-	// fmt.Printf("%v, %v, %v, %s", done, interrupted, remaining, err)
-	log.Info("Preparing tables for import...")
-
 	//Preparing the tablesProgressMetadata array
-	initializeImportDataStatus(exportDir, importTables)
+	initializeImportDataStatus(exportDir, allTables)
 	// fmt.Printf("TablesProgresMetadata after initializing: %v\n", tablesProgressMetadata)
 
-	go splitDataFiles(doneTables, importTables, taskQueue)
+	go splitDataFiles(importTables, taskQueue)
 }
 
 func truncateTables(tables []string) {
@@ -278,23 +302,13 @@ func truncateTables(tables []string) {
 	}
 }
 
-func splitDataFiles(doneTables []string, importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
+func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 
 	for _, t := range importTables {
 		origDataFile := exportDir + "/data/" + t + "_data.sql"
 		// collect interrupted splits
 		// make an import task and schedule them
-		alreadyImported := false
-		for _, dt := range doneTables {
-			// fmt.Printf("Comparing %s and %s and string compare = %d\n", dt, t, strings.Compare(dt, t))
-			if strings.Compare(dt, t) == 0 {
-				alreadyImported = true
-				break
-			}
-		}
-		if alreadyImported {
-			continue
-		}
+
 		largestCreatedSplitSoFar := 0
 		largestOffsetSoFar := 0
 		fileFullySplit := false
@@ -505,7 +519,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		os.Exit(1)
 	}
 
-	exportDonePath := metaInfoDataDir + "/exportDone"
+	exportDonePath := metaInfoDir + "/flags/exportDone"
 	_, err = os.Stat(exportDonePath)
 	if err != nil {
 		fmt.Println("Export is not done yet. Exiting.")
@@ -569,7 +583,9 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 
 	parallelImportCount := int64(0)
 
-	importProgressContainer = mpb.New()
+	importProgressContainer = ProgressContainer{
+		container: mpb.New(),
+	}
 	go importDataStatus()
 
 	for Done.IsNotSet() {
@@ -588,7 +604,7 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 		}
 	}
 
-	importProgressContainer.Wait()
+	importProgressContainer.container.Wait()
 }
 
 func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *utils.Target, parallelImportCount *int64) {
@@ -643,8 +659,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			// fmt.Printf("Processing sqlfile: %s\n", filepath.Base(sqlFile))
 			errStr := executeSqlFile(sqlFile, targetServer)
 			if len(errStr) > 0 {
-				fmt.Printf("error from sqlfile: %s\n", errStr)
-				runtime.Goexit()
+				panic(errStr)
 			}
 
 			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
@@ -741,16 +756,5 @@ func init() {
 
 	importDataCmd.PersistentFlags().StringVar(&importMode, "offline", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
-	importDataCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 1000,
-		"Maximum size of each batch import ")
-	importDataCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
-		"-1 means number of servers in the Yugabyte cluster")
-}
-
-func cleanMetaInfoDir() {
-	// metaInfoDataDir := exportDir + "/metainfo/data"
-
-	// pattern := fmt.Sprintf("%s/*.[CPD]")
-	// filepath.Glob()
 
 }

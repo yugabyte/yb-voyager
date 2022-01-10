@@ -18,9 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 	"yb_migrate/src/migration"
@@ -41,8 +39,16 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("export data command called")
+
+		if startClean {
+			utils.CleanDir(exportDir + "/data")
+		}
 
 		exportData()
 	},
@@ -61,7 +67,7 @@ func exportData() {
 	}
 
 	if success {
-		err := exec.Command("touch", exportDir+"/metainfo/data/"+"exportDone").Run() //to inform import data command
+		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDone").Run() //to inform import data command
 		utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
 		color.Green("Export of data complete \u2705")
 	} else {
@@ -93,18 +99,6 @@ func exportDataOffline() bool {
 
 	case POSTGRESQL:
 		fmt.Printf("Preparing for data export from Postgres\n")
-
-		dataDirPath := exportDir + "/data"
-		if utils.FileOrFolderExists(dataDirPath) { //pg_dump for directory format throws error if dir exists
-			color.Red("Removing the existing data directory in the project")
-			err := os.RemoveAll(dataDirPath)
-			if err != nil {
-				fmt.Println(err)
-				quitChan <- true
-				runtime.Goexit()
-			}
-		}
-
 		utils.WaitGroup.Add(1)
 		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
 
@@ -150,9 +144,9 @@ func exportDataOnline() bool {
 	return true // empty function
 }
 
-func createExportTableMetadataSlice(exportDir string, tableList []string) []utils.ExportTableMetadata {
+func createExportTableMetadataSlice(exportDir string, tableList []string) []utils.TableProgressMetadata {
 	numTables := len(tableList)
-	tablesMetadata := make([]utils.ExportTableMetadata, numTables)
+	tablesMetadata := make([]utils.TableProgressMetadata, numTables)
 
 	for i := 0; i < numTables; i++ {
 		tableInfo := strings.Split(tableList[i], ".")
@@ -168,7 +162,7 @@ func createExportTableMetadataSlice(exportDir string, tableList []string) []util
 		tablesMetadata[i].DataFilePath = ""         //will be updated when status changes to IN-PROGRESS
 		tablesMetadata[i].CountTotalRows = int64(0) //will be updated by other func
 		tablesMetadata[i].CountLiveRows = int64(0)
-		tablesMetadata[i].Status = "NOT-STARTED"
+		tablesMetadata[i].Status = 0
 		tablesMetadata[i].FileOffsetToContinue = int64(0)
 	}
 

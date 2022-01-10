@@ -20,9 +20,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -44,106 +46,124 @@ func init() {
 
 func importDataStatus() {
 	// debugFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
+	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
 
 	for Done.IsNotSet() {
-		for _, table := range importTables {
-			// fmt.Fprintf(debugFile, table, tablesProgressMetadata[table], tablesProgressMetadata[table].Status, tablesProgressMetadata[table].CountLiveRows)
-			if tablesProgressMetadata[table].Status == "NOT-STARTED" && tablesProgressMetadata[table].CountLiveRows >= 0 {
-				tablesProgressMetadata[table].Status = "IN-PROGRESS"
-				go startImportPB(table)
+		for _, table := range allTables {
 
-			} else if tablesProgressMetadata[table].Status == "DONE" &&
+			if tablesProgressMetadata[table].Status == 0 && tablesProgressMetadata[table].CountLiveRows >= 0 {
+				tablesProgressMetadata[table].Status = 1
+				go startImportPB(table)
+			} else if tablesProgressMetadata[table].Status == 2 &&
 				tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
 
-				tablesProgressMetadata[table].Status = "COMPLETED"
+				tablesProgressMetadata[table].Status = 3
 				// fmt.Fprintf(debugFile, "Completed: table:%s  LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
 				// 	tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
 
 			}
 		}
+		time.Sleep(time.Millisecond * 100)
 	}
 
-	importProgressContainer.Wait()
+	importProgressContainer.container.Wait()
+
+	//TODO: add a check for errors/failures before printing it
+	color.Green("\nAll the tables are imported\n")
 }
 
 func startImportPB(table string) {
 	name := table
+	// total := tablesProgressMetadata[table].CountTotalRows
 	total := int64(100)
 	// tempFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
 
-	bar := importProgressContainer.AddBar(total,
+	importProgressContainer.mu.Lock()
+	bar := importProgressContainer.container.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
 		// mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(name),
 		),
 		mpb.AppendDecorators(
-			decor.Percentage(decor.WCSyncSpaceR),
+			// decor.Percentage(decor.WCSyncSpaceR),
+			decor.OnComplete(
+				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
+			),
 			decor.OnComplete(
 				//TODO: default feature by package, need to verify the correctness/algorithm for ETA
-				decor.AverageETA(decor.ET_STYLE_GO), "done",
+				decor.AverageETA(decor.ET_STYLE_GO), "",
 			),
 		),
 	)
+	importProgressContainer.mu.Unlock()
 
-	if tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows ||
-		tablesProgressMetadata[table].CountTotalRows == 0 { // if row count = 0, then return
+	//if its already done or row count = 0, then return
+	if tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
 		// fmt.Fprintf(tempFile, "PBreturn: table:%s IncValue: %d, percent:%d, LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
 		// 	100, 100, tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
 
+		// bar.SetCurrent(tablesProgressMetadata[table].CountLiveRows)
 		bar.IncrInt64(100)
-		tablesProgressMetadata[table].Status = "DONE"
+
+		tablesProgressMetadata[table].Status = 2 //set Status=DONE, before return
 		return
 	}
 
+	//TODO: break loop in error/failure conditions
 	for {
 		PercentageValueFloat := (float64(tablesProgressMetadata[table].CountLiveRows) / float64(tablesProgressMetadata[table].CountTotalRows)) * 100
 		PercentageValueInt64 := int64(PercentageValueFloat)
-		incrementValue := (PercentageValueInt64) - bar.Current()
-		bar.IncrInt64(incrementValue)
+		incrementValue := PercentageValueInt64 - bar.Current()
 
-		// fmt.Fprintf(tempFile, "PB: table:%s IncValue: %d, percent:%d, LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
-		// 	incrementValue, PercentageValueInt64, tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
+		bar.IncrInt64(incrementValue)
+		// bar.SetCurrent(tablesProgressMetadata[table].CountLiveRows)
 
 		if PercentageValueInt64 >= 100 {
 			break
+		} else {
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 
-	tablesProgressMetadata[table].Status = "DONE" //before return
+	tablesProgressMetadata[table].Status = 2 //set Status=DONE, before return
 }
 
 func initializeImportDataStatus(exportDir string, tables []string) {
-	log.Infof("Initializing import data status\n")
-	tablesProgressMetadata = make(map[string]*utils.ExportTableMetadata)
+	// log.Infof("Initializing import data status\n")
+	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
-	//Temporary: Till the migration checker code is not in-place
-	totalRowCountMap := migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt")
+	var totalRowCountMap map[string]int64
+	//TODO: Temporary Till the migration checker code is not in-place
+	if migration.ExtractMetaInfo(exportDir).SourceDBType == "oracle" {
+		totalRowCountMap = migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt_o")
+	} else {
+		totalRowCountMap = migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt")
+	}
 
 	for _, tableName := range tables {
-		tablesProgressMetadata[tableName] = &utils.ExportTableMetadata{
+		tablesProgressMetadata[tableName] = &utils.TableProgressMetadata{
 			TableSchema:    "", //TODO
 			TableName:      tableName,
-			Status:         "NOT-STARTED",
+			Status:         0,
 			CountLiveRows:  importedRowCount[tableName],
 			CountTotalRows: totalRowCountMap[tableName],
 		}
 	}
 
-	// fmt.Println(tablesProgressMetadata)
-	log.Infof("Initialization of import data status done\n")
+	// log.Infof("Initialization of import data status done\n")
 }
 
 func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 	metaInfoDataDir := exportDir + "/metainfo/data"
-	importedRowCount := make(map[string]int64)
+	importedRowCounts := make(map[string]int64)
 
 	for _, table := range tables {
 		//[CPD] because there might be some garbage pattern.sql file created for execution
-		pattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", metaInfoDataDir, table)
+		pattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[D]", metaInfoDataDir, table)
 		matches, _ := filepath.Glob(pattern)
-		importedRowCount[table] = 0
+		importedRowCounts[table] = 0
 
 		tableDoneSplitsPattern := fmt.Sprintf("%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", table)
 		tableDoneSplitsRegexp := regexp.MustCompile(tableDoneSplitsPattern)
@@ -157,16 +177,16 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 
 			if len(submatches) > 0 {
 				cnt, _ := strconv.ParseInt(submatches[3], 10, 64)
-				importedRowCount[table] += cnt
+				importedRowCounts[table] += cnt
 			}
 
 		}
 
-		if importedRowCount[table] == 0 { //if it zero, then its import not started yet
-			importedRowCount[table] = -1
+		if importedRowCounts[table] == 0 { //if it zero, then its import not started yet
+			importedRowCounts[table] = -1
 		}
 		// fmt.Printf("Previous count %s = %d\n", table, importedRowCount[table])
 	}
 
-	return importedRowCount
+	return importedRowCounts
 }

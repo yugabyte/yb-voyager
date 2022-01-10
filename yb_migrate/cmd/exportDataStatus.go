@@ -45,7 +45,7 @@ to quickly create a Cobra application.`,
 	},
 }
 
-func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMetadata, quitChan chan bool) {
+func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressMetadata, quitChan chan bool) {
 	quitChan2 := make(chan bool)
 	quit := false
 	go func() {
@@ -64,16 +64,16 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 	// tempFile, _ := os.Create(exportDir + "/temp/debug.txt")
 	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for i := 0; i < numTables && !quit; i++ {
-			if tablesMetadata[i].Status == "NOT-STARTED" &&
+			if tablesMetadata[i].Status == 0 &&
 				(utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) || tablesMetadata[i].CountTotalRows == 0) {
-				tablesMetadata[i].Status = "IN-PROGRESS"
+				tablesMetadata[i].Status = 1
 				// utils.WaitGroup.Add(1)
 
 				go startExportPB(progressContainer, &tablesMetadata[i], quitChan2)
 
-			} else if tablesMetadata[i].Status == "DONE" &&
+			} else if tablesMetadata[i].Status == 2 &&
 				tablesMetadata[i].CountLiveRows >= tablesMetadata[i].CountTotalRows {
-				tablesMetadata[i].Status = "COMPLETED"
+				tablesMetadata[i].Status = 3
 
 				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
 				doneCount++
@@ -103,30 +103,33 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.ExportTableMet
 	//TODO: print remaining/unable-to-export tables
 }
 
-func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.ExportTableMetadata, quitChan chan bool) {
+func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
 	// defer utils.WaitGroup.Done()
 
 	name := tableMetadata.TableName
 	total := int64(100)
+
 	bar := progressContainer.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
 		// mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
-			// display our name with one space on the right
 			decor.Name(name),
 		),
 		mpb.AppendDecorators(
-			decor.Percentage(decor.WCSyncSpaceR),
+			// decor.Percentage(decor.WCSyncSpaceR),
+			decor.OnComplete(
+				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
+			),
 			decor.OnComplete(
 				//TODO: default feature by package, need to verify the correctness/algorithm for ETA
-				decor.AverageETA(decor.ET_STYLE_GO), "done",
+				decor.AverageETA(decor.ET_STYLE_GO), "",
 			),
 		),
 	)
 
 	if tableMetadata.CountTotalRows == 0 { // if row count = 0, then return
 		bar.IncrInt64(100)
-		tableMetadata.Status = "DONE"
+		tableMetadata.Status = 2
 		return
 	}
 
@@ -169,7 +172,7 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.ExportT
 		buf = nil //making it eligible for GC
 	}
 
-	tableMetadata.Status = "DONE" //before return
+	tableMetadata.Status = 2 //before return
 }
 
 func init() {

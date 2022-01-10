@@ -35,8 +35,16 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("export schema command called")
+		// fmt.Println("export schema command called")
+
+		if startClean {
+			utils.CleanDir(exportDir + "/schema")
+		}
 
 		exportSchema()
 		/*
@@ -55,22 +63,30 @@ to quickly create a Cobra application.`,
 }
 
 func exportSchema() {
+	fmt.Printf("export of schema for source type as '%s'\n", source.DBType)
+
 	switch source.DBType {
 	case ORACLE:
-		fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
+		if verboseMode {
+			fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
+		}
 		if source.SSLMode == "" {
-			//findout and add default mode
+			//TODO: findout and add default mode
 			source.SSLMode = ""
 		}
 		oracleExportSchema()
 	case POSTGRESQL:
-		fmt.Printf("Prepare pg_dump for schema export from PG\n")
+		if verboseMode {
+			fmt.Printf("Prepare pg_dump for schema export from PG\n")
+		}
 		if source.SSLMode == "" {
 			source.SSLMode = "disable"
 		}
 		postgresExportSchema()
 	case MYSQL:
-		fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
+		if verboseMode {
+			fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
+		}
 		if source.SSLMode == "" {
 			source.SSLMode = "DISABLED"
 		}

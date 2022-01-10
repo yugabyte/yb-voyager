@@ -33,53 +33,14 @@ var exportCmd = &cobra.Command{
 `,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// fmt.Printf("migrationMode = %s, startClean = %v\n", migrationMode, startClean)
-
-		// //TODO: Debug - startClean variable is not getting set after giving the default flag value
-		// if startClean == "" {
-		// 	startClean = "NO"
-		// }
-
-		// if startClean != "NO" && startClean != "YES" {
-		// 	fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
-		// 	os.Exit(1)
-		// }
-
-		// if utils.ProjectSubdirsExists(exportDir) {
-		// 	if startClean == "YES" {
-		// 		fmt.Printf("Deleting it before continue...\n")
-		// 		utils.DeleteProjectDirIfPresent(&source, exportDir)
-		// 	} else {
-		// 		fmt.Printf("Either remove the project or use start-clean flag as 'YES'\n")
-		// 		fmt.Println("Aborting...")
-		// 		os.Exit(1)
-		// 	}
-		// }
-
-		// log.Trace("PersistentPreRun done...")
-
-		switch source.DBType {
-		case ORACLE:
-			if source.Port == "" {
-				source.Port = ORACLE_DEFAULT_PORT
-			}
-		case POSTGRESQL:
-			if source.Port == "" {
-				source.Port = POSTGRES_DEFAULT_PORT
-			}
-		case MYSQL:
-			if source.Port == "" {
-				source.Port = MYSQL_DEFAULT_PORT
-			}
-		default:
-			fmt.Printf("Invalid value of source-db-type=%s!! Only allowed values are %s, %s, %s.\n",
-				source.DBType, ORACLE, POSTGRESQL, MYSQL)
-			os.Exit(1)
-		}
+		setSourceDefaultPort() //will set only if required
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// log.Infof("parent export command called with source data type = %s", source.DBType)
+		if startClean {
+			utils.CleanDir(exportDir)
+		}
 
 		exportSchema()
 		exportData()
@@ -137,6 +98,27 @@ func init() {
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 1,
 		"number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
 
-	exportCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
+	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing files inside the project if present and start fresh")
+}
+
+func setSourceDefaultPort() {
+	switch source.DBType {
+	case ORACLE:
+		if source.Port == "" {
+			source.Port = ORACLE_DEFAULT_PORT
+		}
+	case POSTGRESQL:
+		if source.Port == "" {
+			source.Port = POSTGRES_DEFAULT_PORT
+		}
+	case MYSQL:
+		if source.Port == "" {
+			source.Port = MYSQL_DEFAULT_PORT
+		}
+	default:
+		fmt.Printf("Invalid value of source-db-type=%s!! Only allowed values are %s, %s, %s.\n",
+			source.DBType, ORACLE, POSTGRESQL, MYSQL)
+		os.Exit(1)
+	}
 }

@@ -22,13 +22,13 @@ func PrintOracleSourceDBVersion(source *utils.Source, exportDir string) {
 
 	testDBVersionCommand := exec.Command("/bin/bash", "-c", testDBVersionCommandString)
 
-	fmt.Printf("[Debug]: Test oracle version command: %s\n", testDBVersionCommandString)
+	// fmt.Printf("[Debug]: Test oracle version command: %s\n", testDBVersionCommandString)
 
 	dbVersionBytes, err := testDBVersionCommand.CombinedOutput()
 
 	utils.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
 
-	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
+	// fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
 }
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
@@ -58,7 +58,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 		exportSchemaObjectCommand.Stdout = os.Stdout
 		exportSchemaObjectCommand.Stderr = os.Stderr
 
-		fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
+		// fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
 		err := exportSchemaObjectCommand.Run()
 
 		//TODO: Maybe we can suggest some smart HINT for the error happenend here
@@ -66,7 +66,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 			"Exporting of "+exportObject+" didn't happen, Retry exporting the schema", false)
 
 		if err == nil {
-			fmt.Printf("Export of %s schema done...\n", exportObject)
+			fmt.Printf("Export of %ss schema done...\n", exportObject)
 		}
 	}
 }

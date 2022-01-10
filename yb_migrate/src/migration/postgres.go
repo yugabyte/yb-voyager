@@ -60,7 +60,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(source, exportDir)
 
-	fmt.Println("Export Schema Done!!!")
+	fmt.Println("export of schema done!!!")
 }
 
 //NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
@@ -259,7 +259,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 }
 
-func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.ExportTableMetadata) {
+func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
 	dataDirPath := exportDir + "/data"
 
 	for _, tableMetadata := range *tablesMetadata {

@@ -20,12 +20,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 )
 
-var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "temp"}
+var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 func Wait(c chan *int) {
 	fmt.Print("\033[?25l") // Hide the cursor
@@ -66,14 +67,14 @@ func checkSourceEndpointsReachability(host string, port string) {
 
 	checkSourceDBConnectivityCommand := exec.Command("/bin/sh", "-c", finalString)
 
-	fmt.Printf("[Debug] Final Command is : %s\n", checkSourceDBConnectivityCommand.String())
+	// fmt.Printf("[Debug] Final Command is : %s\n", checkSourceDBConnectivityCommand.String())
 
-	outputbytes, err := checkSourceDBConnectivityCommand.Output()
+	err := checkSourceDBConnectivityCommand.Run()
+	if err != nil {
+		fmt.Println("Error: source database endpoints are not reachable")
+		os.Exit(1)
+	}
 
-	//try to beautify the command.String() print statement here
-	CheckError(err, checkSourceDBConnectivityCommand.String(), "Source Endpoints are not reachable", true)
-
-	fmt.Printf("Source Connectivity check command exit status: %s\n", outputbytes)
 }
 
 func CheckSourceDbAccessibility(source *Source) {
@@ -135,13 +136,11 @@ func DeleteProjectDirIfPresent(source *Source, exportDir string) {
 
 	err = exec.Command("rm", "-rf", projectDirPath+"/temp").Run()
 	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
 func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	// log.Debugf("Creating a project directory...")
-
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
 
@@ -167,23 +166,6 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	}
 
 	// log.Debugf("Created a project directory...")
-}
-
-func GetProjectDirPath(source *Source, exportDir string) string {
-	projectDirName := GetProjectDirName(source)
-
-	projectDirPath := exportDir + "/" + projectDirName
-	// fmt.Printf("Returned Export Dir Path: %s\n", projectDirPath)
-	return projectDirPath
-}
-
-func GetProjectDirName(source *Source) string {
-	if source.DBType == "oracle" {
-		//schema in oracle is equivalent to database in postgres, mysql
-		return source.DBType + "-" + source.Schema + "-migration"
-	} else {
-		return source.DBType + "-" + source.DBName + "-migration"
-	}
 }
 
 func AskPrompt(args ...string) bool {
@@ -269,7 +251,7 @@ func CheckToolsRequiredInstalledOrNot(dbType string) {
 		}
 	}
 
-	log.Debugf("Required tools %v are present...", toolsRequired)
+	fmt.Printf("Required tools %v are present...\n", toolsRequired)
 }
 
 func ProjectSubdirsExists(exportDir string) bool {
@@ -291,5 +273,19 @@ func FileOrFolderExists(path string) bool {
 		}
 	} else {
 		return true
+	}
+}
+
+func CleanDir(dir string) {
+	if FileOrFolderExists(dir) {
+		files, _ := filepath.Glob(dir + "/*")
+
+		for _, file := range files {
+			err := os.RemoveAll(file)
+			if err != nil {
+				fmt.Printf("%s\n", err.Error())
+				os.Exit(1)
+			}
+		}
 	}
 }

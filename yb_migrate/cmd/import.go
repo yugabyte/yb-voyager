@@ -16,8 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-	"os"
 	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -38,21 +36,16 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-
-		if startClean != "NO" && startClean != "YES" {
-			fmt.Printf("Invalid value of flag start-clean as '%s'\n", startClean)
-			os.Exit(1)
-		}
-
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+		// fmt.Println("Parent Import PersistentPreRun")
 		if target.Port == "" {
 			target.Port = YUGABYTEDB_DEFAULT_PORT
 		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Parent Import Command called")
 		importSchema()
-		// importData()
+		importData()
 	},
 }
 
@@ -101,6 +94,11 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	importCmd.PersistentFlags().StringVar(&startClean, "start-clean", "NO",
+	importCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all the existing objects and start fresh")
+
+	importCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 1000,
+		"Maximum size of each batch import ")
+	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "num-connections", -1,
+		"-1 means number of servers in the Yugabyte cluster")
 }

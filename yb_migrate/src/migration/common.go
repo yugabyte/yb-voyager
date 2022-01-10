@@ -9,7 +9,7 @@ import (
 	"yb_migrate/src/utils"
 )
 
-func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata []utils.ExportTableMetadata) {
+func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
 	// TODO: handle the case if table name has double quotes/case sensitive
@@ -31,7 +31,7 @@ func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata [
 	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
 }
 
-func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.ExportTableMetadata) {
+func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
 	//TODO: Change this once report generation code is inplace, rightnow this is hardcoded/temporary
 
 	rowCountFilePath := "/home/centos/yb_migrate_projects/"

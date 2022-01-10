@@ -33,11 +33,11 @@ type Format interface {
 	PrintFormat(cnt int)
 }
 
-type ExportTableMetadata struct {
+type TableProgressMetadata struct {
 	TableSchema          string
 	TableName            string
 	DataFilePath         string
-	Status               string //(NOT-STARTED, IN-PROGRESS, DONE)
+	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
 	CountLiveRows        int64
 	CountTotalRows       int64
 	FileOffsetToContinue int64 // This might be removed later
@@ -65,7 +65,7 @@ var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
 var mysqlSchemaObjectList = []string{ /*"TYPE", "SEQUENCE",*/ "TABLE", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE" /*"TABLESPACE", "PARTIITON"*/}
 
-type MetaInfo struct {
+type ExportMetaInfo struct {
 	SourceDBType   string
 	ExportToolUsed string
 }

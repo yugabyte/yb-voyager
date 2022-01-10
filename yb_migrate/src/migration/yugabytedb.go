@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 	"yb_migrate/src/utils"
+
+	"github.com/fatih/color"
 )
 
 var log = utils.GetLogger()
@@ -17,7 +19,7 @@ func PrintYugabyteDBTargetVersion() {
 }
 
 func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
-	metaInfo := extractMetaInfo(exportDir)
+	metaInfo := ExtractMetaInfo(exportDir)
 
 	projectDirPath := exportDir
 
@@ -28,8 +30,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)
 
 	for _, importObjectType := range importObjectOrderList {
-		log.Debugf("Import of %s started...", importObjectType)
-		// fmt.Printf("[Debug]: Import of %s started...\n", importObjectType)
+		fmt.Printf("Import of %s started...\n", importObjectType)
 
 		importObjectDirPath := projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
 
@@ -37,10 +38,10 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 
 		createObjectCommand := exec.Command("psql", targetConnectionURI, "-b", "-f", importObjectFilePath)
 
-		fmt.Printf("[Debug]: Command: %s\n", createObjectCommand.String())
+		// fmt.Printf("[Debug]: Command: %s\n", createObjectCommand.String())
 
-		var consoleOutput bytes.Buffer
-		createObjectCommand.Stderr = &consoleOutput
+		var consoleError, consoleOutput bytes.Buffer
+		createObjectCommand.Stderr = &consoleError
 		createObjectCommand.Stdout = &consoleOutput
 
 		// createObjectCommand.Stdin = os.Stdin
@@ -52,22 +53,22 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 		// CheckError(err, createObjectCommand.String(), "couldn't import " + importObjectType + " to target database!!", false)
 		// utils.CheckError(err, createObjectCommand.String(), "couldn't import %s", false)
 
-		log.Infof("%s", consoleOutput.String())
+		// log.Infof("%s", consoleOutput.String())
 		// fmt.Printf("%s\n", consoleOutput.String())
 
-		if err == nil {
-			log.Debugf("Import of %s done!!", importObjectType)
+		if err == nil && len(consoleError.String()) == 0 {
+			fmt.Printf("Import of %s done!!\n", importObjectType)
 		} else {
-			log.Debugf("couldn't import any %s, please try again!!", importObjectType)
+			color.Red("couldn't import all %ss due to: %s\nplease try again!!", importObjectType, consoleError.String())
 		}
 	}
 
 }
 
 //This function is implementation is rough as of now.
-func extractMetaInfo(exportDir string) utils.MetaInfo {
-	fmt.Printf("Extracting the metainfo about the source database...\n")
-	var metaInfo utils.MetaInfo
+func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
+	// fmt.Printf("Extracting the metainfo about the source database...\n")
+	var metaInfo utils.ExportMetaInfo
 
 	metaInfoDirPath := exportDir + "/metainfo"
 
@@ -75,7 +76,7 @@ func extractMetaInfo(exportDir string) utils.MetaInfo {
 	utils.CheckError(err, "", "", true)
 
 	for _, metaInfoSubDir := range metaInfoDir {
-		fmt.Printf("%s\n", metaInfoSubDir.Name())
+		// fmt.Printf("%s\n", metaInfoSubDir.Name())
 
 		if metaInfoSubDir.IsDir() {
 			subItemPath := metaInfoDirPath + "/" + metaInfoSubDir.Name()
@@ -86,7 +87,7 @@ func extractMetaInfo(exportDir string) utils.MetaInfo {
 			}
 			for _, subItem := range subItems {
 				subItemName := subItem.Name()
-				fmt.Printf("\t%s\n", subItemName)
+				// fmt.Printf("\t%s\n", subItemName)
 
 				if strings.HasPrefix(subItemName, "source-db-") {
 					splits := strings.Split(subItemName, "-")
@@ -99,6 +100,6 @@ func extractMetaInfo(exportDir string) utils.MetaInfo {
 
 	}
 
-	fmt.Printf("MetaInfo Struct: %v\n", metaInfo)
+	// fmt.Printf("MetaInfo Struct: %v\n", metaInfo)
 	return metaInfo
 }

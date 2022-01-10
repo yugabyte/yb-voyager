@@ -28,8 +28,9 @@ var (
 	cfgFile       string
 	exportDir     string
 	migrationMode string
-	startClean    string
+	startClean    bool
 	logLevel      string
+	verboseMode   bool
 )
 
 var log = utils.GetLogger()
@@ -39,6 +40,17 @@ var rootCmd = &cobra.Command{
 	Use:   "yb_migrate",
 	Short: "A tool to migrate a database to YugabyteDB",
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
+
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// fmt.Println("Root cmd PersistentPreRun")
+
+		if !utils.FileOrFolderExists(exportDir) {
+			fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
+			os.Exit(1)
+		}
+
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
 	},
@@ -63,6 +75,9 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
+
+	rootCmd.PersistentFlags().BoolVar(&verboseMode, "verbose", false,
+		"enable verbose mode for the console output")
 }
 
 // initConfig reads in config file and ENV variables if set.
