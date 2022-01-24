@@ -7,7 +7,7 @@ import (
 )
 
 //TODO: Reuse similar function in oracle instead of this
-func PrintMySQLSourceDBVersion(source *utils.Source, exportDir string) {
+func PrintMySQLSourceDBVersion(source *utils.Source) {
 	sourceDSN := getSourceDSN(source)
 
 	testDBVersionCommandString := fmt.Sprintf("ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s;",
@@ -19,5 +19,5 @@ func PrintMySQLSourceDBVersion(source *utils.Source, exportDir string) {
 
 	utils.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
 
-	fmt.Printf("DB Version: %s\n", string(dbVersionBytes))
+	fmt.Printf("SourceDB Version: %s\n", string(dbVersionBytes))
 }

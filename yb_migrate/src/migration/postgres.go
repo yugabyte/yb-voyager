@@ -39,11 +39,11 @@ func CheckToolsRequiredForPostgresExport() {
 }
 
 // TODO: fill it, how to using the tools? [psql -c "Select * from version()"]
-func PrintPostgresSourceDBVersion(source *utils.Source, exportDir string) {
+func PrintPostgresSourceDBVersion(source *utils.Source) {
 }
 
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
-	fmt.Printf("Exporting Postgres schema started...\n")
+	utils.PrintIfTrue("Exporting Postgres schema started...\n", !source.GenerateReportMode)
 	projectDirPath := exportDir
 
 	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "user=%s password=%s host=%s port=%s dbname=%s sslmode=%s sslrootcert=%s" `+
@@ -52,7 +52,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
-	fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
+	// fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
 
 	err := preparedYsqldumpCommand.Run()
 	utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
@@ -60,12 +60,12 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(source, exportDir)
 
-	fmt.Println("export of schema done!!!")
+	utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
 }
 
 //NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
 func parseSchemaFile(source *utils.Source, exportDir string) {
-	fmt.Printf("Parsing the schema file...\n")
+	utils.PrintIfTrue("Parsing the schema file...\n", !source.GenerateReportMode)
 
 	projectDirPath := exportDir
 	schemaFilePath := projectDirPath + "/metainfo/schema" + "/schema.sql"
@@ -94,7 +94,7 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 	var createTableSqls, createFkConstraintSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
 		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
-		createSchemaSqls, createProcedureSqls, setSessionVariables strings.Builder
+		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
 
@@ -138,6 +138,8 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 				createViewSqls.WriteString(sqlStatement)
 			case "SCHEMA":
 				createSchemaSqls.WriteString(sqlStatement)
+			case "EXTENSION":
+				createExtensionSqls.WriteString(sqlStatement)
 			default:
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
@@ -173,6 +175,7 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 	ioutil.WriteFile(projectDirPath+"/schema/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
 	ioutil.WriteFile(projectDirPath+"/schema/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 	ioutil.WriteFile(projectDirPath+"/schema/schemas/schema.sql", []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
+	ioutil.WriteFile(projectDirPath+"/schema/extensions/extension.sql", []byte(setSessionVariables.String()+createExtensionSqls.String()), 0644)
 
 }
 

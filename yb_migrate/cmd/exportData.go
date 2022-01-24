@@ -79,6 +79,9 @@ func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
+	tableList := migration.GetTableList(exportDir)
+	fmt.Printf("tables for data export: %v\n", tableList)
+
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool) //for checking failure/errors of the parallel goroutines
 	go func() {
@@ -114,7 +117,6 @@ func exportDataOffline() bool {
 	<-exportDataStart
 	// fmt.Println("passed the exportDataStart channel receiver")
 
-	tableList := migration.GetTableList(exportDir)
 	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
 	// fmt.Println(tableList, "\n", tablesMetadata)
 
@@ -131,11 +133,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	if source.DBType == POSTGRESQL { //not required for oracle, mysql
-		migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
-	} else {
-		migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
-	}
+	migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
 
 	return true
 }

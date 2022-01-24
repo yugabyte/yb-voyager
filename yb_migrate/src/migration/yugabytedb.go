@@ -1,27 +1,35 @@
 package migration
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"yb_migrate/src/utils"
-
-	"github.com/fatih/color"
 )
 
 var log = utils.GetLogger()
 
 // TODO
-func PrintYugabyteDBTargetVersion() {
+func PrintYugabyteDBTargetVersion(target *utils.Target) {
+	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		target.User, target.Password, target.Host, target.Port, target.DBName)
 
+	yugabyteDBVersionCommand := exec.Command("psql", targetConnectionURI,
+		"-Atc", "SELECT VERSION();")
+	output, err := yugabyteDBVersionCommand.Output()
+
+	utils.CheckError(err, "", "", true)
+
+	fmt.Printf("Target YugabyteDB Version: %s\n", output)
 }
 
 func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 	metaInfo := ExtractMetaInfo(exportDir)
 
 	projectDirPath := exportDir
+
+	PrintYugabyteDBTargetVersion(target)
 
 	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
 		target.User, target.Password, target.Host, target.Port, target.DBName)
@@ -30,7 +38,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)
 
 	for _, importObjectType := range importObjectOrderList {
-		fmt.Printf("Import of %s started...\n", importObjectType)
+		fmt.Printf("Import of %ss started...\n", strings.ToLower(importObjectType))
 
 		importObjectDirPath := projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
 
@@ -40,15 +48,15 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 
 		// fmt.Printf("[Debug]: Command: %s\n", createObjectCommand.String())
 
-		var consoleError, consoleOutput bytes.Buffer
-		createObjectCommand.Stderr = &consoleError
-		createObjectCommand.Stdout = &consoleOutput
+		// var consoleError, consoleOutput bytes.Buffer
+		// createObjectCommand.Stderr = &consoleError
+		// createObjectCommand.Stdout = &consoleOutput
 
 		// createObjectCommand.Stdin = os.Stdin
 		// createObjectCommand.Stdout = os.Stdout
 		// createObjectCommand.Stderr = os.Stderr
 
-		err := createObjectCommand.Run()
+		_ = createObjectCommand.Run()
 
 		// CheckError(err, createObjectCommand.String(), "couldn't import " + importObjectType + " to target database!!", false)
 		// utils.CheckError(err, createObjectCommand.String(), "couldn't import %s", false)
@@ -56,11 +64,12 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 		// log.Infof("%s", consoleOutput.String())
 		// fmt.Printf("%s\n", consoleOutput.String())
 
-		if err == nil && len(consoleError.String()) == 0 {
-			fmt.Printf("Import of %s done!!\n", importObjectType)
-		} else {
-			color.Red("couldn't import all %ss due to: %s\nplease try again!!", importObjectType, consoleError.String())
-		}
+		// if err == nil && len(consoleError.String()) == 0 {
+		// 	fmt.Printf("Import of %s done!!\n", importObjectType)
+		// } else {
+		// 	color.Red("couldn't import all %ss due to: %s\nplease try again!!", importObjectType, consoleError.String())
+		// }
+		fmt.Printf("Import of %ss done!!\n", strings.ToLower(importObjectType))
 	}
 
 }

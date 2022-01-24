@@ -49,7 +49,7 @@ func init() {
 
 func importSchema() {
 	fmt.Printf("\nimport of schema in '%s' database started\n", target.DBName)
-	utils.CheckToolsRequiredInstalledOrNot("yugabytedb")
+	utils.CheckToolsRequiredInstalledOrNot(&utils.Source{DBType: "yugabytedb"})
 
 	// targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 	// 	target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
@@ -94,8 +94,11 @@ func importSchema() {
 			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
 			utils.CheckError(err, "", string(cmdOutputBytes), true)
 
+		} else if startClean && target.DBName == YUGABYTEDB_DEFAULT_DATABASE {
+			fmt.Printf("can't drop default database: %s, exiting...\n", YUGABYTEDB_DEFAULT_DATABASE)
+			os.Exit(1)
 		} else {
-			fmt.Println("[Debug] Using the target database directly wihtout cleaning")
+			fmt.Printf("could not drop target database %s, using it without cleaning", target.DBName)
 		}
 
 	} else if requiredDatabaseName == "" {

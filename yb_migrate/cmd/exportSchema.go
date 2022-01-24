@@ -63,30 +63,26 @@ to quickly create a Cobra application.`,
 }
 
 func exportSchema() {
-	fmt.Printf("export of schema for source type as '%s'\n", source.DBType)
+	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
 
 	switch source.DBType {
 	case ORACLE:
-		if verboseMode {
-			fmt.Printf("Prepare Ora2Pg for schema export from Oracle\n")
-		}
+		utils.PrintIfTrue("Prepare Ora2Pg for schema export from Oracle\n", source.VerboseMode, !source.GenerateReportMode)
+
 		if source.SSLMode == "" {
 			//TODO: findout and add default mode
 			source.SSLMode = ""
 		}
 		oracleExportSchema()
 	case POSTGRESQL:
-		if verboseMode {
-			fmt.Printf("Prepare pg_dump for schema export from PG\n")
-		}
+		utils.PrintIfTrue("Prepare pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
+
 		if source.SSLMode == "" {
 			source.SSLMode = "disable"
 		}
 		postgresExportSchema()
 	case MYSQL:
-		if verboseMode {
-			fmt.Printf("Prepare Ora2Pg for schema export from MySQL\n")
-		}
+		utils.PrintIfTrue("Prepare Ora2Pg for schema export from MySQL\n", source.VerboseMode, !source.GenerateReportMode)
 		if source.SSLMode == "" {
 			source.SSLMode = "DISABLED"
 		}
@@ -107,12 +103,12 @@ func init() {
 }
 
 func oracleExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(&source)
 
 	utils.CheckSourceDbAccessibility(&source)
 
 	//Optional
-	migration.PrintOracleSourceDBVersion(&source, exportDir)
+	migration.PrintOracleSourceDBVersion(&source)
 
 	//[TODO]: Project Name can be based on user input or some other rules.
 	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
@@ -121,12 +117,12 @@ func oracleExportSchema() {
 }
 
 func postgresExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(&source)
 
 	utils.CheckSourceDbAccessibility(&source)
 
 	//Optional
-	migration.PrintPostgresSourceDBVersion(&source, exportDir)
+	migration.PrintPostgresSourceDBVersion(&source)
 
 	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 
@@ -134,12 +130,12 @@ func postgresExportSchema() {
 }
 
 func mysqlExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(source.DBType)
+	utils.CheckToolsRequiredInstalledOrNot(&source)
 
 	utils.CheckSourceDbAccessibility(&source)
 
 	//TODO: TEST/DEBUG this , causing error
-	// migration.PrintMySQLSourceDBVersion(&source, exportDir) //Optional step
+	migration.PrintMySQLSourceDBVersion(&source) //Optional step
 
 	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 

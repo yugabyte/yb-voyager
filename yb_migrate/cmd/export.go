@@ -95,8 +95,8 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "num-connections", 1,
-		"number of Parallel Connections to extract data from source database[Note: this is only for export data command not export schema command]")
+	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 1,
+		"number of Parallel Jobs to extract data from source database[Note: this is only for export data command not export schema command]")
 
 	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing files inside the project if present and start fresh")

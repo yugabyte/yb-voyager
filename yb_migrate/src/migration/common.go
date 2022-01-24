@@ -99,3 +99,13 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	return tableRowCountMap
 }
+
+func PrintSourceDBVersion(source *utils.Source) {
+	if source.DBType == "oracle" {
+		PrintOracleSourceDBVersion(source)
+	} else if source.DBType == "mysql" {
+		PrintMySQLSourceDBVersion(source)
+	} else if source.DBType == "postgresql" {
+		PrintPostgresSourceDBVersion(source)
+	}
+}

@@ -30,7 +30,6 @@ var (
 	migrationMode string
 	startClean    bool
 	logLevel      string
-	verboseMode   bool
 )
 
 var log = utils.GetLogger()
@@ -76,7 +75,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
 
-	rootCmd.PersistentFlags().BoolVar(&verboseMode, "verbose", false,
+	rootCmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
 }
 
