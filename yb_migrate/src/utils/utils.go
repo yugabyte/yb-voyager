@@ -28,7 +28,7 @@ import (
 
 var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
-func Wait(c chan *int) {
+func Wait(c chan int) {
 	fmt.Print("\033[?25l") // Hide the cursor
 	chars := [4]byte{'|', '/', '-', '\\'}
 	var i = 0
@@ -36,8 +36,8 @@ func Wait(c chan *int) {
 		i++
 		select {
 		case <-c:
-			//fmt.Printf("\nGot Data on channel. Export Done\n")
 			fmt.Println("\r")
+			fmt.Print("\033[?25h") // enable the cursor
 			return
 		default:
 			fmt.Print("\b" + string(chars[i%4]))
@@ -115,7 +115,7 @@ func CheckSourceDbAccessibility(source *Source) {
 	// fmt.Printf("[Debug] command output: %s\n", cmdOutput)
 	CheckError(err, checkConnectivityCommand, "Unable to connect to the source database", true)
 
-	fmt.Printf("Source DB is accessible!!\n")
+	PrintIfTrue("Source DB is accessible!!\n", !source.GenerateReportMode)
 }
 
 //Called before export schema command
@@ -213,10 +213,10 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
-func CheckToolsRequiredInstalledOrNot(dbType string) {
+func CheckToolsRequiredInstalledOrNot(source *Source) {
 	var toolsRequired []string
 
-	switch dbType {
+	switch source.DBType {
 	case "oracle":
 		toolsRequired = []string{"ora2pg", "sqlcl"}
 	case "postgresql":
@@ -251,7 +251,7 @@ func CheckToolsRequiredInstalledOrNot(dbType string) {
 		}
 	}
 
-	fmt.Printf("Required tools %v are present...\n", toolsRequired)
+	PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
 }
 
 func ProjectSubdirsExists(exportDir string) bool {
@@ -288,4 +288,13 @@ func CleanDir(dir string) {
 			}
 		}
 	}
+}
+
+func PrintIfTrue(message string, args ...bool) {
+	for i := 0; i < len(args); i++ {
+		if args[i] == false {
+			return
+		}
+	}
+	fmt.Printf("%s\n", message)
 }
