@@ -6,16 +6,18 @@ import (
 )
 
 type Source struct {
-	DBType         string
-	Host           string
-	Port           string
-	User           string
-	Password       string
-	DBName         string
-	Schema         string
-	SSLMode        string
-	SSLCertPath    string
-	NumConnections int
+	DBType             string
+	Host               string
+	Port               string
+	User               string
+	Password           string
+	DBName             string
+	Schema             string
+	SSLMode            string
+	SSLCertPath        string
+	NumConnections     int
+	GenerateReportMode bool
+	VerboseMode        bool
 }
 
 type Target struct {
@@ -53,14 +55,14 @@ func (s *Target) PrintFormat(cnt int) {
 }
 
 //the list elements order is same as the import objects order
-
+//TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PACKAGE", "VIEW",
 	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", /*"TABLESPACE", "PARTITION",*/
-	/*"MVIEW", "DBLINK",*/ "SYNONYM" /*, "DIRECTORY"*/}
+	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
 var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
-	/*Test/Read: MVIEW, PARTITION, TABLESPACES, GRANT, ROLE, RULE, AGGREGATE */}
+	"MVIEW", "EXTENSION" /*Test/Read: , PARTITION, TABLESPACES, GRANT, ROLE, */}
 
 var mysqlSchemaObjectList = []string{ /*"TYPE", "SEQUENCE",*/ "TABLE", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE" /*"TABLESPACE", "PARTIITON"*/}
