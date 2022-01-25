@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
@@ -613,11 +614,44 @@ func prettyJsonString(str string) string {
 	return prettyJSON.String()
 }
 
+func generateHTMLfromJSONReport(Report utils.Report) string {
+	//appending to doc line by line for better readability
+
+	//Broad details
+	htmlstring := "<html><body><h1>Database Migration Report</h1>"
+	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr></table>"
+
+	//Summary of report
+	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
+	for i := 0; i < len(Report.Summary.DBObjects); i++ {
+		if Report.Summary.DBObjects[i].TotalCount != 0 {
+			htmlstring += "<tr><th>" + Report.Summary.DBObjects[i].ObjectType + "</th><td>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "</td><td>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "</td><td>" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.Summary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.Summary.DBObjects[i].Details + "</td></tr>"
+		}
+	}
+	htmlstring += "</table><br>"
+
+	//Issues/Error messages
+	htmlstring += "<ul list-style-type='disc'>"
+	for i := 0; i < len(Report.Issues); i++ {
+		htmlstring += "<li>Error in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
+		htmlstring += "<li>Error Message: " + Report.Issues[i].Reason + "</li>"
+		htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "</li>"
+		if Report.Issues[i].GH != "" {
+			htmlstring += "<li><a href='" + Report.Issues[i].GH + "'>Github Issue Link</a></li>"
+		}
+		htmlstring += "</ul>"
+	}
+	htmlstring += "</ul></body></html>"
+	return htmlstring
+
+}
+
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
 func generateReport() {
 	schemaDir := exportDir + "/schema"
-	reportPath := exportDir + "/report.json" //changed for html implementation
+	reportPath := exportDir + "/report.html" //changed for html implementation
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	sourceObjList = append(sourceObjList, "INDEX")
 
@@ -654,8 +688,12 @@ func generateReport() {
 	finalReport = prettyJsonString(finalReport)
 
 	//writing to a json file, commenting this out for now and replacing with html report
-	f.WriteString(finalReport)
-	fmt.Println(finalReport)
+	//f.WriteString(finalReport)
+	//fmt.Println(finalReport)
+	report := utils.ParseJsonFromString(finalReport)
+	htmlreport := generateHTMLfromJSONReport(report)
+
+	f.WriteString(htmlreport)
 
 	fmt.Printf("please find this report at: %s\n", reportPath)
 }
