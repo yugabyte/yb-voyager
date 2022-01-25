@@ -17,6 +17,7 @@ package utils
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -27,6 +28,33 @@ import (
 )
 
 var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
+
+//report.json format
+type Report struct {
+	Summary Summary `json:"summary"`
+	Issues  []Issue `json:"issues"`
+}
+
+type Summary struct {
+	DBName     string     `json:"dbName"`
+	SchemaName string     `json:"schemaName"`
+	DBObjects  []DBObject `json:"databaseObjects"`
+}
+
+type DBObject struct {
+	ObjectType   string `json:"objectType"`
+	TotalCount   int    `json:"totalCount"`
+	InvalidCount int    `json:"invalidCount"`
+	ObjectNames  string `json:"objectNames"`
+	Details      string `json:"details"`
+}
+
+type Issue struct {
+	ObjectType string `json:"objectType"`
+	Reason     string `json:"reason"`
+	FilePath   string `json:"filePath"`
+	GH         string `json:"GH"`
+}
 
 func Wait(c chan int) {
 	fmt.Print("\033[?25l") // Hide the cursor
@@ -297,4 +325,14 @@ func PrintIfTrue(message string, args ...bool) {
 		}
 	}
 	fmt.Printf("%s\n", message)
+}
+
+func ParseJsonFromString(jsonString string) Report {
+	byteJson := []byte(jsonString)
+	var report Report
+	err := json.Unmarshal(byteJson, &report)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+	}
+	return report
 }

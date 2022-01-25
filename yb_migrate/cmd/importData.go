@@ -190,7 +190,7 @@ func importData() {
 		parallelism = len(targets)
 	}
 
-	if verboseMode {
+	if source.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
@@ -260,7 +260,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		importTables = allTables //since all tables needs to imported now
 	}
 
-	if verboseMode {
+	if source.VerboseMode {
 		fmt.Printf("all the tables to be imported: %v\n", allTables)
 		fmt.Printf("tables left to import: %v\n", importTables)
 	}

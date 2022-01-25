@@ -178,7 +178,7 @@ func reportSummary() string {
 		requiredJson += fmt.Sprintf(`"objectType": "%s",`, objType)
 		requiredJson += fmt.Sprintf(`"totalCount": %d,`, summaryMap[objType].totalCount)
 		requiredJson += fmt.Sprintf(`"invalidCount": %d,`, summaryMap[objType].invalidCount)
-		requiredJson += fmt.Sprintf(`"objectNames": "%s",`, getMapKeys(summaryMap[objType].objSet))
+		requiredJson += fmt.Sprintf(`"objectNames": "%s", `, getMapKeys(summaryMap[objType].objSet))
 		requiredJson += fmt.Sprintf(`"details": "%s"`, getMapKeys(summaryMap[objType].details))
 		requiredJson += "},"
 	}
@@ -617,7 +617,7 @@ func prettyJsonString(str string) string {
 // the filename to the summary report
 func generateReport() {
 	schemaDir := exportDir + "/schema"
-	reportPath := exportDir + "/report.json"
+	reportPath := exportDir + "/report.json" //changed for html implementation
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	sourceObjList = append(sourceObjList, "INDEX")
 
@@ -652,8 +652,11 @@ func generateReport() {
 	finalReport := `{` + summary + report /*+ viewstr + tablestr*/ + `}`
 
 	finalReport = prettyJsonString(finalReport)
+
+	//writing to a json file, commenting this out for now and replacing with html report
 	f.WriteString(finalReport)
 	fmt.Println(finalReport)
+
 	fmt.Printf("please find this report at: %s\n", reportPath)
 }
 
