@@ -618,7 +618,7 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
 	//Broad details
-	htmlstring := "<html><body><h1>Database Migration Report</h1>"
+	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr></table>"
 
@@ -626,7 +626,7 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
 	for i := 0; i < len(Report.Summary.DBObjects); i++ {
 		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			htmlstring += "<tr><th>" + Report.Summary.DBObjects[i].ObjectType + "</th><td>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "</td><td>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "</td><td>" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.Summary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.Summary.DBObjects[i].Details + "</td></tr>"
+			htmlstring += "<tr><th>" + Report.Summary.DBObjects[i].ObjectType + "</th><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "</td><td style='text-align: center;'>" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "</td><td width='40%'>" + Report.Summary.DBObjects[i].ObjectNames + "</td><td width='30%'>" + Report.Summary.DBObjects[i].Details + "</td></tr>"
 		}
 	}
 	htmlstring += "</table><br>"
@@ -636,7 +636,7 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 	for i := 0; i < len(Report.Issues); i++ {
 		htmlstring += "<li>Error in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
 		htmlstring += "<li>Error Message: " + Report.Issues[i].Reason + "</li>"
-		htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "</li>"
+		htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "<a href='" + Report.Issues[i].FilePath + "'> [Preview]</a></li>"
 		if Report.Issues[i].GH != "" {
 			htmlstring += "<li><a href='" + Report.Issues[i].GH + "'>Github Issue Link</a></li>"
 		}
