@@ -450,7 +450,7 @@ func getMapKeys(receivedMap map[string]bool) string {
 	}
 
 	if keyString != "" {
-		keyString = keyString[0 : len(keyString)-1] //popping last comma
+		keyString = keyString[0 : len(keyString)-2] //popping last comma and space
 	}
 	return keyString
 }
@@ -763,8 +763,8 @@ to quickly create a Cobra application.`,
 			}
 		}
 
-		fmt.Printf("invalid output format: %s\n !!", outputFormat)
-		os.Exit(1)
+		fmt.Printf("invalid output format: %s!!\n", outputFormat)
+		os.Exit(1) // means output format didn't match allowed formats
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
