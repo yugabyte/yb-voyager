@@ -15,8 +15,6 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"yb_migrate/src/migration"
@@ -37,6 +35,7 @@ type summaryInfo struct {
 }
 
 var (
+	outputFormat  string
 	sourceObjList []string
 	canMigrate    = true
 	report        = `"issues": [`
@@ -179,7 +178,7 @@ func reportSummary() string {
 		requiredJson += fmt.Sprintf(`"objectType": "%s",`, objType)
 		requiredJson += fmt.Sprintf(`"totalCount": %d,`, summaryMap[objType].totalCount)
 		requiredJson += fmt.Sprintf(`"invalidCount": %d,`, summaryMap[objType].invalidCount)
-		requiredJson += fmt.Sprintf(`"objectNames": "%s", `, getMapKeys(summaryMap[objType].objSet))
+		requiredJson += fmt.Sprintf(`"objectNames": "%s",`, getMapKeys(summaryMap[objType].objSet))
 		requiredJson += fmt.Sprintf(`"details": "%s"`, getMapKeys(summaryMap[objType].details))
 		requiredJson += "},"
 	}
@@ -446,7 +445,7 @@ func checker(sqlStmtArray []string, fpath string) {
 func getMapKeys(receivedMap map[string]bool) string {
 	keyString := ""
 	for key, _ := range receivedMap {
-		keyString += key + ","
+		keyString += key + ", "
 	}
 
 	if keyString != "" {
@@ -596,7 +595,7 @@ func initializeSummaryMap() {
 			details: make(map[string]bool),
 		}
 
-		//execute only in case of oracle
+		//executes only in case of oracle
 		if objType == "PACKAGE" {
 			summaryMap[objType].details["Packages in oracle are exported as schema, please review and edit them(if needed) to match your requirements"] = true
 		} else if objType == "SYNONYM" {
@@ -604,14 +603,6 @@ func initializeSummaryMap() {
 		}
 	}
 
-}
-
-func prettyJsonString(str string) string {
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, []byte(str), "", "    "); err != nil {
-		panic(err)
-	}
-	return prettyJSON.String()
 }
 
 func generateHTMLfromJSONReport(Report utils.Report) string {
@@ -649,9 +640,8 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
-func generateReport() {
+func generateReportHelper() string {
 	schemaDir := exportDir + "/schema"
-	reportPath := exportDir + "/report.html" //changed for html implementation
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	sourceObjList = append(sourceObjList, "INDEX")
 
@@ -674,27 +664,37 @@ func generateReport() {
 		checker(sqlStmtArray, filePath)
 	}
 
-	f, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
 	summary := reportSummary()
 	report += `]`
 
 	finalReport := `{` + summary + report /*+ viewstr + tablestr*/ + `}`
 
-	finalReport = prettyJsonString(finalReport)
+	return finalReport
+}
 
-	//writing to a json file, commenting this out for now and replacing with html report
-	//f.WriteString(finalReport)
-	//fmt.Println(finalReport)
-	report := utils.ParseJsonFromString(finalReport)
-	htmlreport := generateHTMLfromJSONReport(report)
+func generateReport() {
+	reportPath := exportDir + "/report." + outputFormat
+	reportJsonString := generateReportHelper()
 
-	f.WriteString(htmlreport)
+	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
 
+	var finalReport string
+	if outputFormat == "html" {
+		report := utils.ParseJsonFromString(reportJsonString)
+		finalReport = utils.PrettifyHtmlString(generateHTMLfromJSONReport(report))
+	} else if outputFormat == "json" {
+		finalReport = utils.PrettifyJsonString(reportJsonString)
+	} else {
+		//TODO: here, need to implement for other output formats
+		finalReport = reportJsonString
+	}
+
+	file.WriteString(finalReport)
+	fmt.Println(finalReport)
 	fmt.Printf("please find this report at: %s\n", reportPath)
 }
 
@@ -711,6 +711,18 @@ This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		exportSchemaCmd.PersistentPreRun(exportSchemaCmd, args)
+
+		allowedOutputFormats := []string{"html", "json", "txt"}
+		outputFormat = strings.ToLower(outputFormat)
+
+		for i := 0; i < len(allowedOutputFormats); i++ {
+			if outputFormat == allowedOutputFormats[i] {
+				return
+			}
+		}
+
+		fmt.Printf("invalid output format: %s\n !!", outputFormat)
+		os.Exit(1)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -776,4 +788,6 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
+	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
+		"allowed report formats: html | txt | json")
 }

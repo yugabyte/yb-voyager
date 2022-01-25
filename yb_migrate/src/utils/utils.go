@@ -17,6 +17,7 @@ package utils
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -25,6 +26,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/yosssi/gohtml"
 )
 
 var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
@@ -335,4 +338,32 @@ func ParseJsonFromString(jsonString string) Report {
 		fmt.Printf("%s\n", err.Error())
 	}
 	return report
+}
+
+func GetTableListFromReport(jsonString string) []string {
+	var tableList []string
+	report := ParseJsonFromString(jsonString)
+
+	for _, dbObject := range report.Summary.DBObjects {
+		if dbObject.ObjectType == "TABLE" {
+			rawTableList := dbObject.ObjectNames
+
+			tableList = strings.Split(rawTableList, ", ")
+			break
+		}
+	}
+
+	return tableList
+}
+
+func PrettifyHtmlString(htmlStr string) string {
+	return gohtml.Format(htmlStr)
+}
+
+func PrettifyJsonString(jsonStr string) string {
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, []byte(jsonStr), "", "    "); err != nil {
+		panic(err)
+	}
+	return prettyJSON.String()
 }
