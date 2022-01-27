@@ -15,6 +15,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/xml"
 	"fmt"
 	"strconv"
 	"yb_migrate/src/migration"
@@ -638,6 +639,40 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 
 }
 
+func generateTxtfromJSONReport(Report utils.Report) string {
+	txtstring := "Database Migration Report\n"
+	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
+	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n\n"
+	txtstring += "Objects:\n\n"
+	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
+	for i := 0; i < len(Report.Summary.DBObjects); i++ {
+		if Report.Summary.DBObjects[i].TotalCount != 0 {
+			txtstring += "[" + strconv.Itoa(i+1) + "]\n"
+			txtstring += "Object:\t\t\t" + Report.Summary.DBObjects[i].ObjectType + "\n"
+			txtstring += "Total Count:\t" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "\n"
+			txtstring += "Valid Count:\t" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += "Invalid Count:\t" + strconv.Itoa(Report.Summary.DBObjects[i].InvalidCount) + "\n"
+			txtstring += "Object Names:\t" + Report.Summary.DBObjects[i].ObjectNames + "\n"
+			if Report.Summary.DBObjects[i].Details != "" {
+				txtstring += "Details:\t\t" + Report.Summary.DBObjects[i].Details + "\n"
+			}
+			txtstring += "\n"
+		}
+	}
+
+	txtstring += "Issues:\n\n"
+	for i := 0; i < len(Report.Issues); i++ {
+		txtstring += "Error in Object " + Report.Issues[i].ObjectType + ":\n"
+		txtstring += "-Error Message: " + Report.Issues[i].Reason + "\n"
+		txtstring += "-File Path: " + Report.Issues[i].FilePath + "\n"
+		if Report.Issues[i].GH != "" {
+			txtstring += "-Github Issue Link: " + Report.Issues[i].GH + "\n"
+		}
+		txtstring += "\n"
+	}
+	return txtstring
+}
+
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
 func generateReportHelper() string {
@@ -688,6 +723,13 @@ func generateReport() {
 		finalReport = utils.PrettifyHtmlString(generateHTMLfromJSONReport(report))
 	} else if outputFormat == "json" {
 		finalReport = utils.PrettifyJsonString(reportJsonString)
+	} else if outputFormat == "txt" {
+		report := utils.ParseJsonFromString(reportJsonString)
+		finalReport = generateTxtfromJSONReport(report)
+	} else if outputFormat == "xml" {
+		report := utils.ParseJsonFromString(reportJsonString)
+		byteReport, _ := xml.MarshalIndent(report, "", "\t")
+		finalReport = string(byteReport)
 	} else {
 		//TODO: here, need to implement for other output formats
 		finalReport = reportJsonString
@@ -712,7 +754,7 @@ to quickly create a Cobra application.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		exportSchemaCmd.PersistentPreRun(exportSchemaCmd, args)
 
-		allowedOutputFormats := []string{"html", "json", "txt"}
+		allowedOutputFormats := []string{"html", "json", "txt", "xml"}
 		outputFormat = strings.ToLower(outputFormat)
 
 		for i := 0; i < len(allowedOutputFormats); i++ {
