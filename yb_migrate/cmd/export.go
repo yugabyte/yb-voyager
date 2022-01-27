@@ -33,7 +33,24 @@ var exportCmd = &cobra.Command{
 `,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+
+		checkSourceDBType()
 		setSourceDefaultPort() //will set only if required
+
+		//marking flags as required based on conditions
+		cmd.MarkPersistentFlagRequired("source-db-type")
+		if source.Uri == "" { //if uri is not given
+			cmd.MarkPersistentFlagRequired("source-db-user")
+			cmd.MarkPersistentFlagRequired("source-db-password")
+			cmd.MarkPersistentFlagRequired("source-db-name")
+			if source.DBType == ORACLE { //default is public
+				cmd.MarkPersistentFlagRequired("source-db-schema")
+			}
+		} else {
+			//check and parse the source
+			source.ParseURI()
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -54,36 +71,28 @@ func init() {
 		"export directory (default is current working directory") //default value is current dir
 
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
-		"source database type (Oracle/PostgreSQL/MySQL)")
-	exportCmd.MarkPersistentFlagRequired("source-db-type")
+		fmt.Sprintf("source database type: %s\n", allowedSourceDBTypes))
 
 	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
-	// exportCmd.MarkPersistentFlagRequired("source-db-host")
 
 	exportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
 		"source database server port number")
 
 	exportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as specified user")
-	exportCmd.MarkPersistentFlagRequired("source-db-user")
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	exportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
 		"connect to source as specified user")
-	exportCmd.MarkPersistentFlagRequired("source-db-password")
 
 	exportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
-	exportCmd.MarkPersistentFlagRequired("source-db-name")
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
-	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
+	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "public",
 		"source schema name which needs to be migrated to YugabyteDB")
-	if source.DBType == ORACLE {
-		exportCmd.MarkPersistentFlagRequired("source-db-schema")
-	}
 
 	// TODO SSL related more args will come. Explore them later.
 	exportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -100,25 +109,43 @@ func init() {
 
 	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing files inside the project if present and start fresh")
+
+	exportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
+		`URI for connecting to the source database
+		format:
+			1. Oracle:	oracle://User=username;Password=password@hostname:port/SID
+			2. MySQL:	mysql://user:password@host:port/database
+			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
+		`)
+
+}
+
+func checkSourceDBType() {
+	if source.DBType == "" {
+		fmt.Printf("requried flag: source-db-type\n")
+		os.Exit(1)
+	}
+	for _, sourceDBType := range allowedSourceDBTypes {
+		if sourceDBType == source.DBType {
+			return //if matches any allowed type
+		}
+	}
+
+	fmt.Printf("invalid source db type: %s\n", source.DBType)
+	fmt.Printf("allowed source db types are: %s\n", allowedSourceDBTypes)
+	os.Exit(1)
 }
 
 func setSourceDefaultPort() {
+	if source.Port != "" {
+		return
+	}
 	switch source.DBType {
 	case ORACLE:
-		if source.Port == "" {
-			source.Port = ORACLE_DEFAULT_PORT
-		}
+		source.Port = ORACLE_DEFAULT_PORT
 	case POSTGRESQL:
-		if source.Port == "" {
-			source.Port = POSTGRES_DEFAULT_PORT
-		}
+		source.Port = POSTGRES_DEFAULT_PORT
 	case MYSQL:
-		if source.Port == "" {
-			source.Port = MYSQL_DEFAULT_PORT
-		}
-	default:
-		fmt.Printf("Invalid value of source-db-type=%s!! Only allowed values are %s, %s, %s.\n",
-			source.DBType, ORACLE, POSTGRESQL, MYSQL)
-		os.Exit(1)
+		source.Port = MYSQL_DEFAULT_PORT
 	}
 }

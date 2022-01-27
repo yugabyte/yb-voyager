@@ -15,10 +15,12 @@ const (
 	ORACLE                      = "oracle"
 	MYSQL                       = "mysql"
 	POSTGRESQL                  = "postgresql"
-	LAST_SPLIT_NUM				= 0
+	LAST_SPLIT_NUM              = 0
 )
 
 var IMPORT_SESSION_SETTERS = []string{"" +
 	"SET client_encoding TO 'UTF8';",
 	"SET yb_disable_transactional_writes to true;",
 }
+
+var allowedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
