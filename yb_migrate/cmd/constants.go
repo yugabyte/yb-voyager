@@ -20,7 +20,8 @@ const (
 
 var IMPORT_SESSION_SETTERS = []string{"" +
 	"SET client_encoding TO 'UTF8';",
-	"SET yb_disable_transactional_writes to true;",
+	"SET yb_disable_transactional_writes to true;", //to enable Single Row Transactions which results in high-performance with YugabyteDB
+	"SET session_replication_role TO replica;",     //disable triggers or fkeys constraint checks
 }
 
 var allowedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}

@@ -134,13 +134,8 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
-	var totalRowCountMap map[string]int64
-	//TODO: Temporary Till the migration checker code is not in-place
-	if migration.ExtractMetaInfo(exportDir).SourceDBType == "oracle" {
-		totalRowCountMap = migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt_o")
-	} else {
-		totalRowCountMap = migration.GetTableRowCount("/home/centos/yb_migrate_projects/" + target.DBName + "_rc.txt")
-	}
+	rowCountFilePath := exportDir + "/metainfo/data/tablesrowcount.csv"
+	totalRowCountMap := migration.GetTableRowCount(rowCountFilePath)
 
 	for _, tableName := range tables {
 		tablesProgressMetadata[tableName] = &utils.TableProgressMetadata{

@@ -484,21 +484,9 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 }
 
 //TODO
-func getPreSQLs(file string) []string {
-	/*
-		SQLs for
-			Disabling Triggers
-			Disabling Foreign keys
-	*/
-	return nil
-}
-
-//TODO
 func getPostSQLs(file string) []string {
 	/*
 		SQLs for
-			Enabling Triggers
-			Enabling Foreign keys
 			Enabling Sequences
 	*/
 	return nil
@@ -519,8 +507,8 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		os.Exit(1)
 	}
 
-	exportDonePath := metaInfoDir + "/flags/exportDone"
-	_, err = os.Stat(exportDonePath)
+	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
+	_, err = os.Stat(exportDataDonePath)
 	if err != nil {
 		fmt.Println("Export is not done yet. Exiting.")
 		os.Exit(1)
@@ -647,6 +635,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 					panic(err)
 				}
 			}
+
 			copyCommand := fmt.Sprintf("\\copy %s from '%s';", t.TableName, getInProgressFilePath(t))
 			_, err = bufferedWriter.WriteString(copyCommand)
 			if err != nil {

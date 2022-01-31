@@ -268,19 +268,6 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 }
 
-func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
-	dataDirPath := exportDir + "/data"
-
-	for _, tableMetadata := range *tablesMetadata {
-		oldFilePath := tableMetadata.DataFilePath
-		newFilePath := dataDirPath + "/" + tableMetadata.TableName + "_data.sql"
-		if utils.FileOrFolderExists(oldFilePath) {
-			// fmt.Printf("Renaming: %s -> %s\n", filepath.Base(oldFilePath), filepath.Base(newFilePath))
-			os.Rename(oldFilePath, newFilePath)
-		}
-	}
-}
-
 //The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
 func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
 	tocTextFilePath := dataDirPath + "/toc.txt"
