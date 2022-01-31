@@ -44,7 +44,7 @@ var (
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
-	casenum          = 0
+	casenum          int
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile("\\$.*\\$")
 	createConvRegex  = regexp.MustCompile("(?i)CREATE (DEFAULT )?CONVERSION ([a-zA-Z0-9_.]+)")
@@ -676,7 +676,10 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
 func generateReportHelper() string {
-	report = `"issues": [` //initialize this global variable
+	//initialize these global variables
+	report = `"issues": [`
+	casenum = 0
+
 	var schemaDir string
 	if source.GenerateReportMode {
 		schemaDir = exportDir + "/temp/schema"
