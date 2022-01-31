@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -44,12 +45,7 @@ to quickly create a Cobra application.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("export data command called")
-
-		if startClean {
-			utils.CleanDir(exportDir + "/data")
-		}
-
+		// fmt.Println("export data command called")
 		exportData()
 	},
 }
@@ -59,6 +55,10 @@ func init() {
 }
 
 func exportData() {
+	//remove flag before start & clean existing data/tables
+	os.Remove(exportDir + "/metainfo/flags/exportDataDone")
+	utils.CleanDir(exportDir + "/data")
+
 	var success bool
 	if migrationMode == "offline" {
 		success = exportDataOffline()
@@ -67,8 +67,8 @@ func exportData() {
 	}
 
 	if success {
-		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDone").Run() //to inform import data command
-		utils.CheckError(err, "", "couldn't touch file exportDone in metainfo/data folder", true)
+		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDataDone").Run() //to inform import data command
+		utils.CheckError(err, "", "couldn't touch file exportDataDone in metainfo/flags folder", true)
 		color.Green("Export of data complete \u2705")
 	} else {
 		color.Red("Export of data failed, retry!! \u274C")
@@ -79,8 +79,13 @@ func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
-	tableList := migration.GetTableList(exportDir)
-	fmt.Printf("tables for data export: %v\n", tableList)
+	tableList := utils.GetTableListFromReport(generateReportHelper())
+	fmt.Printf("Num tables to export: %d\n", len(tableList))
+	fmt.Printf("table list for data export: %v\n", tableList)
+	if len(tableList) == 0 {
+		fmt.Println("no tables present to export, exiting...")
+		os.Exit(0)
+	}
 
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool) //for checking failure/errors of the parallel goroutines
@@ -94,21 +99,25 @@ func exportDataOffline() bool {
 		}
 	}()
 
+	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
+	// fmt.Println(tableList, "\n", tablesMetadata)
+	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
+
 	switch source.DBType {
 	case ORACLE:
 		fmt.Printf("Preparing for data export from Oracle\n")
 		utils.WaitGroup.Add(1)
-		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
 
 	case POSTGRESQL:
 		fmt.Printf("Preparing for data export from Postgres\n")
 		utils.WaitGroup.Add(1)
-		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
 
 	case MYSQL:
 		fmt.Printf("Preparing for data export from MySQL\n")
 		utils.WaitGroup.Add(1)
-		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, quitChan, exportDataStart)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
 
 	}
 
@@ -117,12 +126,7 @@ func exportDataOffline() bool {
 	<-exportDataStart
 	// fmt.Println("passed the exportDataStart channel receiver")
 
-	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
-	// fmt.Println(tableList, "\n", tablesMetadata)
-
 	migration.UpdateDataFilePath(&source, exportDir, tablesMetadata)
-
-	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
 	exportDataStatus(ctx, tablesMetadata, quitChan)
 
