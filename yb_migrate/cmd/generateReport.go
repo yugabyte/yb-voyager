@@ -676,7 +676,13 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
 func generateReportHelper() string {
-	schemaDir := exportDir + "/schema"
+	var schemaDir string
+	if source.GenerateReportMode {
+		schemaDir = exportDir + "/temp/schema"
+	} else {
+		schemaDir = exportDir + "/schema"
+	}
+
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	sourceObjList = append(sourceObjList, "INDEX")
 
@@ -708,14 +714,9 @@ func generateReportHelper() string {
 }
 
 func generateReport() {
-	reportPath := exportDir + "/report." + outputFormat
+	reportFile := "report." + outputFormat
+	reportPath := exportDir + "/reports/" + reportFile
 	reportJsonString := generateReportHelper()
-
-	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
 
 	var finalReport string
 	if outputFormat == "html" {
@@ -735,9 +736,20 @@ func generateReport() {
 		finalReport = reportJsonString
 	}
 
+	//check & inform if file already exists
+	if utils.FileOrFolderExists(reportPath) {
+		fmt.Printf("\n%s already exists, overwriting it with a new generated report\n", reportFile)
+	}
+
+	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		panic(err)
+	}
+	defer file.Close()
+
 	file.WriteString(finalReport)
-	fmt.Println(finalReport)
-	fmt.Printf("please find this report at: %s\n", reportPath)
+	utils.PrintIfTrue(finalReport, source.GenerateReportMode) //don't print in case of export command
+	fmt.Printf("\nplease find this report at: %s\n", reportPath)
 }
 
 // generateReportCmd represents the checker command
@@ -818,7 +830,7 @@ func init() {
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
-	generateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
+	generateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "public",
 		"source schema name which needs to be migrated to YugabyteDB")
 
 	// TODO SSL related more args will come. Explore them later.

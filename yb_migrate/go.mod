@@ -5,7 +5,10 @@ go 1.16
 require (
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/fatih/color v1.13.0
+	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/godror/godror v0.30.2 // indirect
 	github.com/jackc/pgx/v4 v4.14.1
+	github.com/lib/pq v1.10.2 // indirect
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/viper v1.9.0

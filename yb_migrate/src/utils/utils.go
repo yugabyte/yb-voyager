@@ -30,7 +30,7 @@ import (
 	"github.com/yosssi/gohtml"
 )
 
-var projectSubdirs = []string{"schema", "data", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
+var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 //report.json format
 type Report struct {
@@ -162,6 +162,9 @@ func DeleteProjectDirIfPresent(source *Source, exportDir string) {
 	err = exec.Command("rm", "-rf", projectDirPath+"/data").Run()
 	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
 
+	err = exec.Command("rm", "-rf", projectDirPath+"/reports").Run()
+	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
+
 	err = exec.Command("rm", "-rf", projectDirPath+"/metadata").Run()
 	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
 
@@ -194,6 +197,16 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 
 		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
 		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+	}
+
+	// creating subdirs under temp/schema dir
+	if source.GenerateReportMode {
+		for _, schemaObjectType := range schemaObjectList {
+			databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+
+			err := exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
+			CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+		}
 	}
 
 	// log.Debugf("Created a project directory...")

@@ -38,11 +38,16 @@ func PrintOracleSourceDBVersion(source *utils.Source) {
 }
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
-	projectDirPath := exportDir //utils.GetProjectDirPath(source, exportDir)
+	var schemaDirPath string
+	if source.GenerateReportMode {
+		schemaDirPath = exportDir + "/temp/schema"
+	} else {
+		schemaDirPath = exportDir + "/schema"
+	}
 
 	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
-	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
-	populateOra2pgConfigFile(configFilePath, source, false)
+	configFilePath := exportDir + "/temp/.ora2pg.conf"
+	populateOra2pgConfigFile(configFilePath, source)
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
@@ -51,7 +56,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 
 		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
 		exportObjectDirName := strings.ToLower(exportObject) + "s"
-		exportObjectDirPath := projectDirPath + "/schema/" + exportObjectDirName
+		exportObjectDirPath := schemaDirPath + "/" + exportObjectDirName
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
@@ -82,7 +87,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 //go:embed data/sample-ora2pg.conf
 var SampleOra2pgConfigFile string
 
-func populateOra2pgConfigFile(configFilePath string, source *utils.Source, exportData bool) {
+func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 	sourceDSN := getSourceDSN(source)
 
 	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
@@ -103,10 +108,6 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source, expor
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		} else if strings.HasPrefix(line, "PG_VERSION") {
 			lines[i] = "PG_VERSION " + strconv.Itoa(11) //TODO YugabyteDB compatible with postgres version ?
-		} else if exportData {
-			if strings.HasPrefix(line, "FILE_PER_TABLE") {
-				lines[i] = "FILE_PER_TABLE " + "1"
-			}
 		}
 	}
 
@@ -116,7 +117,29 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source, expor
 	utils.CheckError(err, "Not able to update the config file", "", true)
 }
 
-func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, quitChan chan bool, exportDataStart chan bool) {
+func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.Source, tableList []string) {
+	basicConfigFile, err := ioutil.ReadFile(configFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	lines := strings.Split(string(basicConfigFile), "\n")
+
+	for i, line := range lines {
+		if strings.HasPrefix(line, "FILE_PER_TABLE") {
+			lines[i] = "FILE_PER_TABLE " + "1"
+		} else if strings.HasPrefix(line, "#ALLOW") {
+			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		}
+	}
+
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile(configFilePath, []byte(output), 0644)
+
+	utils.CheckError(err, "Not able to update the config file", "", true)
+}
+
+func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	utils.CheckToolsRequiredInstalledOrNot(source)
@@ -129,7 +152,9 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	//TODO: Decide where to keep this
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
-	populateOra2pgConfigFile(configFilePath, source, true)
+	populateOra2pgConfigFile(configFilePath, source)
+
+	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
 	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -o data.sql -b %s/data -c %s",
 		projectDirPath, configFilePath)
@@ -158,6 +183,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	err = exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
 	if err != nil {
+		fmt.Println(err)
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -166,6 +192,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	err = exportDataCommand.Wait()
 	if err != nil {
+		fmt.Println(err)
 		quitChan <- true
 		runtime.Goexit()
 	}

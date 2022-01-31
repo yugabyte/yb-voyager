@@ -90,6 +90,8 @@ func exportSchema() {
 	default:
 		fmt.Printf("Invalid source database type for export\n")
 	}
+
+	generateReport()
 }
 
 func init() {
