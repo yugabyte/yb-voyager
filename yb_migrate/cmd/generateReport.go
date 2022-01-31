@@ -754,17 +754,23 @@ to quickly create a Cobra application.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		exportSchemaCmd.PersistentPreRun(exportSchemaCmd, args)
 
-		allowedOutputFormats := []string{"html", "json", "txt", "xml"}
-		outputFormat = strings.ToLower(outputFormat)
+		checkReportOutputFormat()
+		checkSourceDBType()
+		setSourceDefaultPort() //will set only if required
 
-		for i := 0; i < len(allowedOutputFormats); i++ {
-			if outputFormat == allowedOutputFormats[i] {
-				return
+		//marking flags as required based on conditions
+		cmd.MarkPersistentFlagRequired("source-db-type")
+		if source.Uri == "" { //if uri is not given
+			cmd.MarkPersistentFlagRequired("source-db-user")
+			cmd.MarkPersistentFlagRequired("source-db-password")
+			cmd.MarkPersistentFlagRequired("source-db-name")
+			if source.DBType == ORACLE { //default is public
+				cmd.MarkPersistentFlagRequired("source-db-schema")
 			}
+		} else {
+			//check and parse the source
+			source.ParseURI()
 		}
-
-		fmt.Printf("invalid output format: %s!!\n", outputFormat)
-		os.Exit(1) // means output format didn't match allowed formats
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -793,35 +799,27 @@ func init() {
 
 	generateReportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type (Oracle/PostgreSQL/MySQL)")
-	generateReportCmd.MarkPersistentFlagRequired("source-db-type")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
-	// checkerCmd.MarkPersistentFlagRequired("source-db-host")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
 		"source database server port number")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as specified user")
-	generateReportCmd.MarkPersistentFlagRequired("source-db-user")
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	generateReportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
 		"connect to source as specified user")
-	generateReportCmd.MarkPersistentFlagRequired("source-db-password")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
-	generateReportCmd.MarkPersistentFlagRequired("source-db-name")
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name which needs to be migrated to YugabyteDB")
-	if source.DBType == ORACLE {
-		generateReportCmd.MarkPersistentFlagRequired("source-db-schema")
-	}
 
 	// TODO SSL related more args will come. Explore them later.
 	generateReportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -830,6 +828,29 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
+	generateReportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
+		`URI for connecting to the source database
+		format:
+			1. Oracle:	oracle://User=username;Password=password@hostname:port/SID
+			2. MySQL:	mysql://user:password@host:port/database
+			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
+		`)
+
 	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
 		"allowed report formats: html | txt | json")
+
+}
+
+func checkReportOutputFormat() {
+	allowedOutputFormats := []string{"html", "json", "txt", "xml"}
+	outputFormat = strings.ToLower(outputFormat)
+
+	for i := 0; i < len(allowedOutputFormats); i++ {
+		if outputFormat == allowedOutputFormats[i] {
+			return
+		}
+	}
+
+	fmt.Printf("invalid output format: %s!!\n", outputFormat)
+	os.Exit(1) // means output format didn't match allowed formats
 }
