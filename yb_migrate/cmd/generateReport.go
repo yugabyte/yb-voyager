@@ -647,7 +647,6 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
 	for i := 0; i < len(Report.Summary.DBObjects); i++ {
 		if Report.Summary.DBObjects[i].TotalCount != 0 {
-			txtstring += "[" + strconv.Itoa(i+1) + "]\n"
 			txtstring += "Object:\t\t\t" + Report.Summary.DBObjects[i].ObjectType + "\n"
 			txtstring += "Total Count:\t" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount) + "\n"
 			txtstring += "Valid Count:\t" + strconv.Itoa(Report.Summary.DBObjects[i].TotalCount-Report.Summary.DBObjects[i].InvalidCount) + "\n"
@@ -659,8 +658,9 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 			txtstring += "\n"
 		}
 	}
-
-	txtstring += "Issues:\n\n"
+	if len(Report.Issues) != 0 {
+		txtstring += "Issues:\n\n"
+	}
 	for i := 0; i < len(Report.Issues); i++ {
 		txtstring += "Error in Object " + Report.Issues[i].ObjectType + ":\n"
 		txtstring += "-Error Message: " + Report.Issues[i].Reason + "\n"
