@@ -99,6 +99,6 @@ func init() {
 
 	importCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 1000,
 		"Maximum size of each batch import ")
-	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "num-connections", -1,
-		"-1 means number of servers in the Yugabyte cluster")
+	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
+		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
 }
