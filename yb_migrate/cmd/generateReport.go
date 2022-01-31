@@ -39,7 +39,7 @@ var (
 	outputFormat  string
 	sourceObjList []string
 	canMigrate    = true
-	report        = `"issues": [`
+	report        string
 	tblParts      = make(map[string]string)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
@@ -676,6 +676,7 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 // The command expects path to the directory containing .sql scripts followed by
 // the filename to the summary report
 func generateReportHelper() string {
+	report = `"issues": [` //initialize this global variable
 	var schemaDir string
 	if source.GenerateReportMode {
 		schemaDir = exportDir + "/temp/schema"
@@ -708,7 +709,7 @@ func generateReportHelper() string {
 	summary := reportSummary()
 	report += `]`
 
-	finalReport := `{` + summary + report /*+ viewstr + tablestr*/ + `}`
+	finalReport := `{` + summary + report + `}`
 
 	return finalReport
 }
@@ -749,7 +750,7 @@ func generateReport() {
 
 	file.WriteString(finalReport)
 	utils.PrintIfTrue(finalReport, source.GenerateReportMode) //don't print in case of export command
-	fmt.Printf("\nplease find this report at: %s\n", reportPath)
+	fmt.Printf("\nplease find migration report at: %s\n", reportPath)
 }
 
 // generateReportCmd represents the checker command
@@ -767,22 +768,6 @@ to quickly create a Cobra application.`,
 		exportSchemaCmd.PersistentPreRun(exportSchemaCmd, args)
 
 		checkReportOutputFormat()
-		checkSourceDBType()
-		setSourceDefaultPort() //will set only if required
-
-		//marking flags as required based on conditions
-		cmd.MarkPersistentFlagRequired("source-db-type")
-		if source.Uri == "" { //if uri is not given
-			cmd.MarkPersistentFlagRequired("source-db-user")
-			cmd.MarkPersistentFlagRequired("source-db-password")
-			cmd.MarkPersistentFlagRequired("source-db-name")
-			if source.DBType == ORACLE { //default is public
-				cmd.MarkPersistentFlagRequired("source-db-schema")
-			}
-		} else {
-			//check and parse the source
-			source.ParseURI()
-		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
