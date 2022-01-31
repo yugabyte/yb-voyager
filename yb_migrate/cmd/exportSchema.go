@@ -91,7 +91,9 @@ func exportSchema() {
 		fmt.Printf("Invalid source database type for export\n")
 	}
 
-	generateReport()
+	if !source.GenerateReportMode {
+		generateReport()
+	}
 }
 
 func init() {
