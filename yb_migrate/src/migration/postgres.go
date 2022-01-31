@@ -232,7 +232,10 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	dataDirPath := exportDir + "/data"
 
 	tableListRegex := createTableListRegex(tableList)
-
+	if tableListRegex == "" { // in case tabeList is empty then exit
+		fmt.Println("no tables present to export, exiting...")
+		os.Exit(0)
+	}
 	//using pgdump for exporting data in directory format
 	pgdumpDataExportCommandArgsString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
 		"sslmode=%s --compress=0 --data-only -t '%s' -Fd --file %s --jobs %d", source.User, source.Password,
@@ -358,7 +361,7 @@ func createTableListRegex(tableList []string) string {
 	var tableListRegex string
 
 	for _, table := range tableList {
-		if strings.ContainsRune(table, '.') {
+		if strings.ContainsRune(table, '.') { //handling schema.tablename format
 			tableListRegex += strings.Split(table, ".")[1] + "|"
 		} else {
 			tableListRegex += table + "|"
