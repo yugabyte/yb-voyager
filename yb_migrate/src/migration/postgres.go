@@ -95,7 +95,7 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 
 	utils.CheckError(err, "", "Couldn't generate the schema", true)
 
-	var createTableSqls, createFkConstraintSqls, createFunctionSqls, createTriggerSqls,
+	var createTableSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
 		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
 		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
@@ -111,10 +111,8 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 
 			//Missing: PARTITION, PROCEDURE, MVIEW, TABLESPACE, ROLE, GRANT ...
 			switch sqlType {
-			case "TABLE", "DEFAULT", "CONSTRAINT":
+			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				createTableSqls.WriteString(sqlStatement)
-			case "FK CONSTRAINT":
-				createFkConstraintSqls.WriteString(sqlStatement)
 			case "INDEX":
 				createIndexSqls.WriteString(sqlStatement)
 
@@ -162,7 +160,6 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 
 	//writing to .sql files in project
 	ioutil.WriteFile(schemaDirPath+"/tables/table.sql", []byte(setSessionVariables.String()+createTableSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/tables/FKEYS_table.sql", []byte(setSessionVariables.String()+createFkConstraintSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/tables/INDEXES_table.sql", []byte(setSessionVariables.String()+createIndexSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/functions/function.sql", []byte(setSessionVariables.String()+createFunctionSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/procedures/procedure.sql", []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
