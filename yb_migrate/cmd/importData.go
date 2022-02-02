@@ -203,6 +203,7 @@ func importData() {
 	checkForDone()
 
 	time.Sleep(time.Second * 2)
+	executePostImportDataSqls()
 	fmt.Printf("\nexiting...\n")
 }
 
@@ -258,6 +259,17 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		utils.CleanDir(exportDir + "/metainfo/data")
 
 		importTables = allTables //since all tables needs to imported now
+	} else {
+		//truncate tables with no primary key
+		fmt.Println("looking for tables with no PKEYS")
+		for _, tableName := range importTables {
+			if !checkPrimaryKey(tableName) {
+				fmt.Printf("truncating table '%s' with NO Primary Key to restart from beginning...\n", tableName)
+				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + "*")
+				truncateTables([]string{tableName})
+			}
+		}
+
 	}
 
 	if source.VerboseMode {
@@ -278,6 +290,32 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	// fmt.Printf("TablesProgresMetadata after initializing: %v\n", tablesProgressMetadata)
 
 	go splitDataFiles(importTables, taskQueue)
+}
+
+func checkPrimaryKey(tableName string) bool {
+	url := getTargetConnectionUri(&target)
+	conn, err := pgx.Connect(context.Background(), url)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close(context.Background())
+
+	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
+	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s';`, tableName)
+	// fmt.Println(checkPKSql)
+
+	rows, err := conn.Query(context.Background(), checkPKSql)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		return true
+	} else {
+		return false
+	}
 }
 
 func truncateTables(tables []string) {
@@ -462,7 +500,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 }
 
 func isDataLine(line string) bool {
-	if len(line) == 0 || strings.HasPrefix(
+	if len(line) == 0 || line == "\n" || strings.HasPrefix(
 		line, "SET ") || strings.HasPrefix(
 		line, "TRUNCATE ") || strings.HasPrefix(
 		line, "COPY ") || strings.HasPrefix(line, "\\.") {
@@ -483,13 +521,24 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 	taskQueue <- &t
 }
 
-//TODO
-func getPostSQLs(file string) []string {
+func executePostImportDataSqls() {
 	/*
-		SQLs for
-			Enabling Sequences
+		Enable Sequences, if required
+		Add Indexes, if required
 	*/
-	return nil
+	sequenceFilePath := exportDir + "/data/postdata.sql"
+	indexesFilePath := exportDir + "/schema/table/INDEXES_table.sql"
+
+	fmt.Println("setting resume value for sequences...")
+	if utils.FileOrFolderExists(sequenceFilePath) {
+		executeSqlFile(sequenceFilePath, &target)
+	}
+
+	fmt.Println("creating indexes...")
+	if utils.FileOrFolderExists(sequenceFilePath) && target.ImportIndexesAfterData {
+		executeSqlFile(indexesFilePath, &target)
+	}
+
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {

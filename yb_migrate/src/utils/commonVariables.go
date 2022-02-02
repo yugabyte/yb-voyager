@@ -24,14 +24,15 @@ type Source struct {
 }
 
 type Target struct {
-	Host        string
-	Port        string
-	User        string
-	Password    string
-	DBName      string
-	SSLMode     string
-	SSLCertPath string
-	Uri         string
+	Host                   string
+	Port                   string
+	User                   string
+	Password               string
+	DBName                 string
+	SSLMode                string
+	SSLCertPath            string
+	Uri                    string
+	ImportIndexesAfterData bool
 }
 
 type Format interface {
@@ -103,15 +104,15 @@ func (s *Source) ParseURI() {
 
 //the list elements order is same as the import objects order
 //TODO: Need to make each of the list comprehensive, not missing any database object category
-var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PACKAGE", "VIEW",
+var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "INDEX", "PACKAGE", "VIEW",
 	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", /*"TABLESPACE", "PARTITION",*/
 	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
 var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
-	"TABLE", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
+	"TABLE", "INDEX", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
 	"MVIEW", "EXTENSION" /*Test/Read: , PARTITION, TABLESPACES, GRANT, ROLE, */}
 
-var mysqlSchemaObjectList = []string{ /*"TYPE", "SEQUENCE",*/ "TABLE", "VIEW", /*"GRANT*/
+var mysqlSchemaObjectList = []string{ /*"TYPE", "SEQUENCE",*/ "TABLE", "INDEX", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE" /*"TABLESPACE", "PARTIITON"*/}
 
 type ExportMetaInfo struct {

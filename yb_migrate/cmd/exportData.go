@@ -79,7 +79,7 @@ func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
-	tableList := utils.GetTableListFromReport(generateReportHelper())
+	tableList := utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
 	fmt.Printf("Num tables to export: %d\n", len(tableList))
 	fmt.Printf("table list for data export: %v\n", tableList)
 	if len(tableList) == 0 {
@@ -112,6 +112,11 @@ func exportDataOffline() bool {
 	case POSTGRESQL:
 		fmt.Printf("Preparing for data export from Postgres\n")
 		utils.WaitGroup.Add(1)
+
+		//need to export setval() calls to resume sequence value generation
+		sequenceList := utils.GetObjectNameListFromReport(generateReportHelper(), "SEQUENCE")
+		tableList = append(tableList, sequenceList...)
+
 		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
 
 	case MYSQL:

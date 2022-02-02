@@ -38,12 +38,20 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)
 
 	for _, importObjectType := range importObjectOrderList {
+		var importObjectDirPath, importObjectFilePath string
+
+		if importObjectType != "INDEX" {
+			importObjectDirPath = projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
+			importObjectFilePath = importObjectDirPath + "/" + strings.ToLower(importObjectType) + ".sql"
+		} else {
+			if target.ImportIndexesAfterData {
+				continue
+			}
+			importObjectDirPath = projectDirPath + "/schema/" + "tables"
+			importObjectFilePath = importObjectDirPath + "/" + "INDEXES_table.sql"
+		}
+
 		fmt.Printf("Import of %ss started...\n", strings.ToLower(importObjectType))
-
-		importObjectDirPath := projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
-
-		importObjectFilePath := importObjectDirPath + "/" + strings.ToLower(importObjectType) + ".sql"
-
 		createObjectCommand := exec.Command("psql", targetConnectionURI, "-b", "-f", importObjectFilePath)
 
 		// fmt.Printf("[Debug]: Command: %s\n", createObjectCommand.String())

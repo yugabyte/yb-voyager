@@ -323,13 +323,28 @@ func FileOrFolderExists(path string) bool {
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")
-
+		fmt.Printf("cleaning directory: %s ...\n", dir)
 		for _, file := range files {
 			err := os.RemoveAll(file)
 			if err != nil {
 				fmt.Printf("%s\n", err.Error())
 				os.Exit(1)
 			}
+		}
+	}
+}
+
+func ClearMatchingFiles(filePattern string) {
+	files, err := filepath.Glob(filePattern)
+	if err != nil {
+		fmt.Printf("%s\n", err.Error())
+		os.Exit(1)
+	}
+	for _, file := range files {
+		err := os.RemoveAll(file)
+		if err != nil {
+			fmt.Printf("%s\n", err.Error())
+			os.Exit(1)
 		}
 	}
 }
@@ -353,12 +368,12 @@ func ParseJsonFromString(jsonString string) Report {
 	return report
 }
 
-func GetTableListFromReport(jsonString string) []string {
+func GetObjectNameListFromReport(jsonString string, objType string) []string {
 	var tableList []string
 	report := ParseJsonFromString(jsonString)
 
 	for _, dbObject := range report.Summary.DBObjects {
-		if dbObject.ObjectType == "TABLE" {
+		if dbObject.ObjectType == objType {
 			rawTableList := dbObject.ObjectNames
 
 			tableList = strings.Split(rawTableList, ", ")

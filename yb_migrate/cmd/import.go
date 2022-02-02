@@ -101,4 +101,8 @@ func init() {
 		"Maximum size of each batch import ")
 	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
+
+	importCmd.PersistentFlags().BoolVar(&target.ImportIndexesAfterData, "--import-indexes-after-data", true,
+		`false, if want to import indexes before data
+		 true, if want to create index after data(index backfill)`)
 }
