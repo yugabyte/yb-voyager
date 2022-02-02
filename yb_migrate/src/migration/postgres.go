@@ -300,7 +300,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 	//extracted SQL for setval() and put it into a postexport.sql file
 	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
-	ioutil.WriteFile(dataDirPath+"/postexport.sql", []byte(sequencesPostData.String()), 0644)
+	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
 
 	return fileNameVsTableNameMap
 }

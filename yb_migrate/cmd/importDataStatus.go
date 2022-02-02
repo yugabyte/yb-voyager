@@ -134,7 +134,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
-	rowCountFilePath := exportDir + "/metainfo/data/tablesrowcount.csv"
+	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
 	totalRowCountMap := migration.GetTableRowCount(rowCountFilePath)
 
 	for _, tableName := range tables {

@@ -38,12 +38,12 @@ func UpdateDataFilePath(source *utils.Source, exportDir string, tablesMetadata [
 }
 
 func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
-	fmt.Println("calculating num of rows in all tables...")
+	fmt.Println("calculating num of rows for each table...")
 	for i := 0; i < len(tablesMetadata); i++ {
 		tableName := tablesMetadata[i].TableName
 		rowCount := SelectCountStarFromTable(tableName, source)
 		tablesMetadata[i].CountTotalRows = rowCount
-		fmt.Printf("row count of %s = %d\n", tableName, rowCount)
+		fmt.Printf("%s - %d rows\n", tableName, rowCount)
 	}
 
 	// fmt.Println("After updating total row count")
@@ -180,18 +180,18 @@ func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TablePro
 }
 
 func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
-	filePath := exportDir + "/metainfo/data/tablesrowcount.csv"
+	filePath := exportDir + "/metainfo/flags/tablesrowcount"
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(err)
 	}
 	defer file.Close()
-
+	fmt.Println("actual exported num of rows for each table")
 	for _, tableMetadata := range *tablesMetadata {
 		tableName := tableMetadata.TableName
 		actualRowCount := tableMetadata.CountLiveRows
-
 		line := tableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
+		fmt.Printf("%s - %d rows\n", tableName, actualRowCount)
 	}
 }
