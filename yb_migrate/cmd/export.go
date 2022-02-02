@@ -55,9 +55,6 @@ var exportCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// log.Infof("parent export command called with source data type = %s", source.DBType)
-		if startClean {
-			utils.CleanDir(exportDir)
-		}
 
 		exportSchema()
 		exportData()
