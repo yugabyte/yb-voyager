@@ -78,7 +78,7 @@ func exportSchema() {
 		utils.PrintIfTrue("Prepare pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
 
 		if source.SSLMode == "" {
-			source.SSLMode = "disable"
+			source.SSLMode = "prefer"
 		}
 		postgresExportSchema()
 	case MYSQL:

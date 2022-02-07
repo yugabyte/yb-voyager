@@ -98,6 +98,15 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
+	exportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
+		"provide SSL Key Path")
+
+	exportCmd.PersistentFlags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
+		"provide SSL Root Certificate Path")
+
+	exportCmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
+		"provide SSL Root Certificate Revocation List (CRL)")
+
 	exportCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 

@@ -44,10 +44,34 @@ func PrintPostgresSourceDBVersion(source *utils.Source) {
 
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	utils.PrintIfTrue("Exporting Postgres schema started...\n", !source.GenerateReportMode)
+	if source.User == "" {
+		source.User = "postgres"
+	}
+	if source.Host == "" {
+		source.Host = "localhost"
+	}
+	if source.Port == "" {
+		source.Port = "5432"
+	}
+	if source.DBName == "" {
+		source.DBName = "postgres"
+	}
 
-	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "user=%s password=%s host=%s port=%s dbname=%s sslmode=%s sslrootcert=%s" `+
-		`--schema-only -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
-		source.Port, source.DBName, source.SSLMode, source.SSLCertPath, exportDir)
+	SSLQueryString := ""
+	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
+		SSLQueryString = "sslmode=" + source.SSLMode
+	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+		SSLQueryString = fmt.Sprintf("sslmode=%s&sslcert=%s&sslkey=%s", source.SSLMode, source.SSLCertPath, source.SSLKey)
+		if source.SSLRootCert != "" {
+			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
+		}
+		if source.SSLCRL != "" {
+			SSLQueryString += "&sslcrl=" + source.SSLCRL
+		}
+	}
+
+	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
+		source.Port, source.DBName, SSLQueryString, exportDir)
 
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
@@ -230,9 +254,34 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	tableListRegex := createTableListRegex(tableList)
 
+	if source.User == "" {
+		source.User = "postgres"
+	}
+	if source.Host == "" {
+		source.Host = "localhost"
+	}
+	if source.Port == "" {
+		source.Port = "5432"
+	}
+	if source.DBName == "" {
+		source.DBName = "postgres"
+	}
+
+	SSLQueryString := ""
+	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
+		SSLQueryString = "sslmode=" + source.SSLMode
+	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+		SSLQueryString = fmt.Sprintf("sslmode=%s&sslcert=%s&sslkey=%s", source.SSLMode, source.SSLCertPath, source.SSLKey)
+		if source.SSLRootCert != "" {
+			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
+		}
+		if source.SSLCRL != "" {
+			SSLQueryString += "&sslcrl=" + source.SSLCRL
+		}
+	}
+
 	//using pgdump for exporting data in directory format
-	pgdumpDataExportCommandArgsString := fmt.Sprintf("pg_dump postgresql://%s:%s@%s:%s/%s?"+
-		"sslmode=%s --compress=0 --data-only -t '%s' -Fd --file %s --jobs %d", source.User, source.Password,
+	pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only -t '%s' -Fd --file %s --jobs %d`, source.User, source.Password,
 		source.Host, source.Port, source.DBName, source.SSLMode, tableListRegex, dataDirPath, source.NumConnections)
 
 	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)

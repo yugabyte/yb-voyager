@@ -17,6 +17,9 @@ type Source struct {
 	Schema             string
 	SSLMode            string
 	SSLCertPath        string
+	SSLKey             string
+	SSLRootCert        string
+	SSLCRL             string
 	Uri                string
 	NumConnections     int
 	GenerateReportMode bool
