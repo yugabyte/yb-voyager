@@ -61,7 +61,13 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
 		SSLQueryString = "sslmode=" + source.SSLMode
 	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-		SSLQueryString = fmt.Sprintf("sslmode=%s&sslcert=%s&sslkey=%s", source.SSLMode, source.SSLCertPath, source.SSLKey)
+		SSLQueryString = fmt.Sprintf("sslmode=%s", source.SSLMode)
+		if source.SSLCertPath != "" {
+			SSLQueryString += "&sslcert=" + source.SSLCertPath
+		}
+		if source.SSLKey != "" {
+			SSLQueryString += "&sslkey=" + source.SSLKey
+		}
 		if source.SSLRootCert != "" {
 			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
 		}
@@ -271,7 +277,13 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
 		SSLQueryString = "sslmode=" + source.SSLMode
 	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-		SSLQueryString = fmt.Sprintf("sslmode=%s&sslcert=%s&sslkey=%s", source.SSLMode, source.SSLCertPath, source.SSLKey)
+		SSLQueryString = fmt.Sprintf("sslmode=%s", source.SSLMode)
+		if source.SSLCertPath != "" {
+			SSLQueryString += "&sslcert=" + source.SSLCertPath
+		}
+		if source.SSLKey != "" {
+			SSLQueryString += "&sslkey=" + source.SSLKey
+		}
 		if source.SSLRootCert != "" {
 			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
 		}
