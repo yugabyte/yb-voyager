@@ -294,7 +294,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	//using pgdump for exporting data in directory format
 	pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only -t '%s' -Fd --file %s --jobs %d`, source.User, source.Password,
-		source.Host, source.Port, source.DBName, source.SSLMode, tableListRegex, dataDirPath, source.NumConnections)
+		source.Host, source.Port, source.DBName, SSLQueryString, tableListRegex, dataDirPath, source.NumConnections)
 
 	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)
 

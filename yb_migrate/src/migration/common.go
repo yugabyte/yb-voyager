@@ -148,8 +148,8 @@ func getDriverConnStr(source *utils.Source) string {
 		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
 			source.Host, source.Port, source.DBName)
 	case "postgresql":
-		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName)
+		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", source.User, source.Password,
+			source.Host, source.Port, source.DBName, source.SSLMode)
 	}
 	return connStr
 }
