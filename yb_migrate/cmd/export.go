@@ -37,6 +37,7 @@ var exportCmd = &cobra.Command{
 
 		checkSourceDBType()
 		setSourceDefaultPort() //will set only if required
+		checkOrSetDefaultSSLMode()
 
 		//marking flags as required based on conditions
 		cmd.MarkPersistentFlagRequired("source-db-type")
@@ -68,7 +69,7 @@ func init() {
 		"export directory (default is current working directory") //default value is current dir
 
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
-		fmt.Sprintf("source database type: %s\n", allowedSourceDBTypes))
+		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 
 	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -111,15 +112,12 @@ func init() {
 		"mode can be offline | online(applicable only for data migration)")
 
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 1,
-		"number of Parallel Jobs to extract data from source database[Note: this is only for export data command not export schema command]")
-
-	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
-		"delete all existing files inside the project if present and start fresh")
+		"number of Parallel Jobs to extract data from source database[Note: applicable only for export data command]")
 
 	exportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
 		`URI for connecting to the source database
 		format:
-			1. Oracle:	oracle://User=username;Password=password@hostname:port/SID
+			1. Oracle:	oracle://User=username;Password=password@hostname:port/service_name
 			2. MySQL:	mysql://user:password@host:port/database
 			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
 		`)
@@ -129,16 +127,17 @@ func init() {
 func checkSourceDBType() {
 	if source.DBType == "" {
 		fmt.Printf("requried flag: source-db-type\n")
+		fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
 		os.Exit(1)
 	}
-	for _, sourceDBType := range allowedSourceDBTypes {
+	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
 			return //if matches any allowed type
 		}
 	}
 
 	fmt.Printf("invalid source db type: %s\n", source.DBType)
-	fmt.Printf("allowed source db types are: %s\n", allowedSourceDBTypes)
+	fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
 	os.Exit(1)
 }
 
@@ -153,5 +152,21 @@ func setSourceDefaultPort() {
 		source.Port = POSTGRES_DEFAULT_PORT
 	case MYSQL:
 		source.Port = MYSQL_DEFAULT_PORT
+	}
+}
+
+func checkOrSetDefaultSSLMode() {
+	if source.SSLMode != "" {
+		//TODO: check if given mode is supported/allowed
+		return
+	}
+
+	switch source.DBType {
+	case ORACLE:
+		//TODO: findout and add default mode
+	case MYSQL:
+		source.SSLMode = "DISABLED"
+	case POSTGRESQL:
+		source.SSLMode = "prefer"
 	}
 }

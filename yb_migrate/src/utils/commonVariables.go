@@ -36,6 +36,10 @@ type Target struct {
 	SSLCertPath            string
 	Uri                    string
 	ImportIndexesAfterData bool
+	ContinueOnError        bool
+	YsqlshPath             string
+	IgnoreIfExists         bool
+	VerboseMode            bool
 }
 
 type Format interface {
@@ -45,7 +49,8 @@ type Format interface {
 type TableProgressMetadata struct {
 	TableSchema          string
 	TableName            string
-	DataFilePath         string
+	InProgressFilePath   string
+	FinalFilePath        string
 	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
 	CountLiveRows        int64
 	CountTotalRows       int64
@@ -105,6 +110,30 @@ func (s *Source) ParseURI() {
 	}
 }
 
+func (t *Target) ParseURI() {
+	yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
+	if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
+		t.User = uriParts[2]
+		t.Password = uriParts[3]
+		t.Host = uriParts[4]
+		t.Port = uriParts[5]
+		t.DBName = uriParts[6]
+	} else {
+		fmt.Printf("invalid connection uri for source db uri\n")
+		os.Exit(1)
+	}
+}
+
+func (t *Target) GetConnectionUri() string {
+	if t.Uri == "" {
+		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+			t.User, t.Password, t.Host, t.Port, t.DBName)
+	}
+	//TODO: else do a regex match for the correct Uri pattern of user input
+
+	return t.Uri
+}
+
 //the list elements order is same as the import objects order
 //TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "INDEX", "PACKAGE", "VIEW",
@@ -126,3 +155,35 @@ type ExportMetaInfo struct {
 var log = GetLogger()
 
 var WaitGroup sync.WaitGroup
+var WaitChannel = make(chan int)
+
+//report.json format
+type Report struct {
+	Summary Summary `json:"summary"`
+	Issues  []Issue `json:"issues"`
+}
+
+type Summary struct {
+	DBName     string     `json:"dbName"`
+	SchemaName string     `json:"schemaName"`
+	DBVersion  string     `json:"dbVersion"`
+	DBObjects  []DBObject `json:"databaseObjects"`
+}
+
+type DBObject struct {
+	ObjectType   string `json:"objectType"`
+	TotalCount   int    `json:"totalCount"`
+	InvalidCount int    `json:"invalidCount"`
+	ObjectNames  string `json:"objectNames"`
+	Details      string `json:"details"`
+}
+
+type Issue struct {
+	ObjectType   string `json:"objectType"`
+	ObjectName   string `json:"objectName"`
+	Reason       string `json:"reason"`
+	SqlStatement string `json:"sqlStatement"`
+	FilePath     string `json:"filePath"`
+	Suggestion   string `json:"suggestion"`
+	GH           string `json:"GH"`
+}

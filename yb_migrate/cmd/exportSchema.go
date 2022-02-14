@@ -40,58 +40,42 @@ to quickly create a Cobra application.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// fmt.Println("export schema command called")
-
-		if startClean {
-			utils.CleanDir(exportDir + "/schema")
-		}
-
 		exportSchema()
-		/*
-			// if sourceStruct and exportDir etc are nil or undefined
-			// then read the config file and create source struct from config file values
-			// possibly export dir value as well and then call export Schema with the created arguments
-			// else call the exportSchema directly
-			if len(cfgFile) == 0 {
-				exportSchema()
-			} else {
-				// read from config // prepare the structs and then call exportSchema
-				fmt.Printf("Config path called")
-			}
-		*/
 	},
 }
 
 func exportSchema() {
 	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
 
+	utils.CheckToolsRequiredInstalledOrNot(&source)
+
+	migration.CheckSourceDBAccessibility(&source)
+
+	if !source.GenerateReportMode {
+		migration.PrintSourceDBVersion(&source)
+	}
+
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+
 	switch source.DBType {
 	case ORACLE:
-		utils.PrintIfTrue("Prepare Ora2Pg for schema export from Oracle\n", source.VerboseMode, !source.GenerateReportMode)
+		utils.PrintIfTrue("preparing Ora2Pg for schema export from Oracle\n", source.VerboseMode, !source.GenerateReportMode)
 
-		if source.SSLMode == "" {
-			//TODO: findout and add default mode
-			source.SSLMode = ""
-		}
-		oracleExportSchema()
+		migration.Ora2PgExtractSchema(&source, exportDir)
 	case POSTGRESQL:
-		utils.PrintIfTrue("Prepare pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
+		utils.PrintIfTrue("preparing pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
 
-		if source.SSLMode == "" {
-			source.SSLMode = "prefer"
-		}
-		postgresExportSchema()
+		migration.PgDumpExtractSchema(&source, exportDir)
 	case MYSQL:
-		utils.PrintIfTrue("Prepare Ora2Pg for schema export from MySQL\n", source.VerboseMode, !source.GenerateReportMode)
-		if source.SSLMode == "" {
-			source.SSLMode = "DISABLED"
-		}
-		mysqlExportSchema()
+		utils.PrintIfTrue("preparing Ora2Pg for schema export from MySQL\n", source.VerboseMode, !source.GenerateReportMode)
+
+		migration.Ora2PgExtractSchema(&source, exportDir)
 	default:
 		fmt.Printf("Invalid source database type for export\n")
 	}
 
 	if !source.GenerateReportMode { //check is to avoid report generation twice via generateReport command
+		fmt.Printf("\nexported schema files created under directory: %s\n", exportDir+"/schema")
 		generateReport()
 	}
 }
@@ -104,44 +88,4 @@ func init() {
 		command.Flags().MarkHidden("num-connections")
 		command.Parent().HelpFunc()(command, strings)
 	})
-}
-
-func oracleExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(&source)
-
-	utils.CheckSourceDbAccessibility(&source)
-
-	//Optional
-	migration.PrintOracleSourceDBVersion(&source)
-
-	//[TODO]: Project Name can be based on user input or some other rules.
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
-
-	migration.Ora2PgExtractSchema(&source, exportDir)
-}
-
-func postgresExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(&source)
-
-	utils.CheckSourceDbAccessibility(&source)
-
-	//Optional
-	migration.PrintPostgresSourceDBVersion(&source)
-
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
-
-	migration.PgDumpExtractSchema(&source, exportDir)
-}
-
-func mysqlExportSchema() {
-	utils.CheckToolsRequiredInstalledOrNot(&source)
-
-	utils.CheckSourceDbAccessibility(&source)
-
-	//TODO: TEST/DEBUG this , causing error
-	migration.PrintMySQLSourceDBVersion(&source) //Optional step
-
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
-
-	migration.Ora2PgExtractSchema(&source, exportDir)
 }

@@ -1,35 +1,28 @@
-package migration
+package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
+	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
+
+	"github.com/jackc/pgx/v4"
 )
 
-var log = utils.GetLogger()
-
-// TODO
-func PrintYugabyteDBTargetVersion(target *utils.Target) {
+func PrintTargetYugabyteDBVersion(target *utils.Target) {
 	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, target.DBName)
+		target.User, target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE)
 
-	yugabyteDBVersionCommand := exec.Command("psql", targetConnectionURI,
-		"-Atc", "SELECT VERSION();")
-	output, err := yugabyteDBVersionCommand.Output()
-
-	utils.CheckError(err, "", "", true)
-
-	fmt.Printf("Target YugabyteDB Version: %s\n", output)
+	version := migration.SelectVersionQuery("yugabytedb", targetConnectionURI)
+	fmt.Printf("YugabyteDB Version: %s\n", version)
 }
 
 func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 	metaInfo := ExtractMetaInfo(exportDir)
 
 	projectDirPath := exportDir
-
-	PrintYugabyteDBTargetVersion(target)
 
 	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
 		target.User, target.Password, target.Host, target.Port, target.DBName)
@@ -51,33 +44,45 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 			importObjectFilePath = importObjectDirPath + "/" + "INDEXES_table.sql"
 		}
 
-		fmt.Printf("Import of %ss started...\n", strings.ToLower(importObjectType))
-		createObjectCommand := exec.Command("psql", targetConnectionURI, "-b", "-f", importObjectFilePath)
+		if !utils.FileOrFolderExists(importObjectFilePath) {
+			continue
+		}
 
-		// fmt.Printf("[Debug]: Command: %s\n", createObjectCommand.String())
+		fmt.Printf("importing %10s %5s", importObjectType, "")
+		go utils.Wait("done\n", "")
 
-		// var consoleError, consoleOutput bytes.Buffer
-		// createObjectCommand.Stderr = &consoleError
-		// createObjectCommand.Stdout = &consoleOutput
+		conn, err := pgx.Connect(context.Background(), targetConnectionURI)
+		if err != nil {
+			utils.WaitChannel <- 1
+			fmt.Println(err)
+			os.Exit(1)
+		}
 
-		// createObjectCommand.Stdin = os.Stdin
-		// createObjectCommand.Stdout = os.Stdout
-		// createObjectCommand.Stderr = os.Stderr
+		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)
+		errOccured := 0
+		for _, sqlStr := range sqlStrArray {
+			// fmt.Printf("Execute STATEMENT: %s\n", sqlStr[1])
+			_, err := conn.Exec(context.Background(), sqlStr[0])
+			if err != nil {
+				if strings.Contains(err.Error(), "already exists") {
+					if !target.IgnoreIfExists {
+						fmt.Printf("\b \n    %s\n", err.Error())
+						fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+					}
+				} else {
+					errOccured = 1
+					fmt.Printf("\b \n    %s\n", err.Error())
+					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+				}
+				if !target.ContinueOnError { //non-default case
+					break
+				}
+			}
+		}
 
-		_ = createObjectCommand.Run()
+		utils.WaitChannel <- errOccured
 
-		// CheckError(err, createObjectCommand.String(), "couldn't import " + importObjectType + " to target database!!", false)
-		// utils.CheckError(err, createObjectCommand.String(), "couldn't import %s", false)
-
-		// log.Infof("%s", consoleOutput.String())
-		// fmt.Printf("%s\n", consoleOutput.String())
-
-		// if err == nil && len(consoleError.String()) == 0 {
-		// 	fmt.Printf("Import of %s done!!\n", importObjectType)
-		// } else {
-		// 	color.Red("couldn't import all %ss due to: %s\nplease try again!!", importObjectType, consoleError.String())
-		// }
-		fmt.Printf("Import of %ss done!!\n", strings.ToLower(importObjectType))
+		conn.Close(context.Background())
 	}
 
 }

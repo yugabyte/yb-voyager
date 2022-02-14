@@ -16,14 +16,14 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
-	"yb_migrate/src/migration"
 	"yb_migrate/src/utils"
 
+	"github.com/jackc/pgx/v4"
 	"github.com/spf13/cobra"
 )
 
@@ -48,74 +48,76 @@ func init() {
 }
 
 func importSchema() {
-	fmt.Printf("\nimport of schema in '%s' database started\n", target.DBName)
+	fmt.Printf("import of schema in '%s' database started\n", target.DBName)
 	utils.CheckToolsRequiredInstalledOrNot(&utils.Source{DBType: "yugabytedb"})
 
-	// targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-	// 	target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
+	PrintTargetYugabyteDBVersion(&target)
+
+	/*
+		targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+		target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
+	*/
 	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", target.User,
 		target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, target.SSLMode)
 
 	//TODO: Explore if DROP DATABASE vs DROP command for all objects
-	dropDatabaseSql := "DROP DATABASE " + target.DBName + ";"
-	createDatabaseSql := "CREATE DATABASE " + target.DBName + ";"
-	dropDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", dropDatabaseSql)
-	createDatabaseCommand := exec.Command("psql", targetConnectionURIWithDefaultDB, "-c", createDatabaseSql)
+	dropDatabaseQuery := "DROP DATABASE " + target.DBName + ";"
+	createDatabaseQuery := "CREATE DATABASE " + target.DBName + ";"
 
-	checkDatabaseExistCommand := exec.Command("psql", targetConnectionURIWithDefaultDB,
-		"-Atc", fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName))
+	bgCtx := context.Background()
 
-	cmdOutputBytes, err := checkDatabaseExistCommand.CombinedOutput()
+	// taking assumption that "yugabyte" database should be present in user's setup
+	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithDefaultDB)
+	if err != nil {
+		if res, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", err.Error()); res {
+			fmt.Printf("default database '%s' does not exists, please create it and continue!!\n", YUGABYTEDB_DEFAULT_DATABASE)
+			os.Exit(1)
+		} else {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+	defer conn.Close(bgCtx)
 
-	// fmt.Printf("[Debug]: %s\n", checkDatabaseExistCommand)
-	// fmt.Printf("[Info] Command Output: %s\n", cmdOutputBytes)
-	// utils.CheckError(err, "", "", true)
+	var fetchedDBName string
+	checkDatabaseExistQuery := fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName)
+	err = conn.QueryRow(bgCtx, checkDatabaseExistQuery).Scan(&fetchedDBName)
 
-	//removing newline character from the end
-	requiredDatabaseName := strings.Trim(string(cmdOutputBytes), "\n")
-
-	//TODO: make error matching/handling better
-	if patternMatch, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", requiredDatabaseName); patternMatch {
-		// above if-condition is only true if default database - "yugabyte" doesn't exists
-
-		fmt.Printf("Default database '%s' does not exists, please create it and continue!!\n", YUGABYTEDB_DEFAULT_DATABASE)
-		os.Exit(1)
-
-	} else if requiredDatabaseName == target.DBName {
+	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedDBName == "") {
+		fmt.Printf("required database '%s' doesn't exists, creating...\n", target.DBName)
+		_, err := conn.Exec(bgCtx, createDatabaseQuery)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	} else if err != nil {
+		panic(err)
+	} else if target.DBName == fetchedDBName {
 		if startClean && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
 			//dropping existing database
 			fmt.Printf("dropping '%s' database...\n", target.DBName)
 
-			cmdOutputBytes, err := dropDatabaseCommand.CombinedOutput()
-			utils.CheckError(err, "", string(cmdOutputBytes), true)
+			_, err := conn.Exec(bgCtx, dropDatabaseQuery)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 
 			//creating required database
 			fmt.Printf("creating '%s' database...\n", target.DBName)
-			cmdOutputBytes, err = createDatabaseCommand.CombinedOutput()
-			utils.CheckError(err, "", string(cmdOutputBytes), true)
-
+			_, err = conn.Exec(bgCtx, createDatabaseQuery)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		} else if startClean && target.DBName == YUGABYTEDB_DEFAULT_DATABASE {
 			fmt.Printf("can't drop default database: %s, exiting...\n", YUGABYTEDB_DEFAULT_DATABASE)
+			fmt.Printf("please clean it manually before starting again!\n")
 			os.Exit(1)
 		} else {
-			fmt.Printf("could not drop target database %s, using it without cleaning", target.DBName)
-		}
-
-	} else if requiredDatabaseName == "" {
-		//above if-condition is true if target DB does not exists
-
-		fmt.Printf("Required Database doesn't exists, creating '%s' database...\n", target.DBName)
-
-		err = createDatabaseCommand.Run()
-		utils.CheckError(err, "", "couldn't create the target database", true)
-	} else { //cases like user, password are invalid
-		fmt.Println("Import Schema could not proceed, Abort!!")
-		if err != nil {
-			log.Fatal(err.Error())
-		} else {
-			os.Exit(126)
+			fmt.Printf("database '%s' already exists, using it without cleaning\n", target.DBName)
 		}
 	}
 
-	migration.YugabyteDBImportSchema(&target, exportDir)
+	YugabyteDBImportSchema(&target, exportDir)
 }

@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -46,6 +47,10 @@ var rootCmd = &cobra.Command{
 		if !utils.FileOrFolderExists(exportDir) {
 			fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
 			os.Exit(1)
+		} else if exportDir == "." {
+			fmt.Println("Note: Using current working directory as export directory")
+		} else {
+			exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
 		}
 
 	},

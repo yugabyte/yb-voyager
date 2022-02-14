@@ -38,24 +38,13 @@ func CheckToolsRequiredForPostgresExport() {
 	fmt.Printf("[Debug] Required tools for export are present...\n")
 }
 
-// TODO: fill it, how to using the tools? [psql -c "Select * from version()"]
-func PrintPostgresSourceDBVersion(source *utils.Source) {
-}
-
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
-	utils.PrintIfTrue("Exporting Postgres schema started...\n", !source.GenerateReportMode)
-	if source.User == "" {
-		source.User = "postgres"
+	if source.GenerateReportMode {
+		fmt.Printf("scanning the schema %10s", "")
+	} else {
+		fmt.Printf("exporting the schema %10s", "")
 	}
-	if source.Host == "" {
-		source.Host = "localhost"
-	}
-	if source.Port == "" {
-		source.Port = "5432"
-	}
-	if source.DBName == "" {
-		source.DBName = "postgres"
-	}
+	go utils.Wait("done\n", "error\n")
 
 	SSLQueryString := ""
 	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
@@ -76,7 +65,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 		}
 	}
 
-	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
+	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
 		source.Port, source.DBName, SSLQueryString, exportDir)
 
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
@@ -84,17 +73,21 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	// fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
 
 	err := preparedYsqldumpCommand.Run()
-	utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
+	if err != nil {
+		utils.WaitChannel <- 1
+		utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
+	}
 
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(source, exportDir)
 
-	utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
+	// utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
+	utils.WaitChannel <- 0
 }
 
-//NOTE: This is for case when --schema-only option is provided with ysql_dump[Data shouldn't be there]
+//NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
 func parseSchemaFile(source *utils.Source, exportDir string) {
-	utils.PrintIfTrue("Parsing the schema file...\n", !source.GenerateReportMode)
+	// utils.PrintIfTrue("Parsing the schema file...\n", !source.GenerateReportMode)
 
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
 	var schemaDirPath string
@@ -195,8 +188,6 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 	ioutil.WriteFile(schemaDirPath+"/procedures/procedure.sql", []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/triggers/trigger.sql", []byte(setSessionVariables.String()+createTriggerSqls.String()), 0644)
 
-	//to keep the project structure consistent
-	// ioutil.WriteFile(projectDirPath+"/types/type.sql", []byte(setSessionVariables.String() + createTypeSqls.String()+createDomainSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/types/type.sql", []byte(setSessionVariables.String()+createTypeSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/domains/domain.sql", []byte(setSessionVariables.String()+createDomainSqls.String()), 0644)
 
@@ -204,7 +195,11 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 	ioutil.WriteFile(schemaDirPath+"/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+
+	if uncategorizedSqls.Len() > 0 {
+		ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+	}
+
 	ioutil.WriteFile(schemaDirPath+"/schemas/schema.sql", []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/extensions/extension.sql", []byte(setSessionVariables.String()+createExtensionSqls.String()), 0644)
 
@@ -252,26 +247,10 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 
 func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
-	CheckToolsRequiredForPostgresExport()
-
-	utils.CreateMigrationProjectIfNotExists(source, exportDir)
 
 	dataDirPath := exportDir + "/data"
 
 	tableListRegex := createTableListRegex(tableList)
-
-	if source.User == "" {
-		source.User = "postgres"
-	}
-	if source.Host == "" {
-		source.Host = "localhost"
-	}
-	if source.Port == "" {
-		source.Port = "5432"
-	}
-	if source.DBName == "" {
-		source.DBName = "postgres"
-	}
 
 	SSLQueryString := ""
 	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
@@ -293,7 +272,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	}
 
 	//using pgdump for exporting data in directory format
-	pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only -t '%s' -Fd --file %s --jobs %d`, source.User, source.Password,
+	pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 -t '%s' -Fd --file %s --jobs %d`, source.User, source.Password,
 		source.Host, source.Port, source.DBName, SSLQueryString, tableListRegex, dataDirPath, source.NumConnections)
 
 	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)

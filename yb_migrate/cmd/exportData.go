@@ -76,6 +76,12 @@ func exportData() {
 }
 
 func exportDataOffline() bool {
+	utils.CheckToolsRequiredInstalledOrNot(&source)
+
+	migration.CheckSourceDBAccessibility(&source)
+
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
@@ -99,7 +105,7 @@ func exportDataOffline() bool {
 		}
 	}()
 
-	tablesMetadata := createExportTableMetadataSlice(exportDir, tableList)
+	tablesMetadata := initializeExportTableMetadataSlice(exportDir, tableList)
 	// fmt.Println(tableList, "\n", tablesMetadata)
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
@@ -131,7 +137,7 @@ func exportDataOffline() bool {
 	<-exportDataStart
 	// fmt.Println("passed the exportDataStart channel receiver")
 
-	migration.UpdateDataFilePath(&source, exportDir, tablesMetadata)
+	migration.UpdateFilePaths(&source, exportDir, tablesMetadata)
 
 	exportDataStatus(ctx, tablesMetadata, quitChan)
 
@@ -151,7 +157,7 @@ func exportDataOnline() bool {
 	return true // empty function
 }
 
-func createExportTableMetadataSlice(exportDir string, tableList []string) []utils.TableProgressMetadata {
+func initializeExportTableMetadataSlice(exportDir string, tableList []string) []utils.TableProgressMetadata {
 	numTables := len(tableList)
 	tablesMetadata := make([]utils.TableProgressMetadata, numTables)
 
@@ -166,7 +172,8 @@ func createExportTableMetadataSlice(exportDir string, tableList []string) []util
 		}
 
 		//Initializing all the members of struct
-		tablesMetadata[i].DataFilePath = ""         //will be updated when status changes to IN-PROGRESS
+		tablesMetadata[i].InProgressFilePath = ""
+		tablesMetadata[i].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
 		tablesMetadata[i].CountTotalRows = int64(0) //will be updated by other func
 		tablesMetadata[i].CountLiveRows = int64(0)
 		tablesMetadata[i].Status = 0

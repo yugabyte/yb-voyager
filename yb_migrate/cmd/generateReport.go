@@ -15,6 +15,7 @@ package cmd
 
 import (
 	"bufio"
+	"encoding/json"
 	"encoding/xml"
 	"fmt"
 	"strconv"
@@ -38,28 +39,27 @@ type summaryInfo struct {
 var (
 	outputFormat  string
 	sourceObjList []string
-	canMigrate    = true
-	report        string
+	reportStruct  utils.Report
 	tblParts      = make(map[string]string)
 	// key is partitioned table, value is filename where the ADD PRIMARY KEY statement resides
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
-	casenum          int
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile("\\$.*\\$")
-	createConvRegex  = regexp.MustCompile("(?i)CREATE (DEFAULT )?CONVERSION ([a-zA-Z0-9_.]+)")
-	alterConvRegex   = regexp.MustCompile("(?i)ALTER CONVERSION ([a-zA-Z0-9_.]+)")
-	gistRegex        = regexp.MustCompile("(?i)CREATE INDEX (IF NOT EXISTS )?([a-zA-Z0-9_.]+).*USING GIST")
-	brinRegex        = regexp.MustCompile("(?i)CREATE INDEX on ([a-zA-Z0-9_.]+).*USING brin")
-	spgistRegex      = regexp.MustCompile("(?i)CREATE INDEX on ([a-zA-Z0-9_.]+).*USING spgist")
-	rtreeRegex       = regexp.MustCompile("(?i)CREATE INDEX on ([a-zA-Z0-9_.]+).*USING rtree")
+	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
+	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
+	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
+	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING GIST`)
+	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING brin`)
+	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING spgist`)
+	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING rtree`)
 	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_.]+)")
-	viewWithCheckRegex = regexp.MustCompile("(?i)VIEW[ \t\n]+([a-zA-Z0-9_.]+).*WITH CHECK OPTION")
-	rangeRegex         = regexp.MustCompile("(?i)PRECEDING[ \t\n]+and[ \t\n]+.*:float")
-	fetchRegex         = regexp.MustCompile("(?i)FETCH .*FROM")
-	fetchRelativeRegex = regexp.MustCompile("(?i)FETCH RELATIVE")
-	backwardRegex      = regexp.MustCompile("(?i)MOVE BACKWARD")
-	fetchAbsRegex      = regexp.MustCompile("(?i)FETCH ABSOLUTE")
+	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
+	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
+	fetchRegex         = regexp.MustCompile(`(?i)FETCH .*FROM`)
+	fetchRelativeRegex = regexp.MustCompile(`(?i)FETCH RELATIVE`)
+	backwardRegex      = regexp.MustCompile(`(?i)MOVE BACKWARD`)
+	fetchAbsRegex      = regexp.MustCompile(`(?i)FETCH ABSOLUTE`)
 	alterAggRegex      = regexp.MustCompile("(?i)ALTER AGGREGATE ([a-zA-Z0-9_.]+)")
 	dropCollRegex      = regexp.MustCompile("(?i)DROP COLLATION (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
 	dropIdxRegex       = regexp.MustCompile("(?i)DROP INDEX (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
@@ -111,7 +111,7 @@ var (
 	foreignKeyRegex   = regexp.MustCompile("(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_.]+).*REFERENCES")
 
 	// unsupported SQLs exported by ora2pg
-	compoundTrigRegex          = regexp.MustCompile("(?i)CREATE (OR REPLACE )?TRIGGER ([a-zA-Z0-9_.]+).*COMPOUND.*")
+	compoundTrigRegex          = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?TRIGGER[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*[\s\n]+COMPOUND.*`)
 	unsupportedCommentRegex1   = regexp.MustCompile("(?i)--.*(unsupported)")
 	packageSupportCommentRegex = regexp.MustCompile("(?i)--.*Oracle package '([a-zA-Z0-9_.]+)'.*please edit to match PostgreSQL syntax")
 	unsupportedCommentRegex2   = regexp.MustCompile("(?i)--.*please edit to match PostgreSQL syntax")
@@ -120,26 +120,16 @@ var (
 )
 
 // Reports one case in JSON
-func reportCase(fpath string, reason string, issue string, suggestion string, objType string, objName string, sqlStmt string) {
-	canMigrate = false
-	casenum++
-	if casenum > 1 {
-		report += ","
-	}
-
-	report += "{" //for each case's object in issues arrays
-	// report += `"case ` + strconv.Itoa(casenum) + `": {`
-	//TODO: add objectname, objecttype, Parent, action
-	report += `"objectType": "` + objType + `",`
-	report += `"objectName": "` + objName + `",`
-	report += `"reason": "` + reason + `",`
-	report += `"sqlStatement": "` + sqlStmt + `",`
-	report += `"filePath": "` + fpath + `",`
-	if suggestion != "" {
-		report += `"suggestion": "` + suggestion + `",`
-	}
-	report += `"GH": "` + issue + `"}`
-	// report += "}"
+func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string) {
+	var issue utils.Issue
+	issue.ObjectType = objType
+	issue.ObjectName = objName
+	issue.Reason = reason
+	issue.SqlStatement = sqlStmt
+	issue.FilePath = filePath
+	issue.Suggestion = suggestion
+	issue.GH = ghIssue
+	reportStruct.Issues = append(reportStruct.Issues, issue)
 }
 
 func reportAddingPrimaryKey(fpath string, tbl string, line string) {
@@ -162,67 +152,60 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 }
 
-//create a json string from the info from summaryMap
-func reportSummary() string {
+// adding migration summary info to reportStruct from summaryMap
+func reportSummary() {
 
-	requiredJson := `"summary": {`
-	requiredJson += fmt.Sprintf(`"dbName": "%s",`, source.DBName) +
-		fmt.Sprintf(`"schemaName": "%s",`, source.Schema)
+	reportStruct.Summary.DBName = source.DBName
+	reportStruct.Summary.SchemaName = source.Schema
+	reportStruct.Summary.DBVersion = migration.PrintSourceDBVersion(&source)
 
-	requiredJson += `"databaseObjects": [`
+	// requiredJson += `"databaseObjects": [`
 	for _, objType := range sourceObjList {
 		if summaryMap[objType].totalCount == 0 {
 			continue
 		}
 
-		requiredJson += "{"
-		requiredJson += fmt.Sprintf(`"objectType": "%s",`, objType)
-		requiredJson += fmt.Sprintf(`"totalCount": %d,`, summaryMap[objType].totalCount)
-		requiredJson += fmt.Sprintf(`"invalidCount": %d,`, summaryMap[objType].invalidCount)
-		requiredJson += fmt.Sprintf(`"objectNames": "%s",`, getMapKeys(summaryMap[objType].objSet))
-		requiredJson += fmt.Sprintf(`"details": "%s"`, getMapKeys(summaryMap[objType].details))
-		requiredJson += "},"
+		var dbObject utils.DBObject
+		dbObject.ObjectType = objType
+		dbObject.TotalCount = summaryMap[objType].totalCount
+		dbObject.InvalidCount = summaryMap[objType].invalidCount
+		dbObject.ObjectNames = getMapKeys(summaryMap[objType].objSet)
+		dbObject.Details = getMapKeys(summaryMap[objType].details)
+		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
-
-	//removing last comma(",")
-	requiredJson = requiredJson[0 : len(requiredJson)-1]
-	requiredJson += "]"
-
-	requiredJson += "},"
-	return requiredJson
 }
 
 // Checks whether there is gist index
-func checkGist(sqlStmtArray []string, fpath string) {
+func checkGist(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
-		if idx := gistRegex.FindStringSubmatch(line); idx != nil {
+		if idx := gistRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "Schema contains gist index which is not supported.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], line)
-		} else if idx := brinRegex.FindStringSubmatch(line); idx != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], line[1])
+		} else if idx := brinRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "index method 'brin' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line)
-		} else if idx := spgistRegex.FindStringSubmatch(line); idx != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line[1])
+		} else if idx := spgistRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "index method 'spgist' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line)
-		} else if idx := rtreeRegex.FindStringSubmatch(line); idx != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line[1])
+		} else if idx := rtreeRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], line[1])
 		}
 	}
 }
 
 // Checks compatibility of views
-func checkViews(sqlStmtArray []string, fpath string) {
+func checkViews(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
-		/*if dropMatViewRegex.MatchString(line) {
+		/*if dropMatViewRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/10102", "")
-		} else if view := matViewRegex.FindStringSubmatch(line); view != nil {
+		} else if view := matViewRegex.FindStringSubmatch(line[0]); view != nil {
 			reportCase(fpath, "Schema contains materialized view which is not supported. The view is: "+view[1],
 				"https://github.com/yugabyte/yugabyte-db/issues/10102", "")
 		} else */
-		if view := viewWithCheckRegex.FindStringSubmatch(line); view != nil {
-			reportCase(fpath, "Schema containing VIEW WITH CHECK OPTION is not supported yet.", "", "", "VIEW", view[1], line)
+		if view := viewWithCheckRegex.FindStringSubmatch(line[0]); view != nil {
+			reportCase(fpath, "Schema containing VIEW WITH CHECK OPTION is not supported yet.", "", "", "VIEW", view[1], line[1])
 		}
 	}
 }
@@ -241,192 +224,192 @@ func separateMultiObj(objType string, line string) string {
 }
 
 // Checks compatibility of SQL statements
-func checkSql(sqlStmtArray []string, fpath string) {
+func checkSql(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
-		if rangeRegex.MatchString(line) {
+		if rangeRegex.MatchString(line[0]) {
 			reportCase(fpath,
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
-				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", line)
-		} else if stmt := createConvRegex.FindStringSubmatch(line); stmt != nil {
-			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], line)
-		} else if alterConvRegex.MatchString(line) {
-			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], line)
-		} else if fetchAbsRegex.MatchString(line) {
-			reportCase(fpath, "FETCH ABSOLUTE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line)
-		} else if fetchRelativeRegex.MatchString(line) {
-			reportCase(fpath, "FETCH RELATIVE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line)
-		} else if fetchRegex.MatchString(line) {
-			reportCase(fpath, "FETCH - not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line)
-		} else if backwardRegex.MatchString(line) {
-			reportCase(fpath, "FETCH BACKWARD not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line)
-		} else if stmt := alterAggRegex.FindStringSubmatch(line); stmt != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", line[1])
+		} else if stmt := createConvRegex.FindStringSubmatch(line[0]); stmt != nil {
+			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], line[1])
+		} else if alterConvRegex.MatchString(line[0]) {
+			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], line[1])
+		} else if fetchAbsRegex.MatchString(line[0]) {
+			reportCase(fpath, "FETCH ABSOLUTE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line[1])
+		} else if fetchRelativeRegex.MatchString(line[0]) {
+			reportCase(fpath, "FETCH RELATIVE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line[1])
+		} else if fetchRegex.MatchString(line[0]) {
+			reportCase(fpath, "FETCH - not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line[1])
+		} else if backwardRegex.MatchString(line[0]) {
+			reportCase(fpath, "FETCH BACKWARD not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", line[1])
+		} else if stmt := alterAggRegex.FindStringSubmatch(line[0]); stmt != nil {
 			reportCase(fpath, "ALTER AGGREGATE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/2717", "", "AGGREGATE", stmt[1], line)
-		} else if dropCollRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/2717", "", "AGGREGATE", stmt[1], line[1])
+		} else if dropCollRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP COLLATION", line), "COLLATION", "", line)
-		} else if dropIdxRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP COLLATION", line[1]), "COLLATION", "", line[1])
+		} else if dropIdxRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP INDEX", line), "INDEX", "", line)
-		} else if dropViewRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP INDEX", line[1]), "INDEX", "", line[1])
+		} else if dropViewRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP VIEW", line), "VIEW", "", line)
-		} else if dropSeqRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP VIEW", line[1]), "VIEW", "", line[1])
+		} else if dropSeqRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP SEQUENCE", line), "SEQUENCE", "", line)
-		} else if dropForeignRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP SEQUENCE", line[1]), "SEQUENCE", "", line[1])
+		} else if dropForeignRegex.MatchString(line[0]) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", line), "FOREIGN TABLE", "", line)
-		} else if idx := createIdxConcurRegex.FindStringSubmatch(line); idx != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", line[1]), "FOREIGN TABLE", "", line[1])
+		} else if idx := createIdxConcurRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "CREATE INDEX CONCURRENTLY not supported yet",
-				"https://github.com/yugabyte/yugabyte-db/issues/10799", "", "INDEX", idx[3], line)
-		} else if idx := dropIdxConcurRegex.FindStringSubmatch(line); idx != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10799", "", "INDEX", idx[3], line[1])
+		} else if idx := dropIdxConcurRegex.FindStringSubmatch(line[0]); idx != nil {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
-				"", "", "INDEX", idx[2], line)
-		} else if trig := trigRefRegex.FindStringSubmatch(line); trig != nil {
+				"", "", "INDEX", idx[2], line[1])
+		} else if trig := trigRefRegex.FindStringSubmatch(line[0]); trig != nil {
 			reportCase(fpath, "REFERENCING clause (transition tables) not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], line)
-		} else if trig := constrTrgRegex.FindStringSubmatch(line); trig != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1668", "", "TRIGGER", trig[1], line[1])
+		} else if trig := constrTrgRegex.FindStringSubmatch(line[0]); trig != nil {
 			reportCase(fpath, "CREATE CONSTRAINT TRIGGER not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", trig[1], line)
-		} else if currentOfRegex.MatchString(line) {
-			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", line)
-		} else if bulkCollectRegex.MatchString(line) {
-			reportCase(fpath, "BULK COLLECT keyword of oracle is not converted into PostgreSQL compatible syntax", "", "", "", "", line)
+				"https://github.com/YugaByte/yugabyte-db/issues/1709", "", "TRIGGER", trig[1], line[1])
+		} else if currentOfRegex.MatchString(line[0]) {
+			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", line[1])
+		} else if bulkCollectRegex.MatchString(line[0]) {
+			reportCase(fpath, "BULK COLLECT keyword of oracle is not converted into PostgreSQL compatible syntax", "", "", "", "", line[1])
 		}
 	}
 }
 
 // Checks unsupported DDL statements
-func checkDDL(sqlStmtArray []string, fpath string) {
+func checkDDL(sqlStmtArray [][]string, fpath string) {
 
 	for _, line := range sqlStmtArray {
-		if am := amRegex.FindStringSubmatch(line); am != nil {
+		if am := amRegex.FindStringSubmatch(line[0]); am != nil {
 			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], line)
-		} else if tbl := idxConcRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], line[1])
+		} else if tbl := idxConcRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "REINDEX CONCURRENTLY is not supported.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10694", "", "TABLE", tbl[1], line)
-		} else if col := storedRegex.FindStringSubmatch(line); col != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10694", "", "TABLE", tbl[1], line[1])
+		} else if col := storedRegex.FindStringSubmatch(line[0]); col != nil {
 			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
-				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", line)
-		} else if tbl := likeAllRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", line[1])
+		} else if tbl := likeAllRegex.FindStringSubmatch(line[0]); tbl != nil {
 			summaryMap["TABLE"].invalidCount++
 			reportCase(fpath, "LIKE ALL is not supported yet.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], line)
-		} else if tbl := likeRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], line[1])
+		} else if tbl := likeRegex.FindStringSubmatch(line[0]); tbl != nil {
 			summaryMap["TABLE"].invalidCount++
 			reportCase(fpath, "LIKE clause not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], line)
-		} else if tbl := tblPartitionRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], line[1])
+		} else if tbl := tblPartitionRegex.FindStringSubmatch(line[0]); tbl != nil {
 			tblParts[tbl[2]] = tbl[3]
 			if filename, ok := primaryCons[tbl[2]]; ok {
-				reportAddingPrimaryKey(filename, tbl[2], line)
+				reportAddingPrimaryKey(filename, tbl[2], line[1])
 			}
-		} else if tbl := addPrimaryRegex.FindStringSubmatch(line); tbl != nil {
+		} else if tbl := addPrimaryRegex.FindStringSubmatch(line[0]); tbl != nil {
 			if _, ok := tblParts[tbl[2]]; ok {
-				reportAddingPrimaryKey(fpath, tbl[2], line)
+				reportAddingPrimaryKey(fpath, tbl[2], line[1])
 			}
 			primaryCons[tbl[2]] = fpath
-		} else if tbl := inheritRegex.FindStringSubmatch(line); tbl != nil {
+		} else if tbl := inheritRegex.FindStringSubmatch(line[0]); tbl != nil {
 			summaryMap["TABLE"].invalidCount++
 			reportCase(fpath, "INHERITS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], line)
-		} else if tbl := withOidsRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], line[1])
+		} else if tbl := withOidsRegex.FindStringSubmatch(line[0]); tbl != nil {
 			summaryMap["TABLE"].invalidCount++
 			reportCase(fpath, "OIDs are not supported for user tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], line)
-		} else if tbl := intvlRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], line[1])
+		} else if tbl := intvlRegex.FindStringSubmatch(line[0]); tbl != nil {
 			summaryMap["TABLE"].invalidCount++
 			reportCase(fpath, "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1397", "", "TABLE", tbl[2], line)
-		} else if tbl := alterOfRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1397", "", "TABLE", tbl[2], line[1])
+		} else if tbl := alterOfRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE OF not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line)
-		} else if tbl := alterSchemaRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line[1])
+		} else if tbl := alterSchemaRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET SCHEMA not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/3947", "", "TABLE", tbl[2], line)
-		} else if createSchemaRegex.MatchString(line) {
+				"https://github.com/YugaByte/yugabyte-db/issues/3947", "", "TABLE", tbl[2], line[1])
+		} else if createSchemaRegex.MatchString(line[0]) {
 			reportCase(fpath, "CREATE SCHEMA with elements not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/10865", "", "SCHEMA", "", line)
-		} else if tbl := alterNotOfRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/10865", "", "SCHEMA", "", line[1])
+		} else if tbl := alterNotOfRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE NOT OF not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", "", line)
-		} else if tbl := alterColumnRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", "", line[1])
+		} else if tbl := alterColumnRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER column not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if tbl := alterConstrRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := alterConstrRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER CONSTRAINT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if tbl := setOidsRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := setOidsRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITH OIDS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if tbl := withoutClusterRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := withoutClusterRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line)
-		} else if tbl := clusterRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line[1])
+		} else if tbl := clusterRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE CLUSTER not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line)
-		} else if tbl := alterSetRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line[1])
+		} else if tbl := alterSetRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line)
-		} else if tbl := alterIdxRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line[1])
+		} else if tbl := alterIdxRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[1], line)
-		} else if tbl := alterResetRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[1], line[1])
+		} else if tbl := alterResetRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE RESET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line)
-		} else if tbl := alterOptionsRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], line[1])
+		} else if tbl := alterOptionsRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if typ := dropAttrRegex.FindStringSubmatch(line); typ != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if typ := dropAttrRegex.FindStringSubmatch(line[0]); typ != nil {
 			reportCase(fpath, "ALTER TYPE DROP ATTRIBUTE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], line)
-		} else if typ := alterTypeRegex.FindStringSubmatch(line); typ != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], line[1])
+		} else if typ := alterTypeRegex.FindStringSubmatch(line[0]); typ != nil {
 			reportCase(fpath, "ALTER TYPE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], line)
-		} else if tbl := alterInhRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], line[1])
+		} else if tbl := alterInhRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE INHERIT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if tbl := valConstrRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := valConstrRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line)
-		} else if tbl := deferRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := deferRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "DEFERRABLE unique constraints are not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], line)
-		} else if spc := alterTblSpcRegex.FindStringSubmatch(line); spc != nil {
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], line[1])
+		} else if spc := alterTblSpcRegex.FindStringSubmatch(line[0]); spc != nil {
 			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], line)
+				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], line[1])
 		}
 	}
 }
 
 // check foreign table
-func checkForeign(sqlStmtArray []string, fpath string) {
+func checkForeign(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
-		if tbl := primRegex.FindStringSubmatch(line); tbl != nil {
+		if tbl := primRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "Primary key constraints are not supported on foreign tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], line)
-		} else if tbl := foreignKeyRegex.FindStringSubmatch(line); tbl != nil {
+				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], line[1])
+		} else if tbl := foreignKeyRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "Foreign key constraints are not supported on foreign tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10699", "", "TABLE", tbl[1], line)
+				"https://github.com/yugabyte/yugabyte-db/issues/10699", "", "TABLE", tbl[1], line[1])
 		}
 	}
 }
 
 //all other cases to check
-func checkRemaining(sqlStmtArray []string, fpath string) {
+func checkRemaining(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
-		if trig := compoundTrigRegex.FindStringSubmatch(line); trig != nil {
+		if trig := compoundTrigRegex.FindStringSubmatch(line[0]); trig != nil {
 			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB and PostgreSQL yet.",
-				"", "", "TRIGGER", trig[2], line)
+				"", "", "TRIGGER", trig[2], line[1])
 		}
 	}
 
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlStmtArray []string, fpath string) {
+func checker(sqlStmtArray [][]string, fpath string) {
 
 	checkViews(sqlStmtArray, fpath)
 	checkSql(sqlStmtArray, fpath)
@@ -434,13 +417,6 @@ func checker(sqlStmtArray []string, fpath string) {
 	checkDDL(sqlStmtArray, fpath)
 	checkForeign(sqlStmtArray, fpath)
 	checkRemaining(sqlStmtArray, fpath)
-
-	// if canMigrate {
-	// 	log.Println("Schema in " + fpath + " can be migrated to Yugabyte DB")
-	// } else {
-	// 	log.Println("\n\n" + fpath + " has items to be modified before migration\n")
-	// 	canMigrate = true // for checking other scripts
-	// }
 }
 
 func getMapKeys(receivedMap map[string]bool) string {
@@ -476,48 +452,60 @@ func invalidSqlComment(line string) int {
 func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	var createObjRegex *regexp.Regexp
 	var objNameIndex int
+	//replacing every possible space or new line char with [\s\n]+ in all regexs
 	if objType == "MVIEW" {
-		createObjRegex = regexp.MustCompile("(?i)CREATE (OR REPLACE )?MATERIALIZED VIEW[ ]+([a-zA-Z0-9_.]+)")
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?MATERIALIZED[\s\n]+VIEW[\s\n]+([a-zA-Z0-9_.]+)`)
 		objNameIndex = 2
 	} else if objType == "PACKAGE" {
-		createObjRegex = regexp.MustCompile("(?i)CREATE SCHEMA (IF NOT EXISTS )?[ ]+([a-zA-Z0-9_.]+)")
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+SCHEMA[\s\n]+(IF NOT EXISTS[\s\n]*)?[\s\n]+([a-zA-Z0-9_.]+)`)
 		objNameIndex = 2
 	} else if objType == "SYNONYM" {
-		createObjRegex = regexp.MustCompile("(?i)CREATE (OR REPLACE )?VIEW[ ]+([a-zA-Z0-9_.]+)")
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?VIEW[\s\n]+([a-zA-Z0-9_.]+)`)
 		objNameIndex = 2
 	} else if objType == "INDEX" {
-		createObjRegex = regexp.MustCompile("(?i)CREATE (UNIQUE )?INDEX[ ]+(IF NOT EXISTS)?[ ]*([a-zA-Z0-9_.]+)")
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(UNIQUE[\s\n]*)?INDEX[\s\n]+(IF NOT EXISTS)?[\s\n]*([a-zA-Z0-9_.]+)`)
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
-		createObjRegex = regexp.MustCompile(fmt.Sprintf("(?i)CREATE (OR REPLACE )?%s[ ]+(IF NOT EXISTS )?([a-zA-Z0-9_.]+)", objType))
+		createObjRegex = regexp.MustCompile(fmt.Sprintf(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?%s[\s\n]+(IF NOT EXISTS[\s\n]*)?([a-zA-Z0-9_.]+)`, objType))
 		objNameIndex = 3
 	}
 
 	return createObjRegex, objNameIndex
 }
 
-func processCollectedSql(fpath string, line *string, objType string, sqlStmtArray *[]string, reportNextSql *int) {
+func processCollectedSql(fpath string, singleLine *string, singleString *string, objType string, sqlStmtArray *[][]string, reportNextSql *int) {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
 
-	//relevant CREATE statement in .sql file will be used
-	if stmt := createObjRegex.FindStringSubmatch(*line); stmt != nil {
+	//update about sqlStmt in the summary variable for the report generation part
+	if stmt := createObjRegex.FindStringSubmatch(*singleString); stmt != nil {
 		objName = stmt[objNameIndex]
-		summaryMap[objType].totalCount += 1
-		summaryMap[objType].objSet[objName] = true
+		if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
+			summaryMap[objType].totalCount += 1
+			summaryMap[objType].objSet[objName] = true
+		}
 	}
-	*sqlStmtArray = append(*sqlStmtArray, *line)
+
 	if *reportNextSql > 0 {
-		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, *line)
+		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, *singleString)
 		*reportNextSql = 0 //reset flag
 	}
 
-	(*line) = ""
+	*singleString = strings.TrimRight(*singleString, "\n") //removing new line from end
+	(*sqlStmtArray) = append((*sqlStmtArray), []string{*singleLine, *singleString})
+
+	(*singleLine) = ""
+	(*singleString) = ""
 }
 
-func createSqlStrArray(path string, objType string) []string {
+func createSqlStrArray(path string, objType string) [][]string {
 	// fmt.Printf("Reading %s in dir= %s\n", objType, path)
-	var sqlStmtArray []string
+
+	/*
+		sqlStmtArray[i[[0] denotes single line sql statements
+		sqlStmtArray[i][1] denotes single string(formatted) sql statements which can have new line character
+	*/
+	var sqlStmtArray [][]string
 
 	codeBlock := isCodeBlockPossible(objType)
 	dollarQuoteFlag := 0 //denotes the code/body part is not started
@@ -530,12 +518,13 @@ func createSqlStrArray(path string, objType string) []string {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	line := ""
+	singleLine := ""
+	singleString := ""
 
 	// assemble array of lines, each line ends with semicolon
 	for scanner.Scan() {
 		curr := scanner.Text()
-		curr = strings.Trim(curr, " \n\t")
+		// curr = strings.Trim(curr, " \n\t") //No need as these chars will make sql stmt readable
 
 		if len(curr) == 0 {
 			continue
@@ -546,10 +535,11 @@ func createSqlStrArray(path string, objType string) []string {
 			continue
 		}
 
-		line += " " + curr
+		singleLine += curr + " "
+		singleString += curr + "\n"
 
 		if codeBlock {
-			// if ';' occurs either before after end of $BODY$ means that sql is complete
+			// Assuming that both the dollar quote strings will not be in same line
 			if dollarQuoteFlag == 0 {
 				if dollarQuoteRegex.MatchString(curr) {
 
@@ -557,21 +547,22 @@ func createSqlStrArray(path string, objType string) []string {
 
 				} else if strings.Contains(curr, ";") { // in case, there is no body part
 					//one liner sql string created, now will check for obj count and report cases
-					processCollectedSql(path, &line, objType, &sqlStmtArray, &reportNextSql)
+					processCollectedSql(path, &singleLine, &singleString, objType, &sqlStmtArray, &reportNextSql)
 				}
 			} else if dollarQuoteFlag == 1 {
 				if dollarQuoteRegex.MatchString(curr) {
 					dollarQuoteFlag = 2 //denotes end of code/body part
 				}
-			} else if dollarQuoteFlag == 2 {
+			}
+			if dollarQuoteFlag == 2 {
 				if strings.Contains(curr, ";") {
-					processCollectedSql(path, &line, objType, &sqlStmtArray, &reportNextSql)
+					processCollectedSql(path, &singleLine, &singleString, objType, &sqlStmtArray, &reportNextSql)
 					dollarQuoteFlag = 0 //resetting for other objects
 				}
 			}
 		} else {
 			if strings.Contains(curr, ";") {
-				processCollectedSql(path, &line, objType, &sqlStmtArray, &reportNextSql)
+				processCollectedSql(path, &singleLine, &singleString, objType, &sqlStmtArray, &reportNextSql)
 			}
 		}
 	}
@@ -606,13 +597,14 @@ func initializeSummaryMap() {
 
 }
 
-func generateHTMLfromJSONReport(Report utils.Report) string {
+func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr></table>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -627,8 +619,13 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 	htmlstring += "<ul list-style-type='disc'>"
 	for i := 0; i < len(Report.Issues); i++ {
 		htmlstring += "<li>Error in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
-		htmlstring += "<li>Error Message: " + Report.Issues[i].Reason + "</li>"
+		htmlstring += "<li>Object Name: " + Report.Issues[i].ObjectName + "</li>"
+		htmlstring += "<li>Reason: " + Report.Issues[i].Reason + "</li>"
+		htmlstring += "<li>SQL Statement: " + Report.Issues[i].SqlStatement + "</li>"
 		htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "<a href='" + Report.Issues[i].FilePath + "'> [Preview]</a></li>"
+		if Report.Issues[i].Suggestion != "" {
+			htmlstring += "<li>Suggestion: " + Report.Issues[i].Suggestion + "</li>"
+		}
 		if Report.Issues[i].GH != "" {
 			htmlstring += "<li><a href='" + Report.Issues[i].GH + "'>Github Issue Link</a></li>"
 		}
@@ -639,10 +636,11 @@ func generateHTMLfromJSONReport(Report utils.Report) string {
 
 }
 
-func generateTxtfromJSONReport(Report utils.Report) string {
+func generateTxtReport(Report utils.Report) string {
 	txtstring := "Database Migration Report\n"
 	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
-	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n\n"
+	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n"
+	txtstring += "DB Version\t" + Report.Summary.DBVersion + "\n\n"
 	txtstring += "Objects:\n\n"
 	//if names for json objects need to be changed make sure to change the tab spaces accordingly as well.
 	for i := 0; i < len(Report.Summary.DBObjects); i++ {
@@ -663,8 +661,13 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 	}
 	for i := 0; i < len(Report.Issues); i++ {
 		txtstring += "Error in Object " + Report.Issues[i].ObjectType + ":\n"
-		txtstring += "-Error Message: " + Report.Issues[i].Reason + "\n"
+		txtstring += "-Object Name: " + Report.Issues[i].ObjectName + ":\n"
+		txtstring += "-Reason: " + Report.Issues[i].Reason + "\n"
+		txtstring += "-SQL Statement: " + Report.Issues[i].SqlStatement + "\n"
 		txtstring += "-File Path: " + Report.Issues[i].FilePath + "\n"
+		if Report.Issues[i].Suggestion != "" {
+			txtstring += "-Suggestion: " + Report.Issues[i].Suggestion + "\n"
+		}
 		if Report.Issues[i].GH != "" {
 			txtstring += "-Github Issue Link: " + Report.Issues[i].GH + "\n"
 		}
@@ -673,12 +676,9 @@ func generateTxtfromJSONReport(Report utils.Report) string {
 	return txtstring
 }
 
-// The command expects path to the directory containing .sql scripts followed by
-// the filename to the summary report
-func generateReportHelper() string {
-	//initialize these global variables
-	report = `"issues": [`
-	casenum = 0
+// add info to the 'reportStruct' variable and return
+func generateReportHelper() utils.Report {
+	reportStruct = utils.Report{}
 
 	var schemaDir string
 	if source.GenerateReportMode {
@@ -686,9 +686,9 @@ func generateReportHelper() string {
 	} else {
 		schemaDir = exportDir + "/schema"
 	}
+	//TODO: clean the schemaDir before putting anything there
 
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
-	sourceObjList = append(sourceObjList, "INDEX")
 
 	initializeSummaryMap()
 
@@ -706,38 +706,39 @@ func generateReportHelper() string {
 		}
 
 		sqlStmtArray := createSqlStrArray(filePath, objType)
+		// fmt.Printf("SqlStrArray for '%s' is: %v\n", objType, sqlStmtArray)
 		checker(sqlStmtArray, filePath)
 	}
 
-	summary := reportSummary()
-	report += `]`
-
-	finalReport := `{` + summary + report + `}`
-
-	return finalReport
+	reportSummary()
+	// fmt.Printf("generateReportHelper() report: %v\n", reportStruct)
+	return reportStruct
 }
 
 func generateReport() {
 	reportFile := "report." + outputFormat
 	reportPath := exportDir + "/reports/" + reportFile
-	reportJsonString := generateReportHelper()
+
+	generateReportHelper()
 
 	var finalReport string
 	if outputFormat == "html" {
-		report := utils.ParseJsonFromString(reportJsonString)
-		finalReport = utils.PrettifyHtmlString(generateHTMLfromJSONReport(report))
+		htmlReport := generateHTMLReport(reportStruct)
+		finalReport = utils.PrettifyHtmlString(htmlReport)
 	} else if outputFormat == "json" {
+		jsonBytes, err := json.Marshal(reportStruct)
+		if err != nil {
+			panic(err)
+		}
+		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	} else if outputFormat == "txt" {
-		report := utils.ParseJsonFromString(reportJsonString)
-		finalReport = generateTxtfromJSONReport(report)
+		finalReport = generateTxtReport(reportStruct)
 	} else if outputFormat == "xml" {
-		report := utils.ParseJsonFromString(reportJsonString)
-		byteReport, _ := xml.MarshalIndent(report, "", "\t")
+		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
 		finalReport = string(byteReport)
 	} else {
-		//TODO: here, need to implement for other output formats
-		finalReport = reportJsonString
+		//TODO(optional): implement for other output formats
 	}
 
 	//check & inform if file already exists
@@ -752,8 +753,8 @@ func generateReport() {
 	defer file.Close()
 
 	file.WriteString(finalReport)
-	utils.PrintIfTrue(finalReport, source.GenerateReportMode) //don't print in case of export command
-	fmt.Printf("\nplease find migration report at: %s\n", reportPath)
+	utils.PrintIfTrue(finalReport+"\n", source.GenerateReportMode) //don't print in case of export command
+	fmt.Printf("-- please find migration report at: %s\n", reportPath)
 }
 
 // generateReportCmd represents the checker command
@@ -775,17 +776,10 @@ to quickly create a Cobra application.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Note: Generated report will be based on the version - 2.11.3 of YugabyteDB!!")
-		migration.PrintSourceDBVersion(&source)
-
-		fmt.Printf("scanning source database to generate report  ")
-		waitChannel := make(chan int)
-		go utils.Wait(waitChannel)
 
 		source.GenerateReportMode = true //flag to skip info about export schema
 		// export schema before generating the report
 		exportSchemaCmd.Run(exportSchemaCmd, args)
-
-		waitChannel <- 0
 
 		generateReport()
 	},

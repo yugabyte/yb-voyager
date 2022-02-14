@@ -19,8 +19,10 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 	"yb_migrate/src/utils"
 
@@ -45,6 +47,8 @@ to quickly create a Cobra application.`,
 	},
 }
 
+// var debugFile *os.File
+
 func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressMetadata, quitChan chan bool) {
 	quitChan2 := make(chan bool)
 	quit := false
@@ -61,23 +65,23 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 
 	doneCount := 0
 	var exportedTables []string
-	// tempFile, _ := os.Create(exportDir + "/temp/debug.txt")
+	// debugFile, _ = os.OpenFile("/home/centos/temp/err.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	// defer debugFile.Close()
+
 	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for i := 0; i < numTables && !quit; i++ {
-			if tablesMetadata[i].Status == 0 &&
-				(utils.FileOrFolderExists(tablesMetadata[i].DataFilePath) || tablesMetadata[i].CountTotalRows == 0) {
+			if tablesMetadata[i].Status == 0 && utils.FileOrFolderExists(tablesMetadata[i].InProgressFilePath) {
 				tablesMetadata[i].Status = 1
 				// utils.WaitGroup.Add(1)
-
+				// fmt.Fprintf(debugFile, "start table=%s, file=%s\n", tablesMetadata[i].TableName, tablesMetadata[i].InProgressFilePath)
 				go startExportPB(progressContainer, &tablesMetadata[i], quitChan2)
 
-			} else if tablesMetadata[i].Status == 2 &&
-				tablesMetadata[i].CountLiveRows >= tablesMetadata[i].CountTotalRows {
+			} else if tablesMetadata[i].Status == 2 {
 				tablesMetadata[i].Status = 3
 
 				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
+				// fmt.Fprintf(debugFile, "done table= %s, liverow count: %d, expectedTotal: %d\n", tablesMetadata[i].TableName, tablesMetadata[i].CountLiveRows, tablesMetadata[i].CountTotalRows)
 				doneCount++
-				// fmt.Fprintf(tempFile, "tname=%s, doneCount=%d\n", tablesMetadata[i].TableName, doneCount)
 				if doneCount == numTables {
 					break
 				}
@@ -85,13 +89,13 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 
 			//for failure/error handling. TODO: test it more
 			if ctx.Err() != nil {
-				fmt.Println("Ctx error(inside for-loop)", ctx.Err())
+				fmt.Println(ctx.Err())
 				break
 			}
 		}
 
 		if ctx.Err() != nil {
-			fmt.Println("Ctx error(outside for-loop)", ctx.Err())
+			fmt.Println(ctx.Err())
 			break
 		}
 	}
@@ -106,14 +110,14 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
 	// defer utils.WaitGroup.Done()
 
-	name := tableMetadata.TableName
+	tableName := tableMetadata.TableName
 	total := int64(100)
 
 	bar := progressContainer.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
 		// mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
-			decor.Name(name),
+			decor.Name(tableName),
 		),
 		mpb.AppendDecorators(
 			// decor.Percentage(decor.WCSyncSpaceR),
@@ -133,46 +137,118 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 		return
 	}
 
-	tableDataFile, err := os.Open(tableMetadata.DataFilePath)
+	tableDataFile, err := os.Open(tableMetadata.InProgressFilePath)
 	if err != nil {
 		fmt.Println(err)
 		quitChan <- true
 		runtime.Goexit()
 	}
+	defer tableDataFile.Close()
 
 	reader := bufio.NewReader(tableDataFile)
+	// var prevLine string
 
-	//TODO: Decide buffer size dynamically
-	BUFFER_SIZE := 20
-	for tableMetadata.CountLiveRows < tableMetadata.CountTotalRows {
-		buf := make([]byte, BUFFER_SIZE*1024) //reading x MB size buffer each time
+	go func() { //for continuously increasing PB percentage
+		for !bar.Completed() {
+			PercentageValueFloat := float64(tableMetadata.CountLiveRows) / float64(tableMetadata.CountTotalRows) * 100
+			PercentageValueInt64 := int64(PercentageValueFloat)
+			incrementValue := (PercentageValueInt64) - bar.Current()
+			bar.IncrInt64(incrementValue)
+			time.Sleep(time.Millisecond * 500)
+		}
+	}()
 
-		n, _ := reader.Read(buf)
+	var line string
+	var readLineErr error
+	for !checkForEndOfFile(&source, tableMetadata, line) {
+		time.Sleep(time.Millisecond * 1500) // give sometime for data files to generate rows
+		for {
+			line, readLineErr = reader.ReadString('\n')
+			if readLineErr == io.EOF {
+				// fmt.Fprintf(debugFile, "counting rows for tname=%s, prevLine='%s', line='%s', liverow count=%d\n", tableName, prevLine, line, tableMetadata.CountLiveRows)
+				break
+			} else if readLineErr != nil { //error other than EOF
+				panic(readLineErr)
+			}
 
-		tableMetadata.FileOffsetToContinue += int64(n) //update the current read location of file
-
-		if n == 0 {
-			// tableDataFile.Seek(tableMetadata.FileOffsetToContinue, 0)
-			time.Sleep(time.Second * 2)
-		} else {
-			//counting number of rows
-			for _, byteinfo := range buf {
-				if string(byteinfo) == "\n" {
-					tableMetadata.CountLiveRows += 1
-				}
+			if strings.HasPrefix(line, "\\.") { //break loop to execute checkForEndOfFile()
+				break
+			} else if isDataLine(line) {
+				tableMetadata.CountLiveRows += 1
+				// prevLine = line
 			}
 		}
-		// fmt.Printf("%s - %d\n", tableMetadata.TableName, tableMetadata.CountLiveRows)
-
-		PercentageValueFloat := float64(tableMetadata.CountLiveRows) / float64(tableMetadata.CountTotalRows) * 100
-		PercentageValueInt64 := int64(PercentageValueFloat)
-		incrementValue := (PercentageValueInt64) - bar.Current()
-		bar.IncrInt64(incrementValue)
-
-		buf = nil //making it eligible for GC
 	}
 
+	/*
+		Below extra step to count rows because there may be still a possibility that some rows left uncounted before EOF
+		1. if previous loop breaks because of fileName changes and before counting all rows.
+		2. Based on - even after file rename the file access with reader stays and can count remaining lines in the file
+		(Mainly for Oracle, MySQL)
+	*/
+
+	// if !bar.Completed() && utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
+	// 	tableDataFile, err := os.Open(tableMetadata.FinalFilePath)
+	// 	if err != nil {
+	// 		fmt.Println(err)
+	// 		quitChan <- true
+	// 		runtime.Goexit()
+	// 	}
+	// 	reader = bufio.NewReader(tableDataFile)
+	// 	count := int64(0)
+	// 	for {
+	// 		line, readLineErr := reader.ReadString('\n')
+	// 		if readLineErr == io.EOF {
+	// 			// fmt.Fprintf(debugFile, "LAST counting rows for tname=%s, len(line)=%d, line='%s', liverow count=%d\n", tableName, len(line), line, tableMetadata.CountLiveRows)
+	// 			break
+	// 		} else if readLineErr != nil { //error other than EOF
+	// 			panic(readLineErr)
+	// 		}
+	// 		// fmt.Fprintf(errFile, "LINE=%s, tname=%s, count=%d\n", line, name, count)
+	// 		if isDataLine(line) {
+	// 			count++
+	// 		}
+	// 	}
+	// 	tableMetadata.CountLiveRows = count //updating with new and final count
+
+	// 	// fmt.Fprintf(debugFile, "PB is not complete, completing the remaining bar.\nFinal %s, lastLine:'%s', RowCount:%d\n", tableName, prevLine, count)
+	// 	bar.IncrBy(100)
+	// }
+
+	for {
+		line, readLineErr := reader.ReadString('\n')
+		if readLineErr == io.EOF {
+			// fmt.Fprintf(debugFile, "LAST counting rows for tname=%s, len(line)=%d, line='%s', liverow count=%d\n", tableName, len(line), line, tableMetadata.CountLiveRows)
+			break
+		} else if readLineErr != nil { //error other than EOF
+			panic(readLineErr)
+		}
+		// fmt.Fprintf(errFile, "LINE=%s, tname=%s, count=%d\n", line, name, count)
+		if isDataLine(line) {
+			tableMetadata.CountLiveRows += 1
+		}
+	}
+	if !bar.Completed() {
+		bar.IncrBy(100) //completing remaining progress bar to continue the execution
+	}
+
+	// fmt.Fprintf(debugFile, "startExportPB() complete for %s\n", tableName)
 	tableMetadata.Status = 2 //before return
+}
+
+func checkForEndOfFile(source *utils.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {
+	if source.DBType == "postgresql" {
+		if strings.HasPrefix(line, "\\.") {
+			// fmt.Fprintf(debugFile, "checkForEOF done for table:%s line:%s, tablefile: %s\n", tableMetadata.TableName, line, tableMetadata.FinalFilePath)
+			return true
+		}
+	} else if source.DBType == "oracle" || source.DBType == "mysql" {
+		if !utils.FileOrFolderExists(tableMetadata.InProgressFilePath) && utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
+			// fmt.Fprintf(debugFile, "checkForEOF done for table:%s line:%s, tablefile: %s\n", tableMetadata.TableName, line, tableMetadata.FinalFilePath)
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

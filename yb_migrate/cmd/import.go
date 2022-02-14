@@ -41,6 +41,19 @@ to quickly create a Cobra application.`,
 		if target.Port == "" {
 			target.Port = YUGABYTEDB_DEFAULT_PORT
 		}
+
+		// if URI is not given then these flags are required, otherwise just use URI
+		if target.Uri == "" {
+			cmd.MarkPersistentFlagRequired("target-db-user")
+			// TODO: All sensitive parameters should be taken from the environment variable
+			cmd.MarkPersistentFlagRequired("target-db-password")
+			cmd.MarkPersistentFlagRequired("target-db-name")
+		} else {
+			//TODO: else we can have a check for the uri pattern
+
+			target.ParseURI()
+		}
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -63,16 +76,12 @@ func init() {
 
 	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",
 		"Username with which to connect to the target YugabyteDB server")
-	importCmd.MarkPersistentFlagRequired("target-db-user")
 
 	importCmd.PersistentFlags().StringVar(&target.Password, "target-db-password", "",
 		"Password with which to connect to the target YugabyteDB server")
-	// TODO: All sensitive parameters should be taken from the environment variable
-	importCmd.MarkPersistentFlagRequired("target-db-password")
 
 	importCmd.PersistentFlags().StringVar(&target.DBName, "target-db-name", "",
 		"Name of the database on the target YugabyteDB server on which import needs to be done")
-	importCmd.MarkPersistentFlagRequired("target-db-name")
 
 	importCmd.PersistentFlags().StringVar(&target.Uri, "target-db-uri", "",
 		"Complete connection uri to the target YugabyteDB server")
@@ -103,6 +112,17 @@ func init() {
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
 
 	importCmd.PersistentFlags().BoolVar(&target.ImportIndexesAfterData, "--import-indexes-after-data", true,
-		`false, if want to import indexes before data
-		 true, if want to create index after data(index backfill)`)
+		"false - import indexes before data\n"+
+			"true - create index after data i.e. index backfill")
+
+	importCmd.PersistentFlags().BoolVar(&target.VerboseMode, "verbose", false,
+		"verbose mode for some extra details during execution of command")
+
+	importCmd.PersistentFlags().BoolVar(&target.ContinueOnError, "continue-on-error", true,
+		"false - stop the execution in case of errors\n"+
+			"true - to ignore errors and continue")
+
+	importCmd.PersistentFlags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
+		"true - to ignore errors if object already exists\n"+
+			"false - throw those errors to the standard output (default false)")
 }

@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"bufio"
 	"context"
 	_ "embed"
 	"fmt"
@@ -10,32 +11,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 	"yb_migrate/src/utils"
 )
-
-//[ALTERNATE WAY] Use select banner from v$version; from oracle database to get version
-func PrintOracleSourceDBVersion(source *utils.Source) {
-	sourceDSN := getSourceDSN(source)
-
-	testDBVersionCommandString := fmt.Sprintf("ora2pg -t SHOW_VERSION --source \"%s\" --user %s --password %s",
-		sourceDSN, source.User, source.Password)
-
-	testDBVersionCommand := exec.Command("/bin/bash", "-c", testDBVersionCommandString)
-
-	// fmt.Printf("[Debug]: Test oracle version command: %s\n", testDBVersionCommandString)
-
-	dbVersionBytes, err := testDBVersionCommand.CombinedOutput()
-
-	utils.CheckError(err, testDBVersionCommand.String(), string(dbVersionBytes), true)
-
-	output := strings.Split(string(dbVersionBytes), "\n")
-	for _, s := range output {
-		if strings.Contains(s, "Release") {
-			utils.PrintIfTrue(fmt.Sprintf("SourceDB Version: %s\n", s), !source.GenerateReportMode)
-		}
-	}
-
-}
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 	var schemaDirPath string
@@ -52,11 +30,20 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
 	for _, exportObject := range exportObjectList {
-		utils.PrintIfTrue(fmt.Sprintf("starting export of %ss...\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
+		time.Sleep(time.Second * 2)
+		if exportObject == "INDEX" {
+			continue // INDEX are exported along with TABLE in ora2pg
+		}
+		// utils.PrintIfTrue(fmt.Sprintf("starting export of %ss...\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
+		if source.GenerateReportMode {
+			fmt.Printf("scanning %10s %5s", exportObject, "")
+		} else {
+			fmt.Printf("exporting %10s %5s", exportObject, "")
+		}
+		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
-		exportObjectFileName := strings.ToLower(exportObject) + ".sql"
-		exportObjectDirName := strings.ToLower(exportObject) + "s"
-		exportObjectDirPath := schemaDirPath + "/" + exportObjectDirName
+		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
+		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
@@ -68,19 +55,52 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 		}
 
-		if !source.GenerateReportMode {
-			exportSchemaObjectCommand.Stdout = os.Stdout
-			exportSchemaObjectCommand.Stderr = os.Stderr
-		}
+		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
+		stderr, _ := exportSchemaObjectCommand.StderrPipe()
+
+		go func() { //command output scanner goroutine
+			outScanner := bufio.NewScanner(stdout)
+			for outScanner.Scan() {
+				line := strings.ToLower(outScanner.Text())
+				if strings.Contains(line, "error") {
+					utils.WaitChannel <- 1 //stop waiting with exit code 1
+					time.Sleep(time.Second * 2)
+					fmt.Printf("ERROR: %s\n", line)
+					runtime.Goexit()
+				}
+			}
+		}()
+
+		go func() { //command error scanner goroutine
+			errScanner := bufio.NewScanner(stderr)
+			for errScanner.Scan() {
+				line := strings.ToLower(errScanner.Text())
+				if strings.Contains(line, "error") {
+					utils.WaitChannel <- 1 //stop waiting with exit code 1
+					time.Sleep(time.Second * 2)
+					fmt.Printf("ERROR: %s\n", line)
+					runtime.Goexit()
+				}
+			}
+		}()
 
 		// fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
-		err := exportSchemaObjectCommand.Run()
+		err := exportSchemaObjectCommand.Start()
+		if err != nil {
+			fmt.Println(err.Error())
+			exportSchemaObjectCommand.Process.Kill()
+			continue
+		}
 
-		//TODO: Maybe we can suggest some smart HINT for the error happenend here
-		utils.CheckError(err, exportSchemaObjectCommand.String(),
-			"Exporting of "+exportObject+" didn't happen, Retry exporting the schema", false)
-
-		utils.PrintIfTrue(fmt.Sprintf("export of %ss complete\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
+		err = exportSchemaObjectCommand.Wait()
+		if err != nil {
+			fmt.Println(err.Error())
+			exportSchemaObjectCommand.Process.Kill()
+			continue
+		} else {
+			utils.WaitChannel <- 0 //stop waiting with exit code 0
+			// utils.PrintIfTrue(fmt.Sprintf("export of %ss complete\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
+		}
 	}
 }
 
@@ -142,12 +162,6 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.So
 func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
-	utils.CheckToolsRequiredInstalledOrNot(source)
-
-	utils.CheckSourceDbAccessibility(source)
-
-	utils.CreateMigrationProjectIfNotExists(source, exportDir)
-
 	projectDirPath := exportDir
 
 	//TODO: Decide where to keep this
@@ -184,8 +198,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	fmt.Println("starting ora2pg for data export...")
 	if err != nil {
 		fmt.Println(err)
-		quitChan <- true
-		runtime.Goexit()
+		os.Exit(1)
 	}
 
 	exportDataStart <- true
@@ -193,10 +206,8 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	err = exportDataCommand.Wait()
 	if err != nil {
 		fmt.Println(err)
-		quitChan <- true
-		runtime.Goexit()
+		os.Exit(1)
 	}
-
 }
 
 func getSourceDSN(source *utils.Source) string {

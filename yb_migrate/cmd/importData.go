@@ -17,11 +17,9 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -77,14 +75,8 @@ var importDataCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// exportTool := getExportTool()
-		// fmt.Printf("tool = %d\n", exportTool)
 		importData()
 	},
-}
-
-func getExportTool() ExportTool {
-	return Ora2Pg
 }
 
 func getYBServers() []*utils.Target {
@@ -254,6 +246,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 
 	if startClean { //start data migraiton from beginning
 		fmt.Println("cleaning the database and project directory")
+		fmt.Println("Truncating all tables in the schema")
 		truncateTables(allTables)
 
 		utils.CleanDir(exportDir + "/metainfo/data")
@@ -319,24 +312,23 @@ func checkPrimaryKey(tableName string) bool {
 }
 
 func truncateTables(tables []string) {
-	fmt.Println("Truncating all the tables in the schema")
-
-	url := getTargetConnectionUri(&target)
-	conn, err := pgx.Connect(context.Background(), url)
+	connectionURI := target.GetConnectionUri()
+	conn, err := pgx.Connect(context.Background(), connectionURI)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
 		os.Exit(1)
 	}
 	defer conn.Close(context.Background())
 
-	for _, tab := range tables {
-		// log.Infof("Truncating table %s\n", tab)
-		truncateStmnt := fmt.Sprintf("truncate table %s", tab)
-		rows, err := conn.Query(context.Background(), truncateStmnt)
-		if err != nil {
-			log.Fatal(err)
+	for _, table := range tables {
+		if target.VerboseMode {
+			fmt.Printf("Truncating table %s...\n", table)
 		}
-		rows.Close()
+		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
+		_, err := conn.Exec(context.Background(), truncateStmt)
+		if err != nil {
+			log.Fatal(err, ", table name = ", table)
+		}
 	}
 }
 
@@ -527,16 +519,18 @@ func executePostImportDataSqls() {
 		Add Indexes, if required
 	*/
 	sequenceFilePath := exportDir + "/data/postdata.sql"
-	indexesFilePath := exportDir + "/schema/table/INDEXES_table.sql"
+	indexesFilePath := exportDir + "/schema/tables/INDEXES_table.sql"
 
-	fmt.Println("setting resume value for sequences...")
 	if utils.FileOrFolderExists(sequenceFilePath) {
-		executeSqlFile(sequenceFilePath, &target)
+		fmt.Printf("setting resume value for sequences %10s", "")
+		go utils.Wait("done\n", "")
+		executeSqlFile(sequenceFilePath)
 	}
 
-	fmt.Println("creating indexes...")
-	if utils.FileOrFolderExists(sequenceFilePath) && target.ImportIndexesAfterData {
-		executeSqlFile(indexesFilePath, &target)
+	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
+		fmt.Printf("creating indexes %10s", "")
+		go utils.Wait("done\n", "")
+		executeSqlFile(indexesFilePath)
 	}
 
 }
@@ -666,38 +660,30 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				panic(err)
 			}
-			// Prepare a file with session commands followed by the COPY command
-			sqlFile := getSqlFilePath(t)
-			fp, err := os.Create(sqlFile)
+
+			conn, err := pgx.Connect(context.Background(), targetServer.GetConnectionUri())
 			if err != nil {
-				panic(fp)
+				panic(err)
 			}
-			defer os.Remove(sqlFile)
-			bufferedWriter := bufio.NewWriter(fp)
+			defer conn.Close(context.Background())
+
 			for _, statement := range IMPORT_SESSION_SETTERS {
-				_, err = bufferedWriter.WriteString(statement)
-				if err != nil {
-					panic(err)
-				}
-				err = bufferedWriter.WriteByte(NEWLINE)
+				_, err := conn.Exec(context.Background(), statement)
 				if err != nil {
 					panic(err)
 				}
 			}
 
-			copyCommand := fmt.Sprintf("\\copy %s from '%s';", t.TableName, getInProgressFilePath(t))
-			_, err = bufferedWriter.WriteString(copyCommand)
+			reader, err := os.Open(getInProgressFilePath(t))
 			if err != nil {
 				panic(err)
 			}
-			err = bufferedWriter.Flush()
+			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
+
+			_, err = conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 			if err != nil {
-				panic(err)
-			}
-			// fmt.Printf("Processing sqlfile: %s\n", filepath.Base(sqlFile))
-			errStr := executeSqlFile(sqlFile, targetServer)
-			if len(errStr) > 0 {
-				panic(errStr)
+				fmt.Println(err)
+				os.Exit(1)
 			}
 
 			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
@@ -718,46 +704,39 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 	}
 }
 
-func executeSqlFile(file string, server *utils.Target) string {
-	// fmt.Printf("Executing Sql file %s on server: %s\n", filepath.Base(file), server.Host)
-	connectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		server.User, server.Password, server.Host, server.Port, server.DBName)
-	// cmd := exec.Command(YSQL, connectionURI, "-b", "-f", file)
-	cmd := exec.Command(YSQL, connectionURI, "-f", file)
+func executeSqlFile(file string) {
+	connectionURI := target.GetConnectionUri()
+	conn, err := pgx.Connect(context.Background(), connectionURI)
+	if err != nil {
+		utils.WaitChannel <- 1
+		panic(err)
+	}
+	defer conn.Close(context.Background())
 
-	var errorBuffer bytes.Buffer
-
-	cmd.Stderr = &errorBuffer
-
-	//TODO: move to constants.go
-	retryOnErrors := []string{"pgsql error 40001"}
-	ignoreOnErrors := []string{"duplicate key value violates unique constraint"}
-
-	//TODO: Error handling for cases when we need to abort the command
-
-	retryFlag, totalRetryCount := true, 5
-	for retryFlag && totalRetryCount > 0 {
-		cmd.Run()
-
-		errorString := errorBuffer.String()
-
-		for _, str := range ignoreOnErrors {
-			if strings.Contains(errorString, str) {
-				retryFlag = false
-				return ""
+	var errOccured = 0
+	sqlStrArray := createSqlStrArray(file, "")
+	for _, sqlStr := range sqlStrArray {
+		// fmt.Printf("Execute STATEMENT: %s\n", sqlStr[1])
+		_, err := conn.Exec(context.Background(), sqlStr[0])
+		if err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				if !target.IgnoreIfExists {
+					fmt.Printf("\b \n    %s\n", err.Error())
+					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+				}
+			} else {
+				errOccured = 1
+				fmt.Printf("\b \n    %s\n", err.Error())
+				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 			}
-		}
-
-		for _, str := range retryOnErrors {
-			if strings.Contains(errorString, str) {
+			if !target.ContinueOnError { //non-default case
 				break
 			}
 		}
-
-		totalRetryCount--
 	}
 
-	return errorBuffer.String()
+	utils.WaitChannel <- errOccured
+
 }
 
 func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
@@ -776,16 +755,7 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 	return fmt.Sprintf("%s/%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3])
 }
 
-func getSqlFilePath(task *fwk.SplitFileImportTask) string {
-	path := task.SplitFilePath
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-	parts := strings.Split(base, ".")
-	return fmt.Sprintf("%s/%s.%s.%s.%s.sql", dir, parts[0], parts[1], parts[2], parts[3])
-}
-
 func incrementImportedRowCount(tableName string) {
-	//TODO: some optimization can be done here
 	tablesProgressMetadata[tableName].CountLiveRows += int64(numLinesInASplit)
 }
 

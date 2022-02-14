@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -32,46 +33,34 @@ import (
 
 var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
-//report.json format
-type Report struct {
-	Summary Summary `json:"summary"`
-	Issues  []Issue `json:"issues"`
-}
+func Wait(args ...string) {
+	// fmt.Print("\033[?25l") // Hide the cursor
+	var successMsg, failureMsg string
+	if len(args) > 0 {
+		successMsg = args[0]
+	}
+	if len(args) > 1 {
+		failureMsg = args[1]
+	}
 
-type Summary struct {
-	DBName     string     `json:"dbName"`
-	SchemaName string     `json:"schemaName"`
-	DBObjects  []DBObject `json:"databaseObjects"`
-}
-
-type DBObject struct {
-	ObjectType   string `json:"objectType"`
-	TotalCount   int    `json:"totalCount"`
-	InvalidCount int    `json:"invalidCount"`
-	ObjectNames  string `json:"objectNames"`
-	Details      string `json:"details"`
-}
-
-type Issue struct {
-	ObjectType string `json:"objectType"`
-	Reason     string `json:"reason"`
-	FilePath   string `json:"filePath"`
-	GH         string `json:"GH"`
-}
-
-func Wait(c chan int) {
-	fmt.Print("\033[?25l") // Hide the cursor
 	chars := [4]byte{'|', '/', '-', '\\'}
 	var i = 0
-	for true {
+	for {
 		i++
 		select {
-		case <-c:
-			fmt.Println("\r")
-			fmt.Print("\033[?25h") // enable the cursor
+		case channelCode := <-WaitChannel:
+			// fmt.Println("\r")
+			fmt.Print("\b ")
+			if channelCode == 0 {
+				fmt.Printf("%s", successMsg)
+			} else if channelCode == 1 {
+				fmt.Printf("%s", failureMsg)
+			}
+			// fmt.Println("Done \u2705")
+			// defer fmt.Print("\033[?25h") // enable the cursor
 			return
 		default:
-			fmt.Print("\b" + string(chars[i%4]))
+			fmt.Printf("\b" + string(chars[i%4]))
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -106,47 +95,6 @@ func checkSourceEndpointsReachability(host string, port string) {
 		os.Exit(1)
 	}
 
-}
-
-func CheckSourceDbAccessibility(source *Source) {
-	//sanity check - network connectivity to source endpoints(host, port)
-	checkSourceEndpointsReachability(source.Host, source.Port)
-
-	//Now check for DB accessibility
-	var checkConnectivityCommand string
-
-	if source.DBType == "oracle" {
-		checkConnectivityCommand = fmt.Sprintf("sqlcl '%s/%s@(DESCRIPTION=(ADDRESS="+
-			"(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))'", source.User,
-			source.Password, source.Host, source.Port, source.DBName)
-		//PROTOCOL=TCPS if SSL is enabled
-
-	} else if source.DBType == "postgresql" {
-		//URI syntax - "postgresql://user:password@host:port/dbname?sslmode=mode"
-		checkConnectivityCommand = fmt.Sprintf("psql postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-			source.User, source.Password, source.Host, source.Port, source.DBName, source.SSLMode)
-
-	} else if source.DBType == "mysql" {
-		/*
-			TODO:
-				if mysql client version >= 8.0
-					use flag: ssl-mode=VERIFY_CA
-				else
-					use flag: ssl-verify-server-cert
-		*/
-		checkConnectivityCommand = fmt.Sprintf("mysql --user=%s --password=%s --host=%s --port=%s "+
-			"--database=%s --ssl-mode=%s --ssl-cert=%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName, source.SSLMode, source.SSLCertPath)
-
-	}
-
-	_, err := exec.Command("/bin/bash", "-c", checkConnectivityCommand).Output()
-
-	// fmt.Printf("[Debug] checkConnectivityCommand: %s\n", checkConnectivityCommand)
-	// fmt.Printf("[Debug] command output: %s\n", cmdOutput)
-	CheckError(err, checkConnectivityCommand, "Unable to connect to the source database", true)
-
-	PrintIfTrue("Source DB is accessible!!\n", !source.GenerateReportMode)
 }
 
 //Called before export schema command
@@ -193,6 +141,9 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range schemaObjectList {
+		if schemaObjectType == "INDEX" { //no separate dir for indexes
+			continue
+		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
 		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
@@ -202,6 +153,9 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	// creating subdirs under temp/schema dir
 	if source.GenerateReportMode {
 		for _, schemaObjectType := range schemaObjectList {
+			if schemaObjectType == "INDEX" { //no separate dir for indexes
+				continue
+			}
 			databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
 			err := exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
@@ -262,7 +216,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 
 	switch source.DBType {
 	case "oracle":
-		toolsRequired = []string{"ora2pg", "sqlcl"}
+		toolsRequired = []string{"ora2pg", "sqlplus"}
 	case "postgresql":
 		toolsRequired = []string{"pg_dump", "strings", "psql"}
 	case "mysql":
@@ -276,12 +230,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
 
 	for _, tool := range toolsRequired {
-		var versionFlag string
-		if tool == "sqlcl" {
-			versionFlag = "-V"
-		} else {
-			versionFlag = "--version"
-		}
+		versionFlag := "--version"
 
 		checkToolPresenceCommand := exec.Command(tool, versionFlag)
 		err := checkToolPresenceCommand.Run()
@@ -295,7 +244,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 		}
 	}
 
-	PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
+	// PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
 }
 
 func ProjectSubdirsExists(exportDir string) bool {
@@ -355,7 +304,7 @@ func PrintIfTrue(message string, args ...bool) {
 			return
 		}
 	}
-	fmt.Printf("%s\n", message)
+	fmt.Printf("%s", message)
 }
 
 func ParseJsonFromString(jsonString string) Report {
@@ -368,19 +317,19 @@ func ParseJsonFromString(jsonString string) Report {
 	return report
 }
 
-func GetObjectNameListFromReport(jsonString string, objType string) []string {
+func GetObjectNameListFromReport(report Report, objType string) []string {
 	var tableList []string
-	report := ParseJsonFromString(jsonString)
-
+	// fmt.Printf("Report: %v\n", report)
 	for _, dbObject := range report.Summary.DBObjects {
 		if dbObject.ObjectType == objType {
 			rawTableList := dbObject.ObjectNames
-
+			// fmt.Println("RawTableList: ", rawTableList)
 			tableList = strings.Split(rawTableList, ", ")
 			break
 		}
 	}
 
+	sort.Strings(tableList)
 	return tableList
 }
 
@@ -394,4 +343,29 @@ func PrettifyJsonString(jsonStr string) string {
 		panic(err)
 	}
 	return prettyJSON.String()
+}
+
+func GetObjectDirPath(schemaDirPath string, objType string) string {
+	var requiredPath string
+	if objType == "INDEX" {
+		requiredPath = schemaDirPath + "/tables"
+	} else {
+		requiredPath = schemaDirPath + "/" + strings.ToLower(objType) + "s"
+	}
+	return requiredPath
+}
+
+func GetObjectFilePath(schemaDirPath string, objType string) string {
+	var requiredPath string
+	if objType == "INDEX" {
+		requiredPath = schemaDirPath + "/tables/INDEXES_table.sql"
+	} else {
+		requiredPath = schemaDirPath + "/" + strings.ToLower(objType) + "s/" +
+			strings.ToLower(objType) + ".sql"
+	}
+	return requiredPath
+}
+
+func GetObjectFileName(schemaDirPath string, objType string) string {
+	return filepath.Base(GetObjectFilePath(schemaDirPath, objType))
 }

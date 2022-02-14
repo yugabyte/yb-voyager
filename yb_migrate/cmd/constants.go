@@ -24,4 +24,4 @@ var IMPORT_SESSION_SETTERS = []string{"" +
 	"SET session_replication_role TO replica;",     //disable triggers or fkeys constraint checks
 }
 
-var allowedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
+var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
