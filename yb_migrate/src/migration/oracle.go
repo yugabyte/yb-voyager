@@ -143,6 +143,12 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.So
 		panic(err)
 	}
 
+	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
+	for i := 0; i < len(tableList); i++ {
+		parts := strings.Split(tableList[i], ".")
+		tableList[i] = parts[len(parts)-1] // tableList[i] = 'xyz.abc' then take only 'abc'
+	}
+
 	lines := strings.Split(string(basicConfigFile), "\n")
 
 	for i, line := range lines {

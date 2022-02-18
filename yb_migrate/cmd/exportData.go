@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 	"yb_migrate/src/migration"
@@ -52,12 +53,22 @@ to quickly create a Cobra application.`,
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+
 }
 
 func exportData() {
-	//remove flag before start & clean existing data/tables
-	os.Remove(exportDir + "/metainfo/flags/exportDataDone")
-	utils.CleanDir(exportDir + "/data")
+	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
+	exportDataDirPath := exportDir + "/data"
+	if startClean {
+		//remove flag before start & clean existing data/tables
+		os.Remove(exportDoneFlagPath)
+		utils.CleanDir(exportDataDirPath)
+	} else {
+		if utils.FileOrFolderExists(exportDoneFlagPath) || !utils.IsDirectoryEmpty(exportDataDirPath) {
+			fmt.Println("export already done or table data files already exists, use --start-clean flag to clean data and start again")
+			os.Exit(0)
+		}
+	}
 
 	var success bool
 	if migrationMode == "offline" {
@@ -85,9 +96,17 @@ func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
-	tableList := utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
-	fmt.Printf("Num tables to export: %d\n", len(tableList))
-	fmt.Printf("table list for data export: %v\n", tableList)
+	var tableList []string
+	if source.TableList != "" {
+		tableList = strings.Split(source.TableList, ",")
+		if source.VerboseMode {
+			fmt.Printf("table list flag values: %v\n", tableList)
+		}
+	} else {
+		tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
+		fmt.Printf("Num tables to export: %d\n", len(tableList))
+		fmt.Printf("table list for data export: %v\n", tableList)
+	}
 	if len(tableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		os.Exit(0)
@@ -165,10 +184,10 @@ func initializeExportTableMetadataSlice(exportDir string, tableList []string) []
 		tableInfo := strings.Split(tableList[i], ".")
 		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
 			tablesMetadata[i].TableSchema = tableInfo[0]
-			tablesMetadata[i].TableName = tableInfo[1]
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
 		} else { //oracle,mysql
 			tablesMetadata[i].TableSchema = source.Schema
-			tablesMetadata[i].TableName = tableInfo[0]
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
 		}
 
 		//Initializing all the members of struct
@@ -181,4 +200,17 @@ func initializeExportTableMetadataSlice(exportDir string, tableList []string) []
 	}
 
 	return tablesMetadata
+}
+
+func checkTableListFlag() {
+	tableList := strings.Split(source.TableList, ",")
+	//TODO: update regexp once table name with double quotes are allowed/supported
+	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
+
+	for _, table := range tableList {
+		if !tableNameRegex.MatchString(table) {
+			fmt.Printf("invalid table name '%s' with --table-list flag\n", table)
+			os.Exit(1)
+		}
+	}
 }

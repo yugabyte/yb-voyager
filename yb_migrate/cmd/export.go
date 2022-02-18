@@ -52,6 +52,10 @@ var exportCmd = &cobra.Command{
 			//check and parse the source
 			source.ParseURI()
 		}
+
+		if source.TableList != "" {
+			checkTableListFlag()
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -122,6 +126,11 @@ func init() {
 			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
 		`)
 
+	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
+		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
+
+	exportCmd.PersistentFlags().StringVar(&source.TableList, "table-list", "",
+		"list of the tables to export data(Note: works only for export data command)")
 }
 
 func checkSourceDBType() {

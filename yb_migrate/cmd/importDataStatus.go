@@ -49,7 +49,7 @@ func importDataStatus() {
 	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
 
 	for Done.IsNotSet() {
-		for _, table := range allTables {
+		for _, table := range importTables {
 
 			if tablesProgressMetadata[table].Status == 0 && tablesProgressMetadata[table].CountLiveRows >= 0 {
 				tablesProgressMetadata[table].Status = 1

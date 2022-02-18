@@ -230,6 +230,7 @@ func roundRobinTargets(targets []*utils.Target, channel chan *utils.Target) {
 	}
 }
 
+//TODO: implement
 func acquireImportLock() {
 }
 
@@ -237,27 +238,48 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
 	//TODO: print in verbose mode
-	// fmt.Printf("doneTables: %s\n", doneTables)
 	// fmt.Printf("interruptedTables: %s\n", interruptedTables)
 	// fmt.Printf("remainingTables: %s\n", remainingTables)
 
-	importTables = append(interruptedTables, remainingTables...)
-	allTables = append(importTables, doneTables...)
+	if target.TableList == "" { //no table-list is given by user
+		importTables = append(interruptedTables, remainingTables...)
+		allTables = append(importTables, doneTables...)
+	} else {
+		allTables = strings.Split(target.TableList, ",")
+
+		//filter allTables to remove tables in case not present in --table-list flag
+		for _, table := range allTables {
+			//TODO: 'table' can be schema_name.table_name, so split and proceed
+			notDone := true
+			for _, t := range doneTables {
+				if t == table {
+					notDone = false
+					break
+				}
+			}
+
+			if notDone {
+				importTables = append(importTables, table)
+			}
+		}
+		if target.VerboseMode {
+			fmt.Printf("given table-list: %v\n", target.TableList)
+		}
+	}
 
 	if startClean { //start data migraiton from beginning
 		fmt.Println("cleaning the database and project directory")
-		fmt.Println("Truncating all tables in the schema")
+		fmt.Printf("Truncating tables: %v\n", allTables)
 		truncateTables(allTables)
-
 		utils.CleanDir(exportDir + "/metainfo/data")
 
 		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
-		fmt.Println("looking for tables with no PKEYS")
+		fmt.Println("looking for tables without a Primary Key...")
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
-				fmt.Printf("truncating table '%s' with NO Primary Key to restart from beginning...\n", tableName)
+				fmt.Printf("truncating table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
 				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + "*")
 				truncateTables([]string{tableName})
 			}
@@ -270,16 +292,17 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		fmt.Printf("tables left to import: %v\n", importTables)
 	}
 
+	fmt.Printf("list of tables already imported: %s\n", doneTables)
 	if len(importTables) == 0 {
-		fmt.Printf("All the tables are already imported\n")
+		fmt.Printf("All the tables are already imported, nothing left to import\n")
 		Done.Set()
 		return
 	} else {
-		fmt.Printf("Preparing the tables for import...\n")
+		fmt.Printf("Preparing to import the tables: %v\n", importTables)
 	}
 
 	//Preparing the tablesProgressMetadata array
-	initializeImportDataStatus(exportDir, allTables)
+	initializeImportDataStatus(exportDir, importTables)
 	// fmt.Printf("TablesProgresMetadata after initializing: %v\n", tablesProgressMetadata)
 
 	go splitDataFiles(importTables, taskQueue)
@@ -335,7 +358,16 @@ func truncateTables(tables []string) {
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 
 	for _, t := range importTables {
-		origDataFile := exportDir + "/data/" + t + "_data.sql"
+		var tableNameUsed string
+		parts := strings.Split(t, ".")
+		if ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
+			//TODO: what if two different schemas have same tables
+			tableNameUsed = strings.ToLower(parts[len(parts)-1])
+		} else {
+			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
+		}
+
+		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
 		// collect interrupted splits
 		// make an import task and schedule them
 
@@ -576,7 +608,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	for _, v := range datafiles {
 		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
 		for _, match := range tablenameMatches {
-			tables = append(tables, match[1])
+			tables = append(tables, strings.ToLower(match[1])) //ora2pg data files named like TABLE_data.sql
 		}
 	}
 
@@ -585,18 +617,25 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	var remainingTables []string
 	for _, t := range tables {
 
-		donePattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
+		donePattern := fmt.Sprintf("%s/%s.0.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
+		doneMatches, _ := filepath.Glob(donePattern)
+
+		// fmt.Printf("Looking for donePattern: %s\n", donePattern)
+		// fmt.Printf("doneMatches: %+v\n", doneMatches)
+
+		if len(doneMatches) > 0 {
+			doneTables = append(doneTables, t)
+			continue
+		}
+
 		interruptedPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.P", metaInfoDataDir, t)
 		createdPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.C", metaInfoDataDir, t)
 
-		doneMatches, _ := filepath.Glob(donePattern)
 		interruptedMatches, _ := filepath.Glob(interruptedPattern)
 		createdMatches, _ := filepath.Glob(createdPattern)
 
 		//Issue/TestCase: If rate of ingestion is faster than splitting
-		if len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
-			doneTables = append(doneTables, t)
-		} else if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
+		if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
 			(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
 			remainingTables = append(remainingTables, t)
 		} else {
@@ -680,10 +719,12 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
 
-			_, err = conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+				if !strings.Contains(err.Error(), "violates unique constraint") {
+					fmt.Println(err)
+					os.Exit(1)
+				}
 			}
 
 			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
@@ -694,7 +735,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
 			// update the import data status
-			incrementImportedRowCount(t.TableName)
+			incrementImportedRowCount(t.TableName, res.RowsAffected())
 			// fmt.Printf("Inserted a batch of %d or less in table %s\n", numLinesInASplit, t.TableName)
 			splitImportDone = true
 		default:
@@ -755,8 +796,8 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 	return fmt.Sprintf("%s/%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3])
 }
 
-func incrementImportedRowCount(tableName string) {
-	tablesProgressMetadata[tableName].CountLiveRows += int64(numLinesInASplit)
+func incrementImportedRowCount(tableName string, rowsCopied int64) {
+	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
 }
 
 func init() {
@@ -764,5 +805,4 @@ func init() {
 
 	importDataCmd.PersistentFlags().StringVar(&importMode, "offline", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
-
 }
