@@ -182,8 +182,15 @@ func getDriverConnStr(source *utils.Source) string {
 	var connStr string
 	switch source.DBType {
 	case "oracle":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
-			source.User, source.Password, source.Host, source.Port, source.DBName)
+		if source.DBSid != "" {
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
+				source.User, source.Password, source.Host, source.Port, source.DBSid)
+		} else if source.TNSAlias != ""{
+			connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
+		} else if source.DBName != ""{
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+				source.User, source.Password, source.Host, source.Port, source.DBName)
+		}
 	case "mysql":
 		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
 			source.Host, source.Port, source.DBName)

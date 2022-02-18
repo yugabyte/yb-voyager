@@ -14,12 +14,16 @@ type Source struct {
 	User               string
 	Password           string
 	DBName             string
+	DBSid              string
+	OracleHome         string
+	TNSAlias           string
 	Schema             string
 	SSLMode            string
 	SSLCertPath        string
 	SSLKey             string
 	SSLRootCert        string
 	SSLCRL             string
+	SSLQueryString     string
 	Uri                string
 	NumConnections     int
 	GenerateReportMode bool
@@ -71,8 +75,22 @@ func (s *Source) ParseURI() {
 	switch s.DBType {
 	case "oracle":
 		//TODO: figure out correct uri format for oracle and implement
-		oracleUriRegexp := regexp.MustCompile(`oracle://User=([a-zA-Z0-9_.-]+);Password=([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
-		if uriParts := oracleUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
+		oracleUriRegexpTNS := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpSID := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+):([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpServiceName := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
+		if uriParts := oracleUriRegexpTNS.FindStringSubmatch(s.Uri); uriParts != nil {
+			s.User = uriParts[1]
+			s.Password = uriParts[2]
+			s.TNSAlias = uriParts[3]
+			s.Schema = s.User
+		} else if uriParts := oracleUriRegexpSID.FindStringSubmatch(s.Uri); uriParts != nil {
+			s.User = uriParts[1]
+			s.Password = uriParts[2]
+			s.Host = uriParts[3]
+			s.Port = uriParts[4]
+			s.DBSid = uriParts[5]
+			s.Schema = s.User
+		} else if uriParts := oracleUriRegexpServiceName.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
@@ -96,13 +114,14 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "postgresql":
-		postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
+		postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
 		if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[2]
 			s.Password = uriParts[3]
 			s.Host = uriParts[4]
 			s.Port = uriParts[5]
 			s.DBName = uriParts[6]
+			s.SSLQueryString = uriParts[7]
 		} else {
 			fmt.Printf("invalid connection uri for source db uri\n")
 			os.Exit(1)
@@ -126,7 +145,7 @@ func (t *Target) ParseURI() {
 
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
-		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
+		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=prefer",
 			t.User, t.Password, t.Host, t.Port, t.DBName)
 	}
 	//TODO: else do a regex match for the correct Uri pattern of user input

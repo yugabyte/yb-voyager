@@ -603,8 +603,8 @@ func generateHTMLReport(Report utils.Report) string {
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr></table>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
+	htmlstring += "<tr><th>DB Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
