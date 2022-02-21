@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -214,6 +215,29 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	// move to ALTER SEQUENCE commands to postdata.sql file
+	extractAlterSequenceStatements(exportDir)
+}
+
+func extractAlterSequenceStatements(exportDir string) {
+	alterSequenceRegex := regexp.MustCompile(`(?)ALTER SEQUENCE`)
+	filePath := exportDir + "/data/data.sql"
+	var requiredLines strings.Builder
+
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+
+	lines := strings.Split(string(bytes), "\n")
+	for _, line := range lines {
+		if alterSequenceRegex.MatchString(line) {
+			requiredLines.WriteString(line + "\n")
+		}
+	}
+
+	ioutil.WriteFile(exportDir+"/data/postdata.sql", []byte(requiredLines.String()), 0644)
 }
 
 func getSourceDSN(source *utils.Source) string {
