@@ -237,7 +237,7 @@ func acquireImportLock() {
 func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
-	//TODO: print in verbose mode
+	// for debugging
 	// fmt.Printf("interruptedTables: %s\n", interruptedTables)
 	// fmt.Printf("remainingTables: %s\n", remainingTables)
 
@@ -269,7 +269,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 
 	if startClean { //start data migraiton from beginning
 		fmt.Println("cleaning the database and project directory")
-		fmt.Printf("Truncating tables: %v\n", allTables)
+		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
 		utils.CleanDir(exportDir + "/metainfo/data")
 
@@ -279,20 +279,26 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		fmt.Println("looking for tables without a Primary Key...")
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
-				fmt.Printf("truncating table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
-				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + "*")
+				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
+				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.") //correct and complete pattern to avoid matching cases with other table names
 				truncateTables([]string{tableName})
 			}
 		}
 
 	}
 
-	if source.VerboseMode {
+	if target.VerboseMode {
 		fmt.Printf("all the tables to be imported: %v\n", allTables)
+	}
+
+	if !startClean {
+		fmt.Printf("skipping already imported tables: %s\n", doneTables)
+	}
+
+	if target.VerboseMode {
 		fmt.Printf("tables left to import: %v\n", importTables)
 	}
 
-	fmt.Printf("list of tables already imported: %s\n", doneTables)
 	if len(importTables) == 0 {
 		fmt.Printf("All the tables are already imported, nothing left to import\n")
 		Done.Set()
@@ -371,55 +377,59 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 		// collect interrupted splits
 		// make an import task and schedule them
 
-		largestCreatedSplitSoFar := 0
-		largestOffsetSoFar := 0
+		largestCreatedSplitSoFar := int64(0)
+		largestOffsetSoFar := int64(0)
 		fileFullySplit := false
 		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDir, t)
 		matches, _ := filepath.Glob(pattern)
 		// in progress are interrupted ones
-		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.\\d+\\.[P]$", t)
+		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
 		interruptedRegexp := regexp.MustCompile(interruptedRegexStr)
 		for _, filename := range matches {
 			// fmt.Printf("Matched file name = %s\n", filename)
 			submatches := interruptedRegexp.FindAllStringSubmatch(filename, -1)
 			for _, match := range submatches {
 				// This means a match. Submit the task with interrupted = true
-				splitNum, _ := strconv.Atoi(match[1])
-				offset, _ := strconv.Atoi(match[2])
+				// fmt.Printf("filename: %s, %v\n", filename, match)
+				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
+				offsetStart, _ := strconv.ParseInt(match[2], 10, 64)
+				numLines, _ := strconv.ParseInt(match[3], 10, 64)
+				offsetEnd := offsetStart + numLines - 1
 				if splitNum == LAST_SPLIT_NUM {
 					fileFullySplit = true
 				}
 				if splitNum > largestCreatedSplitSoFar {
 					largestCreatedSplitSoFar = splitNum
 				}
-				if offset > largestOffsetSoFar {
-					largestOffsetSoFar = offset
+				if offsetEnd > largestOffsetSoFar {
+					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filename, splitNum, true, taskQueue)
+				addASplitTask("", t, filename, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 		// collect files which were generated but processing did not start
 		// schedule import task for them
-		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.\\d+\\.[C]$", t)
+		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
 		createdButNotStartedRegex := regexp.MustCompile(createdButNotStartedRegexStr)
 		// fmt.Printf("created but not started regex = %s\n", createdButNotStartedRegex.String())
 		for _, filename := range matches {
 			submatches := createdButNotStartedRegex.FindAllStringSubmatch(filename, -1)
 			for _, match := range submatches {
 				// This means a match. Submit the task with interrupted = true
-				splitNum, _ := strconv.Atoi(match[1])
-				offset, _ := strconv.Atoi(match[2])
-				if splitNum > largestCreatedSplitSoFar {
-					largestCreatedSplitSoFar = splitNum
-				}
-				if offset > largestOffsetSoFar {
-					largestOffsetSoFar = offset
-				}
+				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
+				offsetStart, _ := strconv.ParseInt(match[2], 10, 64)
+				numLines, _ := strconv.ParseInt(match[3], 10, 64)
+				offsetEnd := offsetStart + numLines - 1
 				if splitNum == LAST_SPLIT_NUM {
 					fileFullySplit = true
 				}
-				// for interrupted files offsets are already determined
-				addASplitTask("", t, filename, splitNum, false, taskQueue)
+				if splitNum > largestCreatedSplitSoFar {
+					largestCreatedSplitSoFar = splitNum
+				}
+				if offsetEnd > largestOffsetSoFar {
+					largestOffsetSoFar = offsetEnd
+				}
+				addASplitTask("", t, filename, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 		if !fileFullySplit {
@@ -429,7 +439,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 	GenerateSplitsDone.Set()
 }
 
-func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFileImportTask, largestSplit int, largestOffset int) {
+func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFileImportTask, largestSplit int64, largestOffset int64) {
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
@@ -450,7 +460,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 
 	// skip till largest offset
 	// fmt.Printf("Skipping %d lines from %s\n", largestOffset, dataFile)
-	for i := 0; i < largestOffset; i++ {
+	for i := int64(0); i < largestOffset; i++ {
 		utils.Readline(r)
 	}
 	// Create a buffered writer from the file
@@ -506,7 +516,11 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				log.Printf("Cannot rename %s to %s\n", currTmpFileName, splitFile)
 				return
 			}
-			addASplitTask("", t, splitFile, splitNum, false, taskQueue)
+
+			offsetStart := largestOffset
+			offsetEnd := offsetStart + int64(numLinesInThisSplit) - 1
+			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
+
 			if fileSplitNumber != 0 {
 				splitNum += 1
 				numLinesInThisSplit = 0
@@ -534,13 +548,15 @@ func isDataLine(line string) bool {
 	return true
 }
 
-func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int, interrupted bool,
+func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
 	taskQueue chan *fwk.SplitFileImportTask) {
 	var t fwk.SplitFileImportTask
 	t.SchemaName = schemaName
 	t.TableName = tableName
 	t.SplitFilePath = filepath
 	t.SplitNumber = splitNumber
+	t.OffsetStart = offsetStart
+	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
 	taskQueue <- &t
 }
@@ -617,25 +633,18 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	var remainingTables []string
 	for _, t := range tables {
 
-		donePattern := fmt.Sprintf("%s/%s.0.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
-		doneMatches, _ := filepath.Glob(donePattern)
-
-		// fmt.Printf("Looking for donePattern: %s\n", donePattern)
-		// fmt.Printf("doneMatches: %+v\n", doneMatches)
-
-		if len(doneMatches) > 0 {
-			doneTables = append(doneTables, t)
-			continue
-		}
-
+		donePattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
 		interruptedPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.P", metaInfoDataDir, t)
 		createdPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.C", metaInfoDataDir, t)
 
+		doneMatches, _ := filepath.Glob(donePattern)
 		interruptedMatches, _ := filepath.Glob(interruptedPattern)
 		createdMatches, _ := filepath.Glob(createdPattern)
 
-		//Issue/TestCase: If rate of ingestion is faster than splitting
-		if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
+		//[Important] This function's return result is based on assumption that the rate of ingestion is slower than splitting
+		if len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
+			doneTables = append(doneTables, t)
+		} else if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
 			(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
 			remainingTables = append(remainingTables, t)
 		} else {
@@ -720,10 +729,13 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
 
 			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+			rowsCount := res.RowsAffected()
 			if err != nil {
 				if !strings.Contains(err.Error(), "violates unique constraint") {
 					fmt.Println(err)
 					os.Exit(1)
+				} else { //in case of unique key violation error take row count from the split task
+					rowsCount = t.OffsetEnd - t.OffsetStart + 1
 				}
 			}
 
@@ -735,7 +747,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
 			// update the import data status
-			incrementImportedRowCount(t.TableName, res.RowsAffected())
+			incrementImportedRowCount(t.TableName, rowsCount)
 			// fmt.Printf("Inserted a batch of %d or less in table %s\n", numLinesInASplit, t.TableName)
 			splitImportDone = true
 		default:

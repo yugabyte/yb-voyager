@@ -155,7 +155,6 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 	importedRowCounts := make(map[string]int64)
 
 	for _, table := range tables {
-		//[CPD] because there might be some garbage pattern.sql file created for execution
 		pattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[D]", metaInfoDataDir, table)
 		matches, _ := filepath.Glob(pattern)
 		importedRowCounts[table] = 0
@@ -166,9 +165,6 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 		for _, filePath := range matches {
 			fileName := filepath.Base(filePath)
 			submatches := tableDoneSplitsRegexp.FindStringSubmatch(fileName)
-			// if table == "film_actor" {
-			// 	fmt.Printf("submatches len = %d\n", len(submatches))
-			// }
 
 			if len(submatches) > 0 {
 				cnt, _ := strconv.ParseInt(submatches[3], 10, 64)
@@ -180,7 +176,7 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 		if importedRowCounts[table] == 0 { //if it zero, then its import not started yet
 			importedRowCounts[table] = -1
 		}
-		// fmt.Printf("Previous count %s = %d\n", table, importedRowCount[table])
+		// fmt.Printf("Previous count %s = %d\n", table, importedRowCounts[table])
 	}
 
 	return importedRowCounts
