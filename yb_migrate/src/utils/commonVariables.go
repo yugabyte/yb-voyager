@@ -28,6 +28,7 @@ type Source struct {
 	NumConnections     int
 	GenerateReportMode bool
 	VerboseMode        bool
+	TableList          string
 }
 
 type Target struct {
@@ -48,6 +49,7 @@ type Target struct {
 	YsqlshPath             string
 	IgnoreIfExists         bool
 	VerboseMode            bool
+	TableList              string
 }
 
 type Format interface {

@@ -118,7 +118,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 	var rowCount int64 = -1
-	dbConnStr := getDriverConnStr(source)
+	dbConnStr := GetDriverConnStr(source)
 	query := fmt.Sprintf("select count(*) from %s", tableName)
 
 	//just querying each source type using corresponding drivers
@@ -178,7 +178,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 	return rowCount
 }
 
-func getDriverConnStr(source *utils.Source) string {
+func GetDriverConnStr(source *utils.Source) string {
 	var connStr string
 	switch source.DBType {
 	case "oracle":
@@ -202,7 +202,7 @@ func getDriverConnStr(source *utils.Source) string {
 }
 
 func PrintSourceDBVersion(source *utils.Source) string {
-	dbConnStr := getDriverConnStr(source)
+	dbConnStr := GetDriverConnStr(source)
 	version := SelectVersionQuery(source.DBType, dbConnStr)
 
 	if !source.GenerateReportMode {
@@ -310,7 +310,7 @@ func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgres
 }
 
 func CheckSourceDBAccessibility(source *utils.Source) {
-	dbConnStr := getDriverConnStr(source)
+	dbConnStr := GetDriverConnStr(source)
 
 	switch source.DBType {
 	case "oracle":

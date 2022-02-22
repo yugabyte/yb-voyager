@@ -22,6 +22,6 @@ type SplitFileImportTask struct {
 	OffsetStart         int64
 	OffsetEnd           int64
 	TmpConnectionString string
-	SplitNumber         int
+	SplitNumber         int64
 	Interrupted         bool
 }

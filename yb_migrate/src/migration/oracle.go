@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
@@ -146,6 +147,12 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.So
 		panic(err)
 	}
 
+	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
+	for i := 0; i < len(tableList); i++ {
+		parts := strings.Split(tableList[i], ".")
+		tableList[i] = parts[len(parts)-1] // tableList[i] = 'xyz.abc' then take only 'abc'
+	}
+
 	lines := strings.Split(string(basicConfigFile), "\n")
 
 	for i, line := range lines {
@@ -211,6 +218,29 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 		fmt.Println(err)
 		os.Exit(1)
 	}
+
+	// move to ALTER SEQUENCE commands to postdata.sql file
+	extractAlterSequenceStatements(exportDir)
+}
+
+func extractAlterSequenceStatements(exportDir string) {
+	alterSequenceRegex := regexp.MustCompile(`(?)ALTER SEQUENCE`)
+	filePath := exportDir + "/data/data.sql"
+	var requiredLines strings.Builder
+
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+
+	lines := strings.Split(string(bytes), "\n")
+	for _, line := range lines {
+		if alterSequenceRegex.MatchString(line) {
+			requiredLines.WriteString(line + "\n")
+		}
+	}
+
+	ioutil.WriteFile(exportDir+"/data/postdata.sql", []byte(requiredLines.String()), 0644)
 }
 
 func getSourceDSN(source *utils.Source) string {

@@ -62,6 +62,9 @@ to quickly create a Cobra application.`,
 			target.ParseURI()
 		}
 
+		if source.TableList != "" {
+			checkTableListFlag()
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -128,7 +131,7 @@ func init() {
 	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
 
-	importCmd.PersistentFlags().BoolVar(&target.ImportIndexesAfterData, "--import-indexes-after-data", true,
+	importCmd.PersistentFlags().BoolVar(&target.ImportIndexesAfterData, "import-indexes-after-data", true,
 		"false - import indexes before data\n"+
 			"true - create index after data i.e. index backfill")
 
@@ -142,4 +145,7 @@ func init() {
 	importCmd.PersistentFlags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
+
+	importCmd.PersistentFlags().StringVar(&target.TableList, "table-list", "",
+		"list of the tables to import data(Note: works only for import data command)")
 }

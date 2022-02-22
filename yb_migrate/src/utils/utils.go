@@ -256,6 +256,11 @@ func ProjectSubdirsExists(exportDir string) bool {
 	return false
 }
 
+func IsDirectoryEmpty(pathPattern string) bool {
+	files, _ := filepath.Glob(pathPattern + "/*")
+	return len(files) == 0
+}
+
 func FileOrFolderExists(path string) bool {
 	_, err := os.Stat(path)
 	if err != nil {

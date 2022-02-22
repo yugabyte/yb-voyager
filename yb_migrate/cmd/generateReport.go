@@ -157,7 +157,7 @@ func reportSummary() {
 
 	reportStruct.Summary.DBName = source.DBName
 	reportStruct.Summary.SchemaName = source.Schema
-	reportStruct.Summary.DBVersion = migration.PrintSourceDBVersion(&source)
+	reportStruct.Summary.DBVersion = migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
 
 	// requiredJson += `"databaseObjects": [`
 	for _, objType := range sourceObjList {
