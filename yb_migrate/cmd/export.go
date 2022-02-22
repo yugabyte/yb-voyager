@@ -49,10 +49,10 @@ var exportCmd = &cobra.Command{
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
 				if source.DBName != "" {
-					cmd.MarkPersistentFlagRequired("source-db-host")
+					//cmd.MarkPersistentFlagRequired("source-db-host")
 					cmd.MarkPersistentFlagRequired("source-db-port")
 				} else if source.DBSid != "" {
-					cmd.MarkPersistentFlagRequired("source-db-host")
+					//cmd.MarkPersistentFlagRequired("source-db-host")
 					cmd.MarkPersistentFlagRequired("source-db-port")
 				} else {
 					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
@@ -98,7 +98,7 @@ func init() {
 		"source database name to be migrated to YugabyteDB")
 
 	exportCmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
-		"[For Oracle Only] DB_Sid that you wish to use while exporting data from Oracle instances")
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
 
 	exportCmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
 		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
@@ -140,7 +140,7 @@ func init() {
 					oracle://user/password@//host:port/service_name	OR
 					oracle://user/password@TNS_alias
 			2. MySQL:	mysql://user:password@host:port/database
-			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
+			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)(&sslcrl=crl_path)
 		`)
 
 }
@@ -177,17 +177,18 @@ func setSourceDefaultPort() {
 }
 
 func checkOrSetDefaultSSLMode() {
-	if source.SSLMode != "" {
-		//TODO: check if given mode is supported/allowed
-		return
-	}
 
 	switch source.DBType {
-	case ORACLE:
-		//TODO: findout and add default mode
 	case MYSQL:
 		source.SSLMode = "DISABLED"
 	case POSTGRESQL:
-		source.SSLMode = "prefer"
+		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+			return
+		} else if source.SSLMode == "" {
+			source.SSLMode = "prefer"
+		} else {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
+			os.Exit(1)
+		}
 	}
 }

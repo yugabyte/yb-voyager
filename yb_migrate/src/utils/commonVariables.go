@@ -38,6 +38,10 @@ type Target struct {
 	DBName                 string
 	SSLMode                string
 	SSLCertPath            string
+	SSLKey                 string
+	SSLRootCert            string
+	SSLCRL                 string
+	SSLQueryString         string
 	Uri                    string
 	ImportIndexesAfterData bool
 	ContinueOnError        bool
@@ -114,6 +118,7 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "postgresql":
+		fmt.Printf(s.Uri)
 		postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
 		if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[2]
@@ -130,13 +135,14 @@ func (s *Source) ParseURI() {
 }
 
 func (t *Target) ParseURI() {
-	yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
+	yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9&/_.-]+)`)
 	if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
 		t.User = uriParts[2]
 		t.Password = uriParts[3]
 		t.Host = uriParts[4]
 		t.Port = uriParts[5]
 		t.DBName = uriParts[6]
+		t.SSLQueryString = uriParts[7]
 	} else {
 		fmt.Printf("invalid connection uri for source db uri\n")
 		os.Exit(1)
@@ -145,12 +151,42 @@ func (t *Target) ParseURI() {
 
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
-		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=prefer",
-			t.User, t.Password, t.Host, t.Port, t.DBName)
+		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+			t.User, t.Password, t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
 	}
 	//TODO: else do a regex match for the correct Uri pattern of user input
 
 	return t.Uri
+}
+
+func generateSSLQueryStringIfNotExists(t *Target) string {
+	SSLQueryString := ""
+	if t.SSLQueryString == "" {
+
+		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+			SSLQueryString = "sslmode=" + t.SSLMode
+			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+				SSLQueryString = fmt.Sprintf("sslmode=%s", t.SSLMode)
+				if t.SSLCertPath != "" {
+					SSLQueryString += "&sslcert=" + t.SSLCertPath
+				}
+				if t.SSLKey != "" {
+					SSLQueryString += "&sslkey=" + t.SSLKey
+				}
+				if t.SSLRootCert != "" {
+					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
+				}
+				if t.SSLCRL != "" {
+					SSLQueryString += "&sslcrl=" + t.SSLCRL
+				}
+			}
+		} else {
+			fmt.Println("Invalid sslmode entered")
+		}
+	} else {
+		SSLQueryString = t.SSLQueryString
+	}
+	return SSLQueryString
 }
 
 //the list elements order is same as the import objects order

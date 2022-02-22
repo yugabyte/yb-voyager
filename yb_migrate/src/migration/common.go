@@ -185,9 +185,9 @@ func getDriverConnStr(source *utils.Source) string {
 		if source.DBSid != "" {
 			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
 				source.User, source.Password, source.Host, source.Port, source.DBSid)
-		} else if source.TNSAlias != ""{
+		} else if source.TNSAlias != "" {
 			connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
-		} else if source.DBName != ""{
+		} else if source.DBName != "" {
 			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))",
 				source.User, source.Password, source.Host, source.Port, source.DBName)
 		}
@@ -195,8 +195,8 @@ func getDriverConnStr(source *utils.Source) string {
 		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
 			source.Host, source.Port, source.DBName)
 	case "postgresql":
-		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName, source.SSLMode)
+		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,
+			source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
 	}
 	return connStr
 }

@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+	"os"
 	"yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -40,6 +42,12 @@ to quickly create a Cobra application.`,
 		// fmt.Println("Parent Import PersistentPreRun")
 		if target.Port == "" {
 			target.Port = YUGABYTEDB_DEFAULT_PORT
+		}
+		if target.SSLMode == "" {
+			target.SSLMode = "prefer"
+		} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
+			os.Exit(1)
 		}
 
 		// if URI is not given then these flags are required, otherwise just use URI
@@ -97,8 +105,17 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.SSLCertPath, "target-ssl-cert", "",
 		"provide target SSL Certificate Path")
 
-	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "disable",
+	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "prefer",
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLKey, "target-ssl-key", "",
+		"provide SSL Key Path")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLRootCert, "target-ssl-root-cert", "",
+		"provide SSL Root Certificate Path")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLCRL, "target-ssl-crl", "",
+		"provide SSL Root Certificate Revocation List (CRL)")
 
 	importCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")

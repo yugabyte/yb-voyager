@@ -24,8 +24,8 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 
 	projectDirPath := exportDir
 
-	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, target.DBName)
+	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+		target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
 
 	//this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)

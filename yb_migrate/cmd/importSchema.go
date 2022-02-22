@@ -57,8 +57,8 @@ func importSchema() {
 		targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 		target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
 	*/
-	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", target.User,
-		target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, target.SSLMode)
+	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+		target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(&target))
 
 	//TODO: Explore if DROP DATABASE vs DROP command for all objects
 	dropDatabaseQuery := "DROP DATABASE " + target.DBName + ";"
@@ -120,4 +120,34 @@ func importSchema() {
 	}
 
 	YugabyteDBImportSchema(&target, exportDir)
+}
+
+func generateSSLQueryStringIfNotExists(t *utils.Target) string {
+	SSLQueryString := ""
+	if t.SSLQueryString == "" {
+
+		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+			SSLQueryString = "sslmode=" + t.SSLMode
+			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+				SSLQueryString = fmt.Sprintf("sslmode=%s", t.SSLMode)
+				if t.SSLCertPath != "" {
+					SSLQueryString += "&sslcert=" + t.SSLCertPath
+				}
+				if t.SSLKey != "" {
+					SSLQueryString += "&sslkey=" + t.SSLKey
+				}
+				if t.SSLRootCert != "" {
+					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
+				}
+				if t.SSLCRL != "" {
+					SSLQueryString += "&sslcrl=" + t.SSLCRL
+				}
+			}
+		} else {
+			fmt.Println("Invalid sslmode entered")
+		}
+	} else {
+		SSLQueryString = t.SSLQueryString
+	}
+	return SSLQueryString
 }

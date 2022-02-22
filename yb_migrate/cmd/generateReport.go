@@ -831,7 +831,7 @@ func init() {
 		`)
 
 	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
-		"allowed report formats: html | txt | json")
+		"allowed report formats: html | txt | json | xml")
 
 }
 
