@@ -12,8 +12,8 @@ import (
 )
 
 func PrintTargetYugabyteDBVersion(target *utils.Target) {
-	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE)
+	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+		target.User, target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(target))
 
 	version := migration.SelectVersionQuery("yugabytedb", targetConnectionURI)
 	fmt.Printf("YugabyteDB Version: %s\n", version)

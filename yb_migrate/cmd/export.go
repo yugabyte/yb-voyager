@@ -49,11 +49,11 @@ var exportCmd = &cobra.Command{
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
 				if source.DBName != "" {
-					//cmd.MarkPersistentFlagRequired("source-db-host")
-					cmd.MarkPersistentFlagRequired("source-db-port")
+					cmd.MarkPersistentFlagRequired("source-db-host")
+					//cmd.MarkPersistentFlagRequired("source-db-port")
 				} else if source.DBSid != "" {
-					//cmd.MarkPersistentFlagRequired("source-db-host")
-					cmd.MarkPersistentFlagRequired("source-db-port")
+					cmd.MarkPersistentFlagRequired("source-db-host")
+					//cmd.MarkPersistentFlagRequired("source-db-port")
 				} else {
 					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
 				}
@@ -85,7 +85,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 
-	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
+	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "",
 		"source database server host")
 
 	exportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
