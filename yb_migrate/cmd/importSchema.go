@@ -21,7 +21,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/cobra"

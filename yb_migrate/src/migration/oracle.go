@@ -13,7 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {

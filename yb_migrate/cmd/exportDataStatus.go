@@ -24,7 +24,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"

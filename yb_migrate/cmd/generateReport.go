@@ -19,8 +19,9 @@ import (
 	"encoding/xml"
 	"fmt"
 	"strconv"
-	"yb_migrate/src/migration"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"os"
 	"regexp"
@@ -421,7 +422,7 @@ func checker(sqlStmtArray [][]string, fpath string) {
 
 func getMapKeys(receivedMap map[string]bool) string {
 	keyString := ""
-	for key, _ := range receivedMap {
+	for key := range receivedMap {
 		keyString += key + ", "
 	}
 

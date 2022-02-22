@@ -9,7 +9,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
