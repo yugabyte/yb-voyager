@@ -19,7 +19,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

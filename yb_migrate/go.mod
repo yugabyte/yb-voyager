@@ -1,4 +1,4 @@
-module yb_migrate
+module github.com/yugabyte/ybm/yb_migrate
 
 go 1.16
 

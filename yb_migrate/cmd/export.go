@@ -18,7 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )

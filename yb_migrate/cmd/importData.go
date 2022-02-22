@@ -27,8 +27,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"yb_migrate/src/fwk"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/fwk"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
