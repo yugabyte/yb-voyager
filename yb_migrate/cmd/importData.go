@@ -277,7 +277,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
-		fmt.Println("looking for tables without a Primary Key...")
+		utils.PrintIfTrue("looking for tables without a Primary Key...", target.VerboseMode)
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
 				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)

@@ -125,7 +125,11 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
 		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
-			lines[i] = "SCHEMA	" + source.Schema
+			if source.Schema != "" { // in oracle USER and SCHEMA are essentially the same thing
+				lines[i] = "SCHEMA	" + source.Schema
+			} else if source.User != "" {
+				lines[i] = "SCHEMA	" + source.User
+			}
 		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		} else if strings.HasPrefix(line, "PG_VERSION") {

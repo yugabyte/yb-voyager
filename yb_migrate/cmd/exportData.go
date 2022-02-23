@@ -58,6 +58,7 @@ func init() {
 }
 
 func exportData() {
+	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
 	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
 	exportDataDirPath := exportDir + "/data"
 	if startClean {

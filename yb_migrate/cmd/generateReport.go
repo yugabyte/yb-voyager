@@ -140,15 +140,15 @@ func reportAddingPrimaryKey(fpath string, tbl string, line string) {
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
 	if comment == 1 {
-		reportCase(fpath, "Unsupported, please edit to match PostgreSQL syntax", issue, suggestion, objType, "", line)
+		reportCase(fpath, "Unsupported, please edit to match PostgreSQL syntax", issue, suggestion, objType, objName, line)
+		summaryMap[objType].invalidCount++
 	} else if comment == 2 {
 		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType)
 		summaryMap["PACKAGE"].objSet[objName] = true
 	} else if comment == 3 {
-		reportCase(fpath, "SQLs in file might be unsupported please review and edit to match PostgreSQL syntax if required. ", issue, suggestion, objType, "", line)
+		reportCase(fpath, "SQLs in file might be unsupported please review and edit to match PostgreSQL syntax if required. ", issue, suggestion, objType, objName, line)
 	} else if comment == 4 {
-		summaryMap[objType].invalidCount += 1
-		summaryMap[objType].details["Inherited Types are present which are not supported in PostgreSQL syntax. "] = true
+		summaryMap[objType].details["Inherited Types are present which are not supported in PostgreSQL syntax, so exported as Inherited Tables"] = true
 	}
 
 }
@@ -402,8 +402,9 @@ func checkForeign(sqlStmtArray [][]string, fpath string) {
 func checkRemaining(sqlStmtArray [][]string, fpath string) {
 	for _, line := range sqlStmtArray {
 		if trig := compoundTrigRegex.FindStringSubmatch(line[0]); trig != nil {
-			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB and PostgreSQL yet.",
+			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
 				"", "", "TRIGGER", trig[2], line[1])
+			summaryMap["TRIGGER"].invalidCount++
 		}
 	}
 
@@ -440,7 +441,6 @@ func invalidSqlComment(line string) int {
 	if cmt := unsupportedCommentRegex1.FindStringSubmatch(line); cmt != nil {
 		return 1
 	} else if cmt := packageSupportCommentRegex.FindStringSubmatch(line); cmt != nil {
-		summaryMap["PACKAGE"].totalCount++
 		return 2
 	} else if cmt := unsupportedCommentRegex2.FindStringSubmatch(line); cmt != nil {
 		return 3
@@ -487,7 +487,7 @@ func processCollectedSql(fpath string, singleLine *string, singleString *string,
 		}
 	}
 
-	if *reportNextSql > 0 {
+	if *reportNextSql > 0 && (summaryMap != nil && summaryMap[objType] != nil) {
 		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, *singleString)
 		*reportNextSql = 0 //reset flag
 	}
@@ -604,8 +604,8 @@ func generateHTMLReport(Report utils.Report) string {
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr></table>"
-	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
+	htmlstring += "<tr><th>" + strings.ToUpper(source.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -619,11 +619,23 @@ func generateHTMLReport(Report utils.Report) string {
 	//Issues/Error messages
 	htmlstring += "<ul list-style-type='disc'>"
 	for i := 0; i < len(Report.Issues); i++ {
-		htmlstring += "<li>Error in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
-		htmlstring += "<li>Object Name: " + Report.Issues[i].ObjectName + "</li>"
-		htmlstring += "<li>Reason: " + Report.Issues[i].Reason + "</li>"
-		htmlstring += "<li>SQL Statement: " + Report.Issues[i].SqlStatement + "</li>"
-		htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "<a href='" + Report.Issues[i].FilePath + "'> [Preview]</a></li>"
+		if Report.Issues[i].ObjectType != "" {
+			htmlstring += "<li>Issue in Object " + Report.Issues[i].ObjectType + ":</li><ul>"
+		} else {
+			htmlstring += "<li>Issue " + Report.Issues[i].ObjectType + ":</li><ul>"
+		}
+		if Report.Issues[i].ObjectName != "" {
+			htmlstring += "<li>Object Name: " + Report.Issues[i].ObjectName + "</li>"
+		}
+		if Report.Issues[i].Reason != "" {
+			htmlstring += "<li>Reason: " + Report.Issues[i].Reason + "</li>"
+		}
+		if Report.Issues[i].SqlStatement != "" {
+			htmlstring += "<li>SQL Statement: " + Report.Issues[i].SqlStatement + "</li>"
+		}
+		if Report.Issues[i].FilePath != "" {
+			htmlstring += "<li>File Path: " + Report.Issues[i].FilePath + "<a href='" + Report.Issues[i].FilePath + "'> [Preview]</a></li>"
+		}
 		if Report.Issues[i].Suggestion != "" {
 			htmlstring += "<li>Suggestion: " + Report.Issues[i].Suggestion + "</li>"
 		}
@@ -754,7 +766,7 @@ func generateReport() {
 	defer file.Close()
 
 	file.WriteString(finalReport)
-	utils.PrintIfTrue(finalReport+"\n", source.GenerateReportMode) //don't print in case of export command
+	utils.PrintIfTrue(finalReport+"\n", source.GenerateReportMode, source.VerboseMode)
 	fmt.Printf("-- please find migration report at: %s\n", reportPath)
 }
 

@@ -45,24 +45,36 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 }
 
 func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
-	fmt.Println("calculating num of rows for each table...")
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
-	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
-	for i := 0; i < len(tablesMetadata); i++ {
-		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
-		tableName := tablesMetadata[i].TableName
-		fmt.Printf("| %30s ", tableName)
-
+	fmt.Println("calculating num of rows to export for each table...")
+	if !source.VerboseMode {
 		go utils.Wait()
+	}
+
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("| %30s | %30s |\n", "Table", "Row Count"), source.VerboseMode)
+	for i := 0; i < len(tablesMetadata); i++ {
+		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
+		tableName := tablesMetadata[i].TableName
+		utils.PrintIfTrue(fmt.Sprintf("| %30s ", tableName), source.VerboseMode)
+
+		if source.VerboseMode {
+			go utils.Wait()
+		}
 
 		rowCount := SelectCountStarFromTable(tableName, source)
 
-		utils.WaitChannel <- 0
+		if source.VerboseMode {
+			utils.WaitChannel <- 0
+		}
 
 		tablesMetadata[i].CountTotalRows = rowCount
-		fmt.Printf("| %30d |\n", rowCount)
+		utils.PrintIfTrue(fmt.Sprintf("| %30d |\n", rowCount), source.VerboseMode)
 	}
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
+	if !source.VerboseMode {
+		utils.WaitChannel <- 0
+	}
+
 	// fmt.Println("After updating total row count")
 	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
 }
@@ -289,7 +301,7 @@ func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgres
 		panic(err)
 	}
 	defer file.Close()
-	fmt.Println("actual exported num of rows for each table")
+	fmt.Println("exported num of rows for each table")
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
 	for _, tableMetadata := range *tablesMetadata {
