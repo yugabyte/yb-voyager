@@ -120,7 +120,7 @@ func init() {
 		"provide Source SSL Certificate Path")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"provide SSL Key Path")
@@ -143,7 +143,7 @@ func init() {
 			1. Oracle:	oracle://user/password@//host:port:SID	OR
 					oracle://user/password@//host:port/service_name	OR
 					oracle://user/password@TNS_alias
-			2. MySQL:	mysql://user:password@host:port/database
+			2. MySQL:	mysql://user:password@host:port/database?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)
 			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)(&sslcrl=crl_path)
 		`)
 
@@ -189,7 +189,14 @@ func checkOrSetDefaultSSLMode() {
 
 	switch source.DBType {
 	case MYSQL:
-		source.SSLMode = "DISABLED"
+		if source.SSLMode == "disable" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+			return
+		} else if source.SSLMode == "" {
+			source.SSLMode = "prefer"
+		} else {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full")
+			os.Exit(1)
+		}
 	case POSTGRESQL:
 		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
 			return

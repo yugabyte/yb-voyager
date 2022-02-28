@@ -108,13 +108,14 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "mysql":
-		mysqlUriRegexp := regexp.MustCompile(`mysql://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
+		mysqlUriRegexp := regexp.MustCompile(`mysql://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
 		if uriParts := mysqlUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
 			s.Port = uriParts[4]
 			s.DBName = uriParts[5]
+			s.SSLQueryString = uriParts[6]
 		} else {
 			fmt.Printf("invalid connection uri for source db uri\n")
 			os.Exit(1)

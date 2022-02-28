@@ -257,8 +257,10 @@ func getSourceDSN(source *utils.Source) string {
 			sourceDSN = "dbi:Oracle:" + source.TNSAlias //this option is ideal for ssl connectivity, provide in documentation if needed
 		}
 	} else if source.DBType == "mysql" {
+		parseSSLString(source)
 		sourceDSN = "dbi:mysql:" + "host=" + source.Host + ";database=" +
 			source.DBName + ";port=" + source.Port
+		sourceDSN = extrapolateDSNfromSSLParams(source, sourceDSN)
 	} else {
 		fmt.Println("Invalid Source DB Type!!")
 		os.Exit(1)
