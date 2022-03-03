@@ -120,7 +120,7 @@ func init() {
 		"provide Source SSL Certificate Path")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
+		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"provide SSL Key Path")

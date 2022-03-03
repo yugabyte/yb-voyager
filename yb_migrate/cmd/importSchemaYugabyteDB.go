@@ -12,8 +12,7 @@ import (
 )
 
 func PrintTargetYugabyteDBVersion(target *utils.Target) {
-	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
-		target.User, target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(target))
+	targetConnectionURI := target.GetConnectionUri()
 
 	version := migration.SelectVersionQuery("yugabytedb", targetConnectionURI)
 	fmt.Printf("YugabyteDB Version: %s\n", version)
@@ -24,8 +23,13 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 
 	projectDirPath := exportDir
 
-	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
-		target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
+	targetConnectionURI := ""
+	if target.Uri == "" {
+		targetConnectionURI = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+			target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
+	} else {
+		targetConnectionURI = target.Uri
+	}
 
 	//this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)

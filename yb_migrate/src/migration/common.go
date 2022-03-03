@@ -192,11 +192,19 @@ func GetDriverConnStr(source *utils.Source) string {
 				source.User, source.Password, source.Host, source.Port, source.DBName)
 		}
 	case "mysql":
-		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName)
+		if source.Uri == "" {
+			connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
+				source.Host, source.Port, source.DBName)
+		} else {
+			connStr = source.Uri
+		}
 	case "postgresql":
-		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+		if source.Uri == "" {
+			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,
+				source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+		} else {
+			connStr = source.Uri
+		}
 	}
 	return connStr
 }

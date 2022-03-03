@@ -57,8 +57,7 @@ func importSchema() {
 		targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
 		target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
 	*/
-	targetConnectionURIWithDefaultDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
-		target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(&target))
+	targetConnectionURIWithDefaultDB := generateDefaultTargetDBUri(&target)
 
 	//TODO: Explore if DROP DATABASE vs DROP command for all objects
 	dropDatabaseQuery := "DROP DATABASE " + target.DBName + ";"
@@ -150,4 +149,38 @@ func generateSSLQueryStringIfNotExists(t *utils.Target) string {
 		SSLQueryString = t.SSLQueryString
 	}
 	return SSLQueryString
+}
+
+func generateDefaultTargetDBUri(t *utils.Target) string {
+	var defaultDBUri string
+	if t.Uri != "" {
+		if strings.Count(t.Uri, "/") > 2 {
+			//if there is a non-default dbname
+			skimindex := strings.Index(t.Uri, "//") + 2
+			startindex := strings.Index(t.Uri[skimindex:], "/") + skimindex + 1
+
+			if strings.Count(t.Uri, "?") > 0 {
+				//if there are additional params (ssl related, etc)
+				endindex := strings.Index(t.Uri, "?")
+				defaultDBUri = t.Uri[:startindex] + YUGABYTEDB_DEFAULT_DATABASE + t.Uri[endindex:]
+			} else {
+				//if there are no additional arguments
+				defaultDBUri = t.Uri[:startindex] + YUGABYTEDB_DEFAULT_DATABASE
+			}
+		} else {
+			//if there is an implicit default dbname
+			if strings.Count(t.Uri, "?") > 0 {
+				//if there are additional params (ssl related, etc)
+				endindex := strings.Index(t.Uri, "?")
+				defaultDBUri = t.Uri[:endindex] + "/" + YUGABYTEDB_DEFAULT_DATABASE + t.Uri[endindex:]
+			} else {
+				//if there are additional arguments
+				defaultDBUri = t.Uri + "/" + YUGABYTEDB_DEFAULT_DATABASE
+			}
+		}
+	} else {
+		defaultDBUri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+			target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(&target))
+	}
+	return defaultDBUri
 }

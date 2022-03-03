@@ -81,9 +81,9 @@ func (s *Source) ParseURI() {
 	switch s.DBType {
 	case "oracle":
 		//TODO: figure out correct uri format for oracle and implement
-		oracleUriRegexpTNS := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@([a-zA-Z0-9_.-]+)`)
-		oracleUriRegexpSID := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+):([a-zA-Z0-9_.-]+)`)
-		oracleUriRegexpServiceName := regexp.MustCompile(`oracle://([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpTNS := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpSID := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+):([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpServiceName := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
 		if uriParts := oracleUriRegexpTNS.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
@@ -121,35 +121,36 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "postgresql":
-		fmt.Printf(s.Uri)
-		postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
-		if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
-			s.User = uriParts[2]
-			s.Password = uriParts[3]
-			s.Host = uriParts[4]
-			s.Port = uriParts[5]
-			s.DBName = uriParts[6]
-			s.SSLQueryString = uriParts[7]
-		} else {
-			fmt.Printf("invalid connection uri for source db uri\n")
-			os.Exit(1)
-		}
+		//Commenting this block of code for now, may be needed for later
+		// postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
+		// if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
+		// 	s.User = uriParts[2]
+		// 	s.Password = uriParts[3]
+		// 	s.Host = uriParts[4]
+		// 	s.Port = uriParts[5]
+		// 	s.DBName = uriParts[6]
+		// 	s.SSLQueryString = uriParts[7]
+		// } else {
+		// 	fmt.Printf("invalid connection uri for source db uri\n")
+		// 	os.Exit(1)
+		// }
 	}
 }
 
 func (t *Target) ParseURI() {
-	yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9&/_.-]+)`)
-	if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
-		t.User = uriParts[2]
-		t.Password = uriParts[3]
-		t.Host = uriParts[4]
-		t.Port = uriParts[5]
-		t.DBName = uriParts[6]
-		t.SSLQueryString = uriParts[7]
-	} else {
-		fmt.Printf("invalid connection uri for source db uri\n")
-		os.Exit(1)
-	}
+	//Commenting this block of code for now, may be needed for later
+	// yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9&/_.-]+)`)
+	// if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
+	// 	t.User = uriParts[2]
+	// 	t.Password = uriParts[3]
+	// 	t.Host = uriParts[4]
+	// 	t.Port = uriParts[5]
+	// 	t.DBName = uriParts[6]
+	// 	t.SSLQueryString = uriParts[7]
+	// } else {
+	// 	fmt.Printf("invalid connection uri for source db uri\n")
+	// 	os.Exit(1)
+	// }
 }
 
 func (t *Target) GetConnectionUri() string {
@@ -162,6 +163,7 @@ func (t *Target) GetConnectionUri() string {
 	return t.Uri
 }
 
+//this function is only triggered when t.Uri==""
 func generateSSLQueryStringIfNotExists(t *Target) string {
 	SSLQueryString := ""
 	if t.SSLQueryString == "" {

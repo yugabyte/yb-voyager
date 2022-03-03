@@ -637,7 +637,9 @@ func generateHTMLReport(Report utils.Report) string {
 }
 
 func generateTxtReport(Report utils.Report) string {
-	txtstring := "Database Migration Report\n"
+	txtstring := "+---------------------------+\n"
+	txtstring += "| Database Migration Report |\n"
+	txtstring += "+---------------------------+\n"
 	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
 	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n"
 	txtstring += "DB Version\t" + Report.Summary.DBVersion + "\n\n"
