@@ -109,7 +109,7 @@ func init() {
 	importCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all the existing objects and start fresh")
 
-	importCmd.PersistentFlags().IntVar(&numLinesInASplit, "batch-size", 1000,
+	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 1000,
 		"Maximum size of each batch import ")
 	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
@@ -121,8 +121,8 @@ func init() {
 	importCmd.PersistentFlags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
 
-	importCmd.PersistentFlags().BoolVar(&target.ContinueOnError, "continue-on-error", true,
-		"false - stop the execution in case of errors\n"+
+	importCmd.PersistentFlags().BoolVar(&target.ContinueOnError, "continue-on-error", false,
+		"false - stop the execution in case of errors(default false)\n"+
 			"true - to ignore errors and continue")
 
 	importCmd.PersistentFlags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
