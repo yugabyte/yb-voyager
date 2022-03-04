@@ -19,9 +19,11 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -40,7 +42,7 @@ import (
 
 var metaInfoDir = META_INFO_DIR_NAME
 var importLockFile = fmt.Sprintf("%s/%s/data/.importLock", exportDir, metaInfoDir)
-var numLinesInASplit = 1000
+var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
 var GenerateSplitsDone = abool.New()
@@ -268,10 +270,13 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		}
 	}
 
+	sort.Strings(allTables)
+	sort.Strings(importTables)
+
 	if startClean { //start data migraiton from beginning
-		fmt.Println("cleaning the database and project directory")
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
+		fmt.Printf("cleaning the database and %s/metadata/data directory\n", exportDir)
 		utils.CleanDir(exportDir + "/metainfo/data")
 
 		importTables = allTables //since all tables needs to imported now
@@ -363,7 +368,6 @@ func truncateTables(tables []string) {
 }
 
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
-
 	for _, t := range importTables {
 		var tableNameUsed string
 		parts := strings.Split(t, ".")
@@ -386,16 +390,21 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 		// in progress are interrupted ones
 		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
 		interruptedRegexp := regexp.MustCompile(interruptedRegexStr)
-		for _, filename := range matches {
-			// fmt.Printf("Matched file name = %s\n", filename)
-			submatches := interruptedRegexp.FindAllStringSubmatch(filename, -1)
+		for _, filepath := range matches {
+			// fmt.Printf("Matched file name = %s\n", filepath)
+			submatches := interruptedRegexp.FindAllStringSubmatch(filepath, -1)
 			for _, match := range submatches {
 				// This means a match. Submit the task with interrupted = true
-				// fmt.Printf("filename: %s, %v\n", filename, match)
+				// fmt.Printf("filepath: %s, %v\n", filepath, match)
+				/*
+					offsets are 0-based, while numLines are 1-based
+					offsetStart is the line in original datafile from where current split starts
+					offsetEnd   is the line in original datafile from where next split starts
+				*/
 				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetStart, _ := strconv.ParseInt(match[2], 10, 64)
+				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
 				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetEnd := offsetStart + numLines - 1
+				offsetStart := offsetEnd - numLines
 				if splitNum == LAST_SPLIT_NUM {
 					fileFullySplit = true
 				}
@@ -405,7 +414,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filename, splitNum, offsetStart, offsetEnd, true, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 		// collect files which were generated but processing did not start
@@ -413,14 +422,14 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
 		createdButNotStartedRegex := regexp.MustCompile(createdButNotStartedRegexStr)
 		// fmt.Printf("created but not started regex = %s\n", createdButNotStartedRegex.String())
-		for _, filename := range matches {
-			submatches := createdButNotStartedRegex.FindAllStringSubmatch(filename, -1)
+		for _, filepath := range matches {
+			submatches := createdButNotStartedRegex.FindAllStringSubmatch(filepath, -1)
 			for _, match := range submatches {
 				// This means a match. Submit the task with interrupted = true
 				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetStart, _ := strconv.ParseInt(match[2], 10, 64)
+				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
 				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetEnd := offsetStart + numLines - 1
+				offsetStart := offsetEnd - numLines
 				if splitNum == LAST_SPLIT_NUM {
 					fileFullySplit = true
 				}
@@ -430,9 +439,10 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filename, splitNum, offsetStart, offsetEnd, true, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
+
 		if !fileFullySplit {
 			splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
 		}
@@ -444,7 +454,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
-	numLinesInThisSplit := 0
+	numLinesInThisSplit := int64(0)
 	forig, err := os.Open(dataFile)
 	if err != nil {
 		log.Fatal(err)
@@ -453,7 +463,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 
 	r := bufio.NewReader(forig)
 	sz := 0
-	// fmt.Printf("curr temp file created = %s\n", currTmpFileName)
+	// fmt.Printf("curr temp file created = %s and largestOffset=%d\n", currTmpFileName, largestOffset)
 	outfile, err := os.Create(currTmpFileName)
 	if err != nil {
 		log.Fatal(err)
@@ -461,9 +471,16 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 
 	// skip till largest offset
 	// fmt.Printf("Skipping %d lines from %s\n", largestOffset, dataFile)
-	for i := int64(0); i < largestOffset; i++ {
-		utils.Readline(r)
+	for i := int64(0); i < largestOffset; {
+		line, err := utils.Readline(r)
+		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not craeted yet
+			panic(err)
+		}
+		if isDataLine(line) {
+			i++
+		}
 	}
+
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
 	var readLineErr error = nil
@@ -507,19 +524,22 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 			}
 			outfile.Close()
 			fileSplitNumber := splitNum
-			if readLineErr != nil {
-				fileSplitNumber = 0 // TODO Constant
+			if readLineErr == io.EOF {
+				fileSplitNumber = LAST_SPLIT_NUM
+			} else if readLineErr != nil {
+				panic(readLineErr)
 			}
+
+			offsetStart := numLinesTaken - numLinesInThisSplit
+			offsetEnd := numLinesTaken
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
-				exportDir, metaInfoDir, t, fileSplitNumber, numLinesTaken, numLinesInThisSplit)
+				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
 				log.Printf("Cannot rename %s to %s\n", currTmpFileName, splitFile)
 				return
 			}
 
-			offsetStart := largestOffset
-			offsetEnd := offsetStart + int64(numLinesInThisSplit) - 1
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
 			if fileSplitNumber != 0 {
@@ -736,9 +756,12 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 					fmt.Println(err)
 					os.Exit(1)
 				} else { //in case of unique key violation error take row count from the split task
-					rowsCount = t.OffsetEnd - t.OffsetStart + 1
+					rowsCount = t.OffsetEnd - t.OffsetStart
 				}
 			}
+
+			// update the import data status as soon as rows are copied
+			incrementImportedRowCount(t.TableName, rowsCount)
 
 			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
 			err = os.Rename(getInProgressFilePath(t), getDoneFilePath(t))
@@ -747,8 +770,6 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
-			// update the import data status
-			incrementImportedRowCount(t.TableName, rowsCount)
 			// fmt.Printf("Inserted a batch of %d or less in table %s\n", numLinesInASplit, t.TableName)
 			splitImportDone = true
 		default:
