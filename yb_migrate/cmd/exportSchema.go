@@ -85,7 +85,8 @@ func init() {
 
 	// Hide num-connections flag from help description from Export Schema command
 	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
-		command.Flags().MarkHidden("num-connections")
+		command.Flags().MarkHidden("parallel-jobs")
 		command.Parent().HelpFunc()(command, strings)
 	})
+
 }
