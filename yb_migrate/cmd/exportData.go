@@ -169,7 +169,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
+	migration.ExportDataPostProcessing(&source, exportDir, &tablesMetadata)
 
 	return true
 }
@@ -187,9 +187,10 @@ func initializeExportTableMetadataSlice(exportDir string, tableList []string) []
 		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
 			tablesMetadata[i].TableSchema = tableInfo[0]
 			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
-		} else { //oracle,mysql
-			tablesMetadata[i].TableSchema = source.Schema
+			tablesMetadata[i].FullTableName = tablesMetadata[i].TableSchema + "." + tablesMetadata[i].TableName
+		} else { //no schema.tablename format required for oracle & mysql
 			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
+			tablesMetadata[i].FullTableName = tablesMetadata[i].TableName
 		}
 
 		//Initializing all the members of struct

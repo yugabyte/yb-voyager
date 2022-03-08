@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"regexp"
 	"strconv"
 	"strings"
 
@@ -29,9 +28,13 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
 			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + requiredMap[tableName]
-			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].TableName + "_data.sql"
+			if tablesMetadata[i].TableSchema == "public" {
+				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].TableName + "_data.sql"
+			} else {
+				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].FullTableName + "_data.sql"
+			}
 		}
-	} else if source.DBType == "oracle" { //for Oracle and MySQL
+	} else if source.DBType == "oracle" { //for Oracle
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
 			fileName := "tmp_" + strings.ToUpper(tableName) + "_data.sql"
@@ -48,7 +51,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 	}
 
 	// fmt.Println("After updating datafilepath")
-	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
+	// fmt.Printf("TableMetadata: %+v\n\n", tablesMetadata)
 }
 
 func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
@@ -61,14 +64,15 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 	utils.PrintIfTrue(fmt.Sprintf("| %30s | %30s |\n", "Table", "Row Count"), source.VerboseMode)
 	for i := 0; i < len(tablesMetadata); i++ {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
-		tableName := tablesMetadata[i].TableName
-		utils.PrintIfTrue(fmt.Sprintf("| %30s ", tableName), source.VerboseMode)
+		fullTableName := tablesMetadata[i].FullTableName
+
+		utils.PrintIfTrue(fmt.Sprintf("| %30s ", fullTableName), source.VerboseMode)
 
 		if source.VerboseMode {
 			go utils.Wait()
 		}
 
-		rowCount := SelectCountStarFromTable(tableName, source)
+		rowCount := SelectCountStarFromTable(fullTableName, source)
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
@@ -86,35 +90,6 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
 }
 
-func GetTableList(exportDir string) []string {
-	var tableList []string
-	tableSqlFilePath := exportDir + "/schema/tables/table.sql"
-
-	tableSqlFileData, err := ioutil.ReadFile(tableSqlFilePath)
-
-	errorMsg := fmt.Sprintf("couldn't read file: %s\n", tableSqlFilePath)
-	if err != nil {
-		log.Printf(errorMsg)
-		panic(err)
-	}
-
-	tableSqls := strings.Split(string(tableSqlFileData), "\n")
-	//Temporary, assuming tools dump SQLs in sophisticated manner
-	tableNameRegex := regexp.MustCompile(`CREATE[ ]+TABLE[ ]+(\S+)[ (]+`)
-
-	for _, line := range tableSqls {
-		tablenameMatches := tableNameRegex.FindAllStringSubmatch(line, -1)
-		// fmt.Println(tablenameMatches)
-		for _, match := range tablenameMatches {
-			tableList = append(tableList, match[1])
-		}
-
-	}
-
-	return tableList
-}
-
-//temp function, will change based on report generation part
 func GetTableRowCount(filePath string) map[string]int64 {
 	tableRowCountMap := make(map[string]int64)
 
@@ -286,22 +261,21 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	return version
 }
 
-func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
-	dataDirPath := exportDir + "/data"
+func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
 	// in case of ora2pg the renaming is not required hence will for loop will do nothing
 	for _, tableMetadata := range *tablesMetadata {
 		oldFilePath := tableMetadata.InProgressFilePath
-		newFilePath := dataDirPath + "/" + tableMetadata.TableName + "_data.sql"
+		newFilePath := tableMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {
 			// fmt.Printf("Renaming: %s -> %s\n", filepath.Base(oldFilePath), filepath.Base(newFilePath))
 			os.Rename(oldFilePath, newFilePath)
 		}
 	}
 
-	saveExportedRowCount(exportDir, tablesMetadata)
+	saveExportedRowCount(source, exportDir, tablesMetadata)
 }
 
-func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
+func saveExportedRowCount(source *utils.Source, exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
 	filePath := exportDir + "/metainfo/flags/tablesrowcount"
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -313,11 +287,16 @@ func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgres
 	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
 	for _, tableMetadata := range *tablesMetadata {
 		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
-		tableName := tableMetadata.TableName
+		var fullTableName string
+		if source.DBType == "postgresql" && tableMetadata.TableSchema != "public" {
+			fullTableName = tableMetadata.TableSchema + "." + tableMetadata.TableName
+		} else {
+			fullTableName = tableMetadata.TableName
+		}
 		actualRowCount := tableMetadata.CountLiveRows
-		line := tableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
+		line := fullTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
-		fmt.Printf("| %30s | %30d |\n", tableName, actualRowCount)
+		fmt.Printf("| %30s | %30d |\n", fullTableName, actualRowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }

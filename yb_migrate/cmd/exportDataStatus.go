@@ -111,7 +111,13 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
 	// defer utils.WaitGroup.Done()
 
-	tableName := tableMetadata.TableName
+	var tableName string 
+	if source.DBType == POSTGRESQL && tableMetadata.TableSchema != "public" {
+		tableName = tableMetadata.TableSchema + "." +  tableMetadata.TableName
+	} else {
+		tableName = tableMetadata.TableName
+	}
+	
 	total := int64(100)
 
 	bar := progressContainer.AddBar(total,
@@ -162,7 +168,6 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 	var line string
 	var readLineErr error
 	for !checkForEndOfFile(&source, tableMetadata, line) {
-		time.Sleep(time.Millisecond * 1500) // give sometime for data files to generate rows
 		for {
 			line, readLineErr = reader.ReadString('\n')
 			if readLineErr == io.EOF {
