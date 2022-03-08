@@ -782,7 +782,29 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		exportSchemaCmd.PersistentPreRun(exportSchemaCmd, args)
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+
+		checkSourceDBType()
+		setSourceDefaultPort() //will set only if required
+		checkOrSetDefaultSSLMode()
+
+		//marking flags as required based on conditions
+		cmd.MarkPersistentFlagRequired("source-db-type")
+		if source.Uri == "" { //if uri is not given
+			cmd.MarkPersistentFlagRequired("source-db-user")
+			cmd.MarkPersistentFlagRequired("source-db-password")
+			cmd.MarkPersistentFlagRequired("source-db-name")
+			if source.DBType == ORACLE { //default is public
+				cmd.MarkPersistentFlagRequired("source-db-schema")
+			}
+		} else {
+			//check and parse the source
+			source.ParseURI()
+		}
+
+		if source.TableList != "" {
+			checkTableListFlag()
+		}
 
 		checkReportOutputFormat()
 	},
