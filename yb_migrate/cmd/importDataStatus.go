@@ -148,7 +148,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 		}
 	}
 
-	// log.Infof("Initialization of import data status done\n")
+	// fmt.Printf("Initialization of import data status done: %+v\n", tablesProgressMetadata)
 }
 
 func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {

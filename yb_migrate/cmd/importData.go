@@ -78,6 +78,7 @@ var importDataCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		target.ImportMode = true
 		importData()
 	},
 }
@@ -282,7 +283,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
-		utils.PrintIfTrue("looking for tables without a Primary Key...", target.VerboseMode)
+		utils.PrintIfTrue("looking for tables without a Primary Key...\n", target.VerboseMode)
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
 				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
@@ -329,8 +330,17 @@ func checkPrimaryKey(tableName string) bool {
 	}
 	defer conn.Close(context.Background())
 
+	var table, schema string
+	if len(strings.Split(tableName, ".")) == 2 {
+		schema = strings.Split(tableName, ".")[0]
+		table = strings.Split(tableName, ".")[1]
+	} else {
+		schema = target.Schema
+		table = strings.Split(tableName, ".")[0]
+	}
+
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
-	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s';`, tableName)
+	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
 	// fmt.Println(checkPKSql)
 
 	rows, err := conn.Query(context.Background(), checkPKSql)
@@ -355,6 +365,16 @@ func truncateTables(tables []string) {
 	}
 	defer conn.Close(context.Background())
 
+	metaInfo := ExtractMetaInfo(exportDir)
+	if metaInfo.SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+		_, err := conn.Exec(context.Background(), setSchemaQuery)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
+
 	for _, table := range tables {
 		if target.VerboseMode {
 			fmt.Printf("Truncating table %s...\n", table)
@@ -369,11 +389,13 @@ func truncateTables(tables []string) {
 
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 	for _, t := range importTables {
-		var tableNameUsed string
+		var tableNameUsed string //regenerating the table_data.sql filename, from extracted tableName
 		parts := strings.Split(t, ".")
 		if ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
-			//TODO: what if two different schemas have same tables
-			tableNameUsed = strings.ToLower(parts[len(parts)-1])
+			if len(parts) > 1 && parts[0] != "public" {
+				tableNameUsed = strings.ToLower(parts[0]) + "."
+			}
+			tableNameUsed += strings.ToLower(parts[len(parts)-1])
 		} else if ExtractMetaInfo(exportDir).SourceDBType == "mysql" {
 			tableNameUsed = strings.ToLower(parts[len(parts)-1])
 		} else {
@@ -749,6 +771,16 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				panic(err)
 			}
+
+			//setting the schema so that COPY command can acesss the table
+			if ExtractMetaInfo(exportDir).SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+				setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+				_, err := conn.Exec(context.Background(), setSchemaQuery)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
 			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
 
 			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
@@ -806,8 +838,8 @@ func executeSqlFile(file string) {
 				fmt.Printf("\b \n    %s\n", err.Error())
 				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 			}
-			if !target.ContinueOnError { //non-default case
-				break
+			if !target.ContinueOnError { //default case
+				os.Exit(1)
 			}
 		}
 	}
@@ -821,7 +853,12 @@ func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
 	parts := strings.Split(base, ".")
-	return fmt.Sprintf("%s/%s.%s.%s.%s.P", dir, parts[0], parts[1], parts[2], parts[3])
+
+	if len(parts) > 5 { //case when filename has schema also
+		return fmt.Sprintf("%s/%s.%s.%s.%s.%s.P", dir, parts[0], parts[1], parts[2], parts[3], parts[4])
+	} else {
+		return fmt.Sprintf("%s/%s.%s.%s.%s.P", dir, parts[0], parts[1], parts[2], parts[3])
+	}
 }
 
 func getDoneFilePath(task *fwk.SplitFileImportTask) string {
@@ -829,7 +866,12 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
 	parts := strings.Split(base, ".")
-	return fmt.Sprintf("%s/%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3])
+
+	if len(parts) > 5 { //case when filename has schema also
+		return fmt.Sprintf("%s/%s.%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3], parts[4])
+	} else {
+		return fmt.Sprintf("%s/%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3])
+	}
 }
 
 func incrementImportedRowCount(tableName string, rowsCopied int64) {
