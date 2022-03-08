@@ -374,6 +374,8 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 		if ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
 			//TODO: what if two different schemas have same tables
 			tableNameUsed = strings.ToLower(parts[len(parts)-1])
+		} else if ExtractMetaInfo(exportDir).SourceDBType == "mysql" {
+			tableNameUsed = strings.ToLower(parts[len(parts)-1])
 		} else {
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}

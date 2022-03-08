@@ -31,12 +31,19 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + requiredMap[tableName]
 			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].TableName + "_data.sql"
 		}
-	} else { //for Oracle and MySQL
+	} else if source.DBType == "oracle" { //for Oracle and MySQL
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
 			fileName := "tmp_" + strings.ToUpper(tableName) + "_data.sql"
 			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
 			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + strings.ToUpper(tableName) + "_data.sql"
+		}
+	} else if source.DBType == "mysql" {
+		for i := 0; i < len(tablesMetadata); i++ {
+			tableName := tablesMetadata[i].TableName
+			fileName := "tmp_" + strings.ToLower(tableName) + "_data.sql"
+			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
+			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + strings.ToLower(tableName) + "_data.sql"
 		}
 	}
 
