@@ -14,7 +14,7 @@ import (
 
 func PrintTargetYugabyteDBVersion(target *utils.Target) {
 	targetConnectionURI := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-		target.User, target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE)
+		target.User, target.Password, target.Host, target.Port, target.DBName)
 
 	version := migration.SelectVersionQuery("yugabytedb", targetConnectionURI)
 	fmt.Printf("YugabyteDB Version: %s\n", version)
@@ -59,6 +59,16 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 			os.Exit(1)
 		}
 
+		// target-db-schema is not public and source is either Oracle/MySQL
+		if metaInfo.SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+			_, err := conn.Exec(context.Background(), setSchemaQuery)
+			if err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+
 		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)
 		errOccured := 0
 		for _, sqlStr := range sqlStrArray {
@@ -75,8 +85,8 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 					fmt.Printf("\b \n    %s\n", err.Error())
 					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 				}
-				if !target.ContinueOnError { //non-default case
-					break
+				if !target.ContinueOnError { //default case
+					os.Exit(1)
 				}
 			}
 		}
