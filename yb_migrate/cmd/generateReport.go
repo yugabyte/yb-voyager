@@ -50,10 +50,10 @@ var (
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
 	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
-	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING GIST`)
-	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING brin`)
-	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING spgist`)
-	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?[\s\n]+([a-zA-Z0-9_.]+)?[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING rtree`)
+	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING GIST`)
+	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING brin`)
+	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING spgist`)
+	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING rtree`)
 	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_.]+)")
 	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
 	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
@@ -155,10 +155,11 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
-
-	reportStruct.Summary.DBName = source.DBName
-	reportStruct.Summary.SchemaName = source.Schema
-	reportStruct.Summary.DBVersion = migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+	if !target.ImportMode { // this info is available only if we are exporting from source
+		reportStruct.Summary.DBName = source.DBName
+		reportStruct.Summary.SchemaName = source.Schema
+		reportStruct.Summary.DBVersion = migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+	}
 
 	// requiredJson += `"databaseObjects": [`
 	for _, objType := range sourceObjList {
