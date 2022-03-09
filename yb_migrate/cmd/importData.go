@@ -316,7 +316,6 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 
 	//Preparing the tablesProgressMetadata array
 	initializeImportDataStatus(exportDir, importTables)
-	// fmt.Printf("TablesProgresMetadata after initializing: %v\n", tablesProgressMetadata)
 
 	go splitDataFiles(importTables, taskQueue)
 }
@@ -821,6 +820,15 @@ func executeSqlFile(file string) {
 		panic(err)
 	}
 	defer conn.Close(context.Background())
+
+	if ExtractMetaInfo(exportDir).SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+		_, err := conn.Exec(context.Background(), setSchemaQuery)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}
 
 	var errOccured = 0
 	sqlStrArray := createSqlStrArray(file, "")
