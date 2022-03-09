@@ -708,7 +708,7 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 	parallelImportCount := int64(0)
 
 	importProgressContainer = ProgressContainer{
-		container: mpb.New(),
+		container: mpb.New(mpb.PopCompletedMode()),
 	}
 	go importDataStatus()
 
