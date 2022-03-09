@@ -79,14 +79,18 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 					if !target.IgnoreIfExists {
 						fmt.Printf("\b \n    %s\n", err.Error())
 						fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+						if !target.ContinueOnError {
+							os.Exit(1)
+						}
 					}
 				} else {
 					errOccured = 1
 					fmt.Printf("\b \n    %s\n", err.Error())
 					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
-				}
-				if !target.ContinueOnError { //default case
-					os.Exit(1)
+					if !target.ContinueOnError { //default case
+						fmt.Println(err)
+						os.Exit(1)
+					}
 				}
 			}
 		}
