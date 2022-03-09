@@ -80,7 +80,7 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 			} else if tablesMetadata[i].Status == 2 {
 				tablesMetadata[i].Status = 3
 
-				exportedTables = append(exportedTables, tablesMetadata[i].TableName)
+				exportedTables = append(exportedTables, tablesMetadata[i].FullTableName)
 				// fmt.Fprintf(debugFile, "done table= %s, liverow count: %d, expectedTotal: %d\n", tablesMetadata[i].TableName, tablesMetadata[i].CountLiveRows, tablesMetadata[i].CountTotalRows)
 				doneCount++
 				if doneCount == numTables {
@@ -111,13 +111,13 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
 	// defer utils.WaitGroup.Done()
 
-	var tableName string 
+	var tableName string
 	if source.DBType == POSTGRESQL && tableMetadata.TableSchema != "public" {
-		tableName = tableMetadata.TableSchema + "." +  tableMetadata.TableName
+		tableName = tableMetadata.TableSchema + "." + tableMetadata.TableName
 	} else {
 		tableName = tableMetadata.TableName
 	}
-	
+
 	total := int64(100)
 
 	bar := progressContainer.AddBar(total,

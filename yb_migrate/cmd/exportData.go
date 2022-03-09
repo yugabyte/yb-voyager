@@ -127,7 +127,7 @@ func exportDataOffline() bool {
 	}()
 
 	tablesMetadata := initializeExportTableMetadataSlice(exportDir, tableList)
-	// fmt.Println(tableList, "\n", tablesMetadata)
+	// fmt.Printf("tablesMetadata: %+v\n", tablesMetadata)
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
 	switch source.DBType {
@@ -186,10 +186,10 @@ func initializeExportTableMetadataSlice(exportDir string, tableList []string) []
 		tableInfo := strings.Split(tableList[i], ".")
 		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
 			tablesMetadata[i].TableSchema = tableInfo[0]
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[1]
 			tablesMetadata[i].FullTableName = tablesMetadata[i].TableSchema + "." + tablesMetadata[i].TableName
 		} else { //no schema.tablename format required for oracle & mysql
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
 			tablesMetadata[i].FullTableName = tablesMetadata[i].TableName
 		}
 

@@ -333,7 +333,11 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 	for i := 0; i < numLines; i++ {
 		if tocTextFileData[i] == "TABLE DATA" {
-			fileNameVsTableNameMap[tocTextFileData[i-1]] = tocTextFileData[i+5]
+			tableName := tocTextFileData[i-1]
+			schemaName := tocTextFileData[i+2]
+			fullTableName := schemaName + "." + tableName
+			oidFileName := tocTextFileData[i+5]
+			fileNameVsTableNameMap[fullTableName] = oidFileName
 		} else if tocTextFileData[i] == "SEQUENCE SET" {
 			sequencesPostData.WriteString(tocTextFileData[i+1])
 			sequencesPostData.WriteString("\n")

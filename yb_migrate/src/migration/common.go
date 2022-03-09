@@ -27,11 +27,12 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
-			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + requiredMap[tableName]
+			fullTableName := tablesMetadata[i].FullTableName
+			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + requiredMap[fullTableName]
 			if tablesMetadata[i].TableSchema == "public" {
-				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].TableName + "_data.sql"
+				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
 			} else {
-				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tablesMetadata[i].FullTableName + "_data.sql"
+				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
 			}
 		}
 	} else if source.DBType == "oracle" { //for Oracle
@@ -107,7 +108,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 		tableRowCountMap[tableName] = rowCountInt64
 	}
-
+	fmt.Printf("TotalRowCountMap: %+v\n", tableRowCountMap)
 	return tableRowCountMap
 }
 
@@ -288,11 +289,12 @@ func saveExportedRowCount(source *utils.Source, exportDir string, tablesMetadata
 	for _, tableMetadata := range *tablesMetadata {
 		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
 		var fullTableName string
-		if source.DBType == "postgresql" && tableMetadata.TableSchema != "public" {
-			fullTableName = tableMetadata.TableSchema + "." + tableMetadata.TableName
+		if tableMetadata.TableSchema != "public" {
+			fullTableName = tableMetadata.FullTableName
 		} else {
 			fullTableName = tableMetadata.TableName
 		}
+
 		actualRowCount := tableMetadata.CountLiveRows
 		line := fullTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
