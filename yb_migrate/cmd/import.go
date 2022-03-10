@@ -117,7 +117,7 @@ func init() {
 	importCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all the existing objects and start fresh")
 
-	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 1000,
+	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 100000,
 		"Maximum size of each batch import ")
 	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
