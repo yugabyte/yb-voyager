@@ -13,7 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
@@ -127,7 +128,11 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
 		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
-			lines[i] = "SCHEMA	" + source.Schema
+			if source.Schema != "" { // in oracle USER and SCHEMA are essentially the same thing
+				lines[i] = "SCHEMA	" + source.Schema
+			} else if source.User != "" {
+				lines[i] = "SCHEMA	" + source.User
+			}
 		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		} else if strings.HasPrefix(line, "PG_VERSION") {
@@ -180,8 +185,8 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -o data.sql -b %s/data -c %s",
-		projectDirPath, configFilePath)
+	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -P %d -o data.sql -b %s/data -c %s",
+		source.NumConnections, projectDirPath, configFilePath)
 
 	//TODO: Exporting only those tables provided in tablelist
 

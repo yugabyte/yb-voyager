@@ -18,8 +18,8 @@ package cmd
 import (
 	"fmt"
 
-	"yb_migrate/src/migration"
-	"yb_migrate/src/utils"
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -85,7 +85,8 @@ func init() {
 
 	// Hide num-connections flag from help description from Export Schema command
 	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
-		command.Flags().MarkHidden("num-connections")
+		command.Flags().MarkHidden("parallel-jobs")
 		command.Parent().HelpFunc()(command, strings)
 	})
+
 }

@@ -23,8 +23,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"yb_migrate/src/migration"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -57,6 +58,7 @@ func init() {
 }
 
 func exportData() {
+	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
 	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
 	exportDataDirPath := exportDir + "/data"
 	if startClean {

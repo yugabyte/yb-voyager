@@ -18,7 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -48,12 +49,9 @@ var exportCmd = &cobra.Command{
 				cmd.MarkPersistentFlagRequired("source-db-name")
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
-				if source.DBName != "" {
-					cmd.MarkPersistentFlagRequired("source-db-host")
-					//cmd.MarkPersistentFlagRequired("source-db-port")
-				} else if source.DBSid != "" {
-					cmd.MarkPersistentFlagRequired("source-db-host")
-					//cmd.MarkPersistentFlagRequired("source-db-port")
+				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
+				if source.DBName != "" || source.DBSid != "" {
+					//no issues, continue with export of schema/data
 				} else {
 					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
 				}
@@ -85,7 +83,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 
-	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "",
+	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
 	exportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
@@ -112,7 +110,7 @@ func init() {
 
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
-	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "public",
+	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name which needs to be migrated to YugabyteDB")
 
 	// TODO SSL related more args will come. Explore them later.
@@ -172,16 +170,15 @@ func checkSourceDBType() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port != "" {
-		return
-	}
-	switch source.DBType {
-	case ORACLE:
-		source.Port = ORACLE_DEFAULT_PORT
-	case POSTGRESQL:
-		source.Port = POSTGRES_DEFAULT_PORT
-	case MYSQL:
-		source.Port = MYSQL_DEFAULT_PORT
+	if source.Port == "" {
+		switch source.DBType {
+		case ORACLE:
+			source.Port = ORACLE_DEFAULT_PORT
+		case POSTGRESQL:
+			source.Port = POSTGRES_DEFAULT_PORT
+		case MYSQL:
+			source.Port = MYSQL_DEFAULT_PORT
+		}
 	}
 }
 
@@ -194,7 +191,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full")
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full\n")
 			os.Exit(1)
 		}
 	case POSTGRESQL:
@@ -203,7 +200,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full\n")
 			os.Exit(1)
 		}
 	}

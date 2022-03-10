@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
 func parseSSLString(source *utils.Source) {

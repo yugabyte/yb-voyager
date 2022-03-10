@@ -21,7 +21,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/cobra"
@@ -123,6 +124,9 @@ func importSchema() {
 
 func generateSSLQueryStringIfNotExists(t *utils.Target) string {
 	SSLQueryString := ""
+	if t.SSLMode == "" {
+		t.SSLMode = "prefer"
+	}
 	if t.SSLQueryString == "" {
 
 		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"yb_migrate/src/migration"
-	"yb_migrate/src/utils"
+
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 )
