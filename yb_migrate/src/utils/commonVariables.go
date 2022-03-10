@@ -14,12 +14,16 @@ type Source struct {
 	User               string
 	Password           string
 	DBName             string
+	DBSid              string
+	OracleHome         string
+	TNSAlias           string
 	Schema             string
 	SSLMode            string
 	SSLCertPath        string
 	SSLKey             string
 	SSLRootCert        string
 	SSLCRL             string
+	SSLQueryString     string
 	Uri                string
 	NumConnections     int
 	GenerateReportMode bool
@@ -35,6 +39,10 @@ type Target struct {
 	DBName                 string
 	SSLMode                string
 	SSLCertPath            string
+	SSLKey                 string
+	SSLRootCert            string
+	SSLCRL                 string
+	SSLQueryString         string
 	Uri                    string
 	ImportIndexesAfterData bool
 	ContinueOnError        bool
@@ -73,8 +81,22 @@ func (s *Source) ParseURI() {
 	switch s.DBType {
 	case "oracle":
 		//TODO: figure out correct uri format for oracle and implement
-		oracleUriRegexp := regexp.MustCompile(`oracle://User=([a-zA-Z0-9_.-]+);Password=([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
-		if uriParts := oracleUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
+		oracleUriRegexpTNS := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpSID := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+):([a-zA-Z0-9_.-]+)`)
+		oracleUriRegexpServiceName := regexp.MustCompile(`([a-zA-Z0-9_.-]+)/([^@ ]+)@//([a-zA-Z0-9_.-]+):([0-9]+)/([a-zA-Z0-9_.-]+)`)
+		if uriParts := oracleUriRegexpTNS.FindStringSubmatch(s.Uri); uriParts != nil {
+			s.User = uriParts[1]
+			s.Password = uriParts[2]
+			s.TNSAlias = uriParts[3]
+			s.Schema = s.User
+		} else if uriParts := oracleUriRegexpSID.FindStringSubmatch(s.Uri); uriParts != nil {
+			s.User = uriParts[1]
+			s.Password = uriParts[2]
+			s.Host = uriParts[3]
+			s.Port = uriParts[4]
+			s.DBSid = uriParts[5]
+			s.Schema = s.User
+		} else if uriParts := oracleUriRegexpServiceName.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
@@ -86,54 +108,93 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "mysql":
-		mysqlUriRegexp := regexp.MustCompile(`mysql://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
+		mysqlUriRegexp := regexp.MustCompile(`mysql://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
 		if uriParts := mysqlUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
 			s.Port = uriParts[4]
 			s.DBName = uriParts[5]
+			s.SSLQueryString = uriParts[6]
 		} else {
 			fmt.Printf("invalid connection uri for source db uri\n")
 			os.Exit(1)
 		}
 	case "postgresql":
-		postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
-		if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
-			s.User = uriParts[2]
-			s.Password = uriParts[3]
-			s.Host = uriParts[4]
-			s.Port = uriParts[5]
-			s.DBName = uriParts[6]
-		} else {
-			fmt.Printf("invalid connection uri for source db uri\n")
-			os.Exit(1)
-		}
+		//Commenting this block of code for now, may be needed for later
+		// postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
+		// if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
+		// 	s.User = uriParts[2]
+		// 	s.Password = uriParts[3]
+		// 	s.Host = uriParts[4]
+		// 	s.Port = uriParts[5]
+		// 	s.DBName = uriParts[6]
+		// 	s.SSLQueryString = uriParts[7]
+		// } else {
+		// 	fmt.Printf("invalid connection uri for source db uri\n")
+		// 	os.Exit(1)
+		// }
 	}
 }
 
 func (t *Target) ParseURI() {
-	yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)`)
-	if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
-		t.User = uriParts[2]
-		t.Password = uriParts[3]
-		t.Host = uriParts[4]
-		t.Port = uriParts[5]
-		t.DBName = uriParts[6]
-	} else {
-		fmt.Printf("invalid connection uri for source db uri\n")
-		os.Exit(1)
-	}
+	//Commenting this block of code for now, may be needed for later
+	// yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9&/_.-]+)`)
+	// if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
+	// 	t.User = uriParts[2]
+	// 	t.Password = uriParts[3]
+	// 	t.Host = uriParts[4]
+	// 	t.Port = uriParts[5]
+	// 	t.DBName = uriParts[6]
+	// 	t.SSLQueryString = uriParts[7]
+	// } else {
+	// 	fmt.Printf("invalid connection uri for source db uri\n")
+	// 	os.Exit(1)
+	// }
 }
 
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
-		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=disable",
-			t.User, t.Password, t.Host, t.Port, t.DBName)
+		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+			t.User, t.Password, t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
 	}
 	//TODO: else do a regex match for the correct Uri pattern of user input
 
 	return t.Uri
+}
+
+//this function is only triggered when t.Uri==""
+func generateSSLQueryStringIfNotExists(t *Target) string {
+	SSLQueryString := ""
+	if t.SSLMode == "" {
+		t.SSLMode = "prefer"
+	}
+	if t.SSLQueryString == "" {
+
+		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+			SSLQueryString = "sslmode=" + t.SSLMode
+			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+
+				if t.SSLCertPath != "" {
+					SSLQueryString += "&sslcert=" + t.SSLCertPath
+				}
+				if t.SSLKey != "" {
+					SSLQueryString += "&sslkey=" + t.SSLKey
+				}
+				if t.SSLRootCert != "" {
+					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
+				}
+				if t.SSLCRL != "" {
+					SSLQueryString += "&sslcrl=" + t.SSLCRL
+				}
+			}
+		} else {
+			fmt.Println("Invalid sslmode entered")
+		}
+	} else {
+		SSLQueryString = t.SSLQueryString
+	}
+	return SSLQueryString
 }
 
 //the list elements order is same as the import objects order

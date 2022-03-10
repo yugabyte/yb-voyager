@@ -201,15 +201,31 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 func GetDriverConnStr(source *utils.Source) string {
 	var connStr string
 	switch source.DBType {
+	//TODO:Discuss and set a priority order for checks in the case of Oracle
 	case "oracle":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
-			source.User, source.Password, source.Host, source.Port, source.DBName)
+		if source.DBSid != "" {
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
+				source.User, source.Password, source.Host, source.Port, source.DBSid)
+		} else if source.TNSAlias != "" {
+			connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
+		} else if source.DBName != "" {
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+				source.User, source.Password, source.Host, source.Port, source.DBName)
+		}
 	case "mysql":
-		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName)
+		if source.Uri == "" {
+			connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
+				source.Host, source.Port, source.DBName)
+		} else {
+			connStr = source.Uri
+		}
 	case "postgresql":
-		connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName, source.SSLMode)
+		if source.Uri == "" {
+			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,
+				source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+		} else {
+			connStr = source.Uri
+		}
 	}
 	return connStr
 }
