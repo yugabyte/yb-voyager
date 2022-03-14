@@ -52,8 +52,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 		} else if source.DBType == "mysql" {
-			//TODO: Test if -p flag is required or not here
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-m", "-t", exportObject, "-o",
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 		}
 
