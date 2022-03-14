@@ -279,7 +279,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		}
 		defer conn.Close(context.Background())
 
-		err = conn.QueryRow(context.Background(), "SELECT VERSION()").Scan(&version)
+		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
@@ -292,7 +292,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		}
 		defer conn.Close(context.Background())
 
-		err = conn.QueryRow(context.Background(), "SELECT VERSION()").Scan(&version)
+		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)
