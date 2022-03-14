@@ -213,12 +213,9 @@ func GetDriverConnStr(source *utils.Source) string {
 				source.User, source.Password, source.Host, source.Port, source.DBName)
 		}
 	case "mysql":
-		if source.Uri == "" {
-			connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
-				source.Host, source.Port, source.DBName)
-		} else {
-			connStr = source.Uri
-		}
+		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
+			source.Host, source.Port, source.DBName)
+
 	case "postgresql":
 		if source.Uri == "" {
 			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,

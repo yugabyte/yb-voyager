@@ -807,7 +807,7 @@ func init() {
 		"export directory (default is current working directory") //default value is current dir
 
 	generateReportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
-		"source database type (Oracle/PostgreSQL/MySQL)")
+		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -858,11 +858,11 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
 		`URI for connecting to the source database
 		format:
-			1. Oracle:	oracle://user/password@//host:port:SID	OR
-					oracle://user/password@//host:port/service_name	OR
-					oracle://user/password@TNS_alias
-			2. MySQL:	mysql://user:password@host:port/database?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)
-			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)(&sslcrl=crl_path)
+			1. Oracle:	user/password@//host:port:SID	OR
+					user/password@//host:port/service_name	OR
+					user/password@TNS_alias
+			2. MySQL:	mysql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
+			3. PostgreSQL:	postgresql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
 		`)
 
 	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",

@@ -42,15 +42,11 @@ to quickly create a Cobra application.`,
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 		// fmt.Println("Parent Import PersistentPreRun")
 		checkOrSetDefaultTargetSSLMode()
-		// if URI is not given then these flags are required, otherwise just use URI
+		// if URI is not given then these flags are required, otherwise just use URI, no need to parse it
 		if target.Uri == "" {
 			cmd.MarkPersistentFlagRequired("target-db-user")
 			// TODO: All sensitive parameters should be taken from the environment variable
 			cmd.MarkPersistentFlagRequired("target-db-password")
-		} else {
-			//TODO: else we can have a check for the uri pattern
-
-			target.ParseURI()
 		}
 
 		if source.TableList != "" {

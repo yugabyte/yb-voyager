@@ -2,8 +2,10 @@ package utils
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 )
 
@@ -108,49 +110,27 @@ func (s *Source) ParseURI() {
 			os.Exit(1)
 		}
 	case "mysql":
-		mysqlUriRegexp := regexp.MustCompile(`mysql://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
-		if uriParts := mysqlUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
-			s.User = uriParts[1]
-			s.Password = uriParts[2]
-			s.Host = uriParts[3]
-			s.Port = uriParts[4]
-			s.DBName = uriParts[5]
-			s.SSLQueryString = uriParts[6]
-		} else {
-			fmt.Printf("invalid connection uri for source db uri\n")
-			os.Exit(1)
+		uriParts, err := url.Parse(s.Uri)
+		if err != nil {
+			panic(err)
 		}
-	case "postgresql":
-		//Commenting this block of code for now, may be needed for later
-		// postgresUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9=&/_.-]+)`)
-		// if uriParts := postgresUriRegexp.FindStringSubmatch(s.Uri); uriParts != nil {
-		// 	s.User = uriParts[2]
-		// 	s.Password = uriParts[3]
-		// 	s.Host = uriParts[4]
-		// 	s.Port = uriParts[5]
-		// 	s.DBName = uriParts[6]
-		// 	s.SSLQueryString = uriParts[7]
-		// } else {
-		// 	fmt.Printf("invalid connection uri for source db uri\n")
-		// 	os.Exit(1)
-		// }
-	}
-}
 
-func (t *Target) ParseURI() {
-	//Commenting this block of code for now, may be needed for later
-	// yugabyteDBUriRegexp := regexp.MustCompile(`(postgresql|postgres)://([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)@([a-zA-Z0-9_.-]+):([a-zA-Z0-9_.-]+)/([a-zA-Z0-9_.-]+)\?([a-zA-Z0-9&/_.-]+)`)
-	// if uriParts := yugabyteDBUriRegexp.FindStringSubmatch(t.Uri); uriParts != nil {
-	// 	t.User = uriParts[2]
-	// 	t.Password = uriParts[3]
-	// 	t.Host = uriParts[4]
-	// 	t.Port = uriParts[5]
-	// 	t.DBName = uriParts[6]
-	// 	t.SSLQueryString = uriParts[7]
-	// } else {
-	// 	fmt.Printf("invalid connection uri for source db uri\n")
-	// 	os.Exit(1)
-	// }
+		s.User = uriParts.User.Username()
+		s.Password, _ = uriParts.User.Password()
+		host_port := strings.Split(uriParts.Host, ":")
+		if len(host_port) > 1 {
+			s.Host = host_port[0]
+			s.Port = host_port[1]
+		} else {
+			s.Host = host_port[0]
+			s.Port = "3306"
+		}
+		if uriParts.Path != "" {
+			s.DBName = uriParts.Path[1:]
+		}
+		s.SSLQueryString = uriParts.RawQuery
+
+	}
 }
 
 func (t *Target) GetConnectionUri() string {
