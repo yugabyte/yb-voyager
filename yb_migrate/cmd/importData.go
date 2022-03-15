@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/fwk"
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -753,10 +754,14 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			defer conn.Close(context.Background())
 
-			for _, statement := range IMPORT_SESSION_SETTERS {
-				_, err := conn.Exec(context.Background(), statement)
-				if err != nil {
-					panic(err)
+			dbVersion := migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+
+			for i, statement := range IMPORT_SESSION_SETTERS {
+				if checkSessionVariableSupported(i, dbVersion) {
+					_, err := conn.Exec(context.Background(), statement)
+					if err != nil {
+						panic(err)
+					}
 				}
 			}
 
@@ -794,6 +799,21 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
+}
+
+/*
+	function to check for session variable supported or not based on YBDB version
+*/
+func checkSessionVariableSupported(idx int, dbVersion string) bool {
+	// YB version includes compatible postgres version also, for example: 11.2-YB-2.13.0.0-b0
+	splits := strings.Split(dbVersion, "YB-")
+	dbVersion = splits[len(splits)-1]
+
+	if idx == 1 { //yb_disable_transactional_writes
+		//only supported for these versions
+		return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
+	}
+	return true
 }
 
 func executeSqlFile(file string) {
