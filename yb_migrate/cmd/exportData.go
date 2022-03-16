@@ -105,7 +105,11 @@ func exportDataOffline() bool {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
 	} else {
-		tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
+		if source.DBType == "mysql" {
+			tableList = migration.MySQLGetAllTableNames(&source)
+		} else {
+			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
+		}
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
 		fmt.Printf("table list for data export: %v\n", tableList)
 	}

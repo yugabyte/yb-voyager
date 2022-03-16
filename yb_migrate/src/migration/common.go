@@ -41,9 +41,9 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 	} else if source.DBType == "mysql" {
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
-			fileName := "tmp_" + strings.ToLower(tableName) + "_data.sql"
+			fileName := "tmp_" + tableName + "_data.sql"
 			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
-			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + strings.ToLower(tableName) + "_data.sql"
+			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
 		}
 	}
 
@@ -303,13 +303,11 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 }
 
 func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
-	dataDirPath := exportDir + "/data"
 	// in case of ora2pg the renaming is not required hence will for loop will do nothing
 	for _, tableMetadata := range *tablesMetadata {
 		oldFilePath := tableMetadata.InProgressFilePath
-		newFilePath := dataDirPath + "/" + tableMetadata.TableName + "_data.sql"
+		newFilePath := tableMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {
-			// fmt.Printf("Renaming: %s -> %s\n", filepath.Base(oldFilePath), filepath.Base(newFilePath))
 			os.Rename(oldFilePath, newFilePath)
 		}
 	}
@@ -336,6 +334,36 @@ func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgres
 		fmt.Printf("| %30s | %30d |\n", tableName, actualRowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+}
+
+func MySQLGetAllTableNames(source *utils.Source) []string {
+	dbConnStr := GetDriverConnStr(source)
+	db, err := sql.Open("mysql", dbConnStr)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	var tableNames []string
+	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
+		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", source.DBName)
+	rows, err := db.Query(query)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		err = rows.Scan(&tableName)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames
 }
 
 func CheckSourceDBAccessibility(source *utils.Source) {
