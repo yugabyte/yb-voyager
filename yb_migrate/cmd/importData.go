@@ -391,7 +391,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			//TODO: what if two different schemas have same tables
 			tableNameUsed = strings.ToLower(parts[len(parts)-1])
 		} else if ExtractMetaInfo(exportDir).SourceDBType == "mysql" {
-			tableNameUsed = strings.ToLower(parts[len(parts)-1])
+			tableNameUsed = parts[len(parts)-1]
 		} else {
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}
@@ -663,7 +663,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	for _, v := range datafiles {
 		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
 		for _, match := range tablenameMatches {
-			tables = append(tables, strings.ToLower(match[1])) //ora2pg data files named like TABLE_data.sql
+			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
 		}
 	}
 
