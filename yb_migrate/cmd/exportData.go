@@ -100,12 +100,34 @@ func exportDataOffline() bool {
 
 	var tableList []string
 	if source.TableList != "" {
-		tableList = strings.Split(source.TableList, ",")
+		userTableList := strings.Split(source.TableList, ",")
+
+		if source.DBType == POSTGRESQL {
+			// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
+			for _, table := range userTableList {
+				parts := strings.Split(table, ".")
+				if len(parts) == 1 {
+					tableList = append(tableList, "public."+table)
+				} else if len(parts) == 2 {
+					tableList = append(tableList, table)
+				} else {
+					fmt.Println("invalid value for --table-list flag")
+					os.Exit(1)
+				}
+			}
+		} else {
+			tableList = userTableList
+		}
+
 		if source.VerboseMode {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
 	} else {
-		tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
+		if source.DBType == "mysql" {
+			tableList = migration.MySQLGetAllTableNames(&source)
+		} else {
+			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
+		}
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
 		fmt.Printf("table list for data export: %v\n", tableList)
 	}
@@ -169,7 +191,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	migration.ExportDataPostProcessing(&source, exportDir, &tablesMetadata)
+	migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
 
 	return true
 }

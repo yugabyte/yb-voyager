@@ -45,9 +45,9 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []ut
 	} else if source.DBType == "mysql" {
 		for i := 0; i < len(tablesMetadata); i++ {
 			tableName := tablesMetadata[i].TableName
-			fileName := "tmp_" + strings.ToLower(tableName) + "_data.sql"
+			fileName := "tmp_" + tableName + "_data.sql"
 			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
-			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + strings.ToLower(tableName) + "_data.sql"
+			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
 		}
 	}
 
@@ -108,7 +108,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 		tableRowCountMap[tableName] = rowCountInt64
 	}
-	fmt.Printf("TotalRowCountMap: %+v\n", tableRowCountMap)
+
 	return tableRowCountMap
 }
 
@@ -278,21 +278,20 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	return version
 }
 
-func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
+func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
 	// in case of ora2pg the renaming is not required hence will for loop will do nothing
 	for _, tableMetadata := range *tablesMetadata {
 		oldFilePath := tableMetadata.InProgressFilePath
 		newFilePath := tableMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {
-			// fmt.Printf("Renaming: %s -> %s\n", filepath.Base(oldFilePath), filepath.Base(newFilePath))
 			os.Rename(oldFilePath, newFilePath)
 		}
 	}
 
-	saveExportedRowCount(source, exportDir, tablesMetadata)
+	saveExportedRowCount(exportDir, tablesMetadata)
 }
 
-func saveExportedRowCount(source *utils.Source, exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
+func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
 	filePath := exportDir + "/metainfo/flags/tablesrowcount"
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -317,6 +316,36 @@ func saveExportedRowCount(source *utils.Source, exportDir string, tablesMetadata
 		fmt.Printf("| %30s | %30d |\n", fullTableName, actualRowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+}
+
+func MySQLGetAllTableNames(source *utils.Source) []string {
+	dbConnStr := GetDriverConnStr(source)
+	db, err := sql.Open("mysql", dbConnStr)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	var tableNames []string
+	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
+		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", source.DBName)
+	rows, err := db.Query(query)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		err = rows.Scan(&tableName)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames
 }
 
 func CheckSourceDBAccessibility(source *utils.Source) {

@@ -412,7 +412,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			}
 			tableNameUsed += strings.ToLower(parts[len(parts)-1])
 		} else if ExtractMetaInfo(exportDir).SourceDBType == "mysql" {
-			tableNameUsed = strings.ToLower(parts[len(parts)-1])
+			tableNameUsed = parts[len(parts)-1]
 		} else {
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}
@@ -684,7 +684,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	for _, v := range datafiles {
 		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
 		for _, match := range tablenameMatches {
-			tables = append(tables, strings.ToLower(match[1])) //ora2pg data files named like TABLE_data.sql
+			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
 		}
 	}
 
@@ -764,6 +764,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 
 			// Rename the file to .P
+			// fmt.Printf("Renaming split from %s to %s\n", t.SplitFilePath, getInProgressFilePath(t))
 			err := os.Rename(t.SplitFilePath, getInProgressFilePath(t))
 			if err != nil {
 				panic(err)
@@ -775,7 +776,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			defer conn.Close(context.Background())
 
-			dbVersion := migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+			dbVersion := migration.SelectVersionQuery(source.DBType, targetServer.GetConnectionUri())
 
 			for i, statement := range IMPORT_SESSION_SETTERS {
 				if checkSessionVariableSupported(i, dbVersion) {
