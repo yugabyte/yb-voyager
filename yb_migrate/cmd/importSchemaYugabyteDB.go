@@ -60,7 +60,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 		}
 
 		// target-db-schema is not public and source is either Oracle/MySQL
-		if metaInfo.SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+		if metaInfo.SourceDBType != POSTGRESQL {
 			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 			_, err := conn.Exec(context.Background(), setSchemaQuery)
 			if err != nil {
