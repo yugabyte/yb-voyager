@@ -47,27 +47,15 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	}
 	go utils.Wait("done\n", "error\n")
 
-	SSLQueryString := ""
-	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
-		SSLQueryString = "sslmode=" + source.SSLMode
-	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-		SSLQueryString = fmt.Sprintf("sslmode=%s", source.SSLMode)
-		if source.SSLCertPath != "" {
-			SSLQueryString += "&sslcert=" + source.SSLCertPath
-		}
-		if source.SSLKey != "" {
-			SSLQueryString += "&sslkey=" + source.SSLKey
-		}
-		if source.SSLRootCert != "" {
-			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
-		}
-		if source.SSLCRL != "" {
-			SSLQueryString += "&sslcrl=" + source.SSLCRL
-		}
-	}
+	SSLQueryString := generateSSLQueryStringIfNotExists(source)
+	prepareYsqldumpCommandString := ""
 
-	prepareYsqldumpCommandString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
-		source.Port, source.DBName, SSLQueryString, exportDir)
+	if source.Uri != "" {
+		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
+	} else {
+		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
+			source.Port, source.DBName, SSLQueryString, exportDir)
+	}
 
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
@@ -254,28 +242,18 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	tableListPatterns := createTableListPatterns(tableList)
 	// fmt.Printf("[Debug] createTableListPatterns = %+v\n", tableListPatterns)
 
-	SSLQueryString := ""
-	if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" {
-		SSLQueryString = "sslmode=" + source.SSLMode
-	} else if source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-		SSLQueryString = fmt.Sprintf("sslmode=%s", source.SSLMode)
-		if source.SSLCertPath != "" {
-			SSLQueryString += "&sslcert=" + source.SSLCertPath
-		}
-		if source.SSLKey != "" {
-			SSLQueryString += "&sslkey=" + source.SSLKey
-		}
-		if source.SSLRootCert != "" {
-			SSLQueryString += "&sslrootcert=" + source.SSLRootCert
-		}
-		if source.SSLCRL != "" {
-			SSLQueryString += "&sslcrl=" + source.SSLCRL
-		}
-	}
+	SSLQueryString := generateSSLQueryStringIfNotExists(source)
 
 	//using pgdump for exporting data in directory format
-	pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
-		source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
+	// pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+	// 	source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
+	pgdumpDataExportCommandArgsString := ""
+	if source.Uri != "" {
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
+	} else {
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
+	}
 
 	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)
 
@@ -392,4 +370,39 @@ func createTableListPatterns(tableList []string) string {
 	}
 
 	return tableListPattern
+}
+
+func generateSSLQueryStringIfNotExists(s *utils.Source) string {
+
+	if s.Uri == "" {
+		SSLQueryString := ""
+		if s.SSLQueryString == "" {
+
+			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
+				SSLQueryString = "sslmode=" + s.SSLMode
+				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
+					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
+					if s.SSLCertPath != "" {
+						SSLQueryString += "&sslcert=" + s.SSLCertPath
+					}
+					if s.SSLKey != "" {
+						SSLQueryString += "&sslkey=" + s.SSLKey
+					}
+					if s.SSLRootCert != "" {
+						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
+					}
+					if s.SSLCRL != "" {
+						SSLQueryString += "&sslcrl=" + s.SSLCRL
+					}
+				}
+			} else {
+				fmt.Println("Invalid sslmode entered")
+			}
+		} else {
+			SSLQueryString = s.SSLQueryString
+		}
+		return SSLQueryString
+	} else {
+		return ""
+	}
 }

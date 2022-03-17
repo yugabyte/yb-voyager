@@ -50,8 +50,8 @@ func init() {
 func importSchema() {
 	fmt.Printf("import of schema in '%s' database started\n", target.DBName)
 
-	targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-		target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
+	targetConnectionURIWithGivenDB := generateTargetDBUri(&target)
+
 	bgCtx := context.Background()
 	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithGivenDB)
 	if err != nil {
@@ -143,4 +143,46 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	}
 
 	return fetchedSchema == targetSchema
+}
+
+func generateSSLQueryStringIfNotExists(t *utils.Target) string {
+	SSLQueryString := ""
+	if t.SSLMode == "" {
+		t.SSLMode = "prefer"
+	}
+	if t.SSLQueryString == "" {
+
+		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+			SSLQueryString = "sslmode=" + t.SSLMode
+			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
+				SSLQueryString = fmt.Sprintf("sslmode=%s", t.SSLMode)
+				if t.SSLCertPath != "" {
+					SSLQueryString += "&sslcert=" + t.SSLCertPath
+				}
+				if t.SSLKey != "" {
+					SSLQueryString += "&sslkey=" + t.SSLKey
+				}
+				if t.SSLRootCert != "" {
+					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
+				}
+				if t.SSLCRL != "" {
+					SSLQueryString += "&sslcrl=" + t.SSLCRL
+				}
+			}
+		} else {
+			fmt.Println("Invalid sslmode entered")
+		}
+	} else {
+		SSLQueryString = t.SSLQueryString
+	}
+	return SSLQueryString
+}
+
+func generateTargetDBUri(t *utils.Target) string {
+	if t.Uri != "" {
+		return t.Uri
+	} else {
+		return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+			target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(&target))
+	}
 }

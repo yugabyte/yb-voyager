@@ -45,9 +45,16 @@ var exportCmd = &cobra.Command{
 		if source.Uri == "" { //if uri is not given
 			cmd.MarkPersistentFlagRequired("source-db-user")
 			cmd.MarkPersistentFlagRequired("source-db-password")
-			cmd.MarkPersistentFlagRequired("source-db-name")
-			if source.DBType == ORACLE { //default is public
+			if source.DBType != ORACLE {
+				cmd.MarkPersistentFlagRequired("source-db-name")
+			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
+				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
+				if source.DBName != "" || source.DBSid != "" {
+					//no issues, continue with export of schema/data
+				} else {
+					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
+				}
 			}
 		} else {
 			//check and parse the source
@@ -92,6 +99,15 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
 
+	exportCmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+	exportCmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	exportCmd.PersistentFlags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
@@ -101,8 +117,8 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
 		"provide Source SSL Certificate Path")
 
-	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
+		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	exportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"provide SSL Key Path")
@@ -122,9 +138,11 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
 		`URI for connecting to the source database
 		format:
-			1. Oracle:	oracle://User=username;Password=password@hostname:port/service_name
-			2. MySQL:	mysql://user:password@host:port/database
-			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
+			1. Oracle:	oracle://user/password@//host:port:SID	OR
+					oracle://user/password@//host:port/service_name	OR
+					oracle://user/password@TNS_alias
+			2. MySQL:	mysql://user:password@host:port/database?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)
+			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)(&sslcrl=crl_path)
 		`)
 
 	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
@@ -152,31 +170,38 @@ func checkSourceDBType() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port != "" {
-		return
-	}
-	switch source.DBType {
-	case ORACLE:
-		source.Port = ORACLE_DEFAULT_PORT
-	case POSTGRESQL:
-		source.Port = POSTGRES_DEFAULT_PORT
-	case MYSQL:
-		source.Port = MYSQL_DEFAULT_PORT
+	if source.Port == "" {
+		switch source.DBType {
+		case ORACLE:
+			source.Port = ORACLE_DEFAULT_PORT
+		case POSTGRESQL:
+			source.Port = POSTGRES_DEFAULT_PORT
+		case MYSQL:
+			source.Port = MYSQL_DEFAULT_PORT
+		}
 	}
 }
 
 func checkOrSetDefaultSSLMode() {
-	if source.SSLMode != "" {
-		//TODO: check if given mode is supported/allowed
-		return
-	}
 
 	switch source.DBType {
-	case ORACLE:
-		//TODO: findout and add default mode
 	case MYSQL:
-		source.SSLMode = "DISABLED"
+		if source.SSLMode == "disable" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+			return
+		} else if source.SSLMode == "" {
+			source.SSLMode = "prefer"
+		} else {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full\n")
+			os.Exit(1)
+		}
 	case POSTGRESQL:
-		source.SSLMode = "prefer"
+		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
+			return
+		} else if source.SSLMode == "" {
+			source.SSLMode = "prefer"
+		} else {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full\n")
+			os.Exit(1)
+		}
 	}
 }

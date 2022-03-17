@@ -651,7 +651,9 @@ func generateHTMLReport(Report utils.Report) string {
 }
 
 func generateTxtReport(Report utils.Report) string {
-	txtstring := "Database Migration Report\n"
+	txtstring := "+---------------------------+\n"
+	txtstring += "| Database Migration Report |\n"
+	txtstring += "+---------------------------+\n"
 	txtstring += "Database Name\t" + Report.Summary.DBName + "\n"
 	txtstring += "Schema Name\t" + Report.Summary.SchemaName + "\n"
 	txtstring += "DB Version\t" + Report.Summary.DBVersion + "\n\n"
@@ -697,6 +699,7 @@ func generateReportHelper() utils.Report {
 	var schemaDir string
 	if source.GenerateReportMode {
 		schemaDir = exportDir + "/temp/schema"
+		utils.CleanDir(schemaDir)
 	} else {
 		schemaDir = exportDir + "/schema"
 	}
@@ -839,6 +842,15 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as specified user")
 
+	generateReportCmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+	generateReportCmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	generateReportCmd.PersistentFlags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
 	// TODO: All sensitive parameters can be taken from the environment variable
 	generateReportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
 		"connect to source as specified user")
@@ -855,19 +867,30 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
 		"provide Source SSL Certificate Path")
 
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "disable",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+	generateReportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
+		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
+
+	generateReportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
+		"provide SSL Key Path")
+
+	generateReportCmd.PersistentFlags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
+		"provide SSL Root Certificate Path")
+
+	generateReportCmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
+		"provide SSL Root Certificate Revocation List (CRL)")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
 		`URI for connecting to the source database
 		format:
-			1. Oracle:	oracle://User=username;Password=password@hostname:port/SID
-			2. MySQL:	mysql://user:password@host:port/database
-			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode
+			1. Oracle:	oracle://user/password@//host:port:SID	OR
+					oracle://user/password@//host:port/service_name	OR
+					oracle://user/password@TNS_alias
+			2. MySQL:	mysql://user:password@host:port/database?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)
+			3. PostgreSQL:	postgresql://user:password@host:port/dbname?sslmode=mode(&sslcert=cert_path)(&sslrootcert=root_cert_path)(&sslkey=key_path)(&sslcrl=crl_path)
 		`)
 
 	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
-		"allowed report formats: html | txt | json")
+		"allowed report formats: html | txt | json | xml")
 
 }
 

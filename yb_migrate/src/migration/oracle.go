@@ -121,6 +121,9 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 		} else if strings.HasPrefix(line, "ORACLE_USER") {
 			// fmt.Println(line)
 			lines[i] = "ORACLE_USER	" + source.User
+		} else if strings.HasPrefix(line, "ORACLE_HOME") && source.OracleHome != "" {
+			// fmt.Println(line)
+			lines[i] = "ORACLE_HOME	" + source.OracleHome
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
 		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
@@ -248,11 +251,20 @@ func getSourceDSN(source *utils.Source) string {
 	var sourceDSN string
 
 	if source.DBType == "oracle" {
-		sourceDSN = "dbi:Oracle:" + "host=" + source.Host + ";service_name=" +
-			source.DBName + ";port=" + source.Port
+		if source.DBName != "" {
+			sourceDSN = "dbi:Oracle:" + "host=" + source.Host + ";service_name=" +
+				source.DBName + ";port=" + source.Port
+		} else if source.DBSid != "" {
+			sourceDSN = "dbi:Oracle:" + "host=" + source.Host + ";sid=" +
+				source.DBSid + ";port=" + source.Port
+		} else {
+			sourceDSN = "dbi:Oracle:" + source.TNSAlias //this option is ideal for ssl connectivity, provide in documentation if needed
+		}
 	} else if source.DBType == "mysql" {
+		parseSSLString(source)
 		sourceDSN = "dbi:mysql:" + "host=" + source.Host + ";database=" +
 			source.DBName + ";port=" + source.Port
+		sourceDSN = extrapolateDSNfromSSLParams(source, sourceDSN)
 	} else {
 		fmt.Println("Invalid Source DB Type!!")
 		os.Exit(1)

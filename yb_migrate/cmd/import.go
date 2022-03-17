@@ -16,6 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -38,16 +41,12 @@ to quickly create a Cobra application.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 		// fmt.Println("Parent Import PersistentPreRun")
-		if target.Port == "" {
-			target.Port = YUGABYTEDB_DEFAULT_PORT
-		}
-
+		checkOrSetDefaultTargetSSLMode()
 		// if URI is not given then these flags are required, otherwise just use URI
 		if target.Uri == "" {
 			cmd.MarkPersistentFlagRequired("target-db-user")
 			// TODO: All sensitive parameters should be taken from the environment variable
 			cmd.MarkPersistentFlagRequired("target-db-password")
-			cmd.MarkPersistentFlagRequired("target-db-name")
 		} else {
 			//TODO: else we can have a check for the uri pattern
 
@@ -72,10 +71,10 @@ func init() {
 	importCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
 		"export directory (default is current working directory") //default value is current dir
 
-	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "",
+	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
 		"Host on which the YugabyteDB server is running")
 
-	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", "",
+	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
 		"Port on which the YugabyteDB database is running")
 
 	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",
@@ -84,7 +83,7 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.Password, "target-db-password", "",
 		"Password with which to connect to the target YugabyteDB server")
 
-	importCmd.PersistentFlags().StringVar(&target.DBName, "target-db-name", "",
+	importCmd.PersistentFlags().StringVar(&target.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
 		"Name of the database on the target YugabyteDB server on which import needs to be done")
 
 	importCmd.PersistentFlags().StringVar(&target.Uri, "target-db-uri", "",
@@ -97,8 +96,17 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.SSLCertPath, "target-ssl-cert", "",
 		"provide target SSL Certificate Path")
 
-	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "disable",
+	importCmd.PersistentFlags().StringVar(&target.SSLMode, "target-ssl-mode", "prefer",
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLKey, "target-ssl-key", "",
+		"provide SSL Key Path")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLRootCert, "target-ssl-root-cert", "",
+		"provide SSL Root Certificate Path")
+
+	importCmd.PersistentFlags().StringVar(&target.SSLCRL, "target-ssl-crl", "",
+		"provide SSL Root Certificate Revocation List (CRL)")
 
 	importCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
@@ -106,7 +114,7 @@ func init() {
 	importCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing database-objects/table-rows to start from zero")
 
-	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 1000,
+	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 100000,
 		"Maximum size of each batch import ")
 	importCmd.PersistentFlags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
@@ -128,4 +136,15 @@ func init() {
 
 	importCmd.PersistentFlags().StringVar(&target.TableList, "table-list", "",
 		"list of the tables to import data(Note: works only for import data command)")
+}
+
+func checkOrSetDefaultTargetSSLMode() {
+	if target.Uri == "" {
+		if target.SSLMode == "" {
+			target.SSLMode = "prefer"
+		} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
+			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
+			os.Exit(1)
+		}
+	}
 }
