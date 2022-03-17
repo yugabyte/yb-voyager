@@ -126,7 +126,7 @@ func exportDataOffline() bool {
 		}
 	}()
 
-	tablesMetadata := initializeExportTableMetadataSlice(exportDir, tableList)
+	tablesMetadata := initializeExportTableMetadataSlice(tableList)
 	// fmt.Printf("tablesMetadata: %+v\n", tablesMetadata)
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
@@ -178,7 +178,7 @@ func exportDataOnline() bool {
 	return true // empty function
 }
 
-func initializeExportTableMetadataSlice(exportDir string, tableList []string) []utils.TableProgressMetadata {
+func initializeExportTableMetadataSlice(tableList []string) []utils.TableProgressMetadata {
 	numTables := len(tableList)
 	tablesMetadata := make([]utils.TableProgressMetadata, numTables)
 

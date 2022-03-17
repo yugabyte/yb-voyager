@@ -91,7 +91,7 @@ func init() {
 		"Complete connection uri to the target YugabyteDB server")
 
 	importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
-		"target schema name into which scshema needs to be migrated in YugabyteDB"+
+		"target schema name in YugabyteDB"+
 			"(Note: only for  source as Oracle and MySQL, in case of PostgreSQL created schemas and database objects will be same as in source database")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
