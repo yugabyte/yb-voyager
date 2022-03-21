@@ -10,7 +10,6 @@ require (
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.10.0
-	github.com/stretchr/testify v1.7.0 // indirect
 	github.com/tevino/abool/v2 v2.0.1
 	github.com/vbauerster/mpb/v7 v7.3.0
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
