@@ -116,7 +116,15 @@ func (s *Source) ParseURI() {
 		}
 
 		s.User = uriParts.User.Username()
+		if s.User == "" {
+			fmt.Println("Username is mandatory!")
+			os.Exit(1)
+		}
 		s.Password, _ = uriParts.User.Password()
+		if s.Password == "" {
+			fmt.Println("Password is mandatory!")
+			os.Exit(1)
+		}
 		host_port := strings.Split(uriParts.Host, ":")
 		if len(host_port) > 1 {
 			s.Host = host_port[0]

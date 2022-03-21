@@ -12,7 +12,7 @@ import (
 
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
 	"github.com/jackc/pgx/v4"
 )
@@ -213,8 +213,33 @@ func GetDriverConnStr(source *utils.Source) string {
 				source.User, source.Password, source.Host, source.Port, source.DBName)
 		}
 	case "mysql":
-		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName)
+		parseSSLString(source)
+		var tlsString string
+		switch source.SSLMode {
+		case "disable":
+			tlsString = "tls=false"
+			break
+		case "prefer":
+			tlsString = "tls=preferred"
+			break
+		case "require":
+			tlsString = "tls=skip-verify"
+			break
+		case "verify-ca", "verify-full":
+			tlsConf := createTLSConf(source)
+			err := mysql.RegisterTLSConfig("custom", &tlsConf)
+			if err != nil {
+				log.Fatal(err)
+			}
+			tlsString = "tls=custom"
+			break
+		default:
+			fmt.Println("Incorrect SSL Mode Provided. Please enter a valid sslmode.")
+			os.Exit(1)
+
+		}
+		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s?%s", source.User, source.Password,
+			source.Host, source.Port, source.DBName, tlsString)
 
 	case "postgresql":
 		if source.Uri == "" {

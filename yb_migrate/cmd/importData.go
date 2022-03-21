@@ -519,14 +519,14 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		length, err := bufferedWriter.WriteString(line)
 		linesWrittenToBuffer = true
 		if err != nil {
-			log.Printf("Cannot write the read line into %s\n", outfile)
+			log.Printf("Cannot write the read line into %s\n", outfile.Name())
 			return
 		}
 		sz += length
 		if sz >= FOUR_MB {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Printf("Cannot flush data in file = %s\n", outfile)
+				log.Printf("Cannot flush data in file = %s\n", outfile.Name())
 				return
 			}
 			bufferedWriter.Reset(outfile)
@@ -536,7 +536,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		if numLinesInThisSplit == numLinesInASplit || readLineErr != nil {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Printf("Cannot flush data in file = %s\n", outfile)
+				log.Printf("Cannot flush data in file = %s\n", outfile.Name())
 				return
 			}
 			outfile.Close()
