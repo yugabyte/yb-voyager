@@ -774,17 +774,10 @@ func generateReport() {
 	fmt.Printf("-- please find migration report at: %s\n", reportPath)
 }
 
-// generateReportCmd represents the checker command
 var generateReportCmd = &cobra.Command{
 	Use:   "generateReport",
-	Short: "command for checking .sql files under given directory for YB incompatible constructs",
-	Long: `Sample command line:
-  yb_migrate checker <dir> <path-to-json-output>
-where <dir> can have subdirectories containing .sql files
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "command for checking source database schema and generating report about YB incompatible constructs",
+	Long:  ``,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 

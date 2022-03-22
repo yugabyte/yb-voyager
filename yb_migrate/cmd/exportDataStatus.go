@@ -33,7 +33,6 @@ import (
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
-// exportDataStatusCmd represents the exportDataStatus command
 var exportDataStatusCmd = &cobra.Command{
 	Use:   "exportDataStatus",
 	Short: "A brief description of your command",

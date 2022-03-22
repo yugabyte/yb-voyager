@@ -24,7 +24,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// exportSchemaCmd represents the exportSchema command
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "This command is used to export the schema from source database into .sql files",

@@ -24,9 +24,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// source struct will be populated by CLI arguments parsing
 var source utils.Source
 
-// exportCmd represents the export command
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "export schema and data from compatible source database(Oracle, Mysql, Postgres)",

@@ -34,7 +34,6 @@ import (
 
 // var debugFile *os.File
 
-// importDataStatusCmd represents the importDataStatus command
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Status of import of data can be found from this command",

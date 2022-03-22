@@ -31,23 +31,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// exportDataCmd represents the exportData command
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "This commands is used to export table's data from source database to *.sql files",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "This command is used to export table's data from source database to *.sql files",
+	Long:  ``,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// fmt.Println("export data command called")
 		exportData()
 	},
 }

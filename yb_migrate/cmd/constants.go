@@ -18,10 +18,12 @@ const (
 	LAST_SPLIT_NUM              = 0
 )
 
-var IMPORT_SESSION_SETTERS = []string{"" +
+var IMPORT_SESSION_SETTERS = []string{
 	"SET client_encoding TO 'UTF8';",
-	"SET yb_disable_transactional_writes to true;", //to enable Single Row Transactions which results in high-performance with YugabyteDB
-	"SET session_replication_role TO replica;",     //disable triggers or fkeys constraint checks
+	// Disable transactions to improve ingestion throughput.
+	"SET yb_disable_transactional_writes to true;",
+	//Disable triggers or fkeys constraint checks.
+	"SET session_replication_role TO replica;",
 }
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}

@@ -36,7 +36,6 @@ var (
 
 var log = utils.GetLogger()
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "yb_migrate",
 	Short: "A tool to migrate a database to YugabyteDB",

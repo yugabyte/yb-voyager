@@ -26,11 +26,10 @@ import (
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
-// importSchemaCmd represents the importSchema command
 var importSchemaCmd = &cobra.Command{
 	Use:   "schema",
 	Short: "This command imports schema into the destination YugabyteDB database",
-	Long:  `Long version This command imports schema into the destination YUgabyteDB database.`,
+	Long:  ``,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)

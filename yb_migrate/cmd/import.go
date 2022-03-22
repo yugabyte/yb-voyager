@@ -25,18 +25,14 @@ import (
 )
 
 var importMode string
+
+// target struct will be populated by CLI arguments parsing
 var target utils.Target
 
-// importCmd represents the import command
 var importCmd = &cobra.Command{
 	Use:   "import",
 	Short: "import schema and data from compatible source database(Oracle, Mysql, Postgres)",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Long:  ``,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
