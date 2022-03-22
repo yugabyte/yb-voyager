@@ -59,6 +59,7 @@ to quickly create a Cobra application.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		target.ImportMode = true
 		importSchema()
 		importData()
 	},
@@ -88,12 +89,8 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.Uri, "target-db-uri", "",
 		"Complete connection uri to the target YugabyteDB server")
 
-	// Might not be needed for import in yugabytedb
-	/*
-		importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", "",
-			"target schema name which needs to be migrated to YugabyteDB")
-		importCmd.MarkPersistentFlagRequired("target-db-schema")
-	*/
+	importCmd.PersistentFlags().StringVar(&target.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
+		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	importCmd.PersistentFlags().StringVar(&target.SSLCertPath, "target-ssl-cert", "",
@@ -115,7 +112,7 @@ func init() {
 		"mode can be offline | online(applicable only for data migration)")
 
 	importCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
-		"delete all the existing objects and start fresh")
+		"delete all existing database-objects/table-rows to start from zero")
 
 	importCmd.PersistentFlags().Int64Var(&numLinesInASplit, "batch-size", 100000,
 		"Maximum size of each batch import ")

@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
@@ -30,6 +31,8 @@ import (
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
 )
+
+// var debugFile *os.File
 
 // importDataStatusCmd represents the importDataStatus command
 var importDataStatusCmd = &cobra.Command{
@@ -46,7 +49,7 @@ func init() {
 }
 
 func importDataStatus() {
-	// debugFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
+	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)
 	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
 
 	for Done.IsNotSet() {
@@ -78,6 +81,7 @@ func startImportPB(table string) {
 	// total := tablesProgressMetadata[table].CountTotalRows
 	total := int64(100)
 	// tempFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
+	// fmt.Fprintf(debugFile, "adding a progress bar for table =  "+name+"\n")
 
 	importProgressContainer.mu.Lock()
 	bar := importProgressContainer.container.AddBar(total,
@@ -138,17 +142,27 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
 	totalRowCountMap := migration.GetTableRowCount(rowCountFilePath)
 
-	for _, tableName := range tables {
-		tablesProgressMetadata[tableName] = &utils.TableProgressMetadata{
-			TableSchema:    "", //TODO
-			TableName:      tableName,
-			Status:         0,
-			CountLiveRows:  importedRowCount[tableName],
-			CountTotalRows: totalRowCountMap[tableName],
+	for _, fullTableName := range tables {
+		parts := strings.Split(fullTableName, ".")
+		var table, schema string
+		if len(parts) == 2 {
+			schema = parts[0]
+			table = parts[1]
+		} else {
+			schema = target.Schema //so schema will be user provided or public(always for pg, since target-db-schema flag is not for pg)
+			table = parts[0]
 		}
+		tablesProgressMetadata[fullTableName] = &utils.TableProgressMetadata{
+			TableSchema:    schema,
+			TableName:      table,
+			Status:         0,
+			CountLiveRows:  importedRowCount[fullTableName],
+			CountTotalRows: totalRowCountMap[fullTableName],
+		}
+		// fmt.Printf("TableRowCountMap for %s: %d\n", fullTableName, totalRowCountMap[fullTableName])
+		// fmt.Printf("TableProgressMetadata for '%s': %+v\n", fullTableName, tablesProgressMetadata[fullTableName])
 	}
 
-	// log.Infof("Initialization of import data status done\n")
 }
 
 func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {

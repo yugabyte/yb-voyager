@@ -19,13 +19,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"regexp"
 	"strings"
-
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
 // importSchemaCmd represents the importSchema command
@@ -40,6 +38,7 @@ var importSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		target.ImportMode = true
 		importSchema()
 	},
 }
@@ -50,76 +49,100 @@ func init() {
 
 func importSchema() {
 	fmt.Printf("import of schema in '%s' database started\n", target.DBName)
-	utils.CheckToolsRequiredInstalledOrNot(&utils.Source{DBType: "yugabytedb"})
 
-	PrintTargetYugabyteDBVersion(&target)
-
-	/*
-		targetConnectionURIWithGivenDB := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
-		target.User, target.Password, target.Host, target.Port, target.DBName, target.SSLMode)
-	*/
-	targetConnectionURIWithDefaultDB := generateDefaultTargetDBUri(&target)
-
-	//TODO: Explore if DROP DATABASE vs DROP command for all objects
-	dropDatabaseQuery := "DROP DATABASE " + target.DBName + ";"
-	createDatabaseQuery := "CREATE DATABASE " + target.DBName + ";"
+	targetConnectionURIWithGivenDB := generateTargetDBUri(&target)
 
 	bgCtx := context.Background()
-
-	// taking assumption that "yugabyte" database should be present in user's setup
-	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithDefaultDB)
+	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithGivenDB)
 	if err != nil {
-		if res, _ := regexp.MatchString("database.*does[ ]+not[ ]+exist", err.Error()); res {
-			fmt.Printf("default database '%s' does not exists, please create it and continue!!\n", YUGABYTEDB_DEFAULT_DATABASE)
-			os.Exit(1)
-		} else {
-			fmt.Println(err)
-			os.Exit(1)
-		}
+		fmt.Println(err)
+		os.Exit(1)
 	}
 	defer conn.Close(bgCtx)
 
-	var fetchedDBName string
-	checkDatabaseExistQuery := fmt.Sprintf("SELECT datname FROM pg_database where datname='%s';", target.DBName)
-	err = conn.QueryRow(bgCtx, checkDatabaseExistQuery).Scan(&fetchedDBName)
+	PrintTargetYugabyteDBVersion(&target)
 
-	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedDBName == "") {
-		fmt.Printf("required database '%s' doesn't exists, creating...\n", target.DBName)
-		_, err := conn.Exec(bgCtx, createDatabaseQuery)
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-	} else if err != nil {
-		panic(err)
-	} else if target.DBName == fetchedDBName {
-		if startClean && target.DBName != YUGABYTEDB_DEFAULT_DATABASE {
-			//dropping existing database
-			fmt.Printf("dropping '%s' database...\n", target.DBName)
+	// in case of postgreSQL as source, there can be multiple schemas present in a database
+	targetSchemas := []string{target.Schema}
+	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
+	if sourceDBType == "postgresql" {
+		source = utils.Source{DBType: sourceDBType}
+		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(generateReportHelper(), "SCHEMA")...)
+	}
 
-			_, err := conn.Exec(bgCtx, dropDatabaseQuery)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+	utils.PrintIfTrue(fmt.Sprintf("schemas to be present in target database: %v\n", targetSchemas), target.VerboseMode)
+
+	for _, targetSchema := range targetSchemas {
+		//check if target schema exists or not
+		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
+
+		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema)
+		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", targetSchema)
+
+		// schema dropping or creating based on startClean and schemaExists boolean flags
+		if startClean {
+			if schemaExists {
+				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema)
+				if !utils.AskPrompt(promptMsg) {
+					continue
+				}
+
+				fmt.Printf("dropping schema '%s' in target database\n", targetSchema)
+				_, err := conn.Exec(bgCtx, dropSchemaQuery)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+
+			} else {
+				fmt.Printf("schema '%s' in target database doesn't exist\n", targetSchema)
 			}
 
-			//creating required database
-			fmt.Printf("creating '%s' database...\n", target.DBName)
-			_, err = conn.Exec(bgCtx, createDatabaseQuery)
-			if err != nil {
-				fmt.Println(err)
-				os.Exit(1)
+			//in case of postgres, CREATE SCHEMA DDLs for non-public schemas are already present in .sql files
+			if sourceDBType != "postgresql" || targetSchema == "public" {
+				fmt.Printf("creating schema '%s' in target database...\n", targetSchema)
+				_, err := conn.Exec(bgCtx, createSchemaQuery)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
 			}
-		} else if startClean && target.DBName == YUGABYTEDB_DEFAULT_DATABASE {
-			fmt.Printf("can't drop default database: %s, exiting...\n", YUGABYTEDB_DEFAULT_DATABASE)
-			fmt.Printf("please clean it manually before starting again!\n")
-			os.Exit(1)
 		} else {
-			fmt.Printf("database '%s' already exists, using it without cleaning\n", target.DBName)
+			if schemaExists {
+				fmt.Printf("already present schema '%s' in target database, continuing with it..\n", targetSchema)
+			} else {
+				fmt.Printf("creating schema '%s' in target database...\n", targetSchema)
+				_, err := conn.Exec(bgCtx, createSchemaQuery)
+				if err != nil {
+					fmt.Println(err)
+					os.Exit(1)
+				}
+			}
 		}
 	}
 
+	if sourceDBType != POSTGRESQL && target.Schema == "public" && !utils.AskPrompt("do you really want to import into 'public' schema") {
+		os.Exit(1)
+	}
+
 	YugabyteDBImportSchema(&target, exportDir)
+}
+
+func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
+	checkSchemaExistQuery := fmt.Sprintf("SELECT schema_name FROM information_schema.schemata WHERE schema_name = '%s'", targetSchema)
+
+	var fetchedSchema string
+	err := conn.QueryRow(context.Background(), checkSchemaExistQuery).Scan(&fetchedSchema)
+
+	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
+		return false
+	} else if err != nil {
+		// fmt.Println(err)
+		// os.Exit(1)
+		panic(err)
+	}
+
+	return fetchedSchema == targetSchema
 }
 
 func generateSSLQueryStringIfNotExists(t *utils.Target) string {
@@ -155,36 +178,11 @@ func generateSSLQueryStringIfNotExists(t *utils.Target) string {
 	return SSLQueryString
 }
 
-func generateDefaultTargetDBUri(t *utils.Target) string {
-	var defaultDBUri string
+func generateTargetDBUri(t *utils.Target) string {
 	if t.Uri != "" {
-		if strings.Count(t.Uri, "/") > 2 {
-			//if there is a non-default dbname
-			skimindex := strings.Index(t.Uri, "//") + 2
-			startindex := strings.Index(t.Uri[skimindex:], "/") + skimindex + 1
-
-			if strings.Count(t.Uri, "?") > 0 {
-				//if there are additional params (ssl related, etc)
-				endindex := strings.Index(t.Uri, "?")
-				defaultDBUri = t.Uri[:startindex] + YUGABYTEDB_DEFAULT_DATABASE + t.Uri[endindex:]
-			} else {
-				//if there are no additional arguments
-				defaultDBUri = t.Uri[:startindex] + YUGABYTEDB_DEFAULT_DATABASE
-			}
-		} else {
-			//if there is an implicit default dbname
-			if strings.Count(t.Uri, "?") > 0 {
-				//if there are additional params (ssl related, etc)
-				endindex := strings.Index(t.Uri, "?")
-				defaultDBUri = t.Uri[:endindex] + "/" + YUGABYTEDB_DEFAULT_DATABASE + t.Uri[endindex:]
-			} else {
-				//if there are additional arguments
-				defaultDBUri = t.Uri + "/" + YUGABYTEDB_DEFAULT_DATABASE
-			}
-		}
+		return t.Uri
 	} else {
-		defaultDBUri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
-			target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(&target))
+		return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+			target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(&target))
 	}
-	return defaultDBUri
 }

@@ -11,6 +11,7 @@ const (
 	POSTGRES_DEFAULT_PORT       = "5432"
 	YUGABYTEDB_DEFAULT_PORT     = "5433"
 	YUGABYTEDB_DEFAULT_DATABASE = "yugabyte"
+	YUGABYTEDB_DEFAULT_SCHEMA   = "public"
 	ORACLE                      = "oracle"
 	MYSQL                       = "mysql"
 	POSTGRESQL                  = "postgresql"

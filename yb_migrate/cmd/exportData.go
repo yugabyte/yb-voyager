@@ -100,7 +100,25 @@ func exportDataOffline() bool {
 
 	var tableList []string
 	if source.TableList != "" {
-		tableList = strings.Split(source.TableList, ",")
+		userTableList := strings.Split(source.TableList, ",")
+
+		if source.DBType == POSTGRESQL {
+			// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
+			for _, table := range userTableList {
+				parts := strings.Split(table, ".")
+				if len(parts) == 1 {
+					tableList = append(tableList, "public."+table)
+				} else if len(parts) == 2 {
+					tableList = append(tableList, table)
+				} else {
+					fmt.Println("invalid value for --table-list flag")
+					os.Exit(1)
+				}
+			}
+		} else {
+			tableList = userTableList
+		}
+
 		if source.VerboseMode {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
@@ -130,8 +148,8 @@ func exportDataOffline() bool {
 		}
 	}()
 
-	tablesMetadata := initializeExportTableMetadataSlice(exportDir, tableList)
-	// fmt.Println(tableList, "\n", tablesMetadata)
+	tablesMetadata := initializeExportTableMetadataSlice(tableList)
+	// fmt.Printf("tablesMetadata: %+v\n", tablesMetadata)
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
 	switch source.DBType {
@@ -182,7 +200,7 @@ func exportDataOnline() bool {
 	return true // empty function
 }
 
-func initializeExportTableMetadataSlice(exportDir string, tableList []string) []utils.TableProgressMetadata {
+func initializeExportTableMetadataSlice(tableList []string) []utils.TableProgressMetadata {
 	numTables := len(tableList)
 	tablesMetadata := make([]utils.TableProgressMetadata, numTables)
 
@@ -190,10 +208,11 @@ func initializeExportTableMetadataSlice(exportDir string, tableList []string) []
 		tableInfo := strings.Split(tableList[i], ".")
 		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
 			tablesMetadata[i].TableSchema = tableInfo[0]
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
-		} else { //oracle,mysql
-			tablesMetadata[i].TableSchema = source.Schema
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1]
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[1]
+			tablesMetadata[i].FullTableName = tablesMetadata[i].TableSchema + "." + tablesMetadata[i].TableName
+		} else { //no schema.tablename format required for oracle & mysql
+			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
+			tablesMetadata[i].FullTableName = tablesMetadata[i].TableName
 		}
 
 		//Initializing all the members of struct

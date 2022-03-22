@@ -37,6 +37,7 @@ type Target struct {
 	User                   string
 	Password               string
 	DBName                 string
+	Schema                 string
 	SSLMode                string
 	SSLCertPath            string
 	SSLKey                 string
@@ -50,6 +51,7 @@ type Target struct {
 	IgnoreIfExists         bool
 	VerboseMode            bool
 	TableList              string
+	ImportMode             bool
 }
 
 type Format interface {
@@ -59,6 +61,7 @@ type Format interface {
 type TableProgressMetadata struct {
 	TableSchema          string
 	TableName            string
+	FullTableName        string
 	InProgressFilePath   string
 	FinalFilePath        string
 	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)

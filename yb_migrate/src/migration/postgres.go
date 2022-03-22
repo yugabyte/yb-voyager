@@ -239,17 +239,20 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	dataDirPath := exportDir + "/data"
 
-	tableListRegex := createTableListRegex(tableList)
+	tableListPatterns := createTableListPatterns(tableList)
+	// fmt.Printf("[Debug] createTableListPatterns = %+v\n", tableListPatterns)
 
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)
 
 	//using pgdump for exporting data in directory format
+	// pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+	// 	source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	pgdumpDataExportCommandArgsString := ""
 	if source.Uri != "" {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --data-only --compress=0 -t '%s' -Fd --file %s --jobs %d`, source.Uri, tableListRegex, dataDirPath, source.NumConnections)
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
 	} else {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 -t '%s' -Fd --file %s --jobs %d`, source.User, source.Password,
-			source.Host, source.Port, source.DBName, SSLQueryString, tableListRegex, dataDirPath, source.NumConnections)
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
 
 	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)
@@ -308,7 +311,11 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 	for i := 0; i < numLines; i++ {
 		if tocTextFileData[i] == "TABLE DATA" {
-			fileNameVsTableNameMap[tocTextFileData[i-1]] = tocTextFileData[i+5]
+			tableName := tocTextFileData[i-1]
+			schemaName := tocTextFileData[i+2]
+			fullTableName := schemaName + "." + tableName
+			oidFileName := tocTextFileData[i+5]
+			fileNameVsTableNameMap[fullTableName] = oidFileName
 		} else if tocTextFileData[i] == "SEQUENCE SET" {
 			sequencesPostData.WriteString(tocTextFileData[i+1])
 			sequencesPostData.WriteString("\n")
@@ -355,21 +362,14 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocTextFile.Close()
 }
 
-func createTableListRegex(tableList []string) string {
-	var tableListRegex string
+func createTableListPatterns(tableList []string) string {
+	var tableListPattern string
 
 	for _, table := range tableList {
-		if strings.ContainsRune(table, '.') {
-			tableListRegex += strings.Split(table, ".")[1] + "|"
-		} else {
-			tableListRegex += table + "|"
-		}
+		tableListPattern += fmt.Sprintf("-t %s ", table)
 	}
 
-	if len(tableList) > 0 { //removing last '|'
-		tableListRegex = tableListRegex[0 : len(tableListRegex)-1]
-	}
-	return tableListRegex
+	return tableListPattern
 }
 
 func generateSSLQueryStringIfNotExists(s *utils.Source) string {
