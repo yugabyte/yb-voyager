@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
+Copyright (c) YugaByte, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -47,7 +47,6 @@ var exportDataCmd = &cobra.Command{
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
-
 }
 
 func exportData() {
