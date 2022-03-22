@@ -1,3 +1,4 @@
+yb_migrate/yb_migrate
 # Binaries for programs and plugins
 *.exe
 *.exe~

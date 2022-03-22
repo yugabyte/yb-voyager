@@ -17,9 +17,10 @@ package main
 
 import (
 	"github.com/yugabyte/ybm/yb_migrate/cmd"
+	"github.com/yugabyte/ybm/yb_migrate/src/ylog"
 )
 
 func main() {
-
+	ylog.Init()
 	cmd.Execute()
 }
