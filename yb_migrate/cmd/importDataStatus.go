@@ -27,25 +27,11 @@ import (
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
 // var debugFile *os.File
-
-var importDataStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Status of import of data can be found from this command",
-	Long:  `This command will give a little different output for offline and online mode.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("import data status called")
-	},
-}
-
-func init() {
-	importDataCmd.AddCommand(importDataStatusCmd)
-}
 
 func importDataStatus() {
 	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)

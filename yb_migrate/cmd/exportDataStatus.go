@@ -28,24 +28,9 @@ import (
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
 )
-
-var exportDataStatusCmd = &cobra.Command{
-	Use:   "exportDataStatus",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("exportDataStatus called")
-	},
-}
 
 // var debugFile *os.File
 
@@ -254,10 +239,6 @@ func checkForEndOfFile(source *utils.Source, tableMetadata *utils.TableProgressM
 		}
 	}
 	return false
-}
-
-func init() {
-	exportDataCmd.AddCommand(exportDataStatusCmd)
 }
 
 func printExportedTables(exportedTables []string) {
