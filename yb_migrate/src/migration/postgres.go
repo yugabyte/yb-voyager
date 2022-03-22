@@ -288,45 +288,58 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 //The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
 func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
 	tocTextFilePath := dataDirPath + "/toc.txt"
-	waitingFlag := 0
+	// waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
 		// fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
-		waitingFlag = 1
-		time.Sleep(time.Second * 3)
+		// waitingFlag = 1
+		time.Sleep(time.Second * 1)
 	}
 
-	if waitingFlag == 1 {
-		// fmt.Println("toc.txt file got created !!")
+	// if waitingFlag == 1 {
+	// 	fmt.Println("toc.txt file got created !!")
+	// }
+
+	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
+	stdOut, err := pgRestoreCmd.Output()
+	if err != nil {
+		fmt.Println("couldn't parse the TOC to collect the tablenames for data files", err)
+		os.Exit(1)
+	}
+
+	tableNameVsFileNameMap := make(map[string]string)
+	var sequencesPostData strings.Builder
+
+	lines := strings.Split(string(stdOut), "\n")
+	for _, line := range lines {
+		// example of line: 3725; 0 16594 TABLE DATA public categories ds2
+		parts := strings.Split(line, " ")
+
+		if len(parts) < 8 { // those lines don't contain table/sequences related info
+			continue
+		} else if parts[3] == "TABLE" && parts[4] == "DATA" {
+			fileName := strings.Trim(parts[0], ";") + ".dat"
+			fullTableName := parts[5] + "." + parts[6]
+			tableNameVsFileNameMap[fullTableName] = fileName
+		}
 	}
 
 	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
-
 	utils.CheckError(err, "", "", true)
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
 	numLines := len(tocTextFileData)
-
-	var sequencesPostData strings.Builder
-	fileNameVsTableNameMap := make(map[string]string)
+	setvalRegex := regexp.MustCompile("(?i)SELECT.*setval")
 
 	for i := 0; i < numLines; i++ {
-		if tocTextFileData[i] == "TABLE DATA" {
-			tableName := tocTextFileData[i-1]
-			schemaName := tocTextFileData[i+2]
-			fullTableName := schemaName + "." + tableName
-			oidFileName := tocTextFileData[i+5]
-			fileNameVsTableNameMap[fullTableName] = oidFileName
-		} else if tocTextFileData[i] == "SEQUENCE SET" {
-			sequencesPostData.WriteString(tocTextFileData[i+1])
+		if setvalRegex.MatchString(tocTextFileData[i]) {
+			sequencesPostData.WriteString(tocTextFileData[i])
 			sequencesPostData.WriteString("\n")
 		}
 	}
 
 	//extracted SQL for setval() and put it into a postexport.sql file
-	//TODO: May also need to add TRIGGERS ENABLE, FOREIGN KEYS enable
 	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
-
-	return fileNameVsTableNameMap
+	return tableNameVsFileNameMap
 }
 
 func parseAndCreateTocTextFile(dataDirPath string) {
