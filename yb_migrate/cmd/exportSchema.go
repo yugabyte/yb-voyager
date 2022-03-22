@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
+Copyright (c) YugaByte, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,34 +18,74 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+
 	"github.com/spf13/cobra"
 )
 
-// exportSchemaCmd represents the exportSchema command
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "A brief description of your command",
+	Short: "This command is used to export the schema from source database into .sql files",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("exportSchema called")
+
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 	},
+
+	Run: func(cmd *cobra.Command, args []string) {
+		exportSchema()
+	},
+}
+
+func exportSchema() {
+	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
+
+	utils.CheckToolsRequiredInstalledOrNot(&source)
+
+	migration.CheckSourceDBAccessibility(&source)
+
+	if !source.GenerateReportMode {
+		migration.PrintSourceDBVersion(&source)
+	}
+
+	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+
+	switch source.DBType {
+	case ORACLE:
+		utils.PrintIfTrue("preparing Ora2Pg for schema export from Oracle\n", source.VerboseMode, !source.GenerateReportMode)
+
+		migration.Ora2PgExtractSchema(&source, exportDir)
+	case POSTGRESQL:
+		utils.PrintIfTrue("preparing pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
+
+		migration.PgDumpExtractSchema(&source, exportDir)
+	case MYSQL:
+		utils.PrintIfTrue("preparing Ora2Pg for schema export from MySQL\n", source.VerboseMode, !source.GenerateReportMode)
+
+		migration.Ora2PgExtractSchema(&source, exportDir)
+	default:
+		fmt.Printf("Invalid source database type for export\n")
+	}
+
+	if !source.GenerateReportMode { //check is to avoid report generation twice via generateReport command
+		fmt.Printf("\nexported schema files created under directory: %s\n", exportDir+"/schema")
+		generateReport()
+	}
 }
 
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
-	// Here you will define your flags and configuration settings.
+	// Hide num-connections flag from help description from Export Schema command
+	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
+		command.Flags().MarkHidden("parallel-jobs")
+		command.Parent().HelpFunc()(command, strings)
+	})
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// exportSchemaCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// exportSchemaCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }

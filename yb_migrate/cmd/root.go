@@ -1,5 +1,5 @@
 /*
-Copyright © 2021 NAME HERE <EMAIL ADDRESS>
+Copyright (c) YugaByte, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,21 +18,46 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"github.com/spf13/cobra"
+	"strings"
 
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+
+	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
-var exportDir string
+var (
+	cfgFile       string
+	exportDir     string
+	migrationMode string
+	startClean    bool
+	logLevel      string
+)
 
+var log = utils.GetLogger()
 
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "yb_migrate",
 	Short: "A tool to migrate a database to YugabyteDB",
-	Long: `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
-	Run: func(cmd *cobra.Command, args []string) { fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)},
+	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
+
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// fmt.Println("Root cmd PersistentPreRun")
+
+		if !utils.FileOrFolderExists(exportDir) {
+			fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
+			os.Exit(1)
+		} else if exportDir == "." {
+			fmt.Println("Note: Using current working directory as export directory")
+		} else {
+			exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
+		}
+
+	},
+
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -51,8 +76,12 @@ func init() {
 
 	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
 		"config file (default is $HOME/.yb_migrate.yaml)")
-	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory (default is current working directory")
+
+	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
+		"Logging levels: TRACE, DEBUG, INFO, WARN")
+
+	rootCmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
+		"enable verbose mode for the console output")
 }
 
 // initConfig reads in config file and ENV variables if set.
