@@ -18,6 +18,7 @@ package migration
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	_ "embed"
 	"fmt"
 	"io/ioutil"
@@ -286,4 +287,34 @@ func getSourceDSN(source *utils.Source) string {
 	}
 
 	return sourceDSN
+}
+
+func OracleGetAllTableNames(source *utils.Source) []string {
+	dbConnStr := GetDriverConnStr(source)
+	db, err := sql.Open("godror", dbConnStr)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	var tableNames []string
+	query := fmt.Sprintf("SELECT table_name FROM dba_tables "+
+		"WHERE owner = '%s' ORDER BY table_name ASC", strings.ToUpper(source.Schema))
+	rows, err := db.Query(query)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		err = rows.Scan(&tableName)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames
 }
