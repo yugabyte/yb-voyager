@@ -35,6 +35,7 @@ import (
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 
