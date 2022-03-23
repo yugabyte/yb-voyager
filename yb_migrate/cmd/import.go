@@ -69,7 +69,7 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
 		"Host on which the YugabyteDB server is running")
 
-	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
+	importCmd.PersistentFlags().IntVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
 		"Port on which the YugabyteDB database is running")
 
 	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",

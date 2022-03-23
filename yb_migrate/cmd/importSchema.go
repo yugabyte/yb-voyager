@@ -183,7 +183,7 @@ func generateDefaultTargetDBUri(t *utils.Target) string {
 			}
 		}
 	} else {
-		defaultDBUri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+		defaultDBUri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", target.User,
 			target.Password, target.Host, target.Port, YUGABYTEDB_DEFAULT_DATABASE, generateSSLQueryStringIfNotExists(&target))
 	}
 	return defaultDBUri

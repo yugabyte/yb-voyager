@@ -44,7 +44,7 @@ func init() {
 	exportGenerateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"The host on which the source database is running")
 	// TODO How to change defaults with the db type
-	exportGenerateReportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
+	exportGenerateReportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", 0,
 		"The port on which the source database is running")
 	exportGenerateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
 		"The user with which the connection will be made to the source database")

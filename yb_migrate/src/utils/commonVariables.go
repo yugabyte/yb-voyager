@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -12,7 +13,7 @@ import (
 type Source struct {
 	DBType             string
 	Host               string
-	Port               string
+	Port               int
 	User               string
 	Password           string
 	DBName             string
@@ -35,7 +36,7 @@ type Source struct {
 
 type Target struct {
 	Host                   string
-	Port                   string
+	Port                   int
 	User                   string
 	Password               string
 	DBName                 string
@@ -80,6 +81,7 @@ func (s *Target) PrintFormat(cnt int) {
 
 func (s *Source) ParseURI() {
 	// fmt.Printf("Parsing Uri for source=%s\n", s.DBType)
+	var err error
 	switch s.DBType {
 	case "oracle":
 		//TODO: figure out correct uri format for oracle and implement
@@ -95,14 +97,20 @@ func (s *Source) ParseURI() {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
-			s.Port = uriParts[4]
+			s.Port, err = strconv.Atoi(uriParts[4])
+			if err != nil {
+				panic(err)
+			}
 			s.DBSid = uriParts[5]
 			s.Schema = s.User
 		} else if uriParts := oracleUriRegexpServiceName.FindStringSubmatch(s.Uri); uriParts != nil {
 			s.User = uriParts[1]
 			s.Password = uriParts[2]
 			s.Host = uriParts[3]
-			s.Port = uriParts[4]
+			s.Port, err = strconv.Atoi(uriParts[4])
+			if err != nil {
+				panic(err)
+			}
 			s.DBName = uriParts[5]
 			s.Schema = s.User
 		} else {
@@ -128,10 +136,13 @@ func (s *Source) ParseURI() {
 		host_port := strings.Split(uriParts.Host, ":")
 		if len(host_port) > 1 {
 			s.Host = host_port[0]
-			s.Port = host_port[1]
+			s.Port, err = strconv.Atoi(host_port[1])
+			if err != nil {
+				panic(err)
+			}
 		} else {
 			s.Host = host_port[0]
-			s.Port = "3306"
+			s.Port = 3306
 		}
 		if uriParts.Path != "" {
 			s.DBName = uriParts.Path[1:]
@@ -143,7 +154,7 @@ func (s *Source) ParseURI() {
 
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
-		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
 			t.User, t.Password, t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
 	}
 	//TODO: else do a regex match for the correct Uri pattern of user input

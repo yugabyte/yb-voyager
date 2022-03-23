@@ -108,7 +108,7 @@ func getYBServers() []*utils.Target {
 			log.Fatal(err)
 		}
 		clone.Host = host
-		clone.Port = fmt.Sprintf("%d", port)
+		clone.Port = port
 		clone.Uri = getCloneConnectionUri(clone)
 		targets = append(targets, clone)
 	}
@@ -129,7 +129,7 @@ func getCloneConnectionUri(clone *utils.Target) string {
 	} else {
 		targetConnectionUri, err := url.Parse(clone.Uri)
 		if err == nil {
-			targetConnectionUri.Host = fmt.Sprintf("%s:%s", clone.Host, clone.Port)
+			targetConnectionUri.Host = fmt.Sprintf("%s:%d", clone.Host, clone.Port)
 			cloneConnectionUri = fmt.Sprint(targetConnectionUri)
 		} else {
 			panic(err)
@@ -138,49 +138,11 @@ func getCloneConnectionUri(clone *utils.Target) string {
 	return cloneConnectionUri
 }
 
-//obsolete function, commenting out for now
-// func getTargetFromYBUri(uri string) *utils.Target {
-// 	uriParts := strings.Split(uri, ":")
-// 	if len(uriParts) < 4 {
-// 		panic("Bad uri: " + uri)
-// 	}
-// 	// pgdatatbase := uriParts[0]
-// 	userPart := uriParts[1]
-// 	user := strings.TrimPrefix(userPart, "//")
-// 	passwdHostPart := uriParts[2]
-// 	passwdHost := strings.Split(passwdHostPart, "@")
-// 	password := passwdHost[0]
-// 	host := passwdHost[1]
-// 	portDBPart := uriParts[3]
-// 	portDB := strings.Split(portDBPart, "/")
-// 	port := portDB[0]
-// 	dbName := portDB[1]
-// 	// fmt.Printf("pgdb = %s\nuser = %s\npasswd = %s\nhost = %s\nport = %s\ndatabase = %s\n",
-// 	// pgdatatbase, user, password, host, port, database)
-// 	targetStruct := utils.Target{
-// 		Host:     host,
-// 		Port:     port,
-// 		User:     user,
-// 		Password: password,
-// 		DBName:   dbName,
-// 		Uri:      uri,
-// 	}
-// 	return &targetStruct
-// }
-
 func getTargetConnectionUri(targetStruct *utils.Target) string {
 	if len(targetStruct.Uri) != 0 {
-		//changed code has been commented out for now
-		// targetFromURi := getTargetFromYBUri(target.Uri)
-		// targetStruct.User = targetFromURi.User
-		// targetStruct.DBName = targetFromURi.DBName
-		// targetStruct.Password = targetFromURi.Password
-		// targetStruct.Host = targetFromURi.Host
-		// targetStruct.Port = targetFromURi.Port
-		// return targetStruct.Uri
 		return targetStruct.Uri
 	} else {
-		uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
+		uri := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?%s",
 			targetStruct.User, targetStruct.Password, targetStruct.Host, targetStruct.Port, targetStruct.DBName, generateSSLQueryStringIfNotExists(targetStruct))
 		targetStruct.Uri = uri
 		return uri
