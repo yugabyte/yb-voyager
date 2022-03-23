@@ -38,6 +38,7 @@ var importCmd = &cobra.Command{
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 		// fmt.Println("Parent Import PersistentPreRun")
 		checkOrSetDefaultTargetSSLMode()
+		validateTargetPortRange()
 		// if URI is not given then these flags are required, otherwise just use URI, no need to parse it
 		if target.Uri == "" {
 			cmd.MarkPersistentFlagRequired("target-db-user")
@@ -66,7 +67,7 @@ func init() {
 	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
 		"Host on which the YugabyteDB server is running")
 
-	importCmd.PersistentFlags().StringVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
+	importCmd.PersistentFlags().IntVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
 		"Port on which the YugabyteDB database is running")
 
 	importCmd.PersistentFlags().StringVar(&target.User, "target-db-user", "",
@@ -128,6 +129,13 @@ func init() {
 
 	importCmd.PersistentFlags().StringVar(&target.TableList, "table-list", "",
 		"list of the tables to import data(Note: works only for import data command)")
+}
+
+func validateTargetPortRange(){
+	if target.Port < 0 || target.Port > 65535 {
+		fmt.Println("Invalid port number. Valid range is 0-65535")
+		os.Exit(1)
+	}
 }
 
 func checkOrSetDefaultTargetSSLMode() {

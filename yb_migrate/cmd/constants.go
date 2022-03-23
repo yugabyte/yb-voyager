@@ -21,10 +21,10 @@ const (
 	META_INFO_DIR_NAME          = "metainfo"
 	NEWLINE                     = '\n'
 	GET_SERVERS_QUERY           = "SELECT * FROM yb_servers()"
-	ORACLE_DEFAULT_PORT         = "1521"
-	MYSQL_DEFAULT_PORT          = "3306"
-	POSTGRES_DEFAULT_PORT       = "5432"
-	YUGABYTEDB_DEFAULT_PORT     = "5433"
+	ORACLE_DEFAULT_PORT         = 1521
+	MYSQL_DEFAULT_PORT          = 3306
+	POSTGRES_DEFAULT_PORT       = 5432
+	YUGABYTEDB_DEFAULT_PORT     = 5433
 	YUGABYTEDB_DEFAULT_DATABASE = "yugabyte"
 	YUGABYTEDB_DEFAULT_SCHEMA   = "public"
 	ORACLE                      = "oracle"

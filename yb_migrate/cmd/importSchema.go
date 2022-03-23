@@ -181,7 +181,7 @@ func generateTargetDBUri(t *utils.Target) string {
 	if t.Uri != "" {
 		return t.Uri
 	} else {
-		return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", target.User,
+		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", target.User,
 			target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(&target))
 	}
 }

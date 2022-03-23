@@ -109,7 +109,7 @@ func getYBServers() []*utils.Target {
 			log.Fatal(err)
 		}
 		clone.Host = host
-		clone.Port = fmt.Sprintf("%d", port)
+		clone.Port = port
 		clone.Uri = getCloneConnectionUri(clone)
 		targets = append(targets, clone)
 	}
@@ -130,7 +130,7 @@ func getCloneConnectionUri(clone *utils.Target) string {
 	} else {
 		targetConnectionUri, err := url.Parse(clone.Uri)
 		if err == nil {
-			targetConnectionUri.Host = fmt.Sprintf("%s:%s", clone.Host, clone.Port)
+			targetConnectionUri.Host = fmt.Sprintf("%s:%d", clone.Host, clone.Port)
 			cloneConnectionUri = fmt.Sprint(targetConnectionUri)
 		} else {
 			panic(err)
@@ -143,7 +143,7 @@ func getTargetConnectionUri(targetStruct *utils.Target) string {
 	if len(targetStruct.Uri) != 0 {
 		return targetStruct.Uri
 	} else {
-		uri := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
+		uri := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?%s",
 			targetStruct.User, targetStruct.Password, targetStruct.Host, targetStruct.Port, targetStruct.DBName, generateSSLQueryStringIfNotExists(targetStruct))
 		targetStruct.Uri = uri
 		return uri

@@ -785,6 +785,7 @@ var generateReportCmd = &cobra.Command{
 
 		checkSourceDBType()
 		setSourceDefaultPort() //will set only if required
+		validatePortRange()
 		checkOrSetDefaultSSLMode()
 
 		//marking flags as required based on conditions
@@ -831,7 +832,7 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	generateReportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
+	generateReportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", -1,
 		"source database server port number")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",

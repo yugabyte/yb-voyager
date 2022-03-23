@@ -118,7 +118,7 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 	case "verify-ca":
 		DSN += ";mysql_ssl=1"
 		if source.SSLRootCert != "" {
-			DSN += ";mysql_ssl_ca_file=" + source.SSLRootCert
+			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s", source.SSLRootCert)
 		} else {
 			fmt.Println("Root authority certificate needed for verify-ca mode.")
 			os.Exit(1)
@@ -127,22 +127,22 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 	case "verify-full":
 		DSN += ";mysql_ssl=1"
 		if source.SSLRootCert != "" {
-			DSN += ";mysql_ssl_ca_file=" + source.SSLRootCert + ";mysql_ssl_verify_server_cert=1"
+			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s;mysql_ssl_verify_server_cert=1", source.SSLRootCert)
 		} else {
 			fmt.Println("Root authority certificate needed for verify-full mode.")
 			os.Exit(1)
 		}
 		break
 	default:
-		fmt.Println("WARNING: Incorrect sslmode provided. Export will complete without SSL Encryption")
-		return DSN
+		fmt.Println("WARNING: Incorrect sslmode provided. Please provide a correct value for sslmode and try again.")
+		os.Exit(1)
 	}
 
 	if source.SSLCertPath != "" {
-		DSN += ";mysql_ssl_client_cert=" + source.SSLCertPath
+		DSN += fmt.Sprintf(";mysql_ssl_client_cert=%s", source.SSLCertPath)
 	}
 	if source.SSLKey != "" {
-		DSN += ";mysql_ssl_client_key=" + source.SSLKey
+		DSN += fmt.Sprintf(";mysql_ssl_client_key=%s", source.SSLKey)
 	}
 
 	return DSN
