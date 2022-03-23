@@ -51,7 +51,7 @@ var exportCmd = &cobra.Command{
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
 				// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-				if !utils.InDoubleQuotes(source.Schema) {
+				if !utils.IsQuotedString(source.Schema) {
 					source.Schema = strings.ToUpper(source.Schema)
 				}
 

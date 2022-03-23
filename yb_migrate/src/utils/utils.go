@@ -375,6 +375,6 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 	return filepath.Base(GetObjectFilePath(schemaDirPath, objType))
 }
 
-func InDoubleQuotes(str string) bool {
-	return strings.Index(str, `"`) == 0 && strings.LastIndex(str, `"`) == len(str)-1
+func IsQuotedString(str string) bool {
+	return str[0] == '"' && str[len(str)-1] == '"'
 }
