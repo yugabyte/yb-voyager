@@ -53,7 +53,7 @@ var exportCmd = &cobra.Command{
 				if source.DBName != "" || source.DBSid != "" {
 					//no issues, continue with export of schema/data
 				} else {
-					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
+					cmd.MarkPersistentFlagRequired("oracle-tns-alias")
 				}
 			}
 		} else {
@@ -86,7 +86,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	exportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
+	exportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", 0,
 		"source database server port number")
 
 	exportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
@@ -171,7 +171,7 @@ func checkSourceDBType() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port == "" {
+	if source.Port == 0 {
 		switch source.DBType {
 		case ORACLE:
 			source.Port = ORACLE_DEFAULT_PORT

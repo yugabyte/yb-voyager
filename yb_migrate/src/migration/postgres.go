@@ -68,7 +68,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	if source.Uri != "" {
 		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
 	} else {
-		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
+		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
 			source.Port, source.DBName, SSLQueryString, exportDir)
 	}
 
@@ -266,7 +266,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	if source.Uri != "" {
 		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
 	} else {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
 

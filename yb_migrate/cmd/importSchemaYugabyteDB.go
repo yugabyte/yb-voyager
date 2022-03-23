@@ -41,7 +41,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 
 	targetConnectionURI := ""
 	if target.Uri == "" {
-		targetConnectionURI = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s",
+		targetConnectionURI = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
 			target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
 	} else {
 		targetConnectionURI = target.Uri

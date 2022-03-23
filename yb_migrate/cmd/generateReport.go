@@ -831,7 +831,7 @@ func init() {
 	generateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	generateReportCmd.PersistentFlags().StringVar(&source.Port, "source-db-port", "",
+	generateReportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", 0,
 		"source database server port number")
 
 	generateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",

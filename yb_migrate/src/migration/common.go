@@ -195,12 +195,12 @@ func GetDriverConnStr(source *utils.Source) string {
 	//TODO:Discuss and set a priority order for checks in the case of Oracle
 	case "oracle":
 		if source.DBSid != "" {
-			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SID=%s)))",
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
 				source.User, source.Password, source.Host, source.Port, source.DBSid)
 		} else if source.TNSAlias != "" {
 			connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
 		} else if source.DBName != "" {
-			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%s))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
 				source.User, source.Password, source.Host, source.Port, source.DBName)
 		}
 	case "mysql":
@@ -229,12 +229,12 @@ func GetDriverConnStr(source *utils.Source) string {
 			os.Exit(1)
 
 		}
-		connStr = fmt.Sprintf("%s:%s@(%s:%s)/%s?%s", source.User, source.Password,
+		connStr = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
 			source.Host, source.Port, source.DBName, tlsString)
 
 	case "postgresql":
 		if source.Uri == "" {
-			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?%s", source.User, source.Password,
+			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
 				source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
 		} else {
 			connStr = source.Uri
