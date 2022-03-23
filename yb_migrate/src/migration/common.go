@@ -29,9 +29,8 @@ import (
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
 	"github.com/jackc/pgx/v4"
+	log "github.com/sirupsen/logrus"
 )
-
-var log = utils.GetLogger()
 
 func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
 	var requiredMap map[string]string

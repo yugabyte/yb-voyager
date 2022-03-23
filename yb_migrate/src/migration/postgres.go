@@ -28,6 +28,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 

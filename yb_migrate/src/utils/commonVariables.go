@@ -231,8 +231,6 @@ type ExportMetaInfo struct {
 	ExportToolUsed string
 }
 
-var log = GetLogger()
-
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 

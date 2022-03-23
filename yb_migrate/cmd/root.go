@@ -20,10 +20,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
 var (
@@ -33,8 +32,6 @@ var (
 	startClean    bool
 	logLevel      string
 )
-
-var log = utils.GetLogger()
 
 var rootCmd = &cobra.Command{
 	Use:   "yb_migrate",

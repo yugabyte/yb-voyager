@@ -20,10 +20,11 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
-
 	"io/ioutil"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
