@@ -558,15 +558,26 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	}
 }
 
+// Example: "SET client_encoding TO 'UTF8';"
+var reSetTo = regexp.MustCompile(`(?i)SET \w+ TO .*;`)
+
+// Example: "SET search_path = sakila_test,public;"
+var reSetEq = regexp.MustCompile(`(?i)SET \w+ = .*;`)
+
+// Example: `TRUNCATE TABLE "Foo";`
+var reTruncate = regexp.MustCompile(`(?i)TRUNCATE TABLE ["'\w]*;`)
+
+// Example: `COPY "Foo" ("v") FROM STDIN;`
+var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
+
 func isDataLine(line string) bool {
-	if len(line) == 0 || line == "\n" || strings.HasPrefix(
-		line, "SET ") || strings.HasPrefix(
-		line, "TRUNCATE ") || strings.HasPrefix(
-		line, "COPY ") || strings.HasPrefix(line, "\\.") {
-		// fmt.Printf("Returning non data line for %s\n", line)
-		return false
-	}
-	return true
+	return !(len(line) == 0 ||
+		line == "\n" ||
+		line == `\.` ||
+		reSetTo.MatchString(line) ||
+		reSetEq.MatchString(line) ||
+		reTruncate.MatchString(line) ||
+		reCopy.MatchString(line))
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
