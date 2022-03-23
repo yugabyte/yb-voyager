@@ -163,7 +163,7 @@ func importData() {
 		parallelism = len(targets)
 	}
 
-	if source.VerboseMode {
+	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
