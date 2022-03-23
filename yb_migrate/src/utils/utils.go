@@ -374,3 +374,7 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 func GetObjectFileName(schemaDirPath string, objType string) string {
 	return filepath.Base(GetObjectFilePath(schemaDirPath, objType))
 }
+
+func IsQuotedString(str string) bool {
+	return str[0] == '"' && str[len(str)-1] == '"'
+}

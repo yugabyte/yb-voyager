@@ -297,7 +297,7 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 
 	var tableNames []string
 	query := fmt.Sprintf("SELECT table_name FROM dba_tables "+
-		"WHERE owner = '%s' ORDER BY table_name ASC", strings.ToUpper(source.Schema))
+		"WHERE owner = '%s' ORDER BY table_name ASC", source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
 		fmt.Println(err)
