@@ -374,3 +374,7 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 func GetObjectFileName(schemaDirPath string, objType string) string {
 	return filepath.Base(GetObjectFilePath(schemaDirPath, objType))
 }
+
+func InDoubleQuotes(str string) bool {
+	return strings.Index(str, `"`) == 0 && strings.LastIndex(str, `"`) == len(str)-1
+}
