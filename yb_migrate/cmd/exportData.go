@@ -117,6 +117,8 @@ func exportDataOffline() bool {
 	} else {
 		if source.DBType == "mysql" {
 			tableList = migration.MySQLGetAllTableNames(&source)
+		} else if source.DBType == "oracle" {
+			tableList = migration.OracleGetAllTableNames(&source)
 		} else {
 			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
 		}
