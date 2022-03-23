@@ -792,9 +792,16 @@ var generateReportCmd = &cobra.Command{
 		if source.Uri == "" { //if uri is not given
 			cmd.MarkPersistentFlagRequired("source-db-user")
 			cmd.MarkPersistentFlagRequired("source-db-password")
-			cmd.MarkPersistentFlagRequired("source-db-name")
-			if source.DBType == ORACLE { //default is public
+			if source.DBType != ORACLE {
+				cmd.MarkPersistentFlagRequired("source-db-name")
+			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
+				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
+				if source.DBName != "" || source.DBSid != "" {
+					//no issues, continue with export of schema/data
+				} else {
+					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
+				}
 			}
 		} else {
 			//check and parse the source
