@@ -92,6 +92,7 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 		}
 
 		tablesMetadata[i].CountTotalRows = rowCount
@@ -100,6 +101,7 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
 	if !source.VerboseMode {
 		utils.WaitChannel <- 0
+		<-utils.WaitChannel
 	}
 
 	// fmt.Println("After updating total row count")
@@ -138,6 +140,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		db, err := sql.Open("godror", dbConnStr)
 		if err != nil {
 			utils.WaitChannel <- 0 //stop waiting
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -146,6 +149,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		err = db.QueryRow(query).Scan(&rowCount)
 		if err != nil {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -153,6 +157,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		db, err := sql.Open("mysql", dbConnStr)
 		if err != nil {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -161,6 +166,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		err = db.QueryRow(query).Scan(&rowCount)
 		if err != nil {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -168,6 +174,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -176,6 +183,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
 		if err != nil {
 			utils.WaitChannel <- 0
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}

@@ -28,7 +28,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
@@ -48,7 +47,6 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
 	for _, exportObject := range exportObjectList {
-		time.Sleep(time.Second * 2)
 		if exportObject == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
@@ -81,7 +79,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				line := strings.ToLower(outScanner.Text())
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					time.Sleep(time.Second * 2)
+					<-utils.WaitChannel
 					fmt.Printf("ERROR: %s\n", line)
 					runtime.Goexit()
 				}
@@ -94,7 +92,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				line := strings.ToLower(errScanner.Text())
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					time.Sleep(time.Second * 2)
+					<-utils.WaitChannel
 					fmt.Printf("ERROR: %s\n", line)
 					runtime.Goexit()
 				}
@@ -116,6 +114,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 			continue
 		} else {
 			utils.WaitChannel <- 0 //stop waiting with exit code 0
+			<-utils.WaitChannel
 			// utils.PrintIfTrue(fmt.Sprintf("export of %ss complete\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
 		}
 	}

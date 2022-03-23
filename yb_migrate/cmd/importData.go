@@ -825,6 +825,7 @@ func executeSqlFile(file string) {
 	conn, err := pgx.Connect(context.Background(), connectionURI)
 	if err != nil {
 		utils.WaitChannel <- 1
+		<-utils.WaitChannel
 		panic(err)
 	}
 	defer conn.Close(context.Background())
@@ -865,7 +866,7 @@ func executeSqlFile(file string) {
 	}
 
 	utils.WaitChannel <- errOccured
-
+	<-utils.WaitChannel
 }
 
 func getInProgressFilePath(task *fwk.SplitFileImportTask) string {

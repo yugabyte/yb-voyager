@@ -74,6 +74,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 		conn, err := pgx.Connect(context.Background(), targetConnectionURI)
 		if err != nil {
 			utils.WaitChannel <- 1
+			<-utils.WaitChannel
 			fmt.Println(err)
 			os.Exit(1)
 		}
@@ -115,6 +116,7 @@ func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
 		}
 
 		utils.WaitChannel <- errOccured
+		<-utils.WaitChannel
 
 		conn.Close(context.Background())
 	}
