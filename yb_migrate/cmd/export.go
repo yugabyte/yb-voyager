@@ -88,9 +88,6 @@ var exportCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(exportCmd)
 
-	exportCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
-		"export directory (default is current working directory") //default value is current dir
-
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 

@@ -61,9 +61,6 @@ var importCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(importCmd)
 
-	importCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
-		"export directory (default is current working directory") //default value is current dir
-
 	importCmd.PersistentFlags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
 		"Host on which the YugabyteDB server is running")
 
@@ -131,7 +128,7 @@ func init() {
 		"list of the tables to import data(Note: works only for import data command)")
 }
 
-func validateTargetPortRange(){
+func validateTargetPortRange() {
 	if target.Port < 0 || target.Port > 65535 {
 		fmt.Println("Invalid port number. Valid range is 0-65535")
 		os.Exit(1)

@@ -41,14 +41,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// fmt.Println("Root cmd PersistentPreRun")
 
-		if !utils.FileOrFolderExists(exportDir) {
-			fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
-			os.Exit(1)
-		} else if exportDir == "." {
-			fmt.Println("Note: Using current working directory as export directory")
-		} else {
-			exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
-		}
+		checkExportDirFlag()
 		InitLogging(exportDir)
 	},
 
@@ -71,14 +64,17 @@ func init() {
 	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
-		"config file (default is $HOME/.yb_migrate.yaml)")
+	// rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
+	// 	"config file (default is $HOME/.yb_migrate.yaml)")
 
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
 
 	rootCmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
+
+	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory (default is current working directory")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -102,5 +98,20 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+}
+
+func checkExportDirFlag() {
+	if exportDir == "" {
+		fmt.Println(`Error: required flag "export-dir" not set`)
+		os.Exit(1)
+	}
+	if !utils.FileOrFolderExists(exportDir) {
+		fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
+		os.Exit(1)
+	} else if exportDir == "." {
+		fmt.Println("Note: Using current working directory as export directory")
+	} else {
+		exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
 	}
 }
