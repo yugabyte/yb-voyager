@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 		} else {
 			exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
 		}
-
+		InitLogging(exportDir)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

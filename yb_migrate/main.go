@@ -16,15 +16,9 @@ limitations under the License.
 package main
 
 import (
-	"os"
-
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/cmd"
 )
 
 func main() {
-	InitLogging()
-	log.Info("Logging initialised.")
-	log.Infof("Args: %v", os.Args)
 	cmd.Execute()
 }
