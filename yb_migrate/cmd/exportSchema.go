@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -36,6 +37,10 @@ to quickly create a Cobra application.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	},
+
+	PreRun: func(cmd *cobra.Command, args []string) {
+		checkSchemaDirs()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -88,4 +93,22 @@ func init() {
 		command.Parent().HelpFunc()(command, strings)
 	})
 
+}
+
+func checkSchemaDirs() {
+	schemaDir := exportDir + "/schema"
+	metainfoSchemaDir := exportDir + "/metainfo/schema"
+	if startClean {
+		utils.CleanDir(schemaDir)
+		utils.CleanDir(metainfoSchemaDir)
+	} else {
+		if !utils.IsDirectoryEmpty(schemaDir) {
+			fmt.Println("schema directory is not empty, use --start-clean flag to clean the directories and start")
+			os.Exit(1)
+		}
+		if !utils.IsDirectoryEmpty(metainfoSchemaDir) {
+			fmt.Println("metainfo/schema directory is not empty, use --start-clean flag to clean the directories and start")
+			os.Exit(1)
+		}
+	}
 }

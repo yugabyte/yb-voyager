@@ -40,6 +40,10 @@ var exportDataCmd = &cobra.Command{
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 	},
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		checkDataDirs()
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
 		exportData()
 	},
@@ -51,18 +55,6 @@ func init() {
 
 func exportData() {
 	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
-	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
-	exportDataDirPath := exportDir + "/data"
-	if startClean {
-		//remove flag before start & clean existing data/tables
-		os.Remove(exportDoneFlagPath)
-		utils.CleanDir(exportDataDirPath)
-	} else {
-		if utils.FileOrFolderExists(exportDoneFlagPath) || !utils.IsDirectoryEmpty(exportDataDirPath) {
-			fmt.Println("export already done or table data files already exists, use --start-clean flag to clean data and start again")
-			os.Exit(0)
-		}
-	}
 
 	var success bool
 	if migrationMode == "offline" {
@@ -229,6 +221,24 @@ func checkTableListFlag() {
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
 			fmt.Printf("invalid table name '%s' with --table-list flag\n", table)
+			os.Exit(1)
+		}
+	}
+}
+
+func checkDataDirs() {
+	exportDataDir := exportDir + "/data"
+	metainfoFlagDir := exportDir + "/metainfo/flags"
+	if startClean {
+		utils.CleanDir(exportDataDir)
+		utils.CleanDir(metainfoFlagDir)
+	} else {
+		if !utils.IsDirectoryEmpty(exportDataDir) {
+			fmt.Println("data directory is not empty, use --start-clean flag to clean the directories and start")
+			os.Exit(1)
+		}
+		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
+			fmt.Println("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start")
 			os.Exit(1)
 		}
 	}
