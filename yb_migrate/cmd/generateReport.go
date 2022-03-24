@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
@@ -802,11 +803,20 @@ var generateReportCmd = &cobra.Command{
 					source.Schema = strings.ToUpper(source.Schema)
 				}
 
-				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
-				if source.DBName != "" || source.DBSid != "" {
-					//no issues, continue with export of schema/data
-				} else {
-					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
+				if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
+					fmt.Println("Error: one flag required out of \"oracle-tns-alias\", \"source-db-name\", \"oracle-db-sid\" required. Run \"yb_migrate export --help\" for additional details.")
+					log.Errorf("Insufficient flags provided")
+					os.Exit(1)
+				} else if source.TNSAlias != "" {
+					//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
+					fmt.Println("Using TNS Alias for export.")
+					source.DBName = ""
+					source.DBSid = ""
+				} else if source.DBName != "" {
+					fmt.Println("Using DB Name for export.")
+					source.DBSid = ""
+				} else if source.DBSid != "" {
+					fmt.Println("Using SID for export.")
 				}
 			}
 		} else {
