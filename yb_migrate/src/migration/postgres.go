@@ -81,6 +81,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	err := preparedYsqldumpCommand.Run()
 	if err != nil {
 		utils.WaitChannel <- 1
+		<-utils.WaitChannel
 		utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
 	}
 
@@ -89,6 +90,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 
 	// utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
 	utils.WaitChannel <- 0
+	<-utils.WaitChannel
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
