@@ -227,6 +227,7 @@ func GetDriverConnStr(source *utils.Source) string {
 			tlsConf := createTLSConf(source)
 			err := mysql.RegisterTLSConfig("custom", &tlsConf)
 			if err != nil {
+				fmt.Println(err)
 				log.Fatal(err)
 			}
 			tlsString = "tls=custom"

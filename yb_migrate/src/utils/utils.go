@@ -222,6 +222,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "yugabytedb":
 		toolsRequired = []string{"psql"}
 	default:
+		fmt.Println("Invalid DB Type!!")
 		log.Fatalf("Invalid DB Type!!")
 	}
 
@@ -235,6 +236,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 
 		if err != nil {
 			if commandNotFoundRegexp.MatchString(err.Error()) {
+				fmt.Printf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
 				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
 			} else {
 				panic(err)

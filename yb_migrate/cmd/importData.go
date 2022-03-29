@@ -96,6 +96,7 @@ func getYBServers() []*utils.Target {
 
 	rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
 	if err != nil {
+		fmt.Println(err)
 		log.Fatal(err)
 	}
 	defer rows.Close()
@@ -107,6 +108,7 @@ func getYBServers() []*utils.Target {
 		var port, num_conns int
 		if err := rows.Scan(&host, &port, &num_conns,
 			&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
+			fmt.Println(err)
 			log.Fatal(err)
 		}
 		clone.Host = host
@@ -322,6 +324,7 @@ func checkPrimaryKey(tableName string) bool {
 
 	rows, err := conn.Query(context.Background(), checkPKSql)
 	if err != nil {
+		fmt.Println(err)
 		log.Fatal(err)
 	}
 	defer rows.Close()
@@ -359,7 +362,8 @@ func truncateTables(tables []string) {
 		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
 		_, err := conn.Exec(context.Background(), truncateStmt)
 		if err != nil {
-			log.Fatal(err, ", table name = ", table)
+			fmt.Println(err)
+			log.Fatal(err)
 		}
 	}
 }
@@ -458,6 +462,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	numLinesInThisSplit := int64(0)
 	forig, err := os.Open(dataFile)
 	if err != nil {
+		fmt.Println(err)
 		log.Fatal(err)
 	}
 	defer forig.Close()
@@ -467,6 +472,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	// fmt.Printf("curr temp file created = %s and largestOffset=%d\n", currTmpFileName, largestOffset)
 	outfile, err := os.Create(currTmpFileName)
 	if err != nil {
+		fmt.Println(err)
 		log.Fatal(err)
 	}
 
@@ -503,14 +509,14 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		length, err := bufferedWriter.WriteString(line)
 		linesWrittenToBuffer = true
 		if err != nil {
-			log.Printf("Cannot write the read line into %s\n", outfile.Name())
+			log.Infof("Cannot write the read line into %s\n", outfile.Name())
 			return
 		}
 		sz += length
 		if sz >= FOUR_MB {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Printf("Cannot flush data in file = %s\n", outfile.Name())
+				log.Infof("Cannot flush data in file = %s\n", outfile.Name())
 				return
 			}
 			bufferedWriter.Reset(outfile)
@@ -520,7 +526,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		if numLinesInThisSplit == numLinesInASplit || readLineErr != nil {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Printf("Cannot flush data in file = %s\n", outfile.Name())
+				log.Infof("Cannot flush data in file = %s\n", outfile.Name())
 				return
 			}
 			outfile.Close()
@@ -537,7 +543,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
-				log.Printf("Cannot rename %s to %s\n", currTmpFileName, splitFile)
+				log.Infof("Cannot rename %s to %s\n", currTmpFileName, splitFile)
 				return
 			}
 
@@ -550,7 +556,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 				outfile, err = os.Create(currTmpFileName)
 				if err != nil {
-					log.Printf("Cannot create %s\n", currTmpFileName)
+					log.Infof("Cannot create %s\n", currTmpFileName)
 					return
 				}
 				bufferedWriter = bufio.NewWriter(outfile)

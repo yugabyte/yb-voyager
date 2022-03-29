@@ -67,21 +67,24 @@ func createTLSConf(source *utils.Source) tls.Config {
 	if source.SSLRootCert != "" {
 		pem, err := ioutil.ReadFile(source.SSLRootCert)
 		if err != nil {
+			fmt.Println(err)
 			log.Fatal(err)
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			fmt.Println("Failed to append PEM.")
 			log.Fatal("Failed to append PEM.")
 		}
 	} else {
-		fmt.Print("Root Certificate Needed for verify-ca and verify-full SSL Modes")
-		os.Exit(1)
+		fmt.Println("Root Certificate Needed for verify-ca and verify-full SSL Modes")
+		log.Fatal("Root Certificate Needed for verify-ca and verify-full SSL Modes")
 	}
 	clientCert := make([]tls.Certificate, 0, 1)
 
 	if source.SSLCertPath != "" && source.SSLKey != "" {
 		certs, err := tls.LoadX509KeyPair(source.SSLCertPath, source.SSLKey)
 		if err != nil {
+			fmt.Println(err)
 			log.Fatal(err)
 		}
 
