@@ -63,25 +63,20 @@ func importDataStatus() {
 
 func startImportPB(table string) {
 	name := table
-	// total := tablesProgressMetadata[table].CountTotalRows
 	total := int64(100)
-	// tempFile, _ := os.OpenFile(exportDir+"/temp/debug.txt", os.O_WRONLY, 0644)
-	// fmt.Fprintf(debugFile, "adding a progress bar for table =  "+name+"\n")
 
 	importProgressContainer.mu.Lock()
 	bar := importProgressContainer.container.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
-		// mpb.BarRemoveOnComplete(),
+		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(name),
 		),
 		mpb.AppendDecorators(
-			// decor.Percentage(decor.WCSyncSpaceR),
 			decor.OnComplete(
 				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
 			),
 			decor.OnComplete(
-				//TODO: default feature by package, need to verify the correctness/algorithm for ETA
 				decor.AverageETA(decor.ET_STYLE_GO), "",
 			),
 		),
