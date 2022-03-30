@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
@@ -40,11 +42,8 @@ var exportDataCmd = &cobra.Command{
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 	},
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		checkDataDirs()
-	},
-
 	Run: func(cmd *cobra.Command, args []string) {
+		checkDataDirs()
 		exportData()
 	},
 }
@@ -234,12 +233,12 @@ func checkDataDirs() {
 		utils.CleanDir(metainfoFlagDir)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			fmt.Println("data directory is not empty, use --start-clean flag to clean the directories and start")
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "data directory is not empty, use --start-clean flag to clean the directories and start\n")
+			log.Fatalf("data directory is not empty, use --start-clean flag to clean the directories and start\n")
 		}
 		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			fmt.Println("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start")
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
+			log.Fatalf("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
 		}
 	}
 }

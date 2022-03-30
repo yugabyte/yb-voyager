@@ -73,13 +73,10 @@ var exportCmd = &cobra.Command{
 		}
 	},
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		checkSchemaDirs()
-		checkDataDirs()
-	},
-
 	Run: func(cmd *cobra.Command, args []string) {
 		// log.Infof("parent export command called with source data type = %s", source.DBType)
+		checkSchemaDirs()
+		checkDataDirs()
 		exportSchema()
 		exportData()
 	},

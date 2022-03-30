@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -64,9 +66,6 @@ func init() {
 	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	// rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
-	// 	"config file (default is $HOME/.yb_migrate.yaml)")
-
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
 
@@ -103,14 +102,15 @@ func initConfig() {
 
 func checkExportDirFlag() {
 	if exportDir == "" {
-		fmt.Println(`Error: required flag "export-dir" not set`)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, `Error: required flag "export-dir" not set`)
+		log.Fatalf(`Error: required flag "export-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
-		os.Exit(1)
+		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", exportDir)
+		log.Fatalf("Directory: %s doesn't exists!!\n", exportDir)
 	} else if exportDir == "." {
 		fmt.Println("Note: Using current working directory as export directory")
+		log.Infof("Note: Using current working directory as export directory")
 	} else {
 		exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
 	}
