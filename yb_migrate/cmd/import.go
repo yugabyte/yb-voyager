@@ -40,12 +40,13 @@ var importCmd = &cobra.Command{
 		checkOrSetDefaultTargetSSLMode()
 		validateTargetPortRange()
 		// if URI is not given then these flags are required, otherwise just use URI, no need to parse it
-		if target.Uri == "" {
-			cmd.MarkPersistentFlagRequired("target-db-user")
-			// TODO: All sensitive parameters should be taken from the environment variable
-			cmd.MarkPersistentFlagRequired("target-db-password")
-		}
-
+		/*
+			if target.Uri == "" {
+				cmd.MarkPersistentFlagRequired("target-db-user")
+				// TODO: All sensitive parameters should be taken from the environment variable
+				cmd.MarkPersistentFlagRequired("target-db-password")
+			}
+		*/
 		if source.TableList != "" {
 			checkTableListFlag()
 		}
