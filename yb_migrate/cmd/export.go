@@ -75,7 +75,8 @@ var exportCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		// log.Infof("parent export command called with source data type = %s", source.DBType)
-
+		checkSchemaDirs()
+		checkDataDirs()
 		exportSchema()
 		exportData()
 	},
@@ -83,9 +84,6 @@ var exportCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
-
-	exportCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
-		"export directory (default is current working directory") //default value is current dir
 
 	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
