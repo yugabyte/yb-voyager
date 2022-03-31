@@ -28,8 +28,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
@@ -46,8 +44,8 @@ func CheckToolsRequiredForPostgresExport() {
 
 		if err != nil {
 			if commandNotFoundRegexp.MatchString(err.Error()) {
-				fmt.Printf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
-				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				utils.ErrExit(errMsg)
 			} else {
 				panic(err)
 			}
