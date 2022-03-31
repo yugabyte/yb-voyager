@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"strconv"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
@@ -798,26 +797,7 @@ var generateReportCmd = &cobra.Command{
 				cmd.MarkPersistentFlagRequired("source-db-name")
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
-				// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-				if !utils.IsQuotedString(source.Schema) {
-					source.Schema = strings.ToUpper(source.Schema)
-				}
-
-				if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-					fmt.Println("Error: one flag required out of \"oracle-tns-alias\", \"source-db-name\", \"oracle-db-sid\" required. Run \"yb_migrate export --help\" for additional details.")
-					log.Errorf("Insufficient flags provided")
-					os.Exit(1)
-				} else if source.TNSAlias != "" {
-					//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
-					fmt.Println("Using TNS Alias for export.")
-					source.DBName = ""
-					source.DBSid = ""
-				} else if source.DBName != "" {
-					fmt.Println("Using DB Name for export.")
-					source.DBSid = ""
-				} else if source.DBSid != "" {
-					fmt.Println("Using SID for export.")
-				}
+				validateOracleParams()
 			}
 		} else {
 			//check and parse the source
