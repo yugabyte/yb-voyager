@@ -216,18 +216,20 @@ func validateOracleParams() {
 		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-		fmt.Fprintf(os.Stderr, `Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
-		os.Exit(1)
+		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
+		fmt.Println("Using TNS Alias for export.")
 		log.Infof("Using TNS Alias for export.")
 		source.DBName = ""
 		source.DBSid = ""
 	} else if source.DBName != "" {
 		log.Infof("Using DB Name for export.")
+		fmt.Println("Using DB Name for export.")
 		source.DBSid = ""
 	} else if source.DBSid != "" {
 		log.Infof("Using SID for export.")
+		fmt.Println("Using SID for export.")
 	}
 
 }
