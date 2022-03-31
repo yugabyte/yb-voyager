@@ -74,9 +74,8 @@ var importDataCmd = &cobra.Command{
 	Short: "This command imports data into YugabyteDB database",
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		// fmt.Println("Import Data PersistentPreRun")
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateImportFlags(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -157,7 +156,6 @@ func importData() {
 	// TODO: Add later
 	// acquireImportLock()
 	// defer os.Remove(importLockFile)
-
 	fmt.Printf("\nimport of data in '%s' database started\n", target.DBName)
 
 	targets := getYBServers()
@@ -908,7 +906,7 @@ func incrementImportedRowCount(tableName string, rowsCopied int64) {
 
 func init() {
 	importCmd.AddCommand(importDataCmd)
-
-	importDataCmd.PersistentFlags().StringVar(&importMode, "offline", "",
+	registerCommonImportFlags(importDataCmd)
+	importDataCmd.Flags().StringVar(&importMode, "offline", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
 }

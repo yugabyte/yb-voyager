@@ -20,8 +20,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -102,16 +100,15 @@ func initConfig() {
 
 func checkExportDirFlag() {
 	if exportDir == "" {
-		fmt.Fprintf(os.Stderr, `Error: required flag "export-dir" not set`)
-		log.Fatalf(`Error: required flag "export-dir" not set`)
+		fmt.Fprintln(os.Stderr, `Error: required flag "export-dir" not set`)
+		os.Exit(1)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
 		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", exportDir)
-		log.Fatalf("Directory: %s doesn't exists!!\n", exportDir)
+		os.Exit(1)
 	} else if exportDir == "." {
 		fmt.Println("Note: Using current working directory as export directory")
-		log.Infof("Note: Using current working directory as export directory")
 	} else {
-		exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
+		exportDir = strings.TrimRight(exportDir, "/")
 	}
 }
