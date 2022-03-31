@@ -16,6 +16,9 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
+	"os"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -34,4 +37,9 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 			log.Infof("%s", err)
 		}
 	}
+}
+
+func ErrExit(err string) {
+	fmt.Fprintf(os.Stderr, err)
+	log.Fatalf(err)
 }
