@@ -28,8 +28,6 @@ import (
 	"strings"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
@@ -46,7 +44,8 @@ func CheckToolsRequiredForPostgresExport() {
 
 		if err != nil {
 			if commandNotFoundRegexp.MatchString(err.Error()) {
-				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				utils.ErrExit(errMsg)
 			} else {
 				panic(err)
 			}
@@ -81,6 +80,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	err := preparedYsqldumpCommand.Run()
 	if err != nil {
 		utils.WaitChannel <- 1
+		<-utils.WaitChannel
 		utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
 	}
 
@@ -89,6 +89,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 
 	// utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
 	utils.WaitChannel <- 0
+	<-utils.WaitChannel
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]

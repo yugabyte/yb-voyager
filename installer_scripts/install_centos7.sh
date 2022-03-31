@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+ORA2PG_VERSION="23.1"
+
 which wget &> temp.log
 if [ $? -ne 0 ]; then
     echo "wget not found."
@@ -304,13 +306,13 @@ if  [ $? -ne 0 ]; then
                 echo "DBD::Oracle is already installed. Skipping."
             fi
 
-            wget https://github.com/darold/ora2pg/archive/refs/tags/v23.0.tar.gz &>> mylog.log
+            wget https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz &>> mylog.log
             if [ $? -ne 0 ]; then
                 echo "ora2pg not installed! Check $HOME/mylog.log for more details."
                 exit
             fi
-            tar -xvf v23.0.tar.gz &>> mylog.log
-            cd ora2pg-23.0/
+            tar -xvf v${ORA2PG_VERSION}.tar.gz &>> mylog.log
+            cd ora2pg-${ORA2PG_VERSION}/
             perl Makefile.PL &>> mylog.log
             if [ $? -ne 0 ]; then
                 echo "ora2pg not installed! Check $HOME/mylog.log for more details."
@@ -322,7 +324,7 @@ if  [ $? -ne 0 ]; then
                 exit
             fi
             cd ~
-            rm v23.0.tar.gz
+            rm v${ORA2PG_VERSION}.tar.gz
             echo "ora2pg installed."
             break;;
             [Nn]* )
@@ -341,7 +343,7 @@ if [ $? -ne 0 ]; then
     exit
 fi
 
-cd ~/ybm/yb_migrate
+cd ybm/yb_migrate
 go install
 if [ $? -ne 0 ]; then
     echo "yb-migrate build FAILED! Check $HOME/mylog.log for more details."

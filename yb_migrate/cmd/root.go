@@ -20,6 +20,8 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -41,15 +43,8 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// fmt.Println("Root cmd PersistentPreRun")
 
-		if !utils.FileOrFolderExists(exportDir) {
-			fmt.Printf("Directory: %s doesn't exists!!\n", exportDir)
-			os.Exit(1)
-		} else if exportDir == "." {
-			fmt.Println("Note: Using current working directory as export directory")
-		} else {
-			exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
-		}
-
+		checkExportDirFlag()
+		InitLogging(exportDir)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -71,14 +66,14 @@ func init() {
 	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	rootCmd.PersistentFlags().StringVarP(&cfgFile, "config", "c", "",
-		"config file (default is $HOME/.yb_migrate.yaml)")
-
 	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
 
 	rootCmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
+
+	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory (default is current working directory")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -102,5 +97,21 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
+	}
+}
+
+func checkExportDirFlag() {
+	if exportDir == "" {
+		fmt.Fprintf(os.Stderr, `Error: required flag "export-dir" not set`)
+		log.Fatalf(`Error: required flag "export-dir" not set`)
+	}
+	if !utils.FileOrFolderExists(exportDir) {
+		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", exportDir)
+		log.Fatalf("Directory: %s doesn't exists!!\n", exportDir)
+	} else if exportDir == "." {
+		fmt.Println("Note: Using current working directory as export directory")
+		log.Infof("Note: Using current working directory as export directory")
+	} else {
+		exportDir = strings.TrimRight(exportDir, "/") //cleaning the string
 	}
 }

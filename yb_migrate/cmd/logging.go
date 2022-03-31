@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package main
+package cmd
 
 import (
 	"fmt"
@@ -46,13 +46,9 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging() {
-	// Redirect log messages to ~/yb_migrate.log .
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		panic(fmt.Sprintf("Failed to initialise logging: get user home dir: %s", err))
-	}
-	logFileName := filepath.Join(homeDir, "yb_migrate.log")
+func InitLogging(logDir string) {
+	// Redirect log messages to ${logDir}/yb_migrate.log .
+	logFileName := filepath.Join(logDir, "yb_migrate.log")
 	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialise logging: open log file %q: %s", logFileName, err))
@@ -61,4 +57,7 @@ func InitLogging() {
 
 	log.SetReportCaller(true)
 	log.SetFormatter(&MyFormatter{})
+
+	log.Info("Logging initialised.")
+	log.Infof("Args: %v", os.Args)
 }

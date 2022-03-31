@@ -35,7 +35,6 @@ import (
 var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 func Wait(args ...string) {
-	// fmt.Print("\033[?25l") // Hide the cursor
 	var successMsg, failureMsg string
 	if len(args) > 0 {
 		successMsg = args[0]
@@ -50,15 +49,13 @@ func Wait(args ...string) {
 		i++
 		select {
 		case channelCode := <-WaitChannel:
-			// fmt.Println("\r")
 			fmt.Print("\b ")
 			if channelCode == 0 {
 				fmt.Printf("%s", successMsg)
 			} else if channelCode == 1 {
 				fmt.Printf("%s", failureMsg)
 			}
-			// fmt.Println("Done \u2705")
-			// defer fmt.Print("\033[?25h") // enable the cursor
+			WaitChannel <- -1
 			return
 		default:
 			fmt.Printf("\b" + string(chars[i%4]))
@@ -225,7 +222,8 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "yugabytedb":
 		toolsRequired = []string{"psql"}
 	default:
-		log.Fatalf("Invalid DB Type!!")
+		errMsg := "Invalid DB Type!!\n"
+		ErrExit(errMsg)
 	}
 
 	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
@@ -238,7 +236,8 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 
 		if err != nil {
 			if commandNotFoundRegexp.MatchString(err.Error()) {
-				log.Fatalf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
+				ErrExit(errMsg)
 			} else {
 				panic(err)
 			}

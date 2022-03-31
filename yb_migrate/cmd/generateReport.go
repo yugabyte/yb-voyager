@@ -50,76 +50,74 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile("\\$.*\\$")
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
-	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_.]+)`)
-	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING GIST`)
-	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING brin`)
-	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING spgist`)
-	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_.]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*USING rtree`)
-	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_.]+)")
-	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
+	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
+	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
+	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING GIST`)
+	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING brin`)
+	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING spgist`)
+	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING rtree`)
+	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_."]+)")
+	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
 	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
 	fetchRegex         = regexp.MustCompile(`(?i)FETCH .*FROM`)
 	fetchRelativeRegex = regexp.MustCompile(`(?i)FETCH RELATIVE`)
 	backwardRegex      = regexp.MustCompile(`(?i)MOVE BACKWARD`)
 	fetchAbsRegex      = regexp.MustCompile(`(?i)FETCH ABSOLUTE`)
-	alterAggRegex      = regexp.MustCompile("(?i)ALTER AGGREGATE ([a-zA-Z0-9_.]+)")
-	dropCollRegex      = regexp.MustCompile("(?i)DROP COLLATION (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
-	dropIdxRegex       = regexp.MustCompile("(?i)DROP INDEX (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
-	dropViewRegex      = regexp.MustCompile("(?i)DROP VIEW (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
-	dropSeqRegex       = regexp.MustCompile("(?i)DROP SEQUENCE (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
-	dropForeignRegex   = regexp.MustCompile("(?i)DROP FOREIGN TABLE (IF EXISTS )?[a-zA-Z0-9_.]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_.]+)+")
+	alterAggRegex      = regexp.MustCompile(`(?i)ALTER AGGREGATE ([a-zA-Z0-9_."]+)`)
+	dropCollRegex      = regexp.MustCompile(`(?i)DROP COLLATION (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
+	dropIdxRegex       = regexp.MustCompile(`(?i)DROP INDEX (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
+	dropViewRegex      = regexp.MustCompile(`(?i)DROP VIEW (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
+	dropSeqRegex       = regexp.MustCompile(`(?i)DROP SEQUENCE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
+	dropForeignRegex   = regexp.MustCompile(`(?i)DROP FOREIGN TABLE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
 	// dropMatViewRegex   = regexp.MustCompile("(?i)DROP MATERIALIZED VIEW")
-	createIdxConcurRegex = regexp.MustCompile("(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_.]+)")
-	dropIdxConcurRegex   = regexp.MustCompile("(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_.]+)")
-	trigRefRegex         = regexp.MustCompile("(?i)CREATE TRIGGER ([a-zA-Z0-9_.]+).*REFERENCING")
-	constrTrgRegex       = regexp.MustCompile("(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_.]+)")
-	currentOfRegex       = regexp.MustCompile("(?i)WHERE CURRENT OF")
-	amRegex              = regexp.MustCompile("(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_.]+)")
-	idxConcRegex         = regexp.MustCompile("(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_.]+)")
-	storedRegex          = regexp.MustCompile("(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED")
-	createTblRegex       = regexp.MustCompile("(?i)CREATE ([a-zA-Z_]+ )?TABLE ")
-	createViewRegex      = regexp.MustCompile("(?i)CREATE VIEW ")
-	likeAllRegex         = regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+) .*LIKE .*INCLUDING ALL")
-	likeRegex            = regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+) .*\\(like")
-	inheritRegex         = regexp.MustCompile("(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+).*INHERITS[ |\\(]")
-	withOidsRegex        = regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+) .*WITH OIDS")
-	intvlRegex           = regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+) .*interval PRIMARY")
+	createIdxConcurRegex = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
+	dropIdxConcurRegex   = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
+	trigRefRegex         = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
+	constrTrgRegex       = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
+	currentOfRegex       = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
+	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
+	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
+	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
+	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
+	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
+	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
+	withOidsRegex        = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
+	intvlRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
 
-	alterOfRegex        = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* OF ")
-	alterSchemaRegex    = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* SET SCHEMA ")
-	createSchemaRegex   = regexp.MustCompile("(?i)CREATE SCHEMA .* CREATE TABLE")
-	alterNotOfRegex     = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* NOT OF")
-	alterColumnRegex    = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* ALTER [column|COLUMN]")
-	alterConstrRegex    = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_.]+).* ALTER CONSTRAINT")
-	setOidsRegex        = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_.]+).* SET WITH OIDS")
-	clusterRegex        = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* CLUSTER")
-	withoutClusterRegex = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+).* SET WITHOUT CLUSTER")
-	alterSetRegex       = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+) SET ")
-	alterIdxRegex       = regexp.MustCompile("(?i)ALTER INDEX ([a-zA-Z0-9_.]+) SET ")
-	alterResetRegex     = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+) RESET ")
-	alterOptionsRegex   = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_.]+) OPTIONS")
-	alterInhRegex       = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_.]+) INHERIT")
-	valConstrRegex      = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_.]+) VALIDATE CONSTRAINT")
-	deferRegex          = regexp.MustCompile("(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_.]+).* unique .*deferrable")
+	alterOfRegex        = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `)
+	alterSchemaRegex    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET SCHEMA `)
+	createSchemaRegex   = regexp.MustCompile(`(?i)CREATE SCHEMA .* CREATE TABLE`)
+	alterNotOfRegex     = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* NOT OF`)
+	alterColumnRegex    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER [column|COLUMN]`)
+	alterConstrRegex    = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_."]+).* ALTER CONSTRAINT`)
+	setOidsRegex        = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITH OIDS`)
+	clusterRegex        = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* CLUSTER`)
+	withoutClusterRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITHOUT CLUSTER`)
+	alterSetRegex       = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) SET `)
+	alterIdxRegex       = regexp.MustCompile(`(?i)ALTER INDEX ([a-zA-Z0-9_."]+) SET `)
+	alterResetRegex     = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) RESET `)
+	alterOptionsRegex   = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) OPTIONS`)
+	alterInhRegex       = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) INHERIT`)
+	valConstrRegex      = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) VALIDATE CONSTRAINT`)
+	deferRegex          = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* unique .*deferrable`)
 
-	dropAttrRegex    = regexp.MustCompile("(?i)ALTER TYPE ([a-zA-Z0-9_.]+) DROP ATTRIBUTE")
-	alterTypeRegex   = regexp.MustCompile("(?i)ALTER TYPE ([a-zA-Z0-9_.]+)")
-	alterTblSpcRegex = regexp.MustCompile("(?i)ALTER TABLESPACE ([a-zA-Z0-9_.]+) SET")
+	dropAttrRegex    = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+) DROP ATTRIBUTE`)
+	alterTypeRegex   = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+)`)
+	alterTblSpcRegex = regexp.MustCompile(`(?i)ALTER TABLESPACE ([a-zA-Z0-9_."]+) SET`)
 
 	// table partition. partitioned table is the key in tblParts map
-	tblPartitionRegex = regexp.MustCompile("(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_.]+) .*PARTITION OF ([a-zA-Z0-9_.]+)")
-	addPrimaryRegex   = regexp.MustCompile("(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_.]+) .*ADD PRIMARY KEY")
-	primRegex         = regexp.MustCompile("(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_.]+).*PRIMARY KEY")
-	foreignKeyRegex   = regexp.MustCompile("(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_.]+).*REFERENCES")
+	tblPartitionRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*PARTITION OF ([a-zA-Z0-9_."]+)`)
+	addPrimaryRegex   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) .*ADD PRIMARY KEY`)
+	primRegex         = regexp.MustCompile(`(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_."]+).*PRIMARY KEY`)
+	foreignKeyRegex   = regexp.MustCompile(`(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_."]+).*REFERENCES`)
 
 	// unsupported SQLs exported by ora2pg
-	compoundTrigRegex          = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?TRIGGER[\s\n]+([a-zA-Z0-9_.]+)[\s\n]+.*[\s\n]+COMPOUND.*`)
-	unsupportedCommentRegex1   = regexp.MustCompile("(?i)--.*(unsupported)")
-	packageSupportCommentRegex = regexp.MustCompile("(?i)--.*Oracle package '([a-zA-Z0-9_.]+)'.*please edit to match PostgreSQL syntax")
-	unsupportedCommentRegex2   = regexp.MustCompile("(?i)--.*please edit to match PostgreSQL syntax")
-	typeUnsupportedRegex       = regexp.MustCompile("(?i)Inherited types are not supported.*replacing with inherited table")
-	bulkCollectRegex           = regexp.MustCompile("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
+	compoundTrigRegex          = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?TRIGGER[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+COMPOUND.*`)
+	unsupportedCommentRegex1   = regexp.MustCompile(`(?i)--.*(unsupported)`)
+	packageSupportCommentRegex = regexp.MustCompile(`(?i)--.*Oracle package '([a-zA-Z0-9_."]+)'.*please edit to match PostgreSQL syntax`)
+	unsupportedCommentRegex2   = regexp.MustCompile(`(?i)--.*please edit to match PostgreSQL syntax`)
+	typeUnsupportedRegex       = regexp.MustCompile(`(?i)Inherited types are not supported.*replacing with inherited table`)
+	bulkCollectRegex           = regexp.MustCompile(`BULK COLLECT`) // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 )
 
 // Reports one case in JSON
@@ -458,19 +456,19 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	var objNameIndex int
 	//replacing every possible space or new line char with [\s\n]+ in all regexs
 	if objType == "MVIEW" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?MATERIALIZED[\s\n]+VIEW[\s\n]+([a-zA-Z0-9_.]+)`)
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?MATERIALIZED[\s\n]+VIEW[\s\n]+([a-zA-Z0-9_."]+)`)
 		objNameIndex = 2
 	} else if objType == "PACKAGE" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+SCHEMA[\s\n]+(IF NOT EXISTS[\s\n]*)?[\s\n]+([a-zA-Z0-9_.]+)`)
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+SCHEMA[\s\n]+(IF NOT EXISTS[\s\n]*)?[\s\n]+([a-zA-Z0-9_."]+)`)
 		objNameIndex = 2
 	} else if objType == "SYNONYM" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?VIEW[\s\n]+([a-zA-Z0-9_.]+)`)
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?VIEW[\s\n]+([a-zA-Z0-9_."]+)`)
 		objNameIndex = 2
 	} else if objType == "INDEX" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(UNIQUE[\s\n]*)?INDEX[\s\n]+(IF NOT EXISTS)?[\s\n]*([a-zA-Z0-9_.]+)`)
+		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(UNIQUE[\s\n]*)?INDEX[\s\n]+(IF NOT EXISTS)?[\s\n]*([a-zA-Z0-9_."]+)`)
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
-		createObjRegex = regexp.MustCompile(fmt.Sprintf(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?%s[\s\n]+(IF NOT EXISTS[\s\n]*)?([a-zA-Z0-9_.]+)`, objType))
+		createObjRegex = regexp.MustCompile(fmt.Sprintf(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?%s[\s\n]+(IF NOT EXISTS[\s\n]*)?([a-zA-Z0-9_."]+)`, objType))
 		objNameIndex = 3
 	}
 
@@ -824,9 +822,6 @@ var generateReportCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(generateReportCmd)
-
-	generateReportCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", ".",
-		"export directory (default is current working directory") //default value is current dir
 
 	generateReportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
