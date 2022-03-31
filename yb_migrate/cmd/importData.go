@@ -89,15 +89,15 @@ func getYBServers() []*utils.Target {
 	url := getTargetConnectionUri(&target)
 	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer conn.Close(context.Background())
 
 	rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		errMsg := fmt.Sprintf("error in query rows from yb_servers(): %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer rows.Close()
 
@@ -108,8 +108,8 @@ func getYBServers() []*utils.Target {
 		var port, num_conns int
 		if err := rows.Scan(&host, &port, &num_conns,
 			&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-			fmt.Println(err)
-			log.Fatal(err)
+			errMsg := fmt.Sprintf("error in scanning rows of yb_servers(): %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		clone.Host = host
 		clone.Port = port
@@ -304,8 +304,8 @@ func checkPrimaryKey(tableName string) bool {
 	url := getTargetConnectionUri(&target)
 	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer conn.Close(context.Background())
 
@@ -324,8 +324,8 @@ func checkPrimaryKey(tableName string) bool {
 
 	rows, err := conn.Query(context.Background(), checkPKSql)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		errMsg := fmt.Sprintf("error in querying to check PK on table %q: %v\n", table, err)
+		utils.ErrExit(errMsg)
 	}
 	defer rows.Close()
 
@@ -340,8 +340,8 @@ func truncateTables(tables []string) {
 	connectionURI := target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connectionURI)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to connect to database: %v\n", err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer conn.Close(context.Background())
 
@@ -362,8 +362,8 @@ func truncateTables(tables []string) {
 		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
 		_, err := conn.Exec(context.Background(), truncateStmt)
 		if err != nil {
-			fmt.Println(err)
-			log.Fatal(err)
+			errMsg := fmt.Sprintf("error while truncating table %q: %v\n", table, err)
+			utils.ErrExit(errMsg)
 		}
 	}
 }
@@ -462,8 +462,8 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	numLinesInThisSplit := int64(0)
 	forig, err := os.Open(dataFile)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		errMsg := fmt.Sprintf("error in opening file %q to read: %v\n", dataFile, err)
+		utils.ErrExit(errMsg)
 	}
 	defer forig.Close()
 
@@ -472,8 +472,8 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	// fmt.Printf("curr temp file created = %s and largestOffset=%d\n", currTmpFileName, largestOffset)
 	outfile, err := os.Create(currTmpFileName)
 	if err != nil {
-		fmt.Println(err)
-		log.Fatal(err)
+		errMsg := fmt.Sprintf("error in creating file %q: %v\n", currTmpFileName, err)
+		utils.ErrExit(errMsg)
 	}
 
 	// skip till largest offset
@@ -509,14 +509,14 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		length, err := bufferedWriter.WriteString(line)
 		linesWrittenToBuffer = true
 		if err != nil {
-			log.Infof("Cannot write the read line into %s\n", outfile.Name())
+			log.Errorf("Cannot write the read line into %q: %v\n", outfile.Name(), err)
 			return
 		}
 		sz += length
 		if sz >= FOUR_MB {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Infof("Cannot flush data in file = %s\n", outfile.Name())
+				log.Errorf("Cannot flush data in file = %q: %v\n", outfile.Name(), err)
 				return
 			}
 			bufferedWriter.Reset(outfile)
@@ -526,7 +526,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		if numLinesInThisSplit == numLinesInASplit || readLineErr != nil {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Infof("Cannot flush data in file = %s\n", outfile.Name())
+				log.Errorf("Cannot flush data in file = %q: %v\n", outfile.Name(), err)
 				return
 			}
 			outfile.Close()
@@ -543,7 +543,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
-				log.Infof("Cannot rename %s to %s\n", currTmpFileName, splitFile)
+				log.Errorf("Cannot rename %q to %q: %v\n", currTmpFileName, splitFile, err)
 				return
 			}
 
@@ -556,7 +556,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 				outfile, err = os.Create(currTmpFileName)
 				if err != nil {
-					log.Infof("Cannot create %s\n", currTmpFileName)
+					log.Errorf("Cannot create %q: %v\n", currTmpFileName, err)
 					return
 				}
 				bufferedWriter = bufio.NewWriter(outfile)

@@ -24,8 +24,6 @@ import (
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 )
 
@@ -67,25 +65,25 @@ func createTLSConf(source *utils.Source) tls.Config {
 	if source.SSLRootCert != "" {
 		pem, err := ioutil.ReadFile(source.SSLRootCert)
 		if err != nil {
-			fmt.Println(err)
-			log.Fatal(err)
+			errMsg := fmt.Sprintf("error in reading SSL Root Certificate: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			fmt.Println("Failed to append PEM.")
-			log.Fatal("Failed to append PEM.")
+			errMsg := "Failed to append PEM.\n"
+			utils.ErrExit(errMsg)
 		}
 	} else {
-		fmt.Println("Root Certificate Needed for verify-ca and verify-full SSL Modes")
-		log.Fatal("Root Certificate Needed for verify-ca and verify-full SSL Modes")
+		errMsg := "Root Certificate Needed for verify-ca and verify-full SSL Modes\n"
+		utils.ErrExit(errMsg)
 	}
 	clientCert := make([]tls.Certificate, 0, 1)
 
 	if source.SSLCertPath != "" && source.SSLKey != "" {
 		certs, err := tls.LoadX509KeyPair(source.SSLCertPath, source.SSLKey)
 		if err != nil {
-			fmt.Println(err)
-			log.Fatal(err)
+			errMsg := fmt.Sprintf("error in reading and parsing SSL KeyPair: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 
 		clientCert = append(clientCert, certs)
