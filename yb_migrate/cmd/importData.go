@@ -580,7 +580,7 @@ var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 func isDataLine(line string) bool {
 	return !(len(line) == 0 ||
 		line == "\n" ||
-		line == `\.` ||
+		line == "\\." || line == "\\.\n" ||
 		reSetTo.MatchString(line) ||
 		reSetEq.MatchString(line) ||
 		reTruncate.MatchString(line) ||

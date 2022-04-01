@@ -32,8 +32,6 @@ import (
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
-// var debugFile *os.File
-
 func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressMetadata, quitChan chan bool) {
 	quitChan2 := make(chan bool)
 	quit := false
@@ -45,27 +43,21 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 	}()
 
 	numTables := len(tablesMetadata)
-	// progressContainer := mpb.NewWithContext(ctx, mpb.WithWaitGroup(&utils.WaitGroup))
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
 	var exportedTables []string
-	// debugFile, _ = os.OpenFile("/home/centos/temp/err.log", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	// defer debugFile.Close()
 
 	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for i := 0; i < numTables && !quit; i++ {
-			if tablesMetadata[i].Status == 0 && utils.FileOrFolderExists(tablesMetadata[i].InProgressFilePath) {
-				tablesMetadata[i].Status = 1
-				// utils.WaitGroup.Add(1)
-				// fmt.Fprintf(debugFile, "start table=%s, file=%s\n", tablesMetadata[i].TableName, tablesMetadata[i].InProgressFilePath)
+			if tablesMetadata[i].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesMetadata[i].InProgressFilePath) ||
+				utils.FileOrFolderExists(tablesMetadata[i].FinalFilePath)) {
+				tablesMetadata[i].Status = utils.TABLE_MIGRATION_IN_PROGRESS
 				go startExportPB(progressContainer, &tablesMetadata[i], quitChan2)
 
-			} else if tablesMetadata[i].Status == 2 {
-				tablesMetadata[i].Status = 3
-
+			} else if tablesMetadata[i].Status == utils.TABLE_MIGRATION_DONE {
+				tablesMetadata[i].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, tablesMetadata[i].FullTableName)
-				// fmt.Fprintf(debugFile, "done table= %s, liverow count: %d, expectedTotal: %d\n", tablesMetadata[i].TableName, tablesMetadata[i].CountLiveRows, tablesMetadata[i].CountTotalRows)
 				doneCount++
 				if doneCount == numTables {
 					break
@@ -83,6 +75,7 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 			fmt.Println(ctx.Err())
 			break
 		}
+		time.Sleep(1 * time.Second)
 	}
 
 	progressContainer.Wait() //shouldn't be needed as the previous loop is doing the same
@@ -122,13 +115,17 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 		),
 	)
 
-	if tableMetadata.CountTotalRows == 0 { // if row count = 0, then return
+	if tableMetadata.CountTotalRows == 0 {
 		bar.IncrInt64(100)
-		tableMetadata.Status = 2
+		tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 		return
 	}
 
-	tableDataFile, err := os.Open(tableMetadata.InProgressFilePath)
+	tableDataFileName := tableMetadata.InProgressFilePath
+	if utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
+		tableDataFileName = tableMetadata.FinalFilePath
+	}
+	tableDataFile, err := os.Open(tableDataFileName)
 	if err != nil {
 		fmt.Println(err)
 		quitChan <- true
@@ -155,7 +152,6 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 		for {
 			line, readLineErr = reader.ReadString('\n')
 			if readLineErr == io.EOF {
-				// fmt.Fprintf(debugFile, "counting rows for tname=%s, prevLine='%s', line='%s', liverow count=%d\n", tableName, prevLine, line, tableMetadata.CountLiveRows)
 				break
 			} else if readLineErr != nil { //error other than EOF
 				panic(readLineErr)
@@ -165,7 +161,6 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 				break
 			} else if isDataLine(line) {
 				tableMetadata.CountLiveRows += 1
-				// prevLine = line
 			}
 		}
 	}
@@ -177,53 +172,21 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 		(Mainly for Oracle, MySQL)
 	*/
 
-	// if !bar.Completed() && utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
-	// 	tableDataFile, err := os.Open(tableMetadata.FinalFilePath)
-	// 	if err != nil {
-	// 		fmt.Println(err)
-	// 		quitChan <- true
-	// 		runtime.Goexit()
-	// 	}
-	// 	reader = bufio.NewReader(tableDataFile)
-	// 	count := int64(0)
-	// 	for {
-	// 		line, readLineErr := reader.ReadString('\n')
-	// 		if readLineErr == io.EOF {
-	// 			// fmt.Fprintf(debugFile, "LAST counting rows for tname=%s, len(line)=%d, line='%s', liverow count=%d\n", tableName, len(line), line, tableMetadata.CountLiveRows)
-	// 			break
-	// 		} else if readLineErr != nil { //error other than EOF
-	// 			panic(readLineErr)
-	// 		}
-	// 		// fmt.Fprintf(errFile, "LINE=%s, tname=%s, count=%d\n", line, name, count)
-	// 		if isDataLine(line) {
-	// 			count++
-	// 		}
-	// 	}
-	// 	tableMetadata.CountLiveRows = count //updating with new and final count
-
-	// 	// fmt.Fprintf(debugFile, "PB is not complete, completing the remaining bar.\nFinal %s, lastLine:'%s', RowCount:%d\n", tableName, prevLine, count)
-	// 	bar.IncrBy(100)
-	// }
-
 	for {
 		line, readLineErr := reader.ReadString('\n')
 		if readLineErr == io.EOF {
-			// fmt.Fprintf(debugFile, "LAST counting rows for tname=%s, len(line)=%d, line='%s', liverow count=%d\n", tableName, len(line), line, tableMetadata.CountLiveRows)
 			break
 		} else if readLineErr != nil { //error other than EOF
 			panic(readLineErr)
 		}
-		// fmt.Fprintf(errFile, "LINE=%s, tname=%s, count=%d\n", line, name, count)
 		if isDataLine(line) {
 			tableMetadata.CountLiveRows += 1
 		}
 	}
 	if !bar.Completed() {
-		bar.IncrBy(100) //completing remaining progress bar to continue the execution
+		bar.IncrBy(100) // Completing remaining progress bar to continue the execution.
 	}
-
-	// fmt.Fprintf(debugFile, "startExportPB() complete for %s\n", tableName)
-	tableMetadata.Status = 2 //before return
+	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 }
 
 func checkForEndOfFile(source *utils.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {

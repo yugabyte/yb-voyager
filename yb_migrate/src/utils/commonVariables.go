@@ -76,6 +76,13 @@ type Format interface {
 	PrintFormat(cnt int)
 }
 
+const (
+	TABLE_MIGRATION_NOT_STARTED = iota
+	TABLE_MIGRATION_IN_PROGRESS
+	TABLE_MIGRATION_DONE
+	TABLE_MIGRATION_COMPLETED
+)
+
 type TableProgressMetadata struct {
 	TableSchema          string
 	TableName            string
