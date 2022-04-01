@@ -27,6 +27,7 @@ import (
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
+	log "github.com/sirupsen/logrus"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
 )
@@ -115,7 +116,7 @@ func startImportPB(table string) {
 }
 
 func initializeImportDataStatus(exportDir string, tables []string) {
-	// log.Infof("Initializing import data status\n")
+	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
@@ -139,8 +140,6 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 			CountLiveRows:  importedRowCount[fullTableName],
 			CountTotalRows: totalRowCountMap[fullTableName],
 		}
-		// fmt.Printf("TableRowCountMap for %s: %d\n", fullTableName, totalRowCountMap[fullTableName])
-		// fmt.Printf("TableProgressMetadata for '%s': %+v\n", fullTableName, tablesProgressMetadata[fullTableName])
 	}
 
 }
@@ -173,6 +172,6 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 		}
 		// fmt.Printf("Previous count %s = %d\n", table, importedRowCounts[table])
 	}
-
+	log.Infof("importedRowCount: %v", importedRowCounts)
 	return importedRowCounts
 }
