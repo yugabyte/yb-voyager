@@ -795,17 +795,7 @@ var generateReportCmd = &cobra.Command{
 				cmd.MarkPersistentFlagRequired("source-db-name")
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
-				// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-				if !utils.IsQuotedString(source.Schema) {
-					source.Schema = strings.ToUpper(source.Schema)
-				}
-
-				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
-				if source.DBName != "" || source.DBSid != "" {
-					//no issues, continue with export of schema/data
-				} else {
-					cmd.MarkPersistentFlagRequired("oracle-tns-admin")
-				}
+				validateOracleParams()
 			}
 		} else {
 			//check and parse the source

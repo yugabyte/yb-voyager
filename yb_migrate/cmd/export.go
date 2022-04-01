@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -51,17 +52,7 @@ var exportCmd = &cobra.Command{
 				cmd.MarkPersistentFlagRequired("source-db-name")
 			} else if source.DBType == ORACLE {
 				cmd.MarkPersistentFlagRequired("source-db-schema")
-				// in oracle, object names are stored in UPPER CASE by default(case insensitive)
-				if !utils.IsQuotedString(source.Schema) {
-					source.Schema = strings.ToUpper(source.Schema)
-				}
-
-				//TODO: set up an internal priority order in case 2 or more flags are specified for Oracle
-				if source.DBName != "" || source.DBSid != "" {
-					//no issues, continue with export of schema/data
-				} else {
-					cmd.MarkPersistentFlagRequired("oracle-tns-alias")
-				}
+				validateOracleParams()
 			}
 		} else {
 			//check and parse the source
@@ -217,4 +208,28 @@ func checkOrSetDefaultSSLMode() {
 			os.Exit(1)
 		}
 	}
+}
+
+func validateOracleParams() {
+	// in oracle, object names are stored in UPPER CASE by default(case insensitive)
+	if !utils.IsQuotedString(source.Schema) {
+		source.Schema = strings.ToUpper(source.Schema)
+	}
+	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
+		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
+	} else if source.TNSAlias != "" {
+		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
+		fmt.Println("Using TNS Alias for export.")
+		log.Infof("Using TNS Alias for export.")
+		source.DBName = ""
+		source.DBSid = ""
+	} else if source.DBName != "" {
+		log.Infof("Using DB Name for export.")
+		fmt.Println("Using DB Name for export.")
+		source.DBSid = ""
+	} else if source.DBSid != "" {
+		log.Infof("Using SID for export.")
+		fmt.Println("Using SID for export.")
+	}
+
 }

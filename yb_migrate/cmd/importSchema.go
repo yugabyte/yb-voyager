@@ -31,9 +31,8 @@ var importSchemaCmd = &cobra.Command{
 	Short: "This command imports schema into the destination YugabyteDB database",
 	Long:  ``,
 
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		// fmt.Println("Import Schema PersistentPreRun")
+	PreRun: func(cmd *cobra.Command, args []string) {
+		validateImportFlags(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -44,6 +43,7 @@ var importSchemaCmd = &cobra.Command{
 
 func init() {
 	importCmd.AddCommand(importSchemaCmd)
+	registerCommonImportFlags(importSchemaCmd)
 }
 
 func importSchema() {

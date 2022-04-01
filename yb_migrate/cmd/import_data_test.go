@@ -20,7 +20,8 @@ func TestIsDataLine(t *testing.T) {
 		{`COPY "Foo" ("v") FROM STDIN;`, false},
 		{"", false},
 		{"\n", false},
-		{`\.`, false},
+		{"\\.\n", false},
+		{"\\.", false},
 		{"SET MAX 530\n", true},
 		{"TRUNCATE FOO BAR", true},
 	}
