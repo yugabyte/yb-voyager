@@ -163,6 +163,7 @@ func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TablePr
 				tableMetadata.CountLiveRows += 1
 			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	/*
