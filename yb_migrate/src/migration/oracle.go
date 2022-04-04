@@ -295,8 +295,8 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	defer db.Close()
 
 	var tableNames []string
-	query := fmt.Sprintf("SELECT table_name FROM all_tables "+
-		"WHERE owner = '%s' ORDER BY table_name ASC", source.Schema)
+	query := fmt.Sprintf("SELECT table_name FROM all_tables WHERE owner = '%s' "+
+		"AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' ORDER BY table_name ASC", source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
 		errMsg := fmt.Sprintf("error in querying source database for table names: %v\n", err)
