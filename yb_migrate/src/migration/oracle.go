@@ -289,28 +289,65 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("godror", dbConnStr)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer db.Close()
 
 	var tableNames []string
-	query := fmt.Sprintf("SELECT table_name FROM dba_tables "+
+	query := fmt.Sprintf("SELECT table_name FROM all_tables "+
 		"WHERE owner = '%s' ORDER BY table_name ASC", source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("error in querying source database for table names: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error in scanning query rows for table names: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
+
 		tableNames = append(tableNames, tableName)
 	}
+
 	return tableNames
+}
+
+func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string {
+	dbConnStr := GetDriverConnStr(source)
+	db, err := sql.Open("godror", dbConnStr)
+	if err != nil {
+		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+		utils.ErrExit(errMsg)
+	}
+	defer db.Close()
+
+	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
+		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
+		tableName, source.Schema)
+	rows, err := db.Query(query)
+	if err != nil {
+		errMsg := fmt.Sprintf("error in query table %q for partition names: %v\n", tableName, err)
+		utils.ErrExit(errMsg)
+	}
+	defer rows.Close()
+
+	var partitionNames []string
+	for rows.Next() {
+		var partitionName string
+		err = rows.Scan(&partitionName)
+		if err != nil {
+			errMsg := fmt.Sprintf("error in scanning query rows: %v\n", err)
+			utils.ErrExit(errMsg)
+		}
+		partitionNames = append(partitionNames, partitionName)
+
+		// TODO: Support subpartition(find subparititions for each partition)
+	}
+
+	return partitionNames
 }

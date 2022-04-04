@@ -25,6 +25,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -32,7 +33,72 @@ import (
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
-func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressMetadata, quitChan chan bool) {
+func initializeExportTableMetadata(tableList []string) {
+	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
+	numTables := len(tableList)
+
+	for i := 0; i < numTables; i++ {
+		tablesProgressMetadata[tableList[i]] = &utils.TableProgressMetadata{} //initialzing with struct
+
+		// Initializing all the members of struct
+		tablesProgressMetadata[tableList[i]].IsPartition = false
+		tablesProgressMetadata[tableList[i]].InProgressFilePath = ""
+		tablesProgressMetadata[tableList[i]].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
+		tablesProgressMetadata[tableList[i]].CountTotalRows = int64(0) //will be updated by other func
+		tablesProgressMetadata[tableList[i]].CountLiveRows = int64(0)
+		tablesProgressMetadata[tableList[i]].Status = 0
+		tablesProgressMetadata[tableList[i]].FileOffsetToContinue = int64(0)
+
+		tableInfo := strings.Split(tableList[i], ".")
+		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
+			tablesProgressMetadata[tableList[i]].TableSchema = tableInfo[0]
+			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[1]
+			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
+		} else if source.DBType == ORACLE {
+			// schema.tablename format is required, as user can have access to similar table in different schema
+			tablesProgressMetadata[tableList[i]].TableSchema = source.Schema
+			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
+			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
+		} else if source.DBType == MYSQL {
+			// schema and database are same in MySQL
+			tablesProgressMetadata[tableList[i]].TableSchema = source.DBName
+			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
+			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
+		}
+	}
+}
+
+func initializeExportTablePartitionMetadata(tableList []string) {
+	for _, parentTable := range tableList {
+		if source.DBType == ORACLE {
+			partitionList := migration.OracleGetAllPartitionNames(&source, parentTable)
+			if len(partitionList) > 0 {
+				msg := fmt.Sprintf("Table %q has partitions: %v\n", parentTable, partitionList)
+				utils.PrintAndLog(msg)
+
+				for _, partitionName := range partitionList {
+					tablesProgressMetadata[partitionName] = &utils.TableProgressMetadata{}
+					tablesProgressMetadata[partitionName].TableSchema = source.Schema
+					tablesProgressMetadata[partitionName].TableName = partitionName
+
+					// partition are unique under a table in oracle
+					tablesProgressMetadata[partitionName].FullTableName = partitionName
+					tablesProgressMetadata[partitionName].ParentTable = tablesProgressMetadata[parentTable].FullTableName
+					tablesProgressMetadata[partitionName].IsPartition = true
+
+					tablesProgressMetadata[partitionName].InProgressFilePath = ""
+					tablesProgressMetadata[partitionName].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
+					tablesProgressMetadata[partitionName].CountTotalRows = int64(0) //will be updated by other func
+					tablesProgressMetadata[partitionName].CountLiveRows = int64(0)
+					tablesProgressMetadata[partitionName].Status = 0
+					tablesProgressMetadata[partitionName].FileOffsetToContinue = int64(0)
+				}
+			}
+		}
+	}
+}
+
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool) {
 	quitChan2 := make(chan bool)
 	quit := false
 	go func() {
@@ -42,22 +108,25 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 		}
 	}()
 
-	numTables := len(tablesMetadata)
+	numTables := len(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
 	var exportedTables []string
-
+	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for doneCount < numTables && !quit { //TODO: wait for export data to start
-		for i := 0; i < numTables && !quit; i++ {
-			if tablesMetadata[i].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesMetadata[i].InProgressFilePath) ||
-				utils.FileOrFolderExists(tablesMetadata[i].FinalFilePath)) {
-				tablesMetadata[i].Status = utils.TABLE_MIGRATION_IN_PROGRESS
-				go startExportPB(progressContainer, &tablesMetadata[i], quitChan2)
+		for _, key := range sortedKeys {
+			if quit {
+				break
+			}
+			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
+				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
+				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
+				go startExportPB(progressContainer, tablesProgressMetadata[key], quitChan2)
 
-			} else if tablesMetadata[i].Status == utils.TABLE_MIGRATION_DONE {
-				tablesMetadata[i].Status = utils.TABLE_MIGRATION_COMPLETED
-				exportedTables = append(exportedTables, tablesMetadata[i].FullTableName)
+			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
+				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
+				exportedTables = append(exportedTables, tablesProgressMetadata[key].FullTableName)
 				doneCount++
 				if doneCount == numTables {
 					break
@@ -86,7 +155,6 @@ func exportDataStatus(ctx context.Context, tablesMetadata []utils.TableProgressM
 }
 
 func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
-	// defer utils.WaitGroup.Done()
 
 	var tableName string
 	if source.DBType == POSTGRESQL && tableMetadata.TableSchema != "public" {

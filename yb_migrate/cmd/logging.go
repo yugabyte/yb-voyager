@@ -49,7 +49,7 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 func InitLogging(logDir string) {
 	// Redirect log messages to ${logDir}/yb_migrate.log .
 	logFileName := filepath.Join(logDir, "yb_migrate.log")
-	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialise logging: open log file %q: %s", logFileName, err))
 	}

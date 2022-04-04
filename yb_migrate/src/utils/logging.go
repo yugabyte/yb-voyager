@@ -43,3 +43,8 @@ func ErrExit(err string) {
 	fmt.Fprintf(os.Stderr, err)
 	log.Fatalf(err)
 }
+
+func PrintAndLog(msg string) {
+	fmt.Printf(msg)
+	log.Infof(msg)
+}

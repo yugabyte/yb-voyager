@@ -93,6 +93,8 @@ type TableProgressMetadata struct {
 	CountLiveRows        int64
 	CountTotalRows       int64
 	FileOffsetToContinue int64 // This might be removed later
+	IsPartition          bool
+	ParentTable          string
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
@@ -220,18 +222,20 @@ func generateSSLQueryStringIfNotExists(t *Target) string {
 	return SSLQueryString
 }
 
-//the list elements order is same as the import objects order
-//TODO: Need to make each of the list comprehensive, not missing any database object category
+// the list elements order is same as the import objects order
+// TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "INDEX", "PACKAGE", "VIEW",
-	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", /*"TABLESPACE", "PARTITION",*/
+	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", "PARTITION", /*"TABLESPACE",*/
 	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
+// In PG, PARTITION are exported along with TABLE
 var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "INDEX", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
-	"MVIEW", "EXTENSION" /*Test/Read: , PARTITION, TABLESPACES, GRANT, ROLE, */}
+	"MVIEW", "EXTENSION" /*TABLESPACES, GRANT, ROLE*/}
 
-var mysqlSchemaObjectList = []string{ /*"TYPE", "SEQUENCE",*/ "TABLE", "INDEX", "VIEW", /*"GRANT*/
-	"TRIGGER", "FUNCTION", "PROCEDURE" /*"TABLESPACE", "PARTIITON"*/}
+// In MYSQL, TYPE and SEQUENCE are not supported
+var mysqlSchemaObjectList = []string{"TABLE", "INDEX", "VIEW", /*"GRANT*/
+	"TRIGGER", "FUNCTION", "PROCEDURE" /* "TABLESPACE, PARTITION"*/}
 
 type ExportMetaInfo struct {
 	SourceDBType   string

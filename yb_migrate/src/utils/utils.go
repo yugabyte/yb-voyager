@@ -378,3 +378,14 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 func IsQuotedString(str string) bool {
 	return str[0] == '"' && str[len(str)-1] == '"'
 }
+
+func GetSortedKeys(tablesProgressMetadata *map[string]*TableProgressMetadata) []string {
+	var keys []string
+
+	for key := range *tablesProgressMetadata {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+	return keys
+}

@@ -32,44 +32,47 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func UpdateFilePaths(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
+func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
 	// TODO: handle the case if table name has double quotes/case sensitive
 
+	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
-		for i := 0; i < len(tablesMetadata); i++ {
-			tableName := tablesMetadata[i].TableName
-			fullTableName := tablesMetadata[i].FullTableName
-			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + requiredMap[fullTableName]
-			if tablesMetadata[i].TableSchema == "public" {
-				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
+		for _, key := range sortedKeys {
+			tableName := tablesProgressMetadata[key].TableName
+			fullTableName := tablesProgressMetadata[key].FullTableName
+
+			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
+				tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/" + requiredMap[fullTableName]
+				if tablesProgressMetadata[key].TableSchema == "public" {
+					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
+				} else {
+					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
+				}
 			} else {
-				tablesMetadata[i].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
+				log.Infof("deleting an entry from tablesProgressMetadata: ", fullTableName)
+				delete(tablesProgressMetadata, key)
 			}
 		}
-	} else if source.DBType == "oracle" { //for Oracle
-		for i := 0; i < len(tablesMetadata); i++ {
-			tableName := tablesMetadata[i].TableName
-			fileName := "tmp_" + strings.ToUpper(tableName) + "_data.sql"
-			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
-			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + strings.ToUpper(tableName) + "_data.sql"
-		}
-	} else if source.DBType == "mysql" {
-		for i := 0; i < len(tablesMetadata); i++ {
-			tableName := tablesMetadata[i].TableName
+	} else if source.DBType == "oracle" || source.DBType == "mysql" {
+		for _, key := range sortedKeys {
+			tableName := tablesProgressMetadata[key].TableName
 			fileName := "tmp_" + tableName + "_data.sql"
-			tablesMetadata[i].InProgressFilePath = exportDir + "/data/" + fileName
-			tablesMetadata[i].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
+			tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/" + fileName
+			tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
 		}
 	}
 
-	// fmt.Println("After updating datafilepath")
-	// fmt.Printf("TableMetadata: %+v\n\n", tablesMetadata)
+	logMsg := "After updating data file paths, TablesProgressMetadata:"
+	for _, key := range sortedKeys {
+		logMsg += fmt.Sprintf("%+v\n", tablesProgressMetadata[key])
+	}
+	log.Infof(logMsg)
 }
 
-func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata []utils.TableProgressMetadata) {
+func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
 		go utils.Wait()
@@ -77,9 +80,11 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 
 	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
 	utils.PrintIfTrue(fmt.Sprintf("| %30s | %30s |\n", "Table", "Row Count"), source.VerboseMode)
-	for i := 0; i < len(tablesMetadata); i++ {
+
+	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
-		fullTableName := tablesMetadata[i].FullTableName
+		fullTableName := tablesProgressMetadata[key].FullTableName
 
 		utils.PrintIfTrue(fmt.Sprintf("| %30s ", fullTableName), source.VerboseMode)
 
@@ -87,14 +92,20 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 			go utils.Wait()
 		}
 
-		rowCount := SelectCountStarFromTable(fullTableName, source)
+		var queryFrom string
+		if !tablesProgressMetadata[key].IsPartition {
+			queryFrom = tablesProgressMetadata[key].FullTableName
+		} else {
+			queryFrom = fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[key].ParentTable, tablesProgressMetadata[key].FullTableName)
+		}
+		rowCount := SelectCountStarFromTable(queryFrom, source)
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
 		}
 
-		tablesMetadata[i].CountTotalRows = rowCount
+		tablesProgressMetadata[key].CountTotalRows = rowCount
 		utils.PrintIfTrue(fmt.Sprintf("| %30d |\n", rowCount), source.VerboseMode)
 	}
 	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
@@ -103,8 +114,7 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesMetadata 
 		<-utils.WaitChannel
 	}
 
-	// fmt.Println("After updating total row count")
-	// fmt.Printf("TableMetadata: %v\n\n", tablesMetadata)
+	log.Tracef("After updating total row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 
 func GetTableRowCount(filePath string) map[string]int64 {
@@ -140,8 +150,8 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		if err != nil {
 			utils.WaitChannel <- 0 //stop waiting
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 		defer db.Close()
 
@@ -149,16 +159,16 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		if err != nil {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 	case "mysql":
 		db, err := sql.Open("mysql", dbConnStr)
 		if err != nil {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 		defer db.Close()
 
@@ -166,16 +176,16 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		if err != nil {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 	case "postgresql":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 		defer conn.Close(context.Background())
 
@@ -183,14 +193,14 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 		if err != nil {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
+			utils.ErrExit(errMsg)
 		}
 	}
 
 	if rowCount == -1 { // if var is still not updated
-		fmt.Println("couldn't fetch row count of table: " + tableName)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("couldn't fetch row count for table: %q\n", tableName)
+		utils.ErrExit(errMsg)
 	}
 
 	return rowCount
@@ -233,9 +243,8 @@ func GetDriverConnStr(source *utils.Source) string {
 			tlsString = "tls=custom"
 			break
 		default:
-			fmt.Println("Incorrect SSL Mode Provided. Please enter a valid sslmode.")
-			os.Exit(1)
-
+			errMsg := "Incorrect SSL Mode Provided. Please enter a valid sslmode."
+			utils.ErrExit(errMsg)
 		}
 		connStr = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
 			source.Host, source.Port, source.DBName, tlsString)
@@ -269,74 +278,78 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	case "oracle":
 		db, err := sql.Open("godror", dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		defer db.Close()
 
 		err = db.QueryRow("SELECT VERSION FROM V$INSTANCE").Scan(&version)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 	case "mysql":
 		db, err := sql.Open("mysql", dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		defer db.Close()
 
 		err = db.QueryRow("SELECT VERSION()").Scan(&version)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 	case "postgresql":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		defer conn.Close(context.Background())
 
 		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 	case "yugabytedb":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		defer conn.Close(context.Background())
 
 		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 	}
 
 	return version
 }
 
-func ExportDataPostProcessing(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
-	// in case of ora2pg the renaming is not required hence will for loop will do nothing
-	for _, tableMetadata := range *tablesMetadata {
-		oldFilePath := tableMetadata.InProgressFilePath
-		newFilePath := tableMetadata.FinalFilePath
+func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+	// in case of ora2pg the renaming is not required
+	if source.DBType == "oracle" || source.DBType == "mysql" {
+		return
+	}
+
+	for _, tableProgressMetadata := range *tablesProgressMetadata {
+		oldFilePath := tableProgressMetadata.InProgressFilePath
+		newFilePath := tableProgressMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {
 			os.Rename(oldFilePath, newFilePath)
 		}
 	}
 
-	saveExportedRowCount(exportDir, tablesMetadata)
+	saveExportedRowCount(exportDir, tablesProgressMetadata)
 }
 
-func saveExportedRowCount(exportDir string, tablesMetadata *[]utils.TableProgressMetadata) {
+func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.TableProgressMetadata) {
 	filePath := exportDir + "/metainfo/flags/tablesrowcount"
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -367,8 +380,8 @@ func MySQLGetAllTableNames(source *utils.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("mysql", dbConnStr)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer db.Close()
 
@@ -377,16 +390,16 @@ func MySQLGetAllTableNames(source *utils.Source) []string {
 		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", source.DBName)
 	rows, err := db.Query(query)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("error in querying source database for table names: %v\n", err)
+		utils.ErrExit(errMsg)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error in scanning query rows for table names: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		tableNames = append(tableNames, tableName)
 	}
@@ -400,25 +413,24 @@ func CheckSourceDBAccessibility(source *utils.Source) {
 	case "oracle":
 		db, err := sql.Open("godror", dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		db.Close()
 	case "mysql":
 		db, err := sql.Open("mysql", dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		db.Close()
 	case "postgresql":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
+			utils.ErrExit(errMsg)
 		}
 		conn.Close(context.Background())
 	}
 
-	// fmt.Printf("source '%s' database is accessible\n", source.DBType)
 }
