@@ -17,10 +17,6 @@ var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed migration.",
 
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-	},
-
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runImportDataStatusCmd()
 		if err != nil {
