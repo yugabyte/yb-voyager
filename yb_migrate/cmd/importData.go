@@ -272,7 +272,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
 				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
-				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.") //correct and complete pattern to avoid matching cases with other table names
+				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.*") //correct and complete pattern to avoid matching cases with other table names
 				truncateTables([]string{tableName})
 			}
 		}
