@@ -40,7 +40,10 @@ Before beginning the migration cycle, the user can generate a report, which prov
 
 **Sample command:**
 
-```yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format html```
+```
+sh
+yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format html
+```
 
 The generated report will be found in `export-dir/reports/report.html`.
 
