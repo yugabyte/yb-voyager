@@ -41,7 +41,6 @@ Before beginning the migration cycle, the user can generate a report, which prov
 **Sample command:**
 
 ```
-sh
 yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format html
 ```
 
@@ -63,7 +62,9 @@ The export phase is carried out in two parts, export schema and export data resp
 
 **Sample command:**
 
-```yb_migrate export schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username```
+```
+yb_migrate export schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
+```
 
 The schema sql files will be found in `export-dir/schema`. A report regarding the export of schema objects can be found in `export-dir/reports`.
 
@@ -78,7 +79,9 @@ The schema sql files will be found in `export-dir/schema`. A report regarding th
 
 **Sample command:**
 
-```yb_migrate export data --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username```
+```
+yb_migrate export data --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
+```
 
 The data sql files will be found in `export-dir/data`.
 
@@ -104,7 +107,9 @@ This command/series of commands is/are used to initiate the import of schema and
 
 **Sample command:**
 
-```yb_migrate import schema --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 10 --batch-size 100000```
+```
+yb_migrate import schema --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 10 --batch-size 100000
+```
 
 The schema sql files should be located in the `export-dir/schema` folder.
 
@@ -114,7 +119,9 @@ The schema sql files should be located in the `export-dir/schema` folder.
 
 **Sample command:**
 
-```yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000```
+```
+yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000
+```
 
 The data sql files should be located in the `export-dir/data` folder.
 
