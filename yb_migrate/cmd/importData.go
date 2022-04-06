@@ -105,8 +105,7 @@ func getYBServers() []*utils.Target {
 				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
 
 				if err != nil {
-					errMsg := fmt.Sprintf("error in parsing useYbServers flag: %v\n", err)
-					utils.ErrExit(errMsg)
+					utils.ErrExit("error in parsing useYbServers flag: %v", err)
 				}
 			} else {
 				clone.Host = ybServer
@@ -120,15 +119,13 @@ func getYBServers() []*utils.Target {
 		url := getTargetConnectionUri(&target)
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
-			errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("Unable to connect to database: %v", err)
 		}
 		defer conn.Close(context.Background())
 
 		rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
 		if err != nil {
-			errMsg := fmt.Sprintf("error in query rows from yb_servers(): %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error in query rows from yb_servers(): %v", err)
 		}
 		defer rows.Close()
 
@@ -139,8 +136,7 @@ func getYBServers() []*utils.Target {
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
 				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-				errMsg := fmt.Sprintf("error in scanning rows of yb_servers(): %v\n", err)
-				utils.ErrExit(errMsg)
+				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
 			}
 			if usePublicIp {
 				if public_ip == "" {
@@ -167,15 +163,13 @@ func getYBServers() []*utils.Target {
 
 func testYbServers(targets []*utils.Target) {
 	if len(targets) == 0 {
-		errMsg := "no yb servers available/given for data import\n"
-		utils.ErrExit(errMsg)
+		utils.ErrExit("no yb servers available/given for data import")
 	}
 	for _, target := range targets {
 		log.Infof("testing server: %s\n", spew.Sdump(target))
 		conn, err := pgx.Connect(context.Background(), target.Uri)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while testing yb servers: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error while testing yb servers: %v", err)
 		}
 		conn.Close(context.Background())
 	}
@@ -823,8 +817,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 				if checkSessionVariableSupported(i, dbVersion) {
 					_, err := conn.Exec(context.Background(), statement)
 					if err != nil {
-						errMsg := fmt.Sprintf("error in setting session variable for table %q: %v\n", t.TableName, err)
-						utils.ErrExit(errMsg)
+						utils.ErrExit("error in setting session variable for table %q: %v", t.TableName, err)
 					}
 				}
 			}
