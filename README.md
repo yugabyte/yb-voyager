@@ -1,4 +1,4 @@
-# DMS OPEN TOOL DOCUMENTATION
+# yb_migrate
 
 ## Sections
 - [Introduction](#introduction)
@@ -29,6 +29,7 @@ Github Issue Link -yet to be linked-
 Below are the steps a user may follow to use the yb_migrate tool:
 
 ### Source DB Setup
+[Test link](docs/test_file.txt)
 
 ### Target DB Setup
 
