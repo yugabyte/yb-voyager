@@ -62,7 +62,7 @@ var importProgressContainer ProgressContainer
 var importTables []string
 var allTables []string
 var usePublicIp bool
-var useYbServers string
+var targetEndpoints string
 
 type ExportTool int
 
@@ -90,12 +90,12 @@ var importDataCmd = &cobra.Command{
 func getYBServers() []*utils.Target {
 	var targets []*utils.Target
 
-	if useYbServers != "" {
-		msg := fmt.Sprintf("given yb-servers for import data: %q\n", useYbServers)
+	if targetEndpoints != "" {
+		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
 		utils.PrintIfTrue(msg, target.VerboseMode)
 		log.Infof(msg)
 
-		ybServers := utils.CsvStringToSlice(useYbServers)
+		ybServers := utils.CsvStringToSlice(targetEndpoints)
 		for _, ybServer := range ybServers {
 			clone := cloneTarget(&target)
 
