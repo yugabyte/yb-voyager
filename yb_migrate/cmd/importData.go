@@ -842,8 +842,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			rowsCount := res.RowsAffected()
 			if err != nil {
 				if !strings.Contains(err.Error(), "violates unique constraint") {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("error in COPYFROM for table %q angd split %q: %v", t.TableName, getInProgressFilePath(t), err)
 				} else { //in case of unique key violation error take row count from the split task
 					rowsCount = t.OffsetEnd - t.OffsetStart
 				}
@@ -856,6 +855,11 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			err = os.Rename(getInProgressFilePath(t), getDoneFilePath(t))
 			if err != nil {
 				panic(err)
+			}
+
+			err = os.Truncate(getDoneFilePath(t), 0)
+			if err != nil {
+				log.Infof("WARNING Truncation of file %q failed: %v", getDoneFilePath(t), err)
 			}
 			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
