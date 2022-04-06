@@ -378,3 +378,12 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 func IsQuotedString(str string) bool {
 	return str[0] == '"' && str[len(str)-1] == '"'
 }
+
+func CsvStringToSlice(str string) []string {
+	result := strings.Split(str, ",")
+	for i := 0; i < len(result); i++ {
+		result[i] = strings.Trim(result[i], " ")
+	}
+
+	return result
+}

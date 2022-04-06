@@ -61,6 +61,8 @@ type ProgressContainer struct {
 var importProgressContainer ProgressContainer
 var importTables []string
 var allTables []string
+var usePublicIp bool
+var targetEndpoints string
 
 type ExportTool int
 
@@ -86,41 +88,92 @@ var importDataCmd = &cobra.Command{
 }
 
 func getYBServers() []*utils.Target {
-	url := getTargetConnectionUri(&target)
-	conn, err := pgx.Connect(context.Background(), url)
-	if err != nil {
-		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer conn.Close(context.Background())
-
-	rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
-	if err != nil {
-		errMsg := fmt.Sprintf("error in query rows from yb_servers(): %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer rows.Close()
-
 	var targets []*utils.Target
-	var hostPorts []string
-	for rows.Next() {
-		clone := cloneTarget(&target)
-		var host, nodeType, cloud, region, zone, public_ip string
-		var port, num_conns int
-		if err := rows.Scan(&host, &port, &num_conns,
-			&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-			errMsg := fmt.Sprintf("error in scanning rows of yb_servers(): %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		clone.Host = host
-		clone.Port = port
-		clone.Uri = getCloneConnectionUri(clone)
-		targets = append(targets, clone)
 
-		hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
+	if targetEndpoints != "" {
+		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
+		utils.PrintIfTrue(msg, target.VerboseMode)
+		log.Infof(msg)
+
+		ybServers := utils.CsvStringToSlice(targetEndpoints)
+		for _, ybServer := range ybServers {
+			clone := cloneTarget(&target)
+
+			if strings.Contains(ybServer, ":") {
+				clone.Host = strings.Split(ybServer, ":")[0]
+				var err error
+				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
+
+				if err != nil {
+					utils.ErrExit("error in parsing useYbServers flag: %v", err)
+				}
+			} else {
+				clone.Host = ybServer
+			}
+
+			clone.Uri = getCloneConnectionUri(clone)
+			log.Infof("using yb server for import data: %+v", clone)
+			targets = append(targets, clone)
+		}
+	} else {
+		url := getTargetConnectionUri(&target)
+		conn, err := pgx.Connect(context.Background(), url)
+		if err != nil {
+			utils.ErrExit("Unable to connect to database: %v", err)
+		}
+		defer conn.Close(context.Background())
+
+		rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
+		if err != nil {
+			utils.ErrExit("error in query rows from yb_servers(): %v", err)
+		}
+		defer rows.Close()
+
+		var hostPorts []string
+		for rows.Next() {
+			clone := cloneTarget(&target)
+			var host, nodeType, cloud, region, zone, public_ip string
+			var port, num_conns int
+			if err := rows.Scan(&host, &port, &num_conns,
+				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
+				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
+			}
+			if usePublicIp {
+				if public_ip == "" {
+					log.Infof("no public_ip available for host: %s", host)
+					continue
+				}
+				clone.Host = public_ip
+			} else {
+				clone.Host = host
+			}
+
+			clone.Port = port
+			clone.Uri = getCloneConnectionUri(clone)
+			targets = append(targets, clone)
+
+			hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
+		}
+		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
-	log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
+
+	testYbServers(targets)
 	return targets
+}
+
+func testYbServers(targets []*utils.Target) {
+	if len(targets) == 0 {
+		utils.ErrExit("no yb servers available/given for data import")
+	}
+	for _, target := range targets {
+		log.Infof("testing server: %s\n", spew.Sdump(target))
+		conn, err := pgx.Connect(context.Background(), target.Uri)
+		if err != nil {
+			utils.ErrExit("error while testing yb servers: %v", err)
+		}
+		conn.Close(context.Background())
+	}
+	log.Infof("all target servers are accessible")
 }
 
 func cloneTarget(t *utils.Target) *utils.Target {
@@ -163,6 +216,7 @@ func importData() {
 	// defer os.Remove(importLockFile)
 	log.Infof("import data command initiated for DB %q", target.DBName)
 	targets := getYBServers()
+
 	var parallelism = parallelImportJobs
 	if parallelism == -1 {
 		parallelism = len(targets)
@@ -231,7 +285,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		importTables = append(interruptedTables, remainingTables...)
 		allTables = append(importTables, doneTables...)
 	} else {
-		allTables = strings.Split(target.TableList, ",")
+		allTables = utils.CsvStringToSlice(target.TableList)
 
 		//filter allTables to remove tables in case not present in --table-list flag
 		for _, table := range allTables {
@@ -272,7 +326,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
 				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
-				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.") //correct and complete pattern to avoid matching cases with other table names
+				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.*") //correct and complete pattern to avoid matching cases with other table names
 				truncateTables([]string{tableName})
 			}
 		}
@@ -763,7 +817,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 				if checkSessionVariableSupported(i, dbVersion) {
 					_, err := conn.Exec(context.Background(), statement)
 					if err != nil {
-						panic(err)
+						utils.ErrExit("error in setting session variable for table %q: %v", t.TableName, err)
 					}
 				}
 			}
@@ -911,6 +965,4 @@ func incrementImportedRowCount(tableName string, rowsCopied int64) {
 func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
-	importDataCmd.Flags().StringVar(&importMode, "offline", "",
-		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
 }

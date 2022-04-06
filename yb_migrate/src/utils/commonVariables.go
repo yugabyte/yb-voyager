@@ -65,7 +65,6 @@ type Target struct {
 	Uri                    string
 	ImportIndexesAfterData bool
 	ContinueOnError        bool
-	YsqlshPath             string
 	IgnoreIfExists         bool
 	VerboseMode            bool
 	TableList              string
