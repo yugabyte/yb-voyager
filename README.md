@@ -26,12 +26,53 @@ There are two modes of migration (offline and online):
 yb_migrate currently only supports offline migration, owing to which, the documentation covers only the offline aspect of migration.
 
 The migration service requires a certain list of commands to be run in a certain sequence:
-
--will insert flowchart/diagram later-
+```
+                          ┌──────────────────┐
+                          │                  │
+                          │ Setup yb_migrate ├────────┐
+                          │                  │        │
+                          └────────┬─────────┘        │
+                                   │                  │
+                          ┌────────▼─────────┐        │
+                          │                  │        │
+                          │ Generate Report  │        │
+                          │                  │        │
+                          └────────┬─────────┘        │
+                                   │                  │
+                          ┌────────▼─────────┐        │
+                          │      Export      │        │
+                          │                  │        │
+                          │                  │        │
+                          │ ┌──────────────┐ │        │
+┌───────────────────┐     │ │Export Schema │ │        │
+│                   │     │ └──────┬───────┘ │        │
+│ Manual Validation ◄─────┤        │         │        │
+│                   │     │        │         ◄────────┘
+└────────┬──────────┘     │  ┌─────▼──────┐  │
+         │                │  │Export Data │  │
+         │                │  └────────────┘  │
+         │                │                  │
+         │                │                  │
+         │                └────────┬─────────┘
+         │                         │                                                  ▼
+         │                         │
+         │                ┌────────▼─────────┐
+         │                │      Import      │
+         │                │ ┌──────────────┐ │
+         │                │ │Import Schema │ │      ┌─────────────────────┐
+         │                │ └──────┬───────┘ │      │                     │
+         │                │        │         ├──────► Manual Verification │
+         └────────────────►  ┌─────▼──────┐  │      │                     │
+                          │  │Import Data │  │      └─────────────────────┘
+                          │  └────────────┘  │
+                          │                  │
+                          └──────────────────┘
+```
 
 Schema objects and data objects are both migrated as per the following compatibility matrix:
 
 -will insert matrix later-
+
 
 Utilize the following command for additional details:
 
