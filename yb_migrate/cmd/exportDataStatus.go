@@ -77,21 +77,23 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 				utils.PrintAndLog(msg)
 
 				for _, partitionName := range partitionList {
-					tablesProgressMetadata[partitionName] = &utils.TableProgressMetadata{}
-					tablesProgressMetadata[partitionName].TableSchema = source.Schema
-					tablesProgressMetadata[partitionName].TableName = partitionName
+					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
+					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
+					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
+					tablesProgressMetadata[key].TableSchema = source.Schema
+					tablesProgressMetadata[key].TableName = partitionName
 
 					// partition are unique under a table in oracle
-					tablesProgressMetadata[partitionName].FullTableName = partitionName
-					tablesProgressMetadata[partitionName].ParentTable = tablesProgressMetadata[parentTable].FullTableName
-					tablesProgressMetadata[partitionName].IsPartition = true
+					tablesProgressMetadata[key].FullTableName = fullTableName
+					tablesProgressMetadata[key].ParentTable = tablesProgressMetadata[parentTable].TableName
+					tablesProgressMetadata[key].IsPartition = true
 
-					tablesProgressMetadata[partitionName].InProgressFilePath = ""
-					tablesProgressMetadata[partitionName].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
-					tablesProgressMetadata[partitionName].CountTotalRows = int64(0) //will be updated by other func
-					tablesProgressMetadata[partitionName].CountLiveRows = int64(0)
-					tablesProgressMetadata[partitionName].Status = 0
-					tablesProgressMetadata[partitionName].FileOffsetToContinue = int64(0)
+					tablesProgressMetadata[key].InProgressFilePath = ""
+					tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
+					tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
+					tablesProgressMetadata[key].CountLiveRows = int64(0)
+					tablesProgressMetadata[key].Status = 0
+					tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 				}
 			}
 		}
@@ -122,11 +124,11 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
 				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
-				go startExportPB(progressContainer, tablesProgressMetadata[key], quitChan2)
+				go startExportPB(progressContainer, key, quitChan2)
 
 			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
-				exportedTables = append(exportedTables, tablesProgressMetadata[key].FullTableName)
+				exportedTables = append(exportedTables, key)
 				doneCount++
 				if doneCount == numTables {
 					break
@@ -154,14 +156,10 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	//TODO: print remaining/unable-to-export tables
 }
 
-func startExportPB(progressContainer *mpb.Progress, tableMetadata *utils.TableProgressMetadata, quitChan chan bool) {
+func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool) {
 
-	var tableName string
-	if source.DBType == POSTGRESQL && tableMetadata.TableSchema != "public" {
-		tableName = tableMetadata.TableSchema + "." + tableMetadata.TableName
-	} else {
-		tableName = tableMetadata.TableName
-	}
+	tableName := mapKey
+	tableMetadata := tablesProgressMetadata[mapKey]
 
 	total := int64(100)
 

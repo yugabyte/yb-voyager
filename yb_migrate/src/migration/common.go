@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -58,10 +59,13 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			tableName := tablesProgressMetadata[key].TableName
-			fileName := "tmp_" + tableName + "_data.sql"
-			tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/" + fileName
-			tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
+			targetTableName := tablesProgressMetadata[key].TableName
+			// required if PREFIX_PARTITION is set in ora2pg.conf file
+			// if tablesProgressMetadata[key].IsPartition {
+			// 	targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
+			// }
+			tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/tmp_" + targetTableName + "_data.sql"
+			tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + targetTableName + "_data.sql"
 		}
 	}
 
@@ -84,20 +88,15 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
-		fullTableName := tablesProgressMetadata[key].FullTableName
+		// fullTableName := tablesProgressMetadata[key].FullTableName
 
-		utils.PrintIfTrue(fmt.Sprintf("| %30s ", fullTableName), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("| %30s ", key), source.VerboseMode)
 
 		if source.VerboseMode {
 			go utils.Wait()
 		}
 
-		var queryFrom string
-		if !tablesProgressMetadata[key].IsPartition {
-			queryFrom = tablesProgressMetadata[key].FullTableName
-		} else {
-			queryFrom = fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[key].ParentTable, tablesProgressMetadata[key].FullTableName)
-		}
+		queryFrom := tablesProgressMetadata[key].FullTableName
 		rowCount := SelectCountStarFromTable(queryFrom, source)
 
 		if source.VerboseMode {
@@ -333,11 +332,16 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 }
 
 func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	// in case of ora2pg the renaming is not required
 	if source.DBType == "oracle" || source.DBType == "mysql" {
-		return
+		// empty - in case of oracle and mysql, the renaming is handled by tool(ora2pg)
+	} else if source.DBType == "postgresql" {
+		renameDataFiles(tablesProgressMetadata)
 	}
 
+	saveExportedRowCount(exportDir, tablesProgressMetadata)
+}
+
+func renameDataFiles(tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	for _, tableProgressMetadata := range *tablesProgressMetadata {
 		oldFilePath := tableProgressMetadata.InProgressFilePath
 		newFilePath := tableProgressMetadata.FinalFilePath
@@ -345,8 +349,6 @@ func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProg
 			os.Rename(oldFilePath, newFilePath)
 		}
 	}
-
-	saveExportedRowCount(exportDir, tablesProgressMetadata)
 }
 
 func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.TableProgressMetadata) {
@@ -359,19 +361,16 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 	fmt.Println("exported num of rows for each table")
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
-	for _, tableMetadata := range *tablesMetadata {
+	sortedKeys := utils.GetSortedKeys(tablesMetadata)
+	for _, key := range sortedKeys {
+		tableMetadata := (*tablesMetadata)[key]
 		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
-		var fullTableName string
-		if tableMetadata.TableSchema != "public" {
-			fullTableName = tableMetadata.FullTableName
-		} else {
-			fullTableName = tableMetadata.TableName
-		}
 
+		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		actualRowCount := tableMetadata.CountLiveRows
-		line := fullTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
+		line := targetTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
-		fmt.Printf("| %30s | %30d |\n", fullTableName, actualRowCount)
+		fmt.Printf("| %30s | %30d |\n", key, actualRowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
