@@ -2,7 +2,7 @@
 
 ## Sections
 - [Introduction](#introduction)
-- [Resource Requirements](#resource-requirements)
+- [Machine Requirements](#machine-requirements)
 - [Installation](#installation)
 - [Migration Steps](#migration-steps)
     - [Source DB Setup](#source-db-setup)
@@ -14,82 +14,111 @@
     - [Manual Review/Validation (Import Phase)](#import-phase-manual-review)
 
 ## Introduction
-`yb_migrate --help`
 
-yb_migrate is a simple to use, open-source tool meant to migrate databases from different source types (MySQL, Oracle, PostgreSQL) onto YugabyteDB.
+Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate databases from different source types (MySQL, Oracle, PostgreSQL) onto YugabyteDB.
+
 Github Issue Link -yet to be linked-
 
-## Resource Requirements
-(We should come back to this when we decide if yb_migrate can be given as a binary without source code, database-relevant details will be mentioned in “migration steps” section)
+There are two modes of migration (offline and online):
+Offline migration is disruptive to users and applications, and will impact the performance of the database instance.
+Online migration is non-disruptive to users and applications, and will have little to no effect on the performance of the database instance.
+
+yb_migrate currently only supports offline migration, owing to which, the documentation covers only the offline aspect of migration.
+
+The migration service requires a certain list of commands to be run in a certain sequence:
+
+-will insert flowchart/diagram later-
+
+Schema objects and data objects are both migrated as per the following compatibility matrix:
+
+-will insert matrix later-
+
+Utilize the following command for additional details:
+
+```sh
+yb_migrate --help
+```
+
+## Machine Requirements
+yb_migrate currently supports the following OS versions:
+- CentOS7
+- Ubuntu -exact versions are to be mentioned soon-
+
+Disk space: It is recommended to have disk space twice the estimated size of the source DB. We are currently working on a [fix](https://yugabyte.atlassian.net/browse/DMS-18) to optimize this.
+
+Number of cores: Minimum 2 recommended.
 
 ## Installation
-(The script needs some changes, leaving this section blank for now)
+We provide interactive installation scripts that the user should run on their machines. Refer to the [Machine Requirements](#machine-requirements) for supported OS versions.
+- [CentOS7](installer_scripts/install_centos7.sh)
+- [Ubuntu](installer_scripts/install_ubuntu.sh)
+
+*Note to the DMS team: I believe we had a discussion talking about cat-ing the required shell scripts into a specific bash_rc-like file meant for yb_migrate, so that the user may use* `source yb_migrate.sh`*. Please confirm this detail to complete this section.*
 
 ## Migration Steps
-Below are the steps a user may follow to use the yb_migrate tool:
+Below are the steps a user should follow to use the yb_migrate tool:
 
 ### Source DB Setup
-[Test link](docs/test_file.txt)
+*TODO (Sanyam): Mention the various permissions required by the user for each source DB type in a few lines each*
 
 ### Target DB Setup
+*TODO (Sanyam): Mention the permissions required by the user for YugabyteDB in a few lines*
 
 ### Report Generation
-
-`yb_migrate generateReport --help`
 	
 Before beginning the migration cycle, the user can generate a report, which provides the details of the schema objects to be exported, along with incompatibilities, if any. The incompatibilities will be tagged and a Github issue link will be provided with it if available. If there are no solutions available, the user will have to manually review the export phase (see below).
 
+For additional help use the following command:
+
+```sh
+yb_migrate generateReport --help
+```
+
 **Sample command:**
 
-```
+```sh
 yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format html
 ```
 
 The generated report will be found in `export-dir/reports/report.html`.
 
-*To be included:*
-- *What if command fails. Possible reasons, Like insufficient privileges. Export Dir missing or non empty etc*
-- *Corrective actions*
-
 ### Source DB Export
-
-`yb_migrate export --help`
 
 The export phase is carried out in two parts, export schema and export data respectively. It is recommended to start this phase after having completed the report generation phase (see above). 
 
+For additional help use the following command:
+
+```sh
+yb_migrate export --help
+```
+
 #### Export Schema
 
-`yb_migrate export schema --help`
+```sh
+yb_migrate export schema --help
+```
 
 **Sample command:**
 
-```
+```sh
 yb_migrate export schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
 ```
 
 The schema sql files will be found in `export-dir/schema`. A report regarding the export of schema objects can be found in `export-dir/reports`.
 
-*To be included:*
-- *What if command fails*
-- *Possible reasons*
-- *Corrective actions*
-
 #### Export Data
 
-`yb_migrate export data --help`
+```sh
+yb_migrate export data --help
+```
 
 **Sample command:**
 
-```
+```sh
 yb_migrate export data --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
 ```
 
 The data sql files will be found in `export-dir/data`.
-
-*To be included:*
-- *What if command fails*
-- *Possible reasons*
-- *Corrective actions*
 
 ### Export Phase Manual Review
 *To be included:*
@@ -98,17 +127,23 @@ The data sql files will be found in `export-dir/data`.
 
 ### Target DB Import
 
-`yb_migrate import --help`
+This command/series of commands(see below) is/are used to initiate the import of schema and data objects onto YugabyteDB. It is mandatory that the user has completed the export phase at a minimum (see above), and it is recommended that the user completes a manual review of the exported schema and data files, which will be found in the `export-dir/schema` and `export-dir/data` folders respectively. A report will be generated in the `export-dir/reports` folder to help speed up this verification process.
 
-This command/series of commands is/are used to initiate the import of schema and data objects onto YugabyteDB. It is mandatory that the user has completed the export phase at a minimum (see above), and it is recommended that the user completes a manual review of the exported schema and data files, which will be found in the `export-dir/schema` and `export-dir/data` folders respectively. A report will be generated in the `export-dir/reports` folder to help speed up this verification process.
+For additional help use the following command:
+
+```sh
+yb_migrate import --help
+```
 
 #### Import Schema
 
-`yb_migrate import schema --help`
+```sh
+yb_migrate import schema --help
+```
 
 **Sample command:**
 
-```
+```sh
 yb_migrate import schema --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 10 --batch-size 100000
 ```
 
@@ -116,11 +151,13 @@ The schema sql files should be located in the `export-dir/schema` folder.
 
 #### Import Data
 
-`yb_migrate import data --help`
+```sh
+yb_migrate import data --help
+```
 
 **Sample command:**
 
-```
+```sh
 yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000
 ```
 
