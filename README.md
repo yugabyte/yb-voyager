@@ -54,7 +54,7 @@ The migration service requires a certain list of commands to be run in a certain
          │                │                  │
          │                │                  │
          │                └────────┬─────────┘
-         │                         │                                                  ▼
+         │                         │                                                  
          │                         │
          │                ┌────────▼─────────┐
          │                │      Import      │
