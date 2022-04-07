@@ -229,6 +229,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 				tableMetadata.CountLiveRows += 1
 			}
 		}
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	/*

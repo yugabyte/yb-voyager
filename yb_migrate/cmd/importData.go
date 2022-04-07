@@ -31,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/ybm/yb_migrate/src/fwk"
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -60,6 +61,8 @@ type ProgressContainer struct {
 var importProgressContainer ProgressContainer
 var importTables []string
 var allTables []string
+var usePublicIp bool
+var targetEndpoints string
 
 type ExportTool int
 
@@ -85,37 +88,92 @@ var importDataCmd = &cobra.Command{
 }
 
 func getYBServers() []*utils.Target {
-	url := getTargetConnectionUri(&target)
-	conn, err := pgx.Connect(context.Background(), url)
-	if err != nil {
-		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer conn.Close(context.Background())
-
-	rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
-	if err != nil {
-		errMsg := fmt.Sprintf("error in query rows from yb_servers(): %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer rows.Close()
-
 	var targets []*utils.Target
-	for rows.Next() {
-		clone := cloneTarget(&target)
-		var host, nodeType, cloud, region, zone, public_ip string
-		var port, num_conns int
-		if err := rows.Scan(&host, &port, &num_conns,
-			&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-			errMsg := fmt.Sprintf("error in scanning rows of yb_servers(): %v\n", err)
-			utils.ErrExit(errMsg)
+
+	if targetEndpoints != "" {
+		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
+		utils.PrintIfTrue(msg, target.VerboseMode)
+		log.Infof(msg)
+
+		ybServers := utils.CsvStringToSlice(targetEndpoints)
+		for _, ybServer := range ybServers {
+			clone := cloneTarget(&target)
+
+			if strings.Contains(ybServer, ":") {
+				clone.Host = strings.Split(ybServer, ":")[0]
+				var err error
+				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
+
+				if err != nil {
+					utils.ErrExit("error in parsing useYbServers flag: %v", err)
+				}
+			} else {
+				clone.Host = ybServer
+			}
+
+			clone.Uri = getCloneConnectionUri(clone)
+			log.Infof("using yb server for import data: %+v", clone)
+			targets = append(targets, clone)
 		}
-		clone.Host = host
-		clone.Port = port
-		clone.Uri = getCloneConnectionUri(clone)
-		targets = append(targets, clone)
+	} else {
+		url := getTargetConnectionUri(&target)
+		conn, err := pgx.Connect(context.Background(), url)
+		if err != nil {
+			utils.ErrExit("Unable to connect to database: %v", err)
+		}
+		defer conn.Close(context.Background())
+
+		rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
+		if err != nil {
+			utils.ErrExit("error in query rows from yb_servers(): %v", err)
+		}
+		defer rows.Close()
+
+		var hostPorts []string
+		for rows.Next() {
+			clone := cloneTarget(&target)
+			var host, nodeType, cloud, region, zone, public_ip string
+			var port, num_conns int
+			if err := rows.Scan(&host, &port, &num_conns,
+				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
+				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
+			}
+			if usePublicIp {
+				if public_ip == "" {
+					log.Infof("no public_ip available for host: %s", host)
+					continue
+				}
+				clone.Host = public_ip
+			} else {
+				clone.Host = host
+			}
+
+			clone.Port = port
+			clone.Uri = getCloneConnectionUri(clone)
+			targets = append(targets, clone)
+
+			hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
+		}
+		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
+
+	testYbServers(targets)
 	return targets
+}
+
+func testYbServers(targets []*utils.Target) {
+	if len(targets) == 0 {
+		utils.ErrExit("no yb servers available/given for data import")
+	}
+	for _, target := range targets {
+		log.Infof("testing server: %s\n", spew.Sdump(target))
+		conn, err := pgx.Connect(context.Background(), target.Uri)
+		if err != nil {
+			utils.ErrExit("error while testing yb servers: %v", err)
+		}
+		conn.Close(context.Background())
+	}
+	log.Infof("all target servers are accessible")
 }
 
 func cloneTarget(t *utils.Target) *utils.Target {
@@ -156,14 +214,14 @@ func importData() {
 	// TODO: Add later
 	// acquireImportLock()
 	// defer os.Remove(importLockFile)
-	fmt.Printf("\nimport of data in '%s' database started\n", target.DBName)
-
+	log.Infof("import data command initiated for DB %q", target.DBName)
 	targets := getYBServers()
+
 	var parallelism = parallelImportJobs
 	if parallelism == -1 {
 		parallelism = len(targets)
 	}
-
+	log.Infof("parallelism=%v", parallelism)
 	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
@@ -219,15 +277,15 @@ func acquireImportLock() {
 func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
-	// for debugging
-	// fmt.Printf("interruptedTables: %s\n", interruptedTables)
-	// fmt.Printf("remainingTables: %s\n", remainingTables)
+	log.Infof("doneTables: %s", doneTables)
+	log.Infof("interruptedTables: %s", interruptedTables)
+	log.Infof("remainingTables: %s", remainingTables)
 
 	if target.TableList == "" { //no table-list is given by user
 		importTables = append(interruptedTables, remainingTables...)
 		allTables = append(importTables, doneTables...)
 	} else {
-		allTables = strings.Split(target.TableList, ",")
+		allTables = utils.CsvStringToSlice(target.TableList)
 
 		//filter allTables to remove tables in case not present in --table-list flag
 		for _, table := range allTables {
@@ -252,10 +310,13 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	sort.Strings(allTables)
 	sort.Strings(importTables)
 
+	log.Infof("allTables: %s", allTables)
+	log.Infof("importTables: %s", importTables)
+
 	if startClean { //start data migraiton from beginning
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
-		fmt.Printf("cleaning the database and %s/metadata/data directory\n", exportDir)
+		log.Infof("cleaning the database and %s/metadata/data directory", exportDir)
 		utils.CleanDir(exportDir + "/metainfo/data")
 
 		importTables = allTables //since all tables needs to imported now
@@ -265,7 +326,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 		for _, tableName := range importTables {
 			if !checkPrimaryKey(tableName) {
 				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
-				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.") //correct and complete pattern to avoid matching cases with other table names
+				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.*") //correct and complete pattern to avoid matching cases with other table names
 				truncateTables([]string{tableName})
 			}
 		}
@@ -302,8 +363,7 @@ func checkPrimaryKey(tableName string) bool {
 	url := getTargetConnectionUri(&target)
 	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
-		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("Unable to connect to database (uri=%s): %s", url, err)
 	}
 	defer conn.Close(context.Background())
 
@@ -320,69 +380,75 @@ func checkPrimaryKey(tableName string) bool {
 	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
 	// fmt.Println(checkPKSql)
 
+	log.Infof("Running query on target DB: %s", checkPKSql)
 	rows, err := conn.Query(context.Background(), checkPKSql)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in querying to check PK on table %q: %v\n", table, err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("error in querying to check PK on table %q: %s", table, err)
 	}
 	defer rows.Close()
 
 	if rows.Next() {
+		log.Infof("table %q has a PK", table)
 		return true
 	} else {
+		log.Infof("table %q does not have a PK", table)
 		return false
 	}
 }
 
 func truncateTables(tables []string) {
+	log.Infof("Truncating tables: %v", tables)
 	connectionURI := target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connectionURI)
 	if err != nil {
-		errMsg := fmt.Sprintf("Unable to connect to database: %v\n", err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("Unable to connect to database %q: %s", connectionURI, err)
 	}
 	defer conn.Close(context.Background())
 
 	metaInfo := ExtractMetaInfo(exportDir)
+	log.Infof("Source DB type: %q", metaInfo.SourceDBType)
+
 	if metaInfo.SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
 		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 		_, err := conn.Exec(context.Background(), setSchemaQuery)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			utils.ErrExit("Failed to execute %q on target: %s", setSchemaQuery, err)
 		}
 	}
 
 	for _, table := range tables {
+		log.Infof("Truncating table: %q", table)
 		if target.VerboseMode {
 			fmt.Printf("Truncating table %s...\n", table)
 		}
 		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
 		_, err := conn.Exec(context.Background(), truncateStmt)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while truncating table %q: %v\n", table, err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error while truncating table %q: %s", table, err)
 		}
 	}
 }
 
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
+	log.Infof("Started goroutine: splitDataFiles")
 	for _, t := range importTables {
 		var tableNameUsed string //regenerating the table_data.sql filename, from extracted tableName
 		parts := strings.Split(t, ".")
-		if ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
+		sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
+		switch sourceDBType {
+		case "postgresql":
 			if len(parts) > 1 && parts[0] != "public" {
 				tableNameUsed = strings.ToLower(parts[0]) + "."
 			}
 			tableNameUsed += strings.ToLower(parts[len(parts)-1])
-		} else if ExtractMetaInfo(exportDir).SourceDBType == "mysql" {
+		case "mysql":
 			tableNameUsed = parts[len(parts)-1]
-		} else {
+		case "oracle":
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}
-
 		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
-		// collect interrupted splits
+
+		log.Infof("Collect interrupted splits.")
 		// make an import task and schedule them
 
 		largestCreatedSplitSoFar := int64(0)
@@ -420,7 +486,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
-		// collect files which were generated but processing did not start
+		log.Infof("Collect files which were generated but processing did not start.")
 		// schedule import task for them
 		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
 		createdButNotStartedRegex := regexp.MustCompile(createdButNotStartedRegexStr)
@@ -450,36 +516,35 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
 		}
 	}
+	log.Info("All table data files are split.")
 	GenerateSplitsDone.Set()
 }
 
 func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFileImportTask, largestSplit int64, largestOffset int64) {
+	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", dataFile, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
 	forig, err := os.Open(dataFile)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in opening file %q to read: %v\n", dataFile, err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("open file %q: %s", dataFile, err)
 	}
 	defer forig.Close()
 
 	r := bufio.NewReader(forig)
 	sz := 0
-	// fmt.Printf("curr temp file created = %s and largestOffset=%d\n", currTmpFileName, largestOffset)
+	log.Infof("current temp file: %s", currTmpFileName)
 	outfile, err := os.Create(currTmpFileName)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in creating file %q: %v\n", currTmpFileName, err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("create file %q: %s", currTmpFileName, err)
 	}
 
-	// skip till largest offset
-	// fmt.Printf("Skipping %d lines from %s\n", largestOffset, dataFile)
+	log.Infof("Skipping %d lines from %q", largestOffset, dataFile)
 	for i := int64(0); i < largestOffset; {
 		line, err := utils.Readline(r)
-		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not craeted yet
-			panic(err)
+		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
+			utils.ErrExit("read a line from %q: %s", dataFile, err)
 		}
 		if isDataLine(line) {
 			i++
@@ -493,7 +558,6 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = utils.Readline(r)
-
 		if readLineErr == nil && !isDataLine(line) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
@@ -507,15 +571,13 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		length, err := bufferedWriter.WriteString(line)
 		linesWrittenToBuffer = true
 		if err != nil {
-			log.Errorf("Cannot write the read line into %q: %v\n", outfile.Name(), err)
-			return
+			utils.ErrExit("Write line to %q: %s", outfile.Name(), err)
 		}
 		sz += length
 		if sz >= FOUR_MB {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Errorf("Cannot flush data in file = %q: %v\n", outfile.Name(), err)
-				return
+				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
 			}
 			bufferedWriter.Reset(outfile)
 			sz = 0
@@ -524,27 +586,26 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 		if numLinesInThisSplit == numLinesInASplit || readLineErr != nil {
 			err = bufferedWriter.Flush()
 			if err != nil {
-				log.Errorf("Cannot flush data in file = %q: %v\n", outfile.Name(), err)
-				return
+				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
 			}
 			outfile.Close()
 			fileSplitNumber := splitNum
 			if readLineErr == io.EOF {
 				fileSplitNumber = LAST_SPLIT_NUM
+				log.Infof("Preparing last split of %q", dataFile)
 			} else if readLineErr != nil {
-				panic(readLineErr)
+				utils.ErrExit("read line from data file %q: %s", dataFile, readLineErr)
 			}
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
+			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
-				log.Errorf("Cannot rename %q to %q: %v\n", currTmpFileName, splitFile, err)
-				return
+				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
-
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
 			if fileSplitNumber != 0 {
@@ -552,15 +613,16 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFile
 				numLinesInThisSplit = 0
 				linesWrittenToBuffer = false
 				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
+				log.Infof("create next temp file: %q", currTmpFileName)
 				outfile, err = os.Create(currTmpFileName)
 				if err != nil {
-					log.Errorf("Cannot create %q: %v\n", currTmpFileName, err)
-					return
+					utils.ErrExit("create %q: %s", currTmpFileName, err)
 				}
 				bufferedWriter = bufio.NewWriter(outfile)
 			}
 		}
 	}
+	log.Infof("splitFilesForTable: done splitting data file %q for table %q", dataFile, t)
 }
 
 // Example: "SET client_encoding TO 'UTF8';"
@@ -596,6 +658,7 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
 	taskQueue <- &t
+	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
 
 func executePostImportDataSqls() {
@@ -625,35 +688,30 @@ func getTablesToImport() ([]string, []string, []string, error) {
 
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {
-		fmt.Println("metainfo dir is missing. Exiting.")
-		os.Exit(1)
+		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
 	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
 	_, err = os.Stat(metaInfoDataDir)
 	if err != nil {
-		fmt.Println("metainfo data dir is missing. Exiting.")
-		os.Exit(1)
+		utils.ErrExit("metainfo data dir is missing. Exiting.")
 	}
 
 	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
 	_, err = os.Stat(exportDataDonePath)
 	if err != nil {
-		fmt.Println("Export is not done yet. Exiting.")
-		os.Exit(1)
+		utils.ErrExit("Export is not done yet. Exiting.")
 	}
 
 	exportDataDir := fmt.Sprintf("%s/data", exportDir)
 	_, err = os.Stat(exportDataDir)
 	if err != nil {
-		fmt.Printf("Export data dir %s is missing. Exiting.\n", exportDataDir)
-		os.Exit(1)
+		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
 	}
 	// Collect all the data files
 	dataFilePatern := fmt.Sprintf("%s/*_data.sql", exportDataDir)
 	datafiles, err := filepath.Glob(dataFilePatern)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		utils.ErrExit("find data files in %q: %s", exportDataDir, err)
 	}
 
 	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
@@ -759,7 +817,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 				if checkSessionVariableSupported(i, dbVersion) {
 					_, err := conn.Exec(context.Background(), statement)
 					if err != nil {
-						panic(err)
+						utils.ErrExit("error in setting session variable for table %q: %v", t.TableName, err)
 					}
 				}
 			}
@@ -784,8 +842,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			rowsCount := res.RowsAffected()
 			if err != nil {
 				if !strings.Contains(err.Error(), "violates unique constraint") {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("error in COPYFROM for table %q angd split %q: %v", t.TableName, getInProgressFilePath(t), err)
 				} else { //in case of unique key violation error take row count from the split task
 					rowsCount = t.OffsetEnd - t.OffsetStart
 				}
@@ -798,6 +855,11 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			err = os.Rename(getInProgressFilePath(t), getDoneFilePath(t))
 			if err != nil {
 				panic(err)
+			}
+
+			err = os.Truncate(getDoneFilePath(t), 0)
+			if err != nil {
+				log.Infof("WARNING Truncation of file %q failed: %v", getDoneFilePath(t), err)
 			}
 			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
@@ -907,6 +969,4 @@ func incrementImportedRowCount(tableName string, rowsCopied int64) {
 func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
-	importDataCmd.Flags().StringVar(&importMode, "offline", "",
-		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
 }

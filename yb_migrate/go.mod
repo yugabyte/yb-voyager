@@ -3,6 +3,7 @@ module github.com/yugabyte/ybm/yb_migrate
 go 1.16
 
 require (
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fatih/color v1.13.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/godror/godror v0.30.2

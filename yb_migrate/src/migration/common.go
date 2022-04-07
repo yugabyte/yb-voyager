@@ -121,7 +121,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	fileBytes, err := ioutil.ReadFile(filePath)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("read file %q: %s", filePath, err)
 	}
 
 	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
@@ -134,6 +134,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 		tableRowCountMap[tableName] = rowCountInt64
 	}
 
+	log.Infof("tableRowCountMap: %v", tableRowCountMap)
 	return tableRowCountMap
 }
 

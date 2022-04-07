@@ -854,7 +854,7 @@ func init() {
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	generateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "public",
-		"source schema name which needs to be migrated to YugabyteDB")
+		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
 
 	// TODO SSL related more args will come. Explore them later.
 	generateReportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",

@@ -289,16 +289,16 @@ func CleanDir(dir string) {
 }
 
 func ClearMatchingFiles(filePattern string) {
+	log.Infof("Clearing files matching with pattern: %s", filePattern)
 	files, err := filepath.Glob(filePattern)
 	if err != nil {
-		fmt.Printf("%s\n", err.Error())
-		os.Exit(1)
+		ErrExit("failed to list files matching with the given pattern: %s", err)
 	}
 	for _, file := range files {
+		log.Infof("Removing file: %q", file)
 		err := os.RemoveAll(file)
 		if err != nil {
-			fmt.Printf("%s\n", err.Error())
-			os.Exit(1)
+			ErrExit("delete file %q: %s", file, err)
 		}
 	}
 }
@@ -388,4 +388,13 @@ func GetSortedKeys(tablesProgressMetadata *map[string]*TableProgressMetadata) []
 
 	sort.Strings(keys)
 	return keys
+}
+
+func CsvStringToSlice(str string) []string {
+	result := strings.Split(str, ",")
+	for i := 0; i < len(result); i++ {
+		result[i] = strings.Trim(result[i], " ")
+	}
+
+	return result
 }
