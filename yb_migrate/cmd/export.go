@@ -60,7 +60,7 @@ var exportCmd = &cobra.Command{
 		}
 
 		if source.TableList != "" {
-			checkTableListFlag()
+			checkTableListFlag(source.TableList)
 		}
 	},
 
