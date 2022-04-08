@@ -803,7 +803,7 @@ var generateReportCmd = &cobra.Command{
 		}
 
 		if source.TableList != "" {
-			checkTableListFlag()
+			checkTableListFlag(source.TableList)
 		}
 
 		checkReportOutputFormat()

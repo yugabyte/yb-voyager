@@ -811,7 +811,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			defer conn.Close(context.Background())
 
-			dbVersion := migration.SelectVersionQuery(source.DBType, targetServer.GetConnectionUri())
+			dbVersion := migration.SelectVersionQuery("yugabytedb", targetServer.GetConnectionUri())
 
 			for i, statement := range IMPORT_SESSION_SETTERS {
 				if checkSessionVariableSupported(i, dbVersion) {
