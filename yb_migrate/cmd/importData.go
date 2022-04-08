@@ -846,7 +846,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			if err != nil {
 				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 				if !strings.Contains(err.Error(), "violates unique constraint") {
-					utils.ErrExit("COPY FROM file %q: %s", inProgressFilePath, err)
+					utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
 				} else { //in case of unique key violation error take row count from the split task
 					rowsCount = t.OffsetEnd - t.OffsetStart
 					log.Infof("assuming affected rows count %v", rowsCount)
