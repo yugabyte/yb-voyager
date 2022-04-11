@@ -12,6 +12,7 @@
     - [Manual Review (Export)](#export-phase-manual-review)
     - [Target DB Import](#target-db-import)
     - [Manual Review/Validation (Import Phase)](#import-phase-manual-review)
+- [Limitations](#limitations)
 
 # Introduction
 
@@ -80,7 +81,12 @@ Schema objects and data objects are both migrated as per the following compatibi
 |Oracle|-|-|-|-|-|-|-|-|-|-|
 |MySQL|-|-|-|-|-|-|-|-|-|-|
 
-
+*TODO: Update Version numbers, Rahul has entered some placeholder values for now.*
+*Note that the following versions have been tested with yb_migrate:*
+- MariaDB 10.5.x
+- PostgreSQL 9.x - 13.x
+- MySQL 8.x
+- Oracle 12.1.x - 19.3.x
 
 Utilize the following command for additional details:
 
@@ -260,3 +266,5 @@ yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost
 
 ## Import Phase Manual Review
 *TODO: Fill this section*
+
+# Limitations
