@@ -1,8 +1,8 @@
-# DMS OPEN TOOL DOCUMENTATION
+# yb_migrate
 
-## Sections
+# Sections
 - [Introduction](#introduction)
-- [Resource Requirements](#resource-requirements)
+- [Machine Requirements](#machine-requirements)
 - [Installation](#installation)
 - [Migration Steps](#migration-steps)
     - [Source DB Setup](#source-db-setup)
@@ -12,31 +12,122 @@
     - [Manual Review (Export)](#export-phase-manual-review)
     - [Target DB Import](#target-db-import)
     - [Manual Review/Validation (Import Phase)](#import-phase-manual-review)
+- [Limitations](#limitations)
 
-## Introduction
-`yb_migrate --help`
+# Introduction
 
-yb_migrate is a simple to use, open-source tool meant to migrate databases from different source types (MySQL, Oracle, PostgreSQL) onto YugabyteDB.
-Github Issue Link -yet to be linked-
+Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate databases from different source types (MySQL, Oracle and PostgreSQL) onto YugabyteDB.
 
-## Resource Requirements
-(We should come back to this when we decide if yb_migrate can be given as a binary without source code, database-relevant details will be mentioned in “migration steps” section)
+Github Issue Link *TODO:link this*
 
-## Installation
-(The script needs some changes, leaving this section blank for now)
+*TODO:Improve the wording used for migration types*
+There are two modes of migration (offline and online):
+- Offline migration is disruptive to users and applications, and will impact the performance of the database instance.
+- Online migration is non-disruptive to users and applications, and will have little to no effect on the performance of the database instance.
 
-## Migration Steps
-Below are the steps a user may follow to use the yb_migrate tool:
+yb_migrate currently only supports offline migration, owing to which, the documentation covers only the offline aspect of migration.
 
-### Source DB Setup
+The migration service requires a certain list of commands to be run in a certain sequence:
+```
+                          ┌──────────────────┐
+                          │                  │
+                          │ Setup yb_migrate ├────────┐
+                          │                  │        │
+                          └────────┬─────────┘        │
+                                   │                  │
+                          ┌────────▼─────────┐        │
+                          │                  │        │
+                          │ Generate Report  │        │
+                          │                  │        │
+                          └────────┬─────────┘        │
+                                   ├──────────────────┘
+                          ┌────────▼─────────┐        
+                          │      Export      │        
+                          │                  │        
+                          │                  │        
+                          │ ┌──────────────┐ │        
+┌───────────────────┐     │ │Export Schema │ │        
+│                   │     │ └──────┬───────┘ │        
+│ Manual Validation ◄─────┤        │         │        
+│                   │     │        │         │
+└────────┬──────────┘     │  ┌─────▼──────┐  │
+         │                │  │Export Data │  │
+         │                │  └────────────┘  │
+         │                │                  │
+         │                │                  │
+         │                └────────┬─────────┘
+         │                         │                                                  
+         │                         │
+         │                ┌────────▼─────────┐
+         │                │      Import      │
+         │                │ ┌──────────────┐ │
+         │                │ │Import Schema │ │      ┌─────────────────────┐
+         │                │ └──────┬───────┘ │      │                     │
+         │                │        │         ├──────► Manual Verification │
+         └────────────────►  ┌─────▼──────┐  │      │                     │
+                          │  │Import Data │  │      └─────────────────────┘
+                          │  └────────────┘  │
+                          │                  │
+                          └──────────────────┘
+```
 
-### Target DB Setup
+Schema objects and data objects are both migrated as per the following compatibility matrix:
+*TODO:Versions to be included?*
 
-### Report Generation
+|Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|
+|-|-|-|-|-|-|-|-|-|-|-|
+|MariaDB|Y|Y|N/A|N/A|N/A|N/A|N/A|N/A|N/A|N/A|
+|PostgreSQL|Y|Y|N/A|N/A|N/A|Y|N/A|Y|Y|N/A|
+|Oracle|-|-|-|-|-|-|-|-|-|-|
+|MySQL|-|-|-|-|-|-|-|-|-|-|
 
-`yb_migrate generateReport --help`
+*TODO: Update Version numbers, Rahul has entered some placeholder values for now.*
+*Note that the following versions have been tested with yb_migrate:*
+- MariaDB 10.5.x
+- PostgreSQL 9.x - 13.x
+- MySQL 8.x
+- Oracle 12.1.x - 19.3.x
+
+Utilize the following command for additional details:
+
+```
+yb_migrate --help
+```
+
+# Machine Requirements
+yb_migrate currently supports the following OS versions:
+- CentOS7
+- Ubuntu *TODO: Mention exact version numbers*
+
+Disk space: It is recommended to have disk space twice the estimated size of the source DB. We are currently working on a [fix](https://yugabyte.atlassian.net/browse/DMS-18) to optimize this.
+
+Number of cores: Minimum 2 recommended.
+
+# Installation
+We provide interactive installation scripts that the user should run on their machines. Refer to the [Machine Requirements](#machine-requirements) section for supported OS versions.
+- [CentOS7](installer_scripts/install_centos7.sh)
+- [Ubuntu](installer_scripts/install_ubuntu.sh)
+
+*TODO: I believe we had a discussion talking about cat-ing the required shell scripts into a specific bash_rc-like file meant for yb_migrate, so that the user may use* `source yb_migrate.sh`*. Please confirm this detail to complete this section.*
+
+# Migration Steps
+Below are the steps a user should follow to use the yb_migrate tool:
+
+## Source DB Setup
+*TODO (Sanyam): Mention the various permissions required by the user for each source DB type in a few lines each*
+
+## Target DB Setup
+*TODO (Sanyam): Mention the permissions required by the user for YugabyteDB in a few lines*
+
+## Report Generation
 	
 Before beginning the migration cycle, the user can generate a report, which provides the details of the schema objects to be exported, along with incompatibilities, if any. The incompatibilities will be tagged and a Github issue link will be provided with it if available. If there are no solutions available, the user will have to manually review the export phase (see below).
+
+For additional help use the following command:
+
+```
+yb_migrate generateReport --help
+```
 
 **Sample command:**
 
@@ -46,19 +137,21 @@ yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type p
 
 The generated report will be found in `export-dir/reports/report.html`.
 
-*To be included:*
-- *What if command fails. Possible reasons, Like insufficient privileges. Export Dir missing or non empty etc*
-- *Corrective actions*
-
-### Source DB Export
-
-`yb_migrate export --help`
+## Source DB Export
 
 The export phase is carried out in two parts, export schema and export data respectively. It is recommended to start this phase after having completed the report generation phase (see above). 
 
-#### Export Schema
+For additional help use the following command:
 
-`yb_migrate export schema --help`
+```
+yb_migrate export --help
+```
+
+### Export Schema
+
+```
+yb_migrate export schema --help
+```
 
 **Sample command:**
 
@@ -68,14 +161,11 @@ yb_migrate export schema --export-dir /path/to/yb/export/dir --source-db-type po
 
 The schema sql files will be found in `export-dir/schema`. A report regarding the export of schema objects can be found in `export-dir/reports`.
 
-*To be included:*
-- *What if command fails*
-- *Possible reasons*
-- *Corrective actions*
+### Export Data
 
-#### Export Data
-
-`yb_migrate export data --help`
+```
+yb_migrate export data --help
+```
 
 **Sample command:**
 
@@ -85,25 +175,55 @@ yb_migrate export data --export-dir /path/to/yb/export/dir --source-db-type post
 
 The data sql files will be found in `export-dir/data`.
 
-*To be included:*
-- *What if command fails*
-- *Possible reasons*
-- *Corrective actions*
+### SSL Connectivity
 
-### Export Phase Manual Review
-*To be included:*
+*This sub-section is useful if you wish to encrypt and secure your connection to the source database while exporting your schema and data objects using SSL encryption.*
+
+yb_migrate supports SSL Encryption for all source database types, parallel to the configurations accepted by each database type.
+
+Sample commands for each source database type:
+
+**MySQL:**
+```
+yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type mysql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode require
+```
+
+**Oracle:**
+```
+yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type oracle --source-db-host localhost --source-db-password password --oracle-tns-alias TNS_Alias --source-db-user username --source-db-schema public
+```
+Note: This is the only way to export from an Oracle instance using SSL Encryption.
+
+**PostgreSQL:**
+```
+yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode verify-ca --source-ssl-root-cert /path/to/root_cert.pem --source-ssl-cert /path/to/cert.pem --source-ssl-key /path/to/key.pem
+```
+
+For additional details regarding the flags used to connect to an instance using SSL connectivity, refer to the help messages:
+```
+yb_migrate export --help
+```
+
+## Export Phase Manual Review
+*TODO:*
 - *Why?*
 - *What can the users do here with some examples*
 
-### Target DB Import
+## Target DB Import
 
-`yb_migrate import --help`
+This command/series of commands(see below) is/are used to initiate the import of schema and data objects onto YugabyteDB. It is mandatory that the user has completed the export phase at a minimum (see above), and it is recommended that the user completes a manual review of the exported schema and data files, which will be found in the `export-dir/schema` and `export-dir/data` folders respectively. A report will be generated in the `export-dir/reports` folder to help speed up this verification process.
 
-This command/series of commands is/are used to initiate the import of schema and data objects onto YugabyteDB. It is mandatory that the user has completed the export phase at a minimum (see above), and it is recommended that the user completes a manual review of the exported schema and data files, which will be found in the `export-dir/schema` and `export-dir/data` folders respectively. A report will be generated in the `export-dir/reports` folder to help speed up this verification process.
+For additional help use the following command:
 
-#### Import Schema
+```
+yb_migrate import --help
+```
 
-`yb_migrate import schema --help`
+### Import Schema
+
+```
+yb_migrate import schema --help
+```
 
 **Sample command:**
 
@@ -113,9 +233,11 @@ yb_migrate import schema --export-dir /path/to/yb/export/dir --target-db-host lo
 
 The schema sql files should be located in the `export-dir/schema` folder.
 
-#### Import Data
+### Import Data
 
-`yb_migrate import data --help`
+```
+yb_migrate import data --help
+```
 
 **Sample command:**
 
@@ -125,9 +247,24 @@ yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host loca
 
 The data sql files should be located in the `export-dir/data` folder.
 
-#### Import Data Status
-*To be included:*
+### Import Data Status
+*TODO:*
 - *What does this command do?*
 - *How do we use it?*
 
-### Import Phase Manual Review
+### SSL Connectivity
+
+*This sub-section is useful if you wish to encrypt and secure your connection to the target YugabyteDB instance while importing your schema and data objects using SSL encryption.*
+
+yb_migrate allows you to configure your connection to a YugabyteDB instance with SSL encryption.
+
+**Sample command:**
+
+```
+yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000 --target-ssl-mode require
+```
+
+## Import Phase Manual Review
+*TODO: Fill this section*
+
+# Limitations
