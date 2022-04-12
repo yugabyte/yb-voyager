@@ -128,10 +128,10 @@ or restart their terminal instance before proceeding with the rest of the migrat
 Below are the steps a user should follow to use the yb_migrate tool:
 
 ## Source DB Setup
-*TODO (Sanyam): Mention the various permissions required by the user for each source DB type in a few lines each*
+The source database user(given with --source-db-user flag) must have read privileges on all database objects to be exported.
 
 ## Target DB Setup
-*TODO (Sanyam): Mention the permissions required by the user for YugabyteDB in a few lines*
+The target database user(given with --target-db-user flag) should have a superuser privileges.
 
 ## Report Generation
 	
