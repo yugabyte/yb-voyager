@@ -128,10 +128,19 @@ or restart their terminal instance before proceeding with the rest of the migrat
 Below are the steps a user should follow to use the yb_migrate tool:
 
 ## Source DB Setup
-The source database user(given with --source-db-user flag) must have read privileges on all database objects to be exported.
+* Oracle: yb_migrate exports complete schema mentioned with `--source-db-schema` flag.
+* PostgreSQL: yb_migrate exports complete database(with all schemas inside it) mentioned with `--source-db-database` flag.
+* MySQL: yb_migrate exports complete database/schema(schema and database are same in MySQL) mentioned with `--source-db-database` flag.
+* For each of the source database type, the database user(used in migration) must have read privileges on all database objects to be exported.
 
 ## Target DB Setup
-The target database user(given with --target-db-user flag) should have a superuser privileges.
+* Create a database in target YugabyteDB cluster required during import schema and data with `--target-db-name` flag:
+    ```
+    CREATE DATABASE dbname;
+    ```
+* The target database user(used in migration) should have a superuser privileges because below operations during migration are only allowed to superuser:
+    * Setting session variable to disable Triggers and Foreign Key voilation checks during import data(import data command do this internally).
+    * Dropping public schema with `--start-clean` flag during import schema. 
 
 ## Report Generation
 	
