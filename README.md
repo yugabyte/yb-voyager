@@ -16,18 +16,19 @@
 
 # Introduction
 
-Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate databases from different source types (MySQL, Oracle and PostgreSQL) onto YugabyteDB.
+Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database will be added in near future.
 
 Github Issue Link *TODO:link this*
 
-*TODO:Improve the wording used for migration types*
 There are two modes of migration (offline and online):
-- Offline migration is disruptive to users and applications, and will impact the performance of the database instance.
-- Online migration is non-disruptive to users and applications, and will have little to no effect on the performance of the database instance.
+- Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. Firstly, export all the database objects and data in files. Secondly run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
+- Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode after the initial snapshot migration is done the migration engine shifts into a cdc mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
 
-yb_migrate currently only supports offline migration, owing to which, the documentation covers only the offline aspect of migration.
+Please note, yb_migrate currently only supports offline migration. Online is under active development.
+As currently only the 'offline' mode is supported, so the rest of the document is relevant for only 'Offline' migration. 
 
-The migration service requires a certain list of commands to be run in a certain sequence:
+Migration can be carried out by executing a set of commands in specific sequence.
+
 ```
                           ┌──────────────────┐
                           │                  │
