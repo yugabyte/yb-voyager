@@ -40,7 +40,7 @@ The migration service requires a certain list of commands to be run in a certain
                           │ Generate Report  │        │
                           │                  │        │
                           └────────┬─────────┘        │
-                                   ├──────────────────┘
+                                   ├◄─────────────────┘
                           ┌────────▼─────────┐        
                           │      Export      │        
                           │                  │        
@@ -72,16 +72,16 @@ The migration service requires a certain list of commands to be run in a certain
 ```
 
 Schema objects and data objects are both migrated as per the following compatibility matrix:
-*TODO:Versions to be included?*
+*TODO:Some data objects have conditions/limitations (discussed with Sanyam), should be included in limitations section*
 
 |Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|
 |-|-|-|-|-|-|-|-|-|-|-|
-|MariaDB|Y|Y|N/A|N/A|N/A|N/A|N/A|N/A|N/A|N/A|
+|MySQL/MariaDB|Y|Y|N/A|N/A|N/A|N/A|Y|N/A|N/A|N/A|
 |PostgreSQL|Y|Y|N/A|N/A|N/A|Y|N/A|Y|Y|N/A|
-|Oracle|-|-|-|-|-|-|-|-|-|-|
-|MySQL|-|-|-|-|-|-|-|-|-|-|
+|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 
 *TODO: Update Version numbers, Rahul has entered some placeholder values for now.*
+
 *Note that the following versions have been tested with yb_migrate:*
 - MariaDB 10.5.x
 - PostgreSQL 9.x - 13.x
@@ -97,9 +97,9 @@ yb_migrate --help
 # Machine Requirements
 yb_migrate currently supports the following OS versions:
 - CentOS7
-- Ubuntu *TODO: Mention exact version numbers*
+- Ubuntu 18.04 and 20.04
 
-Disk space: It is recommended to have disk space twice the estimated size of the source DB. We are currently working on a [fix](https://yugabyte.atlassian.net/browse/DMS-18) to optimize this.
+Disk space: It is recommended to have disk space 1.5 times the estimated size of the source DB. A fix to optimize this is being worked on.
 
 Number of cores: Minimum 2 recommended.
 
@@ -108,7 +108,21 @@ We provide interactive installation scripts that the user should run on their ma
 - [CentOS7](installer_scripts/install_centos7.sh)
 - [Ubuntu](installer_scripts/install_ubuntu.sh)
 
-*TODO: I believe we had a discussion talking about cat-ing the required shell scripts into a specific bash_rc-like file meant for yb_migrate, so that the user may use* `source yb_migrate.sh`*. Please confirm this detail to complete this section.*
+*TODO: Review the following section regarding its correctness.*
+
+Post-installation, the user should run
+
+```
+source $HOME/.migration_installer_bashrc
+``` 
+
+to add the dependencies required for initiating the migration process. If the user has opted for concatenating the script to `$HOME/.bashrc`, they should instead run 
+
+```
+source $HOME/.bashrc
+```
+
+or restart their terminal instance before proceeding with the rest of the migration process.
 
 # Migration Steps
 Below are the steps a user should follow to use the yb_migrate tool:
@@ -180,6 +194,15 @@ The data sql files will be found in `export-dir/data`.
 *This sub-section is useful if you wish to encrypt and secure your connection to the source database while exporting your schema and data objects using SSL encryption.*
 
 yb_migrate supports SSL Encryption for all source database types, parallel to the configurations accepted by each database type.
+
+yb_migrate uses the following flags to encrypt the connection to the database with SSL encryption:
+
+- source-ssl-mode: Specify the source SSL encryption mode out of - 'disable', 'allow', 'prefer', 'require', 'verify-ca' and 'verify-full'. MySQL does not support the 'allow' sslmode, and Oracle does not use explicit sslmode paramters (Refer to the oracle-tns-alias flag below)
+- source-ssl-cert: Provide the source SSL Certificate's Path (For MySQL and PostgreSQL)
+- source-ssl-root-cert: Provide the source SSL Root Certificate's Path (For MySQL and PostgreSQL)
+- source-ssl-key: Provide the source SSL Key's Path (For MySQL and PostgreSQL)
+- source-ssl-crl: Provide the source SSL Certificate Revocation List's Path (For MySQL and PostgreSQL)
+- oracle-tns-alias: Name of TNS Alias under which you wish to connect to an Oracle instance. The aliases are expected to be defined in the `$ORACLE_HOME/network/admin/tnsnames.ora` configuration file.
 
 Sample commands for each source database type:
 
@@ -257,6 +280,14 @@ The data sql files should be located in the `export-dir/data` folder.
 *This sub-section is useful if you wish to encrypt and secure your connection to the target YugabyteDB instance while importing your schema and data objects using SSL encryption.*
 
 yb_migrate allows you to configure your connection to a YugabyteDB instance with SSL encryption.
+
+yb_migrate uses the following flags to encrypt the connection with a YugabyteDB instance with SSL encryption:
+
+- target-ssl-mode: Specify the SSL encryption mode out of - 'disable', 'allow', 'prefer', 'require', 'verify-ca' and 'verify-full'. 
+- target-ssl-cert: Provide the SSL Certificate's Path
+- target-ssl-root-cert: Provide the SSL Root Certificate's Path
+- target-ssl-key: Provide the SSL Key's Path
+- target-ssl-crl: Provide the SSL Certificate Revocation List's Path
 
 **Sample command:**
 
