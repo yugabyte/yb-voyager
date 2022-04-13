@@ -75,11 +75,11 @@ Migration can be carried out by executing a set of commands in specific sequence
 Schema objects and data objects are both migrated as per the following compatibility matrix:
 *TODO:Some data objects have conditions/limitations (discussed with Sanyam), should be included in limitations section*
 
-|Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|
-|-|-|-|-|-|-|-|-|-|-|-|
-|MySQL/MariaDB|Y|Y|N/A|N/A|N/A|N/A|Y|N/A|N/A|N/A|
-|PostgreSQL|Y|Y|N/A|N/A|N/A|Y|N/A|Y|Y|N/A|
-|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|
+|Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|Packages|Synonyms
+|-|-|-|-|-|-|-|-|-|-|-|-|-|
+|MySQL/MariaDB|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/55)|N/A|Y|N/A|N/A|N/A|
+|PostgreSQL|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N/A|N/A|
+|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|
 
 *TODO: Update Version numbers, Rahul has entered some placeholder values for now.*
 
