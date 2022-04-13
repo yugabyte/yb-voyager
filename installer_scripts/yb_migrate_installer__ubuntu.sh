@@ -1,372 +1,75 @@
 #!/usr/bin/env bash
 
-ORA2PG_VERSION="23.1"
+set -e
 
-which wget &> temp.log
-if [ $? -ne 0 ]; then
-    echo "wget not found."
-    while true; do
-        read -p "Install wget? (Y/N): " yn
-        case $yn in
-            [Yy]* ) 
-            echo "Installing wget.";
-            sudo apt-get -y install wget >> mylog.log; 
-            if [ $? -ne 0 ]; then
-                echo "wget not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            echo "Installed wget."
-            break;;
-            [Nn]* ) echo "Cannot proceed without wget. Exiting...."; exit;;
-            * ) echo "Please answer y/Y or n/N.";;
-        esac
-    done
-else
-    echo "wget is already installed. Skipping."
-fi
+on_exit() {
+	rc=$?
+	set +x
+	if [ $rc -eq 0 ]
+	then
+		echo "Done!"
+	else
+		echo "Script failed. Check log file ${LOG_FILE} ."
+	fi
+}
+trap on_exit EXIT
 
-which go &>> temp.log
-if [ $? -ne 0 ]; then
-    echo "go not found."
-    while true; do
-        read -p "Install GoLang? (Y/N): " yn
-        case $yn in
-            [Yy]* ) 
-            echo "Installing GoLang."
-            wget https://golang.org/dl/go1.17.2.linux-amd64.tar.gz &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "GoLang not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            sudo tar -C /usr/local -xzf go1.17.2.linux-amd64.tar.gz &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "GoLang not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            rm go1.17.2.linux-amd64.tar.gz
-            echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
-            export PATH=$PATH:/usr/local/go/bin
-            echo 'export GOPATH=$HOME/go' >> ~/.bashrc
-            export GOPATH=$HOME/go
-            echo 'export PATH=$PATH:$GOPATH/bin' >> ~/.bashrc
-            export PATH=$PATH:$GOPATH/bin
-            echo "GoLang Installed."
-            break;;
-            [Nn]* ) echo "Cannot proceed without go. Exiting....."; exit;;
-            * ) echo "Please answer y/Y or n/N.";;
-        esac
-    done
-else
-    echo "go is already installed. Skipping."
-fi
-source ~/.bashrc
+source common.sh
 
-which pg_dump &>> temp.log
-if [ $? -ne 0 ]; then
-    echo "pg_dump not found."
-    while true; do
-        read -p "Install Postgres11? (Y/N): " yn
-        case $yn in
-            [Yy]* ) 
-            echo "Installing Postgress11."
-            sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list' >> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "PostgreSQL not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add - &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "PostgreSQL not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            sudo apt-get update &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "PostgreSQL not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            sudo apt-get -y install postgresql-11 &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "PostgreSQL not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            echo "Postgres11 Installed."
-            break;;
-            [Nn]* ) echo "User denied postgress installation. Skipping...."; break;;
-            * ) echo "Please answer y/Y or n/N.";;
-        esac
-    done
-else
-    echo "pg_dump is already installed. Skipping."
-fi
+main() {
+	set -x
 
-while true; do
-    read -p "Install Oracle Instant Clients (Required for ora2pg tool)? (Y/N): " yn
-    case $yn in
-        [Yy]* )
-        sudo apt-get -y install alien &>> mylog.log
-        echo "Installing Oracle Instant Clients"
-        wget https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        sudo alien -i oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        rm oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm
+	output "Installing packages."
+	sudo apt update 1>&2
+	sudo apt-get -y install wget  1>&2
+	sudo apt-get -y install perl  1>&2
+	sudo apt-get -y install libdbi-perl 1>&2
+	sudo apt-get -y install libaio1 1>&2
+	sudo apt-get -y install cpanminus 1>&2
+	sudo apt-get -y install libmysqlclient-dev 1>&2
 
-        wget https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        sudo alien -i oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        rm oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm
+	install_golang
+	install_postgres
+	install_oracle_instant_clients
+	update_yb_migrate_bashrc
+	install_ora2pg
+	install_yb_migrate
+	update_bashrc
 
-        wget https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        sudo alien -i oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        rm oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm
+	set +x
+}
 
-        wget https://download.oracle.com/otn_software/linux/instantclient/215000/oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        sudo alien -i oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm &>> mylog.log
-        if [ $? -ne 0 ]; then
-            echo "Instant Clients not installed! Check $HOME/mylog.log for more details."
-            exit
-        fi
-        rm oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm
+install_postgres() {
+	output "Installing postgres."
+	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
+	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
+	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+	sudo apt-get update 1>&2
+	sudo apt-get -y install postgresql-14 1>&2
+	output "Postgres Installed."
+}
 
-        break;;
-        [Nn]* ) echo "User denied instant-client installation. Skipping....."; break;;
-        * ) echo "Please answer y/Y or n/N.";;
-    esac
-done
+install_oracle_instant_clients() {
+	output "Installing Oracle Instant Clients."
+	sudo apt-get -y install alien 1>&2
+	install_oic oracle-instantclient-basic
+	install_oic oracle-instantclient-devel
+	install_oic oracle-instantclient-jdbc
+	install_oic oracle-instantclient-sqlplus
+	output "Installed Oracle Instance Clients."
+}
 
-if [ -z ${ORACLE_HOME+x} ]; then
-    while true; do
-        read -p "ORACLE_HOME not set. Do you want to set it to /usr/lib/oracle/21/client64? (Y/N): " yn
-        case $yn in
-            [Yy]* )
-            echo 'export ORACLE_HOME=/usr/lib/oracle/21/client64' >> ~/.bashrc
-            break;;
-            [Nn]* )
-            echo "Skipping...."
-            break;;
-            * ) echo "Please answer y/Y or n/N.";;
-        esac
-    done
-else
-    echo "ORACLE_HOME already set to $ORACLE_HOME. Skipping...."
-fi
-source ~/.bashrc
+install_oic() {
+	
+	if dpkg -l | grep -q -w $1
+	then
+		echo "$1 is already installed."
+	else
+		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
+		wget https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
+		sudo alien -i ${rpm_name} 1>&2
+		rm ${rpm_name}
+	fi
+}
 
-if [ -z ${LD_LIBRARY_PATH+x} ]; then
-    while true; do
-        read -p "LD_LIBRARY_PATH not set. Do you want to set it to $ORACLE_HOME/lib:$LD_LIBRARY_PATH? (Y/N): " yn
-        case $yn in
-            [Yy]* )
-            echo 'export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH' >> ~/.bashrc
-            break;;
-            [Nn]* )
-            echo "Skipping...."
-            break;;
-            * ) echo "Please answer y/Y or n/N.";;
-        esac
-    done
-else
-    echo "LD_LIBRARY_PATH already set to $LD_LIBRARY_PATH. Skipping...."
-fi
-source ~/.bashrc
-
-while true; do
-    read -p "Do you want to include $ORACLE_HOME/bin to you PATH variable? (Y/N): " yn
-    case $yn in
-        [Yy]* )
-        echo 'export PATH=$PATH:$ORACLE_HOME/bin' >> ~/.bashrc
-        break;;
-        [Nn]* )
-        echo "Skipping...."
-        break;;
-        * ) echo "Please answer y/Y or n/N.";;
-    esac
-done
-source ~/.bashrc
-
-which ora2pg &>> temp.log
-if [ $? -ne 0 ]; then
-    echo "ora2pg not found."
-    while true; do
-        read -p "Install ora2pg? (Y/N): " yn
-        case $yn in
-            [Yy]* )
-            perl_version=$(perl --version | sed -n '2p' | cut -d "(" -f2 | cut -d ")" -f1 | cut -d "v" -f2)
-            if [ -z $perl_version ]; then
-                echo "perl not found."
-                echo "Installing perl."
-                sudo apt-get -y install perl &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "perl not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "perl installed."
-            elif [[ "$perl_version" < "5.10" ]]; then
-                echo "perl Found, But atleast 5.10 version required."
-                echo "Installing latest perl."
-                sudo yum install -y perl &>> mylog.
-                if [ $? -ne 0 ]; then
-                    echo "perl not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "perl installed."
-            else
-                echo "perl (5.10 or more) is already installed. Skipping."
-            fi
-
-            perl -e 'use DBI' &>> temp.log
-            if [ $? -ne 0 ]; then
-                echo "DBI not found."
-                echo "Installing DBI."
-                sudo apt-get -y install libdbi-perl &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "DBI not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "DBI installed."
-            else
-                dbi_version=$(perl -e 'use DBI; DBI->installed_versions();' | sed -n /DBI/p | cut -d ':' -f2 | cut -d ' ' -f2)
-                if [[ "$dbi_version" < "1.614" ]]; then
-                    echo "DBI Found, But atleast 1.614 version required."
-                    echo "Installing latest DBI."
-                    sudo apt-get -y install libdbi-perl &>> mylog.log
-                    if [ $? -ne 0 ]; then
-                        echo "DBI not installed! Check $HOME/mylog.log for more details."
-                        exit
-                    fi
-                    echo "DBI installed."
-                else
-                    echo "perl-DBI (1.614 or more) is already installed. Skipping."
-                fi
-            fi
-
-            ldconfig -p | grep libaio &>> temp.log
-            if [ $? -ne 0 ]; then
-                sudo apt-get -y install libaio1 &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "Error! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-            fi
-
-            which cpanm &>> temp.log
-            if [ $? -ne 0 ]; then
-                echo "cpanm not found."
-                echo "Installing cpanm."
-                sudo apt-get -y install cpanminus &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "cpanm not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "cpanm installed."
-            else
-                echo "cpanm is already installed. Skipping."
-            fi
-
-            dbd_mysql_version=$(perl -e 'use DBI; DBI->installed_versions();' | sed -n /DBD::mysql/p | cut -d ':' -f4 | cut -d ' ' -f2)
-            if [ -z $dbd_mysql_version  ]; then
-                echo "DBD::mysql not found."
-                echo "Installing DBD::mysql."
-                sudo apt-get -y install libmysqlclient-dev &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "DBD::mysql not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                sudo cpanm DBD::mysql &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "DBD::mysql not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "DBD::mysql installed."
-            else
-                echo "DBD::mysql is already installed. Skipping."
-            fi
-
-            dbd_oracle_version=$(perl -e 'use DBI; DBI->installed_versions();' | sed -n /DBD::Oracle/p | cut -d ':' -f4 | cut -d ' ' -f2)
-            if [ -z $dbd_oracle_version  ]; then
-                echo "DBD::Oracle not found."
-                echo "Installing DBD::Oracle."
-                sudo cpanm Test::NoWarnings &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "DBD::Oracle not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                sudo cpanm DBD::Oracle &>> mylog.log
-                if [ $? -ne 0 ]; then
-                    echo "DBD::Oracle not installed! Check $HOME/mylog.log for more details."
-                    exit
-                fi
-                echo "DBD::Oracle installed."
-            else
-                echo "DBD::Oracle is already installed. Skipping."
-            fi
-
-            wget https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "ora2pg not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            tar -xvf v${ORA2PG_VERSION}.tar.gz &>> mylog.log
-            cd ora2pg-${ORA2PG_VERSION}/
-            perl Makefile.PL &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "ora2pg not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            make &>> mylog.log && sudo make install &>> mylog.log
-            if [ $? -ne 0 ]; then
-                echo "ora2pg not installed! Check $HOME/mylog.log for more details."
-                exit
-            fi
-            cd ~
-            rm v${ORA2PG_VERSION}.tar.gz
-            echo "ora2pg installed."
-            break;;
-            [Nn]* )
-            echo "User denied installation. Skipping......"
-            break;;
-            * ) echo "Please answer Y/y or N/n."
-        esac
-    done
-else
-    echo "ora2pg is already installed. Skipping."
-fi
-
-git clone https://github.com/yugabyte/ybm.git | tee -a mylog.log
-if [ $? -ne 0 ]; then
-    echo "Authenticate your GitHub and then try running git clone https://github.com/yugabyte/ybm.git"
-    exit
-fi
-
-cd ybm/yb_migrate
-go install
-if [ $? -ne 0 ]; then
-    echo "yb-migrate build FAILED! Check $HOME/mylog.log for more details."
-    exit
-fi
-cd ~
+main 2> $LOG_FILE
