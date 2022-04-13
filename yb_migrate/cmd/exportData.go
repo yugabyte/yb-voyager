@@ -189,8 +189,8 @@ func exportDataOnline() bool {
 	return false
 }
 
-func checkTableListFlag() {
-	tableList := strings.Split(source.TableList, ",")
+func checkTableListFlag(tableListString string) {
+	tableList := strings.Split(tableListString, ",")
 	//TODO: update regexp once table name with double quotes are allowed/supported
 	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 

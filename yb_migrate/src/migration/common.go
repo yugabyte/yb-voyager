@@ -278,57 +278,42 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	case "oracle":
 		db, err := sql.Open("godror", dbConnStr)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("connect to oracle source DB: %s", err)
 		}
 		defer db.Close()
 
-		err = db.QueryRow("SELECT VERSION FROM V$INSTANCE").Scan(&version)
+		query := "SELECT VERSION FROM V$INSTANCE"
+		err = db.QueryRow(query).Scan(&version)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("run query %q on source: %s", query, err)
 		}
 	case "mysql":
 		db, err := sql.Open("mysql", dbConnStr)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("connect to source mysql db: %s", err)
 		}
 		defer db.Close()
 
-		err = db.QueryRow("SELECT VERSION()").Scan(&version)
+		query := "SELECT VERSION()"
+		err = db.QueryRow(query).Scan(&version)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("run query %q on source: %s", query, err)
 		}
-	case "postgresql":
+	case "postgresql", "yugabytedb":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("connect to %s db: %s", dbType, err)
 		}
 		defer conn.Close(context.Background())
 
-		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
+		query := "SELECT setting from pg_settings where name = 'server_version'"
+		err = conn.QueryRow(context.Background(), query).Scan(&version)
 		if err != nil {
-			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-	case "yugabytedb":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error while connecting to database for version query: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		defer conn.Close(context.Background())
-
-		err = conn.QueryRow(context.Background(), "SELECT setting from pg_settings where name = 'server_version'").Scan(&version)
-		if err != nil {
-			errMsg := fmt.Sprintf("error while scanning version query rows: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("run query %q on %s: %s", query, dbType, err)
 		}
 	}
 
+	log.Infof("%s version: %q", dbType, version)
 	return version
 }
 

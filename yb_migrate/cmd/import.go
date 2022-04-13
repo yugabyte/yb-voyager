@@ -57,8 +57,8 @@ func validateImportFlags(cmd *cobra.Command) {
 		cmd.MarkFlagRequired("target-db-user")
 		cmd.MarkFlagRequired("target-db-password")
 	}
-	if source.TableList != "" {
-		checkTableListFlag()
+	if target.TableList != "" {
+		checkTableListFlag(target.TableList)
 	}
 }
 

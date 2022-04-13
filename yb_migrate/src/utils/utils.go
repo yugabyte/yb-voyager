@@ -218,7 +218,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "postgresql":
 		toolsRequired = []string{"pg_dump", "strings", "psql"}
 	case "mysql":
-		toolsRequired = []string{"ora2pg", "mysql"}
+		toolsRequired = []string{"ora2pg"}
 	case "yugabytedb":
 		toolsRequired = []string{"psql"}
 	default:
