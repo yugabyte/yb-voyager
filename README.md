@@ -105,25 +105,17 @@ Disk space: It is recommended to have disk space 1.5 times the estimated size of
 Number of cores: Minimum 2 recommended.
 
 # Installation
-We provide interactive installation scripts that the user should run on their machines. Refer to the [Machine Requirements](#machine-requirements) section for supported OS versions.
-- [CentOS7](installer_scripts/install_centos7.sh)
-- [Ubuntu](installer_scripts/install_ubuntu.sh)
+We provide interactive installation scripts that the user should run on their machines. Refer to the [Machine Requirements](#machine-requirements) section for supported OS versions. It is recommended to provision a fresh VM to run DB migrations.
+- [CentOS](installer_scripts/yb_migrate_installer__centos.sh)
+- [Ubuntu](installer_scripts/yb_migrate_installer__ubuntu.sh)
 
-*TODO: Review the following section regarding its correctness.*
-
-Post-installation, the user should run
+To correctly set environment variables required for the migration process run:
 
 ```
-source $HOME/.migration_installer_bashrc
+source $HOME/.yb_migrate_installer_bashrc
 ``` 
 
-to add the dependencies required for initiating the migration process. If the user has opted for concatenating the script to `$HOME/.bashrc`, they should instead run 
-
-```
-source $HOME/.bashrc
-```
-
-or restart their terminal instance before proceeding with the rest of the migration process.
+Optionally, the installation script sources the `.yb_migrate_installer_bashrc` file from the `~/.bashrc`. In which case, restarting the bash session will be enough to set the environment variables.
 
 # Migration Steps
 Below are the steps a user should follow to use the yb_migrate tool:
