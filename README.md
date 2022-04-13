@@ -16,16 +16,16 @@
 
 # Introduction
 
-Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database will be added in near future.
+Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
 
 Github Issue Link *TODO:link this*
 
 There are two modes of migration (offline and online):
-- Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. Firstly, export all the database objects and data in files. Secondly run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
-- Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode after the initial snapshot migration is done the migration engine shifts into a cdc mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
+- Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
+- Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode, after the initial snapshot migration is done, the migration engine shifts into a CDC mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
 
-Please note, yb_migrate currently only supports offline migration. Online is under active development.
-As currently only the 'offline' mode is supported, so the rest of the document is relevant for only 'Offline' migration. 
+NOTE: yb_migrate currently only supports **offline** migration. Online is under active development.
+As of now, only the offline mode is supported; the rest of the document is relevant for only offline migrations. 
 
 Migration can be carried out by executing a set of commands in specific sequence.
 
@@ -130,18 +130,18 @@ Below are the steps a user should follow to use the yb_migrate tool:
 
 ## Source DB Setup
 * Oracle: yb_migrate exports complete schema mentioned with `--source-db-schema` flag.
-* PostgreSQL: yb_migrate exports complete database(with all schemas inside it) mentioned with `--source-db-database` flag.
-* MySQL: yb_migrate exports complete database/schema(schema and database are same in MySQL) mentioned with `--source-db-database` flag.
-* For each of the source database type, the database user(used in migration) must have read privileges on all database objects to be exported.
+* PostgreSQL: yb_migrate exports complete database(with all schemas inside it) mentioned with `--source-db-name` flag.
+* MySQL: yb_migrate exports complete database/schema(schema and database are same in MySQL) mentioned with `--source-db-name` flag.
+* For each of the source database types, the database user (corresponding to the `--source-db-user` flag) must have read privileges on all database objects to be exported.
 
 ## Target DB Setup
-* Create a database in target YugabyteDB cluster required during import schema and data with `--target-db-name` flag:
+* Create a database in the target YugabyteDB cluster which will be used during the import schema and data phases with the `--target-db-name` flag:
     ```
     CREATE DATABASE dbname;
     ```
-* The target database user(used in migration) should have a superuser privileges because below operations during migration are only allowed to superuser:
-    * Setting session variable to disable Triggers and Foreign Key voilation checks during import data(import data command do this internally).
-    * Dropping public schema with `--start-clean` flag during import schema. 
+* The target database user (corresponding to the `target-db-user` flag) should have superuser privileges; the below mentioned operations (which take place during migration) are only permitted to a superuser:
+    * Setting a session variable to disable Triggers and Foreign Key violation checks during the `import data` phase (`import data` command does this internally).
+    * Dropping public schema with `--start-clean` flag during the `import schema` phase. 
 
 ## Report Generation
 	
