@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
@@ -501,7 +502,7 @@ func processCollectedSql(fpath string, singleLine *string, singleString *string,
 }
 
 func createSqlStrArray(path string, objType string) [][]string {
-	// fmt.Printf("Reading %s in dir= %s\n", objType, path)
+	log.Infof("Reading %s in dir %s", objType, path)
 
 	/*
 		sqlStmtArray[i[[0] denotes single line sql statements
@@ -515,7 +516,7 @@ func createSqlStrArray(path string, objType string) [][]string {
 
 	file, err := os.Open(path)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("open %q: %s", path, err)
 	}
 	defer file.Close()
 
@@ -526,8 +527,6 @@ func createSqlStrArray(path string, objType string) [][]string {
 	// assemble array of lines, each line ends with semicolon
 	for scanner.Scan() {
 		curr := scanner.Text()
-		// curr = strings.Trim(curr, " \n\t") //No need as these chars will make sql stmt readable
-
 		if len(curr) == 0 {
 			continue
 		}
@@ -572,12 +571,6 @@ func createSqlStrArray(path string, objType string) [][]string {
 	if scanner.Err() != nil {
 		panic(scanner.Err())
 	}
-
-	// debugFile, _ := os.OpenFile(exportDir+"/reportSqls.sql", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	// defer debugFile.Close()
-	// for _, str := range sqlStmtArray {
-	// 	debugFile.WriteString(str + "\n")
-	// }
 
 	return sqlStmtArray
 }
@@ -699,7 +692,6 @@ func generateReportHelper() utils.Report {
 	var schemaDir string
 	if source.GenerateReportMode {
 		schemaDir = exportDir + "/temp/schema"
-		utils.CleanDir(schemaDir)
 	} else {
 		schemaDir = exportDir + "/schema"
 	}
@@ -803,7 +795,7 @@ var generateReportCmd = &cobra.Command{
 		}
 
 		if source.TableList != "" {
-			checkTableListFlag()
+			checkTableListFlag(source.TableList)
 		}
 
 		checkReportOutputFormat()
@@ -811,11 +803,11 @@ var generateReportCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Note: Generated report will be based on the version - 2.11.3 of YugabyteDB!!")
+		checkGenerateReportDirs()
 
 		source.GenerateReportMode = true //flag to skip info about export schema
 		// export schema before generating the report
-		exportSchemaCmd.Run(exportSchemaCmd, args)
-
+		exportSchema()
 		generateReport()
 	},
 }
@@ -823,68 +815,21 @@ var generateReportCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(generateReportCmd)
 
-	generateReportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
-		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
-
-	generateReportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
-		"source database server host")
-
-	generateReportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", -1,
-		"source database server port number")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
-		"connect to source database as specified user")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
-
-	// TODO: All sensitive parameters can be taken from the environment variable
-	generateReportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
-		"connect to source as specified user")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
-		"source database name to be migrated to YugabyteDB")
-
-	//out of schema and db-name one should be mandatory(oracle vs others)
-
-	generateReportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "public",
-		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
-
-	// TODO SSL related more args will come. Explore them later.
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
-		"provide Source SSL Certificate Path")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
-		"provide SSL Key Path")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
-		"provide SSL Root Certificate Path")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
-		"provide SSL Root Certificate Revocation List (CRL)")
-
-	generateReportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
-		`URI for connecting to the source database
-		format:
-			1. Oracle:	user/password@//host:port:SID	OR
-					user/password@//host:port/service_name	OR
-					user/password@TNS_alias
-			2. MySQL:	mysql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-			3. PostgreSQL:	postgresql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-		`)
+	registerCommonExportFlags(generateReportCmd)
 
 	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
 		"allowed report formats: html | txt | json | xml")
+}
 
+func checkGenerateReportDirs() {
+	tempDir := exportDir + "/temp"
+	reportDir := exportDir + "/reports"
+	if startClean {
+		utils.CleanDir(tempDir)
+		utils.CleanDir(reportDir)
+	} else if source.GenerateReportMode {
+		utils.CleanDir(tempDir)
+	}
 }
 
 func checkReportOutputFormat() {

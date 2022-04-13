@@ -60,7 +60,7 @@ var exportCmd = &cobra.Command{
 		}
 
 		if source.TableList != "" {
-			checkTableListFlag()
+			checkTableListFlag(source.TableList)
 		}
 	},
 
@@ -76,77 +76,81 @@ var exportCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(exportCmd)
 
-	exportCmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
-		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
+	registerCommonExportFlags(exportCmd)
 
-	exportCmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
-		"source database server host")
-
-	exportCmd.PersistentFlags().IntVar(&source.Port, "source-db-port", -1,
-		"source database server port number")
-
-	exportCmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
-		"connect to source database as specified user")
-
-	// TODO: All sensitive parameters can be taken from the environment variable
-	exportCmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
-		"connect to source as specified user")
-
-	exportCmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
-		"source database name to be migrated to YugabyteDB")
-
-	exportCmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
-
-	exportCmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
-
-	exportCmd.PersistentFlags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
-
-	//out of schema and db-name one should be mandatory(oracle vs others)
-
-	exportCmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
-		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
-
-	// TODO SSL related more args will come. Explore them later.
-	exportCmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
-		"provide Source SSL Certificate Path")
-
-	exportCmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
-
-	exportCmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
-		"provide SSL Key Path")
-
-	exportCmd.PersistentFlags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
-		"provide SSL Root Certificate Path")
-
-	exportCmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
-		"provide SSL Root Certificate Revocation List (CRL)")
+	exportCmd.PersistentFlags().StringVar(&source.TableList, "table-list", "",
+		"list of the tables to export data(Note: works only for export data command)")
 
 	exportCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 1,
 		"number of Parallel Jobs to extract data from source database[Note: applicable only for export data command]")
+}
 
-	exportCmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
+func registerCommonExportFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVar(&source.DBType, "source-db-type", "",
+		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
+
+	cmd.PersistentFlags().StringVar(&source.Host, "source-db-host", "localhost",
+		"source database server host")
+
+	cmd.PersistentFlags().IntVar(&source.Port, "source-db-port", -1,
+		"source database server port number")
+
+	cmd.PersistentFlags().StringVar(&source.User, "source-db-user", "",
+		"connect to source database as specified user")
+
+	// TODO: All sensitive parameters can be taken from the environment variable
+	cmd.PersistentFlags().StringVar(&source.Password, "source-db-password", "",
+		"connect to source as specified user")
+
+	cmd.PersistentFlags().StringVar(&source.DBName, "source-db-name", "",
+		"source database name to be migrated to YugabyteDB")
+
+	cmd.PersistentFlags().StringVar(&source.DBSid, "oracle-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances")
+
+	cmd.PersistentFlags().StringVar(&source.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.PersistentFlags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
+	//out of schema and db-name one should be mandatory(oracle vs others)
+
+	cmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
+		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
+
+	// TODO SSL related more args will come. Explore them later.
+	cmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
+		"provide Source SSL Certificate Path")
+
+	cmd.PersistentFlags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
+		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
+
+	cmd.PersistentFlags().StringVar(&source.SSLKey, "source-ssl-key", "",
+		"provide SSL Key Path")
+
+	cmd.PersistentFlags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
+		"provide SSL Root Certificate Path")
+
+	cmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
+		"provide SSL Root Certificate Revocation List (CRL)")
+
+	cmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
 		`URI for connecting to the source database
-		format:
-			1. Oracle:	user/password@//host:port:SID	OR
-					user/password@//host:port/service_name	OR
-					user/password@TNS_alias
-			2. MySQL:	mysql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-			3. PostgreSQL:	postgresql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-			
-		`)
+	format:
+		1. Oracle:	user/password@//host:port:SID	OR
+				user/password@//host:port/service_name	OR
+				user/password@TNS_alias
+		2. MySQL:	mysql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
+		3. PostgreSQL:	postgresql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
+		
+	`)
 
-	exportCmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
+	cmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
-
-	exportCmd.PersistentFlags().StringVar(&source.TableList, "table-list", "",
-		"list of the tables to export data(Note: works only for export data command)")
 }
 
 func checkSourceDBType() {

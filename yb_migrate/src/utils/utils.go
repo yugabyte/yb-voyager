@@ -123,6 +123,9 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	// log.Debugf("Creating a project directory...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
+	if source.GenerateReportMode {
+		projectSubdirs = []string{"temp", "temp/schema", "reports"}
+	}
 
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
@@ -130,10 +133,11 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 	}
 
 	// Put info to metainfo/schema about the source db
-	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-
-	CheckError(err, "", string(cmdOutput), true)
+	if !source.GenerateReportMode {
+		sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+		cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
+		CheckError(err, "", string(cmdOutput), true)
+	}
 
 	schemaObjectList := GetSchemaObjectList(source.DBType)
 
@@ -144,21 +148,13 @@ func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
-		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
-	}
-
-	// creating subdirs under temp/schema dir
-	if source.GenerateReportMode {
-		for _, schemaObjectType := range schemaObjectList {
-			if schemaObjectType == "INDEX" { //no separate dir for indexes
-				continue
-			}
-			databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
-
-			err := exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
-			CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+		var err error
+		if source.GenerateReportMode {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
+		} else {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
 		}
+		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
 	}
 
 	// log.Debugf("Created a project directory...")
@@ -216,11 +212,9 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "oracle":
 		toolsRequired = []string{"ora2pg", "sqlplus"}
 	case "postgresql":
-		toolsRequired = []string{"pg_dump", "strings", "psql"}
+		toolsRequired = []string{"pg_dump", "strings", "pg_restore"}
 	case "mysql":
-		toolsRequired = []string{"ora2pg", "mysql"}
-	case "yugabytedb":
-		toolsRequired = []string{"psql"}
+		toolsRequired = []string{"ora2pg"}
 	default:
 		errMsg := "Invalid DB Type!!\n"
 		ErrExit(errMsg)
@@ -245,15 +239,6 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	}
 
 	// PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
-}
-
-func ProjectSubdirsExists(exportDir string) bool {
-	for _, subdir := range projectSubdirs {
-		if FileOrFolderExists(exportDir + "/" + subdir) {
-			return true
-		}
-	}
-	return false
 }
 
 func IsDirectoryEmpty(pathPattern string) bool {
@@ -377,4 +362,24 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 
 func IsQuotedString(str string) bool {
 	return str[0] == '"' && str[len(str)-1] == '"'
+}
+
+func GetSortedKeys(tablesProgressMetadata *map[string]*TableProgressMetadata) []string {
+	var keys []string
+
+	for key := range *tablesProgressMetadata {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+	return keys
+}
+
+func CsvStringToSlice(str string) []string {
+	result := strings.Split(str, ",")
+	for i := 0; i < len(result); i++ {
+		result[i] = strings.Trim(result[i], " ")
+	}
+
+	return result
 }
