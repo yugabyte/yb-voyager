@@ -44,6 +44,7 @@ import (
 	"github.com/tevino/abool/v2"
 )
 
+var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDir = META_INFO_DIR_NAME
 var importLockFile = fmt.Sprintf("%s/%s/data/.importLock", exportDir, metaInfoDir)
 var numLinesInASplit = int64(0)
@@ -226,7 +227,10 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	splitFilesChannel := make(chan *fwk.SplitFileImportTask, SPLIT_FILE_CHANNEL_SIZE)
+	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
+		splitFileChannelSize = parallelism + 1
+	}
+	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
 	targetServerChannel := make(chan *utils.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
@@ -240,19 +244,24 @@ func importData() {
 }
 
 func checkForDone() {
-	// doLoop := true
 	for Done.IsNotSet() {
 		if GenerateSplitsDone.IsSet() {
 			// InProgress Pattern
 			inProgressPattern := fmt.Sprintf("%s/%s/data/*.P", exportDir, metaInfoDir)
-			m1, _ := filepath.Glob(inProgressPattern)
+			m1, err := filepath.Glob(inProgressPattern)
+			if err != nil {
+				utils.ErrExit("glob %q: %s", inProgressPattern, err)
+			}
 			inCreatedPattern := fmt.Sprintf("%s/%s/data/*.C", exportDir, metaInfoDir)
-			m2, _ := filepath.Glob(inCreatedPattern)
+			m2, err := filepath.Glob(inCreatedPattern)
+			if err != nil {
+				utils.ErrExit("glob %q: %s", inCreatedPattern, err)
+			}
 			// in progress are interrupted ones
 			if len(m1) > 0 || len(m2) > 0 {
 				time.Sleep(2 * time.Second)
 			} else {
-				// doLoop = false
+				log.Infof("No in-progress or newly-created splits. Import Done.")
 				Done.Set()
 			}
 		} else {
@@ -447,10 +456,9 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}
 		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
+		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
 		log.Infof("Collect interrupted splits.")
-		// make an import task and schedule them
-
 		largestCreatedSplitSoFar := int64(0)
 		largestOffsetSoFar := int64(0)
 		fileFullySplit := false
@@ -460,7 +468,6 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
 		interruptedRegexp := regexp.MustCompile(interruptedRegexStr)
 		for _, filepath := range matches {
-			// fmt.Printf("Matched file name = %s\n", filepath)
 			submatches := interruptedRegexp.FindAllStringSubmatch(filepath, -1)
 			for _, match := range submatches {
 				// This means a match. Submit the task with interrupted = true
@@ -752,6 +759,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 
 func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *utils.Target) {
 	if Done.IsSet() { //if import is already done, return
+		log.Infof("Done is already set.")
 		return
 	}
 
@@ -791,40 +799,39 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 	for !splitImportDone {
 		select {
 		case targetServer := <-targetChan:
-			// fmt.Printf("Got taskfile %s and target for that = %s\n", t.SplitFilePath, targetServer.Host)
-
+			log.Infof("Importing %q using target node %q", t.SplitFilePath, targetServer.Host)
 			//this is done to signal start progress bar for this table
 			if tablesProgressMetadata[t.TableName].CountLiveRows == -1 {
 				tablesProgressMetadata[t.TableName].CountLiveRows = 0
 			}
-
 			// Rename the file to .P
-			// fmt.Printf("Renaming split from %s to %s\n", t.SplitFilePath, getInProgressFilePath(t))
-			err := os.Rename(t.SplitFilePath, getInProgressFilePath(t))
+			inProgressFilePath := getInProgressFilePath(t)
+			log.Infof("Renaming file from %q to %q", t.SplitFilePath, inProgressFilePath)
+			err := os.Rename(t.SplitFilePath, inProgressFilePath)
 			if err != nil {
-				panic(err)
+				utils.ErrExit("rename %q to %q: %s", t.SplitFilePath, inProgressFilePath, err)
 			}
 
 			conn, err := pgx.Connect(context.Background(), targetServer.GetConnectionUri())
 			if err != nil {
-				panic(err)
+				utils.ErrExit("connect to YB node %q: %s", targetServer.Host, err)
 			}
 			defer conn.Close(context.Background())
 
-			dbVersion := migration.SelectVersionQuery(source.DBType, targetServer.GetConnectionUri())
+			dbVersion := migration.SelectVersionQuery("yugabytedb", targetServer.GetConnectionUri())
 
 			for i, statement := range IMPORT_SESSION_SETTERS {
 				if checkSessionVariableSupported(i, dbVersion) {
 					_, err := conn.Exec(context.Background(), statement)
 					if err != nil {
-						utils.ErrExit("error in setting session variable for table %q: %v", t.TableName, err)
+						utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
 					}
 				}
 			}
 
-			reader, err := os.Open(getInProgressFilePath(t))
+			reader, err := os.Open(inProgressFilePath)
 			if err != nil {
-				panic(err)
+				utils.ErrExit("open %q: %s", inProgressFilePath, err)
 			}
 
 			//setting the schema so that COPY command can acesss the table
@@ -832,34 +839,38 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 				setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 				_, err := conn.Exec(context.Background(), setSchemaQuery)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("run query %q on %q: %s", setSchemaQuery, targetServer.Host, err)
 				}
 			}
-			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
 
+			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
 			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 			rowsCount := res.RowsAffected()
+			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
 			if err != nil {
+				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 				if !strings.Contains(err.Error(), "violates unique constraint") {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
 				} else { //in case of unique key violation error take row count from the split task
 					rowsCount = t.OffsetEnd - t.OffsetStart
+					log.Infof("assuming affected rows count %v", rowsCount)
 				}
 			}
 
 			// update the import data status as soon as rows are copied
 			incrementImportedRowCount(t.TableName, rowsCount)
 
-			// fmt.Printf("Renaming sqlfile: %s to done\n", sqlFile)
-			err = os.Rename(getInProgressFilePath(t), getDoneFilePath(t))
+			doneFilePath := getDoneFilePath(t)
+			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
+			err = os.Rename(inProgressFilePath, doneFilePath)
 			if err != nil {
-				panic(err)
+				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 			}
-			// fmt.Printf("Renamed sqlfile: %s done\n", sqlFile)
 
-			// fmt.Printf("Inserted a batch of %d or less in table %s\n", numLinesInASplit, t.TableName)
+			err = os.Truncate(doneFilePath, 0)
+			if err != nil {
+				log.Warnf("truncate file %q: %s", doneFilePath, err)
+			}
 			splitImportDone = true
 		default:
 			// fmt.Printf("No server sleeping for 2 seconds\n")
@@ -884,12 +895,13 @@ func checkSessionVariableSupported(idx int, dbVersion string) bool {
 }
 
 func executeSqlFile(file string) {
+	log.Infof("Execute SQL file %q on target %q", file, target.Host)
 	connectionURI := target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connectionURI)
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
-		panic(err)
+		utils.ErrExit("connect to target db: %s", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -897,17 +909,17 @@ func executeSqlFile(file string) {
 		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 		_, err := conn.Exec(context.Background(), setSchemaQuery)
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 		}
 	}
 
 	var errOccured = 0
 	sqlStrArray := createSqlStrArray(file, "")
 	for _, sqlStr := range sqlStrArray {
-		// fmt.Printf("Execute STATEMENT: %s\n", sqlStr[1])
+		log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
 		_, err := conn.Exec(context.Background(), sqlStr[0])
 		if err != nil {
+			log.Errorf("Run query %q on target %q: %s", sqlStr[1], target.Host, err)
 			if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
 					fmt.Printf("\b \n    %s\n", err.Error())
@@ -960,6 +972,7 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 
 func incrementImportedRowCount(tableName string, rowsCopied int64) {
 	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
+	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func init() {

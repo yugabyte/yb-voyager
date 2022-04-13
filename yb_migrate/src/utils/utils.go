@@ -214,7 +214,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "postgresql":
 		toolsRequired = []string{"pg_dump", "strings"}
 	case "mysql":
-		toolsRequired = []string{"ora2pg", "mysql"}
+		toolsRequired = []string{"ora2pg"}
 	default:
 		errMsg := "Invalid DB Type!!\n"
 		ErrExit(errMsg)
@@ -362,6 +362,17 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 
 func IsQuotedString(str string) bool {
 	return str[0] == '"' && str[len(str)-1] == '"'
+}
+
+func GetSortedKeys(tablesProgressMetadata *map[string]*TableProgressMetadata) []string {
+	var keys []string
+
+	for key := range *tablesProgressMetadata {
+		keys = append(keys, key)
+	}
+
+	sort.Strings(keys)
+	return keys
 }
 
 func CsvStringToSlice(str string) []string {

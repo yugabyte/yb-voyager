@@ -133,9 +133,10 @@ func exportDataOffline() bool {
 		}
 	}()
 
-	tablesMetadata := initializeExportTableMetadataSlice(tableList)
-	// fmt.Printf("tablesMetadata: %+v\n", tablesMetadata)
-	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
+	initializeExportTableMetadata(tableList)
+	initializeExportTablePartitionMetadata(tableList)
+
+	migration.UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
 
 	switch source.DBType {
 	case ORACLE:
@@ -165,9 +166,9 @@ func exportDataOffline() bool {
 	<-exportDataStart
 	// fmt.Println("passed the exportDataStart channel receiver")
 
-	migration.UpdateFilePaths(&source, exportDir, tablesMetadata)
+	migration.UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
 
-	exportDataStatus(ctx, tablesMetadata, quitChan)
+	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
 
 	utils.WaitGroup.Wait() //waiting for the dump to complete
 
@@ -176,44 +177,20 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	migration.ExportDataPostProcessing(exportDir, &tablesMetadata)
+	migration.ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
 
 	return true
 }
 
 func exportDataOnline() bool {
-	return true // empty function
+	errMsg := "online migration not supported yet\n"
+	utils.ErrExit(errMsg)
+
+	return false
 }
 
-func initializeExportTableMetadataSlice(tableList []string) []utils.TableProgressMetadata {
-	numTables := len(tableList)
-	tablesMetadata := make([]utils.TableProgressMetadata, numTables)
-
-	for i := 0; i < numTables; i++ {
-		tableInfo := strings.Split(tableList[i], ".")
-		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
-			tablesMetadata[i].TableSchema = tableInfo[0]
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[1]
-			tablesMetadata[i].FullTableName = tablesMetadata[i].TableSchema + "." + tablesMetadata[i].TableName
-		} else { //no schema.tablename format required for oracle & mysql
-			tablesMetadata[i].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
-			tablesMetadata[i].FullTableName = tablesMetadata[i].TableName
-		}
-
-		//Initializing all the members of struct
-		tablesMetadata[i].InProgressFilePath = ""
-		tablesMetadata[i].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
-		tablesMetadata[i].CountTotalRows = int64(0) //will be updated by other func
-		tablesMetadata[i].CountLiveRows = int64(0)
-		tablesMetadata[i].Status = 0
-		tablesMetadata[i].FileOffsetToContinue = int64(0)
-	}
-
-	return tablesMetadata
-}
-
-func checkTableListFlag() {
-	tableList := strings.Split(source.TableList, ",")
+func checkTableListFlag(tableListString string) {
+	tableList := strings.Split(tableListString, ",")
 	//TODO: update regexp once table name with double quotes are allowed/supported
 	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 
