@@ -17,7 +17,7 @@ package cmd
 
 const (
 	FOUR_MB                     = 4 * 1024 * 1024
-	SPLIT_FILE_CHANNEL_SIZE     = 200
+	SPLIT_FILE_CHANNEL_SIZE     = 20
 	META_INFO_DIR_NAME          = "metainfo"
 	NEWLINE                     = '\n'
 	GET_SERVERS_QUERY           = "SELECT * FROM yb_servers()"
