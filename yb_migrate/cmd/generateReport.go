@@ -804,7 +804,7 @@ var generateReportCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Note: Generated report will be based on the version - 2.11.3 of YugabyteDB!!")
 		checkGenerateReportDirs()
-		
+
 		source.GenerateReportMode = true //flag to skip info about export schema
 		// export schema before generating the report
 		exportSchema()
