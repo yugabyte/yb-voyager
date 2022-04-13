@@ -12,7 +12,7 @@
     - [Manual Review (Export)](#export-phase-manual-review)
     - [Target DB Import](#target-db-import)
     - [Manual Review/Validation (Import Phase)](#import-phase-manual-review)
-- [Limitations](#limitations)
+- [Features and Enhancements To Follow Soon](#Features and enhancements in the pipeline)
 
 # Introduction
 
@@ -237,10 +237,17 @@ For additional details regarding the flags used to connect to an instance using 
 yb_migrate export --help
 ```
 
-## Export Phase Manual Review
-*TODO:*
-- *Why?*
-- *What can the users do here with some examples*
+## Manual Review Before Importing Schema to YugabyteDB cluster
+This is a very important step in the migration process. This is not a mandatory step but this gives a chance to the user doing the migration to review all the schema objects which is about to get created in the YugabyteDB cluster. The export schema step dumps all the schema object definitions from the source databases. As part of this it also dumps those object types which are currently not supported in YugabyteDB.
+
+This also gives a chance to the user to opt out of certain schema object creation in the destination YugabyteDB cluster which may not make sense in YugabyteDB. For example removing certain indexes, constraints etc which user may like to remove in the distributed setup due to performance reasons etc.
+
+The ```generateReport``` command calls out all those incompatibilities and gives relevant github issues also which are tracking those feature gaps bit the migration engine does not automatically remove them. It is advisable that the user thoroughly evaluates all those and is aware of all those unsupported features and takes an informed decision about removing them. 
+### Some example scenarios for manual review
+
+- CREATE INDEX CONCURRENTLY NOT SUPPORTED: This feature is not supported yet in YugabyteDB. It is advisable that user manually edits the ddl statement and removes the clause "CONCURRENTLY" from the definition.
+- Primary Key cannot be added to Partitioned table using ALTER TABLE: It is advisable that the user adds the primary key clause from the definition.
+
 
 ## Target DB Import
 
@@ -305,7 +312,14 @@ yb_migrate uses the following flags to encrypt the connection with a YugabyteDB 
 yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000 --target-ssl-mode require
 ```
 
-## Import Phase Manual Review
-*TODO: Fill this section*
+# Features and enhancements in the pipeline
 
-# Limitations
+Some of the important features and enhancements to follow soon are:
+
+- Support for ONLINE migration from Oracle/PostgreSQL/MySQL
+- Support case sensitive table-names migration from PostgreSQL
+- Support migration to YugabyteDB cluster created on Yugabyte Cloud
+- Reduce disk space requirements during migration process
+- Support Oracle multi-tenant migration
+
+You can look at all the open issues [here]([title](https://www.example.com)) 
