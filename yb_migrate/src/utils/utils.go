@@ -212,7 +212,7 @@ func CheckToolsRequiredInstalledOrNot(source *Source) {
 	case "oracle":
 		toolsRequired = []string{"ora2pg", "sqlplus"}
 	case "postgresql":
-		toolsRequired = []string{"pg_dump", "strings"}
+		toolsRequired = []string{"pg_dump", "strings", "pg_restore"}
 	case "mysql":
 		toolsRequired = []string{"ora2pg"}
 	default:
