@@ -2,19 +2,9 @@
 
 set -e
 
-on_exit() {
-	rc=$?
-	set +x
-	if [ $rc -eq 0 ]
-	then
-		echo "Done!"
-	else
-		echo "Script failed. Check log file ${LOG_FILE} ."
-	fi
-}
-trap on_exit EXIT
-
 source common.sh
+
+trap on_exit EXIT
 
 main() {
 	set -x
@@ -60,7 +50,6 @@ install_oracle_instant_clients() {
 }
 
 install_oic() {
-	
 	if dpkg -l | grep -q -w $1
 	then
 		echo "$1 is already installed."

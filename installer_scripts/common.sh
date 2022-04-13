@@ -13,6 +13,18 @@ touch $RC_FILE
 source $RC_FILE
 
 
+on_exit() {
+        rc=$?
+        set +x
+        if [ $rc -eq 0 ]
+        then
+                echo "Done!"
+        else
+                echo "Script failed. Check log file ${LOG_FILE} ."
+        fi
+}
+
+
 update_yb_migrate_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
 	insert_into_rc_file 'export ORACLE_HOME=/usr/lib/oracle/21/client64'
@@ -20,6 +32,7 @@ update_yb_migrate_bashrc() {
 	insert_into_rc_file 'export PATH=$PATH:$ORACLE_HOME/bin'
 	source $RC_FILE
 }
+
 
 install_yb_migrate() {
 	output "Installing yb_migrate."
@@ -100,24 +113,11 @@ install_ora2pg() {
 
 	output "Installing ora2pg."
 	wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
-
 	tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
-
 	cd ora2pg-${ORA2PG_VERSION}/
 	perl Makefile.PL 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
-	make 1>&2 && sudo make install 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
+	make 1>&2
+	sudo make install 1>&2
 	cd ..
 	rm -f v${ORA2PG_VERSION}.tar.gz
 	output "ora2pg installed."
@@ -148,6 +148,4 @@ update_bashrc() {
 		* ) ;;
 		esac
 	done
-
-	output "Done"
 }
