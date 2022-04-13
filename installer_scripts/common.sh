@@ -1,14 +1,9 @@
-#!/usr/bin/env bash
-
-# This script installs yb_migrate in /usr/local/bin and all of its dependencies.
-
 LOG_FILE=yb_migrate_installer.log
 
 export GOROOT="/tmp/go"
 
 ORA2PG_VERSION="23.1"
 GO_VERSION="go1.18"
-YUM="sudo yum install -y -q"
 GO="$GOROOT/bin/go"
 
 # separate file for bashrc related settings
@@ -18,39 +13,31 @@ touch $RC_FILE
 source $RC_FILE
 
 
-main() {
-	set -x
-	output "Installing RPM dependencies."
-	$YUM which wget git gcc make 1>&2
-	$YUM perl-5.16.3 perl-DBI-1.627 perl-App-cpanminus 1>&2
-	$YUM mysql-devel 1>&2
-	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2
-	$YUM postgresql14-server 1>&2
-	$YUM perl-ExtUtils-MakeMaker 1>&2
+on_exit() {
+        rc=$?
+        set +x
+        if [ $rc -eq 0 ]
+        then
+                echo "Done!"
+        else
+                echo "Script failed. Check log file ${LOG_FILE} ."
+        fi
+}
 
-	install_golang
 
-	output "Installing Oracle instant clients."
-	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
-	$YUM \
-		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
-		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
-		${OIC_URL}/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm \
-		${OIC_URL}/oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm 1>&2
-
+update_yb_migrate_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
 	insert_into_rc_file 'export ORACLE_HOME=/usr/lib/oracle/21/client64'
 	insert_into_rc_file 'export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH'
 	insert_into_rc_file 'export PATH=$PATH:$ORACLE_HOME/bin'
 	source $RC_FILE
+}
 
-	install_ora2pg
 
+install_yb_migrate() {
 	output "Installing yb_migrate."
 	$GO install github.com/yugabyte/ybm/yb_migrate@latest
 	sudo mv -f $HOME/go/bin/yb_migrate /usr/local/bin
-
-	update_bashrc
 }
 
 
@@ -69,21 +56,12 @@ install_golang() {
 		output "Found golang."
 		return
 	fi
+	
 	output "Installing golang."
 
 	wget --no-verbose https://golang.org/dl/${GO_VERSION}.linux-amd64.tar.gz 1>&2
-	if [ $? -ne 0 ]; then
-		output "GoLang not installed! Check $LOG_FILE for more details."
-		exit
-	fi
-
 	rm -rf $GOROOT
 	tar -C /tmp -xzf ${GO_VERSION}.linux-amd64.tar.gz 1>&2
-	if [ $? -ne 0 ]; then
-		output "GoLang not installed! Check $LOG_FILE for more details."
-		exit
-	fi
-
 	rm ${GO_VERSION}.linux-amd64.tar.gz
 }
 
@@ -122,8 +100,8 @@ EOT
 
 
 install_ora2pg() {
-	which ora2pg 1>&2
-	if  [ $? -eq 0 ]; then
+	if which ora2pg > /dev/null 2>&1
+	then
 		output "ora2pg is already installed. Skipping."
 		return
 	fi
@@ -135,24 +113,11 @@ install_ora2pg() {
 
 	output "Installing ora2pg."
 	wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
-
 	tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
-
 	cd ora2pg-${ORA2PG_VERSION}/
 	perl Makefile.PL 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
-	make 1>&2 && sudo make install 1>&2
-	if [ $? -ne 0 ]; then
-	    output "ora2pg not installed! Check $LOG_FILE for more details."
-	    exit
-	fi
+	make 1>&2
+	sudo make install 1>&2
 	cd ..
 	rm -f v${ORA2PG_VERSION}.tar.gz
 	output "ora2pg installed."
@@ -161,8 +126,7 @@ install_ora2pg() {
 
 update_bashrc() {
 	line="source $RC_FILE"
-	grep -qxF "$line" $HOME/.bashrc
-	if [ $? -eq 0 ]
+	if grep -qxF "$line" $HOME/.bashrc
 	then
 		output "No need to update bashrc again."
 		return
@@ -184,9 +148,4 @@ update_bashrc() {
 		* ) ;;
 		esac
 	done
-
-	output "Done"
 }
-
-
-main 2>> yb_migrate_installer.log
