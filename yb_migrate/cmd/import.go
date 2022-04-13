@@ -57,8 +57,8 @@ func validateImportFlags(cmd *cobra.Command) {
 		cmd.MarkFlagRequired("target-db-user")
 		cmd.MarkFlagRequired("target-db-password")
 	}
-	if source.TableList != "" {
-		checkTableListFlag()
+	if target.TableList != "" {
+		checkTableListFlag(target.TableList)
 	}
 }
 
@@ -128,12 +128,23 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&target.TableList, "table-list", "",
 		"list of the tables to import data(Note: works only for import data command)")
+
+	cmd.Flags().StringVar(&importMode, "mode", "",
+		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
+	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
+		"Use --use-public-ip flag to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import.\n"+
+			"Note: you might need to configure database to have public_ip populated in yb_servers() function output.\n"+
+			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
+	cmd.Flags().StringVar(&targetEndpoints, "target-endpoints", "",
+		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
+			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
+			"Note: use-public-ip flag will be ignored if this is used.")
 }
 
 func validateTargetPortRange() {
 	if target.Port < 0 || target.Port > 65535 {
-		fmt.Println("Invalid port number. Valid range is 0-65535")
-		os.Exit(1)
+		errMsg := "Invalid port number. Valid range is 0-65535"
+		utils.ErrExit(errMsg)
 	}
 }
 

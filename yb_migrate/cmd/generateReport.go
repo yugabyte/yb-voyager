@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
@@ -501,7 +502,7 @@ func processCollectedSql(fpath string, singleLine *string, singleString *string,
 }
 
 func createSqlStrArray(path string, objType string) [][]string {
-	// fmt.Printf("Reading %s in dir= %s\n", objType, path)
+	log.Infof("Reading %s in dir %s", objType, path)
 
 	/*
 		sqlStmtArray[i[[0] denotes single line sql statements
@@ -515,7 +516,7 @@ func createSqlStrArray(path string, objType string) [][]string {
 
 	file, err := os.Open(path)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("open %q: %s", path, err)
 	}
 	defer file.Close()
 
@@ -526,8 +527,6 @@ func createSqlStrArray(path string, objType string) [][]string {
 	// assemble array of lines, each line ends with semicolon
 	for scanner.Scan() {
 		curr := scanner.Text()
-		// curr = strings.Trim(curr, " \n\t") //No need as these chars will make sql stmt readable
-
 		if len(curr) == 0 {
 			continue
 		}
@@ -572,12 +571,6 @@ func createSqlStrArray(path string, objType string) [][]string {
 	if scanner.Err() != nil {
 		panic(scanner.Err())
 	}
-
-	// debugFile, _ := os.OpenFile(exportDir+"/reportSqls.sql", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	// defer debugFile.Close()
-	// for _, str := range sqlStmtArray {
-	// 	debugFile.WriteString(str + "\n")
-	// }
 
 	return sqlStmtArray
 }
@@ -803,7 +796,7 @@ var generateReportCmd = &cobra.Command{
 		}
 
 		if source.TableList != "" {
-			checkTableListFlag()
+			checkTableListFlag(source.TableList)
 		}
 
 		checkReportOutputFormat()
