@@ -18,7 +18,7 @@
 
 Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
 
-Github Issue Link *TODO:link this*
+Github Issue Link Detailing the Plan *TODO:link this*
 
 There are two modes of migration (offline and online):
 - Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
@@ -230,9 +230,9 @@ yb_migrate export --help
 ```
 
 ## Manual Review Before Importing Schema to YugabyteDB cluster
-This is a very important step in the migration process. This is not a mandatory step but this gives a chance to the user doing the migration to review all the schema objects which is about to get created in the YugabyteDB cluster. The export schema step dumps all the schema object definitions from the source databases. As part of this it also dumps those object types which are currently not supported in YugabyteDB.
+This is a very important step in the migration process. This gives a chance to the user doing the migration to review all the schema objects which is about to get created in the YugabyteDB cluster. The export schema step dumps all the schema object definitions from the source databases. As part of this it also dumps those object types which are currently not supported in YugabyteDB.
 
-This also gives a chance to the user to opt out of certain schema object creation in the destination YugabyteDB cluster which may not make sense in YugabyteDB. For example removing certain indexes, constraints etc which user may like to remove in the distributed setup due to performance reasons etc.
+User can also choose to omit certain schema object creations which may not be useful in YugabyteDB. For example removing certain indexes, constraints etc which user may like to remove in the distributed setup due to performance reasons etc.
 
 The ```generateReport``` command calls out all those incompatibilities and gives relevant github issues also which are tracking those feature gaps bit the migration engine does not automatically remove them. It is advisable that the user thoroughly evaluates all those and is aware of all those unsupported features and takes an informed decision about removing them. 
 ### Some example scenarios for manual review
