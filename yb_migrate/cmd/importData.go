@@ -32,9 +32,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/yugabyte/ybm/yb_migrate/src/fwk"
-	"github.com/yugabyte/ybm/yb_migrate/src/migration"
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"

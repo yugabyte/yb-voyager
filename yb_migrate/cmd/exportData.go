@@ -26,8 +26,8 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/migration"
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
