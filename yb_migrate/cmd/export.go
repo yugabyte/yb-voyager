@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -151,19 +150,16 @@ func init() {
 
 func checkSourceDBType() {
 	if source.DBType == "" {
-		fmt.Printf("requried flag: source-db-type\n")
-		fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
-		os.Exit(1)
+		errMsg := fmt.Sprintf("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
+		utils.ErrExit(errMsg)
 	}
 	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
 			return //if matches any allowed type
 		}
 	}
-
-	fmt.Printf("invalid source db type: %s\n", source.DBType)
-	fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
-	os.Exit(1)
+	errMsg := fmt.Sprintf("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
+	utils.ErrExit(errMsg)
 }
 
 func setSourceDefaultPort() {
@@ -181,8 +177,7 @@ func setSourceDefaultPort() {
 
 func validatePortRange() {
 	if source.Port < 0 || source.Port > 65535 {
-		fmt.Println("Invalid port number. Valid range is 0-65535")
-		os.Exit(1)
+		utils.ErrExit("Invalid port number. Valid range is 0-65535")
 	}
 }
 
@@ -195,8 +190,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full\n")
-			os.Exit(1)
+			utils.ErrExit("Invalid sslmode. Valid sslmodes are: disable, prefer, require, verify-ca, verify-full")
 		}
 	case POSTGRESQL:
 		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
@@ -204,8 +198,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full\n")
-			os.Exit(1)
+			utils.ErrExit("Invalid sslmode. Valid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
 		}
 	}
 }

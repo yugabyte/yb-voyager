@@ -54,6 +54,7 @@ func init() {
 
 func exportData() {
 	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
+	log.Infof(fmt.Sprintf("export of data for source type as '%s'\n", source.DBType))
 
 	var success bool
 	if migrationMode == "offline" {
@@ -66,8 +67,10 @@ func exportData() {
 		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDataDone").Run() //to inform import data command
 		utils.CheckError(err, "", "couldn't touch file exportDataDone in metainfo/flags folder", true)
 		color.Green("Export of data complete \u2705")
+		log.Infof("Export of data completed.")
 	} else {
 		color.Red("Export of data failed, retry!! \u274C")
+		log.Infof("Export of data failed.")
 	}
 }
 
@@ -94,14 +97,14 @@ func exportDataOffline() bool {
 				} else if len(parts) == 2 {
 					tableList = append(tableList, table)
 				} else {
-					fmt.Println("invalid value for --table-list flag")
-					os.Exit(1)
+					utils.ErrExit("invalid value for --table-list flag")
 				}
 			}
 		} else {
 			tableList = userTableList
 		}
 
+		log.Infof(fmt.Sprintf("table list flag values for data export: %v\n", tableList))
 		if source.VerboseMode {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
@@ -115,6 +118,7 @@ func exportDataOffline() bool {
 		}
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
 		fmt.Printf("table list for data export: %v\n", tableList)
+		log.Infof(fmt.Sprintf("table list flag values for data export: %v\n", tableList))
 	}
 	if len(tableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
@@ -130,11 +134,12 @@ func exportDataOffline() bool {
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 			fmt.Println("Cancelled the context having dump command and progress bar")
+			log.Infof("Cancelled the context having dump command and progress bar")
 		}
 	}()
 
 	tablesMetadata := initializeExportTableMetadataSlice(tableList)
-	// fmt.Printf("tablesMetadata: %+v\n", tablesMetadata)
+	log.Infof("tablesMetadata for export data: %+v", tablesMetadata)
 	migration.UpdateTableRowCount(&source, exportDir, tablesMetadata)
 
 	switch source.DBType {
@@ -161,9 +166,7 @@ func exportDataOffline() bool {
 	}
 
 	//wait for the export data to start
-	// fmt.Println("passing the exportDataStart channel receiver")
 	<-exportDataStart
-	// fmt.Println("passed the exportDataStart channel receiver")
 
 	migration.UpdateFilePaths(&source, exportDir, tablesMetadata)
 
@@ -172,7 +175,7 @@ func exportDataOffline() bool {
 	utils.WaitGroup.Wait() //waiting for the dump to complete
 
 	if ctx.Err() != nil {
-		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
+		utils.ErrExit(fmt.Sprintf("ctx error(exportData.go): %v", ctx.Err()))
 		return false
 	}
 
@@ -219,8 +222,7 @@ func checkTableListFlag(tableListString string) {
 
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			fmt.Printf("invalid table name '%s' with --table-list flag\n", table)
-			os.Exit(1)
+			utils.ErrExit(fmt.Sprintf("invalid table name '%v' with --table-list flag", table))
 		}
 	}
 }
@@ -233,12 +235,10 @@ func checkDataDirs() {
 		utils.CleanDir(metainfoFlagDir)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			fmt.Fprintf(os.Stderr, "data directory is not empty, use --start-clean flag to clean the directories and start\n")
-			log.Fatalf("data directory is not empty, use --start-clean flag to clean the directories and start\n")
+			utils.ErrExit("data directory is not empty, use --start-clean flag to clean the directories and start")
 		}
 		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			fmt.Fprintf(os.Stderr, "metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
-			log.Fatalf("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
+			utils.ErrExit("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start")
 		}
 	}
 }

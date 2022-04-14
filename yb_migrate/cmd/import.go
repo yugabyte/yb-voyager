@@ -16,9 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -153,8 +150,8 @@ func checkOrSetDefaultTargetSSLMode() {
 		if target.SSLMode == "" {
 			target.SSLMode = "prefer"
 		} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
-			os.Exit(1)
+			errMsg := "Invalid sslmode.\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full."
+			utils.ErrExit(errMsg)
 		}
 	}
 }
