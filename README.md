@@ -9,16 +9,14 @@
     - [Target DB Setup](#target-db-setup)
     - [Report Generation](#report-generation)
     - [Source DB Export](#source-db-export)
-    - [Manual Review (Export)](#export-phase-manual-review)
+    - [Manual Review (Post-Export)](#manual-review-before-importing-schema-to-yugabytedb-cluster)
     - [Target DB Import](#target-db-import)
-    - [Manual Review/Validation (Import Phase)](#import-phase-manual-review)
-- [Features and Enhancements To Follow Soon](#Features and enhancements in the pipeline)
+    - [Manual Review/Validation (Post-Import)](#import-phase-manual-review)
+- [Features and Enhancements To Follow Soon](#features-and-enhancements-in-the-pipeline)
 
 # Introduction
 
 Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
-
-Github Issue Link Detailing the Plan *TODO:link this*
 
 There are two modes of migration (offline and online):
 - Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
@@ -73,7 +71,6 @@ Migration can be carried out by executing a set of commands in specific sequence
 ```
 
 Schema objects and data objects are both migrated as per the following compatibility matrix:
-*TODO:Some data objects have conditions/limitations (discussed with Sanyam), should be included in limitations section*
 
 |Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|Packages|Synonyms|Tablespaces|
 |-|-|-|-|-|-|-|-|-|-|-|-|-|-|
@@ -81,11 +78,9 @@ Schema objects and data objects are both migrated as per the following compatibi
 |PostgreSQL|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
 |Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
 
-*TODO: Update Version numbers, Rahul has entered some placeholder values for now.*
 
 *Note that the following versions have been tested with yb_migrate:*
-- MariaDB 10.5.x
-- PostgreSQL 9.x - 13.x
+- PostgreSQL 9.x - 11.x
 - MySQL 8.x
 - Oracle 12.1.x - 19.3.x
 
@@ -230,15 +225,15 @@ yb_migrate export --help
 ```
 
 ## Manual Review Before Importing Schema to YugabyteDB cluster
-This is a very important step in the migration process. This gives a chance to the user doing the migration to review all the schema objects which is about to get created in the YugabyteDB cluster. The export schema step dumps all the schema object definitions from the source databases. As part of this it also dumps those object types which are currently not supported in YugabyteDB.
+This is a very important step in the migration process. This gives a chance to the user doing the migration to review all the schema objects which are about to be created on the YugabyteDB cluster. The export schema step dumps all the schema object definitions from the source databases. As a part of this, it also dumps those object types which are currently not supported in YugabyteDB.
 
-User can also choose to omit certain schema object creations which may not be useful in YugabyteDB. For example removing certain indexes, constraints etc which user may like to remove in the distributed setup due to performance reasons etc.
+The user can also choose to omit certain schema object creations which may not be useful in YugabyteDB. For example, certain indexes, constraints etc. may be removed in a distributed cluster to improve performance.
 
-The ```generateReport``` command calls out all those incompatibilities and gives relevant github issues also which are tracking those feature gaps bit the migration engine does not automatically remove them. It is advisable that the user thoroughly evaluates all those and is aware of all those unsupported features and takes an informed decision about removing them. 
+The `generateReport` command calls out all those incompatibilities and gives relevant GitHub issues which track these feature gaps, but the migration engine does not automatically remove them. It is advisable that the user thoroughly evaluates all of them and is aware of all the unsupported features and takes an informed decision about removing them. 
 ### Some example scenarios for manual review
 
-- CREATE INDEX CONCURRENTLY NOT SUPPORTED: This feature is not supported yet in YugabyteDB. It is advisable that user manually edits the ddl statement and removes the clause "CONCURRENTLY" from the definition.
-- Primary Key cannot be added to Partitioned table using ALTER TABLE: It is advisable that the user adds the primary key clause from the definition.
+- CREATE INDEX CONCURRENTLY NOT SUPPORTED: This feature is not supported yet in YugabyteDB. It is advisable that user manually edits the DDL statement and removes the clause "CONCURRENTLY" from the definition.
+- Primary Key cannot be added to Partitioned table using ALTER TABLE: It is advisable that the user adds the primary key clause in the `create table` DDL.
 
 
 ## Target DB Import
@@ -279,11 +274,6 @@ yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host loca
 
 The data sql files should be located in the `export-dir/data` folder.
 
-### Import Data Status
-*TODO:*
-- *What does this command do?*
-- *How do we use it?*
-
 ### SSL Connectivity
 
 *This sub-section is useful if you wish to encrypt and secure your connection to the target YugabyteDB instance while importing your schema and data objects using SSL encryption.*
@@ -308,10 +298,10 @@ yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost
 
 Some of the important features and enhancements to follow soon are:
 
-- Support for ONLINE migration from Oracle/PostgreSQL/MySQL
-- Support case sensitive table-names migration from PostgreSQL
-- Support migration to YugabyteDB cluster created on Yugabyte Cloud
-- Reduce disk space requirements during migration process
-- Support Oracle multi-tenant migration
+- [Support for ONLINE migration from Oracle/PostgreSQL/MySQL](https://github.com/yugabyte/yb-db-migration/issues/55)
+- [Support case sensitive table-names migration from PostgreSQL](https://github.com/yugabyte/yb-db-migration/issues/53)
+- [Support migration to YugabyteDB cluster created on Yugabyte Cloud](https://github.com/yugabyte/yb-db-migration/issues/52)
+- [Reduce disk space requirements during migration process](https://github.com/yugabyte/yb-db-migration/issues/45)
+- [Support Oracle multi-tenant migration](https://github.com/yugabyte/yb-db-migration/issues/44)
 
-You can look at all the open issues [here]([title](https://www.example.com)) 
+You can look at all the open issues [here](https://github.com/yugabyte/yb-db-migration/issues)
