@@ -21,8 +21,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/migration"
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 )
