@@ -33,28 +33,6 @@ import (
 
 var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
 
-// TODO: check for pgdump and psql/ysqlsh - installed/set-in-path
-func CheckToolsRequiredForPostgresExport() {
-	toolsRequired := []string{"pg_dump", "strings"}
-
-	for _, tool := range toolsRequired {
-		checkToolPresenceCommand := exec.Command(tool, "--version")
-
-		err := checkToolPresenceCommand.Run()
-
-		if err != nil {
-			if commandNotFoundRegexp.MatchString(err.Error()) {
-				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
-				utils.ErrExit(errMsg)
-			} else {
-				panic(err)
-			}
-		}
-	}
-
-	fmt.Printf("[Debug] Required tools for export are present...\n")
-}
-
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	if source.GenerateReportMode {
 		fmt.Printf("scanning the schema %10s", "")
@@ -267,9 +245,9 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	// 	source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	pgdumpDataExportCommandArgsString := ""
 	if source.Uri != "" {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
 	} else {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
 

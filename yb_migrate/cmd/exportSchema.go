@@ -96,9 +96,13 @@ func init() {
 
 func checkSchemaDirs() {
 	schemaDir := exportDir + "/schema"
+	tempDir := exportDir + "/temp"
+	reportDir := exportDir + "/reports"
 	metainfoSchemaDir := exportDir + "/metainfo/schema"
 	if startClean {
 		utils.CleanDir(schemaDir)
+		utils.CleanDir(tempDir)
+		utils.CleanDir(reportDir)
 		utils.CleanDir(metainfoSchemaDir)
 	} else {
 		if !utils.IsDirectoryEmpty(schemaDir) {

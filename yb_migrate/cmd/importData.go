@@ -44,6 +44,7 @@ import (
 	"github.com/tevino/abool/v2"
 )
 
+var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDir = META_INFO_DIR_NAME
 var importLockFile = fmt.Sprintf("%s/%s/data/.importLock", exportDir, metaInfoDir)
 var numLinesInASplit = int64(0)
@@ -63,6 +64,7 @@ var importTables []string
 var allTables []string
 var usePublicIp bool
 var targetEndpoints string
+var copyTableFromCommands = make(map[string]string)
 
 type ExportTool int
 
@@ -226,7 +228,10 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	splitFilesChannel := make(chan *fwk.SplitFileImportTask, SPLIT_FILE_CHANNEL_SIZE)
+	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
+		splitFileChannelSize = parallelism + 1
+	}
+	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
 	targetServerChannel := make(chan *utils.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
@@ -452,6 +457,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
 		}
 		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
+		extractCopyStmtForTable(t, sourceDBType, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
 		log.Infof("Collect interrupted splits.")
@@ -839,7 +845,8 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 				}
 			}
 
-			copyCommand := fmt.Sprintf("COPY %s from STDIN;", t.TableName)
+			copyCommand := getCopyCommand(t.TableName)
+
 			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 			rowsCount := res.RowsAffected()
 			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
@@ -969,6 +976,50 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 func incrementImportedRowCount(tableName string, rowsCopied int64) {
 	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
 	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
+}
+
+func extractCopyStmtForTable(table string, sourceDBType string, fileToSearchIn string) {
+	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
+	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]*(.*) FROM STDIN`, table))
+	if sourceDBType == "postgresql" {
+		// find the line from toc.txt file
+		fileToSearchIn = exportDir + "/data/toc.txt"
+
+		// if no schema then add public in tableName as it is there in postgres' toc file
+		if len(strings.Split(table, ".")) == 1 {
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]*(.*) FROM STDIN`, table))
+		}
+	}
+
+	file, err := os.Open(fileToSearchIn)
+	if err != nil {
+		utils.ErrExit("could not open file during extraction of copy stmt from file %q: %v", fileToSearchIn, err)
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	for {
+		line, err := utils.Readline(reader)
+		if err == io.EOF { // EOF will mean NO COPY command
+			return
+		} else if err != nil {
+			utils.ErrExit("error while readline for extraction of copy stmt from file %q: %v", fileToSearchIn, err)
+		}
+		if copyCommandRegex.MatchString(line) {
+			copyTableFromCommands[table] = line
+			log.Infof("copyTableFromCommand for table %q is %q", table, line)
+			return
+		}
+	}
+}
+
+func getCopyCommand(table string) string {
+	if copyCommand, ok := copyTableFromCommands[table]; ok {
+		return copyCommand
+	} else {
+		utils.ErrExit("No COPY command for table %q", table)
+	}
+	return "" // no-op
 }
 
 func init() {
