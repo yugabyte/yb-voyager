@@ -44,6 +44,7 @@ import (
 	"github.com/tevino/abool/v2"
 )
 
+var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDir = META_INFO_DIR_NAME
 var importLockFile = fmt.Sprintf("%s/%s/data/.importLock", exportDir, metaInfoDir)
 var numLinesInASplit = int64(0)
@@ -226,7 +227,10 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	splitFilesChannel := make(chan *fwk.SplitFileImportTask, SPLIT_FILE_CHANNEL_SIZE)
+	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
+		splitFileChannelSize = parallelism + 1
+	}
+	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
 	targetServerChannel := make(chan *utils.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
