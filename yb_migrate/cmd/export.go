@@ -154,8 +154,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 func checkSourceDBType() {
 	if source.DBType == "" {
-		errMsg := fmt.Sprintf("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
 	}
 	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
@@ -181,7 +180,7 @@ func setSourceDefaultPort() {
 
 func validatePortRange() {
 	if source.Port < 0 || source.Port > 65535 {
-		utils.ErrExit("Invalid port number. Valid range is 0-65535")
+		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", source.Port)
 	}
 }
 
@@ -194,7 +193,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			utils.ErrExit("Invalid sslmode. Valid sslmodes are: disable, prefer, require, verify-ca, verify-full")
+			utils.ErrExit("Invalid sslmode %q. Required one of [disable, prefer, require, verify-ca, verify-full]", source.SSLMode)
 		}
 	case POSTGRESQL:
 		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
@@ -202,7 +201,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			utils.ErrExit("Invalid sslmode. Valid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
+			utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", source.SSLMode)
 		}
 	}
 }
@@ -217,15 +216,15 @@ func validateOracleParams() {
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		fmt.Println("Using TNS Alias for export.")
-		log.Infof("Using TNS Alias for export.")
+		log.Info("Using TNS Alias for export.")
 		source.DBName = ""
 		source.DBSid = ""
 	} else if source.DBName != "" {
-		log.Infof("Using DB Name for export.")
+		log.Info("Using DB Name for export.")
 		fmt.Println("Using DB Name for export.")
 		source.DBSid = ""
 	} else if source.DBSid != "" {
-		log.Infof("Using SID for export.")
+		log.Info("Using SID for export.")
 		fmt.Println("Using SID for export.")
 	}
 
