@@ -450,7 +450,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			if len(parts) > 1 && parts[0] != "public" {
 				tableNameUsed = strings.ToLower(parts[0]) + "."
 			}
-			tableNameUsed += strings.ToLower(parts[len(parts)-1])
+			tableNameUsed += parts[len(parts)-1]
 		case "mysql":
 			tableNameUsed = parts[len(parts)-1]
 		case "oracle":
