@@ -27,3 +27,8 @@ jobs:
       run: |
         cd yb_migrate
         go test -v ./...
+        
+    - name: Vet
+      run: |
+        cd yb_migrate
+        go vet ./...
