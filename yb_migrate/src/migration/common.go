@@ -53,7 +53,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
 				}
 			} else {
-				log.Infof("deleting an entry from tablesProgressMetadata: ", fullTableName)
+				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
 				delete(tablesProgressMetadata, key)
 			}
 		}
