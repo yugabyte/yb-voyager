@@ -17,9 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/ybm/yb_migrate/src/migration"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
@@ -106,12 +103,10 @@ func checkSchemaDirs() {
 		utils.CleanDir(metainfoSchemaDir)
 	} else {
 		if !utils.IsDirectoryEmpty(schemaDir) {
-			fmt.Fprintf(os.Stderr, "schema directory is not empty, use --start-clean flag to clean the directories and start")
-			log.Fatalf("schema directory is not empty, use --start-clean flag to clean the directories and start")
+			utils.ErrExit("schema directory is not empty, use --start-clean flag to clean the directories and start")
 		}
 		if !utils.IsDirectoryEmpty(metainfoSchemaDir) {
-			fmt.Fprintf(os.Stderr, "metainfo/schema directory is not empty, use --start-clean flag to clean the directories and start")
-			log.Fatalf("metainfo/schema directory is not empty, use --start-clean flag to clean the directories and start")
+			utils.ErrExit("metainfo/schema directory is not empty, use --start-clean flag to clean the directories and start")
 		}
 	}
 }

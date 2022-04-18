@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/ybm/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -161,8 +160,7 @@ func checkSourceDBType() {
 			return //if matches any allowed type
 		}
 	}
-	errMsg := fmt.Sprintf("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
-	utils.ErrExit(errMsg)
+	utils.ErrExit("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
 }
 
 func setSourceDefaultPort() {
@@ -215,17 +213,14 @@ func validateOracleParams() {
 		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
-		fmt.Println("Using TNS Alias for export.")
-		log.Info("Using TNS Alias for export.")
+		utils.PrintAndLog("Using TNS Alias for export.")
 		source.DBName = ""
 		source.DBSid = ""
 	} else if source.DBName != "" {
-		log.Info("Using DB Name for export.")
-		fmt.Println("Using DB Name for export.")
+		utils.PrintAndLog("Using DB Name for export.")
 		source.DBSid = ""
 	} else if source.DBSid != "" {
-		log.Info("Using SID for export.")
-		fmt.Println("Using SID for export.")
+		utils.PrintAndLog("Using SID for export.")
 	}
 
 }

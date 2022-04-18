@@ -516,7 +516,7 @@ func createSqlStrArray(path string, objType string) [][]string {
 
 	file, err := os.Open(path)
 	if err != nil {
-		utils.ErrExit("open %q: %s", path, err)
+		utils.ErrExit("Error while opening %q: %s", path, err)
 	}
 	defer file.Close()
 
@@ -757,7 +757,7 @@ func generateReport() {
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("Error while opening %q: %s", reportPath, err)
 	}
 	defer file.Close()
 
@@ -841,7 +841,5 @@ func checkReportOutputFormat() {
 			return
 		}
 	}
-
-	fmt.Printf("invalid output format: %s!!\n", outputFormat)
-	os.Exit(1) // means output format didn't match allowed formats
+	utils.ErrExit("Invalid output format: %s. Supported formats are [%v]", outputFormat, allowedOutputFormats)
 }

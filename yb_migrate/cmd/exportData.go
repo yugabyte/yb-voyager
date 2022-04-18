@@ -53,8 +53,7 @@ func init() {
 }
 
 func exportData() {
-	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
-	log.Infof("export of data for source type as '%s'", source.DBType)
+	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 
 	var success bool
 	if migrationMode == "offline" {
@@ -117,8 +116,7 @@ func exportDataOffline() bool {
 			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
 		}
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
-		fmt.Printf("table list for data export: %v\n", tableList)
-		log.Infof("table list for data export: %v", tableList)
+		utils.PrintAndLog("table list for data export: %v", tableList)
 	}
 	if len(tableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
@@ -209,10 +207,10 @@ func checkDataDirs() {
 		utils.CleanDir(metainfoFlagDir)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			utils.ErrExit("data directory is not empty, use --start-clean flag to clean the directories and start")
+			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			utils.ErrExit("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start")
+			utils.ErrExit("%s/metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
 }
