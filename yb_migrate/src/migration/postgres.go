@@ -27,8 +27,10 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
@@ -236,49 +238,44 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	dataDirPath := exportDir + "/data"
 
 	tableListPatterns := createTableListPatterns(tableList)
-	// fmt.Printf("[Debug] createTableListPatterns = %+v\n", tableListPatterns)
+	log.Infof("createTableListPatterns = %s", tableListPatterns)
 
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)
 
-	//using pgdump for exporting data in directory format
-	// pgdumpDataExportCommandArgsString := fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%s/%s?%s" --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
-	// 	source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
-	pgdumpDataExportCommandArgsString := ""
+	// Using pgdump for exporting data in directory format.
+	cmd := ""
 	if source.Uri != "" {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
+		cmd = fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
 	} else {
-		pgdumpDataExportCommandArgsString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
+		cmd = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
-
-	// fmt.Printf("[Debug] Command: %s\n", pgdumpDataExportCommandArgsString)
-
-	pgdumpDataExportCommand := exec.CommandContext(ctx, "/bin/bash", "-c", pgdumpDataExportCommandArgsString)
-
-	var stderrBuffer bytes.Buffer
-	pgdumpDataExportCommand.Stderr = &stderrBuffer
-	pgdumpDataExportCommand.Stdout = &stderrBuffer
-
-	err := pgdumpDataExportCommand.Start()
-	fmt.Println("pg_dump for data export started")
+	log.Infof("Running: %s", cmd)
+	var buf bytes.Buffer
+	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
+	proc.Stderr = &buf
+	proc.Stdout = &buf
+	err := proc.Start()
 	if err != nil {
-		fmt.Printf("%s\n%s\n", stderrBuffer.String(), err)
+		log.Infof("pg_dump failed to start exporting data: %s\n%s", err, buf.String())
+		fmt.Printf("%s\n%s\n", buf.String(), err)
 		quitChan <- true
 		runtime.Goexit()
 	}
+	utils.PrintAndLog("Data export started.")
 	exportDataStart <- true
 
-	//Parsing the main toc.dat file in parallel
+	// Parsing the main toc.dat file in parallel.
 	go parseAndCreateTocTextFile(dataDirPath)
 
-	//Wait for pg_dump to complete before renaming of data files
-	err = pgdumpDataExportCommand.Wait()
+	// Wait for pg_dump to complete before renaming of data files.
+	err = proc.Wait()
 	if err != nil {
-		fmt.Printf("%s\n%s\n", stderrBuffer.String(), err)
+		log.Infof("pg_dump failed to export data: %s\n%s", err, buf.String())
+		fmt.Printf("%s\n%s\n", buf.String(), err)
 		quitChan <- true
 		runtime.Goexit()
 	}
-
 }
 
 //The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
@@ -314,7 +311,13 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 			continue
 		} else if parts[3] == "TABLE" && parts[4] == "DATA" {
 			fileName := strings.Trim(parts[0], ";") + ".dat"
-			fullTableName := parts[5] + "." + parts[6]
+			schemaName := parts[5]
+			tableName := parts[6]
+			if nameContainsCapitalLetter(tableName) {
+				// Surround the table name with double quotes.
+				tableName = fmt.Sprintf("\"%s\"", tableName)
+			}
+			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 			tableNameVsFileNameMap[fullTableName] = fileName
 		}
 	}
@@ -336,6 +339,15 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	//extracted SQL for setval() and put it into a postexport.sql file
 	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
 	return tableNameVsFileNameMap
+}
+
+func nameContainsCapitalLetter(name string) bool {
+	for _, c := range name {
+		if unicode.IsUpper(c) {
+			return true
+		}
+	}
+	return false
 }
 
 func parseAndCreateTocTextFile(dataDirPath string) {
@@ -375,7 +387,7 @@ func createTableListPatterns(tableList []string) string {
 	var tableListPattern string
 
 	for _, table := range tableList {
-		tableListPattern += fmt.Sprintf("-t %s ", table)
+		tableListPattern += fmt.Sprintf("-t '%s' ", table)
 	}
 
 	return tableListPattern
