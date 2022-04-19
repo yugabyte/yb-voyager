@@ -53,7 +53,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 			source.Port, source.DBName, SSLQueryString, exportDir)
 	}
 
-	log.Infof("Running command:%s", prepareYsqldumpCommandString)
+	log.Infof("Running command:%s\n", prepareYsqldumpCommandString)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
 	err := preparedYsqldumpCommand.Run()
@@ -247,7 +247,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 		cmd = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
-	log.Infof("Running command: %s", cmd)
+	log.Infof("Running command: %s\n", cmd)
 	var buf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
 	proc.Stderr = &buf
