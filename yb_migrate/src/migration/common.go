@@ -25,7 +25,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
@@ -53,7 +53,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
 				}
 			} else {
-				log.Infof("deleting an entry from tablesProgressMetadata: ", fullTableName)
+				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
 				delete(tablesProgressMetadata, key)
 			}
 		}

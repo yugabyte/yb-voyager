@@ -16,16 +16,16 @@
 
 # Introduction
 
-Yugabyte provides an open-source migration engine powered by a command line utility called yb_migrate. yb_migrate is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
+Yugabyte provides an open-source migration engine powered by a command line utility called *yb_migrate*. *yb_migrate* is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
 
 There are two modes of migration (offline and online):
 - Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
 - Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode, after the initial snapshot migration is done, the migration engine shifts into a CDC mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
 
-NOTE: yb_migrate currently only supports **offline** migration. Online is under active development.
-As of now, only the offline mode is supported; the rest of the document is relevant for only offline migrations. 
+NOTE: *yb_migrate* currently only supports **offline** migration. Online is under active development.
+The rest of the document is relevant for only offline migrations. 
 
-Migration can be carried out by executing a set of commands in specific sequence.
+Below are the steps to carry out a migration using *yb_migrate*.
 
 ```
                           ┌──────────────────┐
@@ -82,7 +82,7 @@ Schema objects and data objects are both migrated as per the following compatibi
 *Note that the following versions have been tested with yb_migrate:*
 - PostgreSQL 9.x - 11.x
 - MySQL 8.x
-- Oracle 12.1.x - 19.3.x
+- Oracle 12c - 19c
 
 Utilize the following command for additional details:
 
@@ -113,7 +113,7 @@ source $HOME/.yb_migrate_installer_bashrc
 Optionally, the installation script sources the `.yb_migrate_installer_bashrc` file from the `~/.bashrc`. In which case, restarting the bash session will be enough to set the environment variables.
 
 # Migration Steps
-Below are the steps a user should follow to use the yb_migrate tool:
+Below are the steps that to carry out migrations using the *yb_migrate* utility:
 
 ## Source DB Setup
 * Oracle: yb_migrate exports complete schema mentioned with `--source-db-schema` flag.

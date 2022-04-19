@@ -32,9 +32,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/yugabyte/ybm/yb_migrate/src/fwk"
-	"github.com/yugabyte/ybm/yb_migrate/src/migration"
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -450,7 +450,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 			if len(parts) > 1 && parts[0] != "public" {
 				tableNameUsed = strings.ToLower(parts[0]) + "."
 			}
-			tableNameUsed += strings.ToLower(parts[len(parts)-1])
+			tableNameUsed += parts[len(parts)-1]
 		case "mysql":
 			tableNameUsed = parts[len(parts)-1]
 		case "oracle":

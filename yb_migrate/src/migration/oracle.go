@@ -29,7 +29,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 func Ora2PgExtractSchema(source *utils.Source, exportDir string) {

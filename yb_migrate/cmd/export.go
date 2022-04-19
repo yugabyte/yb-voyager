@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )

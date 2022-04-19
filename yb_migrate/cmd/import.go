@@ -16,7 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )

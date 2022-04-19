@@ -16,7 +16,7 @@ limitations under the License.
 package main
 
 import (
-	"github.com/yugabyte/ybm/yb_migrate/cmd"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/cmd"
 )
 
 func main() {

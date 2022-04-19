@@ -24,10 +24,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/ybm/yb_migrate/src/migration"
-	"github.com/yugabyte/ybm/yb_migrate/src/utils"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -136,6 +137,7 @@ func exportDataOffline() bool {
 	initializeExportTableMetadata(tableList)
 	initializeExportTablePartitionMetadata(tableList)
 
+	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	migration.UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
 
 	switch source.DBType {
