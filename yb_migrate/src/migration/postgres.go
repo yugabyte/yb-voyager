@@ -53,9 +53,8 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 			source.Port, source.DBName, SSLQueryString, exportDir)
 	}
 
+	log.Infof("Running command:%s", prepareYsqldumpCommandString)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
-
-	// fmt.Printf("Executing command: %s\n", preparedYsqldumpCommand)
 
 	err := preparedYsqldumpCommand.Run()
 	if err != nil {
@@ -67,15 +66,18 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(source, exportDir)
 
-	// utils.PrintIfTrue("export of schema done!!!", !source.GenerateReportMode)
+	if source.GenerateReportMode {
+		log.Infoln("Scanning of schema completed.")
+	} else {
+		log.Infoln("Export of schema completed.")
+	}
 	utils.WaitChannel <- 0
 	<-utils.WaitChannel
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
 func parseSchemaFile(source *utils.Source, exportDir string) {
-	// utils.PrintIfTrue("Parsing the schema file...\n", !source.GenerateReportMode)
-
+	log.Infoln("Begun parsing the schema file.")
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
 	var schemaDirPath string
 	if source.GenerateReportMode {
@@ -193,11 +195,9 @@ func parseSchemaFile(source *utils.Source, exportDir string) {
 }
 
 func extractSqlStatements(schemaFileLines []string, index *int) string {
-	// fmt.Println("extracting sql statement started...")
 	var sqlStatement strings.Builder
 
 	for (*index) < len(schemaFileLines) {
-		// fmt.Println((*index), " , ", schemaFileLines[(*index)])
 		if isSqlComment(schemaFileLines[(*index)]) {
 			break
 		} else {
@@ -206,8 +206,6 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 
 		(*index)++
 	}
-
-	// fmt.Println("extracting sql statement done...")
 	return sqlStatement.String()
 }
 
@@ -238,7 +236,6 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	dataDirPath := exportDir + "/data"
 
 	tableListPatterns := createTableListPatterns(tableList)
-	log.Infof("createTableListPatterns = %s", tableListPatterns)
 
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)
 
@@ -250,15 +247,14 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 		cmd = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
-	log.Infof("Running: %s", cmd)
+	log.Infof("Running command: %s", cmd)
 	var buf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
 	proc.Stderr = &buf
 	proc.Stdout = &buf
 	err := proc.Start()
 	if err != nil {
-		log.Infof("pg_dump failed to start exporting data: %s\n%s", err, buf.String())
-		fmt.Printf("%s\n%s\n", buf.String(), err)
+		utils.PrintAndLog("pg_dump failed to start exporting data with error: %v\n%s", err, buf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -271,8 +267,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		log.Infof("pg_dump failed to export data: %s\n%s", err, buf.String())
-		fmt.Printf("%s\n%s\n", buf.String(), err)
+		utils.PrintAndLog("pg_dump failed to export data with error: %v\n%s", err, buf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -283,20 +278,14 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	// waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
-		// fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
 		// waitingFlag = 1
 		time.Sleep(time.Second * 1)
 	}
 
-	// if waitingFlag == 1 {
-	// 	fmt.Println("toc.txt file got created !!")
-	// }
-
 	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
 	if err != nil {
-		fmt.Println("couldn't parse the TOC to collect the tablenames for data files", err)
-		os.Exit(1)
+		utils.ErrExit("Couldn't parse the TOC file to collect the tablenames for data files: %s", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -354,13 +343,12 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocFilePath) {
-		// fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
 
 	if waitingFlag == 1 {
-		// fmt.Println("toc.dat file got created !!")
+		log.Infoln("TOC file successfully created.")
 	}
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
@@ -417,7 +405,7 @@ func generateSSLQueryStringIfNotExists(s *utils.Source) string {
 					}
 				}
 			} else {
-				fmt.Println("Invalid sslmode entered")
+				utils.ErrExit("Invalid sslmode entered.")
 			}
 		} else {
 			SSLQueryString = s.SSLQueryString
