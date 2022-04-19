@@ -282,7 +282,8 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		}
 		defer db.Close()
 
-		query := "SELECT VERSION FROM V$INSTANCE"
+		query := "SELECT BANNER FROM V$VERSION"
+		// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
 		err = db.QueryRow(query).Scan(&version)
 		if err != nil {
 			utils.ErrExit("run query %q on source: %s", query, err)

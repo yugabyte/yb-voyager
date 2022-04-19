@@ -54,7 +54,7 @@ func init() {
 }
 
 func exportData() {
-	fmt.Printf("export of data for source type as '%s'\n", source.DBType)
+	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 
 	var success bool
 	if migrationMode == "offline" {
@@ -67,8 +67,10 @@ func exportData() {
 		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDataDone").Run() //to inform import data command
 		utils.CheckError(err, "", "couldn't touch file exportDataDone in metainfo/flags folder", true)
 		color.Green("Export of data complete \u2705")
+		log.Info("Export of data completed.")
 	} else {
 		color.Red("Export of data failed, retry!! \u274C")
+		log.Error("Export of data failed.")
 	}
 }
 
@@ -95,14 +97,14 @@ func exportDataOffline() bool {
 				} else if len(parts) == 2 {
 					tableList = append(tableList, table)
 				} else {
-					fmt.Println("invalid value for --table-list flag")
-					os.Exit(1)
+					utils.ErrExit("invalid table name %q in the --table-list flag.", table)
 				}
 			}
 		} else {
 			tableList = userTableList
 		}
 
+		log.Infof("table list for data export: %v", tableList)
 		if source.VerboseMode {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
@@ -115,7 +117,7 @@ func exportDataOffline() bool {
 			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
 		}
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
-		fmt.Printf("table list for data export: %v\n", tableList)
+		utils.PrintAndLog("table list for data export: %v", tableList)
 	}
 	if len(tableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
@@ -127,10 +129,9 @@ func exportDataOffline() bool {
 	go func() {
 		q := <-quitChan
 		if q {
-			fmt.Println("cancel(), quitchan, main exportDataOffline()")
+			log.Infoln("Cancel() being called, within exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
-			fmt.Println("Cancelled the context having dump command and progress bar")
 		}
 	}()
 
@@ -164,9 +165,7 @@ func exportDataOffline() bool {
 	}
 
 	//wait for the export data to start
-	// fmt.Println("passing the exportDataStart channel receiver")
 	<-exportDataStart
-	// fmt.Println("passed the exportDataStart channel receiver")
 
 	migration.UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
 
@@ -198,8 +197,7 @@ func checkTableListFlag(tableListString string) {
 
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			fmt.Printf("invalid table name '%s' with --table-list flag\n", table)
-			os.Exit(1)
+			utils.ErrExit("invalid table name '%v' with --table-list flag", table)
 		}
 	}
 }
@@ -212,12 +210,10 @@ func checkDataDirs() {
 		utils.CleanDir(metainfoFlagDir)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			fmt.Fprintf(os.Stderr, "data directory is not empty, use --start-clean flag to clean the directories and start\n")
-			log.Fatalf("data directory is not empty, use --start-clean flag to clean the directories and start\n")
+			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			fmt.Fprintf(os.Stderr, "metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
-			log.Fatalf("metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start\n")
+			utils.ErrExit("%s/metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
 }

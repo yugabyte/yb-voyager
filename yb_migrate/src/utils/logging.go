@@ -44,7 +44,7 @@ func ErrExit(formatString string, args ...interface{}) {
 	log.Fatalf(formatString+"\n", args...)
 }
 
-func PrintAndLog(msg string) {
-	fmt.Printf(msg)
-	log.Infof(msg)
+func PrintAndLog(formatString string, args ...interface{}) {
+	fmt.Printf(formatString+"\n", args...)
+	log.Infof(formatString+"\n", args...)
 }

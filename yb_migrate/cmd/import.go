@@ -16,9 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -145,8 +142,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 func validateTargetPortRange() {
 	if target.Port < 0 || target.Port > 65535 {
-		errMsg := "Invalid port number. Valid range is 0-65535"
-		utils.ErrExit(errMsg)
+		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", target.Port)
 	}
 }
 
@@ -155,8 +151,7 @@ func checkOrSetDefaultTargetSSLMode() {
 		if target.SSLMode == "" {
 			target.SSLMode = "prefer"
 		} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full")
-			os.Exit(1)
+			utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
 		}
 	}
 }
