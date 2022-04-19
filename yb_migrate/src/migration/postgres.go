@@ -254,8 +254,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	proc.Stdout = &buf
 	err := proc.Start()
 	if err != nil {
-		log.Infof("pg_dump failed to start exporting data with error: %s\n%s\n", err, buf.String())
-		fmt.Printf("pg_dump failed to start exporting data with error: %s\n%s\n", err, buf.String())
+		utils.PrintAndLog("pg_dump failed to start exporting data with error: %v\n%s", err, buf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -268,8 +267,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		log.Infof("pg_dump failed to export data with error: %s\n%s\n", err, buf.String())
-		fmt.Printf("%s\n%s\n", buf.String(), err)
+		utils.PrintAndLog("pg_dump failed to export data with error: %v\n%s", err, buf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -280,20 +278,14 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	// waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
-		// fmt.Printf("Waiting for toc.text file = %s to be created\n", tocTextFilePath)
 		// waitingFlag = 1
 		time.Sleep(time.Second * 1)
 	}
 
-	// if waitingFlag == 1 {
-	// 	fmt.Println("toc.txt file got created !!")
-	// }
-
 	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
 	if err != nil {
-		fmt.Println("couldn't parse the TOC to collect the tablenames for data files", err)
-		os.Exit(1)
+		utils.ErrExit("Couldn't parse the TOC file to collect the tablenames for data files: %s", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -351,13 +343,12 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
 	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocFilePath) {
-		// fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
 		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
 
 	if waitingFlag == 1 {
-		// fmt.Println("toc.dat file got created !!")
+		log.Infoln("TOC file successfully created.")
 	}
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
@@ -414,7 +405,7 @@ func generateSSLQueryStringIfNotExists(s *utils.Source) string {
 					}
 				}
 			} else {
-				fmt.Println("Invalid sslmode entered")
+				utils.ErrExit("Invalid sslmode entered.")
 			}
 		} else {
 			SSLQueryString = s.SSLQueryString
