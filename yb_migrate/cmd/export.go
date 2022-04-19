@@ -17,10 +17,8 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -155,19 +153,14 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 func checkSourceDBType() {
 	if source.DBType == "" {
-		fmt.Printf("requried flag: source-db-type\n")
-		fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
-		os.Exit(1)
+		utils.ErrExit("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
 	}
 	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
 			return //if matches any allowed type
 		}
 	}
-
-	fmt.Printf("invalid source db type: %s\n", source.DBType)
-	fmt.Printf("supported source db types are: %s\n", supportedSourceDBTypes)
-	os.Exit(1)
+	utils.ErrExit("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
 }
 
 func setSourceDefaultPort() {
@@ -185,8 +178,7 @@ func setSourceDefaultPort() {
 
 func validatePortRange() {
 	if source.Port < 0 || source.Port > 65535 {
-		fmt.Println("Invalid port number. Valid range is 0-65535")
-		os.Exit(1)
+		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", source.Port)
 	}
 }
 
@@ -199,8 +191,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, prefer, require, verify-ca, verify-full\n")
-			os.Exit(1)
+			utils.ErrExit("Invalid sslmode %q. Required one of [disable, prefer, require, verify-ca, verify-full]", source.SSLMode)
 		}
 	case POSTGRESQL:
 		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
@@ -208,8 +199,7 @@ func checkOrSetDefaultSSLMode() {
 		} else if source.SSLMode == "" {
 			source.SSLMode = "prefer"
 		} else {
-			fmt.Printf("Invalid sslmode\nValid sslmodes are: disable, allow, prefer, require, verify-ca, verify-full\n")
-			os.Exit(1)
+			utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", source.SSLMode)
 		}
 	}
 }
@@ -223,17 +213,14 @@ func validateOracleParams() {
 		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
-		fmt.Println("Using TNS Alias for export.")
-		log.Infof("Using TNS Alias for export.")
+		utils.PrintAndLog("Using TNS Alias for export.")
 		source.DBName = ""
 		source.DBSid = ""
 	} else if source.DBName != "" {
-		log.Infof("Using DB Name for export.")
-		fmt.Println("Using DB Name for export.")
+		utils.PrintAndLog("Using DB Name for export.")
 		source.DBSid = ""
 	} else if source.DBSid != "" {
-		log.Infof("Using SID for export.")
-		fmt.Println("Using SID for export.")
+		utils.PrintAndLog("Using SID for export.")
 	}
 
 }

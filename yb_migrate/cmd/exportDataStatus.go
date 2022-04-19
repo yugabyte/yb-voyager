@@ -73,8 +73,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 		if source.DBType == ORACLE {
 			partitionList := migration.OracleGetAllPartitionNames(&source, parentTable)
 			if len(partitionList) > 0 {
-				msg := fmt.Sprintf("Table %q has partitions: %v\n", parentTable, partitionList)
-				utils.PrintAndLog(msg)
+				utils.PrintAndLog("Table %q has partitions: %v", parentTable, partitionList)
 
 				for _, partitionName := range partitionList {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
@@ -220,7 +219,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 			if readLineErr == io.EOF {
 				break
 			} else if readLineErr != nil { //error other than EOF
-				panic(readLineErr)
+				utils.ErrExit("Error while reading file %s: %v", tableDataFile, readLineErr)
 			}
 
 			if strings.HasPrefix(line, "\\.") { //break loop to execute checkForEndOfFile()
@@ -244,7 +243,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		if readLineErr == io.EOF {
 			break
 		} else if readLineErr != nil { //error other than EOF
-			panic(readLineErr)
+			utils.ErrExit("Error while reading file %s: %v", tableDataFile, readLineErr)
 		}
 		if isDataLine(line) {
 			tableMetadata.CountLiveRows += 1
@@ -259,12 +258,10 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 func checkForEndOfFile(source *utils.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {
 	if source.DBType == "postgresql" {
 		if strings.HasPrefix(line, "\\.") {
-			// fmt.Fprintf(debugFile, "checkForEOF done for table:%s line:%s, tablefile: %s\n", tableMetadata.TableName, line, tableMetadata.FinalFilePath)
 			return true
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		if !utils.FileOrFolderExists(tableMetadata.InProgressFilePath) && utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
-			// fmt.Fprintf(debugFile, "checkForEOF done for table:%s line:%s, tablefile: %s\n", tableMetadata.TableName, line, tableMetadata.FinalFilePath)
 			return true
 		}
 	}
