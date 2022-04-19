@@ -73,7 +73,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 		if source.DBType == ORACLE {
 			partitionList := migration.OracleGetAllPartitionNames(&source, parentTable)
 			if len(partitionList) > 0 {
-				utils.PrintAndLog("Table %q has partitions: %v\n", parentTable, partitionList)
+				utils.PrintAndLog("Table %q has partitions: %v", parentTable, partitionList)
 
 				for _, partitionName := range partitionList {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)

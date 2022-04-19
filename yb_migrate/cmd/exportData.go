@@ -129,6 +129,7 @@ func exportDataOffline() bool {
 	go func() {
 		q := <-quitChan
 		if q {
+			log.Infoln("Cancel() being called, within exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 		}
