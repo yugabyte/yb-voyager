@@ -21,7 +21,6 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
 
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
@@ -65,25 +64,21 @@ func createTLSConf(source *utils.Source) tls.Config {
 	if source.SSLRootCert != "" {
 		pem, err := ioutil.ReadFile(source.SSLRootCert)
 		if err != nil {
-			errMsg := fmt.Sprintf("error in reading SSL Root Certificate: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error in reading SSL Root Certificate: %v", err)
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			errMsg := "Failed to append PEM.\n"
-			utils.ErrExit(errMsg)
+			utils.ErrExit("Failed to append PEM.")
 		}
 	} else {
-		errMsg := "Root Certificate Needed for verify-ca and verify-full SSL Modes\n"
-		utils.ErrExit(errMsg)
+		utils.ErrExit("Root Certificate Needed for verify-ca and verify-full SSL Modes")
 	}
 	clientCert := make([]tls.Certificate, 0, 1)
 
 	if source.SSLCertPath != "" && source.SSLKey != "" {
 		certs, err := tls.LoadX509KeyPair(source.SSLCertPath, source.SSLKey)
 		if err != nil {
-			errMsg := fmt.Sprintf("error in reading and parsing SSL KeyPair: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error in reading and parsing SSL KeyPair: %v", err)
 		}
 
 		clientCert = append(clientCert, certs)
@@ -122,8 +117,7 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 		if source.SSLRootCert != "" {
 			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s", source.SSLRootCert)
 		} else {
-			fmt.Println("Root authority certificate needed for verify-ca mode.")
-			os.Exit(1)
+			utils.ErrExit("Root authority certificate needed for verify-ca mode.")
 		}
 		break
 	case "verify-full":
@@ -131,13 +125,11 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 		if source.SSLRootCert != "" {
 			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s;mysql_ssl_verify_server_cert=1", source.SSLRootCert)
 		} else {
-			fmt.Println("Root authority certificate needed for verify-full mode.")
-			os.Exit(1)
+			utils.ErrExit("Root authority certificate needed for verify-full mode.")
 		}
 		break
 	default:
-		fmt.Println("WARNING: Incorrect sslmode provided. Please provide a correct value for sslmode and try again.")
-		os.Exit(1)
+		utils.ErrExit("Incorrect sslmode provided. Please provide a correct value for sslmode and try again.")
 	}
 
 	if source.SSLCertPath != "" {
