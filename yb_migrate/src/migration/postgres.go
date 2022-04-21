@@ -53,7 +53,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 			source.Port, source.DBName, SSLQueryString, exportDir)
 	}
 
-	log.Infof("Running command:%s\n", prepareYsqldumpCommandString)
+	log.Infof("Running command: %s", prepareYsqldumpCommandString)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
 
 	err := preparedYsqldumpCommand.Run()
@@ -67,9 +67,9 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	parseSchemaFile(source, exportDir)
 
 	if source.GenerateReportMode {
-		log.Infoln("Scanning of schema completed.")
+		log.Info("Scanning of schema completed.")
 	} else {
-		log.Infoln("Export of schema completed.")
+		log.Info("Export of schema completed.")
 	}
 	utils.WaitChannel <- 0
 	<-utils.WaitChannel
@@ -77,7 +77,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
 func parseSchemaFile(source *utils.Source, exportDir string) {
-	log.Infoln("Begun parsing the schema file.")
+	log.Info("Begun parsing the schema file.")
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
 	var schemaDirPath string
 	if source.GenerateReportMode {
@@ -247,7 +247,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 		cmd = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
-	log.Infof("Running command: %s\n", cmd)
+	log.Infof("Running command: %s", cmd)
 	var buf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
 	proc.Stderr = &buf
@@ -348,7 +348,7 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	}
 
 	if waitingFlag == 1 {
-		log.Infoln("TOC file successfully created.")
+		log.Info("TOC file successfully created.")
 	}
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
