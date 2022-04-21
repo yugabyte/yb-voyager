@@ -66,11 +66,11 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
-			log.Infof("Executing command:%s\n", exportSchemaObjectCommand.String())
+			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
-			log.Infof("Executing command:%s\n", exportSchemaObjectCommand.String())
+			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
 
 		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
@@ -83,7 +83,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					log.Infof("ERROR in output scanner goroutine: %s\n", line)
+					log.Infof("ERROR in output scanner goroutine: %s", line)
 					runtime.Goexit()
 				}
 			}
@@ -96,7 +96,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					log.Infof("ERROR in error scanner goroutine: %s\n", line)
+					log.Infof("ERROR in error scanner goroutine: %s", line)
 					runtime.Goexit()
 				}
 			}
@@ -104,14 +104,14 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 
 		err := exportSchemaObjectCommand.Start()
 		if err != nil {
-			utils.PrintAndLog("Error while starting export:%v", err)
+			utils.PrintAndLog("Error while starting export: %v", err)
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		}
 
 		err = exportSchemaObjectCommand.Wait()
 		if err != nil {
-			utils.PrintAndLog("Error while waiting for export command exit:%v", err)
+			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		} else {
@@ -205,7 +205,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
-	log.Infof("Executing command:%s\n", exportDataCommandString)
+	log.Infof("Executing command: %s", exportDataCommandString)
 
 	stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -225,14 +225,14 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	err = exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
 	if err != nil {
-		utils.ErrExit("Error while starting ora2pg for data export:%v", err)
+		utils.ErrExit("Error while starting ora2pg for data export: %v", err)
 	}
 
 	exportDataStart <- true
 
 	err = exportDataCommand.Wait()
 	if err != nil {
-		utils.ErrExit("Error while waiting for ora2pg to exit:%v", err)
+		utils.ErrExit("Error while waiting for ora2pg to exit: %v", err)
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
@@ -275,11 +275,10 @@ func getSourceDSN(source *utils.Source) string {
 		sourceDSN = fmt.Sprintf("dbi:mysql:host=%s;database=%s;port=%d", source.Host, source.DBName, source.Port)
 		sourceDSN = extrapolateDSNfromSSLParams(source, sourceDSN)
 	} else {
-		fmt.Println("Invalid Source DB Type!!")
-		os.Exit(1)
+		utils.ErrExit("Invalid Source DB Type.")
 	}
 
-	log.Infof("Source DSN used for export:%s\n", sourceDSN)
+	log.Infof("Source DSN used for export: %s", sourceDSN)
 	return sourceDSN
 }
 
@@ -309,7 +308,7 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 		tableNames = append(tableNames, tableName)
 	}
 
-	log.Infof("Table Name List:%q\n", tableNames)
+	log.Infof("Table Name List: %q", tableNames)
 
 	return tableNames
 }
@@ -343,6 +342,6 @@ func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string
 		// TODO: Support subpartition(find subparititions for each partition)
 	}
 
-	log.Infof("Partition Names:%q\n", partitionNames)
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
 	return partitionNames
 }
