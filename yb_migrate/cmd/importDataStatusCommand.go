@@ -46,7 +46,7 @@ func runImportDataStatusCmd() error {
 	_, err := os.Stat(exportDataDoneFlagFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `import data status` before data export is done.")
+			return fmt.Errorf("cannot run `import data status` before data export is done")
 		}
 		return fmt.Errorf("check if data export is done: %w", err)
 	}

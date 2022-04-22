@@ -33,8 +33,6 @@ import (
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-var commandNotFoundRegexp *regexp.Regexp = regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
-
 func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 	if source.GenerateReportMode {
 		fmt.Printf("scanning the schema %10s", "")
@@ -352,34 +350,28 @@ func nameContainsCapitalLetter(name string) bool {
 
 func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
-	waitingFlag := 0
 	for !utils.FileOrFolderExists(tocFilePath) {
-		// fmt.Printf("Waiting for toc.dat file = %s to be created\n", tocFilePath)
-		waitingFlag = 1
 		time.Sleep(time.Second * 3)
 	}
 
-	if waitingFlag == 1 {
-		// fmt.Println("toc.dat file got created !!")
-	}
-
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
-
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
-
 	utils.CheckError(err, parseTocFileCommand.String(), string(cmdOutput), true)
-
 	//Put the data into a toc.txt file
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	tocTextFile, err := os.Create(tocTextFilePath)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("create toc.txt: %s", err)
 	}
-
 	writer := bufio.NewWriter(tocTextFile)
-	writer.Write(cmdOutput)
-
-	writer.Flush()
+	_, err = writer.Write(cmdOutput)
+	if err != nil {
+		utils.ErrExit("write to toc.txt: %s", err)
+	}
+	err = writer.Flush()
+	if err != nil {
+		utils.ErrExit("flush toc.txt: %s", err)
+	}
 	tocTextFile.Close()
 }
 

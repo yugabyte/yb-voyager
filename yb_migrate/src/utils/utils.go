@@ -77,24 +77,6 @@ func Readline(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-func checkSourceEndpointsReachability(host string, port string) {
-	sourceEndPointConnectivityCommandString := "nc -z -w 30 " + host + " " + port
-	lastCommandExitStatusCommandString := "echo $?"
-
-	finalString := sourceEndPointConnectivityCommandString + "; " + lastCommandExitStatusCommandString
-
-	checkSourceDBConnectivityCommand := exec.Command("/bin/sh", "-c", finalString)
-
-	// fmt.Printf("[Debug] Final Command is : %s\n", checkSourceDBConnectivityCommand.String())
-
-	err := checkSourceDBConnectivityCommand.Run()
-	if err != nil {
-		fmt.Println("Error: source database endpoints are not reachable")
-		os.Exit(1)
-	}
-
-}
-
 //Called before export schema command
 func DeleteProjectDirIfPresent(source *Source, exportDir string) {
 	log.Debugf("Deleting existing project related directories under: \"%s\"", exportDir)
@@ -290,7 +272,7 @@ func ClearMatchingFiles(filePattern string) {
 
 func PrintIfTrue(message string, args ...bool) {
 	for i := 0; i < len(args); i++ {
-		if args[i] == false {
+		if !args[i] {
 			return
 		}
 	}

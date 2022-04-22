@@ -42,17 +42,12 @@ func parseSSLString(source *utils.Source) {
 				switch i {
 				case 0:
 					source.SSLMode = slicedparam[1]
-					break
 				case 1:
 					source.SSLCertPath = slicedparam[1]
-					break
 				case 2:
 					source.SSLRootCert = slicedparam[1]
-					break
 				case 3:
 					source.SSLKey = slicedparam[1]
-					break
-
 				}
 				break
 			}
@@ -110,13 +105,10 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 	switch source.SSLMode {
 	case "disable":
 		DSN += ";mysql_ssl=0;mysql_ssl_optional=0"
-		break
 	case "prefer":
 		DSN += ";mysql_ssl_optional=1"
-		break
 	case "require":
 		DSN += ";mysql_ssl=1"
-		break
 	case "verify-ca":
 		DSN += ";mysql_ssl=1"
 		if source.SSLRootCert != "" {
@@ -125,7 +117,6 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 			fmt.Println("Root authority certificate needed for verify-ca mode.")
 			os.Exit(1)
 		}
-		break
 	case "verify-full":
 		DSN += ";mysql_ssl=1"
 		if source.SSLRootCert != "" {
@@ -134,7 +125,6 @@ func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
 			fmt.Println("Root authority certificate needed for verify-full mode.")
 			os.Exit(1)
 		}
-		break
 	default:
 		fmt.Println("WARNING: Incorrect sslmode provided. Please provide a correct value for sslmode and try again.")
 		os.Exit(1)
