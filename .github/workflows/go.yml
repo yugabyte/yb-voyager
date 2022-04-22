@@ -32,3 +32,9 @@ jobs:
       run: |
         cd yb_migrate
         go vet ./...
+
+    - name: Run staticcheck
+      run: |
+        cd yb_migrate
+        go install honnef.co/go/tools/cmd/staticcheck@latest
+        staticcheck ./...
