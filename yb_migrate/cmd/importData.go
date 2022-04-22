@@ -46,7 +46,6 @@ import (
 
 var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDir = META_INFO_DIR_NAME
-var importLockFile = fmt.Sprintf("%s/%s/data/.importLock", exportDir, metaInfoDir)
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
@@ -179,8 +178,7 @@ func testYbServers(targets []*utils.Target) {
 }
 
 func cloneTarget(t *utils.Target) *utils.Target {
-	var clone utils.Target
-	clone = *t
+	clone := *t
 	return &clone
 }
 
@@ -278,10 +276,6 @@ func roundRobinTargets(targets []*utils.Target, channel chan *utils.Target) {
 		channel <- targets[index%len(targets)]
 		index++
 	}
-}
-
-//TODO: implement
-func acquireImportLock() {
 }
 
 func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {

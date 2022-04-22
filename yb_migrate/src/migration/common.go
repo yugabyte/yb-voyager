@@ -226,13 +226,10 @@ func GetDriverConnStr(source *utils.Source) string {
 		switch source.SSLMode {
 		case "disable":
 			tlsString = "tls=false"
-			break
 		case "prefer":
 			tlsString = "tls=preferred"
-			break
 		case "require":
 			tlsString = "tls=skip-verify"
-			break
 		case "verify-ca", "verify-full":
 			tlsConf := createTLSConf(source)
 			err := mysql.RegisterTLSConfig("custom", &tlsConf)
@@ -241,7 +238,6 @@ func GetDriverConnStr(source *utils.Source) string {
 				log.Fatal(err)
 			}
 			tlsString = "tls=custom"
-			break
 		default:
 			errMsg := "Incorrect SSL Mode Provided. Please enter a valid sslmode."
 			utils.ErrExit(errMsg)
