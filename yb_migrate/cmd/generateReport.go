@@ -49,7 +49,7 @@ var (
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex = regexp.MustCompile("\\$.*\\$")
+	dollarQuoteRegex = regexp.MustCompile(`\$.*\$`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
 	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
@@ -731,23 +731,24 @@ func generateReport() {
 	generateReportHelper()
 
 	var finalReport string
-	if outputFormat == "html" {
+	switch outputFormat {
+	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
-	} else if outputFormat == "json" {
+	case "json":
 		jsonBytes, err := json.Marshal(reportStruct)
 		if err != nil {
 			panic(err)
 		}
 		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
-	} else if outputFormat == "txt" {
+	case "txt":
 		finalReport = generateTxtReport(reportStruct)
-	} else if outputFormat == "xml" {
+	case "xml":
 		byteReport, _ := xml.MarshalIndent(reportStruct, "", "\t")
 		finalReport = string(byteReport)
-	} else {
-		//TODO(optional): implement for other output formats
+	default:
+		panic(fmt.Sprintf("invalid report format: %q", outputFormat))
 	}
 
 	//check & inform if file already exists
