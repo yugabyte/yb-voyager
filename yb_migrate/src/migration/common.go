@@ -97,6 +97,9 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 		}
 
 		queryFrom := tablesProgressMetadata[key].FullTableName
+		if source.DBType == "oracle" {
+			queryFrom = fmt.Sprintf(`%s."%s"`, tablesProgressMetadata[key].TableSchema, tablesProgressMetadata[key].TableName)
+		}
 		rowCount := SelectCountStarFromTable(queryFrom, source)
 
 		if source.VerboseMode {
