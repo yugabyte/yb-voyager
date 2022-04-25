@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -65,9 +66,11 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
 
 		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
@@ -80,7 +83,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					fmt.Printf("ERROR: %s\n", line)
+					log.Infof("ERROR in output scanner goroutine: %s", line)
 					runtime.Goexit()
 				}
 			}
@@ -93,29 +96,27 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					fmt.Printf("ERROR: %s\n", line)
+					log.Infof("ERROR in error scanner goroutine: %s", line)
 					runtime.Goexit()
 				}
 			}
 		}()
 
-		// fmt.Printf("[Debug] exportSchemaObjectCommand: %s\n", exportSchemaObjectCommand.String())
 		err := exportSchemaObjectCommand.Start()
 		if err != nil {
-			fmt.Println(err.Error())
+			utils.PrintAndLog("Error while starting export: %v", err)
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		}
 
 		err = exportSchemaObjectCommand.Wait()
 		if err != nil {
-			fmt.Println(err.Error())
+			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		} else {
 			utils.WaitChannel <- 0 //stop waiting with exit code 0
 			<-utils.WaitChannel
-			// utils.PrintIfTrue(fmt.Sprintf("export of %ss complete\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
 		}
 	}
 }
@@ -128,9 +129,7 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 
 	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
 
-	//TODO: Add support for SSL Enable Connections
 	for i, line := range lines {
-		// fmt.Printf("[Debug]: %d %s\n", i, line)
 		if strings.HasPrefix(line, "ORACLE_DSN") {
 			lines[i] = "ORACLE_DSN	" + sourceDSN
 		} else if strings.HasPrefix(line, "ORACLE_USER") {
@@ -206,17 +205,17 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
-	// log.Debugf("exportDataCommand: %s", exportDataCommandString)
+	log.Infof("Executing command: %s", exportDataCommandString)
 
 	stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("Error while opening export data output file: %v", err)
 	}
 	defer stdOutFile.Close()
 
 	stdErrFile, err := os.OpenFile(exportDir+"/temp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		panic(err)
+		utils.ErrExit("Error while opening export data error file: %v", err)
 	}
 	defer stdErrFile.Close()
 
@@ -226,16 +225,14 @@ func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDi
 	err = exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		utils.ErrExit("Error while starting ora2pg for data export: %v", err)
 	}
 
 	exportDataStart <- true
 
 	err = exportDataCommand.Wait()
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		utils.ErrExit("Error while waiting for ora2pg to exit: %v", err)
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
@@ -278,10 +275,10 @@ func getSourceDSN(source *utils.Source) string {
 		sourceDSN = fmt.Sprintf("dbi:mysql:host=%s;database=%s;port=%d", source.Host, source.DBName, source.Port)
 		sourceDSN = extrapolateDSNfromSSLParams(source, sourceDSN)
 	} else {
-		fmt.Println("Invalid Source DB Type!!")
-		os.Exit(1)
+		utils.ErrExit("Invalid Source DB Type.")
 	}
 
+	log.Infof("Source DSN used for export: %s", sourceDSN)
 	return sourceDSN
 }
 
@@ -289,8 +286,7 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("godror", dbConnStr)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("error in opening connections to database: %v", err)
 	}
 	defer db.Close()
 
@@ -299,20 +295,20 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 		"AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' ORDER BY table_name ASC", source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in querying source database for table names: %v\n", err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("error in querying source database for table names: %v", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			errMsg := fmt.Sprintf("error in scanning query rows for table names: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error in scanning query rows for table names: %v", err)
 		}
 
 		tableNames = append(tableNames, tableName)
 	}
+
+	log.Infof("Table Name List: %q", tableNames)
 
 	return tableNames
 }
@@ -321,8 +317,7 @@ func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("godror", dbConnStr)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("error in opening connections to database: %v", err)
 	}
 	defer db.Close()
 
@@ -331,8 +326,7 @@ func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string
 		tableName, source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
-		errMsg := fmt.Sprintf("error in query table %q for partition names: %v\n", tableName, err)
-		utils.ErrExit(errMsg)
+		utils.ErrExit("error in query table %q for partition names: %v", tableName, err)
 	}
 	defer rows.Close()
 
@@ -341,13 +335,13 @@ func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string
 		var partitionName string
 		err = rows.Scan(&partitionName)
 		if err != nil {
-			errMsg := fmt.Sprintf("error in scanning query rows: %v\n", err)
-			utils.ErrExit(errMsg)
+			utils.ErrExit("error in scanning query rows: %v", err)
 		}
 		partitionNames = append(partitionNames, partitionName)
 
 		// TODO: Support subpartition(find subparititions for each partition)
 	}
 
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
 	return partitionNames
 }
