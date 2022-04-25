@@ -291,8 +291,10 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	defer db.Close()
 
 	var tableNames []string
-	query := fmt.Sprintf("SELECT table_name FROM all_tables WHERE owner = '%s' "+
-		"AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' ORDER BY table_name ASC", source.Schema)
+	query := fmt.Sprintf(`SELECT table_name FROM all_tables WHERE owner = '%s' 
+		AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND (owner, table_name) not in 
+		(select owner, mview_name from all_mviews union all select log_owner, log_table from all_mview_logs)
+		ORDER BY table_name ASC`, source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v", err)
