@@ -348,7 +348,7 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	}
 
 	if waitingFlag == 1 {
-		log.Info("TOC file successfully created.")
+		log.Info("toc.dat file successfully created.")
 	}
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
