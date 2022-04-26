@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v4"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
@@ -47,15 +48,14 @@ func init() {
 }
 
 func importSchema() {
-	fmt.Printf("import of schema in '%s' database started\n", target.DBName)
+	utils.PrintAndLog("import of schema in %q database started", target.DBName)
 
 	targetConnectionURIWithGivenDB := generateTargetDBUri(&target)
 
 	bgCtx := context.Background()
 	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithGivenDB)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
 	defer conn.Close(bgCtx)
 
@@ -86,41 +86,39 @@ func importSchema() {
 					continue
 				}
 
-				fmt.Printf("dropping schema '%s' in target database\n", targetSchema)
+				utils.PrintAndLog("dropping schema '%s' in target database", targetSchema)
 				_, err := conn.Exec(bgCtx, dropSchemaQuery)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
 				}
-
 			} else {
 				fmt.Printf("schema '%s' in target database doesn't exist\n", targetSchema)
 			}
 
 			//in case of postgres, CREATE SCHEMA DDLs for non-public schemas are already present in .sql files
 			if sourceDBType != "postgresql" || targetSchema == "public" {
-				fmt.Printf("creating schema '%s' in target database...\n", targetSchema)
+				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
 				_, err := conn.Exec(bgCtx, createSchemaQuery)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("Failed to create %q schema in the target DB: %s", targetSchema, err)
 				}
 			}
 		} else {
 			if schemaExists {
-				fmt.Printf("already present schema '%s' in target database, continuing with it..\n", targetSchema)
+				fmt.Printf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
 			} else {
-				fmt.Printf("creating schema '%s' in target database...\n", targetSchema)
+				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
 				_, err := conn.Exec(bgCtx, createSchemaQuery)
 				if err != nil {
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("Failed to create %q schema in the target DB: %s", targetSchema, err)
 				}
 			}
 		}
 	}
 
-	if sourceDBType != POSTGRESQL && target.Schema == "public" && !utils.AskPrompt("do you really want to import into 'public' schema") {
+	if sourceDBType != POSTGRESQL && target.Schema == "public" &&
+		!utils.AskPrompt("do you really want to import into 'public' schema") {
+		log.Infof("User selected not to import in the `public` schema. Exiting.")
 		os.Exit(1)
 	}
 
@@ -132,13 +130,11 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 
 	var fetchedSchema string
 	err := conn.QueryRow(context.Background(), checkSchemaExistQuery).Scan(&fetchedSchema)
-
+	log.Infof("check if schema %q exists: fetchedSchema: %q, err: %s", targetSchema, fetchedSchema, err)
 	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
 		return false
 	} else if err != nil {
-		// fmt.Println(err)
-		// os.Exit(1)
-		panic(err)
+		utils.ErrExit("Failed to check if schema %q exists: %s", targetSchema, err)
 	}
 
 	return fetchedSchema == targetSchema
