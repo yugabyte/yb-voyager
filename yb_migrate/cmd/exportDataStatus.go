@@ -58,7 +58,7 @@ func initializeExportTableMetadata(tableList []string) {
 			// schema.tablename format is required, as user can have access to similar table in different schema
 			tablesProgressMetadata[tableList[i]].TableSchema = source.Schema
 			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
-			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
+			tablesProgressMetadata[tableList[i]].FullTableName = fmt.Sprintf(`%s."%s"`,tablesProgressMetadata[tableList[i]].TableSchema,tablesProgressMetadata[tableList[i]].TableName)
 		} else if source.DBType == MYSQL {
 			// schema and database are same in MySQL
 			tablesProgressMetadata[tableList[i]].TableSchema = source.DBName

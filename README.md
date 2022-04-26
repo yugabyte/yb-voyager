@@ -298,10 +298,8 @@ yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost
 
 Some of the important features and enhancements to follow soon are:
 
-- [Support for ONLINE migration from Oracle/PostgreSQL/MySQL](https://github.com/yugabyte/yb-db-migration/issues/55)
-- [Support case sensitive table-names migration from PostgreSQL](https://github.com/yugabyte/yb-db-migration/issues/53)
+- [Support for ONLINE migration from Oracle/PostgreSQL/MySQL](https://github.com/yugabyte/yb-db-migration/issues/50)
 - [Support migration to YugabyteDB cluster created on Yugabyte Cloud](https://github.com/yugabyte/yb-db-migration/issues/52)
 - [Reduce disk space requirements during migration process](https://github.com/yugabyte/yb-db-migration/issues/45)
-- [Support Oracle multi-tenant migration](https://github.com/yugabyte/yb-db-migration/issues/44)
 
 You can look at all the open issues [here](https://github.com/yugabyte/yb-db-migration/issues)

@@ -436,21 +436,9 @@ func truncateTables(tables []string) {
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 	log.Infof("Started goroutine: splitDataFiles")
 	for _, t := range importTables {
-		var tableNameUsed string //regenerating the table_data.sql filename, from extracted tableName
-		parts := strings.Split(t, ".")
 		sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
-		switch sourceDBType {
-		case "postgresql":
-			if len(parts) > 1 && parts[0] != "public" {
-				tableNameUsed = strings.ToLower(parts[0]) + "."
-			}
-			tableNameUsed += parts[len(parts)-1]
-		case "mysql":
-			tableNameUsed = parts[len(parts)-1]
-		case "oracle":
-			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
-		}
-		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
+
+		origDataFile := exportDir + "/data/" + t + "_data.sql"
 		extractCopyStmtForTable(t, sourceDBType, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
