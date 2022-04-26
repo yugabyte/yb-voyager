@@ -291,9 +291,17 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	defer db.Close()
 
 	var tableNames []string
-	query := fmt.Sprintf(`SELECT table_name FROM all_tables WHERE owner = '%s' 
-		AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND (owner, table_name) not in 
-		(select owner, mview_name from all_mviews union all select log_owner, log_table from all_mview_logs)
+	/* below query will collect all tables under given schema except TEMPORARY tables,
+	Index related tables(start with DR$) and materialized view */
+	query := fmt.Sprintf(`SELECT table_name 
+		FROM all_tables 
+		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND
+		(owner, table_name) not in ( 
+			SELECT owner, mview_name 
+			FROM all_mviews 
+			UNION ALL 
+			SELECT log_owner, log_table 
+			FROM all_mview_logs)
 		ORDER BY table_name ASC`, source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {

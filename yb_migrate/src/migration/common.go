@@ -88,7 +88,6 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
-		// fullTableName := tablesProgressMetadata[key].FullTableName
 
 		utils.PrintIfTrue(fmt.Sprintf("| %30s ", key), source.VerboseMode)
 
@@ -97,9 +96,6 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 		}
 
 		queryFrom := tablesProgressMetadata[key].FullTableName
-		if source.DBType == "oracle" {
-			queryFrom = fmt.Sprintf(`%s."%s"`, tablesProgressMetadata[key].TableSchema, tablesProgressMetadata[key].TableName)
-		}
 		rowCount := SelectCountStarFromTable(queryFrom, source)
 
 		if source.VerboseMode {
