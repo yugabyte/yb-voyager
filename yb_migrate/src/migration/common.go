@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/go-sql-driver/mysql"
@@ -33,7 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
 	// TODO: handle the case if table name has double quotes/case sensitive
@@ -76,7 +77,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
 		go utils.Wait()
@@ -137,7 +138,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
+func SelectCountStarFromTable(tableName string, source *srcdb.Source) int64 {
 	var rowCount int64 = -1
 	dbConnStr := GetDriverConnStr(source)
 	query := fmt.Sprintf("select count(*) from %s", tableName)
@@ -205,7 +206,7 @@ func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
 	return rowCount
 }
 
-func GetDriverConnStr(source *utils.Source) string {
+func GetDriverConnStr(source *srcdb.Source) string {
 	var connStr string
 	switch source.DBType {
 	//TODO:Discuss and set a priority order for checks in the case of Oracle
@@ -255,7 +256,7 @@ func GetDriverConnStr(source *utils.Source) string {
 	return connStr
 }
 
-func PrintSourceDBVersion(source *utils.Source) string {
+func PrintSourceDBVersion(source *srcdb.Source) string {
 	dbConnStr := GetDriverConnStr(source)
 	version := SelectVersionQuery(source.DBType, dbConnStr)
 
@@ -313,7 +314,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	return version
 }
 
-func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	if source.DBType == "oracle" || source.DBType == "mysql" {
 		// empty - in case of oracle and mysql, the renaming is handled by tool(ora2pg)
 	} else if source.DBType == "postgresql" {
@@ -360,7 +361,7 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
-func MySQLGetAllTableNames(source *utils.Source) []string {
+func MySQLGetAllTableNames(source *srcdb.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("mysql", dbConnStr)
 	if err != nil {
@@ -390,7 +391,7 @@ func MySQLGetAllTableNames(source *utils.Source) []string {
 	return tableNames
 }
 
-func CheckSourceDBAccessibility(source *utils.Source) {
+func CheckSourceDBAccessibility(source *srcdb.Source) {
 	dbConnStr := GetDriverConnStr(source)
 
 	switch source.DBType {

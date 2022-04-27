@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -58,7 +59,7 @@ func initializeExportTableMetadata(tableList []string) {
 			// schema.tablename format is required, as user can have access to similar table in different schema
 			tablesProgressMetadata[tableList[i]].TableSchema = source.Schema
 			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
-			tablesProgressMetadata[tableList[i]].FullTableName = fmt.Sprintf(`%s."%s"`,tablesProgressMetadata[tableList[i]].TableSchema,tablesProgressMetadata[tableList[i]].TableName)
+			tablesProgressMetadata[tableList[i]].FullTableName = fmt.Sprintf(`%s."%s"`, tablesProgressMetadata[tableList[i]].TableSchema, tablesProgressMetadata[tableList[i]].TableName)
 		} else if source.DBType == MYSQL {
 			// schema and database are same in MySQL
 			tablesProgressMetadata[tableList[i]].TableSchema = source.DBName
@@ -255,7 +256,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 }
 
-func checkForEndOfFile(source *utils.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {
+func checkForEndOfFile(source *srcdb.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {
 	if source.DBType == "postgresql" {
 		if strings.HasPrefix(line, "\\.") {
 			return true

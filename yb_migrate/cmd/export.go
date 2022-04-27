@@ -19,13 +19,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
 )
 
 // source struct will be populated by CLI arguments parsing
-var source utils.Source
+var source srcdb.Source
 
 var exportCmd = &cobra.Command{
 	Use:   "export",

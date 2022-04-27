@@ -30,10 +30,11 @@ import (
 	"unicode"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func PgDumpExtractSchema(source *utils.Source, exportDir string) {
+func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 	if source.GenerateReportMode {
 		fmt.Printf("scanning the schema %10s", "")
 	} else {
@@ -74,7 +75,7 @@ func PgDumpExtractSchema(source *utils.Source, exportDir string) {
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(source *utils.Source, exportDir string) {
+func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
 	var schemaDirPath string
@@ -228,7 +229,7 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func PgDumpExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	dataDirPath := exportDir + "/data"
@@ -380,7 +381,7 @@ func createTableListPatterns(tableList []string) string {
 	return tableListPattern
 }
 
-func generateSSLQueryStringIfNotExists(s *utils.Source) string {
+func generateSSLQueryStringIfNotExists(s *srcdb.Source) string {
 
 	if s.Uri == "" {
 		SSLQueryString := ""
