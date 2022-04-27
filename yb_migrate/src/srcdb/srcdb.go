@@ -4,6 +4,7 @@ import "fmt"
 
 type SourceDB interface {
 	Connect() error
+	GetTableRowCount(tableName string) int64
 }
 
 func newSourceDB(source *Source) SourceDB {

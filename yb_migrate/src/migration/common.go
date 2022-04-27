@@ -96,8 +96,7 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 			go utils.Wait()
 		}
 
-		queryFrom := tablesProgressMetadata[key].FullTableName
-		rowCount := SelectCountStarFromTable(queryFrom, source)
+		rowCount := source.DB().GetTableRowCount(tablesProgressMetadata[key].FullTableName)
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
@@ -136,74 +135,6 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	log.Infof("tableRowCountMap: %v", tableRowCountMap)
 	return tableRowCountMap
-}
-
-func SelectCountStarFromTable(tableName string, source *srcdb.Source) int64 {
-	var rowCount int64 = -1
-	dbConnStr := GetDriverConnStr(source)
-	query := fmt.Sprintf("select count(*) from %s", tableName)
-
-	//just querying each source type using corresponding drivers
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0 //stop waiting
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer conn.Close(context.Background())
-
-		err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	}
-
-	if rowCount == -1 { // if var is still not updated
-		errMsg := fmt.Sprintf("couldn't fetch row count for table: %q\n", tableName)
-		utils.ErrExit(errMsg)
-	}
-
-	return rowCount
 }
 
 func GetDriverConnStr(source *srcdb.Source) string {

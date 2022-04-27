@@ -3,6 +3,8 @@ package srcdb
 import (
 	"database/sql"
 	"fmt"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Oracle struct {
@@ -19,6 +21,19 @@ func (ora *Oracle) Connect() error {
 	db, err := sql.Open("godror", ora.getConnectionString())
 	ora.db = db
 	return err
+}
+
+func (ora *Oracle) GetTableRowCount(tableName string) int64 {
+	var rowCount int64
+	query := fmt.Sprintf("select count(*) from %s", tableName)
+
+	log.Infof("Querying row count of table %q", tableName)
+	err := ora.db.QueryRow(query).Scan(&rowCount)
+	if err != nil {
+		ErrExit("Failed to query row count of %q: %s", tableName, err)
+	}
+	log.Infof("Table %q has %v rows.", tableName, rowCount)
+	return rowCount
 }
 
 func (ora *Oracle) getConnectionString() string {

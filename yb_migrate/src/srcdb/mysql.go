@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
+	log "github.com/sirupsen/logrus"
 )
 
 type MySQL struct {
@@ -21,6 +22,19 @@ func (ms *MySQL) Connect() error {
 	db, err := sql.Open("mysql", ms.getConnectionString())
 	ms.db = db
 	return err
+}
+
+func (ms *MySQL) GetTableRowCount(tableName string) int64 {
+	var rowCount int64
+	query := fmt.Sprintf("select count(*) from %s", tableName)
+
+	log.Infof("Querying row count of table %s", tableName)
+	err := ms.db.QueryRow(query).Scan(&rowCount)
+	if err != nil {
+		ErrExit("Failed to query row count of %q: %s", tableName, err)
+	}
+	log.Infof("Table %q has %v rows.", tableName, rowCount)
+	return rowCount
 }
 
 func (ms *MySQL) getConnectionString() string {
