@@ -3,7 +3,6 @@ package srcdb
 import (
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/go-sql-driver/mysql"
 )
@@ -39,8 +38,7 @@ func (ms *MySQL) getConnectionString() string {
 		tlsConf := createTLSConf(source)
 		err := mysql.RegisterTLSConfig("custom", &tlsConf)
 		if err != nil {
-			fmt.Println(err)
-			log.Fatal(err)
+			ErrExit("Failed to register TLS config: %s", err)
 		}
 		tlsString = "tls=custom"
 	default:

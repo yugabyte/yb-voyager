@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Source struct {
@@ -55,6 +57,7 @@ func (s *Source) DB() SourceDB {
 		if err != nil {
 			ErrExit("failed to connect to source database: %s", err)
 		}
+		log.Infof("Connected to source %q database", s.DBType)
 	}
 	return s.sourceDB
 }

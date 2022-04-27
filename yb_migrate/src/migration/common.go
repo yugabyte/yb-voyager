@@ -390,32 +390,3 @@ func MySQLGetAllTableNames(source *srcdb.Source) []string {
 	}
 	return tableNames
 }
-
-func CheckSourceDBAccessibility(source *srcdb.Source) {
-	dbConnStr := GetDriverConnStr(source)
-
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		conn.Close(context.Background())
-	}
-
-}

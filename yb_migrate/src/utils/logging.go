@@ -41,7 +41,8 @@ func CheckError(err error, executedCommand string, possibleReason string, stop b
 
 func ErrExit(formatString string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
-	log.Fatalf(formatString+"\n", args...)
+	log.Errorf(formatString+"\n", args...)
+	os.Exit(1)
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {

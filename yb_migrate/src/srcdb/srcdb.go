@@ -8,7 +8,7 @@ type SourceDB interface {
 
 func newSourceDB(source *Source) SourceDB {
 	switch source.DBType {
-	case "postgres":
+	case "postgresql":
 		return newPostgreSQL(source)
 	case "mysql":
 		return newMySQL(source)
