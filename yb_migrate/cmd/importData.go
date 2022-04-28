@@ -34,6 +34,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -88,8 +89,8 @@ var importDataCmd = &cobra.Command{
 	},
 }
 
-func getYBServers() []*utils.Target {
-	var targets []*utils.Target
+func getYBServers() []*tgtdb.Target {
+	var targets []*tgtdb.Target
 
 	if targetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
@@ -162,7 +163,7 @@ func getYBServers() []*utils.Target {
 	return targets
 }
 
-func testYbServers(targets []*utils.Target) {
+func testYbServers(targets []*tgtdb.Target) {
 	if len(targets) == 0 {
 		utils.ErrExit("no yb servers available/given for data import")
 	}
@@ -177,12 +178,12 @@ func testYbServers(targets []*utils.Target) {
 	log.Infof("all target servers are accessible")
 }
 
-func cloneTarget(t *utils.Target) *utils.Target {
+func cloneTarget(t *tgtdb.Target) *tgtdb.Target {
 	clone := *t
 	return &clone
 }
 
-func getCloneConnectionUri(clone *utils.Target) string {
+func getCloneConnectionUri(clone *tgtdb.Target) string {
 	var cloneConnectionUri string
 	if clone.Uri == "" {
 		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
@@ -199,7 +200,7 @@ func getCloneConnectionUri(clone *utils.Target) string {
 	return cloneConnectionUri
 }
 
-func getTargetConnectionUri(targetStruct *utils.Target) string {
+func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
 	if len(targetStruct.Uri) != 0 {
 		return targetStruct.Uri
 	} else {
@@ -230,7 +231,7 @@ func importData() {
 		splitFileChannelSize = parallelism + 1
 	}
 	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
-	targetServerChannel := make(chan *utils.Target, 1)
+	targetServerChannel := make(chan *tgtdb.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
 	generateSmallerSplits(splitFilesChannel)
@@ -270,7 +271,7 @@ func checkForDone() {
 
 }
 
-func roundRobinTargets(targets []*utils.Target, channel chan *utils.Target) {
+func roundRobinTargets(targets []*tgtdb.Target, channel chan *tgtdb.Target) {
 	index := 0
 	for Done.IsNotSet() {
 		channel <- targets[index%len(targets)]
@@ -741,7 +742,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	return doneTables, interruptedTables, remainingTables, nil
 }
 
-func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *utils.Target) {
+func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *tgtdb.Target) {
 	if Done.IsSet() { //if import is already done, return
 		log.Infof("Done is already set.")
 		return
@@ -773,12 +774,12 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 	importProgressContainer.container.Wait()
 }
 
-func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *utils.Target, parallelImportCount *int64) {
+func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target, parallelImportCount *int64) {
 	doOneImport(t, targetChan)
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
+func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	splitImportDone := false
 	for !splitImportDone {
 		select {

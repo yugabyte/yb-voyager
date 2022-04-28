@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -24,7 +25,7 @@ import (
 var importMode string
 
 // target struct will be populated by CLI arguments parsing
-var target utils.Target
+var target tgtdb.Target
 
 var importCmd = &cobra.Command{
 	Use:   "import",

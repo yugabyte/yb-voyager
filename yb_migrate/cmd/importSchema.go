@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -141,7 +142,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	return fetchedSchema == targetSchema
 }
 
-func generateSSLQueryStringIfNotExists(t *utils.Target) string {
+func generateSSLQueryStringIfNotExists(t *tgtdb.Target) string {
 	SSLQueryString := ""
 	if t.SSLMode == "" {
 		t.SSLMode = "prefer"
@@ -174,7 +175,7 @@ func generateSSLQueryStringIfNotExists(t *utils.Target) string {
 	return SSLQueryString
 }
 
-func generateTargetDBUri(t *utils.Target) string {
+func generateTargetDBUri(t *tgtdb.Target) string {
 	if t.Uri != "" {
 		return t.Uri
 	} else {
