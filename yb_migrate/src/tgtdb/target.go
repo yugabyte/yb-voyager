@@ -22,6 +22,15 @@ type Target struct {
 	VerboseMode            bool
 	TableList              string
 	ImportMode             bool
+
+	db *TargetDB
+}
+
+func (t *Target) DB() *TargetDB {
+	if t.db == nil {
+		t.db = newTargetDB(t)
+	}
+	return t.db
 }
 
 func (t *Target) GetConnectionUri() string {

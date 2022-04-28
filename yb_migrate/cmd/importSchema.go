@@ -52,15 +52,14 @@ func init() {
 func importSchema() {
 	utils.PrintAndLog("import of schema in %q database started", target.DBName)
 
-	targetConnectionURIWithGivenDB := generateTargetDBUri(&target)
-
 	bgCtx := context.Background()
-	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithGivenDB)
+
+	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
-	defer conn.Close(bgCtx)
 
+	conn := target.DB().Conn()
 	PrintTargetYugabyteDBVersion(&target)
 
 	// in case of postgreSQL as source, there can be multiple schemas present in a database
@@ -173,13 +172,4 @@ func generateSSLQueryStringIfNotExists(t *tgtdb.Target) string {
 		SSLQueryString = t.SSLQueryString
 	}
 	return SSLQueryString
-}
-
-func generateTargetDBUri(t *tgtdb.Target) string {
-	if t.Uri != "" {
-		return t.Uri
-	} else {
-		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", target.User,
-			target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(&target))
-	}
 }

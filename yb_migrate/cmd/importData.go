@@ -216,6 +216,10 @@ func importData() {
 	// acquireImportLock()
 	// defer os.Remove(importLockFile)
 	log.Infof("import data command initiated for DB %q", target.DBName)
+	err := target.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the target DB: %s", err)
+	}
 	targets := getYBServers()
 
 	var parallelism = parallelImportJobs
