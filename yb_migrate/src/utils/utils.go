@@ -77,29 +77,6 @@ func Readline(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-//Called before export schema command
-func DeleteProjectDirIfPresent(source *srcdb.Source, exportDir string) {
-	log.Debugf("Deleting existing project related directories under: \"%s\"", exportDir)
-
-	projectDirPath := exportDir
-	// projectDirPath := GetProjectDirPath(source, exportDir)
-
-	err := exec.Command("rm", "-rf", projectDirPath+"/schema").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/data").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/reports").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/metadata").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/temp").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-}
-
 //setup a project having subdirs for various database objects IF NOT EXISTS
 func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 	// log.Debugf("Creating a project directory...")
