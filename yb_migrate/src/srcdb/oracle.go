@@ -23,6 +23,10 @@ func (ora *Oracle) Connect() error {
 	return err
 }
 
+func (ora *Oracle) CheckRequiredToolsAreInstalled() {
+	checkTools("ora2pg", "sqlplus")
+}
+
 func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)

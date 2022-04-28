@@ -47,10 +47,10 @@ to quickly create a Cobra application.`,
 func exportSchema() {
 	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
 
-	utils.CheckToolsRequiredInstalledOrNot(&source)
-
 	// Check connection with source database.
 	_ = source.DB() // DB() calls ErrExit() if connection fails.
+
+	source.DB().CheckRequiredToolsAreInstalled()
 
 	if !source.GenerateReportMode {
 		migration.PrintSourceDBVersion(&source)

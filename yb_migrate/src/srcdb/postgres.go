@@ -24,6 +24,10 @@ func (pg *PostgreSQL) Connect() error {
 	return err
 }
 
+func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
+	checkTools("pg_dump", "strings", "pg_restore")
+}
+
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)

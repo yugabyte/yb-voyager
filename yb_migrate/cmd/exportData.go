@@ -75,10 +75,10 @@ func exportData() {
 }
 
 func exportDataOffline() bool {
-	utils.CheckToolsRequiredInstalledOrNot(&source)
-
 	// Check connection with source database.
 	_ = source.DB() // DB() calls ErrExit() if connection fails.
+
+	source.DB().CheckRequiredToolsAreInstalled()
 
 	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 

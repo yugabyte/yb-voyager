@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -186,42 +185,6 @@ func GetSchemaObjectList(sourceDBType string) []string {
 		os.Exit(1)
 	}
 	return requiredList
-}
-
-func CheckToolsRequiredInstalledOrNot(source *srcdb.Source) {
-	var toolsRequired []string
-
-	switch source.DBType {
-	case "oracle":
-		toolsRequired = []string{"ora2pg", "sqlplus"}
-	case "postgresql":
-		toolsRequired = []string{"pg_dump", "strings", "pg_restore"}
-	case "mysql":
-		toolsRequired = []string{"ora2pg"}
-	default:
-		errMsg := "Invalid DB Type!!\n"
-		ErrExit(errMsg)
-	}
-
-	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
-
-	for _, tool := range toolsRequired {
-		versionFlag := "--version"
-
-		checkToolPresenceCommand := exec.Command(tool, versionFlag)
-		err := checkToolPresenceCommand.Run()
-
-		if err != nil {
-			if commandNotFoundRegexp.MatchString(err.Error()) {
-				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
-				ErrExit(errMsg)
-			} else {
-				panic(err)
-			}
-		}
-	}
-
-	// PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
 }
 
 func IsDirectoryEmpty(pathPattern string) bool {

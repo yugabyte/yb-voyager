@@ -24,6 +24,10 @@ func (ms *MySQL) Connect() error {
 	return err
 }
 
+func (ms *MySQL) CheckRequiredToolsAreInstalled() {
+	checkTools("ora2pg")
+}
+
 func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)
