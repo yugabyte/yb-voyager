@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -320,4 +321,48 @@ func MySQLGetAllTableNames(source *srcdb.Source) []string {
 		tableNames = append(tableNames, tableName)
 	}
 	return tableNames
+}
+
+//setup a project having subdirs for various database objects IF NOT EXISTS
+func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
+	var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
+
+	// log.Debugf("Creating a project directory...")
+	//Assuming export directory as a project directory
+	projectDirPath := exportDir
+	if source.GenerateReportMode {
+		projectSubdirs = []string{"temp", "temp/schema", "reports"}
+	}
+
+	for _, subdir := range projectSubdirs {
+		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
+		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
+	}
+
+	// Put info to metainfo/schema about the source db
+	if !source.GenerateReportMode {
+		sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+		cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
+		utils.CheckError(err, "", string(cmdOutput), true)
+	}
+
+	schemaObjectList := utils.GetSchemaObjectList(source.DBType)
+
+	// creating subdirs under schema dir
+	for _, schemaObjectType := range schemaObjectList {
+		if schemaObjectType == "INDEX" { //no separate dir for indexes
+			continue
+		}
+		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+
+		var err error
+		if source.GenerateReportMode {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
+		} else {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		}
+		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+	}
+
+	// log.Debugf("Created a project directory...")
 }

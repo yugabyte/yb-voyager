@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -29,10 +28,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 )
-
-var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 func Wait(args ...string) {
 	var successMsg, failureMsg string
@@ -75,48 +71,6 @@ func Readline(r *bufio.Reader) (string, error) {
 		ln = append(ln, line...)
 	}
 	return string(ln), err
-}
-
-//setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
-	// log.Debugf("Creating a project directory...")
-	//Assuming export directory as a project directory
-	projectDirPath := exportDir
-	if source.GenerateReportMode {
-		projectSubdirs = []string{"temp", "temp/schema", "reports"}
-	}
-
-	for _, subdir := range projectSubdirs {
-		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
-	}
-
-	// Put info to metainfo/schema about the source db
-	if !source.GenerateReportMode {
-		sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-		cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-		CheckError(err, "", string(cmdOutput), true)
-	}
-
-	schemaObjectList := GetSchemaObjectList(source.DBType)
-
-	// creating subdirs under schema dir
-	for _, schemaObjectType := range schemaObjectList {
-		if schemaObjectType == "INDEX" { //no separate dir for indexes
-			continue
-		}
-		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
-
-		var err error
-		if source.GenerateReportMode {
-			err = exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
-		} else {
-			err = exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
-		}
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
-	}
-
-	// log.Debugf("Created a project directory...")
 }
 
 func AskPrompt(args ...string) bool {

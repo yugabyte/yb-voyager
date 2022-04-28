@@ -59,7 +59,7 @@ func exportSchema() {
 		migration.PrintSourceDBVersion(&source)
 	}
 
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	switch source.DBType {
 	case ORACLE:

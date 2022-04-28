@@ -82,7 +82,7 @@ func exportDataOffline() bool {
 
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
