@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type PostgreSQL struct {
@@ -24,6 +25,10 @@ func (pg *PostgreSQL) Connect() error {
 	return err
 }
 
+func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
+	checkTools("pg_dump", "strings", "pg_restore")
+}
+
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)
@@ -31,7 +36,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	log.Infof("Querying row count of table %q", tableName)
 	err := pg.db.QueryRow(context.Background(), query).Scan(&rowCount)
 	if err != nil {
-		ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount

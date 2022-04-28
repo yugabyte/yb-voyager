@@ -75,12 +75,14 @@ func exportData() {
 }
 
 func exportDataOffline() bool {
-	utils.CheckToolsRequiredInstalledOrNot(&source)
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source db: %s", err)
+	}
 
-	// Check connection with source database.
-	_ = source.DB() // DB() calls ErrExit() if connection fails.
+	source.DB().CheckRequiredToolsAreInstalled()
 
-	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
+	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
