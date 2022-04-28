@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -65,7 +66,7 @@ func importSchema() {
 	targetSchemas := []string{target.Schema}
 	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
 	if sourceDBType == "postgresql" {
-		source = utils.Source{DBType: sourceDBType}
+		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(generateReportHelper(), "SCHEMA")...)
 	}
 

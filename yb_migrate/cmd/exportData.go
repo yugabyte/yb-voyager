@@ -77,7 +77,8 @@ func exportData() {
 func exportDataOffline() bool {
 	utils.CheckToolsRequiredInstalledOrNot(&source)
 
-	migration.CheckSourceDBAccessibility(&source)
+	// Check connection with source database.
+	_ = source.DB() // DB() calls ErrExit() if connection fails.
 
 	utils.CreateMigrationProjectIfNotExists(&source, exportDir)
 

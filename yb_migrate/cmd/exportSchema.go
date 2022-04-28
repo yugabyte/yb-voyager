@@ -49,7 +49,8 @@ func exportSchema() {
 
 	utils.CheckToolsRequiredInstalledOrNot(&source)
 
-	migration.CheckSourceDBAccessibility(&source)
+	// Check connection with source database.
+	_ = source.DB() // DB() calls ErrExit() if connection fails.
 
 	if !source.GenerateReportMode {
 		migration.PrintSourceDBVersion(&source)

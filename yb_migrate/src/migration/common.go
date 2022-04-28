@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/go-sql-driver/mysql"
@@ -33,7 +34,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
 	// TODO: handle the case if table name has double quotes/case sensitive
@@ -76,7 +77,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
 		go utils.Wait()
@@ -95,8 +96,7 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 			go utils.Wait()
 		}
 
-		queryFrom := tablesProgressMetadata[key].FullTableName
-		rowCount := SelectCountStarFromTable(queryFrom, source)
+		rowCount := source.DB().GetTableRowCount(tablesProgressMetadata[key].FullTableName)
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
@@ -137,75 +137,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
-	var rowCount int64 = -1
-	dbConnStr := GetDriverConnStr(source)
-	query := fmt.Sprintf("select count(*) from %s", tableName)
-
-	//just querying each source type using corresponding drivers
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0 //stop waiting
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer conn.Close(context.Background())
-
-		err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	}
-
-	if rowCount == -1 { // if var is still not updated
-		errMsg := fmt.Sprintf("couldn't fetch row count for table: %q\n", tableName)
-		utils.ErrExit(errMsg)
-	}
-
-	return rowCount
-}
-
-func GetDriverConnStr(source *utils.Source) string {
+func GetDriverConnStr(source *srcdb.Source) string {
 	var connStr string
 	switch source.DBType {
 	//TODO:Discuss and set a priority order for checks in the case of Oracle
@@ -255,7 +187,7 @@ func GetDriverConnStr(source *utils.Source) string {
 	return connStr
 }
 
-func PrintSourceDBVersion(source *utils.Source) string {
+func PrintSourceDBVersion(source *srcdb.Source) string {
 	dbConnStr := GetDriverConnStr(source)
 	version := SelectVersionQuery(source.DBType, dbConnStr)
 
@@ -313,7 +245,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 	return version
 }
 
-func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	if source.DBType == "oracle" || source.DBType == "mysql" {
 		// empty - in case of oracle and mysql, the renaming is handled by tool(ora2pg)
 	} else if source.DBType == "postgresql" {
@@ -360,7 +292,7 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
-func MySQLGetAllTableNames(source *utils.Source) []string {
+func MySQLGetAllTableNames(source *srcdb.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("mysql", dbConnStr)
 	if err != nil {
@@ -388,33 +320,4 @@ func MySQLGetAllTableNames(source *utils.Source) []string {
 		tableNames = append(tableNames, tableName)
 	}
 	return tableNames
-}
-
-func CheckSourceDBAccessibility(source *utils.Source) {
-	dbConnStr := GetDriverConnStr(source)
-
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		conn.Close(context.Background())
-	}
-
 }

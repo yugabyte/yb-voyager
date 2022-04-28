@@ -23,10 +23,11 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func parseSSLString(source *utils.Source) {
+func parseSSLString(source *srcdb.Source) {
 	if source.SSLQueryString == "" {
 		return
 	}
@@ -54,7 +55,7 @@ func parseSSLString(source *utils.Source) {
 	}
 }
 
-func createTLSConf(source *utils.Source) tls.Config {
+func createTLSConf(source *srcdb.Source) tls.Config {
 	rootCertPool := x509.NewCertPool()
 	if source.SSLRootCert != "" {
 		pem, err := ioutil.ReadFile(source.SSLRootCert)
@@ -96,7 +97,7 @@ func createTLSConf(source *utils.Source) tls.Config {
 	}
 }
 
-func extrapolateDSNfromSSLParams(source *utils.Source, DSN string) string {
+func extrapolateDSNfromSSLParams(source *srcdb.Source, DSN string) string {
 	switch source.SSLMode {
 	case "disable":
 		DSN += ";mysql_ssl=0;mysql_ssl_optional=0"

@@ -30,6 +30,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 )
 
 var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
@@ -78,7 +79,7 @@ func Readline(r *bufio.Reader) (string, error) {
 }
 
 //Called before export schema command
-func DeleteProjectDirIfPresent(source *Source, exportDir string) {
+func DeleteProjectDirIfPresent(source *srcdb.Source, exportDir string) {
 	log.Debugf("Deleting existing project related directories under: \"%s\"", exportDir)
 
 	projectDirPath := exportDir
@@ -101,7 +102,7 @@ func DeleteProjectDirIfPresent(source *Source, exportDir string) {
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
+func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 	// log.Debugf("Creating a project directory...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
@@ -187,7 +188,7 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
-func CheckToolsRequiredInstalledOrNot(source *Source) {
+func CheckToolsRequiredInstalledOrNot(source *srcdb.Source) {
 	var toolsRequired []string
 
 	switch source.DBType {
