@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type Oracle struct {
@@ -34,7 +35,7 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	log.Infof("Querying row count of table %q", tableName)
 	err := ora.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount

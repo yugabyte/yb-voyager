@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type Source struct {
@@ -150,21 +152,21 @@ func createTLSConf(source *Source) tls.Config {
 	if source.SSLRootCert != "" {
 		pem, err := ioutil.ReadFile(source.SSLRootCert)
 		if err != nil {
-			ErrExit("error in reading SSL Root Certificate: %v", err)
+			utils.ErrExit("error in reading SSL Root Certificate: %v", err)
 		}
 
 		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
-			ErrExit("Failed to append PEM.")
+			utils.ErrExit("Failed to append PEM.")
 		}
 	} else {
-		ErrExit("Root Certificate Needed for verify-ca and verify-full SSL Modes")
+		utils.ErrExit("Root Certificate Needed for verify-ca and verify-full SSL Modes")
 	}
 	clientCert := make([]tls.Certificate, 0, 1)
 
 	if source.SSLCertPath != "" && source.SSLKey != "" {
 		certs, err := tls.LoadX509KeyPair(source.SSLCertPath, source.SSLKey)
 		if err != nil {
-			ErrExit("error in reading and parsing SSL KeyPair: %v", err)
+			utils.ErrExit("error in reading and parsing SSL KeyPair: %v", err)
 		}
 
 		clientCert = append(clientCert, certs)
@@ -211,7 +213,7 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 					}
 				}
 			} else {
-				ErrExit("Invalid sslmode: %q", s.SSLMode)
+				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
 			}
 		} else {
 			SSLQueryString = s.SSLQueryString

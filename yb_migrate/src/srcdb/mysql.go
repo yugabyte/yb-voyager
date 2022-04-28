@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type MySQL struct {
@@ -35,7 +36,7 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount
@@ -56,7 +57,7 @@ func (ms *MySQL) getConnectionString() string {
 		tlsConf := createTLSConf(source)
 		err := mysql.RegisterTLSConfig("custom", &tlsConf)
 		if err != nil {
-			ErrExit("Failed to register TLS config: %s", err)
+			utils.ErrExit("Failed to register TLS config: %s", err)
 		}
 		tlsString = "tls=custom"
 	default:
