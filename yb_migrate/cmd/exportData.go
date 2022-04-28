@@ -75,8 +75,10 @@ func exportData() {
 }
 
 func exportDataOffline() bool {
-	// Check connection with source database.
-	_ = source.DB() // DB() calls ErrExit() if connection fails.
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source db: %s", err)
+	}
 
 	source.DB().CheckRequiredToolsAreInstalled()
 

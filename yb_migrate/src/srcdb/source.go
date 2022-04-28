@@ -10,14 +10,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type Source struct {
-	sync.Mutex
-
 	DBType             string
 	Host               string
 	Port               int
@@ -44,20 +39,8 @@ type Source struct {
 }
 
 func (s *Source) DB() SourceDB {
-	if s.sourceDB != nil {
-		return s.sourceDB
-	}
-
-	s.Lock()
-	defer s.Unlock()
-
 	if s.sourceDB == nil {
 		s.sourceDB = newSourceDB(s)
-		err := s.sourceDB.Connect()
-		if err != nil {
-			ErrExit("failed to connect to source database: %s", err)
-		}
-		log.Infof("Connected to source %q database", s.DBType)
 	}
 	return s.sourceDB
 }

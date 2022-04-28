@@ -48,7 +48,10 @@ func exportSchema() {
 	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
 
 	// Check connection with source database.
-	_ = source.DB() // DB() calls ErrExit() if connection fails.
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source db: %s", err)
+	}
 
 	source.DB().CheckRequiredToolsAreInstalled()
 
