@@ -52,6 +52,26 @@ func (ms *MySQL) GetVersion() string {
 	return version
 }
 
+func (ms *MySQL) GetAllTableNames() []string {
+	var tableNames []string
+	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
+		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", ms.source.DBName)
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for table names: %v\n", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		err = rows.Scan(&tableName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	return tableNames
+}
+
 func (ms *MySQL) getConnectionString() string {
 	source := ms.source
 	parseSSLString(source)

@@ -7,6 +7,7 @@ type SourceDB interface {
 	GetTableRowCount(tableName string) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
+	GetAllTableNames() []string
 }
 
 func newSourceDB(source *Source) SourceDB {

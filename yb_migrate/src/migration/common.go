@@ -16,7 +16,6 @@ limitations under the License.
 package migration
 
 import (
-	"database/sql"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -231,36 +230,6 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 		fmt.Printf("| %30s | %30d |\n", key, actualRowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
-}
-
-func MySQLGetAllTableNames(source *srcdb.Source) []string {
-	dbConnStr := GetDriverConnStr(source)
-	db, err := sql.Open("mysql", dbConnStr)
-	if err != nil {
-		errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer db.Close()
-
-	var tableNames []string
-	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
-		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", source.DBName)
-	rows, err := db.Query(query)
-	if err != nil {
-		errMsg := fmt.Sprintf("error in querying source database for table names: %v\n", err)
-		utils.ErrExit(errMsg)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var tableName string
-		err = rows.Scan(&tableName)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in scanning query rows for table names: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		tableNames = append(tableNames, tableName)
-	}
-	return tableNames
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
