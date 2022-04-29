@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
@@ -72,6 +71,17 @@ const (
 	YsqlDump
 	PgDump
 )
+
+type SplitFileImportTask struct {
+	TableName           string
+	SchemaName          string
+	SplitFilePath       string
+	OffsetStart         int64
+	OffsetEnd           int64
+	TmpConnectionString string
+	SplitNumber         int64
+	Interrupted         bool
+}
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -228,7 +238,7 @@ func importData() {
 	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
 		splitFileChannelSize = parallelism + 1
 	}
-	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
+	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
 	targetServerChannel := make(chan *tgtdb.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
@@ -277,7 +287,7 @@ func roundRobinTargets(targets []*tgtdb.Target, channel chan *tgtdb.Target) {
 	}
 }
 
-func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
+func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
 	log.Infof("doneTables: %s", doneTables)
@@ -432,7 +442,7 @@ func truncateTables(tables []string) {
 	}
 }
 
-func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
+func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
 	log.Infof("Started goroutine: splitDataFiles")
 	for _, t := range importTables {
 		sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
@@ -510,7 +520,7 @@ func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTa
 	GenerateSplitsDone.Set()
 }
 
-func splitFilesForTable(dataFile string, t string, taskQueue chan *fwk.SplitFileImportTask, largestSplit int64, largestOffset int64) {
+func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", dataFile, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
@@ -638,8 +648,8 @@ func isDataLine(line string) bool {
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	taskQueue chan *fwk.SplitFileImportTask) {
-	var t fwk.SplitFileImportTask
+	taskQueue chan *SplitFileImportTask) {
+	var t SplitFileImportTask
 	t.SchemaName = schemaName
 	t.TableName = tableName
 	t.SplitFilePath = filepath
@@ -740,7 +750,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	return doneTables, interruptedTables, remainingTables, nil
 }
 
-func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *tgtdb.Target) {
+func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan chan *tgtdb.Target) {
 	if Done.IsSet() { //if import is already done, return
 		log.Infof("Done is already set.")
 		return
@@ -772,12 +782,12 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 	importProgressContainer.container.Wait()
 }
 
-func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target, parallelImportCount *int64) {
+func doImportInParallel(t *SplitFileImportTask, targetChan chan *tgtdb.Target, parallelImportCount *int64) {
 	doOneImport(t, targetChan)
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target) {
+func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	splitImportDone := false
 	for !splitImportDone {
 		select {
@@ -928,7 +938,7 @@ func executeSqlFile(file string) {
 	<-utils.WaitChannel
 }
 
-func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
+func getInProgressFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
@@ -941,7 +951,7 @@ func getInProgressFilePath(task *fwk.SplitFileImportTask) string {
 	}
 }
 
-func getDoneFilePath(task *fwk.SplitFileImportTask) string {
+func getDoneFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
 	base := filepath.Base(path)
 	dir := filepath.Dir(path)
