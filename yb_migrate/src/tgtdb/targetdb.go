@@ -40,7 +40,15 @@ func (tdb *TargetDB) Connect() error {
 	return nil
 }
 
+func (tdb *TargetDB) EnsureConnected() {
+	err := tdb.Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the target DB: %s", err)
+	}
+}
+
 func (tdb *TargetDB) GetVersion() string {
+	tdb.EnsureConnected()
 	var version string
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := tdb.conn.QueryRow(context.Background(), query).Scan(&version)

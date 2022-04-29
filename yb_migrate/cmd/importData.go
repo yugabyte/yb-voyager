@@ -98,7 +98,7 @@ func getYBServers() []*tgtdb.Target {
 
 		ybServers := utils.CsvStringToSlice(targetEndpoints)
 		for _, ybServer := range ybServers {
-			clone := cloneTarget(&target)
+			clone := target.Clone()
 
 			if strings.Contains(ybServer, ":") {
 				clone.Host = strings.Split(ybServer, ":")[0]
@@ -132,7 +132,7 @@ func getYBServers() []*tgtdb.Target {
 
 		var hostPorts []string
 		for rows.Next() {
-			clone := cloneTarget(&target)
+			clone := target.Clone()
 			var host, nodeType, cloud, region, zone, public_ip string
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
@@ -175,11 +175,6 @@ func testYbServers(targets []*tgtdb.Target) {
 		conn.Close(context.Background())
 	}
 	log.Infof("all target servers are accessible")
-}
-
-func cloneTarget(t *tgtdb.Target) *tgtdb.Target {
-	clone := *t
-	return &clone
 }
 
 func getCloneConnectionUri(clone *tgtdb.Target) string {

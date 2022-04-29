@@ -26,6 +26,12 @@ type Target struct {
 	db *TargetDB
 }
 
+func (t *Target) Clone() *Target {
+	clone := *t
+	clone.db = nil
+	return &clone
+}
+
 func (t *Target) DB() *TargetDB {
 	if t.db == nil {
 		t.db = newTargetDB(t)
