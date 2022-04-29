@@ -33,7 +33,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
@@ -807,7 +806,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target) {
 			}
 			defer conn.Close(context.Background())
 
-			dbVersion := migration.SelectVersionQuery("yugabytedb", targetServer.GetConnectionUri())
+			dbVersion := targetServer.DB().GetVersion()
 
 			for i, statement := range IMPORT_SESSION_SETTERS {
 				if checkSessionVariableSupported(i, dbVersion) {

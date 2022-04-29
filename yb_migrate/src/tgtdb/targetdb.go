@@ -18,6 +18,7 @@ func newTargetDB(target *Target) *TargetDB {
 	return &TargetDB{target: target}
 }
 
+// TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
 func (tdb *TargetDB) Conn() *pgx.Conn {
 	if tdb.conn == nil {
 		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
@@ -40,5 +41,11 @@ func (tdb *TargetDB) Connect() error {
 }
 
 func (tdb *TargetDB) GetVersion() string {
-	return ""
+	var version string
+	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
+	err := tdb.conn.QueryRow(context.Background(), query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("get target db version: %s", err)
+	}
+	return version
 }

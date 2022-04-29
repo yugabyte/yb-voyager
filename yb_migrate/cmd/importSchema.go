@@ -60,7 +60,7 @@ func importSchema() {
 	}
 
 	conn := target.DB().Conn()
-	PrintTargetYugabyteDBVersion(&target)
+	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
 
 	// in case of postgreSQL as source, there can be multiple schemas present in a database
 	targetSchemas := []string{target.Schema}

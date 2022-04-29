@@ -228,7 +228,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		if err != nil {
 			utils.ErrExit("run query %q on source: %s", query, err)
 		}
-	case "postgresql", "yugabytedb":
+	case "postgresql":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
 			utils.ErrExit("connect to %s db: %s", dbType, err)
@@ -240,6 +240,8 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		if err != nil {
 			utils.ErrExit("run query %q on %s: %s", query, dbType, err)
 		}
+	default:
+		panic(fmt.Sprintf("Unknown source db type: %q", dbType))
 	}
 
 	log.Infof("%s version: %q", dbType, version)
