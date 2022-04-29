@@ -42,6 +42,16 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
+func (ms *MySQL) GetVersion() string {
+	var version string
+	query := "SELECT VERSION()"
+	err := ms.db.QueryRow(query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("run query %q on source: %s", query, err)
+	}
+	return version
+}
+
 func (ms *MySQL) getConnectionString() string {
 	source := ms.source
 	parseSSLString(source)

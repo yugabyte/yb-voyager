@@ -42,6 +42,16 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
+func (pg *PostgreSQL) GetVersion() string {
+	var version string
+	query := "SELECT setting from pg_settings where name = 'server_version'"
+	err := pg.db.QueryRow(context.Background(), query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("run query %q on source: %s", query, err)
+	}
+	return version
+}
+
 func (pg *PostgreSQL) getConnectionString() string {
 	source := pg.source
 

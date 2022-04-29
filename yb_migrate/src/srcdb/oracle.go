@@ -41,6 +41,17 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
+func (ora *Oracle) GetVersion() string {
+	var version string
+	query := "SELECT BANNER FROM V$VERSION"
+	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+	err := ora.db.QueryRow(query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("run query %q on source: %s", query, err)
+	}
+	return version
+}
+
 func (ora *Oracle) getConnectionString() string {
 	source := ora.source
 	var connStr string

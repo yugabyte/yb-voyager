@@ -73,7 +73,9 @@ func exportSchema() {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	source.DB().CheckRequiredToolsAreInstalled()
-	migration.PrintSourceDBVersion(&source)
+
+	fmt.Printf("%s version: %s\n", source.DBType, source.DB().GetVersion())
+
 	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	switch source.DBType {

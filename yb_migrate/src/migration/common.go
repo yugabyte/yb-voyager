@@ -16,7 +16,6 @@ limitations under the License.
 package migration
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"io/ioutil"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
-	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -186,62 +184,6 @@ func GetDriverConnStr(source *srcdb.Source) string {
 		}
 	}
 	return connStr
-}
-
-func PrintSourceDBVersion(source *srcdb.Source) string {
-	dbConnStr := GetDriverConnStr(source)
-	version := SelectVersionQuery(source.DBType, dbConnStr)
-	fmt.Printf("%s Version: %s\n", strings.ToUpper(source.DBType), version)
-	return version
-}
-
-func SelectVersionQuery(dbType string, dbConnStr string) string {
-	var version string
-
-	switch dbType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			utils.ErrExit("connect to oracle source DB: %s", err)
-		}
-		defer db.Close()
-
-		query := "SELECT BANNER FROM V$VERSION"
-		// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
-		err = db.QueryRow(query).Scan(&version)
-		if err != nil {
-			utils.ErrExit("run query %q on source: %s", query, err)
-		}
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			utils.ErrExit("connect to source mysql db: %s", err)
-		}
-		defer db.Close()
-
-		query := "SELECT VERSION()"
-		err = db.QueryRow(query).Scan(&version)
-		if err != nil {
-			utils.ErrExit("run query %q on source: %s", query, err)
-		}
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			utils.ErrExit("connect to %s db: %s", dbType, err)
-		}
-		defer conn.Close(context.Background())
-
-		query := "SELECT setting from pg_settings where name = 'server_version'"
-		err = conn.QueryRow(context.Background(), query).Scan(&version)
-		if err != nil {
-			utils.ErrExit("run query %q on %s: %s", query, dbType, err)
-		}
-	default:
-		panic(fmt.Sprintf("Unknown source db type: %q", dbType))
-	}
-
-	log.Infof("%s version: %q", dbType, version)
-	return version
 }
 
 func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {

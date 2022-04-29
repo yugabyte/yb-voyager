@@ -6,6 +6,7 @@ type SourceDB interface {
 	Connect() error
 	GetTableRowCount(tableName string) int64
 	CheckRequiredToolsAreInstalled()
+	GetVersion() string
 }
 
 func newSourceDB(source *Source) SourceDB {
