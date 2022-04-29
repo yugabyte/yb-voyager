@@ -22,20 +22,13 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/jackc/pgx/v4"
 )
 
-func PrintTargetYugabyteDBVersion(target *utils.Target) {
-	targetConnectionURI := target.GetConnectionUri()
-
-	version := migration.SelectVersionQuery("yugabytedb", targetConnectionURI)
-	fmt.Printf("YugabyteDB Version: %s\n", version)
-}
-
-func YugabyteDBImportSchema(target *utils.Target, exportDir string) {
+func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 	metaInfo := ExtractMetaInfo(exportDir)
 
 	projectDirPath := exportDir

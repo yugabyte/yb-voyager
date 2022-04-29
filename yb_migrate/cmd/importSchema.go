@@ -25,6 +25,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -51,16 +52,15 @@ func init() {
 func importSchema() {
 	utils.PrintAndLog("import of schema in %q database started", target.DBName)
 
-	targetConnectionURIWithGivenDB := generateTargetDBUri(&target)
-
 	bgCtx := context.Background()
-	conn, err := pgx.Connect(bgCtx, targetConnectionURIWithGivenDB)
+
+	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
-	defer conn.Close(bgCtx)
 
-	PrintTargetYugabyteDBVersion(&target)
+	conn := target.DB().Conn()
+	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
 
 	// in case of postgreSQL as source, there can be multiple schemas present in a database
 	targetSchemas := []string{target.Schema}
@@ -141,7 +141,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	return fetchedSchema == targetSchema
 }
 
-func generateSSLQueryStringIfNotExists(t *utils.Target) string {
+func generateSSLQueryStringIfNotExists(t *tgtdb.Target) string {
 	SSLQueryString := ""
 	if t.SSLMode == "" {
 		t.SSLMode = "prefer"
@@ -172,13 +172,4 @@ func generateSSLQueryStringIfNotExists(t *utils.Target) string {
 		SSLQueryString = t.SSLQueryString
 	}
 	return SSLQueryString
-}
-
-func generateTargetDBUri(t *utils.Target) string {
-	if t.Uri != "" {
-		return t.Uri
-	} else {
-		return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", target.User,
-			target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(&target))
-	}
 }
