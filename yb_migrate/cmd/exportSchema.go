@@ -87,7 +87,7 @@ func exportSchema() {
 		utils.ErrExit("Invalid source database type for export\n")
 	}
 
-	fmt.Printf("\nExported schema files created under directory: %s\n", exportDir+"/schema")
+	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
 	setSchemaIsExported(exportDir)
 }
 
