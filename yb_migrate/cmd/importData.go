@@ -333,7 +333,6 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 				truncateTables([]string{tableName})
 			}
 		}
-
 	}
 
 	if target.VerboseMode {
@@ -379,6 +378,14 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
+	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
+	if sourceDBType == ORACLE {
+		table = strings.ToLower(table)
+	}
+
+	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
+	but in case of oracle exported data files(which we use for to extract tablename)
+	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
 	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
 	// fmt.Println(checkPKSql)
@@ -827,23 +834,24 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target) {
 			}
 
 			copyCommand := getCopyCommand(t.TableName)
-
-			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-			rowsCount := res.RowsAffected()
-			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
-			if err != nil {
-				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-				if !strings.Contains(err.Error(), "violates unique constraint") {
-					utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
-				} else { //in case of unique key violation error take row count from the split task
-					rowsCount = t.OffsetEnd - t.OffsetStart
-					log.Infof("assuming affected rows count %v", rowsCount)
+			// copyCommand is empty when there are no rows for that table
+			if copyCommand != "" {
+				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+				rowsCount := res.RowsAffected()
+				log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+				if err != nil {
+					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+					if !strings.Contains(err.Error(), "violates unique constraint") {
+						utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
+					} else { //in case of unique key violation error take row count from the split task
+						rowsCount = t.OffsetEnd - t.OffsetStart
+						log.Infof("assuming affected rows count %v", rowsCount)
+					}
 				}
+
+				// update the import data status as soon as rows are copied
+				incrementImportedRowCount(t.TableName, rowsCount)
 			}
-
-			// update the import data status as soon as rows are copied
-			incrementImportedRowCount(t.TableName, rowsCount)
-
 			doneFilePath := getDoneFilePath(t)
 			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
 			err = os.Rename(inProgressFilePath, doneFilePath)
@@ -998,7 +1006,7 @@ func getCopyCommand(table string) string {
 	if copyCommand, ok := copyTableFromCommands[table]; ok {
 		return copyCommand
 	} else {
-		utils.ErrExit("No COPY command for table %q", table)
+		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
 }
