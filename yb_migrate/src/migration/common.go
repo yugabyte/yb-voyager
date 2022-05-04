@@ -239,6 +239,9 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 	// log.Debugf("Creating a project directory...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
+	if source.GenerateReportMode {
+		projectSubdirs = []string{"temp", "temp/schema", "reports"}
+	}
 
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
@@ -246,9 +249,11 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 	}
 
 	// Put info to metainfo/schema about the source db
-	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-	utils.CheckError(err, "", string(cmdOutput), true)
+	if !source.GenerateReportMode {
+		sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+		cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
+		utils.CheckError(err, "", string(cmdOutput), true)
+	}
 
 	schemaObjectList := utils.GetSchemaObjectList(source.DBType)
 
@@ -259,7 +264,12 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
-		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		var err error
+		if source.GenerateReportMode {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
+		} else {
+			err = exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		}
 		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
 	}
 

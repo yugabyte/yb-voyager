@@ -35,7 +35,14 @@ import (
 )
 
 func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
-	schemaDirPath := exportDir + "/schema"
+	var schemaDirPath string
+	if source.GenerateReportMode {
+		schemaDirPath = exportDir + "/temp/schema"
+	} else {
+		schemaDirPath = exportDir + "/schema"
+	}
+
+	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
 	configFilePath := exportDir + "/temp/.ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
@@ -45,9 +52,12 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 		if exportObject == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
-
-		fmt.Printf("exporting %10s %5s", exportObject, "")
-
+		// utils.PrintIfTrue(fmt.Sprintf("starting export of %ss...\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
+		if source.GenerateReportMode {
+			fmt.Printf("scanning %10s %5s", exportObject, "")
+		} else {
+			fmt.Printf("exporting %10s %5s", exportObject, "")
+		}
 		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)

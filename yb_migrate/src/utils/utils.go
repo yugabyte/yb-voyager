@@ -85,7 +85,7 @@ func AskPrompt(args ...string) bool {
 		}
 
 	}
-	fmt.Printf("? [Y/N]: ")
+	fmt.Printf("?[Y/N]:")
 
 	_, err := fmt.Scan(&input)
 
@@ -139,11 +139,12 @@ func FileOrFolderExists(path string) bool {
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")
-		log.Infof("cleaning directory: %s", dir)
+		fmt.Printf("cleaning directory: %s ...\n", dir)
 		for _, file := range files {
 			err := os.RemoveAll(file)
 			if err != nil {
-				ErrExit("clean dir %q: %s", dir, err)
+				fmt.Printf("%s\n", err.Error())
+				os.Exit(1)
 			}
 		}
 	}
