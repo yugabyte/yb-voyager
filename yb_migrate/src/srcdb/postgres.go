@@ -42,6 +42,46 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
+func (pg *PostgreSQL) GetVersion() string {
+	var version string
+	query := "SELECT setting from pg_settings where name = 'server_version'"
+	err := pg.db.QueryRow(context.Background(), query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("run query %q on source: %s", query, err)
+	}
+	return version
+}
+
+func (pg *PostgreSQL) GetAllTableNames() []string {
+	query := `SELECT table_schema, table_name
+			  FROM information_schema.tables
+			  WHERE table_type = 'BASE TABLE' AND
+			        table_schema NOT IN ('pg_catalog', 'information_schema');`
+
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for table names: %v\n", err)
+	}
+	defer rows.Close()
+
+	var tableNames []string
+	var tableName, tableSchema string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchema, &tableName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
+		}
+		if nameContainsCapitalLetter(tableName) {
+			// Surround the table name with double quotes.
+			tableName = fmt.Sprintf("\"%s\"", tableName)
+		}
+		tableNames = append(tableNames, fmt.Sprintf("%s.%s", tableSchema, tableName))
+	}
+	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
+	return tableNames
+}
+
 func (pg *PostgreSQL) getConnectionString() string {
 	source := pg.source
 

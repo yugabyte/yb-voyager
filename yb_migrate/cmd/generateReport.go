@@ -23,7 +23,6 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"os"
@@ -162,7 +161,7 @@ func reportSummary() {
 	if !target.ImportMode { // this info is available only if we are exporting from source
 		reportStruct.Summary.DBName = source.DBName
 		reportStruct.Summary.SchemaName = source.Schema
-		reportStruct.Summary.DBVersion = migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+		reportStruct.Summary.DBVersion = source.DB().GetVersion()
 	}
 
 	// requiredJson += `"databaseObjects": [`

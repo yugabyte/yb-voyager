@@ -41,6 +41,51 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
+func (ora *Oracle) GetVersion() string {
+	var version string
+	query := "SELECT BANNER FROM V$VERSION"
+	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
+	err := ora.db.QueryRow(query).Scan(&version)
+	if err != nil {
+		utils.ErrExit("run query %q on source: %s", query, err)
+	}
+	return version
+}
+
+func (ora *Oracle) GetAllTableNames() []string {
+	var tableNames []string
+	/* below query will collect all tables under given schema except TEMPORARY tables,
+	Index related tables(start with DR$) and materialized view */
+	query := fmt.Sprintf(`SELECT table_name
+		FROM all_tables
+		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND
+		(owner, table_name) not in (
+			SELECT owner, mview_name
+			FROM all_mviews
+			UNION ALL
+			SELECT log_owner, log_table
+			FROM all_mview_logs)
+		ORDER BY table_name ASC`, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for table names: %v", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		err = rows.Scan(&tableName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for table names: %v", err)
+		}
+
+		tableNames = append(tableNames, tableName)
+	}
+
+	log.Infof("Table Name List: %q", tableNames)
+
+	return tableNames
+}
+
 func (ora *Oracle) getConnectionString() string {
 	source := ora.source
 	var connStr string
