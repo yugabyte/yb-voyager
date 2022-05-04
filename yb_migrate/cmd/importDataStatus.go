@@ -32,12 +32,7 @@ import (
 	"github.com/vbauerster/mpb/v7/decor"
 )
 
-// var debugFile *os.File
-
 func importDataStatus() {
-	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)
-	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
-
 	for Done.IsNotSet() {
 		for _, table := range importTables {
 
@@ -46,11 +41,7 @@ func importDataStatus() {
 				go startImportPB(table)
 			} else if tablesProgressMetadata[table].Status == 2 &&
 				tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
-
 				tablesProgressMetadata[table].Status = 3
-				// fmt.Fprintf(debugFile, "Completed: table:%s  LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
-				// 	tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
-
 			}
 		}
 		time.Sleep(time.Millisecond * 100)
@@ -58,8 +49,15 @@ func importDataStatus() {
 
 	importProgressContainer.container.Wait()
 
-	//TODO: add a check for errors/failures before printing it
-	color.Green("\nAll the tables are imported\n")
+	tablesWithErrors := getErroredFileSplitsTables()
+	if tablesWithErrors == nil {
+		color.Green("\nAll the tables are imported\n")
+		log.Info("\nAll the tables are imported\n")
+	} else {
+		color.Yellow(fmt.Sprintf("\n Tables which didn't import completely: %v\n", tablesWithErrors))
+		log.Info(fmt.Sprintf("\n Tables which didn't import completely: %v\n", tablesWithErrors))
+	}
+
 }
 
 func startImportPB(table string) {
@@ -83,6 +81,14 @@ func startImportPB(table string) {
 		),
 	)
 	importProgressContainer.mu.Unlock()
+
+	go func() {
+		for !allSplitsTried(table) {
+			time.Sleep(time.Millisecond * 1000)
+		}
+		log.Infof("ABORTING Table %q", table)
+		bar.Abort(true)
+	}()
 
 	//if its already done or row count = 0, then return
 	if tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
@@ -174,4 +180,37 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 	}
 	log.Infof("importedRowCount: %v", importedRowCounts)
 	return importedRowCounts
+}
+
+/* logic - first check if last split is created which means splitting is done for table
+then check if any of the split is in CP state. C-created, P-progress */
+func allSplitsTried(table string) bool {
+	metaInfoDataDir := exportDir + "/metainfo/data"
+	lastSplitPattern := fmt.Sprintf("%s/%s.0*.[0-9]*.[0-9]*.[CPDE]", metaInfoDataDir, table)
+
+	files, err := filepath.Glob(lastSplitPattern)
+	if err != nil {
+		utils.ErrExit("checking for last split present/done for %q: %v", table, err)
+	}
+	// if last splits is not created yet
+	if len(files) == 0 {
+		return false
+	}
+
+	remainingSplitsPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[CP]", metaInfoDataDir, table)
+	remainingSplitFiles, err := filepath.Glob(remainingSplitsPattern)
+	if err != nil {
+		utils.ErrExit("checking if splits remaining to copy for %q: %v", table, err)
+	}
+
+	erroredSplitsPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.E", metaInfoDataDir, table)
+	erroredSplitFiles, err := filepath.Glob(erroredSplitsPattern)
+	if err != nil {
+		utils.ErrExit("checking if errored splits are there for %q: %v", table, err)
+	}
+
+	if len(remainingSplitFiles) == 0 && len(erroredSplitFiles) != 0 {
+		return true
+	}
+	return false
 }

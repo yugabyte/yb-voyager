@@ -274,3 +274,20 @@ type Issue struct {
 	Suggestion   string `json:"suggestion"`
 	GH           string `json:"GH"`
 }
+
+type MutexStringSlice struct {
+	slice []string
+	sync.Mutex
+}
+
+func (ms *MutexStringSlice) AppendString(str string) {
+	ms.Lock()
+	defer ms.Unlock()
+	ms.slice = append(ms.slice, str)
+}
+
+func (ms *MutexStringSlice) Print() {
+	for _, val := range ms.slice {
+		fmt.Println(val)
+	}
+}

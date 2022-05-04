@@ -109,7 +109,8 @@ func importSchema() {
 		} else {
 			if schemaExists {
 				fmt.Printf("already present schema '%s' in target database, continuing with it..\n", targetSchema)
-			} else {
+			} else if sourceDBType != "postgresql" || targetSchema == "public" {
+				// in case of postgres, CREATE SCHEMA DDLs for non-public schemas are already present in .sql files
 				fmt.Printf("creating schema '%s' in target database...\n", targetSchema)
 				_, err := conn.Exec(bgCtx, createSchemaQuery)
 				if err != nil {

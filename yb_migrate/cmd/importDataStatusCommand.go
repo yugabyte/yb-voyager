@@ -80,6 +80,8 @@ func runImportDataStatusCmd() error {
 			status = "DONE"
 		case importedRowCount == 0:
 			status = "NOT_STARTED"
+		case allSplitsTried(tableName) && importedRowCount < totalRowCount:
+			status = "ERRORED_OUT"
 		case importedRowCount < totalRowCount:
 			status = "MIGRATING"
 		}

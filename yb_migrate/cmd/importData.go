@@ -64,14 +64,7 @@ var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
-
-type ExportTool int
-
-const (
-	Ora2Pg = iota
-	YsqlDump
-	PgDump
-)
+var printAfterTablesExport utils.MutexStringSlice
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -106,7 +99,7 @@ func getYBServers() []*utils.Target {
 				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
 
 				if err != nil {
-					utils.ErrExit("error in parsing useYbServers flag: %v", err)
+					utils.ErrExit("error in parsing targetEndpoints flag: %v", err)
 				}
 			} else {
 				clone.Host = ybServer
@@ -238,6 +231,7 @@ func importData() {
 	checkForDone()
 
 	time.Sleep(time.Second * 2)
+	printAfterTablesExport.Print()
 	executePostImportDataSqls()
 	fmt.Printf("\nexiting...\n")
 }
@@ -291,7 +285,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	} else {
 		allTables = utils.CsvStringToSlice(target.TableList)
 
-		//filter allTables to remove tables in case not present in --table-list flag
+		// filter allTables to remove tables in case not present in --table-list flag
 		for _, table := range allTables {
 			//TODO: 'table' can be schema_name.table_name, so split and proceed
 			notDone := true
@@ -317,7 +311,7 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
 
-	if startClean { //start data migraiton from beginning
+	if startClean { //start data migration from beginning
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
 		log.Infof("cleaning the database and %s/metadata/data directory", exportDir)
@@ -381,7 +375,7 @@ func checkPrimaryKey(tableName string) bool {
 	}
 
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
-	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
+	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, strings.ToLower(table), schema)
 	// fmt.Println(checkPKSql)
 
 	log.Infof("Running query on target DB: %s", checkPKSql)
@@ -726,6 +720,8 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		}
 	}
 
+	rescheduleErroredFileSplits()
+
 	var doneTables []string
 	var interruptedTables []string
 	var remainingTables []string
@@ -751,6 +747,53 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	}
 
 	return doneTables, interruptedTables, remainingTables, nil
+}
+
+func getErroredFileSplits() []string {
+	metaInfoDataDir, _ := filepath.Abs(fmt.Sprintf("%s/%s/data", exportDir, metaInfoDir))
+	erroredPattern := fmt.Sprintf("%s/*.[0-9]*.[0-9]*.[0-9]*.E", metaInfoDataDir)
+
+	erroredMatches, _ := filepath.Glob(erroredPattern)
+	return erroredMatches
+}
+
+func getErroredFileSplitsTables() []string {
+	erroredFileSplits := getErroredFileSplits()
+
+	metaInfoDataDir, _ := filepath.Abs(fmt.Sprintf("%s/%s/data", exportDir, metaInfoDir))
+	tableNameRegex := regexp.MustCompile(fmt.Sprintf(`%s/(.*)\.[0-9]*\.[0-9]*\.[0-9]*.E`, metaInfoDataDir))
+	// fmt.Printf("TableNameRegex: %v\n", tableNameRegex)
+	tableNamesSet := make(map[string]bool)
+	for _, erroredFileSplit := range erroredFileSplits {
+		matches := tableNameRegex.FindStringSubmatch(erroredFileSplit)
+		// fmt.Printf("Splitname: %q, matches: %v\n", erroredFileSplit, matches)
+		tableName := matches[1]
+		tableNamesSet[tableName] = true
+	}
+
+	var tableNames []string
+	// extracting keys of the set
+	for tableName := range tableNamesSet {
+		/* checking if importTables contains this table, since user can chose to
+		provide tables using --table-lists flag instead of all exported ones */
+		if utils.SliceContains(importTables, tableName) {
+			tableNames = append(tableNames, tableName)
+		}
+	}
+	return tableNames
+}
+
+func rescheduleErroredFileSplits() {
+	erroredFileSplits := getErroredFileSplits()
+	for _, erroredFileSplit := range erroredFileSplits {
+		n := len(erroredFileSplit)
+		inProgressFileSplit := erroredFileSplit[:n-1] + "P"
+
+		err := os.Rename(erroredFileSplit, inProgressFileSplit)
+		if err != nil {
+			utils.ErrExit("renaming %q to %q for scheduling the split", erroredFileSplit, inProgressFileSplit)
+		}
+	}
 }
 
 func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *utils.Target) {
@@ -840,17 +883,31 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 
 			copyCommand := getCopyCommand(t.TableName)
+			if copyCommand == "" {
+				return
+			}
 
 			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 			rowsCount := res.RowsAffected()
 			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
 			if err != nil {
-				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-				if !strings.Contains(err.Error(), "violates unique constraint") {
-					utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
-				} else { //in case of unique key violation error take row count from the split task
+				if strings.Contains(err.Error(), "invalid input syntax for") {
+					log.Errorf("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
+					erroredFilePath := getErroredFilePath(t)
+					log.Infof("Renaming %q => %q", inProgressFilePath, erroredFilePath)
+					err2 := os.Rename(inProgressFilePath, erroredFilePath)
+					if err2 != nil {
+						utils.ErrExit("rename %q => %q: %s", inProgressFilePath, erroredFilePath, err2)
+					}
+
+					printAfterTablesExport.AppendString(fmt.Sprintf("%s in file %q. Fix/Remove it before re-running the command", err, erroredFilePath))
+					return // exit this function
+				} else if strings.Contains(err.Error(), "violates unique constraint") { //in case of unique key violation error take row count from the split task
 					rowsCount = t.OffsetEnd - t.OffsetStart
+					log.Infof("copying into table %q, using file %q: %v", t.TableName, inProgressFilePath, err)
 					log.Infof("assuming affected rows count %v", rowsCount)
+				} else {
+					utils.ErrExit("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
 				}
 			}
 
@@ -967,6 +1024,19 @@ func getDoneFilePath(task *fwk.SplitFileImportTask) string {
 	}
 }
 
+func getErroredFilePath(task *fwk.SplitFileImportTask) string {
+	path := task.SplitFilePath
+	base := filepath.Base(path)
+	dir := filepath.Dir(path)
+	parts := strings.Split(base, ".")
+
+	if len(parts) > 5 { //case when filename has schema also
+		return fmt.Sprintf("%s/%s.%s.%s.%s.%s.E", dir, parts[0], parts[1], parts[2], parts[3], parts[4])
+	} else {
+		return fmt.Sprintf("%s/%s.%s.%s.%s.E", dir, parts[0], parts[1], parts[2], parts[3])
+	}
+}
+
 func incrementImportedRowCount(tableName string, rowsCopied int64) {
 	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
 	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
@@ -999,6 +1069,7 @@ func extractCopyStmtForTable(table string, sourceDBType string, fileToSearchIn s
 		} else if err != nil {
 			utils.ErrExit("error while readline for extraction of copy stmt from file %q: %v", fileToSearchIn, err)
 		}
+
 		if copyCommandRegex.MatchString(line) {
 			copyTableFromCommands[table] = line
 			log.Infof("copyTableFromCommand for table %q is %q", table, line)
@@ -1011,7 +1082,7 @@ func getCopyCommand(table string) string {
 	if copyCommand, ok := copyTableFromCommands[table]; ok {
 		return copyCommand
 	} else {
-		utils.ErrExit("No COPY command for table %q", table)
+		utils.PrintAndLog("No COPY command for table %q", table)
 	}
 	return "" // no-op
 }
