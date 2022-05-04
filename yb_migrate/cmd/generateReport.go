@@ -732,6 +732,10 @@ func generateReport() {
 	if !schemaIsExported(exportDir) {
 		utils.ErrExit("run export schema before running generateReport")
 	}
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source database: %s", err)
+	}
 	generateReportHelper()
 
 	var finalReport string
