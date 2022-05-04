@@ -700,19 +700,9 @@ func generateTxtReport(Report utils.Report) string {
 // add info to the 'reportStruct' variable and return
 func generateReportHelper() utils.Report {
 	reportStruct = utils.Report{}
-
-	var schemaDir string
-	if source.GenerateReportMode {
-		schemaDir = exportDir + "/temp/schema"
-	} else {
-		schemaDir = exportDir + "/schema"
-	}
-	//TODO: clean the schemaDir before putting anything there
-
+	schemaDir := exportDir + "/schema"
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
-
 	initializeSummaryMap()
-
 	for _, objType := range sourceObjList {
 		var filePath string
 		if objType == "INDEX" {
@@ -740,6 +730,9 @@ func generateReport() {
 	reportFile := "report." + outputFormat
 	reportPath := exportDir + "/reports/" + reportFile
 
+	if !schemaIsExported(exportDir) {
+		utils.ErrExit("run export schema before running generateReport")
+	}
 	generateReportHelper()
 
 	var finalReport string
@@ -774,8 +767,10 @@ func generateReport() {
 	}
 	defer file.Close()
 
-	file.WriteString(finalReport)
-	utils.PrintIfTrue(finalReport+"\n", source.GenerateReportMode, source.VerboseMode)
+	_, err = file.WriteString(finalReport)
+	if err != nil {
+		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
+	}
 	fmt.Printf("-- please find migration report at: %s\n", reportPath)
 }
 
@@ -815,12 +810,6 @@ var generateReportCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Note: Generated report will be based on the version - 2.11.3 of YugabyteDB!!")
-		checkGenerateReportDirs()
-
-		source.GenerateReportMode = true //flag to skip info about export schema
-		// export schema before generating the report
-		exportSchema()
 		generateReport()
 	},
 }
@@ -830,19 +819,8 @@ func init() {
 
 	registerCommonExportFlags(generateReportCmd)
 
-	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
+	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
-}
-
-func checkGenerateReportDirs() {
-	tempDir := exportDir + "/temp"
-	reportDir := exportDir + "/reports"
-	if startClean {
-		utils.CleanDir(tempDir)
-		utils.CleanDir(reportDir)
-	} else if source.GenerateReportMode {
-		utils.CleanDir(tempDir)
-	}
 }
 
 func checkReportOutputFormat() {

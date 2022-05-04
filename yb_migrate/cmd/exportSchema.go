@@ -16,7 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
@@ -39,49 +42,53 @@ to quickly create a Cobra application.`,
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		checkSchemaDirs()
 		exportSchema()
 	},
 }
 
 func exportSchema() {
-	utils.PrintIfTrue(fmt.Sprintf("export of schema for source type as '%s'\n", source.DBType), !source.GenerateReportMode)
-
+	if schemaIsExported(exportDir) {
+		if startClean {
+			proceed := utils.AskPrompt(
+				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
+					"exported schema. Do you want to proceed")
+			if !proceed {
+				return
+			}
+			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
+				utils.CleanDir(filepath.Join(exportDir, dirName))
+			}
+			clearSchemaIsExported(exportDir)
+		} else {
+			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
+				"Use --start-clean flag to export schema again -- "+
+				"CAUTION: Using --start-clean will overwrite any manual changes done to the exported schema.\n")
+			return
+		}
+	}
+	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
-
 	source.DB().CheckRequiredToolsAreInstalled()
-
-	if !source.GenerateReportMode {
-		migration.PrintSourceDBVersion(&source)
-	}
-
+	migration.PrintSourceDBVersion(&source)
 	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	switch source.DBType {
 	case ORACLE:
-		utils.PrintIfTrue("preparing Ora2Pg for schema export from Oracle\n", source.VerboseMode, !source.GenerateReportMode)
-
 		migration.Ora2PgExtractSchema(&source, exportDir)
 	case POSTGRESQL:
-		utils.PrintIfTrue("preparing pg_dump for schema export from PG\n", source.VerboseMode, !source.GenerateReportMode)
-
 		migration.PgDumpExtractSchema(&source, exportDir)
 	case MYSQL:
-		utils.PrintIfTrue("preparing Ora2Pg for schema export from MySQL\n", source.VerboseMode, !source.GenerateReportMode)
-
 		migration.Ora2PgExtractSchema(&source, exportDir)
 	default:
-		fmt.Printf("Invalid source database type for export\n")
+		utils.ErrExit("Invalid source database type for export\n")
 	}
 
-	if !source.GenerateReportMode { //check is to avoid report generation twice via generateReport command
-		fmt.Printf("\nexported schema files created under directory: %s\n", exportDir+"/schema")
-		generateReport()
-	}
+	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
+	setSchemaIsExported(exportDir)
 }
 
 func init() {
@@ -95,22 +102,28 @@ func init() {
 
 }
 
-func checkSchemaDirs() {
-	schemaDir := exportDir + "/schema"
-	tempDir := exportDir + "/temp"
-	reportDir := exportDir + "/reports"
-	metainfoSchemaDir := exportDir + "/metainfo/schema"
-	if startClean {
-		utils.CleanDir(schemaDir)
-		utils.CleanDir(tempDir)
-		utils.CleanDir(reportDir)
-		utils.CleanDir(metainfoSchemaDir)
-	} else {
-		if !utils.IsDirectoryEmpty(schemaDir) {
-			utils.ErrExit("schema directory is not empty, use --start-clean flag to clean the directories and start")
+func schemaIsExported(exportDir string) bool {
+	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	_, err := os.Stat(flagFilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false
 		}
-		if !utils.IsDirectoryEmpty(metainfoSchemaDir) {
-			utils.ErrExit("metainfo/schema directory is not empty, use --start-clean flag to clean the directories and start")
-		}
+		utils.ErrExit("failed to check if schema import is already done: %s", err)
 	}
+	return true
+}
+
+func setSchemaIsExported(exportDir string) {
+	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	fh, err := os.Create(flagFilePath)
+	if err != nil {
+		utils.ErrExit("create %q: %s", flagFilePath, err)
+	}
+	fh.Close()
+}
+
+func clearSchemaIsExported(exportDir string) {
+	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	os.Remove(flagFilePath)
 }

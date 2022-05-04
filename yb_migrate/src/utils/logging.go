@@ -18,6 +18,7 @@ package utils
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -46,6 +47,9 @@ func ErrExit(formatString string, args ...interface{}) {
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {
-	fmt.Printf(formatString+"\n", args...)
 	log.Infof(formatString, args...)
+	if !strings.HasSuffix(formatString, "\n") {
+		formatString = formatString + "\n"
+	}
+	fmt.Printf(formatString, args...)
 }
