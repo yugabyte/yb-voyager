@@ -35,13 +35,8 @@ import (
 )
 
 func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
-	if source.GenerateReportMode {
-		fmt.Printf("scanning the schema %10s", "")
-	} else {
-		fmt.Printf("exporting the schema %10s", "")
-	}
+	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
-
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)
 	prepareYsqldumpCommandString := ""
 
@@ -65,11 +60,7 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 	//Parsing the single file to generate multiple database object files
 	parseSchemaFile(source, exportDir)
 
-	if source.GenerateReportMode {
-		log.Info("Scanning of schema completed.")
-	} else {
-		log.Info("Export of schema completed.")
-	}
+	log.Info("Export of schema completed.")
 	utils.WaitChannel <- 0
 	<-utils.WaitChannel
 }
@@ -78,18 +69,9 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
-	var schemaDirPath string
-	if source.GenerateReportMode {
-		schemaDirPath = exportDir + "/temp/schema"
-	} else {
-		schemaDirPath = exportDir + "/schema"
-	}
-
-	//CHOOSE - bufio vs ioutil(Memory vs Performance)?
+	schemaDirPath := exportDir + "/schema"
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
-
 	utils.CheckError(err, "", "File not read", true)
-
 	schemaFileLines := strings.Split(string(schemaFileData), "\n")
 	numLines := len(schemaFileLines)
 
@@ -97,7 +79,6 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	if err != nil {
 		panic(err)
 	}
-
 	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 	sqlTypeInfoCommentPattern, err := regexp.Compile("--.*Type:.*")
 	if err != nil {
