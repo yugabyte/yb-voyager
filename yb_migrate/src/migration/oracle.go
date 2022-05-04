@@ -30,18 +30,12 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
-	var schemaDirPath string
-	if source.GenerateReportMode {
-		schemaDirPath = exportDir + "/temp/schema"
-	} else {
-		schemaDirPath = exportDir + "/schema"
-	}
-
-	//[Internal]: Decide whether to keep ora2pg.conf file hidden or not
+func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
+	schemaDirPath := exportDir + "/schema"
 	configFilePath := exportDir + "/temp/.ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
@@ -51,12 +45,9 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 		if exportObject == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
-		// utils.PrintIfTrue(fmt.Sprintf("starting export of %ss...\n", strings.ToLower(exportObject)), !source.GenerateReportMode)
-		if source.GenerateReportMode {
-			fmt.Printf("scanning %10s %5s", exportObject, "")
-		} else {
-			fmt.Printf("exporting %10s %5s", exportObject, "")
-		}
+
+		fmt.Printf("exporting %10s %5s", exportObject, "")
+
 		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
@@ -124,7 +115,7 @@ func Ora2PgExtractSchema(source *utils.Source, exportDir string) {
 //go:embed data/sample-ora2pg.conf
 var SampleOra2pgConfigFile string
 
-func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
+func populateOra2pgConfigFile(configFilePath string, source *srcdb.Source) {
 	sourceDSN := getSourceDSN(source)
 
 	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
@@ -159,7 +150,7 @@ func populateOra2pgConfigFile(configFilePath string, source *utils.Source) {
 	utils.CheckError(err, "Not able to update the config file", "", true)
 }
 
-func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.Source, tableList []string) {
+func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.Source, tableList []string) {
 	basicConfigFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		panic(err)
@@ -187,7 +178,7 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *utils.So
 	utils.CheckError(err, "Not able to update the config file", "", true)
 }
 
-func Ora2PgExportDataOffline(ctx context.Context, source *utils.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	projectDirPath := exportDir
@@ -259,7 +250,7 @@ func extractAlterSequenceStatements(exportDir string) {
 	ioutil.WriteFile(exportDir+"/data/postdata.sql", []byte(requiredLines.String()), 0644)
 }
 
-func getSourceDSN(source *utils.Source) string {
+func getSourceDSN(source *srcdb.Source) string {
 	var sourceDSN string
 
 	if source.DBType == "oracle" {
@@ -282,7 +273,7 @@ func getSourceDSN(source *utils.Source) string {
 	return sourceDSN
 }
 
-func OracleGetAllTableNames(source *utils.Source) []string {
+func OracleGetAllTableNames(source *srcdb.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("godror", dbConnStr)
 	if err != nil {
@@ -291,8 +282,18 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	defer db.Close()
 
 	var tableNames []string
-	query := fmt.Sprintf("SELECT table_name FROM all_tables WHERE owner = '%s' "+
-		"AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' ORDER BY table_name ASC", source.Schema)
+	/* below query will collect all tables under given schema except TEMPORARY tables,
+	Index related tables(start with DR$) and materialized view */
+	query := fmt.Sprintf(`SELECT table_name 
+		FROM all_tables 
+		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND
+		(owner, table_name) not in ( 
+			SELECT owner, mview_name 
+			FROM all_mviews 
+			UNION ALL 
+			SELECT log_owner, log_table 
+			FROM all_mview_logs)
+		ORDER BY table_name ASC`, source.Schema)
 	rows, err := db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v", err)
@@ -313,7 +314,7 @@ func OracleGetAllTableNames(source *utils.Source) []string {
 	return tableNames
 }
 
-func OracleGetAllPartitionNames(source *utils.Source, tableName string) []string {
+func OracleGetAllPartitionNames(source *srcdb.Source, tableName string) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("godror", dbConnStr)
 	if err != nil {

@@ -33,7 +33,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/fwk"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	log "github.com/sirupsen/logrus"
@@ -81,8 +81,8 @@ var importDataCmd = &cobra.Command{
 	},
 }
 
-func getYBServers() []*utils.Target {
-	var targets []*utils.Target
+func getYBServers() []*tgtdb.Target {
+	var targets []*tgtdb.Target
 
 	if targetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
@@ -91,7 +91,7 @@ func getYBServers() []*utils.Target {
 
 		ybServers := utils.CsvStringToSlice(targetEndpoints)
 		for _, ybServer := range ybServers {
-			clone := cloneTarget(&target)
+			clone := target.Clone()
 
 			if strings.Contains(ybServer, ":") {
 				clone.Host = strings.Split(ybServer, ":")[0]
@@ -125,7 +125,7 @@ func getYBServers() []*utils.Target {
 
 		var hostPorts []string
 		for rows.Next() {
-			clone := cloneTarget(&target)
+			clone := target.Clone()
 			var host, nodeType, cloud, region, zone, public_ip string
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
@@ -155,7 +155,7 @@ func getYBServers() []*utils.Target {
 	return targets
 }
 
-func testYbServers(targets []*utils.Target) {
+func testYbServers(targets []*tgtdb.Target) {
 	if len(targets) == 0 {
 		utils.ErrExit("no yb servers available/given for data import")
 	}
@@ -170,12 +170,7 @@ func testYbServers(targets []*utils.Target) {
 	log.Infof("all target servers are accessible")
 }
 
-func cloneTarget(t *utils.Target) *utils.Target {
-	clone := *t
-	return &clone
-}
-
-func getCloneConnectionUri(clone *utils.Target) string {
+func getCloneConnectionUri(clone *tgtdb.Target) string {
 	var cloneConnectionUri string
 	if clone.Uri == "" {
 		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
@@ -192,7 +187,7 @@ func getCloneConnectionUri(clone *utils.Target) string {
 	return cloneConnectionUri
 }
 
-func getTargetConnectionUri(targetStruct *utils.Target) string {
+func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
 	if len(targetStruct.Uri) != 0 {
 		return targetStruct.Uri
 	} else {
@@ -208,6 +203,10 @@ func importData() {
 	// acquireImportLock()
 	// defer os.Remove(importLockFile)
 	log.Infof("import data command initiated for DB %q", target.DBName)
+	err := target.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the target DB: %s", err)
+	}
 	targets := getYBServers()
 
 	var parallelism = parallelImportJobs
@@ -223,7 +222,7 @@ func importData() {
 		splitFileChannelSize = parallelism + 1
 	}
 	splitFilesChannel := make(chan *fwk.SplitFileImportTask, splitFileChannelSize)
-	targetServerChannel := make(chan *utils.Target, 1)
+	targetServerChannel := make(chan *tgtdb.Target, 1)
 
 	go roundRobinTargets(targets, targetServerChannel)
 	generateSmallerSplits(splitFilesChannel)
@@ -264,7 +263,7 @@ func checkForDone() {
 
 }
 
-func roundRobinTargets(targets []*utils.Target, channel chan *utils.Target) {
+func roundRobinTargets(targets []*tgtdb.Target, channel chan *tgtdb.Target) {
 	index := 0
 	for Done.IsNotSet() {
 		channel <- targets[index%len(targets)]
@@ -328,7 +327,6 @@ func generateSmallerSplits(taskQueue chan *fwk.SplitFileImportTask) {
 				truncateTables([]string{tableName})
 			}
 		}
-
 	}
 
 	if target.VerboseMode {
@@ -374,6 +372,14 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
+	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
+	if sourceDBType == ORACLE {
+		table = strings.ToLower(table)
+	}
+
+	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
+	but in case of oracle exported data files(which we use for to extract tablename)
+	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
 	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, strings.ToLower(table), schema)
 	// fmt.Println(checkPKSql)
@@ -430,21 +436,9 @@ func truncateTables(tables []string) {
 func splitDataFiles(importTables []string, taskQueue chan *fwk.SplitFileImportTask) {
 	log.Infof("Started goroutine: splitDataFiles")
 	for _, t := range importTables {
-		var tableNameUsed string //regenerating the table_data.sql filename, from extracted tableName
-		parts := strings.Split(t, ".")
 		sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
-		switch sourceDBType {
-		case "postgresql":
-			if len(parts) > 1 && parts[0] != "public" {
-				tableNameUsed = strings.ToLower(parts[0]) + "."
-			}
-			tableNameUsed += parts[len(parts)-1]
-		case "mysql":
-			tableNameUsed = parts[len(parts)-1]
-		case "oracle":
-			tableNameUsed = strings.ToUpper(parts[len(parts)-1])
-		}
-		origDataFile := exportDir + "/data/" + tableNameUsed + "_data.sql"
+
+		origDataFile := exportDir + "/data/" + t + "_data.sql"
 		extractCopyStmtForTable(t, sourceDBType, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
@@ -796,7 +790,7 @@ func rescheduleErroredFileSplits() {
 	}
 }
 
-func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *utils.Target) {
+func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetChan chan *tgtdb.Target) {
 	if Done.IsSet() { //if import is already done, return
 		log.Infof("Done is already set.")
 		return
@@ -828,12 +822,12 @@ func doImport(taskQueue chan *fwk.SplitFileImportTask, parallelism int, targetCh
 	importProgressContainer.container.Wait()
 }
 
-func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *utils.Target, parallelImportCount *int64) {
+func doImportInParallel(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target, parallelImportCount *int64) {
 	doOneImport(t, targetChan)
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
+func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	splitImportDone := false
 	for !splitImportDone {
 		select {
@@ -857,7 +851,7 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 			defer conn.Close(context.Background())
 
-			dbVersion := migration.SelectVersionQuery("yugabytedb", targetServer.GetConnectionUri())
+			dbVersion := targetServer.DB().GetVersion()
 
 			for i, statement := range IMPORT_SESSION_SETTERS {
 				if checkSessionVariableSupported(i, dbVersion) {
@@ -883,37 +877,35 @@ func doOneImport(t *fwk.SplitFileImportTask, targetChan chan *utils.Target) {
 			}
 
 			copyCommand := getCopyCommand(t.TableName)
-			if copyCommand == "" {
-				return
-			}
+			if copyCommand != "" {
+				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+				rowsCount := res.RowsAffected()
+				log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+				if err != nil {
+					if strings.Contains(err.Error(), "invalid input syntax for") {
+						log.Errorf("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
+						erroredFilePath := getErroredFilePath(t)
+						log.Infof("Renaming %q => %q", inProgressFilePath, erroredFilePath)
+						err2 := os.Rename(inProgressFilePath, erroredFilePath)
+						if err2 != nil {
+							utils.ErrExit("rename %q => %q: %s", inProgressFilePath, erroredFilePath, err2)
+						}
 
-			res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-			rowsCount := res.RowsAffected()
-			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
-			if err != nil {
-				if strings.Contains(err.Error(), "invalid input syntax for") {
-					log.Errorf("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
-					erroredFilePath := getErroredFilePath(t)
-					log.Infof("Renaming %q => %q", inProgressFilePath, erroredFilePath)
-					err2 := os.Rename(inProgressFilePath, erroredFilePath)
-					if err2 != nil {
-						utils.ErrExit("rename %q => %q: %s", inProgressFilePath, erroredFilePath, err2)
+						printAfterTablesExport.AppendString(fmt.Sprintf("%s in file %q. Fix/Remove it before re-running the command", err, erroredFilePath))
+						return // exit this function
+					} else if strings.Contains(err.Error(), "violates unique constraint") { //in case of unique key violation error take row count from the split task
+						rowsCount = t.OffsetEnd - t.OffsetStart
+						log.Infof("copying into table %q, using file %q: %v", t.TableName, inProgressFilePath, err)
+						log.Infof("assuming affected rows count %v", rowsCount)
+					} else {
+						utils.ErrExit("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
 					}
 
-					printAfterTablesExport.AppendString(fmt.Sprintf("%s in file %q. Fix/Remove it before re-running the command", err, erroredFilePath))
-					return // exit this function
-				} else if strings.Contains(err.Error(), "violates unique constraint") { //in case of unique key violation error take row count from the split task
-					rowsCount = t.OffsetEnd - t.OffsetStart
-					log.Infof("copying into table %q, using file %q: %v", t.TableName, inProgressFilePath, err)
-					log.Infof("assuming affected rows count %v", rowsCount)
-				} else {
-					utils.ErrExit("%s, using file %q: %s", copyCommand, inProgressFilePath, err)
+					// update the import data status as soon as rows are copied
+					incrementImportedRowCount(t.TableName, rowsCount)
 				}
 			}
-
-			// update the import data status as soon as rows are copied
-			incrementImportedRowCount(t.TableName, rowsCount)
-
+			
 			doneFilePath := getDoneFilePath(t)
 			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
 			err = os.Rename(inProgressFilePath, doneFilePath)
@@ -1082,7 +1074,7 @@ func getCopyCommand(table string) string {
 	if copyCommand, ok := copyTableFromCommands[table]; ok {
 		return copyCommand
 	} else {
-		utils.PrintAndLog("No COPY command for table %q", table)
+		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
 }

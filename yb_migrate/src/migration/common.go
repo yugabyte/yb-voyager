@@ -21,10 +21,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/go-sql-driver/mysql"
@@ -33,7 +35,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
 	// TODO: handle the case if table name has double quotes/case sensitive
@@ -76,7 +78,7 @@ func UpdateFilePaths(source *utils.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
 		go utils.Wait()
@@ -88,7 +90,6 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
-		// fullTableName := tablesProgressMetadata[key].FullTableName
 
 		utils.PrintIfTrue(fmt.Sprintf("| %30s ", key), source.VerboseMode)
 
@@ -96,8 +97,7 @@ func UpdateTableRowCount(source *utils.Source, exportDir string, tablesProgressM
 			go utils.Wait()
 		}
 
-		queryFrom := tablesProgressMetadata[key].FullTableName
-		rowCount := SelectCountStarFromTable(queryFrom, source)
+		rowCount := source.DB().GetTableRowCount(tablesProgressMetadata[key].FullTableName)
 
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
@@ -138,75 +138,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func SelectCountStarFromTable(tableName string, source *utils.Source) int64 {
-	var rowCount int64 = -1
-	dbConnStr := GetDriverConnStr(source)
-	query := fmt.Sprintf("select count(*) from %s", tableName)
-
-	//just querying each source type using corresponding drivers
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0 //stop waiting
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer db.Close()
-
-		err = db.QueryRow(query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while count(*) query from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-		defer conn.Close(context.Background())
-
-		err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
-		if err != nil {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-			errMsg := fmt.Sprintf("error while scanning count(*) rows from %q: %v\n", tableName, err)
-			utils.ErrExit(errMsg)
-		}
-	}
-
-	if rowCount == -1 { // if var is still not updated
-		errMsg := fmt.Sprintf("couldn't fetch row count for table: %q\n", tableName)
-		utils.ErrExit(errMsg)
-	}
-
-	return rowCount
-}
-
-func GetDriverConnStr(source *utils.Source) string {
+func GetDriverConnStr(source *srcdb.Source) string {
 	var connStr string
 	switch source.DBType {
 	//TODO:Discuss and set a priority order for checks in the case of Oracle
@@ -256,14 +188,10 @@ func GetDriverConnStr(source *utils.Source) string {
 	return connStr
 }
 
-func PrintSourceDBVersion(source *utils.Source) string {
+func PrintSourceDBVersion(source *srcdb.Source) string {
 	dbConnStr := GetDriverConnStr(source)
 	version := SelectVersionQuery(source.DBType, dbConnStr)
-
-	if !source.GenerateReportMode {
-		fmt.Printf("%s Version: %s\n", strings.ToUpper(source.DBType), version)
-	}
-
+	fmt.Printf("%s Version: %s\n", strings.ToUpper(source.DBType), version)
 	return version
 }
 
@@ -296,7 +224,7 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		if err != nil {
 			utils.ErrExit("run query %q on source: %s", query, err)
 		}
-	case "postgresql", "yugabytedb":
+	case "postgresql":
 		conn, err := pgx.Connect(context.Background(), dbConnStr)
 		if err != nil {
 			utils.ErrExit("connect to %s db: %s", dbType, err)
@@ -308,13 +236,15 @@ func SelectVersionQuery(dbType string, dbConnStr string) string {
 		if err != nil {
 			utils.ErrExit("run query %q on %s: %s", query, dbType, err)
 		}
+	default:
+		panic(fmt.Sprintf("Unknown source db type: %q", dbType))
 	}
 
 	log.Infof("%s version: %q", dbType, version)
 	return version
 }
 
-func ExportDataPostProcessing(source *utils.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	if source.DBType == "oracle" || source.DBType == "mysql" {
 		// empty - in case of oracle and mysql, the renaming is handled by tool(ora2pg)
 	} else if source.DBType == "postgresql" {
@@ -361,7 +291,7 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
-func MySQLGetAllTableNames(source *utils.Source) []string {
+func MySQLGetAllTableNames(source *srcdb.Source) []string {
 	dbConnStr := GetDriverConnStr(source)
 	db, err := sql.Open("mysql", dbConnStr)
 	if err != nil {
@@ -391,31 +321,36 @@ func MySQLGetAllTableNames(source *utils.Source) []string {
 	return tableNames
 }
 
-func CheckSourceDBAccessibility(source *utils.Source) {
-	dbConnStr := GetDriverConnStr(source)
+//setup a project having subdirs for various database objects IF NOT EXISTS
+func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
+	var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
-	switch source.DBType {
-	case "oracle":
-		db, err := sql.Open("godror", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "mysql":
-		db, err := sql.Open("mysql", dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		db.Close()
-	case "postgresql":
-		conn, err := pgx.Connect(context.Background(), dbConnStr)
-		if err != nil {
-			errMsg := fmt.Sprintf("error in opening connections to database: %v\n", err)
-			utils.ErrExit(errMsg)
-		}
-		conn.Close(context.Background())
+	// log.Debugf("Creating a project directory...")
+	//Assuming export directory as a project directory
+	projectDirPath := exportDir
+
+	for _, subdir := range projectSubdirs {
+		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
+		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
 	}
 
+	// Put info to metainfo/schema about the source db
+	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+	cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
+	utils.CheckError(err, "", string(cmdOutput), true)
+
+	schemaObjectList := utils.GetSchemaObjectList(source.DBType)
+
+	// creating subdirs under schema dir
+	for _, schemaObjectType := range schemaObjectList {
+		if schemaObjectType == "INDEX" { //no separate dir for indexes
+			continue
+		}
+		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
+
+		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+	}
+
+	// log.Debugf("Created a project directory...")
 }

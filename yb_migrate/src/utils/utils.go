@@ -21,9 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -31,8 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
 )
-
-var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 func Wait(args ...string) {
 	var successMsg, failureMsg string
@@ -77,71 +73,6 @@ func Readline(r *bufio.Reader) (string, error) {
 	return string(ln), err
 }
 
-//Called before export schema command
-func DeleteProjectDirIfPresent(source *Source, exportDir string) {
-	log.Debugf("Deleting existing project related directories under: \"%s\"", exportDir)
-
-	projectDirPath := exportDir
-	// projectDirPath := GetProjectDirPath(source, exportDir)
-
-	err := exec.Command("rm", "-rf", projectDirPath+"/schema").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/data").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/reports").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/metadata").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-
-	err = exec.Command("rm", "-rf", projectDirPath+"/temp").Run()
-	CheckError(err, "", "Couldn't clean project directory, first clean it to proceed", true)
-}
-
-//setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(source *Source, exportDir string) {
-	// log.Debugf("Creating a project directory...")
-	//Assuming export directory as a project directory
-	projectDirPath := exportDir
-	if source.GenerateReportMode {
-		projectSubdirs = []string{"temp", "temp/schema", "reports"}
-	}
-
-	for _, subdir := range projectSubdirs {
-		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
-	}
-
-	// Put info to metainfo/schema about the source db
-	if !source.GenerateReportMode {
-		sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-		cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-		CheckError(err, "", string(cmdOutput), true)
-	}
-
-	schemaObjectList := GetSchemaObjectList(source.DBType)
-
-	// creating subdirs under schema dir
-	for _, schemaObjectType := range schemaObjectList {
-		if schemaObjectType == "INDEX" { //no separate dir for indexes
-			continue
-		}
-		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
-
-		var err error
-		if source.GenerateReportMode {
-			err = exec.Command("mkdir", "-p", projectDirPath+"/temp/schema/"+databaseObjectDirName).Run()
-		} else {
-			err = exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
-		}
-		CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
-	}
-
-	// log.Debugf("Created a project directory...")
-}
-
 func AskPrompt(args ...string) bool {
 	var input string
 	var argsLen int = len(args)
@@ -154,7 +85,7 @@ func AskPrompt(args ...string) bool {
 		}
 
 	}
-	fmt.Printf("?[Y/N]:")
+	fmt.Printf("? [Y/N]: ")
 
 	_, err := fmt.Scan(&input)
 
@@ -187,42 +118,6 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
-func CheckToolsRequiredInstalledOrNot(source *Source) {
-	var toolsRequired []string
-
-	switch source.DBType {
-	case "oracle":
-		toolsRequired = []string{"ora2pg", "sqlplus"}
-	case "postgresql":
-		toolsRequired = []string{"pg_dump", "strings", "pg_restore"}
-	case "mysql":
-		toolsRequired = []string{"ora2pg"}
-	default:
-		errMsg := "Invalid DB Type!!\n"
-		ErrExit(errMsg)
-	}
-
-	commandNotFoundRegexp := regexp.MustCompile(`(?i)not[ ]+found[ ]+in[ ]+\$PATH`)
-
-	for _, tool := range toolsRequired {
-		versionFlag := "--version"
-
-		checkToolPresenceCommand := exec.Command(tool, versionFlag)
-		err := checkToolPresenceCommand.Run()
-
-		if err != nil {
-			if commandNotFoundRegexp.MatchString(err.Error()) {
-				errMsg := fmt.Sprintf("%s command not found. Check if %s is installed and included in PATH variable", tool, tool)
-				ErrExit(errMsg)
-			} else {
-				panic(err)
-			}
-		}
-	}
-
-	// PrintIfTrue(fmt.Sprintf("Required tools %v are present...\n", toolsRequired), source.VerboseMode, !source.GenerateReportMode)
-}
-
 func IsDirectoryEmpty(pathPattern string) bool {
 	files, _ := filepath.Glob(pathPattern + "/*")
 	return len(files) == 0
@@ -244,12 +139,11 @@ func FileOrFolderExists(path string) bool {
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")
-		fmt.Printf("cleaning directory: %s ...\n", dir)
+		log.Infof("cleaning directory: %s", dir)
 		for _, file := range files {
 			err := os.RemoveAll(file)
 			if err != nil {
-				fmt.Printf("%s\n", err.Error())
-				os.Exit(1)
+				ErrExit("clean dir %q: %s", dir, err)
 			}
 		}
 	}

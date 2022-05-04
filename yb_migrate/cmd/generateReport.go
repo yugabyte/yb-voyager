@@ -85,22 +85,25 @@ var (
 	withOidsRegex        = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
 	intvlRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
 
-	alterOfRegex        = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `)
-	alterSchemaRegex    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET SCHEMA `)
-	createSchemaRegex   = regexp.MustCompile(`(?i)CREATE SCHEMA .* CREATE TABLE`)
-	alterNotOfRegex     = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* NOT OF`)
-	alterColumnRegex    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER [column|COLUMN]`)
-	alterConstrRegex    = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_."]+).* ALTER CONSTRAINT`)
-	setOidsRegex        = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITH OIDS`)
-	clusterRegex        = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* CLUSTER`)
-	withoutClusterRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITHOUT CLUSTER`)
-	alterSetRegex       = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) SET `)
-	alterIdxRegex       = regexp.MustCompile(`(?i)ALTER INDEX ([a-zA-Z0-9_."]+) SET `)
-	alterResetRegex     = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) RESET `)
-	alterOptionsRegex   = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) OPTIONS`)
-	alterInhRegex       = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) INHERIT`)
-	valConstrRegex      = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) VALIDATE CONSTRAINT`)
-	deferRegex          = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* unique .*deferrable`)
+	alterOfRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `)
+	alterSchemaRegex                = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET SCHEMA `)
+	createSchemaRegex               = regexp.MustCompile(`(?i)CREATE SCHEMA .* CREATE TABLE`)
+	alterNotOfRegex                 = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* NOT OF`)
+	alterColumnStatsRegex           = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STATISTICS`)
+	alterColumnStorageRegex         = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STORAGE`)
+	alterColumnSetAttributesRegex   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET \(`)
+	alterColumnResetAttributesRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* RESET`)
+	alterConstrRegex                = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_."]+).* ALTER CONSTRAINT`)
+	setOidsRegex                    = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITH OIDS`)
+	clusterRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* CLUSTER`)
+	withoutClusterRegex             = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITHOUT CLUSTER`)
+	alterSetRegex                   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) SET `)
+	alterIdxRegex                   = regexp.MustCompile(`(?i)ALTER INDEX ([a-zA-Z0-9_."]+) SET `)
+	alterResetRegex                 = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) RESET `)
+	alterOptionsRegex               = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) OPTIONS`)
+	alterInhRegex                   = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) INHERIT`)
+	valConstrRegex                  = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) VALIDATE CONSTRAINT`)
+	deferRegex                      = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* unique .*deferrable`)
 
 	dropAttrRegex    = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+) DROP ATTRIBUTE`)
 	alterTypeRegex   = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+)`)
@@ -338,8 +341,17 @@ func checkDDL(sqlStmtArray [][]string, fpath string) {
 		} else if tbl := alterNotOfRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE NOT OF not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", "", line[1])
-		} else if tbl := alterColumnRegex.FindStringSubmatch(line[0]); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column not supported yet.",
+		} else if tbl := alterColumnStatsRegex.FindStringSubmatch(line[0]); tbl != nil {
+			reportCase(fpath, "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := alterColumnStorageRegex.FindStringSubmatch(line[0]); tbl != nil {
+			reportCase(fpath, "ALTER TABLE ALTER column SET STORAGE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := alterColumnSetAttributesRegex.FindStringSubmatch(line[0]); tbl != nil {
+			reportCase(fpath, "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
+		} else if tbl := alterColumnResetAttributesRegex.FindStringSubmatch(line[0]); tbl != nil {
+			reportCase(fpath, "ALTER TABLE ALTER column RESET (attribute) not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], line[1])
 		} else if tbl := alterConstrRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "ALTER TABLE ALTER CONSTRAINT not supported yet.",
@@ -688,19 +700,9 @@ func generateTxtReport(Report utils.Report) string {
 // add info to the 'reportStruct' variable and return
 func generateReportHelper() utils.Report {
 	reportStruct = utils.Report{}
-
-	var schemaDir string
-	if source.GenerateReportMode {
-		schemaDir = exportDir + "/temp/schema"
-	} else {
-		schemaDir = exportDir + "/schema"
-	}
-	//TODO: clean the schemaDir before putting anything there
-
+	schemaDir := exportDir + "/schema"
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
-
 	initializeSummaryMap()
-
 	for _, objType := range sourceObjList {
 		var filePath string
 		if objType == "INDEX" {
@@ -728,6 +730,9 @@ func generateReport() {
 	reportFile := "report." + outputFormat
 	reportPath := exportDir + "/reports/" + reportFile
 
+	if !schemaIsExported(exportDir) {
+		utils.ErrExit("run export schema before running generateReport")
+	}
 	generateReportHelper()
 
 	var finalReport string
@@ -762,8 +767,10 @@ func generateReport() {
 	}
 	defer file.Close()
 
-	file.WriteString(finalReport)
-	utils.PrintIfTrue(finalReport+"\n", source.GenerateReportMode, source.VerboseMode)
+	_, err = file.WriteString(finalReport)
+	if err != nil {
+		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
+	}
 	fmt.Printf("-- please find migration report at: %s\n", reportPath)
 }
 
@@ -803,12 +810,6 @@ var generateReportCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Note: Generated report will be based on the version - 2.11.3 of YugabyteDB!!")
-		checkGenerateReportDirs()
-
-		source.GenerateReportMode = true //flag to skip info about export schema
-		// export schema before generating the report
-		exportSchema()
 		generateReport()
 	},
 }
@@ -818,19 +819,8 @@ func init() {
 
 	registerCommonExportFlags(generateReportCmd)
 
-	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "html",
+	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
-}
-
-func checkGenerateReportDirs() {
-	tempDir := exportDir + "/temp"
-	reportDir := exportDir + "/reports"
-	if startClean {
-		utils.CleanDir(tempDir)
-		utils.CleanDir(reportDir)
-	} else if source.GenerateReportMode {
-		utils.CleanDir(tempDir)
-	}
 }
 
 func checkReportOutputFormat() {
