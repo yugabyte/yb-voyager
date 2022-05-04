@@ -201,16 +201,13 @@ func checkTableListFlag(tableListString string) {
 
 func checkDataDirs() {
 	exportDataDir := exportDir + "/data"
-	metainfoFlagDir := exportDir + "/metainfo/flags"
+	flagFilePath := exportDir + "/metainfo/flags/exportDataDone"
 	if startClean {
 		utils.CleanDir(exportDataDir)
-		utils.CleanDir(metainfoFlagDir)
+		os.Remove(flagFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
-		}
-		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			utils.ErrExit("%s/metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
 }
