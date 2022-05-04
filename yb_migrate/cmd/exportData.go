@@ -149,7 +149,7 @@ func exportDataOffline() bool {
 		utils.WaitGroup.Add(1)
 
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := utils.GetObjectNameListFromReport(generateReportHelper(), "SEQUENCE")
+		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
 		tableList = append(tableList, sequenceList...)
 
 		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)

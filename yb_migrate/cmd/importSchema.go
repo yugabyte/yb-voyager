@@ -67,7 +67,7 @@ func importSchema() {
 	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
 	if sourceDBType == "postgresql" {
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(generateReportHelper(), "SCHEMA")...)
+		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")...)
 	}
 
 	utils.PrintIfTrue(fmt.Sprintf("schemas to be present in target database: %v\n", targetSchemas), target.VerboseMode)
