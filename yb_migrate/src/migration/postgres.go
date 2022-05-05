@@ -38,23 +38,23 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)
-	prepareYsqldumpCommandString := ""
+	preparePgdumpCommandString := ""
 
 	if source.Uri != "" {
-		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
+		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
 	} else {
-		prepareYsqldumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
+		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
 			source.Port, source.DBName, SSLQueryString, exportDir)
 	}
 
-	log.Infof("Running command: %s", prepareYsqldumpCommandString)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", prepareYsqldumpCommandString)
+	log.Infof("Running command: %s", preparePgdumpCommandString)
+	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
 
 	err := preparedYsqldumpCommand.Run()
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
-		utils.CheckError(err, prepareYsqldumpCommandString, "Retry, dump didn't happen", true)
+		utils.ErrExit("data export unsuccessful: %v", err)
 	}
 
 	//Parsing the single file to generate multiple database object files
@@ -71,21 +71,17 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	schemaFilePath := exportDir + "/temp" + "/schema.sql"
 	schemaDirPath := exportDir + "/schema"
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
-	utils.CheckError(err, "", "File not read", true)
+	if err != nil {
+		utils.ErrExit("Failed to read file %q: %v", schemaFilePath, err)
+	}
+
 	schemaFileLines := strings.Split(string(schemaFileData), "\n")
 	numLines := len(schemaFileLines)
 
-	sessionVariableStartPattern, err := regexp.Compile("-- Dumped by pg_dump.*")
-	if err != nil {
-		panic(err)
-	}
-	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
-	sqlTypeInfoCommentPattern, err := regexp.Compile("--.*Type:.*")
-	if err != nil {
-		panic(err)
-	}
+	sessionVariableStartPattern := regexp.MustCompile("-- Dumped by pg_dump.*")
 
-	utils.CheckError(err, "", "Couldn't generate the schema", true)
+	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+	sqlTypeInfoCommentPattern := regexp.MustCompile("--.*Type:.*")
 
 	var createTableSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
@@ -292,7 +288,9 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	}
 
 	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
-	utils.CheckError(err, "", "", true)
+	if err != nil {
+		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
+	}
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
 	numLines := len(tocTextFileData)
@@ -333,7 +331,10 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
-	utils.CheckError(err, parseTocFileCommand.String(), string(cmdOutput), true)
+	if err != nil {
+		utils.ErrExit("parsing tocfile %q: %v", tocFilePath, err)
+	}
+
 	//Put the data into a toc.txt file
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	tocTextFile, err := os.Create(tocTextFilePath)

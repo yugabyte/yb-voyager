@@ -242,13 +242,17 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
-		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath, true)
+		if err != nil {
+			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath, err)
+		}
 	}
 
 	// Put info to metainfo/schema about the source db
 	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
-	cmdOutput, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-	utils.CheckError(err, "", string(cmdOutput), true)
+	_, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
+	if err != nil {
+		utils.ErrExit("coludn't touch file %q: %v", sourceInfoFile, err)
+	}
 
 	schemaObjectList := utils.GetSchemaObjectList(source.DBType)
 
@@ -260,7 +264,9 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
 		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
-		utils.CheckError(err, "", "couldn't create sub-directories under "+projectDirPath+"/schema", true)
+		if err != nil {
+			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath+"/schema", err)
+		}
 	}
 
 	// log.Debugf("Created a project directory...")

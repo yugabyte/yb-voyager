@@ -146,8 +146,9 @@ func populateOra2pgConfigFile(configFilePath string, source *srcdb.Source) {
 
 	output := strings.Join(lines, "\n")
 	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
-
-	utils.CheckError(err, "Not able to update the config file", "", true)
+	if err != nil {
+		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+	}
 }
 
 func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.Source, tableList []string) {
@@ -174,16 +175,15 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.So
 
 	output := strings.Join(lines, "\n")
 	err = ioutil.WriteFile(configFilePath, []byte(output), 0644)
-
-	utils.CheckError(err, "Not able to update the config file", "", true)
+	if err != nil {
+		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+	}
 }
 
 func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	projectDirPath := exportDir
-
-	//TODO: Decide where to keep this
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
@@ -191,8 +191,6 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -P %d -o data.sql -b %s/data -c %s",
 		source.NumConnections, projectDirPath, configFilePath)
-
-	//TODO: Exporting only those tables provided in tablelist
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
