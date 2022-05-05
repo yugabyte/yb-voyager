@@ -184,19 +184,16 @@ func ParseJsonFromString(jsonString string) Report {
 }
 
 func GetObjectNameListFromReport(report Report, objType string) []string {
-	var tableList []string
-	// fmt.Printf("Report: %v\n", report)
+	var objectList []string
 	for _, dbObject := range report.Summary.DBObjects {
 		if dbObject.ObjectType == objType {
-			rawTableList := dbObject.ObjectNames
-			// fmt.Println("RawTableList: ", rawTableList)
-			tableList = strings.Split(rawTableList, ", ")
+			rawObjectList := strings.Trim(dbObject.ObjectNames, ", ")
+			objectList = strings.Split(rawObjectList, ", ")
 			break
 		}
 	}
-
-	sort.Strings(tableList)
-	return tableList
+	sort.Strings(objectList)
+	return objectList
 }
 
 func PrettifyHtmlString(htmlStr string) string {
