@@ -64,8 +64,11 @@ func exportData() {
 	}
 
 	if success {
-		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDataDone").Run() //to inform import data command
-		utils.CheckError(err, "", "couldn't touch file exportDataDone in metainfo/flags folder", true)
+		exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
+		err := exec.Command("touch", exportDoneFlagPath).Run() //to inform import data command
+		if err != nil {
+			utils.ErrExit("couldn't touch file %q: %v", exportDoneFlagPath, err)
+		}
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
