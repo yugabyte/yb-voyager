@@ -7,7 +7,6 @@
 - [Migration Steps](#migration-steps)
     - [Source DB Setup](#source-db-setup)
     - [Target DB Setup](#target-db-setup)
-    - [Report Generation](#report-generation)
     - [Source DB Export](#source-db-export)
     - [Manual Review (Post-Export)](#manual-review-before-importing-schema-to-yugabytedb-cluster)
     - [Target DB Import](#target-db-import)
@@ -130,27 +129,10 @@ Below are the steps that to carry out migrations using the *yb_migrate* utility:
     * Setting a session variable to disable Triggers and Foreign Key violation checks during the `import data` phase (`import data` command does this internally).
     * Dropping public schema with `--start-clean` flag during the `import schema` phase. 
 
-## Report Generation
-	
-Before beginning the migration cycle, the user can generate a report, which provides the details of the schema objects to be exported, along with incompatibilities, if any. The incompatibilities will be tagged and a Github issue link will be provided with it if available. If there are no solutions available, the user will have to manually review the export phase (see below).
-
-For additional help use the following command:
-
-```
-yb_migrate generateReport --help
-```
-
-**Sample command:**
-
-```
-yb_migrate generateReport --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format html
-```
-
-The generated report will be found in `export-dir/reports/report.html`.
 
 ## Source DB Export
 
-The export phase is carried out in two parts, export schema and export data respectively. It is recommended to start this phase after having completed the report generation phase (see above). 
+The export phase is carried out in two parts: `export schema` and `export data`.
 
 For additional help use the following command:
 
@@ -229,7 +211,18 @@ This is a very important step in the migration process. This gives a chance to t
 
 The user can also choose to omit certain schema object creations which may not be useful in YugabyteDB. For example, certain indexes, constraints etc. may be removed in a distributed cluster to improve performance.
 
-The `generateReport` command calls out all those incompatibilities and gives relevant GitHub issues which track these feature gaps, but the migration engine does not automatically remove them. It is advisable that the user thoroughly evaluates all of them and is aware of all the unsupported features and takes an informed decision about removing them. 
+The `analyze-schema` command calls out all those incompatibilities and gives relevant GitHub issues which track these feature gaps. Note that the migration engine does not automatically make any schema corrections--it only reports them.
+
+**Sample invocation of the analyze-schema command:**
+
+```
+yb_migrate analyze-schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format txt
+```
+
+The `analyze-schema` command outputs the analysis report at `export-dir/reports/report.txt`.
+
+Go through all the issues reported in the `report.txt` and make the suggested changes in the appropriate schema files located in the `export-dir/schema/*/`. After changing any schema file, you can re-run the `analyze-schema` to get the list of remaining issues. Once all the issues from the `report.txt` are addressed, the `analyze-schema` should not report any issue. Then you're ready to proceed to the `import` phase.
+
 ### Some example scenarios for manual review
 
 - CREATE INDEX CONCURRENTLY NOT SUPPORTED: This feature is not supported yet in YugabyteDB. It is advisable that user manually edits the DDL statement and removes the clause "CONCURRENTLY" from the definition.
