@@ -68,9 +68,12 @@ func importSchema() {
 	if sourceDBType == "postgresql" {
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")...)
+	} else if sourceDBType == "oracle" { // ORACLE PACKAGEs are exported as SCHEMAs
+		source = srcdb.Source{DBType: sourceDBType}
+		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
 	}
 
-	utils.PrintIfTrue(fmt.Sprintf("schemas to be present in target database: %v\n", targetSchemas), target.VerboseMode)
+	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
 
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
@@ -79,7 +82,8 @@ func importSchema() {
 		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema)
 		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", targetSchema)
 
-		// schema dropping or creating based on startClean and schemaExists boolean flags
+		/* if startClean=true -> first drop all schemas then create only --target-db-schema
+		   else -> check if schemaExists=false then create only --target-db-schema */
 		if startClean {
 			if schemaExists {
 				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema)
@@ -96,8 +100,8 @@ func importSchema() {
 				fmt.Printf("schema '%s' in target database doesn't exist\n", targetSchema)
 			}
 
-			//in case of postgres, CREATE SCHEMA DDLs for non-public schemas are already present in .sql files
-			if sourceDBType != "postgresql" || targetSchema == "public" {
+			// only create --target-db-schema, other required schemas are created via .sql files
+			if targetSchema == target.Schema {
 				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
 				_, err := conn.Exec(bgCtx, createSchemaQuery)
 				if err != nil {
@@ -107,7 +111,8 @@ func importSchema() {
 		} else {
 			if schemaExists {
 				fmt.Printf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
-			} else {
+			} else if targetSchema == target.Schema {
+				// only create --target-db-schema, other required schemas are created via .sql files
 				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
 				_, err := conn.Exec(bgCtx, createSchemaQuery)
 				if err != nil {
