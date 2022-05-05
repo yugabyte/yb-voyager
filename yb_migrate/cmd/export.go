@@ -82,7 +82,7 @@ func init() {
 	exportCmd.PersistentFlags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online(applicable only for data migration)")
 
-	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 1,
+	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database[Note: applicable only for export data command]")
 }
 
