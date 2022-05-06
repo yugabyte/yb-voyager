@@ -83,6 +83,8 @@ var (
 	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
 	withOidsRegex        = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
 	intvlRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
+	//super user role required, language c is errored as unsafe
+	cLangRegex = regexp.MustCompile(`(?i)CREATE (OR REPLACE )?FUNCTION ([a-zA-Z0-9_."]+).*language c`)
 
 	alterOfRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `)
 	alterSchemaRegex                = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET SCHEMA `)
@@ -394,6 +396,10 @@ func checkDDL(sqlStmtArray [][]string, fpath string) {
 		} else if spc := alterTblSpcRegex.FindStringSubmatch(line[0]); spc != nil {
 			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], line[1])
+		} else if tbl := cLangRegex.FindStringSubmatch(line[0]); tbl != nil {
+			reportCase(fpath, "LANGUAGE C not supported yet.",
+				"", "", "FUNCTION", tbl[2], line[1])
+			summaryMap["FUNCTION"].invalidCount++
 		}
 	}
 }
@@ -681,7 +687,7 @@ func generateTxtReport(Report utils.Report) string {
 	}
 	for i := 0; i < len(Report.Issues); i++ {
 		txtstring += "Error in Object " + Report.Issues[i].ObjectType + ":\n"
-		txtstring += "-Object Name: " + Report.Issues[i].ObjectName + ":\n"
+		txtstring += "-Object Name: " + Report.Issues[i].ObjectName + "\n"
 		txtstring += "-Reason: " + Report.Issues[i].Reason + "\n"
 		txtstring += "-SQL Statement: " + Report.Issues[i].SqlStatement + "\n"
 		txtstring += "-File Path: " + Report.Issues[i].FilePath + "\n"
