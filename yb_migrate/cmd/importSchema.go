@@ -80,10 +80,8 @@ func importSchema() {
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
 		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema)
 
-		/* if startClean=true -> first drop all schemas then create only --target-db-schema
-		   else -> check if schemaExists=false then create only --target-db-schema */
-		if startClean {
-			if schemaExists {
+		if schemaExists {
+			if startClean {
 				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema)
 				if !utils.AskPrompt(promptMsg) {
 					continue
@@ -95,10 +93,6 @@ func importSchema() {
 					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
 				}
 			} else {
-				utils.PrintAndLog("schema '%s' in target database doesn't exist\n", targetSchema)
-			}
-		} else {
-			if schemaExists {
 				utils.PrintAndLog("schema '%s' already present in target database, continuing with it..\n", targetSchema)
 			}
 		}
