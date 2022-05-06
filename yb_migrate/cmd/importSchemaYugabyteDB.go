@@ -128,7 +128,9 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 	metaInfoDirPath := exportDir + "/metainfo"
 
 	metaInfoDir, err := os.ReadDir(metaInfoDirPath)
-	utils.CheckError(err, "", "", true)
+	if err != nil {
+		utils.ErrExit("Failed to read directory %q: %v", metaInfoDirPath, err)
+	}
 
 	for _, metaInfoSubDir := range metaInfoDir {
 		if !metaInfoSubDir.IsDir() {
@@ -137,7 +139,7 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 		subItemPath := metaInfoDirPath + "/" + metaInfoSubDir.Name()
 		subItems, err := os.ReadDir(subItemPath)
 		if err != nil {
-			utils.ErrExit("Failed to read directory %q", subItemPath)
+			utils.ErrExit("Failed to read directory %q: %v", subItemPath, err)
 		}
 		for _, subItem := range subItems {
 			subItemName := subItem.Name()

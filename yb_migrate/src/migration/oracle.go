@@ -146,8 +146,9 @@ func populateOra2pgConfigFile(configFilePath string, source *srcdb.Source) {
 
 	output := strings.Join(lines, "\n")
 	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
-
-	utils.CheckError(err, "Not able to update the config file", "", true)
+	if err != nil {
+		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+	}
 }
 
 func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.Source, tableList []string) {
@@ -174,16 +175,15 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.So
 
 	output := strings.Join(lines, "\n")
 	err = ioutil.WriteFile(configFilePath, []byte(output), 0644)
-
-	utils.CheckError(err, "Not able to update the config file", "", true)
+	if err != nil {
+		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+	}
 }
 
 func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	projectDirPath := exportDir
-
-	//TODO: Decide where to keep this
 	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
 	populateOra2pgConfigFile(configFilePath, source)
 
@@ -191,8 +191,6 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -P %d -o data.sql -b %s/data -c %s",
 		source.NumConnections, projectDirPath, configFilePath)
-
-	//TODO: Exporting only those tables provided in tablelist
 
 	//Exporting all the tables in the schema
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
@@ -271,47 +269,6 @@ func getSourceDSN(source *srcdb.Source) string {
 
 	log.Infof("Source DSN used for export: %s", sourceDSN)
 	return sourceDSN
-}
-
-func OracleGetAllTableNames(source *srcdb.Source) []string {
-	dbConnStr := GetDriverConnStr(source)
-	db, err := sql.Open("godror", dbConnStr)
-	if err != nil {
-		utils.ErrExit("error in opening connections to database: %v", err)
-	}
-	defer db.Close()
-
-	var tableNames []string
-	/* below query will collect all tables under given schema except TEMPORARY tables,
-	Index related tables(start with DR$) and materialized view */
-	query := fmt.Sprintf(`SELECT table_name 
-		FROM all_tables 
-		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND
-		(owner, table_name) not in ( 
-			SELECT owner, mview_name 
-			FROM all_mviews 
-			UNION ALL 
-			SELECT log_owner, log_table 
-			FROM all_mview_logs)
-		ORDER BY table_name ASC`, source.Schema)
-	rows, err := db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var tableName string
-		err = rows.Scan(&tableName)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows for table names: %v", err)
-		}
-
-		tableNames = append(tableNames, tableName)
-	}
-
-	log.Infof("Table Name List: %q", tableNames)
-
-	return tableNames
 }
 
 func OracleGetAllPartitionNames(source *srcdb.Source, tableName string) []string {

@@ -64,8 +64,11 @@ func exportData() {
 	}
 
 	if success {
-		err := exec.Command("touch", exportDir+"/metainfo/flags/exportDataDone").Run() //to inform import data command
-		utils.CheckError(err, "", "couldn't touch file exportDataDone in metainfo/flags folder", true)
+		exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
+		err := exec.Command("touch", exportDoneFlagPath).Run() //to inform import data command
+		if err != nil {
+			utils.ErrExit("couldn't touch file %q: %v", exportDoneFlagPath, err)
+		}
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -112,13 +115,7 @@ func exportDataOffline() bool {
 			fmt.Printf("table list flag values: %v\n", tableList)
 		}
 	} else {
-		if source.DBType == "mysql" {
-			tableList = migration.MySQLGetAllTableNames(&source)
-		} else if source.DBType == "oracle" {
-			tableList = migration.OracleGetAllTableNames(&source)
-		} else {
-			tableList = utils.GetObjectNameListFromReport(generateReportHelper(), "TABLE")
-		}
+		tableList = source.DB().GetAllTableNames()
 		fmt.Printf("Num tables to export: %d\n", len(tableList))
 		utils.PrintAndLog("table list for data export: %v", tableList)
 	}
@@ -155,7 +152,7 @@ func exportDataOffline() bool {
 		utils.WaitGroup.Add(1)
 
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := utils.GetObjectNameListFromReport(generateReportHelper(), "SEQUENCE")
+		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
 		tableList = append(tableList, sequenceList...)
 
 		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
@@ -207,16 +204,13 @@ func checkTableListFlag(tableListString string) {
 
 func checkDataDirs() {
 	exportDataDir := exportDir + "/data"
-	metainfoFlagDir := exportDir + "/metainfo/flags"
+	flagFilePath := exportDir + "/metainfo/flags/exportDataDone"
 	if startClean {
 		utils.CleanDir(exportDataDir)
-		utils.CleanDir(metainfoFlagDir)
+		os.Remove(flagFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
-		}
-		if !utils.IsDirectoryEmpty(metainfoFlagDir) {
-			utils.ErrExit("%s/metainfo/flags directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
 }

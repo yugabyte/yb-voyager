@@ -23,7 +23,6 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"os"
@@ -164,7 +163,7 @@ func reportSummary() {
 	if !target.ImportMode { // this info is available only if we are exporting from source
 		reportStruct.Summary.DBName = source.DBName
 		reportStruct.Summary.SchemaName = source.Schema
-		reportStruct.Summary.DBVersion = migration.SelectVersionQuery(source.DBType, migration.GetDriverConnStr(&source))
+		reportStruct.Summary.DBVersion = source.DB().GetVersion()
 	}
 
 	// requiredJson += `"databaseObjects": [`
@@ -704,7 +703,7 @@ func generateTxtReport(Report utils.Report) string {
 }
 
 // add info to the 'reportStruct' variable and return
-func generateReportHelper() utils.Report {
+func analyzeSchemaInternal() utils.Report {
 	reportStruct = utils.Report{}
 	schemaDir := exportDir + "/schema"
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
@@ -728,18 +727,21 @@ func generateReportHelper() utils.Report {
 	}
 
 	reportSummary()
-	// fmt.Printf("generateReportHelper() report: %v\n", reportStruct)
 	return reportStruct
 }
 
-func generateReport() {
+func analyzeSchema() {
 	reportFile := "report." + outputFormat
 	reportPath := exportDir + "/reports/" + reportFile
 
 	if !schemaIsExported(exportDir) {
-		utils.ErrExit("run export schema before running generateReport")
+		utils.ErrExit("run export schema before running analyze-schema")
 	}
-	generateReportHelper()
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source database: %s", err)
+	}
+	analyzeSchemaInternal()
 
 	var finalReport string
 	switch outputFormat {
@@ -777,12 +779,12 @@ func generateReport() {
 	if err != nil {
 		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
 	}
-	fmt.Printf("-- please find migration report at: %s\n", reportPath)
+	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 }
 
-var generateReportCmd = &cobra.Command{
-	Use:   "generateReport",
-	Short: "command for checking source database schema and generating report about YB incompatible constructs",
+var analyzeSchemaCmd = &cobra.Command{
+	Use:   "analyze-schema",
+	Short: "Analyze source database schema and generate report about YB incompatible constructs",
 	Long:  ``,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
@@ -816,16 +818,16 @@ var generateReportCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		generateReport()
+		analyzeSchema()
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(generateReportCmd)
+	rootCmd.AddCommand(analyzeSchemaCmd)
 
-	registerCommonExportFlags(generateReportCmd)
+	registerCommonExportFlags(analyzeSchemaCmd)
 
-	generateReportCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
+	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
 }
 
