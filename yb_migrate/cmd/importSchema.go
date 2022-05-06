@@ -68,20 +68,20 @@ func importSchema() {
 	if sourceDBType == "postgresql" {
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")...)
+	} else if sourceDBType == "oracle" { // ORACLE PACKAGEs are exported as SCHEMAs
+		source = srcdb.Source{DBType: sourceDBType}
+		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
 	}
 
-	utils.PrintIfTrue(fmt.Sprintf("schemas to be present in target database: %v\n", targetSchemas), target.VerboseMode)
+	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
 
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)
-
 		dropSchemaQuery := fmt.Sprintf("DROP SCHEMA %s CASCADE", targetSchema)
-		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", targetSchema)
 
-		// schema dropping or creating based on startClean and schemaExists boolean flags
-		if startClean {
-			if schemaExists {
+		if schemaExists {
+			if startClean {
 				promptMsg := fmt.Sprintf("do you really want to drop the '%s' schema", targetSchema)
 				if !utils.AskPrompt(promptMsg) {
 					continue
@@ -93,27 +93,20 @@ func importSchema() {
 					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
 				}
 			} else {
-				fmt.Printf("schema '%s' in target database doesn't exist\n", targetSchema)
+				utils.PrintAndLog("schema '%s' already present in target database, continuing with it..\n", targetSchema)
 			}
+		}
+	}
 
-			//in case of postgres, CREATE SCHEMA DDLs for non-public schemas are already present in .sql files
-			if sourceDBType != "postgresql" || targetSchema == "public" {
-				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
-				_, err := conn.Exec(bgCtx, createSchemaQuery)
-				if err != nil {
-					utils.ErrExit("Failed to create %q schema in the target DB: %s", targetSchema, err)
-				}
-			}
-		} else {
-			if schemaExists {
-				fmt.Printf("schema '%s' already present in target database, continuing with it..\n", targetSchema)
-			} else {
-				utils.PrintAndLog("creating schema '%s' in target database...", targetSchema)
-				_, err := conn.Exec(bgCtx, createSchemaQuery)
-				if err != nil {
-					utils.ErrExit("Failed to create %q schema in the target DB: %s", targetSchema, err)
-				}
-			}
+	schemaExists := checkIfTargetSchemaExists(conn, target.Schema)
+	createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", target.Schema)
+	/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
+	only create target.Schema, other required schemas are created via .sql files */
+	if !schemaExists {
+		utils.PrintAndLog("creating schema '%s' in target database...", target.Schema)
+		_, err := conn.Exec(bgCtx, createSchemaQuery)
+		if err != nil {
+			utils.ErrExit("Failed to create %q schema in the target DB: %s", target.Schema, err)
 		}
 	}
 
