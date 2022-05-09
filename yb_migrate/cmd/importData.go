@@ -63,6 +63,7 @@ var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
+var LoadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
 
 type ExportTool int
 
@@ -168,7 +169,9 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	testYbServers(targets)
+	if !LoadBalancerUsed { // no need to check direct connectivity if load balancer is used
+		testYbServers(targets)
+	}
 	return targets
 }
 
@@ -216,9 +219,6 @@ func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
 }
 
 func importData() {
-	// TODO: Add later
-	// acquireImportLock()
-	// defer os.Remove(importLockFile)
 	log.Infof("import data command initiated for DB %q", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {
@@ -231,6 +231,12 @@ func importData() {
 		parallelism = len(targets)
 	}
 	log.Infof("parallelism=%v", parallelism)
+
+	if LoadBalancerUsed {
+		clone := target.Clone()
+		clone.Uri = getTargetConnectionUri(clone)
+		targets = []*tgtdb.Target{clone}
+	}
 	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
