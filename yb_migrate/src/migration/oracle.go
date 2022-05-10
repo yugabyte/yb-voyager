@@ -55,11 +55,11 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-t", exportObject, "-o",
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-q", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
@@ -91,6 +91,8 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 					<-utils.WaitChannel
 					log.Infof("ERROR in error scanner goroutine: %s", line)
 					runtime.Goexit()
+				} else {
+					utils.PrintAndLog("ora2pg STDERR: %s", errScanner.Text())
 				}
 			}
 		}()
@@ -191,7 +193,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -P %d -o data.sql -b %s/data -c %s",
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s",
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
