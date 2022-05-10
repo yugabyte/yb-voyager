@@ -140,7 +140,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
 
-	cmd.Flags().BoolVar(&LoadBalancerUsed, "load-balancer", false,
+	cmd.Flags().BoolVar(&loadBalancerUsed, "load-balancer", false,
 		"true - if given --target-db-host is a load balancer ip (default false)")
 }
 
