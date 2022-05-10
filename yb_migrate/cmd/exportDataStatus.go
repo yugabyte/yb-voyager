@@ -25,7 +25,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
@@ -72,7 +71,7 @@ func initializeExportTableMetadata(tableList []string) {
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
 		if source.DBType == ORACLE {
-			partitionList := migration.OracleGetAllPartitionNames(&source, parentTable)
+			partitionList := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionList) > 0 {
 				utils.PrintAndLog("Table %q has partitions: %v", parentTable, partitionList)
 

@@ -82,6 +82,10 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	return tableNames
 }
 
+func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
+	panic("Not Implemented")
+}
+
 func (pg *PostgreSQL) getConnectionString() string {
 	source := pg.source
 

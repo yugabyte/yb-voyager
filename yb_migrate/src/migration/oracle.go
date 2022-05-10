@@ -18,7 +18,6 @@ package migration
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	_ "embed"
 	"fmt"
 	"io/ioutil"
@@ -269,37 +268,4 @@ func getSourceDSN(source *srcdb.Source) string {
 
 	log.Infof("Source DSN used for export: %s", sourceDSN)
 	return sourceDSN
-}
-
-func OracleGetAllPartitionNames(source *srcdb.Source, tableName string) []string {
-	dbConnStr := GetDriverConnStr(source)
-	db, err := sql.Open("godror", dbConnStr)
-	if err != nil {
-		utils.ErrExit("error in opening connections to database: %v", err)
-	}
-	defer db.Close()
-
-	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
-		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
-		tableName, source.Schema)
-	rows, err := db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in query table %q for partition names: %v", tableName, err)
-	}
-	defer rows.Close()
-
-	var partitionNames []string
-	for rows.Next() {
-		var partitionName string
-		err = rows.Scan(&partitionName)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows: %v", err)
-		}
-		partitionNames = append(partitionNames, partitionName)
-
-		// TODO: Support subpartition(find subparititions for each partition)
-	}
-
-	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
 }
