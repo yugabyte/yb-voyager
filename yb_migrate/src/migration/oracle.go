@@ -215,7 +215,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	err = exportDataCommand.Wait()
 	if err != nil {
-		utils.ErrExit("Error while waiting for ora2pg to exit: %v", err)
+		utils.ErrExit("Error while waiting for ora2pg to exit: %v\n%s", err, errbuf.String())
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
