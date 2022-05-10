@@ -204,7 +204,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	err := exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
-	if outbuf.String != nil {
+	if outbuf.String() != "" {
 		log.Infof("ora2pg STDOUT: %s", outbuf.String())
 	}
 	if err != nil {

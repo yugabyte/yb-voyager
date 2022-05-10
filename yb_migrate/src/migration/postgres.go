@@ -234,7 +234,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	proc.Stderr = &outbuf
 	proc.Stdout = &errbuf
 	err := proc.Start()
-	if outbuf.String != nil {
+	if outbuf.String() != "" {
 		log.Infof("%s", outbuf.String())
 	}
 	if err != nil {
