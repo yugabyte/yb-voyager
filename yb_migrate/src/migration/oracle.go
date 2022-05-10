@@ -22,7 +22,6 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -77,6 +76,7 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 					log.Infof("ERROR in output scanner goroutine: %s", line)
 					runtime.Goexit()
 				}
+				log.Infof("ora2pg STDOUT: %s", outScanner.Text())
 			}
 		}()
 
@@ -196,26 +196,27 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
 	log.Infof("Executing command: %s", exportDataCommandString)
 
-	stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		utils.ErrExit("Error while opening export data output file: %v", err)
-	}
-	defer stdOutFile.Close()
+	// stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// if err != nil {
+	// 	utils.ErrExit("Error while opening export data output file: %v", err)
+	// }
+	// defer stdOutFile.Close()
 
-	stdErrFile, err := os.OpenFile(exportDir+"/temp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		utils.ErrExit("Error while opening export data error file: %v", err)
-	}
-	defer stdErrFile.Close()
+	// stdErrFile, err := os.OpenFile(exportDir+"/temp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// if err != nil {
+	// 	utils.ErrExit("Error while opening export data error file: %v", err)
+	// }
+	// defer stdErrFile.Close()
 
-	exportDataCommand.Stdout = stdOutFile
-	exportDataCommand.Stderr = stdErrFile
+	// exportDataCommand.Stdout = stdOutFile
+	// exportDataCommand.Stderr = stdErrFile
 
-	err = exportDataCommand.Start()
+	stdout, err := exportDataCommand.CombinedOutput()
 	fmt.Println("starting ora2pg for data export...")
 	if err != nil {
 		utils.ErrExit("Error while starting ora2pg for data export: %v", err)
 	}
+	log.Infof("ora2pg STDOUT: %s", string(stdout))
 
 	exportDataStart <- true
 
