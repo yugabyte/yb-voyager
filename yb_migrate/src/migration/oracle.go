@@ -17,6 +17,7 @@ package migration
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"database/sql"
 	_ "embed"
@@ -193,30 +194,22 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
-	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
+	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
 	log.Infof("Executing command: %s", exportDataCommandString)
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
 
-	// stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// if err != nil {
-	// 	utils.ErrExit("Error while opening export data output file: %v", err)
-	// }
-	// defer stdOutFile.Close()
+	exportDataCommand.Stdout = &outbuf
+	exportDataCommand.Stderr = &errbuf
 
-	// stdErrFile, err := os.OpenFile(exportDir+"/temp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	// if err != nil {
-	// 	utils.ErrExit("Error while opening export data error file: %v", err)
-	// }
-	// defer stdErrFile.Close()
-
-	// exportDataCommand.Stdout = stdOutFile
-	// exportDataCommand.Stderr = stdErrFile
-
-	stdout, err := exportDataCommand.CombinedOutput()
+	err := exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
-	if err != nil {
-		utils.ErrExit("Error while starting ora2pg for data export: %v", err)
+	if outbuf.String != nil {
+		log.Infof("ora2pg STDOUT: %s", outbuf.String())
 	}
-	log.Infof("ora2pg STDOUT: %s", string(stdout))
+	if err != nil {
+		utils.ErrExit("Error while starting ora2pg for data export: %v\n%s", err, errbuf.String())
+	}
 
 	exportDataStart <- true
 
