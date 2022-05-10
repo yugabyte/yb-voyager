@@ -9,9 +9,9 @@ import (
 )
 
 type TargetDB struct {
-	target *Target
-
-	conn *pgx.Conn
+	target  *Target
+	version string
+	conn    *pgx.Conn
 }
 
 func newTargetDB(target *Target) *TargetDB {
@@ -48,12 +48,15 @@ func (tdb *TargetDB) EnsureConnected() {
 }
 
 func (tdb *TargetDB) GetVersion() string {
+	if tdb.version != "" {
+		return tdb.version
+	}
+
 	tdb.EnsureConnected()
-	var version string
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := tdb.conn.QueryRow(context.Background(), query).Scan(&version)
+	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.version)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return version
+	return tdb.version
 }
