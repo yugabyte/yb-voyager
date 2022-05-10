@@ -52,7 +52,7 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 
 	stdout, err := preparedYsqldumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
-	if stdout != nil {
+	if string(stdout) != "" {
 		log.Infof("%s", string(stdout))
 	}
 	if err != nil {
