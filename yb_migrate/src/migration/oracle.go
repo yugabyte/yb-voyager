@@ -76,8 +76,9 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 					<-utils.WaitChannel
 					log.Infof("ERROR in output scanner goroutine: %s", line)
 					runtime.Goexit()
+				} else {
+					log.Infof("ora2pg STDOUT: %s", outScanner.Text())
 				}
-				log.Infof("ora2pg STDOUT: %s", outScanner.Text())
 			}
 		}()
 

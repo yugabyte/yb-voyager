@@ -238,7 +238,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 		log.Infof("%s", outbuf.String())
 	}
 	if err != nil {
-		fmt.Printf("pg_dump failed to start exporting data with error: %v. Refer to yb_migrate.log for further details.", err)
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
@@ -252,7 +252,7 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		fmt.Printf("pg_dump failed to export data with error: %v. Refer to yb_migrate.log for further details.", err)
+		fmt.Printf("pg_dump failed to export data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
 		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
