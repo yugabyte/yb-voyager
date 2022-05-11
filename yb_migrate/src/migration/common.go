@@ -27,7 +27,6 @@ import (
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
-	"github.com/go-sql-driver/mysql"
 	_ "github.com/godror/godror"
 	log "github.com/sirupsen/logrus"
 )
@@ -133,56 +132,6 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	log.Infof("tableRowCountMap: %v", tableRowCountMap)
 	return tableRowCountMap
-}
-
-func GetDriverConnStr(source *srcdb.Source) string {
-	var connStr string
-	switch source.DBType {
-	//TODO:Discuss and set a priority order for checks in the case of Oracle
-	case "oracle":
-		if source.DBSid != "" {
-			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
-				source.User, source.Password, source.Host, source.Port, source.DBSid)
-		} else if source.TNSAlias != "" {
-			connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
-		} else if source.DBName != "" {
-			connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
-				source.User, source.Password, source.Host, source.Port, source.DBName)
-		}
-	case "mysql":
-		parseSSLString(source)
-		var tlsString string
-		switch source.SSLMode {
-		case "disable":
-			tlsString = "tls=false"
-		case "prefer":
-			tlsString = "tls=preferred"
-		case "require":
-			tlsString = "tls=skip-verify"
-		case "verify-ca", "verify-full":
-			tlsConf := createTLSConf(source)
-			err := mysql.RegisterTLSConfig("custom", &tlsConf)
-			if err != nil {
-				fmt.Println(err)
-				log.Fatal(err)
-			}
-			tlsString = "tls=custom"
-		default:
-			errMsg := "Incorrect SSL Mode Provided. Please enter a valid sslmode."
-			utils.ErrExit(errMsg)
-		}
-		connStr = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
-			source.Host, source.Port, source.DBName, tlsString)
-
-	case "postgresql":
-		if source.Uri == "" {
-			connStr = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
-				source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
-		} else {
-			connStr = source.Uri
-		}
-	}
-	return connStr
 }
 
 func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
