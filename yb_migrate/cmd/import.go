@@ -139,6 +139,9 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
+
+	cmd.Flags().BoolVar(&loadBalancerUsed, "load-balancer", false,
+		"true - if given --target-db-host is a load balancer ip (default false)")
 }
 
 func validateTargetPortRange() {
