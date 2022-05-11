@@ -50,7 +50,11 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 	log.Infof("Running command: %s", preparePgdumpCommandString)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
 
-	err := preparedYsqldumpCommand.Run()
+	stdout, err := preparedYsqldumpCommand.CombinedOutput()
+	//pg_dump formats its stdout messages, %s is sufficient.
+	if string(stdout) != "" {
+		log.Infof("%s", string(stdout))
+	}
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
@@ -228,13 +232,18 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
 	log.Infof("Running command: %s", cmd)
-	var buf bytes.Buffer
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
-	proc.Stderr = &buf
-	proc.Stdout = &buf
+	proc.Stderr = &outbuf
+	proc.Stdout = &errbuf
 	err := proc.Start()
+	if outbuf.String() != "" {
+		log.Infof("%s", outbuf.String())
+	}
 	if err != nil {
-		utils.PrintAndLog("pg_dump failed to start exporting data with error: %v\n%s", err, buf.String())
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
+		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -247,7 +256,8 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		utils.PrintAndLog("pg_dump failed to export data with error: %v\n%s", err, buf.String())
+		fmt.Printf("pg_dump failed to export data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
+		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
