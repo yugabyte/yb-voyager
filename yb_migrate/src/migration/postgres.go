@@ -85,7 +85,7 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 
 	var createTableSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
-		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
+		createRuleSqls, createAggregateSqls, createViewSqls, createMatViewSqls, uncategorizedSqls,
 		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
@@ -126,6 +126,8 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 				createSequenceSqls.WriteString(sqlStatement)
 			case "VIEW":
 				createViewSqls.WriteString(sqlStatement)
+			case "MATERIALIZED VIEW":
+				createMatViewSqls.WriteString(sqlStatement)
 			case "SCHEMA":
 				createSchemaSqls.WriteString(sqlStatement)
 			case "EXTENSION":
@@ -160,6 +162,8 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	ioutil.WriteFile(schemaDirPath+"/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
+	ioutil.WriteFile(schemaDirPath+"/mviews/mview.sql", []byte(setSessionVariables.String()+createMatViewSqls.String()), 0644)
+
 
 	if uncategorizedSqls.Len() > 0 {
 		ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)

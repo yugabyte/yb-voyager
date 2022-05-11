@@ -216,10 +216,7 @@ func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
 }
 
 func importData() {
-	// TODO: Add later
-	// acquireImportLock()
-	// defer os.Remove(importLockFile)
-	log.Infof("import data command initiated for DB %q", target.DBName)
+	utils.PrintAndLog("import of data in %q database started", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
