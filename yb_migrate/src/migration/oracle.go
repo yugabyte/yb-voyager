@@ -17,12 +17,11 @@ package migration
 
 import (
 	"bufio"
+	"bytes"
 	"context"
-	"database/sql"
 	_ "embed"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -55,11 +54,11 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-t", exportObject, "-o",
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-t", exportObject, "-o",
+			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-q", "-t", exportObject, "-o",
 				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
@@ -76,6 +75,8 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 					<-utils.WaitChannel
 					log.Infof("ERROR in output scanner goroutine: %s", line)
 					runtime.Goexit()
+				} else {
+					log.Infof("ora2pg STDOUT: %s", outScanner.Text())
 				}
 			}
 		}()
@@ -89,6 +90,8 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 					<-utils.WaitChannel
 					log.Infof("ERROR in error scanner goroutine: %s", line)
 					runtime.Goexit()
+				} else {
+					utils.PrintAndLog("ora2pg STDERR: %s", errScanner.Text())
 				}
 			}
 		}()
@@ -189,39 +192,32 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	exportDataCommandString := fmt.Sprintf("ora2pg -t COPY -P %d -o data.sql -b %s/data -c %s",
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s",
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
-	exportDataCommand := exec.Command("/bin/bash", "-c", exportDataCommandString)
+	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
 	log.Infof("Executing command: %s", exportDataCommandString)
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
 
-	stdOutFile, err := os.OpenFile(exportDir+"/temp/export-data-stdout", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		utils.ErrExit("Error while opening export data output file: %v", err)
-	}
-	defer stdOutFile.Close()
+	exportDataCommand.Stdout = &outbuf
+	exportDataCommand.Stderr = &errbuf
 
-	stdErrFile, err := os.OpenFile(exportDir+"/temp/export-data-stderr", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		utils.ErrExit("Error while opening export data error file: %v", err)
-	}
-	defer stdErrFile.Close()
-
-	exportDataCommand.Stdout = stdOutFile
-	exportDataCommand.Stderr = stdErrFile
-
-	err = exportDataCommand.Start()
+	err := exportDataCommand.Start()
 	fmt.Println("starting ora2pg for data export...")
+	if outbuf.String() != "" {
+		log.Infof("ora2pg STDOUT: %s", outbuf.String())
+	}
 	if err != nil {
-		utils.ErrExit("Error while starting ora2pg for data export: %v", err)
+		utils.ErrExit("Error while starting ora2pg for data export: %v\n%s", err, errbuf.String())
 	}
 
 	exportDataStart <- true
 
 	err = exportDataCommand.Wait()
 	if err != nil {
-		utils.ErrExit("Error while waiting for ora2pg to exit: %v", err)
+		utils.ErrExit("Error while waiting for ora2pg to exit: %v\n%s", err, errbuf.String())
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
@@ -269,37 +265,4 @@ func getSourceDSN(source *srcdb.Source) string {
 
 	log.Infof("Source DSN used for export: %s", sourceDSN)
 	return sourceDSN
-}
-
-func OracleGetAllPartitionNames(source *srcdb.Source, tableName string) []string {
-	dbConnStr := GetDriverConnStr(source)
-	db, err := sql.Open("godror", dbConnStr)
-	if err != nil {
-		utils.ErrExit("error in opening connections to database: %v", err)
-	}
-	defer db.Close()
-
-	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
-		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
-		tableName, source.Schema)
-	rows, err := db.Query(query)
-	if err != nil {
-		utils.ErrExit("error in query table %q for partition names: %v", tableName, err)
-	}
-	defer rows.Close()
-
-	var partitionNames []string
-	for rows.Next() {
-		var partitionName string
-		err = rows.Scan(&partitionName)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows: %v", err)
-		}
-		partitionNames = append(partitionNames, partitionName)
-
-		// TODO: Support subpartition(find subparititions for each partition)
-	}
-
-	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
 }

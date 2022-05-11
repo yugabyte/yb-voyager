@@ -86,6 +86,30 @@ func (ora *Oracle) GetAllTableNames() []string {
 	return tableNames
 }
 
+func (ora *Oracle) GetAllPartitionNames(tableName string) []string {
+	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
+		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
+		tableName, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to list partitions of table %q: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	var partitionNames []string
+	for rows.Next() {
+		var partitionName string
+		err = rows.Scan(&partitionName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows: %v", err)
+		}
+		partitionNames = append(partitionNames, partitionName)
+		// TODO: Support subpartition(find subparititions for each partition)
+	}
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
+	return partitionNames
+}
+
 func (ora *Oracle) getConnectionString() string {
 	source := ora.source
 	var connStr string

@@ -50,7 +50,11 @@ func PgDumpExtractSchema(source *srcdb.Source, exportDir string) {
 	log.Infof("Running command: %s", preparePgdumpCommandString)
 	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
 
-	err := preparedYsqldumpCommand.Run()
+	stdout, err := preparedYsqldumpCommand.CombinedOutput()
+	//pg_dump formats its stdout messages, %s is sufficient.
+	if string(stdout) != "" {
+		log.Infof("%s", string(stdout))
+	}
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
@@ -85,7 +89,7 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 
 	var createTableSqls, createFunctionSqls, createTriggerSqls,
 		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
-		createRuleSqls, createAggregateSqls, createViewSqls, uncategorizedSqls,
+		createRuleSqls, createAggregateSqls, createViewSqls, createMatViewSqls, uncategorizedSqls,
 		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
@@ -126,6 +130,8 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 				createSequenceSqls.WriteString(sqlStatement)
 			case "VIEW":
 				createViewSqls.WriteString(sqlStatement)
+			case "MATERIALIZED VIEW":
+				createMatViewSqls.WriteString(sqlStatement)
 			case "SCHEMA":
 				createSchemaSqls.WriteString(sqlStatement)
 			case "EXTENSION":
@@ -160,6 +166,8 @@ func parseSchemaFile(source *srcdb.Source, exportDir string) {
 	ioutil.WriteFile(schemaDirPath+"/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
 	ioutil.WriteFile(schemaDirPath+"/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
+	ioutil.WriteFile(schemaDirPath+"/mviews/mview.sql", []byte(setSessionVariables.String()+createMatViewSqls.String()), 0644)
+
 
 	if uncategorizedSqls.Len() > 0 {
 		ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
@@ -224,13 +232,18 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
 	}
 	log.Infof("Running command: %s", cmd)
-	var buf bytes.Buffer
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
-	proc.Stderr = &buf
-	proc.Stdout = &buf
+	proc.Stderr = &outbuf
+	proc.Stdout = &errbuf
 	err := proc.Start()
+	if outbuf.String() != "" {
+		log.Infof("%s", outbuf.String())
+	}
 	if err != nil {
-		utils.PrintAndLog("pg_dump failed to start exporting data with error: %v\n%s", err, buf.String())
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
+		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
@@ -243,7 +256,8 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		utils.PrintAndLog("pg_dump failed to export data with error: %v\n%s", err, buf.String())
+		fmt.Printf("pg_dump failed to export data with error: %v. Refer to Refer to'%s/yb_migrate.log' for further details.", err, exportDir)
+		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
 	}
