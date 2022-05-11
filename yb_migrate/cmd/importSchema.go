@@ -64,7 +64,6 @@ func importSchema() {
 
 	// in case of postgreSQL as source, there can be multiple schemas present in a database
 	targetSchemas := []string{target.Schema}
-	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
 	if sourceDBType == "postgresql" {
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")...)
