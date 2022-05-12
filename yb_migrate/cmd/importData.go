@@ -63,7 +63,6 @@ var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
-var sourceDBType string
 var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
 
 type SplitFileImportTask struct {
@@ -529,6 +528,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
+	insideCopyStmt := false
 	forig, err := os.Open(dataFile)
 	if err != nil {
 		utils.ErrExit("open file %q: %s", dataFile, err)
@@ -549,7 +549,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
 			utils.ErrExit("read a line from %q: %s", dataFile, err)
 		}
-		if isDataLine(line) {
+		if isDataLine(line, sourceDBType, &insideCopyStmt) {
 			i++
 		}
 	}
@@ -561,7 +561,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = utils.Readline(r)
-		if readLineErr == nil && !isDataLine(line) {
+		if readLineErr == nil && !isDataLine(line, sourceDBType, &insideCopyStmt) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
 			numLinesTaken += 1
@@ -628,19 +628,37 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", dataFile, t)
 }
 
-// Example: "SET client_encoding TO 'UTF8';"
-var reSetTo = regexp.MustCompile(`(?i)SET \w+ TO .*;`)
-
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-func isDataLine(line string) bool {
-	return !(len(line) == 0 ||
-		line == "\n" ||
-		line == "\\." || line == "\\.\n" ||
-		reSetTo.MatchString(line) ||
+/*
+	This function checks for based structure of data file which can be different
+	for different source db type based on tool used for export
+	postgresql - file has only data lines with "\." at the end
+	oracle/mysql - multiple copy statements with each having specific count of rows
+*/
+func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
+	emptyLine := (len(line) == 0)
+	newLineChar := (line == "\n")
+	endOfCopy := (line == "\\." || line == "\\.\n")
 
-		reCopy.MatchString(line))
+	if sourceDBType == "postgresql" {
+		return !(emptyLine || newLineChar || endOfCopy)
+	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
+		if *insideCopyStmt {
+			if endOfCopy {
+				*insideCopyStmt = false
+			}
+			return !(emptyLine || newLineChar || endOfCopy)
+		} else { // outside copy
+			if reCopy.MatchString(line) {
+				*insideCopyStmt = true
+			}
+			return false
+		}
+	} else {
+		panic("Invalid source db type")
+	}
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
@@ -858,10 +876,10 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 			}
 
-			err = os.Truncate(doneFilePath, 0)
-			if err != nil {
-				log.Warnf("truncate file %q: %s", doneFilePath, err)
-			}
+			// err = os.Truncate(doneFilePath, 0)
+			// if err != nil {
+			// 	log.Warnf("truncate file %q: %s", doneFilePath, err)
+			// }
 			splitImportDone = true
 		default:
 			// fmt.Printf("No server sleeping for 2 seconds\n")
