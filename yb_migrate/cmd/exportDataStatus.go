@@ -214,6 +214,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	var line string
 	var readLineErr error
+	checkCopyStmt := -1
 	for !checkForEndOfFile(&source, tableMetadata, line) {
 		for {
 			line, readLineErr = reader.ReadString('\n')
@@ -225,7 +226,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 			if strings.HasPrefix(line, "\\.") { //break loop to execute checkForEndOfFile()
 				break
-			} else if isDataLine(line) {
+			} else if isDataLine(line, tableMetadata.CountLiveRows+1, &checkCopyStmt, source.DBType) {
 				tableMetadata.CountLiveRows += 1
 			}
 		}
@@ -246,7 +247,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		} else if readLineErr != nil { //error other than EOF
 			utils.ErrExit("Error while reading file %s: %v", tableDataFile, readLineErr)
 		}
-		if isDataLine(line) {
+		if isDataLine(line, tableMetadata.CountLiveRows+1, &checkCopyStmt, source.DBType) {
 			tableMetadata.CountLiveRows += 1
 		}
 	}

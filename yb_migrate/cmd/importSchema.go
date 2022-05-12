@@ -51,7 +51,7 @@ func init() {
 
 func importSchema() {
 	utils.PrintAndLog("import of schema in %q database started", target.DBName)
-
+	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	bgCtx := context.Background()
 
 	err := target.DB().Connect()

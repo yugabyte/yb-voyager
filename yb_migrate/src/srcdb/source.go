@@ -14,6 +14,8 @@ import (
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
+const ORA2PG_EXPORT_DATA_LIMIT = 10000 // default value for DATA_LIMIT parameter in ora2pg.conf file
+
 type Source struct {
 	DBType         string
 	Host           string

@@ -170,6 +170,8 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.So
 			lines[i] = "FILE_PER_TABLE " + "1"
 		} else if strings.HasPrefix(line, "#ALLOW") {
 			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		} else if strings.HasPrefix(line, "DATA_LIMIT") {
+			lines[i] = "DATA_LIMIT " + fmt.Sprintf("%d", srcdb.ORA2PG_EXPORT_DATA_LIMIT)
 		}
 	}
 

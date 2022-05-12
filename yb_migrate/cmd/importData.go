@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
@@ -63,7 +64,6 @@ var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
-var sourceDBType string
 
 type SplitFileImportTask struct {
 	TableName           string
@@ -523,6 +523,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
+	checkCopyStmt := -1 // initializing to denote start of file
 	forig, err := os.Open(dataFile)
 	if err != nil {
 		utils.ErrExit("open file %q: %s", dataFile, err)
@@ -543,7 +544,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
 			utils.ErrExit("read a line from %q: %s", dataFile, err)
 		}
-		if isDataLine(line) {
+		if isDataLine(line, i+1, &checkCopyStmt, sourceDBType) {
 			i++
 		}
 	}
@@ -555,7 +556,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = utils.Readline(r)
-		if readLineErr == nil && !isDataLine(line) {
+		if readLineErr == nil && !isDataLine(line, numLinesTaken, &checkCopyStmt, sourceDBType) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
 			numLinesTaken += 1
@@ -628,13 +629,42 @@ var reSetTo = regexp.MustCompile(`(?i)SET \w+ TO .*;`)
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-func isDataLine(line string) bool {
-	return !(len(line) == 0 ||
-		line == "\n" ||
-		line == "\\." || line == "\\.\n" ||
-		reSetTo.MatchString(line) ||
+/*
+	This function will have different checks based on database type or tool used to export data
+	1. Postgresql: Data files can have either "\." or "\n"
+	2. Oracle: Data files can have "SET" and "COPY" statements, or emptyline, newline, "\."
+	3. MySQL: same as Oracle
 
-		reCopy.MatchString(line))
+	checkCopyStmt has three states: -1,0,1
+	-1:  enable the check for header and copy
+	1/0: enable/disable the check for copy
+*/
+func isDataLine(line string, currentRowCount int64, checkCopyStmt *int, sourceDBType string) bool {
+	var emptyLine, newLineChar, EndOfCopy, res bool
+	emptyLine = (len(line) == 0)
+	newLineChar = (line == "\n")
+	EndOfCopy = (line == "\\." || line == "\\.\n")
+
+	if sourceDBType == "postgresql" {
+		res = !(emptyLine || newLineChar || EndOfCopy)
+	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
+		if *checkCopyStmt == 0 && currentRowCount != 0 && currentRowCount%int64(srcdb.ORA2PG_EXPORT_DATA_LIMIT) == 0 {
+			*checkCopyStmt = 1 // enabling the COPY stmt check
+		}
+
+		res = (emptyLine || newLineChar || EndOfCopy ||
+			(*checkCopyStmt == -1 && reSetTo.MatchString(line)))
+		// check for possibility of current line as a copy statement
+		copyCheck := ((*checkCopyStmt == -1 || *checkCopyStmt == 1) && reCopy.MatchString(line))
+		if copyCheck { // disabling the copy check
+			*checkCopyStmt = 0
+		}
+		res = !(res || copyCheck)
+	} else {
+		panic("Invalid sourceDBType")
+	}
+
+	return res
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
