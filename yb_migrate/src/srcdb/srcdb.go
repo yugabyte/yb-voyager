@@ -8,6 +8,7 @@ type SourceDB interface {
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []string
+	GetAllPartitionNames(tableName string) []string
 }
 
 func newSourceDB(source *Source) SourceDB {

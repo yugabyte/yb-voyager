@@ -72,6 +72,10 @@ func (ms *MySQL) GetAllTableNames() []string {
 	return tableNames
 }
 
+func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
+	panic("Not Implemented")
+}
+
 func (ms *MySQL) getConnectionString() string {
 	source := ms.source
 	parseSSLString(source)

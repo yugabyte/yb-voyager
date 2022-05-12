@@ -64,6 +64,7 @@ var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
 var sourceDBType string
+var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
 
 type SplitFileImportTask struct {
 	TableName           string
@@ -161,7 +162,9 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	testYbServers(targets)
+	if !loadBalancerUsed { // no need to check direct connectivity if load balancer is used
+		testYbServers(targets)
+	}
 	return targets
 }
 
@@ -209,10 +212,7 @@ func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
 }
 
 func importData() {
-	// TODO: Add later
-	// acquireImportLock()
-	// defer os.Remove(importLockFile)
-	log.Infof("import data command initiated for DB %q", target.DBName)
+	utils.PrintAndLog("import of data in %q database started", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
@@ -225,6 +225,12 @@ func importData() {
 		parallelism = len(targets)
 	}
 	log.Infof("parallelism=%v", parallelism)
+
+	if loadBalancerUsed {
+		clone := target.Clone()
+		clone.Uri = getTargetConnectionUri(clone)
+		targets = []*tgtdb.Target{clone}
+	}
 	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}

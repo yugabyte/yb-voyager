@@ -132,6 +132,8 @@ func exportDataOffline() bool {
 			log.Infoln("Cancel() being called, within exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
+			utils.ErrExit("yb_migrate encountered internal error. "+
+				"Check %s/yb_migrate.log for more details.", exportDir)
 		}
 	}()
 
