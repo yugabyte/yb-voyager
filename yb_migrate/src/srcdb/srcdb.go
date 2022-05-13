@@ -9,6 +9,7 @@ type SourceDB interface {
 	GetVersion() string
 	GetAllTableNames() []string
 	GetAllPartitionNames(tableName string) []string
+	ExportSchema(exportDir string)
 }
 
 func newSourceDB(source *Source) SourceDB {

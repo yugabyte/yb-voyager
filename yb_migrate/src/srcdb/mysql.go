@@ -102,3 +102,7 @@ func (ms *MySQL) getConnectionString() string {
 		source.Host, source.Port, source.DBName, tlsString)
 	return connStr
 }
+
+func (ms *MySQL) ExportSchema(exportDir string) {
+	ora2pgExtractSchema(ms.source, exportDir)
+}

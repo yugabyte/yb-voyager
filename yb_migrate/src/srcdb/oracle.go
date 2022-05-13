@@ -129,3 +129,7 @@ func (ora *Oracle) getConnectionString() string {
 
 	return connStr
 }
+
+func (ora *Oracle) ExportSchema(exportDir string) {
+	ora2pgExtractSchema(ora.source, exportDir)
+}
