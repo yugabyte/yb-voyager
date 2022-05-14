@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package migration
+package srcdb
 
 import (
 	"bytes"
@@ -26,11 +26,10 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.Source, tableList []string) {
+func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, tableList []string) {
 	basicConfigFile, err := ioutil.ReadFile(configFilePath)
 	if err != nil {
 		panic(err)
@@ -59,7 +58,7 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *srcdb.So
 	}
 }
 
-func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	projectDirPath := exportDir

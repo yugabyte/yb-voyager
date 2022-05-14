@@ -11,7 +11,7 @@ import (
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func pgDumpExtractSchema(source *Source, exportDir string) {
+func pgdumpExtractSchema(source *Source, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 	SSLQueryString := generateSSLQueryStringIfNotExists(source)

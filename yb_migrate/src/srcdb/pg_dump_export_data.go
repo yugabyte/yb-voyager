@@ -13,28 +13,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package migration
+package srcdb
 
 import (
 	"bufio"
 	"bytes"
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
-	"strings"
 	"time"
-	"unicode"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/srcdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
-func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func pgdumpExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	dataDirPath := exportDir + "/data"
@@ -83,74 +78,6 @@ func PgDumpExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 	}
 }
 
-//The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
-func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
-	tocTextFilePath := dataDirPath + "/toc.txt"
-	// waitingFlag := 0
-	for !utils.FileOrFolderExists(tocTextFilePath) {
-		// waitingFlag = 1
-		time.Sleep(time.Second * 1)
-	}
-
-	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
-	stdOut, err := pgRestoreCmd.Output()
-	if err != nil {
-		utils.ErrExit("Couldn't parse the TOC file to collect the tablenames for data files: %s", err)
-	}
-
-	tableNameVsFileNameMap := make(map[string]string)
-	var sequencesPostData strings.Builder
-
-	lines := strings.Split(string(stdOut), "\n")
-	for _, line := range lines {
-		// example of line: 3725; 0 16594 TABLE DATA public categories ds2
-		parts := strings.Split(line, " ")
-
-		if len(parts) < 8 { // those lines don't contain table/sequences related info
-			continue
-		} else if parts[3] == "TABLE" && parts[4] == "DATA" {
-			fileName := strings.Trim(parts[0], ";") + ".dat"
-			schemaName := parts[5]
-			tableName := parts[6]
-			if nameContainsCapitalLetter(tableName) {
-				// Surround the table name with double quotes.
-				tableName = fmt.Sprintf("\"%s\"", tableName)
-			}
-			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-			tableNameVsFileNameMap[fullTableName] = fileName
-		}
-	}
-
-	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
-	if err != nil {
-		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
-	}
-
-	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
-	numLines := len(tocTextFileData)
-	setvalRegex := regexp.MustCompile("(?i)SELECT.*setval")
-
-	for i := 0; i < numLines; i++ {
-		if setvalRegex.MatchString(tocTextFileData[i]) {
-			sequencesPostData.WriteString(tocTextFileData[i])
-			sequencesPostData.WriteString("\n")
-		}
-	}
-
-	//extracted SQL for setval() and put it into a postexport.sql file
-	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
-	return tableNameVsFileNameMap
-}
-
-func nameContainsCapitalLetter(name string) bool {
-	for _, c := range name {
-		if unicode.IsUpper(c) {
-			return true
-		}
-	}
-	return false
-}
-
 func parseAndCreateTocTextFile(dataDirPath string) {
 	tocFilePath := dataDirPath + "/toc.dat"
 	var waitingFlag int
@@ -195,39 +122,4 @@ func createTableListPatterns(tableList []string) string {
 	}
 
 	return tableListPattern
-}
-
-func generateSSLQueryStringIfNotExists(s *srcdb.Source) string {
-
-	if s.Uri == "" {
-		SSLQueryString := ""
-		if s.SSLQueryString == "" {
-
-			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-				SSLQueryString = "sslmode=" + s.SSLMode
-				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
-					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + s.SSLCertPath
-					}
-					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + s.SSLKey
-					}
-					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
-					}
-					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + s.SSLCRL
-					}
-				}
-			} else {
-				utils.ErrExit("Invalid sslmode entered.")
-			}
-		} else {
-			SSLQueryString = s.SSLQueryString
-		}
-		return SSLQueryString
-	} else {
-		return ""
-	}
 }

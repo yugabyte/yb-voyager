@@ -98,5 +98,9 @@ func (pg *PostgreSQL) getConnectionString() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pgDumpExtractSchema(pg.source, exportDir)
+	pgdumpExtractSchema(pg.source, exportDir)
+}
+
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
 }
