@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -76,7 +75,7 @@ func exportSchema() {
 
 	fmt.Printf("%s version: %s\n", source.DBType, source.DB().GetVersion())
 
-	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
+	CreateMigrationProjectIfNotExists(&source, exportDir)
 	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
 	setSchemaIsExported(exportDir)

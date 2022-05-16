@@ -27,7 +27,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -85,7 +84,7 @@ func exportDataOffline() bool {
 
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
+	CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
@@ -141,7 +140,7 @@ func exportDataOffline() bool {
 	initializeExportTablePartitionMetadata(tableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
-	migration.UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
+	UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
@@ -154,7 +153,7 @@ func exportDataOffline() bool {
 	// Wait for the export data to start.
 	<-exportDataStart
 
-	migration.UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
+	UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
 
 	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
 
@@ -165,7 +164,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	migration.ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
+	ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
 
 	return true
 }
