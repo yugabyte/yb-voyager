@@ -55,11 +55,11 @@ func Ora2PgExtractSchema(source *srcdb.Source, exportDir string) {
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
 
@@ -192,7 +192,7 @@ func Ora2PgExportDataOffline(ctx context.Context, source *srcdb.Source, exportDi
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s",
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header",
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
