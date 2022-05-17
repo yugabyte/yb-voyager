@@ -80,6 +80,13 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 			if err != nil {
 				utils.ErrExit("Failed to run %q on target DB: %s", setSchemaQuery, err)
 			}
+
+			setClientEncQuery := IMPORT_SESSION_SETTERS[0]
+			log.Infof("Running query %q on the target DB", setClientEncQuery)
+			_, err = conn.Exec(context.Background(), setClientEncQuery)
+			if err != nil {
+				utils.ErrExit("Failed to run %q on target DB: %s", setClientEncQuery, err)
+			}
 		}
 
 		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)

@@ -33,11 +33,11 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		} else if source.DBType == "mysql" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath)
+				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
 
