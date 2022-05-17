@@ -1,0 +1,120 @@
+/*
+Copyright (c) YugaByte, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package srcdb
+
+import (
+	"bytes"
+	"context"
+	_ "embed"
+	"fmt"
+	"io/ioutil"
+	"os/exec"
+	"regexp"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
+)
+
+func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, tableList []string) {
+	basicConfigFile, err := ioutil.ReadFile(configFilePath)
+	if err != nil {
+		panic(err)
+	}
+
+	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
+	for i := 0; i < len(tableList); i++ {
+		parts := strings.Split(tableList[i], ".")
+		tableList[i] = parts[len(parts)-1] // tableList[i] = 'xyz.abc' then take only 'abc'
+	}
+
+	lines := strings.Split(string(basicConfigFile), "\n")
+
+	for i, line := range lines {
+		if strings.HasPrefix(line, "FILE_PER_TABLE") {
+			lines[i] = "FILE_PER_TABLE " + "1"
+		} else if strings.HasPrefix(line, "#ALLOW") {
+			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		}
+	}
+
+	output := strings.Join(lines, "\n")
+	err = ioutil.WriteFile(configFilePath, []byte(output), 0644)
+	if err != nil {
+		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+	}
+}
+
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+	defer utils.WaitGroup.Done()
+
+	projectDirPath := exportDir
+	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
+	source.PopulateOra2pgConfigFile(configFilePath)
+
+	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
+
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s",
+		source.NumConnections, projectDirPath, configFilePath)
+
+	//Exporting all the tables in the schema
+	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
+	log.Infof("Executing command: %s", exportDataCommandString)
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
+
+	exportDataCommand.Stdout = &outbuf
+	exportDataCommand.Stderr = &errbuf
+
+	err := exportDataCommand.Start()
+	fmt.Println("starting ora2pg for data export...")
+	if outbuf.String() != "" {
+		log.Infof("ora2pg STDOUT: %s", outbuf.String())
+	}
+	if err != nil {
+		utils.ErrExit("Error while starting ora2pg for data export: %v\n%s", err, errbuf.String())
+	}
+
+	exportDataStart <- true
+
+	err = exportDataCommand.Wait()
+	if err != nil {
+		utils.ErrExit("Error while waiting for ora2pg to exit: %v\n%s", err, errbuf.String())
+	}
+
+	// move to ALTER SEQUENCE commands to postdata.sql file
+	extractAlterSequenceStatements(exportDir)
+}
+
+func extractAlterSequenceStatements(exportDir string) {
+	alterSequenceRegex := regexp.MustCompile(`(?)ALTER SEQUENCE`)
+	filePath := exportDir + "/data/data.sql"
+	var requiredLines strings.Builder
+
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		panic(err)
+	}
+
+	lines := strings.Split(string(bytes), "\n")
+	for _, line := range lines {
+		if alterSequenceRegex.MatchString(line) {
+			requiredLines.WriteString(line + "\n")
+		}
+	}
+
+	ioutil.WriteFile(exportDir+"/data/postdata.sql", []byte(requiredLines.String()), 0644)
+}

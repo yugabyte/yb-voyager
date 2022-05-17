@@ -1,6 +1,9 @@
 package srcdb
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type SourceDB interface {
 	Connect() error
@@ -9,6 +12,8 @@ type SourceDB interface {
 	GetVersion() string
 	GetAllTableNames() []string
 	GetAllPartitionNames(tableName string) []string
+	ExportSchema(exportDir string)
+	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
 }
 
 func newSourceDB(source *Source) SourceDB {
