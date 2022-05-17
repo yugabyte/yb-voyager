@@ -29,6 +29,8 @@ import (
 )
 
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
+	metaInfo := ExtractMetaInfo(exportDir)
+
 	projectDirPath := exportDir
 
 	targetConnectionURI := ""
@@ -40,7 +42,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 	}
 
 	//this list also has defined the order to create object type in target YugabyteDB
-	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
+	importObjectOrderList := utils.GetSchemaObjectList(metaInfo.SourceDBType)
 
 	for _, importObjectType := range importObjectOrderList {
 		var importObjectDirPath, importObjectFilePath string
@@ -73,7 +75,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 		}
 
 		// target-db-schema is not public and source is either Oracle/MySQL
-		if sourceDBType != POSTGRESQL {
+		if metaInfo.SourceDBType != POSTGRESQL {
 			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 			log.Infof("Running query %q on the target DB", setSchemaQuery)
 			_, err := conn.Exec(context.Background(), setSchemaQuery)

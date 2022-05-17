@@ -112,7 +112,7 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	case "mysql":
 		requiredList = mysqlSchemaObjectList
 	default:
-		fmt.Printf("Unsupported %q source db type\n", sourceDBType)
+		fmt.Printf("Unsupported %s source db type\n", sourceDBType)
 		os.Exit(1)
 	}
 	return requiredList

@@ -65,6 +65,14 @@ var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
 
+type ExportTool int
+
+const (
+	Ora2Pg = iota
+	YsqlDump
+	PgDump
+)
+
 type SplitFileImportTask struct {
 	TableName           string
 	SchemaName          string
@@ -216,7 +224,6 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
-	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	targets := getYBServers()
 
 	var parallelism = parallelImportJobs
@@ -387,6 +394,7 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
+	sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
 	if sourceDBType == ORACLE {
 		table = strings.ToLower(table)
 	}
@@ -423,9 +431,10 @@ func truncateTables(tables []string) {
 	}
 	defer conn.Close(context.Background())
 
-	log.Infof("Source DB type: %q", sourceDBType)
+	metaInfo := ExtractMetaInfo(exportDir)
+	log.Infof("Source DB type: %q", metaInfo.SourceDBType)
 
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+	if metaInfo.SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
 		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 		_, err := conn.Exec(context.Background(), setSchemaQuery)
 		if err != nil {
@@ -449,8 +458,10 @@ func truncateTables(tables []string) {
 func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
 	log.Infof("Started goroutine: splitDataFiles")
 	for _, t := range importTables {
+		sourceDBType := ExtractMetaInfo(exportDir).SourceDBType
+
 		origDataFile := exportDir + "/data/" + t + "_data.sql"
-		extractCopyStmtForTable(t, origDataFile)
+		extractCopyStmtForTable(t, sourceDBType, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
 		log.Infof("Collect interrupted splits.")
@@ -528,7 +539,6 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
-	insideCopyStmt := false
 	forig, err := os.Open(dataFile)
 	if err != nil {
 		utils.ErrExit("open file %q: %s", dataFile, err)
@@ -549,7 +559,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
 			utils.ErrExit("read a line from %q: %s", dataFile, err)
 		}
-		if isDataLine(line, sourceDBType, &insideCopyStmt) {
+		if isDataLine(line) {
 			i++
 		}
 	}
@@ -561,7 +571,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = utils.Readline(r)
-		if readLineErr == nil && !isDataLine(line, sourceDBType, &insideCopyStmt) {
+		if readLineErr == nil && !isDataLine(line) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
 			numLinesTaken += 1
@@ -628,37 +638,26 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", dataFile, t)
 }
 
+// Example: "SET client_encoding TO 'UTF8';"
+var reSetTo = regexp.MustCompile(`(?i)SET \w+ TO .*;`)
+
+// Example: "SET search_path = sakila_test,public;"
+var reSetEq = regexp.MustCompile(`(?i)SET \w+ = .*;`)
+
+// Example: `TRUNCATE TABLE "Foo";`
+var reTruncate = regexp.MustCompile(`(?i)TRUNCATE TABLE ["'\w]*;`)
+
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-/*
-	This function checks for based structure of data file which can be different
-	for different source db type based on tool used for export
-	postgresql - file has only data lines with "\." at the end
-	oracle/mysql - multiple copy statements with each having specific count of rows
-*/
-func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
-	emptyLine := (len(line) == 0)
-	newLineChar := (line == "\n")
-	endOfCopy := (line == "\\." || line == "\\.\n")
-
-	if sourceDBType == "postgresql" {
-		return !(emptyLine || newLineChar || endOfCopy)
-	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
-		if *insideCopyStmt {
-			if endOfCopy {
-				*insideCopyStmt = false
-			}
-			return !(emptyLine || newLineChar || endOfCopy)
-		} else { // outside copy
-			if reCopy.MatchString(line) {
-				*insideCopyStmt = true
-			}
-			return false
-		}
-	} else {
-		panic("Invalid source db type")
-	}
+func isDataLine(line string) bool {
+	return !(len(line) == 0 ||
+		line == "\n" ||
+		line == "\\." || line == "\\.\n" ||
+		reSetTo.MatchString(line) ||
+		reSetEq.MatchString(line) ||
+		reTruncate.MatchString(line) ||
+		reCopy.MatchString(line))
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
@@ -842,7 +841,7 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 			}
 
 			//setting the schema so that COPY command can acesss the table
-			if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+			if ExtractMetaInfo(exportDir).SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
 				setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 				_, err := conn.Exec(context.Background(), setSchemaQuery)
 				if err != nil {
@@ -914,7 +913,7 @@ func executeSqlFile(file string) {
 	}
 	defer conn.Close(context.Background())
 
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+	if ExtractMetaInfo(exportDir).SourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
 		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 		_, err := conn.Exec(context.Background(), setSchemaQuery)
 		if err != nil {
@@ -984,7 +983,7 @@ func incrementImportedRowCount(tableName string, rowsCopied int64) {
 	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
-func extractCopyStmtForTable(table string, fileToSearchIn string) {
+func extractCopyStmtForTable(table string, sourceDBType string, fileToSearchIn string) {
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]*(.*) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {

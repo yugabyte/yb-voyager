@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -120,7 +121,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	importedRowCount := getImportedRowsCount(exportDir, tables)
 
 	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
-	totalRowCountMap := GetTableRowCount(rowCountFilePath)
+	totalRowCountMap := migration.GetTableRowCount(rowCountFilePath)
 
 	for _, fullTableName := range tables {
 		parts := strings.Split(fullTableName, ".")

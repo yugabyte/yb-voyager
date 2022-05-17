@@ -23,7 +23,6 @@ import (
 )
 
 var importMode string
-var sourceDBType string
 
 // target struct will be populated by CLI arguments parsing
 var target tgtdb.Target

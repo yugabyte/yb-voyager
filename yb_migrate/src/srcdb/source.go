@@ -3,7 +3,6 @@ package srcdb
 import (
 	"crypto/tls"
 	"crypto/x509"
-	_ "embed"
 	"fmt"
 	"io/ioutil"
 	"net/url"
@@ -12,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -223,102 +221,4 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 	} else {
 		return ""
 	}
-}
-
-//go:embed data/sample-ora2pg.conf
-var SampleOra2pgConfigFile string
-
-func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
-	sourceDSN := source.getSourceDSN()
-
-	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
-
-	for i, line := range lines {
-		if strings.HasPrefix(line, "ORACLE_DSN") {
-			lines[i] = "ORACLE_DSN	" + sourceDSN
-		} else if strings.HasPrefix(line, "ORACLE_USER") {
-			// fmt.Println(line)
-			lines[i] = "ORACLE_USER	" + source.User
-		} else if strings.HasPrefix(line, "ORACLE_HOME") && source.OracleHome != "" {
-			// fmt.Println(line)
-			lines[i] = "ORACLE_HOME	" + source.OracleHome
-		} else if strings.HasPrefix(line, "ORACLE_PWD") {
-			lines[i] = "ORACLE_PWD	" + source.Password
-		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
-			if source.Schema != "" { // in oracle USER and SCHEMA are essentially the same thing
-				lines[i] = "SCHEMA	" + source.Schema
-			} else if source.User != "" {
-				lines[i] = "SCHEMA	" + source.User
-			}
-		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
-			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
-		} else if strings.HasPrefix(line, "PG_VERSION") {
-			lines[i] = "PG_VERSION " + strconv.Itoa(11) //TODO YugabyteDB compatible with postgres version ?
-		}
-	}
-
-	output := strings.Join(lines, "\n")
-	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
-	if err != nil {
-		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
-	}
-}
-
-func (source *Source) getSourceDSN() string {
-	var sourceDSN string
-
-	if source.DBType == "oracle" {
-		if source.DBName != "" {
-			sourceDSN = fmt.Sprintf("dbi:Oracle:host=%s;service_name=%s;port=%d", source.Host, source.DBName, source.Port)
-		} else if source.DBSid != "" {
-			sourceDSN = fmt.Sprintf("dbi:Oracle:host=%s;sid=%s;port=%d", source.Host, source.DBSid, source.Port)
-		} else {
-			sourceDSN = fmt.Sprintf("dbi:Oracle:%s", source.TNSAlias) //this option is ideal for ssl connectivity, provide in documentation if needed
-		}
-	} else if source.DBType == "mysql" {
-		parseSSLString(source)
-		sourceDSN = fmt.Sprintf("dbi:mysql:host=%s;database=%s;port=%d", source.Host, source.DBName, source.Port)
-		sourceDSN = source.extrapolateDSNfromSSLParams(sourceDSN)
-	} else {
-		utils.ErrExit("Invalid Source DB Type.")
-	}
-
-	log.Infof("Source DSN used for export: %s", sourceDSN)
-	return sourceDSN
-}
-
-func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
-	switch source.SSLMode {
-	case "disable":
-		DSN += ";mysql_ssl=0;mysql_ssl_optional=0"
-	case "prefer":
-		DSN += ";mysql_ssl_optional=1"
-	case "require":
-		DSN += ";mysql_ssl=1"
-	case "verify-ca":
-		DSN += ";mysql_ssl=1"
-		if source.SSLRootCert != "" {
-			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s", source.SSLRootCert)
-		} else {
-			utils.ErrExit("Root authority certificate needed for verify-ca mode.")
-		}
-	case "verify-full":
-		DSN += ";mysql_ssl=1"
-		if source.SSLRootCert != "" {
-			DSN += fmt.Sprintf(";mysql_ssl_ca_file=%s;mysql_ssl_verify_server_cert=1", source.SSLRootCert)
-		} else {
-			utils.ErrExit("Root authority certificate needed for verify-full mode.")
-		}
-	default:
-		utils.ErrExit("Incorrect sslmode provided. Please provide a correct value for sslmode and try again.")
-	}
-
-	if source.SSLCertPath != "" {
-		DSN += fmt.Sprintf(";mysql_ssl_client_cert=%s", source.SSLCertPath)
-	}
-	if source.SSLKey != "" {
-		DSN += fmt.Sprintf(";mysql_ssl_client_key=%s", source.SSLKey)
-	}
-
-	return DSN
 }

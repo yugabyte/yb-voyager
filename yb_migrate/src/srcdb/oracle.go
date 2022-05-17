@@ -1,7 +1,6 @@
 package srcdb
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 
@@ -129,12 +128,4 @@ func (ora *Oracle) getConnectionString() string {
 	}
 
 	return connStr
-}
-
-func (ora *Oracle) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ora.source, exportDir)
-}
-
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart)
 }

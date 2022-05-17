@@ -27,6 +27,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -84,7 +85,7 @@ func exportDataOffline() bool {
 
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	CreateMigrationProjectIfNotExists(&source, exportDir)
+	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
@@ -140,20 +141,35 @@ func exportDataOffline() bool {
 	initializeExportTablePartitionMetadata(tableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
-	UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
+	migration.UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
 
-	if source.DBType == POSTGRESQL {
+	switch source.DBType {
+	case ORACLE:
+		fmt.Printf("Preparing for data export from Oracle\n")
+		utils.WaitGroup.Add(1)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
+
+	case POSTGRESQL:
+		fmt.Printf("Preparing for data export from Postgres\n")
+		utils.WaitGroup.Add(1)
+
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
 		tableList = append(tableList, sequenceList...)
+
+		go migration.PgDumpExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
+
+	case MYSQL:
+		fmt.Printf("Preparing for data export from MySQL\n")
+		utils.WaitGroup.Add(1)
+		go migration.Ora2PgExportDataOffline(ctx, &source, exportDir, tableList, quitChan, exportDataStart)
+
 	}
-	fmt.Printf("Initiating data export.\n")
-	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart)
-	// Wait for the export data to start.
+
+	//wait for the export data to start
 	<-exportDataStart
 
-	UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
+	migration.UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
 
 	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
 
@@ -164,7 +180,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
+	migration.ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
 
 	return true
 }

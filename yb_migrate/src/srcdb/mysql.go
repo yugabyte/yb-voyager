@@ -1,7 +1,6 @@
 package srcdb
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 
@@ -102,12 +101,4 @@ func (ms *MySQL) getConnectionString() string {
 	connStr := fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, tlsString)
 	return connStr
-}
-
-func (ms *MySQL) ExportSchema(exportDir string) {
-	ora2pgExtractSchema(ms.source, exportDir)
-}
-
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
 }
