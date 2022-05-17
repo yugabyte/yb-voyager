@@ -70,13 +70,13 @@ func parseSchemaFile(source *Source, exportDir string) {
 		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
-
+	var foundPG13statement = false
 	for i := 0; i < numLines; i++ {
 		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
 
 			i += 2 //jumping to start of sql statement
-			sqlStatement := extractSqlStatements(schemaFileLines, &i)
+			sqlStatement := extractSqlStatements(schemaFileLines, &i, &foundPG13statement)
 
 			//Missing: PARTITION, PROCEDURE, MVIEW, TABLESPACE, ROLE, GRANT ...
 			switch sqlType {
@@ -120,7 +120,7 @@ func parseSchemaFile(source *Source, exportDir string) {
 			i++
 
 			setSessionVariables.WriteString("-- setting variables for current session")
-			sqlStatement := extractSqlStatements(schemaFileLines, &i)
+			sqlStatement := extractSqlStatements(schemaFileLines, &i, &foundPG13statement)
 			setSessionVariables.WriteString(sqlStatement)
 
 			isPossibleFlag = false
@@ -171,13 +171,19 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 	return sqlType.String()
 }
 
-func extractSqlStatements(schemaFileLines []string, index *int) string {
+func extractSqlStatements(schemaFileLines []string, index *int, foundPG13statement *bool) string {
 	var sqlStatement strings.Builder
-
+	//avoid computation cost of regex checking using bool
 	for (*index) < len(schemaFileLines) {
 		if isSqlComment(schemaFileLines[(*index)]) {
 			break
 		} else {
+			if !*foundPG13statement {
+				if isPG13statement(schemaFileLines[(*index)]) {
+					*foundPG13statement = true
+					break
+				}
+			}
 			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
 		}
 
@@ -188,4 +194,8 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 
 func isSqlComment(line string) bool {
 	return len(line) >= 2 && line[:2] == "--"
+}
+
+func isPG13statement(line string) bool {
+	return strings.HasPrefix(line, "SET default_table_access_method")
 }
