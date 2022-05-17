@@ -10,7 +10,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 )
 
 var importDataStatusCmd = &cobra.Command{
@@ -52,7 +51,7 @@ func runImportDataStatusCmd() error {
 	}
 
 	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
-	totalRowCountMap := migration.GetTableRowCount(rowCountFilePath)
+	totalRowCountMap := GetTableRowCount(rowCountFilePath)
 
 	tableNames := []string{}
 	for tableName := range totalRowCountMap {
