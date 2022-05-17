@@ -77,7 +77,6 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-//The function might be error prone rightnow, will need to verify with other possible toc files. Testing needs to be done
 func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	// waitingFlag := 0
