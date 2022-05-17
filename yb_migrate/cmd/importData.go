@@ -876,10 +876,10 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 			}
 
-			// err = os.Truncate(doneFilePath, 0)
-			// if err != nil {
-			// 	log.Warnf("truncate file %q: %s", doneFilePath, err)
-			// }
+			err = os.Truncate(doneFilePath, 0)
+			if err != nil {
+				log.Warnf("truncate file %q: %s", doneFilePath, err)
+			}
 			splitImportDone = true
 		default:
 			// fmt.Printf("No server sleeping for 2 seconds\n")
