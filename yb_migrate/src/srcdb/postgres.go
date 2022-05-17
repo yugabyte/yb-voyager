@@ -96,3 +96,11 @@ func (pg *PostgreSQL) getConnectionString() string {
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
 }
+
+func (pg *PostgreSQL) ExportSchema(exportDir string) {
+	pgdumpExtractSchema(pg.source, exportDir)
+}
+
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
+}
