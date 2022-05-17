@@ -105,6 +105,7 @@ var (
 	alterInhRegex                   = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) INHERIT`)
 	valConstrRegex                  = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) VALIDATE CONSTRAINT`)
 	deferRegex                      = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* unique .*deferrable`)
+	alterViewRegex                  = regexp.MustCompile(`(?i)ALTER VIEW ([a-zA-Z0-9_."]+)`)
 
 	dropAttrRegex    = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+) DROP ATTRIBUTE`)
 	alterTypeRegex   = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+)`)
@@ -396,6 +397,9 @@ func checkDDL(sqlStmtArray [][]string, fpath string) {
 		} else if spc := alterTblSpcRegex.FindStringSubmatch(line[0]); spc != nil {
 			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], line[1])
+		} else if spc := alterViewRegex.FindStringSubmatch(line[0]); spc != nil {
+			reportCase(fpath, "ALTER VIEW not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1131", "", "VIEW", spc[1], line[1])
 		} else if tbl := cLangRegex.FindStringSubmatch(line[0]); tbl != nil {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], line[1])

@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/migration"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/spf13/cobra"
@@ -76,19 +75,8 @@ func exportSchema() {
 
 	fmt.Printf("%s version: %s\n", source.DBType, source.DB().GetVersion())
 
-	migration.CreateMigrationProjectIfNotExists(&source, exportDir)
-
-	switch source.DBType {
-	case ORACLE:
-		migration.Ora2PgExtractSchema(&source, exportDir)
-	case POSTGRESQL:
-		migration.PgDumpExtractSchema(&source, exportDir)
-	case MYSQL:
-		migration.Ora2PgExtractSchema(&source, exportDir)
-	default:
-		utils.ErrExit("Invalid source database type for export\n")
-	}
-
+	CreateMigrationProjectIfNotExists(&source, exportDir)
+	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
 	setSchemaIsExported(exportDir)
 }
