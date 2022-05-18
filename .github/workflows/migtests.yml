@@ -37,3 +37,12 @@ jobs:
       run: |
         sleep 10
         psql "postgresql://postgres:secret@localhost:5432/postgres" -c "SELECT version();"
+
+    - name: Start YugabyteDB cluster
+      run: |
+        docker pull yugabytedb/yugabyte
+        docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        sleep 10
+
+    - name: Test YugabyteDB connection
+      run: docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
