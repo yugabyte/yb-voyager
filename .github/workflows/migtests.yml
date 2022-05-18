@@ -1,0 +1,19 @@
+name: Migration Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  run-migration-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run installer script
+      run: |
+        cd installer_scripts
+        ./yb_migrate_installer__ubuntu.sh
