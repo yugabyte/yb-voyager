@@ -67,7 +67,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s",
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header",
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
