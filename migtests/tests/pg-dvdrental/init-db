@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+source ${SCRIPTS}/functions.sh
+
+echo "Downloading dvdrental sample database."
+wget -q https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip
+unzip dvdrental.zip
+
+echo "Creating dvdrental database on source"
+run_psql postgres "CREATE DATABASE dvdrental;"
+
+echo "Initialising source database."
+run_pg_restore dvdrental dvdrental.tar
+
+echo "Check source database."
+run_psql dvdrental "SELECT count(*) FROM payment"

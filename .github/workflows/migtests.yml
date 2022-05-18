@@ -40,9 +40,15 @@ jobs:
 
     - name: Start YugabyteDB cluster
       run: |
-        docker pull yugabytedb/yugabyte
-        docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
-        sleep 10
+        echo "XXX DELETE"
+        #docker pull yugabytedb/yugabyte
+        #docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        #sleep 10
 
     - name: Test YugabyteDB connection
-      run: docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
+      run: |
+        echo "XXX DELETE"
+        #docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
+
+    - name: Run migration tests
+      run: migtests/scripts/run-tests.sh
