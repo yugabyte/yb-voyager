@@ -16,4 +16,4 @@ jobs:
     - name: Run installer script
       run: |
         cd installer_scripts
-        ./yb_migrate_installer__ubuntu.sh
+        yes | ./yb_migrate_installer__ubuntu.sh
