@@ -18,6 +18,7 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
+# Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 source ${SCRIPTS}/yb/env.sh

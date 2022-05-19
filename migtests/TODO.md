@@ -1,0 +1,7 @@
+- Deploy a three node YB cluster.
+- Install MySQL.
+- Install Oracle.
+- Add a migration test for MySQL.
+- Add a migration test for Oracle.
+- Add post-migration validation checks.
+- Add more tests.

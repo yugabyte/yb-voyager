@@ -33,14 +33,9 @@ jobs:
         cd installer_scripts
         yes | ./yb_migrate_installer__ubuntu.sh
 
-    - name: Update .pgpass
-      run: |
-        echo "127.0.0.1:5432:*:postgres:secret" > ~/.pgpass
-        chmod 0600 ~/.pgpass
-
     - name: Test PostgreSQL Connection
       run: |
-        psql "postgresql://postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
+        psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
 
     - name: Start YugabyteDB cluster
       run: |
@@ -50,7 +45,7 @@ jobs:
 
     - name: Test YugabyteDB connection
       run: |
-        docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
+        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
     - name: Enable yb-tserver-n1 name resolution
       run: |

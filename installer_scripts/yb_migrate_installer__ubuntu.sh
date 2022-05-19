@@ -20,9 +20,9 @@ main() {
 
 	install_golang
 	install_postgres
-	#install_oracle_instant_clients
-	#update_yb_migrate_bashrc
-	#install_ora2pg
+	install_oracle_instant_clients
+	update_yb_migrate_bashrc
+	install_ora2pg
 	install_yb_migrate
 	update_bashrc
 
