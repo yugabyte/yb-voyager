@@ -35,20 +35,17 @@ jobs:
 
     - name: Test PostgreSQL Connection
       run: |
-        #sleep 10
         psql "postgresql://postgres:secret@localhost:5432/postgres" -c "SELECT version();"
 
     - name: Start YugabyteDB cluster
       run: |
-        echo "XXX DELETE"
-        #docker pull yugabytedb/yugabyte
-        #docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
-        #sleep 10
+        docker pull yugabytedb/yugabyte
+        docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        sleep 10
 
     - name: Test YugabyteDB connection
       run: |
-        echo "XXX DELETE"
-        #docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
+        docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
 
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental

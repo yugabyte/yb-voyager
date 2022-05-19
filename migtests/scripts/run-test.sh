@@ -20,6 +20,8 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 source ${TEST_DIR}/env.sh
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+source ${SCRIPTS}/yb/env.sh
+
 source ${SCRIPTS}/functions.sh
 
 main() {
@@ -55,6 +57,14 @@ main() {
 	step "Analyze schema."
 	analyze_schema
 	tail -20 ${EXPORT_DIR}/reports/report.txt
+
+	step "Create target database."
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+
+	step "Import schema."
+	import_schema
+	run_ysql ${TARGET_DB_NAME} "\dt"
 }
 
 main
