@@ -16,6 +16,7 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 source ${TEST_DIR}/env.sh
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
@@ -30,12 +31,19 @@ main() {
 		chmod 0600 ~/.pgpass
 	fi
 
+	mkdir -p ${EXPORT_DIR}
+
 	step "START: ${TEST_NAME}"
 	print_env
+
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
 	./init-db
+
+	step "Export schema."
+	export_schema
+	find ${EXPORT_DIR}/schema -name '*.sql' | xargs grep -w CREATE
 }
 
 main

@@ -8,6 +8,7 @@ step() {
 print_env() {
 	echo "==============================================================="
 	echo "REPO_ROOT=${REPO_ROOT}"
+	echo "EXPORT_DIR=${EXPORT_DIR}"
 	echo ""
 	echo "SOURCE_DB_TYPE=${SOURCE_DB_TYPE}"
 	echo "SOURCE_DB_HOST=${SOURCE_DB_HOST}"
@@ -29,4 +30,16 @@ run_pg_restore() {
 	db_name=$1
 	file_name=$2
 	pg_restore --no-password -h 127.0.0.1 -p 5432 -U postgres -d ${db_name} ${file_name}
+}
+
+export_schema() {
+	yb_migrate export schema --export-dir ${EXPORT_DIR} \
+		--source-db-type ${SOURCE_DB_TYPE} \
+		--source-db-host ${SOURCE_DB_HOST} \
+		--source-db-port ${SOURCE_DB_PORT} \
+		--source-db-user ${SOURCE_DB_USER} \
+		--source-db-password ${SOURCE_DB_PASSWORD} \
+		--source-db-name ${SOURCE_DB_NAME} \
+		$*
+
 }

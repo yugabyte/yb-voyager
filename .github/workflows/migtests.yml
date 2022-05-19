@@ -31,11 +31,11 @@ jobs:
     - name: Run installer script
       run: |
         cd installer_scripts
-        #yes | ./yb_migrate_installer__ubuntu.sh
+        yes | ./yb_migrate_installer__ubuntu.sh
 
     - name: Test PostgreSQL Connection
       run: |
-        sleep 10
+        #sleep 10
         psql "postgresql://postgres:secret@localhost:5432/postgres" -c "SELECT version();"
 
     - name: Start YugabyteDB cluster
