@@ -41,5 +41,16 @@ export_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD} \
 		--source-db-name ${SOURCE_DB_NAME} \
 		$*
+}
 
+analyze_schema() {
+	yb_migrate analyze-schema --export-dir ${EXPORT_DIR} \
+		--source-db-type ${SOURCE_DB_TYPE} \
+		--source-db-host ${SOURCE_DB_HOST} \
+		--source-db-port ${SOURCE_DB_PORT} \
+		--source-db-user ${SOURCE_DB_USER} \
+		--source-db-password ${SOURCE_DB_PASSWORD} \
+		--source-db-name ${SOURCE_DB_NAME} \
+		--output-format txt \
+		$*
 }
