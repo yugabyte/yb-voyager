@@ -6,14 +6,18 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Downloading dvdrental sample database."
-wget -q https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip
-unzip dvdrental.zip
+if [ ! -e dvdrental.tar ]
+then
+  wget -q https://www.postgresqltutorial.com/wp-content/uploads/2019/05/dvdrental.zip
+  unzip dvdrental.zip
+fi
 
-echo "Creating dvdrental database on source"
-run_psql postgres "CREATE DATABASE dvdrental;"
+echo "Creating ${SOURCE_DB_NAME} database on source"
+run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
+run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
-run_pg_restore dvdrental dvdrental.tar
+run_pg_restore ${SOURCE_DB_NAME} dvdrental.tar
 
 echo "Check source database."
-run_psql dvdrental "SELECT count(*) FROM payment"
+run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM payment"

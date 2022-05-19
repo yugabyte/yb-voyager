@@ -29,7 +29,7 @@ print_env() {
 run_psql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://postgres:secret@127.0.0.1:5432/${db_name}" -c "${sql}"
+	psql "postgresql://postgres@127.0.0.1:5432/${db_name}" -c "${sql}"
 }
 
 run_pg_restore() {
@@ -41,7 +41,7 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -d "$db_name" -c "$sql"
+	psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@127.0.0.1:5433/${db_name}" -c "${sql}"
 }
 
 export_schema() {
