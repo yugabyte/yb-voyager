@@ -50,5 +50,5 @@ jobs:
         echo "XXX DELETE"
         #docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
 
-    - name: Run migration tests
-      run: migtests/scripts/run-tests.sh
+    - name: "TEST: pg-dvdrental"
+      run: migtests/scripts/run-test.sh pg-dvdrental
