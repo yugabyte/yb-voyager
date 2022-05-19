@@ -173,8 +173,10 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 func extractSqlStatements(schemaFileLines []string, index *int) string {
 	var sqlStatement strings.Builder
 	for (*index) < len(schemaFileLines) {
-		if isSqlComment(schemaFileLines[(*index)]) || isPG13statement(schemaFileLines[(*index)]) {
+		if isSqlComment(schemaFileLines[(*index)]) {
 			break
+		} else if isPG13statement(schemaFileLines[(*index)]) {
+			continue
 		} else {
 			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
 		}
