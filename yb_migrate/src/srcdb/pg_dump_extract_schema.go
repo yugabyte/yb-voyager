@@ -175,7 +175,7 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 	for (*index) < len(schemaFileLines) {
 		if isSqlComment(schemaFileLines[(*index)]) {
 			break
-		} else if isPG13statement(schemaFileLines[(*index)]) {
+		} else if shouldSkipLine(schemaFileLines[(*index)]) {
 			continue
 		} else {
 			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
@@ -190,6 +190,6 @@ func isSqlComment(line string) bool {
 	return len(line) >= 2 && line[:2] == "--"
 }
 
-func isPG13statement(line string) bool {
+func shouldSkipLine(line string) bool {
 	return strings.HasPrefix(line, "SET default_table_access_method")
 }
