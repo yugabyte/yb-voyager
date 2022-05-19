@@ -25,14 +25,6 @@ source ${SCRIPTS}/yb/env.sh
 source ${SCRIPTS}/functions.sh
 
 main() {
-	if [ "${SOURCE_DB_TYPE}" == "postgresql" -a "${SOURCE_DB_HOST}" == "127.0.0.1" ]
-	then
-		echo "Initialising ~/.pgpass"
-		line="127.0.0.1:5432:*:${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}"
-		grep -qxF "$line" ~/.pgpass || echo $line >> ~/.pgpass
-		chmod 0600 ~/.pgpass
-	fi
-
 	mkdir -p ${EXPORT_DIR}
 
 	step "START: ${TEST_NAME}"
@@ -72,7 +64,6 @@ main() {
 
 	step "Import data."
 	import_data
-	run_ysql ${TARGET_DB_NAME} "SELECT count(*) FROM payments;"
 }
 
 main

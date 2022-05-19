@@ -33,19 +33,29 @@ jobs:
         cd installer_scripts
         yes | ./yb_migrate_installer__ubuntu.sh
 
+    - name: Update .pgpass
+      run: |
+        echo "127.0.0.1:5432:*:postgres:secret" > ~/.pgpass
+        chmod 0600 ~/.pgpass
+
     - name: Test PostgreSQL Connection
       run: |
-        psql "postgresql://postgres:secret@localhost:5432/postgres" -c "SELECT version();"
+        psql "postgresql://postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
     - name: Start YugabyteDB cluster
       run: |
-        docker pull yugabytedb/yugabyte
+        docker pull yugabytedb/yugabyte:2.12.3.0-b19
         docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
         sleep 10
 
     - name: Test YugabyteDB connection
       run: |
         docker exec yb-tserver-n1 /home/yugabyte/bin/ysqlsh -h yb-tserver-n1 -c "SELECT version();"
+
+    - name: Enable yb-tserver-n1 name resolution
+      run: |
+        echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+        psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental
