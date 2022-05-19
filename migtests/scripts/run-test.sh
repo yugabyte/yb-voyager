@@ -58,6 +58,10 @@ main() {
 	analyze_schema
 	tail -20 ${EXPORT_DIR}/reports/report.txt
 
+	step "Export data."
+	export_data
+	ls -l ${EXPORT_DIR}/data
+
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
@@ -65,6 +69,10 @@ main() {
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
+
+	step "Import data."
+	import_data
+	run_ysql ${TARGET_DB_NAME} "SELECT count(*) FROM payments;"
 }
 
 main

@@ -55,6 +55,17 @@ export_schema() {
 		$*
 }
 
+export_data() {
+	yb_migrate export data --export-dir ${EXPORT_DIR} \
+		--source-db-type ${SOURCE_DB_TYPE} \
+		--source-db-host ${SOURCE_DB_HOST} \
+		--source-db-port ${SOURCE_DB_PORT} \
+		--source-db-user ${SOURCE_DB_USER} \
+		--source-db-password ${SOURCE_DB_PASSWORD} \
+		--source-db-name ${SOURCE_DB_NAME} \
+		$*
+}
+
 analyze_schema() {
 	yb_migrate analyze-schema --export-dir ${EXPORT_DIR} \
 		--source-db-type ${SOURCE_DB_TYPE} \
@@ -69,6 +80,16 @@ analyze_schema() {
 
 import_schema() {
 	yb_migrate import schema --export-dir ${EXPORT_DIR} \
+		--target-db-host ${TARGET_DB_HOST} \
+		--target-db-port ${TARGET_DB_PORT} \
+		--target-db-user ${TARGET_DB_USER} \
+		--target-db-password ${TARGET_DB_PASSWORD:-''} \
+		--target-db-name ${TARGET_DB_NAME} \
+		$*
+}
+
+import_data() {
+	yb_migrate import data --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
