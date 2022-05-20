@@ -70,7 +70,6 @@ func parseSchemaFile(source *Source, exportDir string) {
 		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
-
 	for i := 0; i < numLines; i++ {
 		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
@@ -173,10 +172,11 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 
 func extractSqlStatements(schemaFileLines []string, index *int) string {
 	var sqlStatement strings.Builder
-
 	for (*index) < len(schemaFileLines) {
 		if isSqlComment(schemaFileLines[(*index)]) {
 			break
+		} else if shouldSkipLine(schemaFileLines[(*index)]) {
+			continue
 		} else {
 			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
 		}
@@ -188,4 +188,8 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 
 func isSqlComment(line string) bool {
 	return len(line) >= 2 && line[:2] == "--"
+}
+
+func shouldSkipLine(line string) bool {
+	return strings.HasPrefix(line, "SET default_table_access_method")
 }
