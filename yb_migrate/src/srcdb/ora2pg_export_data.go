@@ -67,32 +67,32 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
+	// TODO: ora2pg fails to export data from MySQL database when source.NumConnections is greater
+	// than 1.
 	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header",
 		source.NumConnections, projectDirPath, configFilePath)
 
 	//Exporting all the tables in the schema
-	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
 	log.Infof("Executing command: %s", exportDataCommandString)
+	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
+
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
-
 	exportDataCommand.Stdout = &outbuf
 	exportDataCommand.Stderr = &errbuf
 
 	err := exportDataCommand.Start()
-	fmt.Println("starting ora2pg for data export...")
-	if outbuf.String() != "" {
-		log.Infof("ora2pg STDOUT: %s", outbuf.String())
-	}
 	if err != nil {
-		utils.ErrExit("Error while starting ora2pg for data export: %v\n%s", err, errbuf.String())
+		utils.ErrExit("Failed to initiate data export: %v\n%s", err, errbuf.String())
 	}
-
+	fmt.Println("Data export started.")
 	exportDataStart <- true
 
 	err = exportDataCommand.Wait()
+	log.Infof("ora2pg STDOUT: %s", outbuf.String())
+	log.Errorf("ora2pg STDERR: %s", errbuf.String())
 	if err != nil {
-		utils.ErrExit("Error while waiting for ora2pg to exit: %v\n%s", err, errbuf.String())
+		utils.ErrExit("Data export failed: %v\n%s", err, errbuf.String())
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
