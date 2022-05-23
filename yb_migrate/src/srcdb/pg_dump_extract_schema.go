@@ -176,12 +176,12 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 		if isSqlComment(schemaFileLines[(*index)]) {
 			break
 		} else if shouldSkipLine(schemaFileLines[(*index)]) {
+			(*index)++
 			continue
 		} else {
 			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
+			(*index)++
 		}
-
-		(*index)++
 	}
 	return sqlStatement.String()
 }
