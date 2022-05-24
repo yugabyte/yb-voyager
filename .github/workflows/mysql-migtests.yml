@@ -1,4 +1,4 @@
-name: Migration Tests
+name: "MySQL: Migration Tests"
 
 on:
   push:
@@ -8,23 +8,8 @@ on:
 
 jobs:
 
-  run-migration-tests:
+  run-mysql-migration-tests:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_PASSWORD: secret
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # Maps tcp port 5432 on service container to the host
-          - 5432:5432
-
     steps:
     - uses: actions/checkout@v3
 
@@ -33,9 +18,14 @@ jobs:
         cd installer_scripts
         yes | ./yb_migrate_installer__ubuntu.sh
 
-    - name: Test PostgreSQL Connection
+    - name: Start MySQL
       run: |
-        psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+        sudo /etc/init.d/mysql start
+        sleep 10
+
+    - name: Test MySQL connection
+      run: |
+        mysql -uroot -proot -e 'select version();'
 
     - name: Start YugabyteDB cluster
       run: |
@@ -52,5 +42,5 @@ jobs:
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: pg-dvdrental"
-      run: migtests/scripts/run-test.sh pg-dvdrental
+    - name: "TEST: mysql-sakila"
+      run: migtests/scripts/run-test.sh mysql-sakila

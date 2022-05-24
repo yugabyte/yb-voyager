@@ -47,6 +47,12 @@ run_ysql() {
 	psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
+run_mysql() {
+	db_name=$1
+	sql=$2
+	mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
+}
+
 export_schema() {
 	yb_migrate export schema --export-dir ${EXPORT_DIR} \
 		--source-db-type ${SOURCE_DB_TYPE} \
@@ -82,7 +88,7 @@ analyze_schema() {
 }
 
 import_schema() {
-	yb_migrate import schema --export-dir ${EXPORT_DIR} \
+	yes | yb_migrate import schema --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
@@ -92,7 +98,7 @@ import_schema() {
 }
 
 import_data() {
-	yb_migrate import data --export-dir ${EXPORT_DIR} \
+	yes | yb_migrate import data --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
