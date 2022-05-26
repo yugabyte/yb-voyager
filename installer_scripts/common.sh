@@ -36,8 +36,10 @@ update_yb_migrate_bashrc() {
 
 install_yb_migrate() {
 	output "Installing yb_migrate."
-	$GO install github.com/yugabyte/yb-db-migration/yb_migrate@latest
+	pushd ../yb_migrate
+	$GO install
 	sudo mv -f $HOME/go/bin/yb_migrate /usr/local/bin
+	popd
 }
 
 

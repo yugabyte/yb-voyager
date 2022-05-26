@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}/schema
+
+echo "Delete GIST indexes."
+sed -i '/ gist/d' tables/INDEXES_table.sql
+
+# TODO: Root cause the failures in importing the views from sakila database.
+echo "Delete all views."
+echo "" > views/view.sql
+
+# Delete duplicate indexes from the INDEXES_table.sql .
+# https://github.com/yugabyte/yb-db-migration/issues/136
+sed -i '/ idx_fk_address_id/d' tables/INDEXES_table.sql
+sed -i '/ idx_fk_customer_id/d' tables/INDEXES_table.sql
+sed -i '/ idx_fk_film_id/d' tables/INDEXES_table.sql
+sed -i '/ idx_fk_staff_id/d' tables/INDEXES_table.sql
+sed -i '/ idx_fk_store_id/d' tables/INDEXES_table.sql
