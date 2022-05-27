@@ -31,7 +31,6 @@ var (
 	migrationMode string
 	startClean    bool
 	logLevel      string
-	askPromptResp bool
 )
 
 var rootCmd = &cobra.Command{
@@ -44,7 +43,6 @@ var rootCmd = &cobra.Command{
 
 		checkExportDirFlag()
 		InitLogging(exportDir)
-		initCommonGlobalVars()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -75,8 +73,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory (default is current working directory")
 
-	rootCmd.PersistentFlags().BoolVarP(&askPromptResp, "assumeyes", "y", false,
-		"assume answer as yes for all questions")
+	rootCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
+		"assume answer as yes for all questions during migration (default false)")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -116,8 +114,4 @@ func checkExportDirFlag() {
 	} else {
 		exportDir = strings.TrimRight(exportDir, "/")
 	}
-}
-
-func initCommonGlobalVars() {
-	utils.AskPromptRes = askPromptResp
 }

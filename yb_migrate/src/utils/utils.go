@@ -30,7 +30,7 @@ import (
 	"github.com/yosssi/gohtml"
 )
 
-var AskPromptRes bool
+var DoNotPrompt bool
 
 func Wait(args ...string) {
 	var successMsg, failureMsg string
@@ -76,7 +76,7 @@ func Readline(r *bufio.Reader) (string, error) {
 }
 
 func AskPrompt(args ...string) bool {
-	if AskPromptRes {
+	if DoNotPrompt {
 		return true
 	}
 	var input string
