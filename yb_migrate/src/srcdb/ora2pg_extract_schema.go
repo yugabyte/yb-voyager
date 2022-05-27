@@ -1,11 +1,9 @@
 package srcdb
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
-	"runtime"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
@@ -18,77 +16,52 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
-	for _, exportObject := range exportObjectList {
-		if exportObject == "INDEX" {
+	for _, objectType := range exportObjectList {
+		if objectType == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
 
-		fmt.Printf("exporting %10s %5s", exportObject, "")
-
+		fmt.Printf("exporting %10s %5s", objectType, "")
 		go utils.Wait(fmt.Sprintf("%10s\n", "done"), fmt.Sprintf("%10s\n", "error!"))
 
-		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
-		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
+		outFile := utils.GetObjectFileName(schemaDirPath, objectType)
+		outDir := utils.GetObjectDirPath(schemaDirPath, objectType)
 
-		var exportSchemaObjectCommand *exec.Cmd
-		if source.DBType == "oracle" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
-			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
-		} else if source.DBType == "mysql" {
-			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-m", "-q", "-t", exportObject, "-o",
-				exportObjectFileName, "-b", exportObjectDirPath, "-c", configFilePath, "--no_header")
-			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
+		args := []string{
+			"-p", "-q",
+			"-t", objectType,
+			"-o", outFile,
+			"-b", outDir,
+			"-c", configFilePath,
+			"--no_header",
 		}
-
-		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
-		stderr, _ := exportSchemaObjectCommand.StderrPipe()
-
-		go func() { //command output scanner goroutine
-			outScanner := bufio.NewScanner(stdout)
-			for outScanner.Scan() {
-				line := strings.ToLower(outScanner.Text())
-				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in output scanner goroutine: %s", line)
-					runtime.Goexit()
-				} else {
-					log.Infof("ora2pg STDOUT: %s", outScanner.Text())
-				}
-			}
-		}()
-
-		go func() { //command error scanner goroutine
-			errScanner := bufio.NewScanner(stderr)
-			for errScanner.Scan() {
-				line := strings.ToLower(errScanner.Text())
-				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in error scanner goroutine: %s", line)
-					runtime.Goexit()
-				} else {
-					utils.PrintAndLog("ora2pg STDERR: %s", errScanner.Text())
-				}
-			}
-		}()
-
-		err := exportSchemaObjectCommand.Start()
-		if err != nil {
-			utils.PrintAndLog("Error while starting export: %v", err)
-			exportSchemaObjectCommand.Process.Kill()
-			continue
+		if source.DBType == "mysql" {
+			args = append(args, "-m")
 		}
+		cmd := exec.Command("ora2pg", args...)
+		log.Infof("Executing command: %s", cmd.String())
 
-		err = exportSchemaObjectCommand.Wait()
+		var outbuf bytes.Buffer
+		var errbuf bytes.Buffer
+		cmd.Stdout = &outbuf
+		cmd.Stderr = &errbuf
+
+		err := cmd.Start()
 		if err != nil {
-			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
-			exportSchemaObjectCommand.Process.Kill()
-			continue
-		} else {
-			utils.WaitChannel <- 0 //stop waiting with exit code 0
+			utils.WaitChannel <- 1 //stop waiting with exit code 1
 			<-utils.WaitChannel
+			utils.ErrExit("Failed to initiate %s export: %v\n%s", objectType, err, errbuf.String())
 		}
+
+		err = cmd.Wait()
+		log.Infof("ora2pg STDOUT: %s", outbuf.String())
+		log.Errorf("ora2pg STDERR: %s", errbuf.String())
+		if err != nil {
+			utils.WaitChannel <- 1 //stop waiting with exit code 1
+			<-utils.WaitChannel
+			utils.ErrExit("%s export failed: %v\n%s", objectType, err, errbuf.String())
+		}
+		utils.WaitChannel <- 0 //stop waiting with exit code 0
+		<-utils.WaitChannel
 	}
 }
