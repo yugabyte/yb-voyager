@@ -141,14 +141,14 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 		go utils.Wait()
 	}
 
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
-	utils.PrintIfTrue(fmt.Sprintf("| %30s | %30s |\n", "Table", "Row Count"), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("| %50s | %20s |\n", "Table", "Row Count"), source.VerboseMode)
 
 	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for _, key := range sortedKeys {
-		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 75)), source.VerboseMode)
 
-		utils.PrintIfTrue(fmt.Sprintf("| %30s ", key), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("| %50s ", key), source.VerboseMode)
 
 		if source.VerboseMode {
 			go utils.Wait()
@@ -162,9 +162,9 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 		}
 
 		tablesProgressMetadata[key].CountTotalRows = rowCount
-		utils.PrintIfTrue(fmt.Sprintf("| %30d |\n", rowCount), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("| %20d |\n", rowCount), source.VerboseMode)
 	}
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
 	if !source.VerboseMode {
 		utils.WaitChannel <- 0
 		<-utils.WaitChannel
@@ -226,20 +226,20 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 	}
 	defer file.Close()
 	fmt.Println("exported num of rows for each table")
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
-	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
+	fmt.Printf("+%s+\n", strings.Repeat("-", 75))
+	fmt.Printf("| %50s | %20s |\n", "Table", "Row Count")
 	sortedKeys := utils.GetSortedKeys(tablesMetadata)
 	for _, key := range sortedKeys {
 		tableMetadata := (*tablesMetadata)[key]
-		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
+		fmt.Printf("|%s|\n", strings.Repeat("-", 75))
 
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		actualRowCount := tableMetadata.CountLiveRows
 		line := targetTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
-		fmt.Printf("| %30s | %30d |\n", key, actualRowCount)
+		fmt.Printf("| %50s | %20d |\n", key, actualRowCount)
 	}
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	fmt.Printf("+%s+\n", strings.Repeat("-", 75))
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS

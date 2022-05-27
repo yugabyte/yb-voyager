@@ -28,6 +28,9 @@ import (
 // source struct will be populated by CLI arguments parsing
 var source srcdb.Source
 
+// to disable progress bar during data export and import
+var disablePb bool
+
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "export schema and data from compatible source database(Oracle, Mysql, Postgres)",
