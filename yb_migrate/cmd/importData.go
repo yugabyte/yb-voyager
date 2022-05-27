@@ -775,7 +775,9 @@ func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan c
 	importProgressContainer = ProgressContainer{
 		container: mpb.New(),
 	}
-	go importDataStatus()
+	if !disablePb {
+		go importDataStatus()
+	}
 
 	for Done.IsNotSet() {
 		select {

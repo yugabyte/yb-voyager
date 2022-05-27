@@ -143,6 +143,9 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&loadBalancerUsed, "load-balancer", false,
 		"true - if given --target-db-host is a load balancer ip (default false)")
+
+	cmd.PersistentFlags().BoolVar(&disablePb, "disable-pb", false,
+		"number of Parallel Jobs to extract data from source database")
 }
 
 func validateTargetPortRange() {
