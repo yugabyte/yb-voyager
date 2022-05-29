@@ -17,9 +17,7 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
-	"os"
 	"sync"
 
 	log "github.com/sirupsen/logrus"
@@ -110,7 +108,7 @@ type DataFileDescriptor struct {
 
 func (dfd *DataFileDescriptor) StoreDataFileDescriptor(exportDir string) {
 	dfdFilePath := exportDir + "/metainfo/flags/dataFileDescriptor"
-	log.Infof("storing DataFileDescriptor at %q")
+	log.Infof("storing DataFileDescriptor at %q", dfdFilePath)
 
 	bytes, err := json.MarshalIndent(dfd, "", "\t")
 	if err != nil {
@@ -135,6 +133,5 @@ func (dfd *DataFileDescriptor) LoadDataFileDescriptor(exportDir string) {
 	}
 
 	json.Unmarshal(dfdJson, dfd)
-	fmt.Printf("DataFileDescriptor: %+v\n", dfd)
-	os.Exit(1)
+	log.Infof("Parsed DataFileDescriptor: %+v", dfd)
 }
