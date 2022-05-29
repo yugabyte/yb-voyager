@@ -138,3 +138,7 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart)
 }
+
+func (ora *Oracle) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+	saveExportedRowCount(exportDir, tablesProgressMetadata)
+}

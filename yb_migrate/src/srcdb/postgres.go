@@ -104,3 +104,8 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
 }
+
+func (pg *PostgreSQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+	renameDataFiles(tablesProgressMetadata)
+	saveExportedRowCount(exportDir, tablesProgressMetadata)
+}

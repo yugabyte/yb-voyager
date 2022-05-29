@@ -111,3 +111,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
 }
+
+func (ms *MySQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+	saveExportedRowCount(exportDir, tablesProgressMetadata)
+}

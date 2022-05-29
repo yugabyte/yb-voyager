@@ -164,7 +164,7 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
+	source.DB().ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
 
 	return true
 }
