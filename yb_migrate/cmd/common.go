@@ -139,14 +139,14 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 		go utils.Wait()
 	}
 
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
-	utils.PrintIfTrue(fmt.Sprintf("| %30s | %30s |\n", "Table", "Row Count"), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("| %50s | %20s |\n", "Table", "Row Count"), source.VerboseMode)
 
 	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
 	for _, key := range sortedKeys {
-		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 65)), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 75)), source.VerboseMode)
 
-		utils.PrintIfTrue(fmt.Sprintf("| %30s ", key), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("| %50s ", key), source.VerboseMode)
 
 		if source.VerboseMode {
 			go utils.Wait()
@@ -160,9 +160,9 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 		}
 
 		tablesProgressMetadata[key].CountTotalRows = rowCount
-		utils.PrintIfTrue(fmt.Sprintf("| %30d |\n", rowCount), source.VerboseMode)
+		utils.PrintIfTrue(fmt.Sprintf("| %20d |\n", rowCount), source.VerboseMode)
 	}
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 65)), source.VerboseMode)
+	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
 	if !source.VerboseMode {
 		utils.WaitChannel <- 0
 		<-utils.WaitChannel

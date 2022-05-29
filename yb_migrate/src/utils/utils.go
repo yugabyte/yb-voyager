@@ -30,6 +30,8 @@ import (
 	"github.com/yosssi/gohtml"
 )
 
+var DoNotPrompt bool
+
 func Wait(args ...string) {
 	var successMsg, failureMsg string
 	if len(args) > 0 {
@@ -74,6 +76,9 @@ func Readline(r *bufio.Reader) (string, error) {
 }
 
 func AskPrompt(args ...string) bool {
+	if DoNotPrompt {
+		return true
+	}
 	var input string
 	var argsLen int = len(args)
 
