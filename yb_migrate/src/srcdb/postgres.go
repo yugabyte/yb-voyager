@@ -107,5 +107,13 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 
 func (pg *PostgreSQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
-	saveExportedRowCount(exportDir, tablesProgressMetadata)
+	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
+
+	dfd := utils.DataFileDescriptor{
+		FileType: "CSV",
+		TableRowCount: exportedRowCount,
+		Delimiter: "\t",
+		HasHeader: false,
+	}
+	dfd.StoreDataFileDescriptor(exportDir)
 }

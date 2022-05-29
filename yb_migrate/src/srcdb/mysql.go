@@ -113,5 +113,13 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []s
 }
 
 func (ms *MySQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	saveExportedRowCount(exportDir, tablesProgressMetadata)
+	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
+
+	dfd := utils.DataFileDescriptor{
+		FileType:      "SQL",
+		TableRowCount: exportedRowCount,
+		Delimiter:     "\t",
+		HasHeader:     false,
+	}
+	dfd.StoreDataFileDescriptor(exportDir)
 }

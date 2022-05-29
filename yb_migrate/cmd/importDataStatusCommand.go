@@ -50,8 +50,8 @@ func runImportDataStatusCmd() error {
 		return fmt.Errorf("check if data export is done: %w", err)
 	}
 
-	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
-	totalRowCountMap := GetTableRowCount(rowCountFilePath)
+	dataFileDescriptor.LoadDataFileDescriptor(exportDir)
+	totalRowCountMap := dataFileDescriptor.TableRowCount
 
 	tableNames := []string{}
 	for tableName := range totalRowCountMap {

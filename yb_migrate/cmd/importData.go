@@ -52,6 +52,9 @@ var GenerateSplitsDone = abool.New()
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
+// stores the data files description in a struct
+var dataFileDescriptor utils.DataFileDescriptor
+
 type ProgressContainer struct {
 	mu        sync.Mutex
 	container *mpb.Progress
@@ -217,6 +220,7 @@ func importData() {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	dataFileDescriptor.LoadDataFileDescriptor(exportDir)
 	targets := getYBServers()
 
 	var parallelism = parallelImportJobs
