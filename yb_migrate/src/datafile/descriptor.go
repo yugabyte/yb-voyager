@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	DESCRIPTOR_PATH = "/metainfo/flags/dataFileDescriptor.json"
+	DESCRIPTOR_PATH = "/metainfo/dataFileDescriptor.json"
 )
 
 type Descriptor struct {
@@ -33,7 +33,10 @@ func OpenDescriptor(exportDir string) *Descriptor {
 		utils.ErrExit("load data descriptor file: %v", err)
 	}
 
-	json.Unmarshal(dfdJson, &dfd)
+	err = json.Unmarshal(dfdJson, &dfd)
+	if err != nil {
+		utils.ErrExit("unmarshal dfd: %v", err)
+	}
 	log.Infof("Parsed DataFileDescriptor: %+v", dfd)
 	return dfd
 }
