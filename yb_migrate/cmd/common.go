@@ -19,7 +19,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -191,6 +193,38 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	log.Infof("tableRowCountMap: %v", tableRowCountMap)
 	return tableRowCountMap
+}
+
+func getExportedRowCount(tablesMetadata *map[string]*utils.TableProgressMetadata) map[string]int64 {
+	exportedRowCount := make(map[string]int64)
+
+	sortedKeys := utils.GetSortedKeys(tablesMetadata)
+	for _, key := range sortedKeys {
+		tableMetadata := (*tablesMetadata)[key]
+		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		actualRowCount := tableMetadata.CountLiveRows
+		exportedRowCount[targetTableName] = actualRowCount
+
+	}
+	printExportedRowCount(exportedRowCount)
+	return exportedRowCount
+}
+
+func printExportedRowCount(exportedRowCount map[string]int64) {
+	fmt.Println("exported num of rows for each table")
+	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
+
+	var keys []string
+	for key := range exportedRowCount {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
+		fmt.Printf("| %30s | %30d |\n", key, exportedRowCount[key])
+	}
+	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS

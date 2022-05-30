@@ -27,6 +27,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -149,7 +150,7 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart)
+	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart, &tablesProgressMetadata)
 	// Wait for the export data to start.
 	<-exportDataStart
 
@@ -164,7 +165,9 @@ func exportDataOffline() bool {
 		return false
 	}
 
-	source.DB().ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
+	dfd := datafile.OpenDescriptor(exportDir)
+	dfd.TableRowCount = getExportedRowCount(&tablesProgressMetadata)
+	dfd.Save()
 
 	return true
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -108,18 +109,14 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
-}
-
-func (ms *MySQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
-
-	dfd := utils.DataFileDescriptor{
-		FileType:      "SQL",
-		TableRowCount: exportedRowCount,
+	dfd := datafile.Descriptor{
+		FileType:      datafile.SQL,
+		TableRowCount: nil,
 		Delimiter:     "\t",
 		HasHeader:     false,
+		ExportDir:     exportDir,
 	}
-	dfd.StoreDataFileDescriptor(exportDir)
+	dfd.Save()
 }

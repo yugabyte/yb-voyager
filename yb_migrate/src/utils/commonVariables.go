@@ -16,11 +16,7 @@ limitations under the License.
 package utils
 
 import (
-	"encoding/json"
-	"io/ioutil"
 	"sync"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -97,41 +93,4 @@ type Issue struct {
 	FilePath     string `json:"filePath"`
 	Suggestion   string `json:"suggestion"`
 	GH           string `json:"GH"`
-}
-
-type DataFileDescriptor struct {
-	FileType      string           `json:"FileType"`
-	TableRowCount map[string]int64 `json:"TableRowCount"`
-	Delimiter     string           `json:"Delimiter"`
-	HasHeader     bool             `json:"HasHeader"`
-}
-
-func (dfd *DataFileDescriptor) StoreDataFileDescriptor(exportDir string) {
-	dfdFilePath := exportDir + "/metainfo/flags/dataFileDescriptor"
-	log.Infof("storing DataFileDescriptor at %q", dfdFilePath)
-
-	bytes, err := json.MarshalIndent(dfd, "", "\t")
-	if err != nil {
-		ErrExit("Marshalling the dfd struct: %v", err)
-	}
-
-	err = ioutil.WriteFile(dfdFilePath, bytes, 0644)
-	if err != nil {
-		ErrExit("writing DataFileDescriptor at %q: %v", dfdFilePath, err)
-	}
-}
-
-func (dfd *DataFileDescriptor) LoadDataFileDescriptor(exportDir string) {
-	if dfd != nil {
-		return // return if already loaded
-	}
-	dfdFilePath := exportDir + "/metainfo/flags/dataFileDescriptor"
-	log.Infof("loading DataFileDescriptor from %q", dfdFilePath)
-	dfdJson, err := ioutil.ReadFile(dfdFilePath)
-	if err != nil {
-		ErrExit("reading DataFileDescriptor data: %v", err)
-	}
-
-	json.Unmarshal(dfdJson, dfd)
-	log.Infof("Parsed DataFileDescriptor: %+v", dfd)
 }

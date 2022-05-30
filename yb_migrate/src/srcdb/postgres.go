@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -101,19 +102,15 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
-}
-
-func (pg *PostgreSQL) ExportDataPostProcessing(source *Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
-
-	dfd := utils.DataFileDescriptor{
-		FileType: "CSV",
-		TableRowCount: exportedRowCount,
-		Delimiter: "\t",
-		HasHeader: false,
+	dfd := datafile.Descriptor{
+		FileType:      datafile.CSV,
+		TableRowCount: nil,
+		Delimiter:     "\t",
+		HasHeader:     false,
+		ExportDir:     exportDir,
 	}
-	dfd.StoreDataFileDescriptor(exportDir)
+	dfd.Save()
 }
