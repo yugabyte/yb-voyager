@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
-	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -193,21 +192,6 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	log.Infof("tableRowCountMap: %v", tableRowCountMap)
 	return tableRowCountMap
-}
-
-func getExportedRowCount(tablesMetadata *map[string]*utils.TableProgressMetadata) map[string]int64 {
-	exportedRowCount := make(map[string]int64)
-
-	sortedKeys := utils.GetSortedKeys(tablesMetadata)
-	for _, key := range sortedKeys {
-		tableMetadata := (*tablesMetadata)[key]
-		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		actualRowCount := tableMetadata.CountLiveRows
-		exportedRowCount[targetTableName] = actualRowCount
-
-	}
-	printExportedRowCount(exportedRowCount)
-	return exportedRowCount
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {

@@ -100,6 +100,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 }
 
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool) {
+	defer utils.WaitGroup.Done()
 	quitChan2 := make(chan bool)
 	quit := false
 	go func() {

@@ -102,12 +102,16 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
+}
+
+func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
+	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileType:      datafile.CSV,
-		TableRowCount: nil,
+		TableRowCount: exportedRowCount,
 		Delimiter:     "\t",
 		HasHeader:     false,
 		ExportDir:     exportDir,

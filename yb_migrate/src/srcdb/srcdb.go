@@ -15,7 +15,8 @@ type SourceDB interface {
 	GetAllTableNames() []string
 	GetAllPartitionNames(tableName string) []string
 	ExportSchema(exportDir string)
-	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, tablesProgressMetadata *map[string]*utils.TableProgressMetadata)
+	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
+	ExportDataPostProcessing(exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata)
 }
 
 func newSourceDB(source *Source) SourceDB {

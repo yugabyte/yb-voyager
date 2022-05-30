@@ -7,6 +7,6 @@ const (
 
 type DataFile interface {
 	SkipLines(numLines int64) error
-	NextLine() (string, bool error)
+	NextLine() (string, error)
 	Close()
 }

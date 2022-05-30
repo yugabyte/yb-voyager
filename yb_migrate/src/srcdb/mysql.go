@@ -109,11 +109,15 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
+}
+
+func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileType:      datafile.SQL,
-		TableRowCount: nil,
+		TableRowCount: exportedRowCount,
 		Delimiter:     "\t",
 		HasHeader:     false,
 		ExportDir:     exportDir,

@@ -150,24 +150,23 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart, &tablesProgressMetadata)
+	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart)
 	// Wait for the export data to start.
 	<-exportDataStart
 
 	UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
-
+	utils.WaitGroup.Add(1)
 	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
 
-	utils.WaitGroup.Wait() //waiting for the dump to complete
+	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
 		return false
 	}
 
-	dfd := datafile.OpenDescriptor(exportDir)
-	dfd.TableRowCount = getExportedRowCount(&tablesProgressMetadata)
-	dfd.Save()
+	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	printExportedRowCount(datafile.OpenDescriptor(exportDir).TableRowCount)
 
 	return true
 }
@@ -194,9 +193,11 @@ func checkTableListFlag(tableListString string) {
 func checkDataDirs() {
 	exportDataDir := exportDir + "/data"
 	flagFilePath := exportDir + "/metainfo/flags/exportDataDone"
+	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
+		os.Remove(dfdFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
