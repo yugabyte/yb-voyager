@@ -106,7 +106,7 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
 }
 
-func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{

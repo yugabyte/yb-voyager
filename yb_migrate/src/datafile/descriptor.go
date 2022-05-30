@@ -22,7 +22,7 @@ type Descriptor struct {
 }
 
 func OpenDescriptor(exportDir string) *Descriptor {
-	dfd := Descriptor{
+	dfd := &Descriptor{
 		ExportDir: exportDir,
 	}
 
@@ -35,7 +35,7 @@ func OpenDescriptor(exportDir string) *Descriptor {
 
 	json.Unmarshal(dfdJson, &dfd)
 	log.Infof("Parsed DataFileDescriptor: %+v", dfd)
-	return &dfd
+	return dfd
 }
 
 func (dfd *Descriptor) Save() {

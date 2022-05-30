@@ -113,7 +113,7 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []s
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
 }
 
-func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
+func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileType:      datafile.SQL,

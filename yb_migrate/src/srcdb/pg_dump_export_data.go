@@ -124,8 +124,8 @@ func createTableListPatterns(tableList []string) string {
 	return tableListPattern
 }
 
-func renameDataFiles(tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	for _, tableProgressMetadata := range *tablesProgressMetadata {
+func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	for _, tableProgressMetadata := range tablesProgressMetadata {
 		oldFilePath := tableProgressMetadata.InProgressFilePath
 		newFilePath := tableProgressMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {

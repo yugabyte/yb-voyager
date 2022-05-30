@@ -115,7 +115,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 
 	doneCount := 0
 	var exportedTables []string
-	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for _, key := range sortedKeys {
 			if quit {

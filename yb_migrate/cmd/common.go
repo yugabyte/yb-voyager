@@ -38,7 +38,7 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 
 	// TODO: handle the case if table name has double quotes/case sensitive
 
-	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
 		for _, key := range sortedKeys {
@@ -143,7 +143,7 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
 	utils.PrintIfTrue(fmt.Sprintf("| %50s | %20s |\n", "Table", "Row Count"), source.VerboseMode)
 
-	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 75)), source.VerboseMode)
 
