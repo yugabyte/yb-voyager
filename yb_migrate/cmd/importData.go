@@ -220,6 +220,7 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
+	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
