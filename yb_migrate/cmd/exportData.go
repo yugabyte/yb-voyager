@@ -64,11 +64,7 @@ func exportData() {
 	}
 
 	if success {
-		exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
-		err := exec.Command("touch", exportDoneFlagPath).Run() //to inform import data command
-		if err != nil {
-			utils.ErrExit("couldn't touch file %q: %v", exportDoneFlagPath, err)
-		}
+		createExportDataDoneFlag()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -85,7 +81,7 @@ func exportDataOffline() bool {
 
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	CreateMigrationProjectIfNotExists(&source, exportDir)
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
@@ -202,5 +198,13 @@ func checkDataDirs() {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
+	}
+}
+
+func createExportDataDoneFlag() {
+	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
+	err := exec.Command("touch", exportDoneFlagPath).Run() //to inform import data command
+	if err != nil {
+		utils.ErrExit("couldn't touch file %q: %v", exportDoneFlagPath, err)
 	}
 }

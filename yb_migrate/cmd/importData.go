@@ -528,20 +528,28 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 	GenerateSplitsDone.Set()
 }
 
-func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
-	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", dataFile, t, largestSplit, largestOffset)
+func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
+	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
 	insideCopyStmt := false
-	forig, err := os.Open(dataFile)
-	if err != nil {
-		utils.ErrExit("open file %q: %s", dataFile, err)
-	}
-	defer forig.Close()
 
-	r := bufio.NewReader(forig)
+	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
+	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+	if err != nil {
+		utils.ErrExit("open file %q: %s", filePath, err)
+	}
+	defer dataFile.Close()
+
+	// dataFile, err := os.Open(filePath)
+	// if err != nil {
+	// 	utils.ErrExit("open file %q: %s", filePath, err)
+	// }
+	// defer dataFile.Close()
+	// r := bufio.NewReader(dataFile)
+
 	sz := 0
 	log.Infof("current temp file: %s", currTmpFileName)
 	outfile, err := os.Create(currTmpFileName)
@@ -549,11 +557,12 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 		utils.ErrExit("create file %q: %s", currTmpFileName, err)
 	}
 
-	log.Infof("Skipping %d lines from %q", largestOffset, dataFile)
+	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
+	// dataFile.SkipLines()
 	for i := int64(0); i < largestOffset; {
-		line, err := utils.Readline(r)
+		line, err := dataFile.NextLine()
 		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
-			utils.ErrExit("read a line from %q: %s", dataFile, err)
+			utils.ErrExit("read a line from %q: %s", filePath, err)
 		}
 		if isDataLine(line, sourceDBType, &insideCopyStmt) {
 			i++
@@ -566,7 +575,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 	var line string
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
-		line, readLineErr = utils.Readline(r)
+		line, readLineErr = dataFile.NextLine()
 		if readLineErr == nil && !isDataLine(line, sourceDBType, &insideCopyStmt) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
@@ -601,9 +610,9 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 			fileSplitNumber := splitNum
 			if readLineErr == io.EOF {
 				fileSplitNumber = LAST_SPLIT_NUM
-				log.Infof("Preparing last split of %q", dataFile)
+				log.Infof("Preparing last split of %q", filePath)
 			} else if readLineErr != nil {
-				utils.ErrExit("read line from data file %q: %s", dataFile, readLineErr)
+				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 			}
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
@@ -631,7 +640,7 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 			}
 		}
 	}
-	log.Infof("splitFilesForTable: done splitting data file %q for table %q", dataFile, t)
+	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
 // Example: `COPY "Foo" ("v") FROM STDIN;`
@@ -884,10 +893,10 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 			}
 
-			err = os.Truncate(doneFilePath, 0)
-			if err != nil {
-				log.Warnf("truncate file %q: %s", doneFilePath, err)
-			}
+			// err = os.Truncate(doneFilePath, 0)
+			// if err != nil {
+			// 	log.Warnf("truncate file %q: %s", doneFilePath, err)
+			// }
 			splitImportDone = true
 		default:
 			// fmt.Printf("No server sleeping for 2 seconds\n")
@@ -993,6 +1002,9 @@ func incrementImportedRowCount(tableName string, rowsCopied int64) {
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
+	if getCopyCommand(table) != "" {
+		return
+	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]*(.*) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
