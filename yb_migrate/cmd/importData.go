@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
@@ -51,6 +52,9 @@ var Done = abool.New()
 var GenerateSplitsDone = abool.New()
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
+
+// stores the data files description in a struct
+var dataFileDescriptor *datafile.Descriptor
 
 type ProgressContainer struct {
 	mu        sync.Mutex
@@ -217,6 +221,7 @@ func importData() {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 
 	var parallelism = parallelImportJobs

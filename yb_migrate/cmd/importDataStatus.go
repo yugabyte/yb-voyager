@@ -118,9 +118,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
-
-	rowCountFilePath := exportDir + "/metainfo/flags/tablesrowcount"
-	totalRowCountMap := GetTableRowCount(rowCountFilePath)
+	totalRowCountMap := dataFileDescriptor.TableRowCount
 
 	for _, fullTableName := range tables {
 		parts := strings.Split(fullTableName, ".")

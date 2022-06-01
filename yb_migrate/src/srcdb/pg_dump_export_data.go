@@ -123,3 +123,16 @@ func createTableListPatterns(tableList []string) string {
 
 	return tableListPattern
 }
+
+func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	for _, tableProgressMetadata := range tablesProgressMetadata {
+		oldFilePath := tableProgressMetadata.InProgressFilePath
+		newFilePath := tableProgressMetadata.FinalFilePath
+		if utils.FileOrFolderExists(oldFilePath) {
+			err := os.Rename(oldFilePath, newFilePath)
+			if err != nil {
+				utils.ErrExit("renaming data file for table %q after data export: %v", tableProgressMetadata.TableName, err)
+			}
+		}
+	}
+}

@@ -18,10 +18,9 @@ package cmd
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +38,7 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 
 	// TODO: handle the case if table name has double quotes/case sensitive
 
-	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
 		for _, key := range sortedKeys {
@@ -144,7 +143,7 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
 	utils.PrintIfTrue(fmt.Sprintf("| %50s | %20s |\n", "Table", "Row Count"), source.VerboseMode)
 
-	sortedKeys := utils.GetSortedKeys(&tablesProgressMetadata)
+	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 75)), source.VerboseMode)
 
@@ -195,51 +194,21 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	if source.DBType == "oracle" || source.DBType == "mysql" {
-		// empty - in case of oracle and mysql, the renaming is handled by tool(ora2pg)
-	} else if source.DBType == "postgresql" {
-		renameDataFiles(tablesProgressMetadata)
-	}
-
-	saveExportedRowCount(exportDir, tablesProgressMetadata)
-}
-
-func renameDataFiles(tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
-	for _, tableProgressMetadata := range *tablesProgressMetadata {
-		oldFilePath := tableProgressMetadata.InProgressFilePath
-		newFilePath := tableProgressMetadata.FinalFilePath
-		if utils.FileOrFolderExists(oldFilePath) {
-			err := os.Rename(oldFilePath, newFilePath)
-			if err != nil {
-				utils.ErrExit("renaming data file for table %q after data export: %v", tableProgressMetadata.TableName, err)
-			}
-		}
-	}
-}
-
-func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.TableProgressMetadata) {
-	filePath := exportDir + "/metainfo/flags/tablesrowcount"
-	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer file.Close()
+func printExportedRowCount(exportedRowCount map[string]int64) {
 	fmt.Println("exported num of rows for each table")
-	fmt.Printf("+%s+\n", strings.Repeat("-", 75))
-	fmt.Printf("| %50s | %20s |\n", "Table", "Row Count")
-	sortedKeys := utils.GetSortedKeys(tablesMetadata)
-	for _, key := range sortedKeys {
-		tableMetadata := (*tablesMetadata)[key]
-		fmt.Printf("|%s|\n", strings.Repeat("-", 75))
+	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
 
-		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		actualRowCount := tableMetadata.CountLiveRows
-		line := targetTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
-		file.WriteString(line)
-		fmt.Printf("| %50s | %20d |\n", key, actualRowCount)
+	var keys []string
+	for key := range exportedRowCount {
+		keys = append(keys, key)
 	}
-	fmt.Printf("+%s+\n", strings.Repeat("-", 75))
+	sort.Strings(keys)
+	for _, key := range keys {
+		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
+		fmt.Printf("| %30s | %30d |\n", key, exportedRowCount[key])
+	}
+	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
