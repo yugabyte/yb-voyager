@@ -20,6 +20,7 @@ func (sqldf *SqlDataFile) SkipLines(numLines int64) error {
 			return err
 		}
 	}
+	sqldf.ResetBytesRead()
 	return nil
 }
 
@@ -38,4 +39,8 @@ func (sqldf *SqlDataFile) Close() {
 
 func (sqldf *SqlDataFile) GetBytesRead() int64 {
 	return sqldf.bytesRead
+}
+
+func (sqldf *SqlDataFile) ResetBytesRead() {
+	sqldf.bytesRead = 0
 }

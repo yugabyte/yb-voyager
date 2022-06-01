@@ -22,23 +22,24 @@ func (csvdf *CsvDataFile) SkipLines(numLines int64) error {
 			return err
 		}
 	}
+	csvdf.ResetBytesRead()
 	return nil
 }
 
 func (csvdf *CsvDataFile) NextLine() (string, error) {
-	/* 
-	// TODO: resolve the issue in counting bytes with csvreader
-	// here csv reader can be more useful in case filter table's columns
-	// currently using normal file reader will also work
-	fields, err := csvdf.reader.Read()
-	if err != nil {
-		return "", err
-	}
+	/*
+		// TODO: resolve the issue in counting bytes with csvreader
+		// here csv reader can be more useful in case filter table's columns
+		// currently using normal file reader will also work
+		fields, err := csvdf.reader.Read()
+		if err != nil {
+			return "", err
+		}
 
-	line := strings.Join(fields, csvdf.Delimiter)
-	csvdf.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
+		line := strings.Join(fields, csvdf.Delimiter)
+		csvdf.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
 	*/
-	
+
 	line, err := csvdf.reader.ReadString('\n')
 
 	csvdf.bytesRead += int64(len(line))
@@ -53,4 +54,8 @@ func (csvdf *CsvDataFile) Close() {
 
 func (csvdf *CsvDataFile) GetBytesRead() int64 {
 	return csvdf.bytesRead
+}
+
+func (csvdf *CsvDataFile) ResetBytesRead() {
+	csvdf.bytesRead = 0
 }

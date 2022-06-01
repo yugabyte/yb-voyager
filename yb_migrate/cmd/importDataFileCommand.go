@@ -126,7 +126,7 @@ func getFileSizeInfo() map[string]int64 {
 func createDataFileSymLinks() {
 	log.Infof("creating symlinks to original data files")
 	for table, filePath := range tableNameVsFilePath {
-		symLinkPath := exportDir + "/data/" + table + "_data.sql"
+		symLinkPath := filepath.Join(exportDir, "data", table+"_data.sql")
 
 		filePath, err := filepath.Abs(filePath)
 		if err != nil {
@@ -153,7 +153,7 @@ func createDataFileSymLinks() {
 
 		err = os.Symlink(filePath, symLinkPath)
 		if err != nil {
-			utils.ErrExit("error creating data file %q symlink: %v", filePath, err)
+			utils.ErrExit("error creating symlink to data file %q: %v", filePath, err)
 		}
 	}
 }
@@ -185,12 +185,12 @@ func parseFileTableMapping() {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
 			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			tableNameVsFilePath[table] = dataDir + fileName
+			tableNameVsFilePath[table] = filepath.Join(dataDir, fileName)
 		}
 	} else {
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
 		// get matching file in data-dir
-		files, err := filepath.Glob(dataDir + "/*_data.sql")
+		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}

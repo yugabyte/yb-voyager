@@ -569,6 +569,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			i++
 		}
 	}
+	dataFile.ResetBytesRead()
 
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
@@ -620,6 +621,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			offsetEnd := numLinesTaken
 			if importDataFileMode {
 				numLinesInThisSplit = dataFile.GetBytesRead()
+				dataFile.ResetBytesRead()
 			}
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)

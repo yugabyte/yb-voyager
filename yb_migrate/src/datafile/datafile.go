@@ -14,6 +14,7 @@ type DataFile interface {
 	SkipLines(numLines int64) error
 	NextLine() (string, error)
 	GetBytesRead() int64
+	ResetBytesRead()
 	Close()
 }
 
