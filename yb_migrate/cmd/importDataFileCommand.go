@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,7 +22,8 @@ var (
 	fileTableMapping    string
 	hasHeader           bool
 	tableNameVsFilePath = make(map[string]string)
-	supportedFileTypes  = []string{"csv", "sql"}
+	supportedFileTypes  = []string{datafile.CSV, datafile.SQL}
+	importDataFileMode  bool
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -29,11 +31,12 @@ var importDataFileCmd = &cobra.Command{
 	Short: "This command imports data from given files into YugabyteDB database",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		importDataFileMode = true
 		checkFileType()
+		checkDataDirFlag()
 		// / checkDelimiter()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
-		// importDataCmd.Run(importDataCmd, args)
 		importDataFile()
 	},
 }
@@ -45,8 +48,15 @@ func importDataFile() {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
 	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
-	// sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-	sourceDBType = POSTGRESQL
+
+	if fileType == datafile.CSV {
+		sourceDBType = POSTGRESQL
+	} else if fileType == datafile.SQL {
+		sourceDBType = ORACLE
+	} else {
+		panic(fmt.Sprintf("not implemented yet for fileType: %s\n", fileType))
+	}
+
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 
@@ -85,18 +95,32 @@ func prepareForImportDataCmd() {
 	createExportDataDoneFlag()
 	createDataFileSymLinks()
 	prepareCopyCommands()
+	setImportTableListFlag()
 
-	prepareImportTableList()
-
-	disablePb = true // TODO: estimate the total row count for PB
-	dfd := datafile.Descriptor{
+	tableFileSize := getFileSizeInfo()
+	dfd := &datafile.Descriptor{
 		FileType:      fileType,
-		TableRowCount: nil,
+		TableRowCount: tableFileSize,
 		Delimiter:     delimiter,
 		HasHeader:     hasHeader,
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+}
+
+func getFileSizeInfo() map[string]int64 {
+	tableFileSize := make(map[string]int64)
+	for table, filePath := range tableNameVsFilePath {
+		fileInfo, err := os.Stat(filePath)
+		if err != nil {
+			utils.ErrExit("calculating file %q size in bytes: %v", filePath, err)
+		}
+		tableFileSize[table] = int64(fileInfo.Size())
+
+		log.Infof("File size of %q for table %q: %d", filePath, table, tableFileSize[table])
+	}
+
+	return tableFileSize
 }
 
 func createDataFileSymLinks() {
@@ -108,8 +132,8 @@ func createDataFileSymLinks() {
 		if err != nil {
 			utils.ErrExit("absolute original filepath for table %q: %v", table, err)
 		}
-		utils.PrintAndLog("absolute filepath for %q: %q", table, filePath)
-		utils.PrintAndLog("symlink path for file %q is %q", filePath, symLinkPath)
+		log.Infof("absolute filepath for %q: %q", table, filePath)
+		log.Infof("symlink path for file %q is %q", filePath, symLinkPath)
 		if utils.FileOrFolderExists(symLinkPath) {
 			resolvedFilePath, err := os.Readlink(symLinkPath)
 			if err != nil {
@@ -147,7 +171,7 @@ func prepareCopyCommands() {
 	log.Infof("copyTableFromCommands map: %+v", copyTableFromCommands)
 }
 
-func prepareImportTableList() {
+func setImportTableListFlag() {
 	tableList := []string{}
 	for key := range tableNameVsFilePath {
 		tableList = append(tableList, key)
@@ -157,10 +181,38 @@ func prepareImportTableList() {
 }
 
 func parseFileTableMapping() {
-	keyValuePairs := strings.Split(fileTableMapping, ",")
-	for _, keyValuePair := range keyValuePairs {
-		fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-		tableNameVsFilePath[table] = dataDir + fileName
+	if fileTableMapping != "" {
+		keyValuePairs := strings.Split(fileTableMapping, ",")
+		for _, keyValuePair := range keyValuePairs {
+			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
+			tableNameVsFilePath[table] = dataDir + fileName
+		}
+	} else {
+		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
+		// get matching file in data-dir
+		files, err := filepath.Glob(dataDir + "/*_data.sql")
+		if err != nil {
+			utils.ErrExit("finding data files to import: %v", err)
+		}
+
+		if len(files) == 0 {
+			utils.ErrExit("No data files found to import in %q", dataDir)
+		} else {
+			utils.PrintAndLog("Table data files identified to import in data-dir are: %s", strings.Join(files, "\n"))
+		}
+
+		reTableName := regexp.MustCompile(`(\S+)_data.sql`)
+		for _, file := range files {
+			fileName := filepath.Base(file)
+
+			matches := reTableName.FindAllStringSubmatch(fileName, -1)
+			if len(matches) == 0 {
+				utils.ErrExit("datafile names in %q are not in right format, refer docs", dataDir)
+			}
+
+			tableName := matches[0][1]
+			tableNameVsFilePath[tableName] = file
+		}
 	}
 }
 
@@ -175,6 +227,21 @@ func checkFileType() {
 
 	if !supported {
 		utils.ErrExit("given file-type %q is not supported", fileType)
+	}
+}
+
+func checkDataDirFlag() {
+	if dataDir == "" {
+		fmt.Fprintln(os.Stderr, `Error: required flag "data-dir" not set`)
+		os.Exit(1)
+	}
+	if !utils.FileOrFolderExists(dataDir) {
+		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", dataDir)
+		os.Exit(1)
+	} else if dataDir == "." {
+		fmt.Println("Note: Using current working directory as data directory")
+	} else {
+		dataDir = strings.TrimRight(dataDir, "/")
 	}
 }
 
@@ -200,11 +267,12 @@ func init() {
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"mapping between file name in 'data-dir' to table name") // TODO: if not given default should be file names
-	err = importDataFileCmd.MarkFlagRequired("file-table-map")
-	if err != nil {
-		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
-	}
+		"mapping between file name in 'data-dir' to table name.\n"+
+			"Note: default will assume the file names in format as mentioned in the docs. Refer - link") // TODO: if not given default should be file names
+	// err = importDataFileCmd.MarkFlagRequired("file-table-map")
+	// if err != nil {
+	// 	utils.ErrExit("mark 'file-table-map' flag required: %v", err)
+	// }
 
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)")

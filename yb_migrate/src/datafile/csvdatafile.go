@@ -1,14 +1,15 @@
 package datafile
 
 import (
-	"encoding/csv"
+	"bufio"
 	"os"
 	"strings"
 )
 
 type CsvDataFile struct {
 	file      *os.File
-	reader    *csv.Reader
+	reader    *bufio.Reader
+	bytesRead int64
 	Delimiter string
 	Header    string
 	DataFile
@@ -25,16 +26,31 @@ func (csvdf *CsvDataFile) SkipLines(numLines int64) error {
 }
 
 func (csvdf *CsvDataFile) NextLine() (string, error) {
+	/* 
+	// TODO: resolve the issue in counting bytes with csvreader
 	// here csv reader can be more useful in case filter table's columns
 	// currently using normal file reader will also work
-	line, err := csvdf.reader.Read()
+	fields, err := csvdf.reader.Read()
 	if err != nil {
 		return "", err
 	}
 
-	return strings.Join(line, csvdf.Delimiter), err
+	line := strings.Join(fields, csvdf.Delimiter)
+	csvdf.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
+	*/
+	
+	line, err := csvdf.reader.ReadString('\n')
+
+	csvdf.bytesRead += int64(len(line))
+
+	line = strings.Trim(line, "\n") //to current only the current line content
+	return line, err
 }
 
 func (csvdf *CsvDataFile) Close() {
 	csvdf.file.Close()
+}
+
+func (csvdf *CsvDataFile) GetBytesRead() int64 {
+	return csvdf.bytesRead
 }

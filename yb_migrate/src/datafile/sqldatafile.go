@@ -7,8 +7,9 @@ import (
 )
 
 type SqlDataFile struct {
-	file   *os.File
-	reader *bufio.Reader
+	file      *os.File
+	reader    *bufio.Reader
+	bytesRead int64
 	DataFile
 }
 
@@ -24,10 +25,17 @@ func (sqldf *SqlDataFile) SkipLines(numLines int64) error {
 
 func (sqldf *SqlDataFile) NextLine() (string, error) {
 	line, err := sqldf.reader.ReadString('\n')
+
+	sqldf.bytesRead += int64(len(line))
+
 	line = strings.Trim(line, "\n") //to current only the current line content
 	return line, err
 }
 
 func (sqldf *SqlDataFile) Close() {
 	sqldf.file.Close()
+}
+
+func (sqldf *SqlDataFile) GetBytesRead() int64 {
+	return sqldf.bytesRead
 }

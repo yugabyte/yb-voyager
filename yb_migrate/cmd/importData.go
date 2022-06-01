@@ -78,6 +78,7 @@ type SplitFileImportTask struct {
 	TmpConnectionString string
 	SplitNumber         int64
 	Interrupted         bool
+	ProgressAmount      int64
 }
 
 var importDataCmd = &cobra.Command{
@@ -491,7 +492,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, numLines, taskQueue)
 			}
 		}
 		log.Infof("Collect files which were generated but processing did not start.")
@@ -516,7 +517,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, numLines, taskQueue)
 			}
 		}
 
@@ -558,7 +559,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	}
 
 	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
-	// dataFile.SkipLines()
+	// dataFile.SkipLines() - can use this method once we move isDataLine() srcdb interface
 	for i := int64(0); i < largestOffset; {
 		line, err := dataFile.NextLine()
 		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
@@ -617,6 +618,9 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
+			if importDataFileMode {
+				numLinesInThisSplit = dataFile.GetBytesRead()
+			}
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
 			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
@@ -624,7 +628,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			if err != nil {
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
+			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, numLinesInThisSplit, taskQueue)
 
 			if fileSplitNumber != 0 {
 				splitNum += 1
@@ -677,7 +681,7 @@ func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	taskQueue chan *SplitFileImportTask) {
+	progressAmount int64, taskQueue chan *SplitFileImportTask) {
 	var t SplitFileImportTask
 	t.SchemaName = schemaName
 	t.TableName = tableName
@@ -686,6 +690,7 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 	t.OffsetStart = offsetStart
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
+	t.ProgressAmount = progressAmount
 	taskQueue <- &t
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
@@ -882,7 +887,9 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 						log.Infof("assuming affected rows count %v", rowsCount)
 					}
 				}
-
+				if importDataFileMode {
+					rowsCount = t.ProgressAmount
+				}
 				// update the import data status as soon as rows are copied
 				incrementImportedRowCount(t.TableName, rowsCount)
 			}
@@ -893,10 +900,10 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 			}
 
-			// err = os.Truncate(doneFilePath, 0)
-			// if err != nil {
-			// 	log.Warnf("truncate file %q: %s", doneFilePath, err)
-			// }
+			err = os.Truncate(doneFilePath, 0)
+			if err != nil {
+				log.Warnf("truncate file %q: %s", doneFilePath, err)
+			}
 			splitImportDone = true
 		default:
 			// fmt.Printf("No server sleeping for 2 seconds\n")

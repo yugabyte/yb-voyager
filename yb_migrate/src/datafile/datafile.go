@@ -2,7 +2,6 @@ package datafile
 
 import (
 	"bufio"
-	"encoding/csv"
 	"os"
 )
 
@@ -14,6 +13,7 @@ const (
 type DataFile interface {
 	SkipLines(numLines int64) error
 	NextLine() (string, error)
+	GetBytesRead() int64
 	Close()
 }
 
@@ -26,10 +26,12 @@ func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	}
 
 	if descriptor.FileType == CSV {
-		reader := csv.NewReader(file)
-		reader.Comma = []rune(descriptor.Delimiter)[0]
-		reader.FieldsPerRecord = -1 // last line can be '\.'
-		reader.LazyQuotes = true    // to ignore quotes in fileds
+		// TODO: resolve the issue in counting bytes with csvreader
+		// reader := csv.NewReader(file)
+		// reader.Comma = []rune(descriptor.Delimiter)[0]
+		// reader.FieldsPerRecord = -1 // last line can be '\.'
+		// reader.LazyQuotes = true    // to ignore quotes in fileds
+		reader := bufio.NewReader(file)
 		df = &CsvDataFile{
 			file:      file,
 			reader:    reader,
