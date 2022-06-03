@@ -3,6 +3,9 @@ package datafile
 import (
 	"bufio"
 	"os"
+	"regexp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -15,8 +18,12 @@ type DataFile interface {
 	NextLine() (string, error)
 	GetBytesRead() int64
 	ResetBytesRead()
+	IsDataLine(line string) bool
 	Close()
 }
+
+// Example: `COPY "Foo" ("v") FROM STDIN;`
+var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	var df DataFile
@@ -38,12 +45,15 @@ func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 			reader:    reader,
 			Delimiter: descriptor.Delimiter,
 		}
+		log.Infof("created csv data file struct for file: %s", filePath)
 	} else if descriptor.FileType == SQL {
 		reader := bufio.NewReader(file)
 		df = &SqlDataFile{
-			file:   file,
-			reader: reader,
+			file:           file,
+			reader:         reader,
+			insideCopyStmt: false,
 		}
+		log.Infof("created sql data file struct for file: %s",filePath)
 	}
 
 	return df, err

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -285,4 +286,37 @@ func printExportedTables(exportedTables []string) {
 	output += "}"
 
 	color.Yellow(output)
+}
+
+// Example: `COPY "Foo" ("v") FROM STDIN;`
+var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
+
+/*
+	This function checks for based structure of data file which can be different
+	for different source db type based on tool used for export
+	postgresql - file has only data lines with "\." at the end
+	oracle/mysql - multiple copy statements with each having specific count of rows
+*/
+func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
+	emptyLine := (len(line) == 0)
+	newLineChar := (line == "\n")
+	endOfCopy := (line == "\\." || line == "\\.\n")
+
+	if sourceDBType == "postgresql" {
+		return !(emptyLine || newLineChar || endOfCopy)
+	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
+		if *insideCopyStmt {
+			if endOfCopy {
+				*insideCopyStmt = false
+			}
+			return !(emptyLine || newLineChar || endOfCopy)
+		} else { // outside copy
+			if reCopy.MatchString(line) {
+				*insideCopyStmt = true
+			}
+			return false
+		}
+	} else {
+		panic("Invalid source db type")
+	}
 }

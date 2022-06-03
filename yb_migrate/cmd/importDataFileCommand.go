@@ -34,7 +34,6 @@ var importDataFileCmd = &cobra.Command{
 		importDataFileMode = true
 		checkFileType()
 		checkDataDirFlag()
-		// / checkDelimiter()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importDataFile()
@@ -49,13 +48,7 @@ func importDataFile() {
 	}
 	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
 
-	if fileType == datafile.CSV {
-		sourceDBType = POSTGRESQL
-	} else if fileType == datafile.SQL {
-		sourceDBType = ORACLE
-	} else {
-		panic(fmt.Sprintf("not implemented yet for fileType: %s\n", fileType))
-	}
+	sourceDBType = ORACLE // dummy value
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
@@ -113,7 +106,7 @@ func getFileSizeInfo() map[string]int64 {
 	for table, filePath := range tableNameVsFilePath {
 		fileInfo, err := os.Stat(filePath)
 		if err != nil {
-			utils.ErrExit("calculating file %q size in bytes: %v", filePath, err)
+			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
 		tableFileSize[table] = int64(fileInfo.Size())
 
@@ -198,7 +191,7 @@ func parseFileTableMapping() {
 		if len(files) == 0 {
 			utils.ErrExit("No data files found to import in %q", dataDir)
 		} else {
-			utils.PrintAndLog("Table data files identified to import in data-dir are: %s", strings.Join(files, "\n"))
+			utils.PrintAndLog("Table data files identified to import from data-dir are: %s", strings.Join(files, "\n"))
 		}
 
 		reTableName := regexp.MustCompile(`(\S+)_data.sql`)
@@ -249,19 +242,15 @@ func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
 	registerCommonImportFlags(importDataFileCmd)
 
-	importDataFileCmd.Flags().StringVar(&fileType, "file-type", "",
+	importDataFileCmd.Flags().StringVar(&fileType, "file-type", "csv",
 		"type of data file: csv, sql")
-	err := importDataFileCmd.MarkFlagRequired("file-type")
-	if err != nil {
-		utils.ErrExit("mark 'data-dir' flag required: %v", err)
-	}
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "\t",
 		"character used as delimiter in rows of the table(s)")
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory contains data files to import into table(s)")
-	err = importDataFileCmd.MarkFlagRequired("data-dir")
+	err := importDataFileCmd.MarkFlagRequired("data-dir")
 	if err != nil {
 		utils.ErrExit("mark 'data-dir' flag required: %v", err)
 	}
@@ -269,10 +258,6 @@ func init() {
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
 		"mapping between file name in 'data-dir' to table name.\n"+
 			"Note: default will assume the file names in format as mentioned in the docs. Refer - link") // TODO: if not given default should be file names
-	// err = importDataFileCmd.MarkFlagRequired("file-table-map")
-	// if err != nil {
-	// 	utils.ErrExit("mark 'file-table-map' flag required: %v", err)
-	// }
 
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)")

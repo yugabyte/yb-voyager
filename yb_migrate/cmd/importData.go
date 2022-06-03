@@ -394,7 +394,7 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
-	if sourceDBType == ORACLE {
+	if sourceDBType == ORACLE && !utils.IsQuotedString(table) {
 		table = strings.ToLower(table)
 	}
 
@@ -535,7 +535,6 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
-	insideCopyStmt := false
 
 	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
 	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
@@ -543,13 +542,6 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 		utils.ErrExit("open file %q: %s", filePath, err)
 	}
 	defer dataFile.Close()
-
-	// dataFile, err := os.Open(filePath)
-	// if err != nil {
-	// 	utils.ErrExit("open file %q: %s", filePath, err)
-	// }
-	// defer dataFile.Close()
-	// r := bufio.NewReader(dataFile)
 
 	sz := 0
 	log.Infof("current temp file: %s", currTmpFileName)
@@ -559,17 +551,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	}
 
 	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
-	// dataFile.SkipLines() - can use this method once we move isDataLine() srcdb interface
-	for i := int64(0); i < largestOffset; {
-		line, err := dataFile.NextLine()
-		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
-			utils.ErrExit("read a line from %q: %s", filePath, err)
-		}
-		if isDataLine(line, sourceDBType, &insideCopyStmt) {
-			i++
-		}
-	}
-	dataFile.ResetBytesRead()
+	dataFile.SkipLines(largestOffset)
 
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
@@ -578,7 +560,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = dataFile.NextLine()
-		if readLineErr == nil && !isDataLine(line, sourceDBType, &insideCopyStmt) {
+		if readLineErr == nil && !dataFile.IsDataLine(line) {
 			continue
 		} else if readLineErr == nil { //increment the count only if line is valid
 			numLinesTaken += 1
@@ -647,39 +629,6 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 		}
 	}
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
-}
-
-// Example: `COPY "Foo" ("v") FROM STDIN;`
-var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
-
-/*
-	This function checks for based structure of data file which can be different
-	for different source db type based on tool used for export
-	postgresql - file has only data lines with "\." at the end
-	oracle/mysql - multiple copy statements with each having specific count of rows
-*/
-func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
-	emptyLine := (len(line) == 0)
-	newLineChar := (line == "\n")
-	endOfCopy := (line == "\\." || line == "\\.\n")
-
-	if sourceDBType == "postgresql" {
-		return !(emptyLine || newLineChar || endOfCopy)
-	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
-		if *insideCopyStmt {
-			if endOfCopy {
-				*insideCopyStmt = false
-			}
-			return !(emptyLine || newLineChar || endOfCopy)
-		} else { // outside copy
-			if reCopy.MatchString(line) {
-				*insideCopyStmt = true
-			}
-			return false
-		}
-	} else {
-		panic("Invalid source db type")
-	}
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,

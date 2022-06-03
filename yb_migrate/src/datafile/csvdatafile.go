@@ -16,10 +16,13 @@ type CsvDataFile struct {
 }
 
 func (csvdf *CsvDataFile) SkipLines(numLines int64) error {
-	for i := int64(1); i <= numLines; i++ {
-		_, err := csvdf.NextLine()
+	for i := int64(1); i <= numLines; {
+		line, err := csvdf.NextLine()
 		if err != nil {
 			return err
+		}
+		if csvdf.IsDataLine(line) {
+			i++
 		}
 	}
 	csvdf.ResetBytesRead()
@@ -44,7 +47,7 @@ func (csvdf *CsvDataFile) NextLine() (string, error) {
 
 	csvdf.bytesRead += int64(len(line))
 
-	line = strings.Trim(line, "\n") //to current only the current line content
+	line = strings.Trim(line, "\n") // to get the raw row
 	return line, err
 }
 
@@ -58,4 +61,12 @@ func (csvdf *CsvDataFile) GetBytesRead() int64 {
 
 func (csvdf *CsvDataFile) ResetBytesRead() {
 	csvdf.bytesRead = 0
+}
+
+func (csvdf *CsvDataFile) IsDataLine(line string) bool {
+	emptyLine := (len(line) == 0)
+	newLineChar := (line == "\n")
+	endOfCopy := (line == "\\." || line == "\\.\n")
+
+	return !(emptyLine || newLineChar || endOfCopy)
 }
