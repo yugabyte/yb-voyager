@@ -16,6 +16,7 @@ print_env() {
 	echo "SOURCE_DB_USER=${SOURCE_DB_USER}"
 	echo "SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}"
 	echo "SOURCE_DB_NAME=${SOURCE_DB_NAME}"
+	echo "SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA}"
 	echo ""
 	echo "TARGET_DB_HOST=${TARGET_DB_HOST}"
 	echo "TARGET_DB_PORT=${TARGET_DB_PORT}"
@@ -54,55 +55,72 @@ run_mysql() {
 }
 
 export_schema() {
-	yb_migrate export schema --export-dir ${EXPORT_DIR} \
-		--source-db-type ${SOURCE_DB_TYPE} \
-		--source-db-host ${SOURCE_DB_HOST} \
-		--source-db-port ${SOURCE_DB_PORT} \
-		--source-db-user ${SOURCE_DB_USER} \
-		--source-db-password ${SOURCE_DB_PASSWORD} \
-		--source-db-name ${SOURCE_DB_NAME} \
-		$*
+	args="--export-dir ${EXPORT_DIR}
+		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-host ${SOURCE_DB_HOST}
+		--source-db-port ${SOURCE_DB_PORT}
+		--source-db-user ${SOURCE_DB_USER}
+		--source-db-password ${SOURCE_DB_PASSWORD}
+		--source-db-name ${SOURCE_DB_NAME}
+	"
+	if [ "${SOURCE_DB_SCHEMA}" != "" ]
+	then
+		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+	fi
+	yb_migrate export schema ${args} $*
 }
 
 export_data() {
-	yb_migrate export data --export-dir ${EXPORT_DIR} \
-		--source-db-type ${SOURCE_DB_TYPE} \
-		--source-db-host ${SOURCE_DB_HOST} \
-		--source-db-port ${SOURCE_DB_PORT} \
-		--source-db-user ${SOURCE_DB_USER} \
-		--source-db-password ${SOURCE_DB_PASSWORD} \
-		--source-db-name ${SOURCE_DB_NAME} \
-		$*
+	args="--export-dir ${EXPORT_DIR}
+		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-host ${SOURCE_DB_HOST}
+		--source-db-port ${SOURCE_DB_PORT}
+		--source-db-user ${SOURCE_DB_USER}
+		--source-db-password ${SOURCE_DB_PASSWORD}
+		--source-db-name ${SOURCE_DB_NAME}
+	"
+	if [ "${SOURCE_DB_SCHEMA}" != "" ]
+	then
+		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+	fi
+	yb_migrate export data ${args} $*
 }
 
 analyze_schema() {
-	yb_migrate analyze-schema --export-dir ${EXPORT_DIR} \
-		--source-db-type ${SOURCE_DB_TYPE} \
-		--source-db-host ${SOURCE_DB_HOST} \
-		--source-db-port ${SOURCE_DB_PORT} \
-		--source-db-user ${SOURCE_DB_USER} \
-		--source-db-password ${SOURCE_DB_PASSWORD} \
-		--source-db-name ${SOURCE_DB_NAME} \
-		--output-format txt \
-		$*
+	args="--export-dir ${EXPORT_DIR}
+		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-host ${SOURCE_DB_HOST}
+		--source-db-port ${SOURCE_DB_PORT}
+		--source-db-user ${SOURCE_DB_USER}
+		--source-db-password ${SOURCE_DB_PASSWORD}
+		--source-db-name ${SOURCE_DB_NAME}
+		--output-format txt
+	"
+        if [ "${SOURCE_DB_SCHEMA}" != "" ]
+        then
+                args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+        fi
+        yb_migrate analyze-schema ${args} $*
 }
 
 import_schema() {
-	yes | yb_migrate import schema --export-dir ${EXPORT_DIR} \
+	yb_migrate import schema --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--yes \
 		$*
 }
 
 import_data() {
-	yes | yb_migrate import data --export-dir ${EXPORT_DIR} \
+	yb_migrate import data --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--disable-pb \
 		$*
 }
