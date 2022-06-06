@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type SqlDataFile struct {
@@ -65,4 +67,21 @@ func (sqldf *SqlDataFile) IsDataLine(line string) bool {
 		}
 		return false
 	}
+}
+
+func openSqlDataFile(filePath string, descriptor *Descriptor) (*SqlDataFile, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bufio.NewReader(file)
+	sqlDataFile := &SqlDataFile{
+		file:           file,
+		reader:         reader,
+		insideCopyStmt: false,
+	}
+	log.Infof("created sql data file struct for file: %s", filePath)
+
+	return sqlDataFile, err
 }

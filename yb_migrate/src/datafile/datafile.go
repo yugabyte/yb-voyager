@@ -1,11 +1,8 @@
 package datafile
 
 import (
-	"bufio"
-	"os"
+	"fmt"
 	"regexp"
-
-	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -19,6 +16,7 @@ type DataFile interface {
 	GetBytesRead() int64
 	ResetBytesRead()
 	IsDataLine(line string) bool
+	GetCopyHeader() string
 	Close()
 }
 
@@ -26,35 +24,13 @@ type DataFile interface {
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
-	var df DataFile
+	switch descriptor.FileType {
+	case CSV:
+		return openCsvDataFile(filePath, descriptor)
+	case SQL:
+		return openSqlDataFile(filePath, descriptor)
+	default:
+		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileType))
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
 	}
-
-	if descriptor.FileType == CSV {
-		// TODO: resolve the issue in counting bytes with csvreader
-		// reader := csv.NewReader(file)
-		// reader.Comma = []rune(descriptor.Delimiter)[0]
-		// reader.FieldsPerRecord = -1 // last line can be '\.'
-		// reader.LazyQuotes = true    // to ignore quotes in fileds
-		reader := bufio.NewReader(file)
-		df = &CsvDataFile{
-			file:      file,
-			reader:    reader,
-			Delimiter: descriptor.Delimiter,
-		}
-		log.Infof("created csv data file struct for file: %s", filePath)
-	} else if descriptor.FileType == SQL {
-		reader := bufio.NewReader(file)
-		df = &SqlDataFile{
-			file:           file,
-			reader:         reader,
-			insideCopyStmt: false,
-		}
-		log.Infof("created sql data file struct for file: %s",filePath)
-	}
-
-	return df, err
 }

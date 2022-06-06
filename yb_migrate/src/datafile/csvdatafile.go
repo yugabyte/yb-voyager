@@ -4,6 +4,9 @@ import (
 	"bufio"
 	"os"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type CsvDataFile struct {
@@ -69,4 +72,40 @@ func (csvdf *CsvDataFile) IsDataLine(line string) bool {
 	endOfCopy := (line == "\\." || line == "\\.\n")
 
 	return !(emptyLine || newLineChar || endOfCopy)
+}
+
+func (csvdf *CsvDataFile) GetCopyHeader() string {
+	if csvdf.Header != "" {
+		return csvdf.Header
+	}
+
+	line, err := csvdf.NextLine()
+	if err != nil {
+		utils.ErrExit("finding header for csvdata file: %v", err)
+	}
+
+	csvdf.Header = line
+	return csvdf.Header
+}
+
+func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: resolve the issue in counting bytes with csvreader
+	// reader := csv.NewReader(file)
+	// reader.Comma = []rune(descriptor.Delimiter)[0]
+	// reader.FieldsPerRecord = -1 // last line can be '\.'
+	// reader.LazyQuotes = true    // to ignore quotes in fileds
+	reader := bufio.NewReader(file)
+	csvDataFile := &CsvDataFile{
+		file:      file,
+		reader:    reader,
+		Delimiter: descriptor.Delimiter,
+	}
+	log.Infof("created csv data file struct for file: %s", filePath)
+
+	return csvDataFile, err
 }

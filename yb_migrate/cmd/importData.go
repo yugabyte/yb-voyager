@@ -555,6 +555,9 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
+	if dataFileDescriptor.HasHeader {
+		bufferedWriter.WriteString(dataFile.GetCopyHeader() + "\n")
+	}
 	var readLineErr error = nil
 	var line string
 	linesWrittenToBuffer := false
@@ -625,6 +628,9 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 					utils.ErrExit("create %q: %s", currTmpFileName, err)
 				}
 				bufferedWriter = bufio.NewWriter(outfile)
+				if dataFileDescriptor.HasHeader {
+					bufferedWriter.WriteString(dataFile.GetCopyHeader() + "\n")
+				}
 			}
 		}
 	}

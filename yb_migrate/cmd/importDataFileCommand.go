@@ -32,8 +32,7 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importDataFileMode = true
-		checkFileType()
-		checkDataDirFlag()
+		checkImportDataFileFlags()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importDataFile()
@@ -85,10 +84,6 @@ func importDataFile() {
 
 func prepareForImportDataCmd() {
 	CreateMigrationProjectIfNotExists("postgresql", exportDir)
-	createExportDataDoneFlag()
-	createDataFileSymLinks()
-	prepareCopyCommands()
-	setImportTableListFlag()
 
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{
@@ -99,6 +94,11 @@ func prepareForImportDataCmd() {
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+
+	createDataFileSymLinks()
+	prepareCopyCommands()
+	setImportTableListFlag()
+	createExportDataDoneFlag()
 }
 
 func getFileSizeInfo() map[string]int64 {
@@ -153,11 +153,19 @@ func createDataFileSymLinks() {
 
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
-	for table := range tableNameVsFilePath {
-		copyCommand := fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c'`, table, []rune(delimiter)[0])
-		if hasHeader {
-			copyCommand += " CSV HEADER"
+	for table, filePath := range tableNameVsFilePath {
+		var copyCommand string
+		if !hasHeader || fileType != datafile.CSV {
+			copyCommand = fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c'`, table, []rune(delimiter)[0])
+		} else {
+			dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+			df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+			if err != nil {
+				utils.ErrExit("opening datafile to prepare copy command: %v", err)
+			}
+			copyCommand = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
 		}
+		fmt.Printf("For table %q: %s\n", table, copyCommand)
 		copyTableFromCommands[table] = copyCommand
 	}
 
@@ -181,6 +189,7 @@ func parseFileTableMapping() {
 			tableNameVsFilePath[table] = filepath.Join(dataDir, fileName)
 		}
 	} else {
+		// TODO: replace "link" with docs link
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
 		// get matching file in data-dir
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
@@ -207,6 +216,12 @@ func parseFileTableMapping() {
 			tableNameVsFilePath[tableName] = file
 		}
 	}
+}
+
+func checkImportDataFileFlags() {
+	checkFileType()
+	checkDataDirFlag()
+	checkDelimiterFlag()
 }
 
 func checkFileType() {
@@ -238,6 +253,12 @@ func checkDataDirFlag() {
 	}
 }
 
+func checkDelimiterFlag() {
+	if len(delimiter) > 1 {
+		utils.ErrExit("Not a valid delimiter: %q", delimiter)
+	}
+}
+
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
 	registerCommonImportFlags(importDataFileCmd)
@@ -260,5 +281,6 @@ func init() {
 			"Note: default will assume the file names in format as mentioned in the docs. Refer - link") // TODO: if not given default should be file names
 
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
-		"true - if first line of data file is a list of columns for rows (default false)")
+		"true - if first line of data file is a list of columns for rows (default false)\n"+
+			"(Note: only works for csv file type)")
 }
