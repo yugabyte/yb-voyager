@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/xattr"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
@@ -78,7 +79,6 @@ type SplitFileImportTask struct {
 	TmpConnectionString string
 	SplitNumber         int64
 	Interrupted         bool
-	ProgressAmount      int64
 }
 
 var importDataCmd = &cobra.Command{
@@ -492,7 +492,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, numLines, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 		log.Infof("Collect files which were generated but processing did not start.")
@@ -517,7 +517,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, numLines, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 
@@ -604,10 +604,6 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
-			if importDataFileMode {
-				numLinesInThisSplit = dataFile.GetBytesRead()
-				dataFile.ResetBytesRead()
-			}
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
 				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
 			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
@@ -615,7 +611,17 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			if err != nil {
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, numLinesInThisSplit, taskQueue)
+
+			var progressAmount int64
+			if importDataFileMode {
+				progressAmount = dataFile.GetBytesRead()
+				dataFile.ResetBytesRead()
+			} else {
+				progressAmount = numLinesInThisSplit
+			}
+
+			setProgressAmount(splitFile, progressAmount)
+			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
 			if fileSplitNumber != 0 {
 				splitNum += 1
@@ -638,7 +644,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	progressAmount int64, taskQueue chan *SplitFileImportTask) {
+	taskQueue chan *SplitFileImportTask) {
 	var t SplitFileImportTask
 	t.SchemaName = schemaName
 	t.TableName = tableName
@@ -647,7 +653,6 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 	t.OffsetStart = offsetStart
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
-	t.ProgressAmount = progressAmount
 	taskQueue <- &t
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
@@ -780,22 +785,22 @@ func doImportInParallel(t *SplitFileImportTask, targetChan chan *tgtdb.Target, p
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
+func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	splitImportDone := false
 	for !splitImportDone {
 		select {
 		case targetServer := <-targetChan:
-			log.Infof("Importing %q using target node %q", t.SplitFilePath, targetServer.Host)
+			log.Infof("Importing %q using target node %q", task.SplitFilePath, targetServer.Host)
 			//this is done to signal start progress bar for this table
-			if tablesProgressMetadata[t.TableName].CountLiveRows == -1 {
-				tablesProgressMetadata[t.TableName].CountLiveRows = 0
+			if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
+				tablesProgressMetadata[task.TableName].CountLiveRows = 0
 			}
 			// Rename the file to .P
-			inProgressFilePath := getInProgressFilePath(t)
-			log.Infof("Renaming file from %q to %q", t.SplitFilePath, inProgressFilePath)
-			err := os.Rename(t.SplitFilePath, inProgressFilePath)
+			inProgressFilePath := getInProgressFilePath(task)
+			log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
+			err := os.Rename(task.SplitFilePath, inProgressFilePath)
 			if err != nil {
-				utils.ErrExit("rename %q to %q: %s", t.SplitFilePath, inProgressFilePath, err)
+				utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
 			}
 
 			conn, err := pgx.Connect(context.Background(), targetServer.GetConnectionUri())
@@ -829,7 +834,7 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				}
 			}
 
-			copyCommand := getCopyCommand(t.TableName)
+			copyCommand := getCopyCommand(task.TableName)
 			// copyCommand is empty when there are no rows for that table
 			if copyCommand != "" {
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
@@ -838,19 +843,20 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				if err != nil {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 					if !strings.Contains(err.Error(), "violates unique constraint") {
-						utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
+						utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
 					} else { //in case of unique key violation error take row count from the split task
-						rowsCount = t.OffsetEnd - t.OffsetStart
+						rowsCount = task.OffsetEnd - task.OffsetStart
 						log.Infof("assuming affected rows count %v", rowsCount)
 					}
+				} else if rowsCount != task.OffsetEnd-task.OffsetStart {
+					// exceptional case, since all rows are not copied progress bar shouldn't complete
+					setProgressAmount(task.SplitFilePath, rowsCount)
 				}
-				if importDataFileMode {
-					rowsCount = t.ProgressAmount
-				}
+
 				// update the import data status as soon as rows are copied
-				incrementImportedRowCount(t.TableName, rowsCount)
+				incrementImportProgressBar(task.TableName, inProgressFilePath)
 			}
-			doneFilePath := getDoneFilePath(t)
+			doneFilePath := getDoneFilePath(task)
 			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
 			err = os.Rename(inProgressFilePath, doneFilePath)
 			if err != nil {
@@ -960,9 +966,9 @@ func getDoneFilePath(task *SplitFileImportTask) string {
 	}
 }
 
-func incrementImportedRowCount(tableName string, rowsCopied int64) {
-	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
-	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
+func incrementImportProgressBar(tableName string, splitFilePath string) {
+	tablesProgressMetadata[tableName].CountLiveRows += getProgressAmount(splitFilePath)
+	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
@@ -1010,6 +1016,29 @@ func getCopyCommand(table string) string {
 		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
+}
+
+func setProgressAmount(filePath string, progressAmount int64) {
+	log.Infof("set user.progress_amount=%d for file %q", progressAmount, filePath)
+	s := fmt.Sprintf("%d", progressAmount)
+	err := xattr.Set(filePath, "user.progress_amount", []byte(s))
+	if err != nil {
+		utils.ErrExit("set progress_amount for file %q as %d: %v", filePath, progressAmount, err)
+	}
+}
+
+func getProgressAmount(filePath string) int64 {
+	data, err := xattr.Get(filePath, "user.progress_amount")
+	if err != nil {
+		utils.ErrExit("get extended attribute of file %q: %v", filePath, err)
+	}
+
+	p, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil {
+		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
+	}
+	log.Infof("got user.progress_amount=%d for file %q", p, filePath)
+	return p
 }
 
 func init() {

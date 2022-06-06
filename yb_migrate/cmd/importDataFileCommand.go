@@ -84,7 +84,6 @@ func importDataFile() {
 
 func prepareForImportDataCmd() {
 	CreateMigrationProjectIfNotExists("postgresql", exportDir)
-
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{
 		FileType:      fileType,
@@ -165,7 +164,6 @@ func prepareCopyCommands() {
 			}
 			copyCommand = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
 		}
-		fmt.Printf("For table %q: %s\n", table, copyCommand)
 		copyTableFromCommands[table] = copyCommand
 	}
 
@@ -200,7 +198,11 @@ func parseFileTableMapping() {
 		if len(files) == 0 {
 			utils.ErrExit("No data files found to import in %q", dataDir)
 		} else {
-			utils.PrintAndLog("Table data files identified to import from data-dir are: %s", strings.Join(files, "\n"))
+			var tableFiles []string
+			for _, file := range files {
+				tableFiles = append(tableFiles, filepath.Base(file))
+			}
+			utils.PrintAndLog("Table data files identified to import from data-dir(%q) are: [%s]\n\n", dataDir, strings.Join(tableFiles, ", "))
 		}
 
 		reTableName := regexp.MustCompile(`(\S+)_data.sql`)
