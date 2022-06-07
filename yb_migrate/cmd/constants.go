@@ -39,6 +39,8 @@ var IMPORT_SESSION_SETTERS = []string{
 	"SET yb_disable_transactional_writes to true;",
 	//Disable triggers or fkeys constraint checks.
 	"SET session_replication_role TO replica;",
+	// Enable UPSERT mode instead of normal inserts into a table.
+	"SET yb_enable_upsert_mode to true;",
 }
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
