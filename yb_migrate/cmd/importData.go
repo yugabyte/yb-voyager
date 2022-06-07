@@ -615,13 +615,12 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			}
 
 			var progressAmount int64
-			if importDataFileMode {
+			if dataFileDescriptor.TableRowCount != nil {
+				progressAmount = numLinesInThisSplit
+			} else {
 				progressAmount = dataFile.GetBytesRead()
 				dataFile.ResetBytesRead()
-			} else {
-				progressAmount = numLinesInThisSplit
 			}
-
 			setProgressAmount(splitFile, progressAmount)
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
@@ -851,7 +850,8 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 						log.Infof("assuming affected rows count %v", rowsCount)
 					}
 				} else if rowsCount != task.OffsetEnd-task.OffsetStart {
-					// exceptional case, since all rows are not copied progress bar shouldn't complete
+					// exceptional case, since all rows are not copied, so progress bar shouldn't complete
+					log.Infof("EXCEPTIONAL CASE: all rows are not copied")
 					setProgressAmount(task.SplitFilePath, rowsCount)
 				}
 

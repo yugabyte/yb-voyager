@@ -23,7 +23,6 @@ var (
 	hasHeader           bool
 	tableNameVsFilePath = make(map[string]string)
 	supportedFileTypes  = []string{datafile.CSV, datafile.SQL}
-	importDataFileMode  bool
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -31,7 +30,6 @@ var importDataFileCmd = &cobra.Command{
 	Short: "This command imports data from given files into YugabyteDB database",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		importDataFileMode = true
 		checkImportDataFileFlags()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
@@ -87,7 +85,7 @@ func prepareForImportDataCmd() {
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{
 		FileType:      fileType,
-		TableRowCount: tableFileSize,
+		TableFileSize: tableFileSize,
 		Delimiter:     delimiter,
 		HasHeader:     hasHeader,
 		ExportDir:     exportDir,

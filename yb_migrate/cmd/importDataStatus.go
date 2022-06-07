@@ -18,8 +18,6 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -118,7 +116,12 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	importedRowCount := getImportedRowsCount(exportDir, tables)
-	totalRowCountMap := dataFileDescriptor.TableRowCount
+	var totalRowCountMap map[string]int64
+	if dataFileDescriptor.TableRowCount != nil {
+		totalRowCountMap = dataFileDescriptor.TableRowCount
+	} else {
+		totalRowCountMap = dataFileDescriptor.TableFileSize
+	}
 
 	for _, fullTableName := range tables {
 		parts := strings.Split(fullTableName, ".")
@@ -141,6 +144,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 
 }
 
+// TODO: rename it and corresponding refactoring so that RowCount & ByteCount both are signified
 func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 	metaInfoDataDir := exportDir + "/metainfo/data"
 	importedRowCounts := make(map[string]int64)
@@ -150,18 +154,8 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 		matches, _ := filepath.Glob(pattern)
 		importedRowCounts[table] = 0
 
-		tableDoneSplitsPattern := fmt.Sprintf("%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", table)
-		tableDoneSplitsRegexp := regexp.MustCompile(tableDoneSplitsPattern)
-
 		for _, filePath := range matches {
-			fileName := filepath.Base(filePath)
-			submatches := tableDoneSplitsRegexp.FindStringSubmatch(fileName)
-
-			if len(submatches) > 0 {
-				cnt, _ := strconv.ParseInt(submatches[3], 10, 64)
-				importedRowCounts[table] += cnt
-			}
-
+			importedRowCounts[table] += getProgressAmount(filePath)
 		}
 
 		if importedRowCounts[table] == 0 { //if it zero, then its import not started yet

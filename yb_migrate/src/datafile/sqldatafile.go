@@ -40,7 +40,6 @@ func (sqldf *SqlDataFile) NextLine() (string, error) {
 			break
 		}
 	}
-
 	line = strings.Trim(line, "\n") //to current only the current line content
 	return line, err
 }
