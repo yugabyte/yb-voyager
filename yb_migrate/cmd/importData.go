@@ -539,7 +539,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
 	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 	if err != nil {
-		utils.ErrExit("open file %q: %s", filePath, err)
+		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}
 	defer dataFile.Close()
 
@@ -551,7 +551,10 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	}
 
 	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
-	dataFile.SkipLines(largestOffset)
+	err = dataFile.SkipLines(largestOffset)
+	if err != nil {
+		utils.ErrExit("skipping line for offset=%d: %v", largestOffset, err)
+	}
 
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
@@ -563,9 +566,8 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = dataFile.NextLine()
-		if readLineErr == nil && !dataFile.IsDataLine(line) {
-			continue
-		} else if readLineErr == nil { //increment the count only if line is valid
+		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
+			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
 			numLinesInThisSplit += 1
 		}
@@ -623,7 +625,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			setProgressAmount(splitFile, progressAmount)
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
-			if fileSplitNumber != 0 {
+			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
 				numLinesInThisSplit = 0
 				linesWrittenToBuffer = false

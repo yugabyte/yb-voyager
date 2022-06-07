@@ -22,7 +22,7 @@ func (sqldf *SqlDataFile) SkipLines(numLines int64) error {
 		if err != nil {
 			return err
 		}
-		if sqldf.IsDataLine(line) {
+		if sqldf.isDataLine(line) {
 			i++
 		}
 	}
@@ -31,9 +31,15 @@ func (sqldf *SqlDataFile) SkipLines(numLines int64) error {
 }
 
 func (sqldf *SqlDataFile) NextLine() (string, error) {
-	line, err := sqldf.reader.ReadString('\n')
-
-	sqldf.bytesRead += int64(len(line))
+	var line string
+	var err error
+	for {
+		line, err = sqldf.reader.ReadString('\n')
+		sqldf.bytesRead += int64(len(line))
+		if sqldf.isDataLine(line) || err != nil {
+			break
+		}
+	}
 
 	line = strings.Trim(line, "\n") //to current only the current line content
 	return line, err
@@ -51,7 +57,7 @@ func (sqldf *SqlDataFile) ResetBytesRead() {
 	sqldf.bytesRead = 0
 }
 
-func (sqldf *SqlDataFile) IsDataLine(line string) bool {
+func (sqldf *SqlDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
 	endOfCopy := (line == "\\." || line == "\\.\n")

@@ -15,7 +15,7 @@ type DataFile interface {
 	NextLine() (string, error)
 	GetBytesRead() int64
 	ResetBytesRead()
-	IsDataLine(line string) bool
+	isDataLine(line string) bool
 	GetCopyHeader() string
 	Close()
 }

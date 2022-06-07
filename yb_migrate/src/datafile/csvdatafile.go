@@ -46,9 +46,15 @@ func (csvdf *CsvDataFile) NextLine() (string, error) {
 		csvdf.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
 	*/
 
-	line, err := csvdf.reader.ReadString('\n')
-
-	csvdf.bytesRead += int64(len(line))
+	var line string
+	var err error
+	for {
+		line, err = csvdf.reader.ReadString('\n')
+		csvdf.bytesRead += int64(len(line))
+		if csvdf.IsDataLine(line) || err != nil {
+			break
+		}
+	}
 
 	line = strings.Trim(line, "\n") // to get the raw row
 	return line, err

@@ -160,7 +160,7 @@ func prepareCopyCommands() {
 			dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 			df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 			if err != nil {
-				utils.ErrExit("opening datafile to prepare copy command: %v", err)
+				utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 			}
 			copyCommand = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
 		}
