@@ -91,6 +91,7 @@ func SendPayload() {
 	postBody, _ := json.Marshal(sendReq)
 	requestBody := bytes.NewBuffer(postBody)
 
+	log.Infof("Payload being sent for diagnostic usage: ", string(postBody))
 	resp, err := http.Post("http://127.0.0.1:5000/", "application/json", requestBody)
 
 	if err != nil {

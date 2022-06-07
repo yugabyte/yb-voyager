@@ -27,6 +27,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 
 	"github.com/fatih/color"
@@ -154,17 +155,18 @@ func exportDataOffline() bool {
 	<-exportDataStart
 
 	UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
-
+	utils.WaitGroup.Add(1)
 	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
 
-	utils.WaitGroup.Wait() //waiting for the dump to complete
+	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
 		return false
 	}
 
-	ExportDataPostProcessing(&source, exportDir, &tablesProgressMetadata)
+	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	printExportedRowCount(datafile.OpenDescriptor(exportDir).TableRowCount)
 
 	return true
 }
@@ -191,9 +193,11 @@ func checkTableListFlag(tableListString string) {
 func checkDataDirs() {
 	exportDataDir := exportDir + "/data"
 	flagFilePath := exportDir + "/metainfo/flags/exportDataDone"
+	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
+		os.Remove(dfdFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)

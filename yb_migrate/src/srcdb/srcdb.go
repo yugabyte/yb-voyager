@@ -3,6 +3,8 @@ package srcdb
 import (
 	"context"
 	"fmt"
+
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type SourceDB interface {
@@ -14,6 +16,7 @@ type SourceDB interface {
 	GetAllPartitionNames(tableName string) []string
 	ExportSchema(exportDir string)
 	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
+	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 }
 
 func newSourceDB(source *Source) SourceDB {

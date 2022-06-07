@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -137,4 +138,16 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart)
+}
+
+func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
+	dfd := datafile.Descriptor{
+		FileType:      datafile.SQL,
+		TableRowCount: exportedRowCount,
+		Delimiter:     "\t",
+		HasHeader:     false,
+		ExportDir:     exportDir,
+	}
+	dfd.Save()
 }
