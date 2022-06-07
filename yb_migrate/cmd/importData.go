@@ -216,14 +216,18 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
+	utils.InitJSON(exportDir)
+	payload := utils.GetPayload()
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	targets := getYBServers()
+	payload.NodeCount = len(targets)
 
 	var parallelism = parallelImportJobs
 	if parallelism == -1 {
 		parallelism = len(targets)
 	}
 	log.Infof("parallelism=%v", parallelism)
+	payload.ParallelJobs = parallelism
 
 	if loadBalancerUsed {
 		clone := target.Clone()

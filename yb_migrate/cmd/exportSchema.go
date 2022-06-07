@@ -72,12 +72,20 @@ func exportSchema() {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	source.DB().CheckRequiredToolsAreInstalled()
+	sourceDBVersion := source.DB().GetVersion()
 
-	fmt.Printf("%s version: %s\n", source.DBType, source.DB().GetVersion())
+	fmt.Printf("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	CreateMigrationProjectIfNotExists(&source, exportDir)
 	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
+	//add check for diagnostic flag here...
+	utils.InitJSON(exportDir)
+	payload := utils.GetPayload()
+	payload.SourceDBType = source.DBType
+	payload.SourceDBVersion = sourceDBVersion
+	utils.PackPayload(exportDir)
+	utils.SendPayload()
 	setSchemaIsExported(exportDir)
 }
 

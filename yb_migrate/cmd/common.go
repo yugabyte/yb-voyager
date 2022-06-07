@@ -203,6 +203,7 @@ func ExportDataPostProcessing(source *srcdb.Source, exportDir string, tablesProg
 	}
 
 	saveExportedRowCount(exportDir, tablesProgressMetadata)
+	utils.UpdateDataSize(exportDir)
 }
 
 func renameDataFiles(tablesProgressMetadata *map[string]*utils.TableProgressMetadata) {
@@ -219,6 +220,7 @@ func renameDataFiles(tablesProgressMetadata *map[string]*utils.TableProgressMeta
 }
 
 func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.TableProgressMetadata) {
+	var maxTableLines, totalTableLines int64
 	filePath := exportDir + "/metainfo/flags/tablesrowcount"
 	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -238,7 +240,17 @@ func saveExportedRowCount(exportDir string, tablesMetadata *map[string]*utils.Ta
 		line := targetTableName + "," + strconv.FormatInt(actualRowCount, 10) + "\n"
 		file.WriteString(line)
 		fmt.Printf("| %30s | %30d |\n", key, actualRowCount)
+		if maxTableLines < actualRowCount {
+			maxTableLines = actualRowCount
+		}
+		totalTableLines += actualRowCount
 	}
+	utils.InitJSON(exportDir)
+	payload := utils.GetPayload()
+	payload.LargestTableRows = maxTableLines
+	payload.TotalRows = totalTableLines
+	utils.PackPayload(exportDir)
+	utils.SendPayload()
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 

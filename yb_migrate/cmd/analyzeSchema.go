@@ -784,6 +784,14 @@ func analyzeSchema() {
 		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+
+	//add diagnostic flag check here...
+	utils.InitJSON(exportDir)
+	payload := utils.GetPayload()
+	payload.Issues = reportStruct.Issues
+	payload.DBObjects = reportStruct.Summary.DBObjects
+	utils.PackPayload(exportDir)
+	utils.SendPayload()
 }
 
 var analyzeSchemaCmd = &cobra.Command{
