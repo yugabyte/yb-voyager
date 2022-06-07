@@ -69,6 +69,7 @@ var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
+var enableUpsert bool     // upsert instead of insert for import data
 
 type SplitFileImportTask struct {
 	TableName           string
@@ -885,9 +886,11 @@ func checkSessionVariableSupported(idx int, dbVersion string) bool {
 	splits := strings.Split(dbVersion, "YB-")
 	dbVersion = splits[len(splits)-1]
 
-	if idx == 1 { //yb_disable_transactional_writes
-		//only supported for these versions
+	if idx == 1 { // yb_disable_transactional_writes
+		// only supported for these versions
 		return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
+	} else if idx == 3 { // yb_enable_upsert_mode
+		return enableUpsert
 	}
 	return true
 }
