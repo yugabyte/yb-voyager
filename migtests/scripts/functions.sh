@@ -62,6 +62,7 @@ export_schema() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
+		--send-diagnostics=false
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -78,6 +79,7 @@ export_data() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
+		--send-diagnostics=false
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -95,6 +97,7 @@ analyze_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--output-format txt
+		--send-diagnostics=false
 	"
         if [ "${SOURCE_DB_SCHEMA}" != "" ]
         then
@@ -111,6 +114,7 @@ import_schema() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
 		--yes \
+		--send-diagnostics=false \
 		$*
 }
 
@@ -122,5 +126,6 @@ import_data() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb \
+		--send-diagnostics=false \
 		$*
 }
