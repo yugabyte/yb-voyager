@@ -31,7 +31,7 @@ jobs:
     - name: Run installer script
       run: |
         cd installer_scripts
-        yes | ./yb_migrate_installer__ubuntu.sh
+        yes | ./install-yb-voyager
 
     - name: Test PostgreSQL Connection
       run: |

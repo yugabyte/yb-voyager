@@ -15,8 +15,7 @@ jobs:
 
     - name: Run installer script
       run: |
-        cd installer_scripts
-        yes | ./yb_migrate_installer__ubuntu.sh
+        yes | ./installer_scripts/install-yb-voyager
 
     - name: Start MySQL
       run: |
