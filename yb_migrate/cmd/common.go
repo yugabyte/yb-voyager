@@ -181,8 +181,6 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 
 	payload.LargestTableRows = maxTableLines
 	payload.TotalRows = totalTableLines
-	utils.PackPayload(exportDir)
-	utils.SendPayload()
 	log.Tracef("After updating total row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 

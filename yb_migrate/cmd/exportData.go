@@ -168,6 +168,8 @@ func exportDataOffline() bool {
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	printExportedRowCount(datafile.OpenDescriptor(exportDir).TableRowCount)
 
+	utils.UpdateDataSize(exportDir)
+
 	return true
 }
 

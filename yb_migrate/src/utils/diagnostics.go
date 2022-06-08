@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -18,29 +19,30 @@ import (
 
 //call-home json formats
 var (
-	jsonFilePath string
-	sendReq      sendRequest
-	jsonBuf      []byte
+	jsonFilePath    string
+	sendReq         sendRequest
+	jsonBuf         []byte
+	SendDiagnostics bool
 )
 
 type sendRequest struct {
-	MigrationUuid         uuid.UUID  `json:"UUID"`                    //done
-	StartTime             string     `json:"start_time"`              //done
-	LastUpdatedTime       string     `json:"last_updated_time"`       //done
-	SourceDBType          string     `json:"source_db_type"`          //done
-	SourceDBVersion       string     `json:"source_db_version"`       //done
-	Issues                []Issue    `json:"issues"`                  //test
-	DBObjects             []DBObject `json:"database_objects"`        //test
-	TargetDBVersion       string     `json:"target_db_version"`       //done
-	NodeCount             int        `json:"node_count"`              //done
-	ParallelJobs          int        `json:"parallel_jobs"`           //done
-	TotalRows             int64      `json:"total_rows"`              //done
-	TotalSize             int64      `json:"total_size"`              //test
-	LargestTableRows      int64      `json:"largest_table_rows"`      //done
-	LargestTableSize      int64      `json:"largest_table_size"`      //test
-	TargetClusterLocation string     `json:"target_cluster_location"` //ask on slack channels for this (answer given is insufficient)
-	TargetDBCores         int        `json:"target_db_cores"`         //unknown for now
-	SourceCloudDBType     string     `json:"source_cloud_type"`       //unknown for now
+	MigrationUuid         uuid.UUID `json:"UUID"`                    //done
+	StartTime             string    `json:"start_time"`              //done
+	LastUpdatedTime       string    `json:"last_updated_time"`       //done
+	SourceDBType          string    `json:"source_db_type"`          //done
+	SourceDBVersion       string    `json:"source_db_version"`       //done
+	Issues                string    `json:"issues"`                  //done
+	DBObjects             string    `json:"database_objects"`        //done
+	TargetDBVersion       string    `json:"target_db_version"`       //done
+	NodeCount             int       `json:"node_count"`              //done
+	ParallelJobs          int       `json:"parallel_jobs"`           //done
+	TotalRows             int64     `json:"total_rows"`              //done
+	TotalSize             int64     `json:"total_size"`              //done
+	LargestTableRows      int64     `json:"largest_table_rows"`      //done
+	LargestTableSize      int64     `json:"largest_table_size"`      //test
+	TargetClusterLocation string    `json:"target_cluster_location"` //ask on slack channels for this (answer given is insufficient)
+	TargetDBCores         int       `json:"target_db_cores"`         //unknown for now
+	SourceCloudDBType     string    `json:"source_cloud_type"`       //unknown for now
 }
 
 //Fill in primary-key based fields, if needed
@@ -49,17 +51,17 @@ func InitJSON(exportdir string) {
 	jsonFilePath = filepath.Join(exportdir, "metainfo", "diagnostics.json")
 	_, err = os.OpenFile(jsonFilePath, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		ErrExit("Error while creating/opening diagnostics.json file: ", err)
+		ErrExit("Error while creating/opening diagnostics.json file: %v", err)
 	}
 	jsonBuf, err = os.ReadFile(jsonFilePath)
 	if err != nil {
-		ErrExit("Error while reading diagnostics.json file: ", err)
+		ErrExit("Error while reading diagnostics.json file: %v", err)
 	}
 
 	if len(jsonBuf) != 0 {
 		err = json.Unmarshal(jsonBuf, &sendReq)
 		if err != nil {
-			ErrExit("Invalid diagnostics.json file: ", err)
+			ErrExit("Invalid diagnostics.json file: %v", err)
 		}
 	}
 
@@ -67,7 +69,7 @@ func InitJSON(exportdir string) {
 		sendReq.MigrationUuid, err = uuid.NewUUID()
 		sendReq.StartTime = time.Now().Format("2006-01-02 15:04:05")
 		if err != nil {
-			ErrExit("Error while generating new UUID for diagnostics.json")
+			ErrExit("Error while generating new UUID for diagnostics.json: %v", err)
 		}
 	}
 
@@ -87,25 +89,28 @@ func PackPayload(exportdir string) {
 
 //Send http request to flask servers
 func SendPayload() {
-	sendReq.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
-	postBody, _ := json.Marshal(sendReq)
-	requestBody := bytes.NewBuffer(postBody)
+	if !SendDiagnostics {
+	} else {
 
-	log.Infof("Payload being sent for diagnostic usage: %s", string(postBody))
-	resp, err := http.Post("http://127.0.0.1:5000/", "application/json", requestBody)
+		sendReq.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
+		postBody, _ := json.Marshal(sendReq)
+		requestBody := bytes.NewBuffer(postBody)
 
-	if err != nil {
-		ErrExit("Error while sending diagnostic data: ", err)
+		log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
+		resp, err := http.Post("http://127.0.0.1:5000/", "application/json", requestBody)
+
+		if err != nil {
+			ErrExit("Error while sending diagnostic data: %v", err)
+		}
+
+		defer resp.Body.Close()
+
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			ErrExit("Error while reading HTTP response from call-home server: %v", err)
+		}
+		log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
 	}
-
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		ErrExit("Error while reading HTTP response from call-home server: ", err)
-	}
-	log.Infof("HTTP response after sending diagnostic.json: %s", string(body))
-
 }
 
 func UpdateDataSize(exportdir string) {
@@ -113,18 +118,21 @@ func UpdateDataSize(exportdir string) {
 	totalSizeCmd := exec.Command("du", "-s", datadir)
 	stdout, err := totalSizeCmd.CombinedOutput()
 	if err != nil {
-		ErrExit("Error while executing command: %s\n%v", totalSizeCmd, err)
+		ErrExit("Error while executing command for diagnostics data: %s\n%v", totalSizeCmd, err)
 	}
 	totalSize := strings.Split(string(stdout), "\t")[0]
-	// largestSizeCmd := exec.Command("du", "-a", datadir, "|", "sort", "-n", "-r", "|", "head", "-n", "2", "|", "tail", "-n", "1")
-	// stdout, err = largestSizeCmd.CombinedOutput()
-	// if err != nil {
-	// 	ErrExit("Error while executing command: ", largestSizeCmd, err)
-	// }
-	// largestSize := strings.Split(string(stdout), "\t")[0]
+	//cmdstr := `"du -a ` + datadir + ` |sort -n -r|head -n 2|tail -n 1"`
+	cmdstr := `"du"`
+	largestSizeCmd := exec.Command("bash", "-c", cmdstr)
+	stdout, err = largestSizeCmd.CombinedOutput()
+	if err != nil {
+		ErrExit("Error while executing command for diagnostics data: %s\n%v", largestSizeCmd, err)
+	}
+	fmt.Println(string(stdout))
+	largestSize := strings.Split(string(stdout), "\t")[0]
 
 	sendReq.TotalSize, _ = strconv.ParseInt(totalSize, 10, 64)
-	//sendReq.LargestTableSize, _ = strconv.ParseInt(largestSize, 10, 64)
+	sendReq.LargestTableSize, _ = strconv.ParseInt(largestSize, 10, 64)
 
 	PackPayload(exportdir)
 	SendPayload()

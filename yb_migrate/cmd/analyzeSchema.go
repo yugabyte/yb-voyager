@@ -788,8 +788,10 @@ func analyzeSchema() {
 	//add diagnostic flag check here...
 	utils.InitJSON(exportDir)
 	payload := utils.GetPayload()
-	payload.Issues = reportStruct.Issues
-	payload.DBObjects = reportStruct.Summary.DBObjects
+	issues, _ := json.Marshal(reportStruct.Issues)
+	payload.Issues = string(issues)
+	dbobjects, _ := json.Marshal(reportStruct.Summary.DBObjects)
+	payload.DBObjects = string(dbobjects)
 	utils.PackPayload(exportDir)
 	utils.SendPayload()
 }

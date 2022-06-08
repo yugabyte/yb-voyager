@@ -75,6 +75,9 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
+
+	rootCmd.PersistentFlags().BoolVar(&utils.SendDiagnostics, "send-diagnostics", true,
+		"send diagnostics data")
 }
 
 // initConfig reads in config file and ENV variables if set.
