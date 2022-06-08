@@ -3,15 +3,16 @@ package tgtdb
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
 type TargetDB struct {
-	target  *Target
-	version string
-	conn    *pgx.Conn
+	sync.Mutex
+	target *Target
+	conn   *pgx.Conn
 }
 
 func newTargetDB(target *Target) *TargetDB {
@@ -31,6 +32,8 @@ func (tdb *TargetDB) Connect() error {
 		// Already connected.
 		return nil
 	}
+	tdb.Mutex.Lock()
+	defer tdb.Mutex.Unlock()
 	connStr := tdb.target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
@@ -48,15 +51,17 @@ func (tdb *TargetDB) EnsureConnected() {
 }
 
 func (tdb *TargetDB) GetVersion() string {
-	if tdb.version != "" {
-		return tdb.version
+	if tdb.target.dbVersion != "" {
+		return tdb.target.dbVersion
 	}
 
 	tdb.EnsureConnected()
+	tdb.Mutex.Lock()
+	defer tdb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.version)
+	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.target.dbVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return tdb.version
+	return tdb.target.dbVersion
 }

@@ -22,6 +22,7 @@ type Target struct {
 	VerboseMode            bool
 	TableList              string
 	ImportMode             bool
+	dbVersion              string
 
 	db *TargetDB
 }
