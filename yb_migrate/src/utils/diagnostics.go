@@ -91,7 +91,7 @@ func SendPayload() {
 	postBody, _ := json.Marshal(sendReq)
 	requestBody := bytes.NewBuffer(postBody)
 
-	log.Infof("Payload being sent for diagnostic usage: ", string(postBody))
+	log.Infof("Payload being sent for diagnostic usage: %s", string(postBody))
 	resp, err := http.Post("http://127.0.0.1:5000/", "application/json", requestBody)
 
 	if err != nil {
@@ -104,7 +104,7 @@ func SendPayload() {
 	if err != nil {
 		ErrExit("Error while reading HTTP response from call-home server: ", err)
 	}
-	log.Infof("HTTP response after sending diagnostic.json: ", string(body))
+	log.Infof("HTTP response after sending diagnostic.json: %s", string(body))
 
 }
 
@@ -113,7 +113,7 @@ func UpdateDataSize(exportdir string) {
 	totalSizeCmd := exec.Command("du", "-s", datadir)
 	stdout, err := totalSizeCmd.CombinedOutput()
 	if err != nil {
-		ErrExit("Error while executing command: ", totalSizeCmd, err)
+		ErrExit("Error while executing command: %s\n%v", totalSizeCmd, err)
 	}
 	totalSize := strings.Split(string(stdout), "\t")[0]
 	// largestSizeCmd := exec.Command("du", "-a", datadir, "|", "sort", "-n", "-r", "|", "head", "-n", "2", "|", "tail", "-n", "1")
