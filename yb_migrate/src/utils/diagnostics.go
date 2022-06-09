@@ -3,14 +3,11 @@ package utils
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,7 +36,7 @@ type sendRequest struct {
 	TotalRows             int64     `json:"total_rows"`              //done
 	TotalSize             int64     `json:"total_size"`              //done
 	LargestTableRows      int64     `json:"largest_table_rows"`      //done
-	LargestTableSize      int64     `json:"largest_table_size"`      //test
+	LargestTableSize      int64     `json:"largest_table_size"`      //done
 	TargetClusterLocation string    `json:"target_cluster_location"` //ask on slack channels for this (answer given is insufficient)
 	TargetDBCores         int       `json:"target_db_cores"`         //unknown for now
 	SourceCloudDBType     string    `json:"source_cloud_type"`       //unknown for now
@@ -97,7 +94,7 @@ func SendPayload() {
 		requestBody := bytes.NewBuffer(postBody)
 
 		log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
-		resp, err := http.Post("http://127.0.0.1:5000/", "application/json", requestBody)
+		resp, err := http.Post("http://127.0.0.1:8000/", "application/json", requestBody)
 
 		if err != nil {
 			ErrExit("Error while sending diagnostic data: %v", err)
@@ -114,25 +111,31 @@ func SendPayload() {
 }
 
 func UpdateDataSize(exportdir string) {
-	datadir := filepath.Join(exportdir, "data")
-	totalSizeCmd := exec.Command("du", "-s", datadir)
-	stdout, err := totalSizeCmd.CombinedOutput()
-	if err != nil {
-		ErrExit("Error while executing command for diagnostics data: %s\n%v", totalSizeCmd, err)
-	}
-	totalSize := strings.Split(string(stdout), "\t")[0]
-	//cmdstr := `"du -a ` + datadir + ` |sort -n -r|head -n 2|tail -n 1"`
-	cmdstr := `"du"`
-	largestSizeCmd := exec.Command("bash", "-c", cmdstr)
-	stdout, err = largestSizeCmd.CombinedOutput()
-	if err != nil {
-		ErrExit("Error while executing command for diagnostics data: %s\n%v", largestSizeCmd, err)
-	}
-	fmt.Println(string(stdout))
-	largestSize := strings.Split(string(stdout), "\t")[0]
+	datadirfiles := filepath.Join(exportdir, "data", "*_data*")
+	// totalSizeCmd := exec.Command("du", "-s", datadir)
+	// stdout, err := totalSizeCmd.CombinedOutput()
+	// if err != nil {
+	// 	ErrExit("Error while executing command for diagnostics data: %s\n%v", totalSizeCmd, err)
+	// }
+	// totalSize := strings.Split(string(stdout), "\t")[0]
 
-	sendReq.TotalSize, _ = strconv.ParseInt(totalSize, 10, 64)
-	sendReq.LargestTableSize, _ = strconv.ParseInt(largestSize, 10, 64)
+	files, err := filepath.Glob(datadirfiles)
+	if err != nil {
+		ErrExit("Error while matching files in data dir for diagnostics: %v", err)
+	}
+	var fileInfo fs.FileInfo
+	var totalSize int64
+	var maxFileSize int64
+	for _, file := range files {
+		fileInfo, _ = os.Stat(file)
+		if maxFileSize < fileInfo.Size() {
+			maxFileSize = fileInfo.Size()
+		}
+		totalSize += fileInfo.Size()
+	}
+
+	sendReq.TotalSize = totalSize
+	sendReq.LargestTableSize = maxFileSize
 
 	PackPayload(exportdir)
 	SendPayload()
