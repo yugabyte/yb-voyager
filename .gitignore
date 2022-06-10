@@ -1,4 +1,4 @@
-yb_migrate/yb_migrate
+yb-voyager/yb-voyager
 
 # Binaries for programs and plugins
 *.exe

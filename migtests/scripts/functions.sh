@@ -67,7 +67,7 @@ export_schema() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
-	yb_migrate export schema ${args} $*
+	yb-voyager export schema ${args} $*
 }
 
 export_data() {
@@ -83,7 +83,7 @@ export_data() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
-	yb_migrate export data ${args} $*
+	yb-voyager export data ${args} $*
 }
 
 analyze_schema() {
@@ -100,11 +100,11 @@ analyze_schema() {
         then
                 args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
         fi
-        yb_migrate analyze-schema ${args} $*
+        yb-voyager analyze-schema ${args} $*
 }
 
 import_schema() {
-	yb_migrate import schema --export-dir ${EXPORT_DIR} \
+	yb-voyager import schema --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
@@ -115,7 +115,7 @@ import_schema() {
 }
 
 import_data() {
-	yb_migrate import data --export-dir ${EXPORT_DIR} \
+	yb-voyager import data --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \

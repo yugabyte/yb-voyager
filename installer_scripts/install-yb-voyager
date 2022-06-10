@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# This script installs yb_migrate in /usr/local/bin and all of its dependencies.
+# This script installs yb-voyager in /usr/local/bin and all of its dependencies.
 
 set -e
 
@@ -84,9 +84,9 @@ centos_main() {
 
 	install_golang linux
 	centos_install_oracle_instant_clients
-	update_yb_migrate_bashrc
+	update_yb_voyager_bashrc
 	install_ora2pg
-	install_yb_migrate
+	install_yb_voyager
 	update_bashrc
 
 	set +x
@@ -106,9 +106,9 @@ ubuntu_main() {
 	install_golang linux
 	ubuntu_install_postgres
 	ubuntu_install_oracle_instant_clients
-	update_yb_migrate_bashrc
+	update_yb_voyager_bashrc
 	install_ora2pg
-	install_yb_migrate
+	install_yb_voyager
 	update_bashrc
 
 	set +x
@@ -117,13 +117,13 @@ ubuntu_main() {
 
 macos_main() {
 	output "=================================================="
-	output "NOTE: From MacOS, yb_migrate can only migrate PostgreSQL databases."
+	output "NOTE: From MacOS, yb-voyager can only migrate PostgreSQL databases."
 	output "      Use a CentOS/Ubuntu machine to migrate from Oracle/MySQL. "
 	output "=================================================="
 	macos_install_brew
 	macos_install_pg_dump
 	install_golang darwin
-	install_yb_migrate
+	install_yb_voyager
 	update_bashrc
 }
 
@@ -131,7 +131,7 @@ macos_main() {
 # COMMON
 #=============================================================================
 
-update_yb_migrate_bashrc() {
+update_yb_voyager_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
 	insert_into_rc_file 'export ORACLE_HOME=/usr/lib/oracle/21/client64'
 	insert_into_rc_file 'export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH'
@@ -140,20 +140,20 @@ update_yb_migrate_bashrc() {
 }
 
 
-install_yb_migrate() {
-	output "Installing yb_migrate."
+install_yb_voyager() {
+	output "Installing yb-voyager."
 	inside_repo=`git rev-parse --is-inside-work-tree 2> /dev/null || echo "false"`
 	if [ ${inside_repo} == "true" ]
 	then
 		pushd `git rev-parse --show-toplevel` > /dev/null
-		pushd yb_migrate > /dev/null
+		pushd yb-voyager > /dev/null
 		$GO install
 		popd > /dev/null
 		popd > /dev/null
 	else
-		$GO install github.com/yugabyte/yb-db-migration/yb_migrate@latest
+		$GO install github.com/yugabyte/yb-voyager/yb-voyager@latest
 	fi
-	sudo mv -f $HOME/go/bin/yb_migrate /usr/local/bin
+	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 }
 
 
