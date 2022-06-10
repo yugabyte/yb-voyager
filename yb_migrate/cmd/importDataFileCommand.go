@@ -22,7 +22,7 @@ var (
 	fileTableMapping    string
 	hasHeader           bool
 	tableNameVsFilePath = make(map[string]string)
-	supportedFileTypes  = []string{datafile.CSV, datafile.SQL}
+	supportedFileTypes  = []string{datafile.CSV}
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -150,19 +150,21 @@ func createDataFileSymLinks() {
 
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
-		var copyCommand string
-		if !hasHeader || fileType != datafile.CSV {
-			copyCommand = fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c'`, table, []rune(delimiter)[0])
-		} else {
-			dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-			df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
-			if err != nil {
-				utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
+		if fileType == datafile.CSV {
+			if hasHeader {
+				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+				if err != nil {
+					utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
+				}
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
+			} else {
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c' CSV`, table, []rune(delimiter)[0])
 			}
-			copyCommand = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
+		} else {
+			panic(fmt.Sprintf("File Type %q not implemented\n", fileType))
 		}
-		copyTableFromCommands[table] = copyCommand
 	}
 
 	log.Infof("copyTableFromCommands map: %+v", copyTableFromCommands)
@@ -188,7 +190,7 @@ func parseFileTableMapping() {
 		// TODO: replace "link" with docs link
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
 		// get matching file in data-dir
-		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
+		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.csv"))
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}
@@ -264,9 +266,9 @@ func init() {
 	registerCommonImportFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileType, "file-type", "csv",
-		"type of data file: csv, sql")
+		fmt.Sprintf("supported data file types: %s", supportedFileTypes))
 
-	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "\t",
+	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
 		"character used as delimiter in rows of the table(s)")
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
