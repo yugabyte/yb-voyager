@@ -16,27 +16,24 @@ type SqlDataFile struct {
 	DataFile
 }
 
-func (sqldf *SqlDataFile) SkipLines(numLines int64) error {
-	for i := int64(1); i <= numLines; {
-		line, err := sqldf.NextLine()
+func (df *SqlDataFile) SkipLines(numLines int64) error {
+	for i := int64(1); i <= numLines; i++ {
+		_, err := df.NextLine()
 		if err != nil {
 			return err
 		}
-		if sqldf.isDataLine(line) {
-			i++
-		}
 	}
-	sqldf.ResetBytesRead()
+	df.ResetBytesRead()
 	return nil
 }
 
-func (sqldf *SqlDataFile) NextLine() (string, error) {
+func (df *SqlDataFile) NextLine() (string, error) {
 	var line string
 	var err error
 	for {
-		line, err = sqldf.reader.ReadString('\n')
-		sqldf.bytesRead += int64(len(line))
-		if sqldf.isDataLine(line) || err != nil {
+		line, err = df.reader.ReadString('\n')
+		df.bytesRead += int64(len(line))
+		if df.isDataLine(line) || err != nil {
 			break
 		}
 	}
@@ -44,31 +41,31 @@ func (sqldf *SqlDataFile) NextLine() (string, error) {
 	return line, err
 }
 
-func (sqldf *SqlDataFile) Close() {
-	sqldf.file.Close()
+func (df *SqlDataFile) Close() {
+	df.file.Close()
 }
 
-func (sqldf *SqlDataFile) GetBytesRead() int64 {
-	return sqldf.bytesRead
+func (df *SqlDataFile) GetBytesRead() int64 {
+	return df.bytesRead
 }
 
-func (sqldf *SqlDataFile) ResetBytesRead() {
-	sqldf.bytesRead = 0
+func (df *SqlDataFile) ResetBytesRead() {
+	df.bytesRead = 0
 }
 
-func (sqldf *SqlDataFile) isDataLine(line string) bool {
+func (df *SqlDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
 	endOfCopy := (line == "\\." || line == "\\.\n")
 
-	if sqldf.insideCopyStmt {
+	if df.insideCopyStmt {
 		if endOfCopy {
-			sqldf.insideCopyStmt = false
+			df.insideCopyStmt = false
 		}
 		return !(emptyLine || newLineChar || endOfCopy)
 	} else { // outside copy
 		if reCopy.MatchString(line) {
-			sqldf.insideCopyStmt = true
+			df.insideCopyStmt = true
 		}
 		return false
 	}

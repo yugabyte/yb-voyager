@@ -93,6 +93,7 @@ var importDataCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
+		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importData()
 	},
 }
@@ -223,7 +224,7 @@ func importData() {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
 	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
-	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 
@@ -560,7 +561,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
 	if dataFileDescriptor.HasHeader {
-		bufferedWriter.WriteString(dataFile.GetCopyHeader() + "\n")
+		bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
 	}
 	var readLineErr error = nil
 	var line string
@@ -637,7 +638,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 				}
 				bufferedWriter = bufio.NewWriter(outfile)
 				if dataFileDescriptor.HasHeader {
-					bufferedWriter.WriteString(dataFile.GetCopyHeader() + "\n")
+					bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
 				}
 			}
 		}
@@ -664,8 +665,8 @@ func executePostImportDataSqls() {
 		Enable Sequences, if required
 		Add Indexes, if required
 	*/
-	sequenceFilePath := exportDir + "/data/postdata.sql"
-	indexesFilePath := exportDir + "/schema/tables/INDEXES_table.sql"
+	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
+	indexesFilePath := filepath.Join(exportDir, "/schema/tables/INDEXES_table.sql")
 
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
@@ -1024,7 +1025,7 @@ func getCopyCommand(table string) string {
 }
 
 func setProgressAmount(filePath string, progressAmount int64) {
-	log.Infof("set user.progress_amount=%d for file %q", progressAmount, filePath)
+	log.Debugf("set user.progress_amount=%d for file %q", progressAmount, filePath)
 	s := fmt.Sprintf("%d", progressAmount)
 	err := xattr.Set(filePath, "user.progress_amount", []byte(s))
 	if err != nil {
@@ -1042,7 +1043,7 @@ func getProgressAmount(filePath string) int64 {
 	if err != nil {
 		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
 	}
-	log.Infof("got user.progress_amount=%d for file %q", p, filePath)
+	log.Debugf("got user.progress_amount=%d for file %q", p, filePath)
 	return p
 }
 

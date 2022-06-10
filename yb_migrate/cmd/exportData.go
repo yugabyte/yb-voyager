@@ -19,7 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -202,9 +202,9 @@ func checkDataDirs() {
 }
 
 func createExportDataDoneFlag() {
-	exportDoneFlagPath := exportDir + "/metainfo/flags/exportDataDone"
-	err := exec.Command("touch", exportDoneFlagPath).Run() //to inform import data command
+	exportDoneFlagPath := filepath.Join(exportDir, "/metainfo/flags/exportDataDone")
+	_, err := os.Create(exportDoneFlagPath)
 	if err != nil {
-		utils.ErrExit("couldn't touch file %q: %v", exportDoneFlagPath, err)
+		utils.ErrExit("creating exportDataDone flag: %v", err)
 	}
 }

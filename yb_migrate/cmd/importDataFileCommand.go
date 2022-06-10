@@ -6,12 +6,10 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
-	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
 )
 
@@ -33,55 +31,13 @@ var importDataFileCmd = &cobra.Command{
 		checkImportDataFileFlags()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
-		importDataFile()
+		importData()
 	},
 }
 
-func importDataFile() {
-	utils.PrintAndLog("import of data in %q database started", target.DBName)
-	err := target.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
-	}
-	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
-
-	sourceDBType = ORACLE // dummy value
-
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	targets := getYBServers()
-
-	var parallelism = parallelImportJobs
-	if parallelism == -1 {
-		parallelism = len(targets)
-	}
-	log.Infof("parallelism=%v", parallelism)
-
-	if loadBalancerUsed {
-		clone := target.Clone()
-		clone.Uri = getTargetConnectionUri(clone)
-		targets = []*tgtdb.Target{clone}
-	}
-	if target.VerboseMode {
-		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
-	}
-
-	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
-		splitFileChannelSize = parallelism + 1
-	}
-	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
-	targetServerChannel := make(chan *tgtdb.Target, 1)
-
-	go roundRobinTargets(targets, targetServerChannel)
-	generateSmallerSplits(splitFilesChannel)
-	go doImport(splitFilesChannel, parallelism, targetServerChannel)
-	checkForDone()
-
-	time.Sleep(time.Second * 2)
-	fmt.Printf("\nexiting...\n")
-}
-
 func prepareForImportDataCmd() {
-	CreateMigrationProjectIfNotExists("postgresql", exportDir)
+	sourceDBType = ORACLE // dummy value - this command is not affected by it
+	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{
 		FileType:      fileType,
@@ -125,19 +81,10 @@ func createDataFileSymLinks() {
 		log.Infof("absolute filepath for %q: %q", table, filePath)
 		log.Infof("symlink path for file %q is %q", filePath, symLinkPath)
 		if utils.FileOrFolderExists(symLinkPath) {
-			resolvedFilePath, err := os.Readlink(symLinkPath)
+			log.Infof("removing symlink: %q to create fresh link", symLinkPath)
+			err = os.Remove(symLinkPath)
 			if err != nil {
-				utils.ErrExit("resolving symlink %q: %v", symLinkPath, err)
-			}
-			if resolvedFilePath == filePath {
-				log.Infof("using symlink %q already present", symLinkPath)
-				continue
-			} else {
-				log.Infof("removing symlink: %q to create fresh link", symLinkPath)
-				err = os.Remove(symLinkPath)
-				if err != nil {
-					utils.ErrExit("removing symlink %q: %v", symLinkPath, err)
-				}
+				utils.ErrExit("removing symlink %q: %v", symLinkPath, err)
 			}
 		}
 
@@ -158,7 +105,7 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 				}
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetCopyHeader(), []rune(delimiter)[0])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetHeader(), []rune(delimiter)[0])
 			} else {
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c' CSV`, table, []rune(delimiter)[0])
 			}

@@ -39,6 +39,7 @@ var importCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
+		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importSchema()
 		importData()
 	},

@@ -18,40 +18,37 @@ type CsvDataFile struct {
 	DataFile
 }
 
-func (csvdf *CsvDataFile) SkipLines(numLines int64) error {
-	for i := int64(1); i <= numLines; {
-		line, err := csvdf.NextLine()
+func (df *CsvDataFile) SkipLines(numLines int64) error {
+	for i := int64(1); i <= numLines; i++ {
+		_, err := df.NextLine()
 		if err != nil {
 			return err
 		}
-		if csvdf.IsDataLine(line) {
-			i++
-		}
 	}
-	csvdf.ResetBytesRead()
+	df.ResetBytesRead()
 	return nil
 }
 
-func (csvdf *CsvDataFile) NextLine() (string, error) {
+func (df *CsvDataFile) NextLine() (string, error) {
 	/*
 		// TODO: resolve the issue in counting bytes with csvreader
 		// here csv reader can be more useful in case filter table's columns
 		// currently using normal file reader will also work
-		fields, err := csvdf.reader.Read()
+		fields, err := df.reader.Read()
 		if err != nil {
 			return "", err
 		}
 
-		line := strings.Join(fields, csvdf.Delimiter)
-		csvdf.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
+		line := strings.Join(fields, df.Delimiter)
+		df.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
 	*/
 
 	var line string
 	var err error
 	for {
-		line, err = csvdf.reader.ReadString('\n')
-		csvdf.bytesRead += int64(len(line))
-		if csvdf.IsDataLine(line) || err != nil {
+		line, err = df.reader.ReadString('\n')
+		df.bytesRead += int64(len(line))
+		if df.isDataLine(line) || err != nil {
 			break
 		}
 	}
@@ -60,19 +57,19 @@ func (csvdf *CsvDataFile) NextLine() (string, error) {
 	return line, err
 }
 
-func (csvdf *CsvDataFile) Close() {
-	csvdf.file.Close()
+func (df *CsvDataFile) Close() {
+	df.file.Close()
 }
 
-func (csvdf *CsvDataFile) GetBytesRead() int64 {
-	return csvdf.bytesRead
+func (df *CsvDataFile) GetBytesRead() int64 {
+	return df.bytesRead
 }
 
-func (csvdf *CsvDataFile) ResetBytesRead() {
-	csvdf.bytesRead = 0
+func (df *CsvDataFile) ResetBytesRead() {
+	df.bytesRead = 0
 }
 
-func (csvdf *CsvDataFile) IsDataLine(line string) bool {
+func (df *CsvDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
 	endOfCopy := (line == "\\." || line == "\\.\n")
@@ -80,18 +77,18 @@ func (csvdf *CsvDataFile) IsDataLine(line string) bool {
 	return !(emptyLine || newLineChar || endOfCopy)
 }
 
-func (csvdf *CsvDataFile) GetCopyHeader() string {
-	if csvdf.Header != "" {
-		return csvdf.Header
+func (df *CsvDataFile) GetHeader() string {
+	if df.Header != "" {
+		return df.Header
 	}
 
-	line, err := csvdf.NextLine()
+	line, err := df.NextLine()
 	if err != nil {
 		utils.ErrExit("finding header for csvdata file: %v", err)
 	}
 
-	csvdf.Header = line
-	return csvdf.Header
+	df.Header = line
+	return df.Header
 }
 
 func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, error) {
