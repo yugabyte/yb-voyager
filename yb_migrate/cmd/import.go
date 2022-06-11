@@ -39,6 +39,7 @@ var importCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
+		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importSchema()
 		importData()
 	},
@@ -144,8 +145,11 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&loadBalancerUsed, "load-balancer", false,
 		"true - if given --target-db-host is a load balancer ip (default false)")
 
-	cmd.PersistentFlags().BoolVar(&disablePb, "disable-pb", false,
+	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
+
+	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", false,
+		"true - to enable upsert for insert in target tables (default false)")
 }
 
 func validateTargetPortRange() {

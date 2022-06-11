@@ -16,6 +16,7 @@ const (
 type Descriptor struct {
 	FileType      string           `json:"FileType"`
 	TableRowCount map[string]int64 `json:"TableRowCount"`
+	TableFileSize map[string]int64 `json:"TableFileSize"`
 	Delimiter     string           `json:"Delimiter"`
 	HasHeader     bool             `json:"HasHeader"`
 	ExportDir     string           `json:"-"`

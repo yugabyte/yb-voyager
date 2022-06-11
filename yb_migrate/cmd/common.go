@@ -212,7 +212,8 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
-func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
+func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
+	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
 
 	// log.Debugf("Creating a project directory...")
@@ -227,13 +228,13 @@ func CreateMigrationProjectIfNotExists(source *srcdb.Source, exportDir string) {
 	}
 
 	// Put info to metainfo/schema about the source db
-	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + source.DBType
+	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + dbType
 	_, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
 	if err != nil {
 		utils.ErrExit("coludn't touch file %q: %v", sourceInfoFile, err)
 	}
 
-	schemaObjectList := utils.GetSchemaObjectList(source.DBType)
+	schemaObjectList := utils.GetSchemaObjectList(dbType)
 
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range schemaObjectList {

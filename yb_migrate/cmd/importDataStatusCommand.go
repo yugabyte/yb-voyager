@@ -52,7 +52,12 @@ func runImportDataStatusCmd() error {
 	}
 
 	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
-	totalRowCountMap := dataFileDescriptor.TableRowCount
+	var totalRowCountMap map[string]int64
+	if dataFileDescriptor.TableRowCount != nil {
+		totalRowCountMap = dataFileDescriptor.TableRowCount
+	} else {
+		totalRowCountMap = dataFileDescriptor.TableFileSize
+	}
 
 	tableNames := []string{}
 	for tableName := range totalRowCountMap {

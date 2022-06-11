@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/xattr"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/datafile"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/tgtdb"
 	"github.com/yugabyte/yb-db-migration/yb_migrate/src/utils"
@@ -68,6 +69,7 @@ var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
+var enableUpsert bool     // upsert instead of insert for import data
 
 type SplitFileImportTask struct {
 	TableName           string
@@ -91,6 +93,7 @@ var importDataCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
+		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importData()
 	},
 }
@@ -220,7 +223,8 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
-	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
+
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 
@@ -392,7 +396,7 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
-	if sourceDBType == ORACLE {
+	if sourceDBType == ORACLE && !utils.IsQuotedString(table) {
 		table = strings.ToLower(table)
 	}
 
@@ -527,20 +531,20 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 	GenerateSplitsDone.Set()
 }
 
-func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
-	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", dataFile, t, largestSplit, largestOffset)
+func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
+	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
-	insideCopyStmt := false
-	forig, err := os.Open(dataFile)
-	if err != nil {
-		utils.ErrExit("open file %q: %s", dataFile, err)
-	}
-	defer forig.Close()
 
-	r := bufio.NewReader(forig)
+	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
+	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+	if err != nil {
+		utils.ErrExit("open datafile %q: %v", filePath, err)
+	}
+	defer dataFile.Close()
+
 	sz := 0
 	log.Infof("current temp file: %s", currTmpFileName)
 	outfile, err := os.Create(currTmpFileName)
@@ -548,27 +552,24 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 		utils.ErrExit("create file %q: %s", currTmpFileName, err)
 	}
 
-	log.Infof("Skipping %d lines from %q", largestOffset, dataFile)
-	for i := int64(0); i < largestOffset; {
-		line, err := utils.Readline(r)
-		if err != nil { // EOF error is not possible here, since LAST_SPLIT is not created yet
-			utils.ErrExit("read a line from %q: %s", dataFile, err)
-		}
-		if isDataLine(line, sourceDBType, &insideCopyStmt) {
-			i++
-		}
+	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
+	err = dataFile.SkipLines(largestOffset)
+	if err != nil {
+		utils.ErrExit("skipping line for offset=%d: %v", largestOffset, err)
 	}
 
 	// Create a buffered writer from the file
 	bufferedWriter := bufio.NewWriter(outfile)
+	if dataFileDescriptor.HasHeader {
+		bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
+	}
 	var readLineErr error = nil
 	var line string
 	linesWrittenToBuffer := false
 	for readLineErr == nil {
-		line, readLineErr = utils.Readline(r)
-		if readLineErr == nil && !isDataLine(line, sourceDBType, &insideCopyStmt) {
-			continue
-		} else if readLineErr == nil { //increment the count only if line is valid
+		line, readLineErr = dataFile.NextLine()
+		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
+			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
 			numLinesInThisSplit += 1
 		}
@@ -600,9 +601,9 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 			fileSplitNumber := splitNum
 			if readLineErr == io.EOF {
 				fileSplitNumber = LAST_SPLIT_NUM
-				log.Infof("Preparing last split of %q", dataFile)
+				log.Infof("Preparing last split of %q", filePath)
 			} else if readLineErr != nil {
-				utils.ErrExit("read line from data file %q: %s", dataFile, readLineErr)
+				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 			}
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
@@ -614,9 +615,18 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 			if err != nil {
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
+
+			var progressAmount int64
+			if dataFileDescriptor.TableRowCount != nil {
+				progressAmount = numLinesInThisSplit
+			} else {
+				progressAmount = dataFile.GetBytesRead()
+				dataFile.ResetBytesRead()
+			}
+			setProgressAmount(splitFile, progressAmount)
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
-			if fileSplitNumber != 0 {
+			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
 				numLinesInThisSplit = 0
 				linesWrittenToBuffer = false
@@ -627,43 +637,13 @@ func splitFilesForTable(dataFile string, t string, taskQueue chan *SplitFileImpo
 					utils.ErrExit("create %q: %s", currTmpFileName, err)
 				}
 				bufferedWriter = bufio.NewWriter(outfile)
+				if dataFileDescriptor.HasHeader {
+					bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
+				}
 			}
 		}
 	}
-	log.Infof("splitFilesForTable: done splitting data file %q for table %q", dataFile, t)
-}
-
-// Example: `COPY "Foo" ("v") FROM STDIN;`
-var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
-
-/*
-	This function checks for based structure of data file which can be different
-	for different source db type based on tool used for export
-	postgresql - file has only data lines with "\." at the end
-	oracle/mysql - multiple copy statements with each having specific count of rows
-*/
-func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
-	emptyLine := (len(line) == 0)
-	newLineChar := (line == "\n")
-	endOfCopy := (line == "\\." || line == "\\.\n")
-
-	if sourceDBType == "postgresql" {
-		return !(emptyLine || newLineChar || endOfCopy)
-	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
-		if *insideCopyStmt {
-			if endOfCopy {
-				*insideCopyStmt = false
-			}
-			return !(emptyLine || newLineChar || endOfCopy)
-		} else { // outside copy
-			if reCopy.MatchString(line) {
-				*insideCopyStmt = true
-			}
-			return false
-		}
-	} else {
-		panic("Invalid source db type")
-	}
+	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
@@ -685,8 +665,8 @@ func executePostImportDataSqls() {
 		Enable Sequences, if required
 		Add Indexes, if required
 	*/
-	sequenceFilePath := exportDir + "/data/postdata.sql"
-	indexesFilePath := exportDir + "/schema/tables/INDEXES_table.sql"
+	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
+	indexesFilePath := filepath.Join(exportDir, "/schema/tables/INDEXES_table.sql")
 
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
@@ -808,22 +788,22 @@ func doImportInParallel(t *SplitFileImportTask, targetChan chan *tgtdb.Target, p
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
+func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	splitImportDone := false
 	for !splitImportDone {
 		select {
 		case targetServer := <-targetChan:
-			log.Infof("Importing %q using target node %q", t.SplitFilePath, targetServer.Host)
+			log.Infof("Importing %q using target node %q", task.SplitFilePath, targetServer.Host)
 			//this is done to signal start progress bar for this table
-			if tablesProgressMetadata[t.TableName].CountLiveRows == -1 {
-				tablesProgressMetadata[t.TableName].CountLiveRows = 0
+			if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
+				tablesProgressMetadata[task.TableName].CountLiveRows = 0
 			}
 			// Rename the file to .P
-			inProgressFilePath := getInProgressFilePath(t)
-			log.Infof("Renaming file from %q to %q", t.SplitFilePath, inProgressFilePath)
-			err := os.Rename(t.SplitFilePath, inProgressFilePath)
+			inProgressFilePath := getInProgressFilePath(task)
+			log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
+			err := os.Rename(task.SplitFilePath, inProgressFilePath)
 			if err != nil {
-				utils.ErrExit("rename %q to %q: %s", t.SplitFilePath, inProgressFilePath, err)
+				utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
 			}
 
 			conn, err := pgx.Connect(context.Background(), targetServer.GetConnectionUri())
@@ -857,7 +837,7 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				}
 			}
 
-			copyCommand := getCopyCommand(t.TableName)
+			copyCommand := getCopyCommand(task.TableName)
 			// copyCommand is empty when there are no rows for that table
 			if copyCommand != "" {
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
@@ -866,17 +846,21 @@ func doOneImport(t *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 				if err != nil {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 					if !strings.Contains(err.Error(), "violates unique constraint") {
-						utils.ErrExit("COPY %q FROM file %q: %s", t.TableName, inProgressFilePath, err)
+						utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
 					} else { //in case of unique key violation error take row count from the split task
-						rowsCount = t.OffsetEnd - t.OffsetStart
+						rowsCount = task.OffsetEnd - task.OffsetStart
 						log.Infof("assuming affected rows count %v", rowsCount)
 					}
+				} else if rowsCount != task.OffsetEnd-task.OffsetStart {
+					// exceptional case, since all rows are not copied, so progress bar shouldn't complete
+					log.Infof("EXCEPTIONAL CASE: all rows are not copied")
+					setProgressAmount(task.SplitFilePath, rowsCount)
 				}
 
 				// update the import data status as soon as rows are copied
-				incrementImportedRowCount(t.TableName, rowsCount)
+				incrementImportProgressBar(task.TableName, inProgressFilePath)
 			}
-			doneFilePath := getDoneFilePath(t)
+			doneFilePath := getDoneFilePath(task)
 			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
 			err = os.Rename(inProgressFilePath, doneFilePath)
 			if err != nil {
@@ -903,9 +887,11 @@ func checkSessionVariableSupported(idx int, dbVersion string) bool {
 	splits := strings.Split(dbVersion, "YB-")
 	dbVersion = splits[len(splits)-1]
 
-	if idx == 1 { //yb_disable_transactional_writes
-		//only supported for these versions
+	if idx == 1 { // yb_disable_transactional_writes
+		// only supported for these versions
 		return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
+	} else if idx == 3 { // yb_enable_upsert_mode
+		return enableUpsert
 	}
 	return true
 }
@@ -986,12 +972,15 @@ func getDoneFilePath(task *SplitFileImportTask) string {
 	}
 }
 
-func incrementImportedRowCount(tableName string, rowsCopied int64) {
-	tablesProgressMetadata[tableName].CountLiveRows += rowsCopied
-	log.Infof("Table %q, total rows copied until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
+func incrementImportProgressBar(tableName string, splitFilePath string) {
+	tablesProgressMetadata[tableName].CountLiveRows += getProgressAmount(splitFilePath)
+	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
+	if getCopyCommand(table) != "" {
+		return
+	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]*(.*) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
@@ -1033,6 +1022,29 @@ func getCopyCommand(table string) string {
 		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
+}
+
+func setProgressAmount(filePath string, progressAmount int64) {
+	log.Debugf("set user.progress_amount=%d for file %q", progressAmount, filePath)
+	s := fmt.Sprintf("%d", progressAmount)
+	err := xattr.Set(filePath, "user.progress_amount", []byte(s))
+	if err != nil {
+		utils.ErrExit("set progress_amount for file %q as %d: %v", filePath, progressAmount, err)
+	}
+}
+
+func getProgressAmount(filePath string) int64 {
+	data, err := xattr.Get(filePath, "user.progress_amount")
+	if err != nil {
+		utils.ErrExit("get extended attribute of file %q: %v", filePath, err)
+	}
+
+	p, err := strconv.ParseInt(string(data), 10, 64)
+	if err != nil {
+		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
+	}
+	log.Debugf("got user.progress_amount=%d for file %q", p, filePath)
+	return p
 }
 
 func init() {

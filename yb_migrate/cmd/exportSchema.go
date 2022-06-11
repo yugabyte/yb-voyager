@@ -75,7 +75,7 @@ func exportSchema() {
 
 	fmt.Printf("%s version: %s\n", source.DBType, source.DB().GetVersion())
 
-	CreateMigrationProjectIfNotExists(&source, exportDir)
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
 	setSchemaIsExported(exportDir)
