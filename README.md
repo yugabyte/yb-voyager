@@ -1,4 +1,4 @@
-# yb_migrate
+# yb-voyager
 
 # Sections
 - [Introduction](#introduction)
@@ -15,21 +15,21 @@
 
 # Introduction
 
-Yugabyte provides an open-source migration engine powered by a command line utility called *yb_migrate*. *yb_migrate* is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
+Yugabyte provides an open-source migration engine powered by a command line utility called *yb-voyager*. *yb-voyager* is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
 
 There are two modes of migration (offline and online):
 - Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
 - Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode, after the initial snapshot migration is done, the migration engine shifts into a CDC mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
 
-NOTE: *yb_migrate* currently only supports **offline** migration. Online is under active development.
+NOTE: *yb-voyager* currently only supports **offline** migration. Online is under active development.
 The rest of the document is relevant for only offline migrations. 
 
-Below are the steps to carry out a migration using *yb_migrate*.
+Below are the steps to carry out a migration using *yb-voyager*.
 
 ```
                           ┌──────────────────┐
                           │                  │
-                          │ Setup yb_migrate │
+                          │ Setup yb-voyager │
                           │                  │
                           └────────┬─────────┘
                                    │
@@ -81,7 +81,7 @@ Schema objects and data objects are both migrated as per the following compatibi
 |Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
 
 
-*Note that the following versions have been tested with yb_migrate:*
+*Note that the following versions have been tested with yb-voyager:*
 - PostgreSQL 9.x - 11.x
 - MySQL 8.x
 - Oracle 12c - 19c
@@ -89,38 +89,40 @@ Schema objects and data objects are both migrated as per the following compatibi
 Utilize the following command for additional details:
 
 ```
-yb_migrate --help
+yb-voyager --help
 ```
 
 # Machine Requirements
-yb_migrate currently supports the following OS versions:
+yb-voyager currently supports the following OS versions:
 - CentOS7
 - Ubuntu 18.04 and 20.04
+- MacOS (Only if source is PostgreSQL)
 
 Disk space: It is recommended to have disk space 1.5 times the estimated size of the source DB. A fix to optimize this is being worked on.
 
 Number of cores: Minimum 2 recommended.
 
 # Installation
-We provide interactive installation scripts that the user should run on their machines. Refer to the [Machine Requirements](#machine-requirements) section for supported OS versions. It is recommended to provision a fresh VM to run DB migrations.
-- [CentOS](installer_scripts/yb_migrate_installer__centos.sh)
-- [Ubuntu](installer_scripts/yb_migrate_installer__ubuntu.sh)
+Refer the [Machine Requirements](#machine-requirements) section for supported OS versions. 
+
+Run the `installer_scripts/install-yb-voyager` script on a machine to prepare it
+for running migrations using yb-voyager.
 
 To correctly set environment variables required for the migration process run:
 
 ```
-source $HOME/.yb_migrate_installer_bashrc
+source $HOME/.yb-voyager.rc
 ``` 
 
-Optionally, the installation script sources the `.yb_migrate_installer_bashrc` file from the `~/.bashrc`. In which case, restarting the bash session will be enough to set the environment variables.
+Optionally, the installation script sources the `.yb-voyager.rc` file from the `~/.bashrc`. In which case, restarting the bash session will be enough to set the environment variables.
 
 # Migration Steps
-Below are the steps that to carry out migrations using the *yb_migrate* utility:
+Below are the steps that to carry out migrations using the *yb-voyager* utility:
 
 ## Source DB Setup
-* Oracle: yb_migrate exports complete schema mentioned with `--source-db-schema` flag.
-* PostgreSQL: yb_migrate exports complete database(with all schemas inside it) mentioned with `--source-db-name` flag.
-* MySQL: yb_migrate exports complete database/schema(schema and database are same in MySQL) mentioned with `--source-db-name` flag.
+* Oracle: yb-voyager exports complete schema mentioned with `--source-db-schema` flag.
+* PostgreSQL: yb-voyager exports complete database(with all schemas inside it) mentioned with `--source-db-name` flag.
+* MySQL: yb-voyager exports complete database/schema(schema and database are same in MySQL) mentioned with `--source-db-name` flag.
 * For each of the source database types, the database user (corresponding to the `--source-db-user` flag) must have read privileges on all database objects to be exported.
 
 ## Target DB Setup
@@ -140,19 +142,19 @@ The export phase is carried out in two parts: `export schema` and `export data`.
 For additional help use the following command:
 
 ```
-yb_migrate export --help
+yb-voyager export --help
 ```
 
 ### Export Schema
 
 ```
-yb_migrate export schema --help
+yb-voyager export schema --help
 ```
 
 **Sample command:**
 
 ```
-yb_migrate export schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
+yb-voyager export schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
 ```
 
 The schema sql files will be found in `export-dir/schema`. A report regarding the export of schema objects can be found in `export-dir/reports`.
@@ -160,13 +162,13 @@ The schema sql files will be found in `export-dir/schema`. A report regarding th
 ### Export Data
 
 ```
-yb_migrate export data --help
+yb-voyager export data --help
 ```
 
 **Sample command:**
 
 ```
-yb_migrate export data --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
+yb-voyager export data --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username
 ```
 
 The data sql files will be found in `export-dir/data`.
@@ -175,9 +177,9 @@ The data sql files will be found in `export-dir/data`.
 
 *This sub-section is useful if you wish to encrypt and secure your connection to the source database while exporting your schema and data objects using SSL encryption.*
 
-yb_migrate supports SSL Encryption for all source database types, parallel to the configurations accepted by each database type.
+yb-voyager supports SSL Encryption for all source database types, parallel to the configurations accepted by each database type.
 
-yb_migrate uses the following flags to encrypt the connection to the database with SSL encryption:
+yb-voyager uses the following flags to encrypt the connection to the database with SSL encryption:
 
 - source-ssl-mode: Specify the source SSL encryption mode out of - 'disable', 'allow', 'prefer', 'require', 'verify-ca' and 'verify-full'. MySQL does not support the 'allow' sslmode, and Oracle does not use explicit sslmode paramters (Refer to the oracle-tns-alias flag below)
 - source-ssl-cert: Provide the source SSL Certificate's Path (For MySQL and PostgreSQL)
@@ -190,23 +192,23 @@ Sample commands for each source database type:
 
 **MySQL:**
 ```
-yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type mysql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode require
+yb-voyager export --export-dir /path/to/yb/export/dir --source-db-type mysql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode require
 ```
 
 **Oracle:**
 ```
-yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type oracle --source-db-host localhost --source-db-password password --oracle-tns-alias TNS_Alias --source-db-user username --source-db-schema public
+yb-voyager export --export-dir /path/to/yb/export/dir --source-db-type oracle --source-db-host localhost --source-db-password password --oracle-tns-alias TNS_Alias --source-db-user username --source-db-schema public
 ```
 Note: This is the only way to export from an Oracle instance using SSL Encryption.
 
 **PostgreSQL:**
 ```
-yb_migrate export --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode verify-ca --source-ssl-root-cert /path/to/root_cert.pem --source-ssl-cert /path/to/cert.pem --source-ssl-key /path/to/key.pem
+yb-voyager export --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname --source-db-user username --source-ssl-mode verify-ca --source-ssl-root-cert /path/to/root_cert.pem --source-ssl-cert /path/to/cert.pem --source-ssl-key /path/to/key.pem
 ```
 
 For additional details regarding the flags used to connect to an instance using SSL connectivity, refer to the help messages:
 ```
-yb_migrate export --help
+yb-voyager export --help
 ```
 
 ## Manual Review Before Importing Schema to YugabyteDB cluster
@@ -219,7 +221,7 @@ The `analyze-schema` command calls out all those incompatibilities and gives rel
 **Sample invocation of the analyze-schema command:**
 
 ```
-yb_migrate analyze-schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format txt
+yb-voyager analyze-schema --export-dir /path/to/yb/export/dir --source-db-type postgresql --source-db-host localhost --source-db-password password --source-db-name dbname  --source-db-user username --output-format txt
 ```
 
 The `analyze-schema` command outputs the analysis report at `export-dir/reports/report.txt`.
@@ -239,19 +241,19 @@ This command/series of commands(see below) is/are used to initiate the import of
 For additional help use the following command:
 
 ```
-yb_migrate import --help
+yb-voyager import --help
 ```
 
 ### Import Schema
 
 ```
-yb_migrate import schema --help
+yb-voyager import schema --help
 ```
 
 **Sample command:**
 
 ```
-yb_migrate import schema --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 10 --batch-size 100000
+yb-voyager import schema --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 10 --batch-size 100000
 ```
 
 The schema sql files should be located in the `export-dir/schema` folder.
@@ -259,13 +261,13 @@ The schema sql files should be located in the `export-dir/schema` folder.
 ### Import Data
 
 ```
-yb_migrate import data --help
+yb-voyager import data --help
 ```
 
 **Sample command:**
 
 ```
-yb_migrate import data --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000
+yb-voyager import data --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000
 ```
 
 The data sql files should be located in the `export-dir/data` folder.
@@ -274,9 +276,9 @@ The data sql files should be located in the `export-dir/data` folder.
 
 *This sub-section is useful if you wish to encrypt and secure your connection to the target YugabyteDB instance while importing your schema and data objects using SSL encryption.*
 
-yb_migrate allows you to configure your connection to a YugabyteDB instance with SSL encryption.
+yb-voyager allows you to configure your connection to a YugabyteDB instance with SSL encryption.
 
-yb_migrate uses the following flags to encrypt the connection with a YugabyteDB instance with SSL encryption:
+yb-voyager uses the following flags to encrypt the connection with a YugabyteDB instance with SSL encryption:
 
 - target-ssl-mode: Specify the SSL encryption mode out of - 'disable', 'allow', 'prefer', 'require', 'verify-ca' and 'verify-full'. 
 - target-ssl-cert: Provide the SSL Certificate's Path
@@ -287,7 +289,7 @@ yb_migrate uses the following flags to encrypt the connection with a YugabyteDB 
 **Sample command:**
 
 ```
-yb_migrate import --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000 --target-ssl-mode require
+yb-voyager import --export-dir /path/to/yb/export/dir --target-db-host localhost --target-db-password password --target-db-name dbname --target-db-schema public --target-db-user username --parallel-jobs 100 --batch-size 250000 --target-ssl-mode require
 ```
 
 # Features and enhancements in the pipeline
