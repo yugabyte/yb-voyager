@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -152,7 +153,7 @@ func parseFileTableMapping() {
 			utils.PrintAndLog("Table data files identified to import from data-dir(%q) are: [%s]\n\n", dataDir, strings.Join(tableFiles, ", "))
 		}
 
-		reTableName := regexp.MustCompile(`(\S+)_data.sql`)
+		reTableName := regexp.MustCompile(`(\S+)_data.csv`)
 		for _, file := range files {
 			fileName := filepath.Base(file)
 
@@ -203,9 +204,12 @@ func checkDataDirFlag() {
 }
 
 func checkDelimiterFlag() {
-	if len(delimiter) > 1 {
-		utils.ErrExit("Not a valid delimiter: %q", delimiter)
+	var err error
+	delimiter, err = strconv.Unquote(`"` + delimiter + `"`)
+	if err != nil || len(delimiter) > 1 {
+		utils.ErrExit("Invalid sytax of flag value in --delimiter %q. It should be a valid single-byte value.", delimiter)
 	}
+	log.Infof("resolved delimiter value: %q", delimiter)
 }
 
 func init() {
