@@ -65,6 +65,7 @@ func importSchema() {
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
+	callhome.InitJSON(exportDir)
 	payload := callhome.GetPayload()
 	payload.TargetDBVersion = targetDBVersion
 	callhome.PackAndSendPayload(exportDir)

@@ -44,7 +44,6 @@ var rootCmd = &cobra.Command{
 
 		checkExportDirFlag()
 		InitLogging(exportDir)
-		callhome.InitJSON(exportDir)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
