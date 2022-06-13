@@ -33,6 +33,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/xattr"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -226,8 +227,7 @@ func importData() {
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
-	utils.InitJSON(exportDir)
-	payload := utils.GetPayload()
+	payload := callhome.GetPayload()
 	payload.TargetDBVersion = targetDBVersion
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()

@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	"github.com/spf13/cobra"
@@ -79,13 +80,11 @@ func exportSchema() {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
-	//add check for diagnostic flag here...
-	utils.InitJSON(exportDir)
-	payload := utils.GetPayload()
+
+	payload := callhome.GetPayload()
 	payload.SourceDBType = source.DBType
 	payload.SourceDBVersion = sourceDBVersion
-	utils.PackPayload(exportDir)
-	utils.SendPayload()
+	callhome.PackAndSendPayload(exportDir)
 	setSchemaIsExported(exportDir)
 }
 
