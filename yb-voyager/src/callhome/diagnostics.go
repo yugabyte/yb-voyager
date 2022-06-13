@@ -1,9 +1,8 @@
-package utils
+package callhome
 
 import (
 	"bytes"
 	"encoding/json"
-	"io/fs"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -12,17 +11,18 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 //call-home json formats
 var (
 	jsonFilePath    string
-	sendReq         sendRequest
+	Payload         payload
 	jsonBuf         []byte
 	SendDiagnostics bool
 )
 
-type sendRequest struct {
+type payload struct {
 	MigrationUuid         uuid.UUID `json:"UUID"`                    //done
 	StartTime             string    `json:"start_time"`              //done
 	LastUpdatedTime       string    `json:"last_updated_time"`       //done
@@ -42,102 +42,96 @@ type sendRequest struct {
 	SourceCloudDBType     string    `json:"source_cloud_type"`       //unknown for now
 }
 
-//Fill in primary-key based fields, if needed
+// Fill in primary-key based fields, if needed
 func InitJSON(exportdir string) {
-	var err error
+
 	jsonFilePath = filepath.Join(exportdir, "metainfo", "diagnostics.json")
-	_, err = os.OpenFile(jsonFilePath, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := os.OpenFile(jsonFilePath, os.O_RDWR|os.O_CREATE, 0644)
+	file.Close()
 	if err != nil {
-		ErrExit("Error while creating/opening diagnostics.json file: %v", err)
+		utils.ErrExit("Error while creating/opening diagnostics.json file: %v", err)
 	}
 	jsonBuf, err = os.ReadFile(jsonFilePath)
 	if err != nil {
-		ErrExit("Error while reading diagnostics.json file: %v", err)
+		utils.ErrExit("Error while reading diagnostics.json file: %v", err)
 	}
 
 	if len(jsonBuf) != 0 {
-		err = json.Unmarshal(jsonBuf, &sendReq)
+		err = json.Unmarshal(jsonBuf, &Payload)
 		if err != nil {
-			ErrExit("Invalid diagnostics.json file: %v", err)
+			utils.ErrExit("Invalid diagnostics.json file: %v", err)
 		}
 	}
 
-	if sendReq.MigrationUuid == uuid.Nil {
-		sendReq.MigrationUuid, err = uuid.NewUUID()
-		sendReq.StartTime = time.Now().Format("2006-01-02 15:04:05")
+	if Payload.MigrationUuid == uuid.Nil {
+		Payload.MigrationUuid, err = uuid.NewUUID()
+		Payload.StartTime = time.Now().Format("2006-01-02 15:04:05")
 		if err != nil {
-			ErrExit("Error while generating new UUID for diagnostics.json: %v", err)
+			utils.ErrExit("Error while generating new UUID for diagnostics.json: %v", err)
 		}
 	}
 
 }
 
-//Getter method for updating payload
-func GetPayload() *sendRequest {
-	return &sendReq
+// Getter method for updating payload
+func GetPayload() *payload {
+	return &Payload
 }
 
-//Save payload to diagnostics.json
-func PackPayload(exportdir string) {
-	jsonBuf, _ = json.Marshal(sendReq)
-	os.WriteFile(jsonFilePath, jsonBuf, 0644)
-
-}
-
-//Send http request to flask servers
-func SendPayload() {
+// Send http request to flask servers after saving locally
+func PackAndSendPayload(exportdir string) {
 	if !SendDiagnostics {
 	} else {
+		//Pack locally
+		jsonBuf, _ = json.Marshal(Payload)
+		os.WriteFile(jsonFilePath, jsonBuf, 0644)
 
-		sendReq.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
-		postBody, _ := json.Marshal(sendReq)
+		//Send request
+		Payload.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
+		postBody, _ := json.Marshal(Payload)
 		requestBody := bytes.NewBuffer(postBody)
 
 		log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
-		resp, err := http.Post("http://127.0.0.1:8000/", "application/json", requestBody)
+		resp, err := http.Post("http://10.150.5.149:5000/", "application/json", requestBody)
 
 		if err != nil {
-			ErrExit("Error while sending diagnostic data: %v", err)
+			utils.ErrExit("Error while sending diagnostic data: %v", err)
 		}
 
 		defer resp.Body.Close()
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			ErrExit("Error while reading HTTP response from call-home server: %v", err)
+			utils.ErrExit("Error while reading HTTP response from call-home server: %v", err)
 		}
 		log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
 	}
 }
 
+// Find the largest and total data sizes, and upload to diagnostics json
 func UpdateDataSize(exportdir string) {
 	datadirfiles := filepath.Join(exportdir, "data", "*_data*")
-	// totalSizeCmd := exec.Command("du", "-s", datadir)
-	// stdout, err := totalSizeCmd.CombinedOutput()
-	// if err != nil {
-	// 	ErrExit("Error while executing command for diagnostics data: %s\n%v", totalSizeCmd, err)
-	// }
-	// totalSize := strings.Split(string(stdout), "\t")[0]
 
 	files, err := filepath.Glob(datadirfiles)
 	if err != nil {
-		ErrExit("Error while matching files in data dir for diagnostics: %v", err)
+		utils.ErrExit("Error while matching files in data dir for diagnostics: %v", err)
 	}
-	var fileInfo fs.FileInfo
 	var totalSize int64
 	var maxFileSize int64
 	for _, file := range files {
-		fileInfo, _ = os.Stat(file)
+		fileInfo, err := os.Stat(file)
+		if err != nil {
+			utils.ErrExit("Error while querying files for size: %v", err)
+		}
 		if maxFileSize < fileInfo.Size() {
 			maxFileSize = fileInfo.Size()
 		}
 		totalSize += fileInfo.Size()
 	}
 
-	sendReq.TotalSize = totalSize
-	sendReq.LargestTableSize = maxFileSize
+	Payload.TotalSize = totalSize
+	Payload.LargestTableSize = maxFileSize
 
-	PackPayload(exportdir)
-	SendPayload()
+	PackAndSendPayload(exportdir)
 
 }

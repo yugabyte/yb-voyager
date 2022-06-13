@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	"os"
@@ -785,15 +786,12 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
-	//add diagnostic flag check here...
-	utils.InitJSON(exportDir)
-	payload := utils.GetPayload()
+	payload := callhome.GetPayload()
 	issues, _ := json.Marshal(reportStruct.Issues)
 	payload.Issues = string(issues)
 	dbobjects, _ := json.Marshal(reportStruct.Summary.DBObjects)
 	payload.DBObjects = string(dbobjects)
-	utils.PackPayload(exportDir)
-	utils.SendPayload()
+	callhome.PackAndSendPayload(exportDir)
 }
 
 var analyzeSchemaCmd = &cobra.Command{

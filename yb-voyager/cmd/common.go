@@ -26,6 +26,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -137,8 +138,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var maxTableLines, totalTableLines int64
 
-	utils.InitJSON(exportDir)
-	payload := utils.GetPayload()
+	payload := callhome.GetPayload()
 
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
