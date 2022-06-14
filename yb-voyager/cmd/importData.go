@@ -851,13 +851,11 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 						rowsCount = task.OffsetEnd - task.OffsetStart
 						log.Infof("assuming affected rows count %v", rowsCount)
 					}
-				} else if rowsCount != task.OffsetEnd-task.OffsetStart {
-					// exceptional case, since all rows are not copied, so progress bar shouldn't complete
-					log.Infof("EXCEPTIONAL CASE: all rows are not copied")
-					setProgressAmount(task.SplitFilePath, rowsCount)
 				}
-
-				// update the import data status as soon as rows are copied
+				if rowsCount != task.OffsetEnd-task.OffsetStart {
+					log.Warnf("Expected to import %v records from %s. Imported %v.",
+						task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
+				}
 				incrementImportProgressBar(task.TableName, inProgressFilePath)
 			}
 			doneFilePath := getDoneFilePath(task)
