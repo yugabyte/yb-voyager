@@ -786,8 +786,7 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
-	callhome.InitJSON(exportDir)
-	payload := callhome.GetPayload()
+	payload := callhome.GetPayload(exportDir)
 	issues, _ := json.Marshal(reportStruct.Issues)
 	payload.Issues = string(issues)
 	dbobjects, _ := json.Marshal(reportStruct.Summary.DBObjects)

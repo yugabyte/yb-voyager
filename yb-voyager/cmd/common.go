@@ -138,8 +138,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var maxTableLines, totalTableLines int64
 
-	callhome.InitJSON(exportDir)
-	payload := callhome.GetPayload()
+	payload := callhome.GetPayload(exportDir)
 
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {

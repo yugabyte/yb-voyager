@@ -227,8 +227,7 @@ func importData() {
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
-	callhome.InitJSON(exportDir)
-	payload := callhome.GetPayload()
+	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
@@ -263,6 +262,7 @@ func importData() {
 
 	time.Sleep(time.Second * 2)
 	executePostImportDataSqls()
+	callhome.PackAndSendPayload(exportDir)
 	fmt.Printf("\nexiting...\n")
 }
 

@@ -166,7 +166,7 @@ func exportDataOffline() bool {
 	printExportedRowCount(datafile.OpenDescriptor(exportDir).TableRowCount)
 
 	callhome.UpdateDataSize(exportDir)
-
+	callhome.PackAndSendPayload(exportDir)
 	return true
 }
 
