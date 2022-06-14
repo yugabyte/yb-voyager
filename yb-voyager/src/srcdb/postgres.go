@@ -110,7 +110,7 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 	renameDataFiles(tablesProgressMetadata)
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileType:      datafile.CSV,
+		FileFormat:    datafile.CSV,
 		TableRowCount: exportedRowCount,
 		Delimiter:     "\t",
 		HasHeader:     false,

@@ -143,7 +143,7 @@ func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList [
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileType:      datafile.SQL,
+		FileFormat:    datafile.SQL,
 		TableRowCount: exportedRowCount,
 		Delimiter:     "\t",
 		HasHeader:     false,
