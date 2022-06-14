@@ -14,7 +14,7 @@ const (
 )
 
 type Descriptor struct {
-	FileType      string           `json:"FileType"`
+	FileFormat    string           `json:"FileFormat"`
 	TableRowCount map[string]int64 `json:"TableRowCount"`
 	TableFileSize map[string]int64 `json:"TableFileSize"`
 	Delimiter     string           `json:"Delimiter"`

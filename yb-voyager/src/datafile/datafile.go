@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	CSV = "csv"
-	SQL = "sql"
+	CSV  = "csv"
+	SQL  = "sql"
+	TEXT = "text"
 )
 
 type DataFile interface {
@@ -23,13 +24,13 @@ type DataFile interface {
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
-	switch descriptor.FileType {
-	case CSV:
+	switch descriptor.FileFormat {
+	case CSV, TEXT:
 		return openCsvDataFile(filePath, descriptor)
 	case SQL:
 		return openSqlDataFile(filePath, descriptor)
 	default:
-		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileType))
+		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileFormat))
 
 	}
 }

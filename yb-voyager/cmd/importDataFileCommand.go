@@ -12,16 +12,20 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 var (
-	fileType            string
-	delimiter           string
-	dataDir             string
-	fileTableMapping    string
-	hasHeader           bool
-	tableNameVsFilePath = make(map[string]string)
-	supportedFileTypes  = []string{datafile.CSV}
+	fileFormat           string
+	delimiter            string
+	dataDir              string
+	fileTableMapping     string
+	hasHeader            bool
+	tableNameVsFilePath  = make(map[string]string)
+	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
+	fileOpts             string
+	fileOptsMap          = make(map[string]string)
+	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -41,7 +45,7 @@ func prepareForImportDataCmd() {
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{
-		FileType:      fileType,
+		FileFormat:    fileFormat,
 		TableFileSize: tableFileSize,
 		Delimiter:     delimiter,
 		HasHeader:     hasHeader,
@@ -100,18 +104,22 @@ func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
-		if fileType == datafile.CSV {
+		if fileFormat == datafile.CSV {
 			if hasHeader {
 				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 				}
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN DELIMITER '%c' CSV HEADER`, table, df.GetHeader(), []rune(delimiter)[0])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', HEADER)`,
+					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
 			} else {
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN DELIMITER '%c' CSV`, table, []rune(delimiter)[0])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s')`,
+					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
 			}
+		} else if fileFormat == datafile.TEXT {
+			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c')`, table, fileFormat, []rune(delimiter)[0])
 		} else {
-			panic(fmt.Sprintf("File Type %q not implemented\n", fileType))
+			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
 	}
 
@@ -169,28 +177,31 @@ func parseFileTableMapping() {
 }
 
 func checkImportDataFileFlags() {
-	checkFileType()
+	fileFormat = strings.ToLower(fileFormat)
+	checkFileFormat()
 	checkDataDirFlag()
 	checkDelimiterFlag()
+	checkHasHeader()
+	checkFileOpts()
 }
 
-func checkFileType() {
+func checkFileFormat() {
 	supported := false
-	for _, supportedFileType := range supportedFileTypes {
-		if fileType == supportedFileType {
+	for _, supportedFileFormat := range supportedFileFormats {
+		if fileFormat == supportedFileFormat {
 			supported = true
 			break
 		}
 	}
 
 	if !supported {
-		utils.ErrExit("given file-type %q is not supported", fileType)
+		utils.ErrExit("--format %q is not supported", fileFormat)
 	}
 }
 
 func checkDataDirFlag() {
 	if dataDir == "" {
-		fmt.Fprintln(os.Stderr, `Error: required flag "data-dir" not set`)
+		fmt.Fprintln(os.Stderr, `ERROR: required flag "data-dir" not set`)
 		os.Exit(1)
 	}
 	if !utils.FileOrFolderExists(dataDir) {
@@ -206,18 +217,60 @@ func checkDataDirFlag() {
 func checkDelimiterFlag() {
 	var err error
 	delimiter, err = strconv.Unquote(`"` + delimiter + `"`)
-	if err != nil || len(delimiter) > 1 {
-		utils.ErrExit("Invalid sytax of flag value in --delimiter %q. It should be a valid single-byte value.", delimiter)
+	if err != nil || len(delimiter) != 1 {
+		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %q. It should be a valid single-byte value.", delimiter)
 	}
 	log.Infof("resolved delimiter value: %q", delimiter)
+}
+
+func checkHasHeader() {
+	if hasHeader && fileFormat != datafile.CSV {
+		utils.ErrExit("--has-header flag is only supported for CSV file format")
+	}
+}
+
+func checkFileOpts() {
+	switch fileFormat {
+	case datafile.CSV:
+		if fileOpts == "" { // set defaults
+			fileOptsMap = map[string]string{
+				"escape_char": "\"",
+				"quote_char":  "\"",
+			}
+			return
+		}
+
+		keyValuePairs := strings.Split(fileOpts, ",")
+		for _, keyValuePair := range keyValuePairs {
+			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
+			key = strings.ToLower(key)
+			if !slices.Contains(supportedCsvFileOpts, key) {
+				utils.ErrExit("ERROR: %q is not a valid csv file option", key)
+			} else if len(value) != 1 {
+				utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
+			}
+			fileOptsMap[key] = value
+		}
+
+	case datafile.TEXT:
+		if fileOpts != "" {
+			utils.ErrExit("ERROR: --file-opts flag is invalid for %q format", fileFormat)
+		}
+	default:
+		if fileOpts != "" {
+			panic(fmt.Sprintf("ERROR: --file-opts not implemented for %q format\n", fileFormat))
+		}
+	}
+
+	log.Infof("fileOptsMap: %v", fileOptsMap)
 }
 
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
 	registerCommonImportFlags(importDataFileCmd)
 
-	importDataFileCmd.Flags().StringVar(&fileType, "file-type", "csv",
-		fmt.Sprintf("supported data file types: %s", supportedFileTypes))
+	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
+		fmt.Sprintf("supported data file types: %s", supportedFileFormats))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
 		"character used as delimiter in rows of the table(s)")
@@ -236,4 +289,10 @@ func init() {
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
 			"(Note: only works for csv file type)")
+
+	importDataFileCmd.Flags().StringVar(&fileOpts, "file-opts", "",
+		`comma separated options for csv file format:
+		1. escape_char: escape character (default is double quotes '"')
+		2. quote_char: 	character used to quote the values (default double quotes '"')
+		for eg: --file-opts "escape_char=\",quote_char=\" or --file-opts 'escape_char=",quote_char="'`)
 }
