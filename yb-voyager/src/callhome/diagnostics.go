@@ -3,11 +3,11 @@ package callhome
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,7 +20,11 @@ var (
 	Payload         payload
 	jsonBuf         []byte
 	SendDiagnostics bool
-	WaitGroup       sync.WaitGroup
+)
+
+const(
+	CALL_HOME_SERVICE_HOST      = "34.83.149.226"
+	CALL_HOME_SERVICE_PORT      = 80
 )
 
 type payload struct {
@@ -108,7 +112,8 @@ func PackAndSendPayload(exportdir string) {
 		requestBody := bytes.NewBuffer(postBody)
 
 		log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
-		resp, err := http.Post("http://10.150.5.149:5000/", "application/json", requestBody)
+		callhomeURL:=fmt.Sprintf("http://%s:%d/",CALL_HOME_SERVICE_HOST,CALL_HOME_SERVICE_PORT)
+		resp, err := http.Post(callhomeURL, "application/json", requestBody)
 
 		if err != nil {
 			log.Errorf("Error while sending diagnostic data: %v", err)
