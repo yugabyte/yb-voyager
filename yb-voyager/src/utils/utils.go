@@ -238,6 +238,9 @@ func GetObjectFileName(schemaDirPath string, objType string) string {
 }
 
 func IsQuotedString(str string) bool {
+	if len(str) == 0 {
+		return false
+	}
 	return str[0] == '"' && str[len(str)-1] == '"'
 }
 
