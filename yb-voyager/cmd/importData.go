@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/pkg/xattr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -476,7 +475,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDir, t)
 		matches, _ := filepath.Glob(pattern)
 		// in progress are interrupted ones
-		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
+		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
 		interruptedRegexp := regexp.MustCompile(interruptedRegexStr)
 		for _, filepath := range matches {
 			submatches := interruptedRegexp.FindAllStringSubmatch(filepath, -1)
@@ -506,7 +505,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		}
 		log.Infof("Collect files which were generated but processing did not start.")
 		// schedule import task for them
-		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
+		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
 		createdButNotStartedRegex := regexp.MustCompile(createdButNotStartedRegexStr)
 		// fmt.Printf("created but not started regex = %s\n", createdButNotStartedRegex.String())
 		for _, filepath := range matches {
@@ -615,22 +614,14 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
-			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.C",
-				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit)
+			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.%d.C",
+				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
 			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
-
-			var progressAmount int64
-			if dataFileDescriptor.TableRowCount != nil {
-				progressAmount = numLinesInThisSplit
-			} else {
-				progressAmount = dataFile.GetBytesRead()
-				dataFile.ResetBytesRead()
-			}
-			setProgressAmount(splitFile, progressAmount)
+			dataFile.ResetBytesRead()
 			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
 
 			if fileSplitNumber != LAST_SPLIT_NUM {
@@ -734,9 +725,9 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	var remainingTables []string
 	for _, t := range tables {
 
-		donePattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
-		interruptedPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.P", metaInfoDataDir, t)
-		createdPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.C", metaInfoDataDir, t)
+		donePattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
+		interruptedPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.P", metaInfoDataDir, t)
+		createdPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.C", metaInfoDataDir, t)
 
 		doneMatches, _ := filepath.Glob(donePattern)
 		interruptedMatches, _ := filepath.Glob(interruptedPattern)
@@ -856,15 +847,14 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 						utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
 					} else { //in case of unique key violation error take row count from the split task
 						rowsCount = task.OffsetEnd - task.OffsetStart
-						log.Infof("assuming affected rows count %v", rowsCount)
+						log.Infof("got error:%v, assuming affected rows count %v for %q", err, rowsCount, task.TableName)
 					}
-				} else if rowsCount != task.OffsetEnd-task.OffsetStart {
-					// exceptional case, since all rows are not copied, so progress bar shouldn't complete
-					log.Infof("EXCEPTIONAL CASE: all rows are not copied")
-					setProgressAmount(task.SplitFilePath, rowsCount)
 				}
-
-				// update the import data status as soon as rows are copied
+				if rowsCount != task.OffsetEnd-task.OffsetStart {
+					// TODO: print info/details about missed rows on the screen after progress bar is complete
+					log.Warnf("Expected to import %v records from %s. Imported %v.",
+						task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
+				}
 				incrementImportProgressBar(task.TableName, inProgressFilePath)
 			}
 			doneFilePath := getDoneFilePath(task)
@@ -955,28 +945,12 @@ func executeSqlFile(file string) {
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-	parts := strings.Split(base, ".")
-
-	if len(parts) > 5 { //case when filename has schema also
-		return fmt.Sprintf("%s/%s.%s.%s.%s.%s.P", dir, parts[0], parts[1], parts[2], parts[3], parts[4])
-	} else {
-		return fmt.Sprintf("%s/%s.%s.%s.%s.P", dir, parts[0], parts[1], parts[2], parts[3])
-	}
+	return path[0:len(path)-1] + "P" // *.C -> *.P
 }
 
 func getDoneFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-	parts := strings.Split(base, ".")
-
-	if len(parts) > 5 { //case when filename has schema also
-		return fmt.Sprintf("%s/%s.%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3], parts[4])
-	} else {
-		return fmt.Sprintf("%s/%s.%s.%s.%s.D", dir, parts[0], parts[1], parts[2], parts[3])
-	}
+	return path[0:len(path)-1] + "D" // *.P -> *.D
 }
 
 func incrementImportProgressBar(tableName string, splitFilePath string) {
@@ -1031,26 +1005,23 @@ func getCopyCommand(table string) string {
 	return "" // no-op
 }
 
-func setProgressAmount(filePath string, progressAmount int64) {
-	log.Debugf("set user.progress_amount=%d for file %q", progressAmount, filePath)
-	s := fmt.Sprintf("%d", progressAmount)
-	err := xattr.Set(filePath, "user.progress_amount", []byte(s))
-	if err != nil {
-		utils.ErrExit("set progress_amount for file %q as %d: %v", filePath, progressAmount, err)
-	}
-}
-
 func getProgressAmount(filePath string) int64 {
-	data, err := xattr.Get(filePath, "user.progress_amount")
-	if err != nil {
-		utils.ErrExit("get extended attribute of file %q: %v", filePath, err)
+	splitName := filepath.Base(filePath)
+	parts := strings.Split(splitName, ".")
+
+	var p int64
+	var err error
+	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
+		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
+	} else { // case of importDataFileCommand where file size is available not row counts
+		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
 	}
 
-	p, err := strconv.ParseInt(string(data), 10, 64)
 	if err != nil {
 		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
 	}
-	log.Debugf("got user.progress_amount=%d for file %q", p, filePath)
+
+	log.Debugf("got progress amount=%d for file %q", p, filePath)
 	return p
 }
 
