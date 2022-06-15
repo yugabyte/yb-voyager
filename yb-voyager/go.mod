@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/godror/godror v0.30.2
+	github.com/google/uuid v1.1.2
 	github.com/jackc/pgx/v4 v4.14.1
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.3.0

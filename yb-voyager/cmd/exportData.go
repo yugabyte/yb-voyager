@@ -27,6 +27,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -164,6 +165,8 @@ func exportDataOffline() bool {
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	printExportedRowCount(datafile.OpenDescriptor(exportDir).TableRowCount)
 
+	callhome.UpdateDataSize(exportDir)
+	callhome.PackAndSendPayload(exportDir)
 	return true
 }
 

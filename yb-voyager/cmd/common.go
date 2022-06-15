@@ -26,6 +26,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -135,6 +136,10 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 }
 
 func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	var maxTableLines, totalTableLines int64
+
+	payload := callhome.GetPayload(exportDir)
+
 	fmt.Println("calculating num of rows to export for each table...")
 	if !source.VerboseMode {
 		go utils.Wait()
@@ -155,6 +160,11 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 
 		rowCount := source.DB().GetTableRowCount(tablesProgressMetadata[key].FullTableName)
 
+		if rowCount > maxTableLines {
+			maxTableLines = rowCount
+		}
+		totalTableLines += rowCount
+
 		if source.VerboseMode {
 			utils.WaitChannel <- 0
 			<-utils.WaitChannel
@@ -169,6 +179,8 @@ func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressM
 		<-utils.WaitChannel
 	}
 
+	payload.LargestTableRows = maxTableLines
+	payload.TotalRows = totalTableLines
 	log.Tracef("After updating total row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 

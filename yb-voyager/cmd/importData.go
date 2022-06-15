@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -222,16 +223,21 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
-	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
+	targetDBVersion := target.DB().GetVersion()
+	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
+	payload := callhome.GetPayload(exportDir)
+	payload.TargetDBVersion = targetDBVersion
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
+	payload.NodeCount = len(targets)
 
 	var parallelism = parallelImportJobs
 	if parallelism == -1 {
 		parallelism = len(targets)
 	}
 	log.Infof("parallelism=%v", parallelism)
+	payload.ParallelJobs = parallelism
 
 	if loadBalancerUsed {
 		clone := target.Clone()
@@ -255,6 +261,7 @@ func importData() {
 
 	time.Sleep(time.Second * 2)
 	executePostImportDataSqls()
+	callhome.PackAndSendPayload(exportDir)
 	fmt.Printf("\nexiting...\n")
 }
 

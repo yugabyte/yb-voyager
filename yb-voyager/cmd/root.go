@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -75,6 +76,9 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
+
+	rootCmd.PersistentFlags().BoolVar(&callhome.SendDiagnostics, "send-diagnostics", true,
+		"enable or disable the 'send-diagnostics' feature that sends analytics data to Yugabyte.")
 }
 
 // initConfig reads in config file and ENV variables if set.

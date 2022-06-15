@@ -23,6 +23,7 @@ import (
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	"os"
@@ -784,6 +785,21 @@ func analyzeSchema() {
 		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+
+	payload := callhome.GetPayload(exportDir)
+	issues, err := json.Marshal(reportStruct.Issues)
+	if err != nil {
+		log.Errorf("Error while parsing 'issues' json: %v", err)
+	} else {
+		payload.Issues = string(issues)
+	}
+	dbobjects, err := json.Marshal(reportStruct.Summary.DBObjects)
+	if err != nil {
+		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+	} else {
+		payload.DBObjects = string(dbobjects)
+	}
+	callhome.PackAndSendPayload(exportDir)
 }
 
 var analyzeSchemaCmd = &cobra.Command{

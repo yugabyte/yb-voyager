@@ -27,6 +27,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 )
 
 var importSchemaCmd = &cobra.Command{
@@ -60,7 +62,11 @@ func importSchema() {
 	}
 
 	conn := target.DB().Conn()
-	fmt.Printf("Target YugabyteDB version: %s\n", target.DB().GetVersion())
+	targetDBVersion := target.DB().GetVersion()
+	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
+
+	payload := callhome.GetPayload(exportDir)
+	payload.TargetDBVersion = targetDBVersion
 
 	// in case of postgreSQL as source, there can be multiple schemas present in a database
 	targetSchemas := []string{target.Schema}
@@ -116,6 +122,7 @@ func importSchema() {
 	}
 
 	YugabyteDBImportSchema(&target, exportDir)
+	callhome.PackAndSendPayload(exportDir)
 }
 
 func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
