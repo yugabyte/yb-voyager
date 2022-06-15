@@ -938,20 +938,12 @@ func executeSqlFile(file string) {
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-
-	base = base[0:len(base)-1] + "P" // *.C -> *.P
-	return fmt.Sprintf("%s/%s", dir, base)
+	return path[0:len(path)-1] + "P" // *.C -> *.P
 }
 
 func getDoneFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
-	base := filepath.Base(path)
-	dir := filepath.Dir(path)
-
-	base = base[0:len(base)-1] + "D" // *.P -> *.D
-	return fmt.Sprintf("%s/%s", dir, base)
+	return path[0:len(path)-1] + "D" // *.P -> *.D
 }
 
 func incrementImportProgressBar(tableName string, splitFilePath string) {
@@ -1012,9 +1004,9 @@ func getProgressAmount(filePath string) int64 {
 
 	var p int64
 	var err error
-	if dataFileDescriptor.TableRowCount != nil {
+	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
 		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
-	} else {
+	} else { // case of importDataFileCommand where file size is available not row counts
 		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
 	}
 
