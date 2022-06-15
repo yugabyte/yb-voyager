@@ -787,10 +787,18 @@ func analyzeSchema() {
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
 	payload := callhome.GetPayload(exportDir)
-	issues, _ := json.Marshal(reportStruct.Issues)
-	payload.Issues = string(issues)
-	dbobjects, _ := json.Marshal(reportStruct.Summary.DBObjects)
-	payload.DBObjects = string(dbobjects)
+	issues, err := json.Marshal(reportStruct.Issues)
+	if err != nil {
+		log.Errorf("Error while parsing 'issues' json: %v", err)
+	} else {
+		payload.Issues = string(issues)
+	}
+	dbobjects, err := json.Marshal(reportStruct.Summary.DBObjects)
+	if err != nil {
+		log.Errorf("Error while parsing 'database_objects' json: %v", err)
+	} else {
+		payload.DBObjects = string(dbobjects)
+	}
 	callhome.PackAndSendPayload(exportDir)
 }
 

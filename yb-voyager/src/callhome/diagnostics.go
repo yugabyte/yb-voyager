@@ -18,7 +18,6 @@ import (
 var (
 	jsonFilePath    string
 	Payload         payload
-	jsonBuf         []byte
 	SendDiagnostics bool
 )
 
@@ -57,7 +56,7 @@ func initJSON(exportdir string) {
 		log.Errorf("Error while creating/opening diagnostics.json file: %v", err)
 		return
 	}
-	jsonBuf, err = os.ReadFile(jsonFilePath)
+	jsonBuf, err := os.ReadFile(jsonFilePath)
 	if err != nil {
 		log.Errorf("Error while reading diagnostics.json file: %v", err)
 		return
@@ -97,13 +96,16 @@ func PackAndSendPayload(exportdir string) {
 		return
 	}
 	//Pack locally
-	var err error
-	jsonBuf, err = json.Marshal(Payload)
+	jsonBuf, err := json.Marshal(Payload)
 	if err != nil {
 		log.Errorf("Error while packing diagnostics json: %v", err)
 		return
 	}
-	os.WriteFile(jsonFilePath, jsonBuf, 0644)
+	err = os.WriteFile(jsonFilePath, jsonBuf, 0644)
+	if err != nil {
+		log.Errorf("Error while writing diagnostics json: %v", err)
+		return
+	}
 
 	//Send request
 	Payload.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
