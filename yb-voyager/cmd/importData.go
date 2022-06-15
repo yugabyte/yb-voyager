@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -70,6 +71,11 @@ var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
 var enableUpsert bool     // upsert instead of insert for import data
+
+const (
+	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
+		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
+)
 
 type SplitFileImportTask struct {
 	TableName           string
@@ -127,6 +133,11 @@ func getYBServers() []*tgtdb.Target {
 			targets = append(targets, clone)
 		}
 	} else {
+		potentialLBIps, err := net.LookupIP(target.Host)
+		loadBalancerUsed = true
+		if err != nil {
+			utils.ErrExit("Error resolving host: %v\n", err)
+		}
 		url := getTargetConnectionUri(&target)
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
@@ -149,12 +160,30 @@ func getYBServers() []*tgtdb.Target {
 				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
 				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
 			}
-			if usePublicIp {
-				if public_ip == "" {
-					log.Infof("no public_ip available for host: %s", host)
-					continue
+
+			// check if given host is one of the server in cluster
+			if loadBalancerUsed {
+				for _, ip := range potentialLBIps {
+					if ip.String() == host || ip.String() == public_ip {
+						loadBalancerUsed = false
+					}
 				}
-				clone.Host = public_ip
+			}
+
+			if usePublicIp {
+				if public_ip != "" {
+					clone.Host = public_ip
+				} else {
+					var msg string
+					if host == "" {
+						msg = fmt.Sprintf("public ip is not available for host: %s."+
+							"Refer to help for more details for how to enable public ip.", host)
+					} else {
+						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
+							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
+					}
+					utils.ErrExit(msg)
+				}
 			} else {
 				clone.Host = host
 			}
@@ -168,8 +197,11 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	if !loadBalancerUsed { // no need to check direct connectivity if load balancer is used
+	if !loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		testYbServers(targets)
+	} else if loadBalancerUsed {
+		utils.PrintAndLog(LB_WARN_MSG)
+		targets = []*tgtdb.Target{&target}
 	}
 	return targets
 }
@@ -238,12 +270,6 @@ func importData() {
 	}
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
-
-	if loadBalancerUsed {
-		clone := target.Clone()
-		clone.Uri = getTargetConnectionUri(clone)
-		targets = []*tgtdb.Target{clone}
-	}
 	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
@@ -752,7 +778,6 @@ func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan c
 		log.Infof("Done is already set.")
 		return
 	}
-
 	parallelImportCount := int64(0)
 
 	importProgressContainer = ProgressContainer{

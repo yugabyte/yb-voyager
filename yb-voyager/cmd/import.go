@@ -133,17 +133,14 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
 
 	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
-		"Use --use-public-ip flag to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import.\n"+
-			"Note: you might need to configure database to have public_ip populated in yb_servers() function output.\n"+
+		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
+			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
 			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
 
 	cmd.Flags().StringVar(&targetEndpoints, "target-endpoints", "",
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
-
-	cmd.Flags().BoolVar(&loadBalancerUsed, "load-balancer", false,
-		"true - if given --target-db-host is a load balancer ip (default false)")
 
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
