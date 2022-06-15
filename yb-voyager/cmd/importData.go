@@ -197,11 +197,15 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	if !loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		testYbServers(targets)
-	} else if loadBalancerUsed {
+	if parallelImportJobs == -1 {
+		parallelImportJobs = len(targets)
+	}
+
+	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
 		targets = []*tgtdb.Target{&target}
+	} else{
+		testYbServers(targets)
 	}
 	return targets
 }
@@ -265,9 +269,6 @@ func importData() {
 	payload.NodeCount = len(targets)
 
 	var parallelism = parallelImportJobs
-	if parallelism == -1 {
-		parallelism = len(targets)
-	}
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
 	if target.VerboseMode {
