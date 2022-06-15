@@ -22,9 +22,9 @@ var (
 	SendDiagnostics bool
 )
 
-const(
-	CALL_HOME_SERVICE_HOST      = "34.83.149.226"
-	CALL_HOME_SERVICE_PORT      = 80
+const (
+	CALL_HOME_SERVICE_HOST = "34.83.149.226"
+	CALL_HOME_SERVICE_PORT = 80
 )
 
 type payload struct {
@@ -84,7 +84,10 @@ func initJSON(exportdir string) {
 
 // Getter method for updating payload
 func GetPayload(exportDir string) *payload {
-	initJSON(exportDir)
+	//if json isn't already initialized...
+	if Payload.MigrationUuid == uuid.Nil {
+		initJSON(exportDir)
+	}
 	return &Payload
 }
 
@@ -92,43 +95,43 @@ func GetPayload(exportDir string) *payload {
 func PackAndSendPayload(exportdir string) {
 	if !SendDiagnostics {
 		return
-	} else {
-		//Pack locally
-		var err error
-		jsonBuf, err = json.Marshal(Payload)
-		if err != nil {
-			log.Errorf("Error while packing diagnostics json: %v", err)
-			return
-		}
-		os.WriteFile(jsonFilePath, jsonBuf, 0644)
-
-		//Send request
-		Payload.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
-		postBody, err := json.Marshal(Payload)
-		if err != nil {
-			log.Errorf("Error while creating http request for diagnostics: %v", err)
-			return
-		}
-		requestBody := bytes.NewBuffer(postBody)
-
-		log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
-		callhomeURL:=fmt.Sprintf("http://%s:%d/",CALL_HOME_SERVICE_HOST,CALL_HOME_SERVICE_PORT)
-		resp, err := http.Post(callhomeURL, "application/json", requestBody)
-
-		if err != nil {
-			log.Errorf("Error while sending diagnostic data: %v", err)
-			return
-		}
-
-		defer resp.Body.Close()
-
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			log.Errorf("Error while reading HTTP response from call-home server: %v", err)
-			return
-		}
-		log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
 	}
+	//Pack locally
+	var err error
+	jsonBuf, err = json.Marshal(Payload)
+	if err != nil {
+		log.Errorf("Error while packing diagnostics json: %v", err)
+		return
+	}
+	os.WriteFile(jsonFilePath, jsonBuf, 0644)
+
+	//Send request
+	Payload.LastUpdatedTime = time.Now().Format("2006-01-02 15:04:05")
+	postBody, err := json.Marshal(Payload)
+	if err != nil {
+		log.Errorf("Error while creating http request for diagnostics: %v", err)
+		return
+	}
+	requestBody := bytes.NewBuffer(postBody)
+
+	log.Infof("Payload being sent for diagnostic usage: %s\n", string(postBody))
+	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	resp, err := http.Post(callhomeURL, "application/json", requestBody)
+
+	if err != nil {
+		log.Errorf("Error while sending diagnostic data: %v", err)
+		return
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Errorf("Error while reading HTTP response from call-home server: %v", err)
+		return
+	}
+	log.Infof("HTTP response after sending diagnostic.json: %s\n", string(body))
+
 }
 
 // Find the largest and total data sizes, and upload to diagnostics json
