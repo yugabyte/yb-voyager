@@ -79,6 +79,7 @@ func init() {
 
 	rootCmd.PersistentFlags().BoolVar(&callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to Yugabyte.")
+	callhome.ReadEnvSendDiagnostics()
 }
 
 // initConfig reads in config file and ENV variables if set.

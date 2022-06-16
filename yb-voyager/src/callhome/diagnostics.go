@@ -24,11 +24,14 @@ var (
 const (
 	CALL_HOME_SERVICE_HOST = "34.83.149.226"
 	CALL_HOME_SERVICE_PORT = 80
+	//This needs to be updated every time a new patch is released
+	YB_VOYAGER_VERSION = "1.0.0-beta"
 )
 
 type payload struct {
 	MigrationUuid         uuid.UUID `json:"UUID"`
 	StartTime             string    `json:"start_time"`
+	YBVoyagerVersion      string    `json:"yb_voyager_version"`
 	LastUpdatedTime       string    `json:"last_updated_time"`
 	SourceDBType          string    `json:"source_db_type"`
 	SourceDBVersion       string    `json:"source_db_version"`
@@ -44,6 +47,16 @@ type payload struct {
 	TargetClusterLocation string    `json:"target_cluster_location"` //TODO
 	TargetDBCores         int       `json:"target_db_cores"`         //TODO
 	SourceCloudDBType     string    `json:"source_cloud_type"`       //TODO
+}
+
+//[For development] Read ENV VARS for value of SendDiagnostics
+func ReadEnvSendDiagnostics() {
+	rawSendDiag := os.Getenv("YB_VOYAGER_SEND_DIAGNOSTICS")
+	for _, val := range []string{"0", "no", "false"} {
+		if rawSendDiag == val {
+			SendDiagnostics = false
+		}
+	}
 }
 
 // Fill in primary-key based fields, if needed
@@ -73,6 +86,7 @@ func initJSON(exportdir string) {
 	if Payload.MigrationUuid == uuid.Nil {
 		Payload.MigrationUuid, err = uuid.NewUUID()
 		Payload.StartTime = time.Now().Format("2006-01-02 15:04:05")
+		Payload.YBVoyagerVersion = YB_VOYAGER_VERSION
 		if err != nil {
 			log.Errorf("Error while generating new UUID for diagnostics.json: %v", err)
 			return
