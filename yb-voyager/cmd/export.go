@@ -41,6 +41,7 @@ var exportCmd = &cobra.Command{
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
 		checkExportDirFlag()
 		checkSourceDBType()
+		validateExportFlags()
 		setSourceDefaultPort() //will set only if required
 		validatePortRange()
 		checkOrSetDefaultSSLMode()
@@ -158,12 +159,31 @@ func checkSourceDBType() {
 	if source.DBType == "" {
 		utils.ErrExit("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
 	}
+
+	source.DBType = strings.ToLower(source.DBType)
 	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
 			return //if matches any allowed type
 		}
 	}
 	utils.ErrExit("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
+}
+
+func validateExportFlags() {
+	if source.DBType != ORACLE {
+		if source.DBSid != "" {
+			utils.ErrExit("ERROR: --oracle-db-sid flag is only valid for 'oracle' db type")
+		}
+		if source.OracleHome != "" {
+			utils.ErrExit("ERROR: --oracle-home flag is only valid for 'oracle' db type")
+		}
+		if source.TNSAlias != "" {
+			utils.ErrExit("ERROR: --oracle-tns-alias flag is only valid for 'oracle' db type")
+		}
+		if source.Schema != "" {
+			utils.ErrExit("ERROR: --source-db-schema flag is only valid for 'oracle' db type")
+		}
+	}
 }
 
 func setSourceDefaultPort() {
@@ -213,7 +233,7 @@ func validateOracleParams() {
 		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
+		utils.ErrExit(`ERROR: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		utils.PrintAndLog("Using TNS Alias for export.")
