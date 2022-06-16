@@ -4,6 +4,19 @@
 
 set -e
 
+VERSION="latest"
+if [ "$1" != "" ]
+then
+	if [ "$1" == "local" ]
+	then
+		# Install from locally checked out branch.
+		VERSION=local
+	else
+		echo "ERROR: Invalid argument: '$1'"
+		exit 1
+	fi
+fi
+
 trap on_exit EXIT
 
 YUM="sudo yum install -y -q"
@@ -23,16 +36,15 @@ source $RC_FILE
 
 
 on_exit() {
-        rc=$?
-        set +x
-        if [ $rc -eq 0 ]
-        then
-                echo "Done!"
-        else
-                echo "Script failed. Check log file ${LOG_FILE} ."
-        fi
+	rc=$?
+	set +x
+	if [ $rc -eq 0 ]
+	then
+		echo "Done!"
+	else
+		echo "Script failed. Check log file ${LOG_FILE} ."
+	fi
 }
-
 
 #=============================================================================
 # MAIN
@@ -141,18 +153,26 @@ update_yb_voyager_bashrc() {
 
 
 install_yb_voyager() {
-	output "Installing yb-voyager."
-	inside_repo=`git rev-parse --is-inside-work-tree 2> /dev/null || echo "false"`
-	if [ ${inside_repo} == "true" ]
+	output "Installing yb-voyager:${VERSION}."
+	if [ "${VERSION}" == "latest" ]
 	then
-		pushd `git rev-parse --show-toplevel` > /dev/null
-		pushd yb-voyager > /dev/null
-		$GO install
-		popd > /dev/null
-		popd > /dev/null
-	else
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@latest
+		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+		return
 	fi
+
+	inside_repo=`git rev-parse --is-inside-work-tree 2> /dev/null || echo "false"`
+	if [ "${inside_repo}" == "false" ]
+	then
+		output "Cannot install from local when executed from outside of yb-voyager repo."
+		return 1
+	fi
+
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd yb-voyager > /dev/null
+	$GO install
+	popd > /dev/null
+	popd > /dev/null
 	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 }
 
@@ -359,3 +379,4 @@ macos_install_pg_dump() {
 #=============================================================================
 
 main 2>> $LOG_FILE
+{ set +x; } 2> /dev/null

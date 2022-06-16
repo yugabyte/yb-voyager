@@ -31,7 +31,7 @@ jobs:
     - name: Run installer script
       run: |
         cd installer_scripts
-        yes | ./install-yb-voyager
+        yes | ./install-yb-voyager local
 
     - name: Test PostgreSQL Connection
       run: |
