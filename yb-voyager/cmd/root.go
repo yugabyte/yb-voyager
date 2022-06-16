@@ -40,14 +40,14 @@ var rootCmd = &cobra.Command{
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// fmt.Println("Root cmd PersistentPreRun")
-
-		checkExportDirFlag()
 		InitLogging(exportDir)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("config = %s\nexportDir = %s\n", cfgFile, exportDir)
+		if len(args) == 0 {
+			cmd.Help()
+			os.Exit(0)
+		}
 	},
 }
 

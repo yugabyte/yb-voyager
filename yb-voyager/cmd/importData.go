@@ -204,7 +204,7 @@ func getYBServers() []*tgtdb.Target {
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
 		targets = []*tgtdb.Target{&target}
-	} else{
+	} else {
 		testYbServers(targets)
 	}
 	return targets
