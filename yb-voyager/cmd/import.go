@@ -34,7 +34,6 @@ var importCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		checkExportDirFlag()
 		validateImportFlags(cmd)
 	},
 
@@ -52,6 +51,7 @@ func init() {
 }
 
 func validateImportFlags(cmd *cobra.Command) {
+	checkExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 	if target.Uri == "" {
