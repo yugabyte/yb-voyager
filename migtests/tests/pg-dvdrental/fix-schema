@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}/schema
+
+echo "Delete all 'SET default_table_access_method' statements."
+find . -name '*.sql' | xargs sed -i '/SET default_table_access_method/d'
+
+echo "Delete GIST indexes."
+sed -i '/ gist /d' tables/INDEXES_table.sql

@@ -20,21 +20,21 @@ jobs:
 
     - name: Build
       run: |
-        cd yb_migrate
+        cd yb-voyager
         go build -v ./...
 
     - name: Test
       run: |
-        cd yb_migrate
+        cd yb-voyager
         go test -v ./...
         
     - name: Vet
       run: |
-        cd yb_migrate
+        cd yb-voyager
         go vet ./...
 
     - name: Run staticcheck
       run: |
-        cd yb_migrate
+        cd yb-voyager
         go install honnef.co/go/tools/cmd/staticcheck@latest
         staticcheck ./...

@@ -1,0 +1,45 @@
+name: "MySQL: Migration Tests"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  run-mysql-migration-tests:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run installer script
+      run: |
+        yes | ./installer_scripts/install-yb-voyager
+
+    - name: Start MySQL
+      run: |
+        sudo /etc/init.d/mysql start
+        sleep 10
+
+    - name: Test MySQL connection
+      run: |
+        mysql -uroot -proot -e 'select version();'
+
+    - name: Start YugabyteDB cluster
+      run: |
+        docker pull yugabytedb/yugabyte:2.12.3.0-b19
+        docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        sleep 10
+
+    - name: Test YugabyteDB connection
+      run: |
+        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+    - name: Enable yb-tserver-n1 name resolution
+      run: |
+        echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+        psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+    - name: "TEST: mysql-sakila"
+      run: migtests/scripts/run-test.sh mysql-sakila

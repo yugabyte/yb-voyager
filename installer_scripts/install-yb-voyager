@@ -1,0 +1,361 @@
+#!/usr/bin/env bash
+
+# This script installs yb-voyager in /usr/local/bin and all of its dependencies.
+
+set -e
+
+trap on_exit EXIT
+
+YUM="sudo yum install -y -q"
+
+export GOROOT="/tmp/go"
+GO_VERSION="go1.18"
+GO="$GOROOT/bin/go"
+
+LOG_FILE=/tmp/install-yb-voyager.log
+ORA2PG_VERSION="23.1"
+
+# separate file for bashrc related settings
+RC_FILE="$HOME/.yb-voyager.rc"
+touch $RC_FILE
+# just in case last execution of script stopped in between
+source $RC_FILE
+
+
+on_exit() {
+        rc=$?
+        set +x
+        if [ $rc -eq 0 ]
+        then
+                echo "Done!"
+        else
+                echo "Script failed. Check log file ${LOG_FILE} ."
+        fi
+}
+
+
+#=============================================================================
+# MAIN
+#=============================================================================
+
+main() {
+	set -x
+
+	os=$(uname -s)
+	case ${os} in
+		"Darwin")
+			macos_main
+			exit $?
+			;;
+		"Linux")
+			# Proceed to distribution check.
+			;;
+		*)
+			echo "ERROR: unsupported os ${os}"
+			exit 1
+			;;
+	esac
+
+	# Linux
+	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
+	case ${dist} in
+		"CentOS Linux")
+			centos_main
+			;;
+		"Ubuntu")
+			ubuntu_main
+			;;
+		*)
+			echo "ERROR: unsupported linux distribution: ${dist}"
+			exit 1
+			;;
+	esac
+}
+
+
+centos_main() {
+	output "Installing RPM dependencies."
+	$YUM which wget git gcc make 1>&2
+	$YUM perl-5.16.3 perl-DBI-1.627 perl-App-cpanminus 1>&2
+	$YUM mysql-devel 1>&2
+	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
+	$YUM postgresql14-server 1>&2
+	$YUM perl-ExtUtils-MakeMaker 1>&2
+
+	install_golang linux
+	centos_install_oracle_instant_clients
+	update_yb_voyager_bashrc
+	install_ora2pg
+	install_yb_voyager
+	update_bashrc
+
+	set +x
+}
+
+
+ubuntu_main() {
+	output "Installing packages."
+	sudo apt update 1>&2
+	sudo apt-get -y install wget  1>&2
+	sudo apt-get -y install perl  1>&2
+	sudo apt-get -y install libdbi-perl 1>&2
+	sudo apt-get -y install libaio1 1>&2
+	sudo apt-get -y install cpanminus 1>&2
+	sudo apt-get -y install libmysqlclient-dev 1>&2
+
+	install_golang linux
+	ubuntu_install_postgres
+	ubuntu_install_oracle_instant_clients
+	update_yb_voyager_bashrc
+	install_ora2pg
+	install_yb_voyager
+	update_bashrc
+
+	set +x
+}
+
+
+macos_main() {
+	output "=================================================="
+	output "NOTE: From MacOS, yb-voyager can only migrate PostgreSQL databases."
+	output "      Use a CentOS/Ubuntu machine to migrate from Oracle/MySQL. "
+	output "=================================================="
+	macos_install_brew
+	macos_install_pg_dump
+	install_golang darwin
+	install_yb_voyager
+	update_bashrc
+}
+
+#=============================================================================
+# COMMON
+#=============================================================================
+
+update_yb_voyager_bashrc() {
+	output "Set environment variables in the $RC_FILE ."
+	insert_into_rc_file 'export ORACLE_HOME=/usr/lib/oracle/21/client64'
+	insert_into_rc_file 'export LD_LIBRARY_PATH=$ORACLE_HOME/lib:$LD_LIBRARY_PATH'
+	insert_into_rc_file 'export PATH=$PATH:$ORACLE_HOME/bin'
+	source $RC_FILE
+}
+
+
+install_yb_voyager() {
+	output "Installing yb-voyager."
+	inside_repo=`git rev-parse --is-inside-work-tree 2> /dev/null || echo "false"`
+	if [ ${inside_repo} == "true" ]
+	then
+		pushd `git rev-parse --show-toplevel` > /dev/null
+		pushd yb-voyager > /dev/null
+		$GO install
+		popd > /dev/null
+		popd > /dev/null
+	else
+		$GO install github.com/yugabyte/yb-voyager/yb-voyager@latest
+	fi
+	sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+}
+
+
+# Output a line to both STDOUT and STDERR. Use this function to output something to
+# user as well as in the log file.
+output() {
+	set +x
+	echo $1
+	>&2 echo $1
+	set -x
+}
+
+
+install_golang() {
+	if [ -x ${GO} ]; then
+		output "Found golang."
+		return
+	fi
+
+	os=$1
+	arch="$(uname -p)"
+	if [ "${arch}" == "arm" ]
+	then
+		arch="arm64"
+	else
+		arch="amd64"
+	fi
+
+	file_name="${GO_VERSION}.${os}-${arch}.tar.gz"
+	output "Installing golang os=${os} arch=${arch}."
+
+	wget --no-verbose https://golang.org/dl/${file_name} 1>&2
+	rm -rf $GOROOT
+	tar -C /tmp -xzf ${file_name} 1>&2
+	rm ${file_name}
+}
+
+
+# Insert a line into the RC_FILE, if the line does not exist already.
+insert_into_rc_file() {
+	local line=$1
+	grep -qxF "$line" $RC_FILE || echo $line >> $RC_FILE
+}
+
+
+ora2pg_license_acknowledgement() {
+cat << EOT
+	 ---------------------------------------------------------------------------------------------------------------
+	|                                                        IMPORTANT                                              |
+	| Ora2Pg is licensed under the GNU General Public License available at https://ora2pg.darold.net/license.html   |
+	| By indicating "I Accept" through an affirming action, you indicate that you accept the terms                  |
+	| of the GNU General Public License  Agreement and you also acknowledge that you have the authority,            |
+	| on behalf of your company, to bind your company to such terms.                                                |
+	| You may then download or install the file.                                                                    |
+	 ---------------------------------------------------------------------------------------------------------------
+EOT
+
+	while true; do
+	    echo -n "Do you Accept? (Y/N) "
+	    read yn
+	    case $yn in
+		[Yy]* )
+			break;;
+		[Nn]* )
+			exit;;
+		* ) ;;
+	    esac
+	done
+}
+
+
+install_ora2pg() {
+	if which ora2pg > /dev/null 2>&1
+	then
+		output "ora2pg is already installed. Skipping."
+		return
+	fi
+
+	ora2pg_license_acknowledgement
+
+	output "Installing perl DB drivers required for ora2pg."
+	sudo cpanm DBD::mysql Test::NoWarnings DBD::Oracle 1>&2
+
+	output "Installing ora2pg."
+	wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
+	tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
+	cd ora2pg-${ORA2PG_VERSION}/
+	perl Makefile.PL 1>&2
+	make 1>&2
+	sudo make install 1>&2
+	cd ..
+	rm -f v${ORA2PG_VERSION}.tar.gz
+	output "ora2pg installed."
+}
+
+
+update_bashrc() {
+	# Either ${HOME}/.bashrc or ${HOME}/.zshrc .
+	rc_file_name="${HOME}/.$(basename $(echo $SHELL))rc"
+
+	line="source $RC_FILE"
+	if grep -qxF "$line" ${rc_file_name}
+	then
+		output "No need to update ${rc_file_name} again."
+		return
+	fi
+	while true; do
+		printf "\n*** File - $RC_FILE contents ***\n\n"
+		cat $RC_FILE
+
+		printf "\n\nAdd $RC_FILE to ${rc_file_name} file (Y/N)? "
+		read yn
+		case $yn in
+		[Yy]* )
+			grep -qxF "$line" ${rc_file_name} || echo $line >> ${rc_file_name}
+			echo "execute: \"source ${rc_file_name}\" before continuing in same shell"
+			break;;
+		[Nn]* )
+			echo "execute: \"source $RC_FILE\" before continuing to have paths set in current shell"
+			break;;
+		* ) ;;
+		esac
+	done
+}
+
+
+#=============================================================================
+# CENTOS
+#=============================================================================
+
+centos_install_oracle_instant_clients() {
+	output "Installing Oracle instant clients."
+	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
+	$YUM \
+		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
+		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
+		${OIC_URL}/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm \
+		${OIC_URL}/oracle-instantclient-sqlplus-21.5.0.0.0-1.x86_64.rpm 1>&2 || true
+}
+
+
+#=============================================================================
+# UBUNTU
+#=============================================================================
+
+ubuntu_install_postgres() {
+	output "Installing postgres."
+	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
+	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
+	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+	sudo apt-get update 1>&2
+	sudo apt-get -y install postgresql-14 1>&2
+	output "Postgres Installed."
+}
+
+ubuntu_install_oracle_instant_clients() {
+	output "Installing Oracle Instant Clients."
+	sudo apt-get -y install alien 1>&2
+	ubuntu_install_oic oracle-instantclient-basic
+	ubuntu_install_oic oracle-instantclient-devel
+	ubuntu_install_oic oracle-instantclient-jdbc
+	ubuntu_install_oic oracle-instantclient-sqlplus
+	output "Installed Oracle Instance Clients."
+}
+
+ubuntu_install_oic() {
+	if dpkg -l | grep -q -w $1
+	then
+		echo "$1 is already installed."
+	else
+		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
+		wget https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
+		sudo alien -i ${rpm_name} 1>&2
+		rm ${rpm_name}
+	fi
+}
+
+#=============================================================================
+# MacOS
+#=============================================================================
+
+macos_install_brew() {
+	which brew > /dev/null 2>&1
+	if [ $? -eq 0 ]
+	then
+		output "brew is already installed."
+	else
+		output "Installing brew."
+		set +x  # Do not dump the brew install.sh into the log.
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+		set -x
+	fi
+}
+
+macos_install_pg_dump() {
+	output "Installing pg_dump and pg_restore."
+	brew install libpq
+	insert_into_rc_file 'export PATH="/opt/homebrew/opt/libpq/bin:$PATH"'
+}
+
+#=============================================================================
+# Start.
+#=============================================================================
+
+main 2>> $LOG_FILE
