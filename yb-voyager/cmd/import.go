@@ -34,6 +34,7 @@ var importCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		checkExportDirFlag()
 		validateImportFlags(cmd)
 	},
 

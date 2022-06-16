@@ -39,7 +39,7 @@ var exportCmd = &cobra.Command{
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-
+		checkExportDirFlag()
 		checkSourceDBType()
 		setSourceDefaultPort() //will set only if required
 		validatePortRange()
