@@ -62,7 +62,7 @@ func validateImportFlags(cmd *cobra.Command) {
 		checkTableListFlag(target.TableList)
 	}
 	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
-		utils.ErrExit("Error: --target-db-schema flag is only valid for export from 'oracle' and 'mysql' db type")
+		utils.ErrExit("ERROR: --target-db-schema flag is only valid for export from 'oracle' and 'mysql' db type")
 	}
 }
 

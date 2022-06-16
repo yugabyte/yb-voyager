@@ -107,7 +107,7 @@ func initConfig() {
 
 func checkExportDirFlag() {
 	if exportDir == "" {
-		fmt.Fprintln(os.Stderr, `Error: required flag "export-dir" not set`)
+		fmt.Fprintln(os.Stderr, `ERROR: required flag "export-dir" not set`)
 		os.Exit(1)
 	}
 	if !utils.FileOrFolderExists(exportDir) {

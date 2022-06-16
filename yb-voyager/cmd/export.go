@@ -172,16 +172,16 @@ func checkSourceDBType() {
 func validateExportFlags() {
 	if source.DBType != ORACLE {
 		if source.DBSid != "" {
-			utils.ErrExit("Error: --oracle-db-sid flag is only valid for 'oracle' db type")
+			utils.ErrExit("ERROR: --oracle-db-sid flag is only valid for 'oracle' db type")
 		}
 		if source.OracleHome != "" {
-			utils.ErrExit("Error: --oracle-home flag is only valid for 'oracle' db type")
+			utils.ErrExit("ERROR: --oracle-home flag is only valid for 'oracle' db type")
 		}
 		if source.TNSAlias != "" {
-			utils.ErrExit("Error: --oracle-tns-alias flag is only valid for 'oracle' db type")
+			utils.ErrExit("ERROR: --oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 		if source.Schema != "" {
-			utils.ErrExit("Error: --source-db-schema flag is only valid for 'oracle' db type")
+			utils.ErrExit("ERROR: --source-db-schema flag is only valid for 'oracle' db type")
 		}
 	}
 }
@@ -233,7 +233,7 @@ func validateOracleParams() {
 		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
+		utils.ErrExit(`ERROR: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		utils.PrintAndLog("Using TNS Alias for export.")
