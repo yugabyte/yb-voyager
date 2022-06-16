@@ -18,6 +18,7 @@ var importDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed migration.",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		checkExportDirFlag()
 		err := runImportDataStatusCmd()
 		if err != nil {
 			log.Errorf("Get import data status failed: %s", err)
