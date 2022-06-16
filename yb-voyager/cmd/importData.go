@@ -204,7 +204,7 @@ func getYBServers() []*tgtdb.Target {
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
 		targets = []*tgtdb.Target{&target}
-	} else{
+	} else {
 		testYbServers(targets)
 	}
 	return targets
@@ -571,7 +571,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
 
-	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
@@ -752,9 +752,9 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	var remainingTables []string
 	for _, t := range tables {
 
-		donePattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.D", metaInfoDataDir, t)
-		interruptedPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.P", metaInfoDataDir, t)
-		createdPattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[0-9]*.C", metaInfoDataDir, t)
+		donePattern := fmt.Sprintf("%s/%s.%s.D", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
+		interruptedPattern := fmt.Sprintf("%s/%s.%s.P", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
+		createdPattern := fmt.Sprintf("%s/%s.%s.C", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
 
 		doneMatches, _ := filepath.Glob(donePattern)
 		interruptedMatches, _ := filepath.Glob(interruptedPattern)

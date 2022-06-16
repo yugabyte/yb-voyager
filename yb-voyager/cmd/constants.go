@@ -31,6 +31,7 @@ const (
 	MYSQL                       = "mysql"
 	POSTGRESQL                  = "postgresql"
 	LAST_SPLIT_NUM              = 0
+	SPLIT_INFO_PATTERN          = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 )
 
 var IMPORT_SESSION_SETTERS = []string{
