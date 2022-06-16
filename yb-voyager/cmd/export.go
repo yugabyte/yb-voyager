@@ -159,6 +159,8 @@ func checkSourceDBType() {
 	if source.DBType == "" {
 		utils.ErrExit("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
 	}
+
+	source.DBType = strings.ToLower(source.DBType)
 	for _, sourceDBType := range supportedSourceDBTypes {
 		if sourceDBType == source.DBType {
 			return //if matches any allowed type
