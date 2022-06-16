@@ -51,6 +51,7 @@ func init() {
 }
 
 func validateImportFlags(cmd *cobra.Command) {
+	checkExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 	if target.Uri == "" {
