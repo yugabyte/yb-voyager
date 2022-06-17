@@ -15,7 +15,7 @@ jobs:
 
     - name: Run installer script
       run: |
-        yes | ./installer_scripts/install-yb-voyager
+        yes | ./installer_scripts/install-yb-voyager local
 
     - name: Start MySQL
       run: |
