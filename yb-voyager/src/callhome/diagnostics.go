@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 //call-home json formats
@@ -24,8 +25,6 @@ var (
 const (
 	CALL_HOME_SERVICE_HOST = "34.83.149.226"
 	CALL_HOME_SERVICE_PORT = 80
-	//This needs to be updated every time a new patch is released
-	YB_VOYAGER_VERSION = "1.0.0-beta"
 )
 
 type payload struct {
@@ -86,7 +85,7 @@ func initJSON(exportdir string) {
 	if Payload.MigrationUuid == uuid.Nil {
 		Payload.MigrationUuid, err = uuid.NewUUID()
 		Payload.StartTime = time.Now().Format("2006-01-02 15:04:05")
-		Payload.YBVoyagerVersion = YB_VOYAGER_VERSION
+		Payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 		if err != nil {
 			log.Errorf("Error while generating new UUID for diagnostics.json: %v", err)
 			return
