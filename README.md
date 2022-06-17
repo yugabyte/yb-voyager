@@ -272,6 +272,26 @@ yb-voyager import data --export-dir /path/to/yb/export/dir --target-db-host loca
 
 The data sql files should be located in the `export-dir/data` folder.
 
+### Import Data File
+
+```
+yb-voyager import data file --help
+```
+This command imports data from supported file formats into YugabyteDB database.
+
+Note: its an independent command to directly import data from files, can be executed alone without previous commands.
+
+**Sample command:**
+
+```
+yb-voyager import data file --export-dir /path/to/yb/export/dir --target-db-host localhost 
+--target-db-password password --target-db-name dbname --target-db-schema public
+ --target-db-user username --parallel-jobs 100 --format csv --has-header
+--data-dir /path/to/files/dir --file-table-map "filename1:dbtable1,filename2:dbtable2"
+```
+
+The data files to be imported should be located in the `data-dir` folder where `--file-table-map` defines the table name for each file. 
+
 ### SSL Connectivity
 
 *This sub-section is useful if you wish to encrypt and secure your connection to the target YugabyteDB instance while importing your schema and data objects using SSL encryption.*
