@@ -72,7 +72,7 @@ func init() {
 		"enable verbose mode for the console output")
 
 	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory (default is current working directory)")
+		"export directory to keep all the dump files and metainfo")
 
 	rootCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
