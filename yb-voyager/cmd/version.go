@@ -5,11 +5,7 @@ import (
 	"runtime/debug"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	// This constant must be updated on every release.
-	YB_VOYAGER_VERSION = "1.0.0-beta"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var versionCmd = &cobra.Command{
@@ -17,7 +13,7 @@ var versionCmd = &cobra.Command{
 	Short: "Print yb-voyager version info.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("VERSION=%s\n", YB_VOYAGER_VERSION)
+		fmt.Printf("VERSION=%s\n", utils.YB_VOYAGER_VERSION)
 
 		info, ok := debug.ReadBuildInfo()
 		if !ok {
