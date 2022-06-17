@@ -52,7 +52,7 @@ func runImportDataStatusCmd() error {
 		return fmt.Errorf("check if data export is done: %w", err)
 	}
 
-	dataFileDescriptor := datafile.OpenDescriptor(exportDir)
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	var totalRowCountMap map[string]int64
 	if dataFileDescriptor.TableRowCount != nil {
 		totalRowCountMap = dataFileDescriptor.TableRowCount

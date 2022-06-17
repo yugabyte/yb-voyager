@@ -150,7 +150,7 @@ func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
 	importedRowCounts := make(map[string]int64)
 
 	for _, table := range tables {
-		pattern := fmt.Sprintf("%s/%s.[0-9]*.[0-9]*.[0-9]*.[D]", metaInfoDataDir, table)
+		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, table, SPLIT_INFO_PATTERN)
 		matches, _ := filepath.Glob(pattern)
 		importedRowCounts[table] = 0
 
