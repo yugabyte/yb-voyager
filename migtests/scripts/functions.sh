@@ -129,3 +129,15 @@ import_data() {
 		--send-diagnostics=false \
 		$*
 }
+
+import_data_file() {
+	yb-voyager import data file --export-dir ${EXPORT_DIR} \
+		--target-db-host ${TARGET_DB_HOST} \
+		--target-db-port ${TARGET_DB_PORT} \
+		--target-db-user ${TARGET_DB_USER} \
+		--target-db-password ${TARGET_DB_PASSWORD:-''} \
+		--target-db-name ${TARGET_DB_NAME} \
+		--disable-pb \
+		--send-diagnostics=false \
+		$*
+}
