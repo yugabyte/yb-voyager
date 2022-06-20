@@ -20,7 +20,7 @@ source ${SCRIPTS}/functions.sh
 export TARGET_DB_NAME="testdb"
 export TARGET_TABLE_NAME="target_table"
 
-CMD="'CREATE TABLE topology_flat (
+CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
     userid_fill uuid,
     idtype_fill text,
     userid uuid,
@@ -31,7 +31,7 @@ CMD="'CREATE TABLE topology_flat (
     parentid uuid,
     attrs jsonb,
     PRIMARY KEY (userid, level, locationgroupid, parentid, locationid)
-);'"
+);"
 
 main() {
 	mkdir -p ${EXPORT_DIR}
@@ -49,8 +49,8 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "${CMD}"
 
 	step "Import data file"
-	import_data_file --data-dir ${TEST_DIR} --file-type csv --delimiter '|' \
-		--file-table-map '${DATA_FILE_NAME}:${TARGET_TABLE_NAME}'
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
+		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
 }
 
 main
