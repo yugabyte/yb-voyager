@@ -11,7 +11,7 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
-export DATA_FILE_NAME=OneMRows.csv
+export DATA_FILE_NAME="OneMRows.text"
 export COMPRESSED_DATA_FILE_NAME="${DATA_FILE_NAME}.gz"
 
 source ${SCRIPTS}/yugabytedb/env.sh
