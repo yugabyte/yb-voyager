@@ -151,6 +151,11 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", false,
 		"true - to enable upsert for insert in target tables (default false)")
+
+	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
+	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
+		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
+			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 }
 
 func validateTargetPortRange() {

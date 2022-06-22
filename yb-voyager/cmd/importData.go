@@ -69,8 +69,9 @@ var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
-var loadBalancerUsed bool // specifies whether load balancer is used in front of yb servers
-var enableUpsert bool     // upsert instead of insert for import data
+var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
+var enableUpsert bool               // upsert instead of insert for import data
+var disableTransactionalWrites bool // to disable transactional writes for copy command
 
 const (
 	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
@@ -907,12 +908,14 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 */
 func checkSessionVariableSupported(idx int, dbVersion string) bool {
 	// YB version includes compatible postgres version also, for example: 11.2-YB-2.13.0.0-b0
-	splits := strings.Split(dbVersion, "YB-")
-	dbVersion = splits[len(splits)-1]
+	// splits := strings.Split(dbVersion, "YB-")
+	// dbVersion = splits[len(splits)-1]
 
 	if idx == 1 { // yb_disable_transactional_writes
 		// only supported for these versions
-		return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
+		// return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
+		// TODO: enable it for identified version which doesn't have the bug
+		return disableTransactionalWrites
 	} else if idx == 3 { // yb_enable_upsert_mode
 		return enableUpsert
 	}
