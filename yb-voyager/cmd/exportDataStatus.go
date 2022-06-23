@@ -214,45 +214,48 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	}()
 
 	var line string
-	var readLineErr error
 	insideCopyStmt := false
-	for !checkForEndOfFile(&source, tableMetadata, line) {
+	prefix := ""
+
+	readLines := func() {
 		for {
-			line, readLineErr = reader.ReadString('\n')
-			if readLineErr == io.EOF {
+			line, err = reader.ReadString('\n')
+			if line != "" {
+				if line[len(line)-1] == '\n' {
+					if prefix != "" {
+						line = prefix + line
+						prefix = ""
+					}
+				} else {
+					prefix = prefix + line
+				}
+			}
+			if err == io.EOF {
 				time.Sleep(100 * time.Millisecond)
 				break
-			} else if readLineErr != nil { //error other than EOF
-				utils.ErrExit("Error while reading file %s: %v", tableDataFile, readLineErr)
+			} else if err != nil { //error other than EOF
+				utils.ErrExit("Error while reading file %s: %v", tableDataFile, err)
 			}
-
 			if isDataLine(line, source.DBType, &insideCopyStmt) {
 				tableMetadata.CountLiveRows += 1
 			}
-			if !insideCopyStmt { // to execute checkForEndOfFile() after every copy stmt
+			if source.DBType == "postgresql" && strings.HasPrefix(line, "\\.") {
 				break
 			}
 		}
 	}
 
+	for !checkForEndOfFile(&source, tableMetadata, line) {
+		readLines()
+	}
 	/*
 		Below extra step to count rows because there may be still a possibility that some rows left uncounted before EOF
 		1. if previous loop breaks because of fileName changes and before counting all rows.
 		2. Based on - even after file rename the file access with reader stays and can count remaining lines in the file
 		(Mainly for Oracle, MySQL)
 	*/
+	readLines()
 
-	for {
-		line, readLineErr := reader.ReadString('\n')
-		if readLineErr == io.EOF {
-			break
-		} else if readLineErr != nil { //error other than EOF
-			utils.ErrExit("Error while reading file %s: %v", tableDataFile, readLineErr)
-		}
-		if isDataLine(line, source.DBType, &insideCopyStmt) {
-			tableMetadata.CountLiveRows += 1
-		}
-	}
 	if !bar.Completed() {
 		bar.IncrBy(100) // Completing remaining progress bar to continue the execution.
 	}
