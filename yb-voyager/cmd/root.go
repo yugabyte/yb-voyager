@@ -40,7 +40,9 @@ var rootCmd = &cobra.Command{
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		InitLogging(exportDir)
+		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
+			InitLogging(exportDir)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -112,7 +114,7 @@ func checkExportDirFlag() {
 		os.Exit(1)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", exportDir)
+		fmt.Fprintf(os.Stderr, "Directory %q doesn't exists.\n", exportDir)
 		os.Exit(1)
 	} else if exportDir == "." {
 		fmt.Println("Note: Using current working directory as export directory")
