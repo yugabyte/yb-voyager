@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"os"
+	"regexp"
 )
 
 type DataFile interface {
@@ -12,7 +13,9 @@ type DataFile interface {
 }
 
 func NewDataFile(fileName string, offset int64) DataFile {
-	return NewCSVDataFile(fileName, offset)
+	// TODO: Add the notion of a DataFileDescriptor.
+	return NewOra2pgDataFile(fileName, offset)
+	//return NewCSVDataFile(fileName, offset)
 }
 
 //============================================================================
@@ -30,6 +33,41 @@ func NewCSVDataFile(fileName string, offset int64) *CSVDataFile {
 
 func (df *CSVDataFile) isDataLine(line string) bool {
 	return !(line == "" || line == `\.`)
+}
+
+//============================================================================
+
+type Ora2pgDataFile struct {
+	*baseDataFile
+	insideCopyStmt bool
+}
+
+func NewOra2pgDataFile(fileName string, offset int64) *Ora2pgDataFile {
+	df := &Ora2pgDataFile{}
+	base := newBaseDataFile(fileName, offset, df.isDataLine)
+	df.baseDataFile = base
+	return df
+}
+
+// Example: `COPY "Foo" ("v") FROM STDIN;`
+var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
+
+func (df *Ora2pgDataFile) isDataLine(line string) bool {
+	emptyLine := (len(line) == 0)
+	newLineChar := (line == "\n")
+	endOfCopy := (line == "\\." || line == "\\.\n")
+
+	if df.insideCopyStmt {
+		if endOfCopy {
+			df.insideCopyStmt = false
+		}
+		return !(emptyLine || newLineChar || endOfCopy)
+	} else { // outside copy
+		if reCopy.MatchString(line) {
+			df.insideCopyStmt = true
+		}
+		return false
+	}
 }
 
 //============================================================================

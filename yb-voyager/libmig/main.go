@@ -11,8 +11,9 @@ func main() {
 	ctx := context.Background()
 
 	migstate := NewMigrationState("/Users/amit.jambure/export-dir")
-	op := NewImportFileOp(migstate, "test.txt", NewTableID("testdb", "public", "foo"))
-	op.BatchSize = 5
+	//	op := NewImportFileOp(migstate, "test.txt", NewTableID("testdb", "public", "foo"))
+	op := NewImportFileOp(migstate, "/tmp/category_data.sql", NewTableID("testdb", "public", "category"))
+	op.BatchSize = 7
 
 	err := op.Run(ctx)
 	panicOnErr(err)
