@@ -18,18 +18,37 @@ func NewDataFile(fileName string, offset int64) DataFile {
 //============================================================================
 
 type CSVDataFile struct {
+	*baseDataFile
+}
+
+func NewCSVDataFile(fileName string, offset int64) *CSVDataFile {
+	df := &CSVDataFile{}
+	base := newBaseDataFile(fileName, offset, df.isDataLine)
+	df.baseDataFile = base
+	return df
+}
+
+func (df *CSVDataFile) isDataLine(line string) bool {
+	return !(line == "" || line == `\.`)
+}
+
+//============================================================================
+
+type baseDataFile struct {
 	FileName string
 	offset   int64
 
 	fh      *os.File
 	scanner *bufio.Scanner
+
+	isDataLine func(string) bool
 }
 
-func NewCSVDataFile(fileName string, offset int64) *CSVDataFile {
-	return &CSVDataFile{FileName: fileName, offset: offset}
+func newBaseDataFile(fileName string, offset int64, isDataLine func(string) bool) *baseDataFile {
+	return &baseDataFile{FileName: fileName, offset: offset, isDataLine: isDataLine}
 }
 
-func (df *CSVDataFile) Open() error {
+func (df *baseDataFile) Open() error {
 	fh, err := os.Open(df.FileName)
 	if err != nil {
 		return err
@@ -43,11 +62,11 @@ func (df *CSVDataFile) Open() error {
 	return nil
 }
 
-func (df *CSVDataFile) Offset() int64 {
+func (df *baseDataFile) Offset() int64 {
 	return df.offset
 }
 
-func (df *CSVDataFile) SkipRecords(n int) (int, bool, error) {
+func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
 	count := 0
 	for count < n && df.scanner.Scan() {
 		line := df.scanner.Text()
@@ -58,10 +77,6 @@ func (df *CSVDataFile) SkipRecords(n int) (int, bool, error) {
 	}
 	eof := df.scanner.Err() == nil && count < n
 	return count, eof, df.scanner.Err()
-}
-
-func (df *CSVDataFile) isDataLine(line string) bool {
-	return !(line == "" || line == `\.`)
 }
 
 //============================================================================
