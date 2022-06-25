@@ -51,7 +51,11 @@ func (migstate *MigrationState) PrepareForImport(tableID *TableID) error {
 
 func (migstate *MigrationState) GetLastBatch(tableID *TableID) (*Batch, error) {
 	filePath := filepath.Join(migstate.tableDir(tableID), "last")
-	return LoadBatchFrom(filePath)
+	batch, err := LoadBatchFrom(filePath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	return batch, err
 }
 
 func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, error) {
@@ -136,7 +140,9 @@ func (migstate *MigrationState) doneBatchPath(tableID *TableID, batch *Batch) st
 	return filepath.Join(migstate.doneDir(tableID), baseName)
 }
 
+/*
 func (migstate *MigrationState) failedBatchPath(tableID *TableID, batch *Batch) string {
 	baseName := fmt.Sprintf("%s.%d", tableID.TableName, batch.BatchNumber)
 	return filepath.Join(migstate.failedDir(tableID), baseName)
 }
+*/
