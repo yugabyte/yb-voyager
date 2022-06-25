@@ -42,7 +42,7 @@ func LoadBatchFrom(fileName string) (*Batch, error) {
 
 //===============================================================================
 
-type BatchManager struct {
+type BatchGenerator struct {
 	FileName string
 	TableID  *TableID
 
@@ -50,11 +50,11 @@ type BatchManager struct {
 	lastBatchNumber int
 }
 
-func NewBatchManager(fileName string, tableID *TableID) *BatchManager {
-	return &BatchManager{FileName: fileName, TableID: tableID}
+func NewBatchGenerator(fileName string, tableID *TableID) *BatchGenerator {
+	return &BatchGenerator{FileName: fileName, TableID: tableID}
 }
 
-func (mgr *BatchManager) Init(lastBatch *Batch) error {
+func (mgr *BatchGenerator) Init(lastBatch *Batch) error {
 	// Start from where we left off.
 	offset := int64(0)
 	if lastBatch != nil {
@@ -71,7 +71,7 @@ func (mgr *BatchManager) Init(lastBatch *Batch) error {
 	return err
 }
 
-func (mgr *BatchManager) NextBatch(batchSize int) (*Batch, bool, error) {
+func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	var batch *Batch
 
 	startOffset := mgr.df.Offset()

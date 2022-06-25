@@ -13,8 +13,8 @@ const (
 )
 
 type ImportFileOp struct {
-	migState     *MigrationState
-	batchManager *BatchManager
+	migState *MigrationState
+	batchGen *BatchGenerator
 
 	FileName string
 	TableID  *TableID
@@ -29,7 +29,7 @@ func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID
 		TableID:   tableID,
 		BatchSize: DEFAULT_BATCH_SIZE,
 
-		batchManager: NewBatchManager(fileName, tableID),
+		batchGen: NewBatchGenerator(fileName, tableID),
 	}
 }
 
@@ -46,7 +46,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 		return err
 	}
 	// lastBatch can be nil when no batch is generated yet.
-	err = op.batchManager.Init(lastBatch)
+	err = op.batchGen.Init(lastBatch)
 	if err != nil {
 		return err
 	}
@@ -60,7 +60,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	}
 
 	for {
-		batch, eof, err := op.batchManager.NextBatch(op.BatchSize)
+		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
 			err2 := op.migState.NewPendingBatch(op.TableID, batch)
 			if err2 != nil {

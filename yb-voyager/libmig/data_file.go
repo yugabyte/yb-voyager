@@ -15,6 +15,8 @@ func NewDataFile(fileName string, offset int64) DataFile {
 	return NewCSVDataFile(fileName, offset)
 }
 
+//============================================================================
+
 type CSVDataFile struct {
 	FileName string
 	offset   int64
@@ -61,3 +63,5 @@ func (df *CSVDataFile) SkipRecords(n int) (int, bool, error) {
 func (df *CSVDataFile) isDataLine(line string) bool {
 	return !(line == "" || line == `\.`)
 }
+
+//============================================================================
