@@ -14,9 +14,7 @@ func main() {
 	op := NewImportFileOp(migstate, "test.txt", NewTableID("testdb", "public", "foo"))
 	op.BatchSize = 5
 
-	err := op.Init(ctx)
-	panicOnErr(err)
-	err = op.Run(ctx)
+	err := op.Run(ctx)
 	panicOnErr(err)
 }
 

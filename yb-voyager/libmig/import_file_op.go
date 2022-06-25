@@ -28,24 +28,30 @@ func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID
 		FileName:  fileName,
 		TableID:   tableID,
 		BatchSize: DEFAULT_BATCH_SIZE,
-	}
-}
 
-func (op *ImportFileOp) Init(ctx context.Context) error {
-	log.Infof("Init ImportFileOp")
-	op.batchManager = NewBatchManager(op.migState, op.FileName, op.TableID)
-	err := op.batchManager.Init()
-	if err != nil {
-		return err
+		batchManager: NewBatchManager(fileName, tableID),
 	}
-
-	return nil
 }
 
 func (op *ImportFileOp) Run(ctx context.Context) error {
 	log.Infof("Run ImportFileOp")
+	// TODO Implement StartClean.
+	err := op.migState.PrepareForImport(op.TableID)
+	if err != nil {
+		return err
+	}
 
-	batches, err := op.batchManager.PendingBatches()
+	lastBatch, err := op.migState.GetLastBatch(op.TableID)
+	if err != nil {
+		return err
+	}
+	// lastBatch can be nil when no batch is generated yet.
+	err = op.batchManager.Init(lastBatch)
+	if err != nil {
+		return err
+	}
+
+	batches, err := op.migState.PendingBatches(op.TableID)
 	if err != nil {
 		return err
 	}
@@ -56,6 +62,10 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	for {
 		batch, eof, err := op.batchManager.NextBatch(op.BatchSize)
 		if batch != nil {
+			err2 := op.migState.NewPendingBatch(op.TableID, batch)
+			if err2 != nil {
+				return err2
+			}
 			op.submitBatch(batch)
 		}
 		if eof {
@@ -71,7 +81,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
 	debugPrintBatch(batch)
-	op.batchManager.BatchDone(batch)
+	op.migState.BatchDone(op.TableID, batch)
 }
 
 func debugPrintBatch(batch *Batch) {
