@@ -62,7 +62,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	for {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
-			err2 := op.migState.NewPendingBatch(op.TableID, batch)
+			err2 := op.migState.MarkBatchPending(op.TableID, batch)
 			if err2 != nil {
 				return err2
 			}
@@ -81,7 +81,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
 	debugPrintBatch(batch)
-	op.migState.BatchDone(op.TableID, batch)
+	op.migState.MarkBatchDone(op.TableID, batch)
 }
 
 func debugPrintBatch(batch *Batch) {

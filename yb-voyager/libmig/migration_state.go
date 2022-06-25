@@ -77,7 +77,7 @@ func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, erro
 	return batches, nil
 }
 
-func (migstate *MigrationState) NewPendingBatch(tableID *TableID, batch *Batch) error {
+func (migstate *MigrationState) MarkBatchPending(tableID *TableID, batch *Batch) error {
 	// Save the batch.
 	batchFileName := migstate.pendingBatchPath(tableID, batch)
 	err := batch.SaveTo(batchFileName)
@@ -104,7 +104,7 @@ func (migstate *MigrationState) NewPendingBatch(tableID *TableID, batch *Batch) 
 	return nil
 }
 
-func (migstate *MigrationState) BatchDone(tableID *TableID, batch *Batch) error {
+func (migstate *MigrationState) MarkBatchDone(tableID *TableID, batch *Batch) error {
 	fromPath := migstate.pendingBatchPath(tableID, batch)
 	toPath := migstate.doneBatchPath(tableID, batch)
 	err := os.Rename(fromPath, toPath)
