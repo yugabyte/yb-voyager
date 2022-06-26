@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"regexp"
 )
@@ -12,10 +13,26 @@ type DataFile interface {
 	SkipRecords(n int) (int, bool, error)
 }
 
-func NewDataFile(fileName string, offset int64) DataFile {
-	// TODO: Add the notion of a DataFileDescriptor.
-	return NewOra2pgDataFile(fileName, offset)
-	//return NewCSVDataFile(fileName, offset)
+func NewDataFile(fileName string, offset int64, desc *DataFileDescriptor) DataFile {
+	switch desc.FileType {
+	case FILE_TYPE_CSV:
+		return NewCSVDataFile(fileName, offset, desc)
+	case FILE_TYPE_ORA2PG:
+		return NewOra2pgDataFile(fileName, offset, desc)
+	default:
+		panic(fmt.Sprintf("unknown file-type: %q", desc.FileType))
+	}
+}
+
+//============================================================================
+
+const (
+	FILE_TYPE_CSV    = "CSV"
+	FILE_TYPE_ORA2PG = "ORA2PG"
+)
+
+type DataFileDescriptor struct {
+	FileType string
 }
 
 //============================================================================
@@ -24,9 +41,9 @@ type CSVDataFile struct {
 	*baseDataFile
 }
 
-func NewCSVDataFile(fileName string, offset int64) *CSVDataFile {
+func NewCSVDataFile(fileName string, offset int64, desc *DataFileDescriptor) *CSVDataFile {
 	df := &CSVDataFile{}
-	base := newBaseDataFile(fileName, offset, df.isDataLine)
+	base := newBaseDataFile(fileName, offset, desc, df.isDataLine)
 	df.baseDataFile = base
 	return df
 }
@@ -42,9 +59,9 @@ type Ora2pgDataFile struct {
 	insideCopyStmt bool
 }
 
-func NewOra2pgDataFile(fileName string, offset int64) *Ora2pgDataFile {
+func NewOra2pgDataFile(fileName string, offset int64, desc *DataFileDescriptor) *Ora2pgDataFile {
 	df := &Ora2pgDataFile{}
-	base := newBaseDataFile(fileName, offset, df.isDataLine)
+	base := newBaseDataFile(fileName, offset, desc, df.isDataLine)
 	df.baseDataFile = base
 	return df
 }
@@ -73,6 +90,7 @@ func (df *Ora2pgDataFile) isDataLine(line string) bool {
 //============================================================================
 
 type baseDataFile struct {
+	Desc     *DataFileDescriptor
 	FileName string
 	offset   int64
 
@@ -82,8 +100,8 @@ type baseDataFile struct {
 	isDataLine func(string) bool
 }
 
-func newBaseDataFile(fileName string, offset int64, isDataLine func(string) bool) *baseDataFile {
-	return &baseDataFile{FileName: fileName, offset: offset, isDataLine: isDataLine}
+func newBaseDataFile(fileName string, offset int64, desc *DataFileDescriptor, isDataLine func(string) bool) *baseDataFile {
+	return &baseDataFile{FileName: fileName, offset: offset, Desc: desc, isDataLine: isDataLine}
 }
 
 func (df *baseDataFile) Open() error {

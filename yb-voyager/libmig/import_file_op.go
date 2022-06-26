@@ -18,18 +18,20 @@ type ImportFileOp struct {
 
 	FileName string
 	TableID  *TableID
+	Desc     *DataFileDescriptor
 
 	BatchSize int
 }
 
-func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID) *ImportFileOp {
+func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
 	return &ImportFileOp{
 		migState:  migState,
 		FileName:  fileName,
 		TableID:   tableID,
+		Desc:      desc,
 		BatchSize: DEFAULT_BATCH_SIZE,
 
-		batchGen: NewBatchGenerator(fileName, tableID),
+		batchGen: NewBatchGenerator(fileName, tableID, desc),
 	}
 }
 
@@ -80,6 +82,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
+	_ = debugPrintBatch
 	debugPrintBatch2(batch)
 	op.migState.MarkBatchDone(op.TableID, batch)
 }

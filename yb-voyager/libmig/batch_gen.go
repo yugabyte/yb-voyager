@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 )
@@ -12,12 +13,19 @@ type Batch struct {
 	StartOffset int64
 	EndOffset   int64
 	RecordCount int
+	Desc        *DataFileDescriptor
 }
 
 func (b *Batch) Reader() (io.ReadCloser, error) {
-	//return NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
-	// `insideCopyStmt` is false only for the first batch.
-	return NewOra2pgFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset, b.BatchNumber > 1)
+	switch b.Desc.FileType {
+	case FILE_TYPE_CSV:
+		return NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
+	case FILE_TYPE_ORA2PG:
+		// `insideCopyStmt` is false only for the first batch.
+		return NewOra2pgFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset, b.BatchNumber > 1)
+	default:
+		panic(fmt.Sprintf("unknown file-type: %q", b.Desc.FileType))
+	}
 }
 
 func (b *Batch) SaveTo(fileName string) error {
@@ -47,13 +55,14 @@ func LoadBatchFrom(fileName string) (*Batch, error) {
 type BatchGenerator struct {
 	FileName string
 	TableID  *TableID
+	Desc     *DataFileDescriptor
 
 	df              DataFile
 	lastBatchNumber int
 }
 
-func NewBatchGenerator(fileName string, tableID *TableID) *BatchGenerator {
-	return &BatchGenerator{FileName: fileName, TableID: tableID}
+func NewBatchGenerator(fileName string, tableID *TableID, desc *DataFileDescriptor) *BatchGenerator {
+	return &BatchGenerator{FileName: fileName, TableID: tableID, Desc: desc}
 }
 
 func (mgr *BatchGenerator) Init(lastBatch *Batch) error {
@@ -65,7 +74,7 @@ func (mgr *BatchGenerator) Init(lastBatch *Batch) error {
 	}
 
 	// Open DataFile and jump to the correct offset.
-	mgr.df = NewDataFile(mgr.FileName, offset)
+	mgr.df = NewDataFile(mgr.FileName, offset, mgr.Desc)
 	err := mgr.df.Open()
 	if err != nil {
 		return err
@@ -88,6 +97,7 @@ func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 			StartOffset: startOffset,
 			EndOffset:   endOffset,
 			RecordCount: n,
+			Desc:        mgr.Desc,
 		}
 	}
 	return batch, eof, err
