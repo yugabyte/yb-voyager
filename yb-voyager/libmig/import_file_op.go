@@ -80,7 +80,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
-	debugPrintBatch(batch)
+	debugPrintBatch2(batch)
 	op.migState.MarkBatchDone(op.TableID, batch)
 }
 
@@ -92,6 +92,27 @@ func debugPrintBatch(batch *Batch) {
 	bs, err := io.ReadAll(r)
 	if err != nil {
 		panic(err)
+	}
+	fmt.Printf("%s", string(bs))
+}
+
+func debugPrintBatch2(batch *Batch) {
+	r, err := batch.Reader()
+	if err != nil {
+		panic(err)
+	}
+
+	var bs []byte
+	buf := make([]byte, 100)
+	for {
+		n, err := r.Read(buf)
+		bs = append(bs, buf[:n]...)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			panic(err)
+		}
 	}
 	fmt.Printf("%s", string(bs))
 }

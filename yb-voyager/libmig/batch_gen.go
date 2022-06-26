@@ -15,7 +15,9 @@ type Batch struct {
 }
 
 func (b *Batch) Reader() (io.ReadCloser, error) {
-	return NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
+	//return NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
+	// `insideCopyStmt` is false only for the first batch.
+	return NewOra2pgFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset, b.BatchNumber > 1)
 }
 
 func (b *Batch) SaveTo(fileName string) error {
