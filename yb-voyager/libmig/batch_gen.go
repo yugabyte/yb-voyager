@@ -8,12 +8,13 @@ import (
 )
 
 type Batch struct {
-	FileName    string
-	BatchNumber int
-	StartOffset int64
-	EndOffset   int64
-	RecordCount int
-	Desc        *DataFileDescriptor
+	FileName       string
+	BatchNumber    int
+	StartOffset    int64
+	EndOffset      int64
+	SizeInBaseFile int64
+	RecordCount    int
+	Desc           *DataFileDescriptor
 }
 
 func (b *Batch) Reader() (io.ReadCloser, error) {
@@ -84,12 +85,13 @@ func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	if n > 0 {
 		mgr.lastBatchNumber++
 		batch = &Batch{
-			FileName:    mgr.FileName,
-			BatchNumber: mgr.lastBatchNumber,
-			StartOffset: startOffset,
-			EndOffset:   endOffset,
-			RecordCount: n,
-			Desc:        mgr.Desc,
+			FileName:       mgr.FileName,
+			BatchNumber:    mgr.lastBatchNumber,
+			StartOffset:    startOffset,
+			EndOffset:      endOffset,
+			SizeInBaseFile: endOffset - startOffset,
+			RecordCount:    n,
+			Desc:           mgr.Desc,
 		}
 	}
 	return batch, eof, err
