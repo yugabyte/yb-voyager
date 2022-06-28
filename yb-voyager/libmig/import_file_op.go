@@ -14,13 +14,17 @@ const (
 
 type ImportFileOp struct {
 	migState *MigrationState
-	batchGen *BatchGenerator
 
 	FileName string
 	TableID  *TableID
 	Desc     *DataFileDescriptor
 
 	BatchSize int
+
+	batchGen                  *BatchGenerator
+	dataFile                  DataFile
+	lastBatchFromPrevRun      *Batch
+	pendingBatchesFromPrevRun []*Batch
 }
 
 func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
@@ -37,30 +41,29 @@ func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID
 
 func (op *ImportFileOp) Run(ctx context.Context) error {
 	log.Infof("Run ImportFileOp")
+
 	// TODO Implement StartClean.
 	err := op.migState.PrepareForImport(op.TableID)
 	if err != nil {
 		return err
 	}
+	err = op.loadStateFromPrevRun()
+	if err != nil {
+		return err
+	}
+	err = op.openDataFile()
+	if err != nil {
+		return err
+	}
+	// op.lastBatchFromPrevRun will be nil for first time execution.
+	err = op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
+	if err != nil {
+		return err
+	}
 
-	lastBatch, err := op.migState.GetLastBatch(op.TableID)
-	if err != nil {
-		return err
-	}
-	// lastBatch can be nil when no batch is generated yet.
-	err = op.batchGen.Init(lastBatch)
-	if err != nil {
-		return err
-	}
-
-	batches, err := op.migState.PendingBatches(op.TableID)
-	if err != nil {
-		return err
-	}
-	for _, batch := range batches {
+	for _, batch := range op.pendingBatchesFromPrevRun {
 		op.submitBatch(batch)
 	}
-
 	for {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
@@ -78,6 +81,34 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			return err
 		}
 	}
+}
+
+func (op *ImportFileOp) loadStateFromPrevRun() error {
+	var err error
+	op.lastBatchFromPrevRun, err = op.migState.GetLastBatch(op.TableID)
+	if err != nil {
+		return err
+	}
+	op.pendingBatchesFromPrevRun, err = op.migState.PendingBatches(op.TableID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (op *ImportFileOp) openDataFile() error {
+	// Start from where we left off.
+	offset := int64(0)
+	if op.lastBatchFromPrevRun != nil {
+		offset = op.lastBatchFromPrevRun.EndOffset
+	}
+	// Open DataFile and jump to the correct offset.
+	op.dataFile = NewDataFile(op.FileName, offset, op.Desc)
+	err := op.dataFile.Open()
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func (op *ImportFileOp) submitBatch(batch *Batch) {

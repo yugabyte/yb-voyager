@@ -57,7 +57,7 @@ type BatchGenerator struct {
 	TableID  *TableID
 	Desc     *DataFileDescriptor
 
-	df              DataFile
+	dataFile        DataFile
 	lastBatchNumber int
 }
 
@@ -65,29 +65,21 @@ func NewBatchGenerator(fileName string, tableID *TableID, desc *DataFileDescript
 	return &BatchGenerator{FileName: fileName, TableID: tableID, Desc: desc}
 }
 
-func (mgr *BatchGenerator) Init(lastBatch *Batch) error {
+func (mgr *BatchGenerator) Init(dataFile DataFile, lastBatch *Batch) error {
 	// Start from where we left off.
-	offset := int64(0)
+	mgr.dataFile = dataFile
 	if lastBatch != nil {
-		offset = lastBatch.EndOffset
 		mgr.lastBatchNumber = lastBatch.BatchNumber
 	}
-
-	// Open DataFile and jump to the correct offset.
-	mgr.df = NewDataFile(mgr.FileName, offset, mgr.Desc)
-	err := mgr.df.Open()
-	if err != nil {
-		return err
-	}
-	return err
+	return nil
 }
 
 func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	var batch *Batch
 
-	startOffset := mgr.df.Offset()
-	n, eof, err := mgr.df.SkipRecords(batchSize)
-	endOffset := mgr.df.Offset()
+	startOffset := mgr.dataFile.Offset()
+	n, eof, err := mgr.dataFile.SkipRecords(batchSize)
+	endOffset := mgr.dataFile.Offset()
 
 	if n > 0 {
 		mgr.lastBatchNumber++
