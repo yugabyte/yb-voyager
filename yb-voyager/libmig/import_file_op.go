@@ -13,7 +13,8 @@ const (
 )
 
 type ImportFileOp struct {
-	migState *MigrationState
+	migState         *MigrationState
+	progressReporter *ProgressReporter
 
 	FileName string
 	TableID  *TableID
@@ -27,13 +28,14 @@ type ImportFileOp struct {
 	pendingBatchesFromPrevRun []*Batch
 }
 
-func NewImportFileOp(migState *MigrationState, fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
+func NewImportFileOp(migState *MigrationState, progressReporter *ProgressReporter, fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
 	return &ImportFileOp{
-		migState:  migState,
-		FileName:  fileName,
-		TableID:   tableID,
-		Desc:      desc,
-		BatchSize: DEFAULT_BATCH_SIZE,
+		migState:         migState,
+		progressReporter: progressReporter,
+		FileName:         fileName,
+		TableID:          tableID,
+		Desc:             desc,
+		BatchSize:        DEFAULT_BATCH_SIZE,
 
 		batchGen: NewBatchGenerator(fileName, tableID, desc),
 	}
@@ -60,6 +62,8 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	op.notifyImportFileStarted()
 
 	for _, batch := range op.pendingBatchesFromPrevRun {
 		op.submitBatch(batch)
@@ -111,11 +115,29 @@ func (op *ImportFileOp) openDataFile() error {
 	return err
 }
 
+func (op *ImportFileOp) notifyImportFileStarted() {
+	op.progressReporter.ImportFileStarted(op.TableID, op.dataFile.Size())
+
+	if op.lastBatchFromPrevRun != nil {
+		p := op.lastBatchFromPrevRun.EndOffset
+		for _, batch := range op.pendingBatchesFromPrevRun {
+			p -= batch.SizeInBaseFile
+		}
+		op.progressReporter.AddProgressAmount(op.TableID, p)
+	}
+}
+
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
+	// TODO: Submit a batch for import and return.
+	op.importBatch(batch)
+}
+
+func (op *ImportFileOp) importBatch(batch *Batch) {
 	_ = debugPrintBatch
-	debugPrintBatch2(batch)
+	_ = debugPrintBatch2
 	op.migState.MarkBatchDone(op.TableID, batch)
+	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile)
 }
 
 func debugPrintBatch(batch *Batch) {

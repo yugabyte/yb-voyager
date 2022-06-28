@@ -10,6 +10,7 @@ import (
 type DataFile interface {
 	Open() error
 	Offset() int64
+	Size() int64
 	SkipRecords(n int) (int, bool, error)
 }
 
@@ -90,14 +91,14 @@ func (df *Ora2pgDataFile) isDataLine(line string) bool {
 //============================================================================
 
 type baseDataFile struct {
-	Desc     *DataFileDescriptor
-	FileName string
-	offset   int64
+	Desc       *DataFileDescriptor
+	FileName   string
+	offset     int64
+	isDataLine func(string) bool
 
 	fh      *os.File
 	scanner *bufio.Scanner
-
-	isDataLine func(string) bool
+	size    int64
 }
 
 func newBaseDataFile(fileName string, offset int64, desc *DataFileDescriptor, isDataLine func(string) bool) *baseDataFile {
@@ -115,11 +116,22 @@ func (df *baseDataFile) Open() error {
 	}
 	df.fh = fh
 	df.scanner = bufio.NewScanner(fh)
+
+	fi, err := fh.Stat()
+	if err != nil {
+		return err
+	}
+	df.size = fi.Size()
+
 	return nil
 }
 
 func (df *baseDataFile) Offset() int64 {
 	return df.offset
+}
+
+func (df *baseDataFile) Size() int64 {
+	return df.size
 }
 
 func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
