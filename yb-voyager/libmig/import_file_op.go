@@ -138,6 +138,20 @@ func (op *ImportFileOp) importBatch(batch *Batch) {
 	_ = debugPrintBatch
 	_ = debugPrintBatch2
 	time.Sleep(time.Second)
+	/*
+		dataFile.CopyCommand
+		err = targetDB.Copy(copyCommand, batch.Reader)
+		if err != nil {
+			err2 := migstate.MarkBatchFailed(op.TableID, batch)
+			if err2 != nil {
+				panic
+			}
+			op.failedBatchCount++  // stop producing more batches if failedBatchCount exceeds threshold.
+			return
+		}
+		migstate.MarkBatchDone(op.TableID, batch)
+		progressReporter.AddProgressAmount(...)
+	*/
 	op.migState.MarkBatchDone(op.TableID, batch)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile)
 }
