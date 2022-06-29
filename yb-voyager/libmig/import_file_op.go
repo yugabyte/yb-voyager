@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -136,6 +137,7 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 func (op *ImportFileOp) importBatch(batch *Batch) {
 	_ = debugPrintBatch
 	_ = debugPrintBatch2
+	time.Sleep(time.Second)
 	op.migState.MarkBatchDone(op.TableID, batch)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile)
 }

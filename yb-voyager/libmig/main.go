@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,6 +26,8 @@ func main() {
 	op2.BatchSize = 5
 	err = op2.Run(ctx)
 	panicOnErr(err)
+
+	time.Sleep(time.Second)
 }
 
 func panicOnErr(err error) {
