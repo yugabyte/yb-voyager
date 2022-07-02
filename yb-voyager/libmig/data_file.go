@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 )
 
 type DataFile interface {
@@ -12,11 +13,12 @@ type DataFile interface {
 	Offset() int64
 	Size() int64
 	SkipRecords(n int) (int, bool, error)
+	GetCopyCommand(tableID *TableID) (string, error)
 }
 
 func NewDataFile(fileName string, offset int64, desc *DataFileDescriptor) DataFile {
 	switch desc.FileType {
-	case FILE_TYPE_CSV:
+	case FILE_TYPE_CSV, FILE_TYPE_TEXT:
 		return NewCSVDataFile(fileName, offset, desc)
 	case FILE_TYPE_ORA2PG:
 		return NewOra2pgDataFile(fileName, offset, desc)
@@ -29,6 +31,7 @@ func NewDataFile(fileName string, offset int64, desc *DataFileDescriptor) DataFi
 
 const (
 	FILE_TYPE_CSV    = "CSV"
+	FILE_TYPE_TEXT   = "TEXT"
 	FILE_TYPE_ORA2PG = "ORA2PG"
 )
 
@@ -51,6 +54,12 @@ func NewCSVDataFile(fileName string, offset int64, desc *DataFileDescriptor) *CS
 
 func (df *CSVDataFile) isDataLine(line string) bool {
 	return !(line == "" || line == `\.`)
+}
+
+func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
+	// TODO Use Desc to correctly set FORMAT, DELIMITER, etc.
+	cmd := fmt.Sprintf("COPY %s.%s FROM STDIN;", tableID.SchemaName, tableID.TableName)
+	return cmd, nil
 }
 
 //============================================================================
@@ -86,6 +95,30 @@ func (df *Ora2pgDataFile) isDataLine(line string) bool {
 		}
 		return false
 	}
+}
+
+func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
+	fh, err := os.Open(df.FileName)
+	if err != nil {
+		return "", err
+	}
+	defer fh.Close()
+
+	scanner := bufio.NewScanner(fh)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if reCopy.MatchString(line) {
+			words := strings.Fields(line)
+			words[1] = fmt.Sprintf("%s.%s", tableID.SchemaName, tableID.TableName)
+			line = strings.Join(words, " ")
+			return line, nil
+		}
+	}
+	err = scanner.Err()
+	if err == nil {
+		err = fmt.Errorf("no COPY statement found in %q", df.FileName)
+	}
+	return "", err
 }
 
 //============================================================================
