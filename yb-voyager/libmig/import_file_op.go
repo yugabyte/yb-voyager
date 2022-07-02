@@ -17,9 +17,10 @@ type ImportFileOp struct {
 	migState         *MigrationState
 	progressReporter *ProgressReporter
 
-	FileName string
-	TableID  *TableID
-	Desc     *DataFileDescriptor
+	FileName    string
+	TableID     *TableID
+	Desc        *DataFileDescriptor
+	CopyCommand string
 
 	BatchSize int
 
@@ -55,6 +56,10 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 		return err
 	}
 	err = op.openDataFile()
+	if err != nil {
+		return err
+	}
+	err = op.setCopyCommand()
 	if err != nil {
 		return err
 	}
@@ -114,6 +119,19 @@ func (op *ImportFileOp) openDataFile() error {
 		return err
 	}
 	return err
+}
+
+func (op *ImportFileOp) setCopyCommand() error {
+	if op.CopyCommand != "" {
+		return nil
+	}
+	cmd, err := op.dataFile.GetCopyCommand(op.TableID)
+	if err != nil {
+		return err
+	}
+	op.CopyCommand = cmd
+	log.Infof("COPY command for %s => %s", op.TableID, cmd)
+	return nil
 }
 
 func (op *ImportFileOp) notifyImportFileStarted() {
