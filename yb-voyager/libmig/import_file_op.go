@@ -72,7 +72,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	for {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
-			err2 := op.migState.MarkBatchPending(op.TableID, batch)
+			err2 := op.migState.MarkBatchPending(batch)
 			if err2 != nil {
 				return err2
 			}
@@ -149,10 +149,10 @@ func (op *ImportFileOp) importBatch(batch *Batch) {
 			op.failedBatchCount++  // stop producing more batches if failedBatchCount exceeds threshold.
 			return
 		}
-		migstate.MarkBatchDone(op.TableID, batch)
+		migstate.MarkBatchDone(batch)
 		progressReporter.AddProgressAmount(...)
 	*/
-	op.migState.MarkBatchDone(op.TableID, batch)
+	op.migState.MarkBatchDone(batch)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile)
 }
 

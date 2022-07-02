@@ -77,17 +77,17 @@ func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, erro
 	return batches, nil
 }
 
-func (migstate *MigrationState) MarkBatchPending(tableID *TableID, batch *Batch) error {
+func (migstate *MigrationState) MarkBatchPending(batch *Batch) error {
 	// Save the batch.
-	batchFileName := migstate.pendingBatchPath(tableID, batch)
+	batchFileName := migstate.pendingBatchPath(batch)
 	err := batch.SaveTo(batchFileName)
 	if err != nil {
 		return err
 	}
 
 	// Update the `last` link.
-	lastPath := filepath.Join(migstate.tableDir(tableID), "last")
-	tmpPath := filepath.Join(migstate.tableDir(tableID), "last.tmp")
+	lastPath := filepath.Join(migstate.tableDir(batch.TableID), "last")
+	tmpPath := filepath.Join(migstate.tableDir(batch.TableID), "last.tmp")
 	// Link() fails if a link with the same name already exists.
 	err = os.Remove(tmpPath)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -104,9 +104,9 @@ func (migstate *MigrationState) MarkBatchPending(tableID *TableID, batch *Batch)
 	return nil
 }
 
-func (migstate *MigrationState) MarkBatchDone(tableID *TableID, batch *Batch) error {
-	fromPath := migstate.pendingBatchPath(tableID, batch)
-	toPath := migstate.doneBatchPath(tableID, batch)
+func (migstate *MigrationState) MarkBatchDone(batch *Batch) error {
+	fromPath := migstate.pendingBatchPath(batch)
+	toPath := migstate.doneBatchPath(batch)
 	err := os.Rename(fromPath, toPath)
 	if err != nil {
 		return err
@@ -130,19 +130,17 @@ func (migstate *MigrationState) failedDir(tableID *TableID) string {
 	return filepath.Join(migstate.tableDir(tableID), "failed")
 }
 
-func (migstate *MigrationState) pendingBatchPath(tableID *TableID, batch *Batch) string {
-	baseName := fmt.Sprintf("%s.%d", tableID.TableName, batch.BatchNumber)
-	return filepath.Join(migstate.pendingDir(tableID), baseName)
+func (migstate *MigrationState) pendingBatchPath(batch *Batch) string {
+	baseName := fmt.Sprintf("%s.%d", batch.TableID.TableName, batch.BatchNumber)
+	return filepath.Join(migstate.pendingDir(batch.TableID), baseName)
 }
 
-func (migstate *MigrationState) doneBatchPath(tableID *TableID, batch *Batch) string {
-	baseName := fmt.Sprintf("%s.%d", tableID.TableName, batch.BatchNumber)
-	return filepath.Join(migstate.doneDir(tableID), baseName)
+func (migstate *MigrationState) doneBatchPath(batch *Batch) string {
+	baseName := fmt.Sprintf("%s.%d", batch.TableID.TableName, batch.BatchNumber)
+	return filepath.Join(migstate.doneDir(batch.TableID), baseName)
 }
 
-/*
-func (migstate *MigrationState) failedBatchPath(tableID *TableID, batch *Batch) string {
-	baseName := fmt.Sprintf("%s.%d", tableID.TableName, batch.BatchNumber)
-	return filepath.Join(migstate.failedDir(tableID), baseName)
+func (migstate *MigrationState) failedBatchPath(batch *Batch) string {
+	baseName := fmt.Sprintf("%s.%d", batch.TableID.TableName, batch.BatchNumber)
+	return filepath.Join(migstate.failedDir(batch.TableID), baseName)
 }
-*/
