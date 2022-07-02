@@ -8,6 +8,7 @@ import (
 )
 
 type Batch struct {
+	TableID        *TableID
 	FileName       string
 	BatchNumber    int
 	StartOffset    int64
@@ -85,6 +86,7 @@ func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	if n > 0 {
 		mgr.lastBatchNumber++
 		batch = &Batch{
+			TableID:        mgr.TableID,
 			FileName:       mgr.FileName,
 			BatchNumber:    mgr.lastBatchNumber,
 			StartOffset:    startOffset,
