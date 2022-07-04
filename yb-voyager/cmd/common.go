@@ -143,7 +143,6 @@ func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesPro
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key])
 		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
-
 	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 
