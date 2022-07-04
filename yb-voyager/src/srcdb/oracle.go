@@ -37,10 +37,31 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 	log.Infof("Querying row count of table %q", tableName)
 	err := ora.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount
+}
+
+func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	var query string
+	if !tableProgressMetadata.IsPartition {
+		query = fmt.Sprintf("SELECT NUM_ROWS FROM USER_TABLES "+
+			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+	} else {
+		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
+			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+	}
+
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	err := ora.db.QueryRow(query).Scan(&approxRowCount)
+	if err != nil {
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName, err)
+	}
+
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName, approxRowCount)
+	return approxRowCount.Int64
 }
 
 func (ora *Oracle) GetVersion() string {

@@ -89,8 +89,8 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	exportDataStart <- true
 
 	err = exportDataCommand.Wait()
-	log.Infof("ora2pg STDOUT: %s", outbuf.String())
-	log.Errorf("ora2pg STDERR: %s", errbuf.String())
+	log.Infof("ora2pg STDOUT: %q", outbuf.String())
+	log.Errorf("ora2pg STDERR: %q", errbuf.String())
 	if err != nil {
 		utils.ErrExit("Data export failed: %v\n%s", err, errbuf.String())
 	}

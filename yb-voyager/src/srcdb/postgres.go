@@ -2,6 +2,7 @@ package srcdb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/jackc/pgx/v4"
@@ -31,16 +32,36 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
+	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionString())
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
+	}
+
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)
-
 	log.Infof("Querying row count of table %q", tableName)
-	err := pg.db.QueryRow(context.Background(), query).Scan(&rowCount)
+	err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount
+}
+
+func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
+		"where oid = '%s'::regclass", tableProgressMetadata.FullTableName) // TODO: approx row count query might be different for table partitions
+
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
+	if err != nil {
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.FullTableName, err)
+	}
+
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.FullTableName, approxRowCount)
+	return approxRowCount.Int64
 }
 
 func (pg *PostgreSQL) GetVersion() string {
