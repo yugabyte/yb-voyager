@@ -36,16 +36,10 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	tableListPatterns := createTableListPatterns(tableList)
 
-	SSLQueryString := generateSSLQueryStringIfNotExists(source)
-
 	// Using pgdump for exporting data in directory format.
-	cmd := ""
-	if source.Uri != "" {
-		cmd = fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.Uri, tableListPatterns, dataDirPath, source.NumConnections)
-	} else {
-		cmd = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`, source.User, source.Password,
-			source.Host, source.Port, source.DBName, SSLQueryString, tableListPatterns, dataDirPath, source.NumConnections)
-	}
+	cmd := fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`,
+		source.sourceDB.GetConnectionUri(), tableListPatterns, dataDirPath, source.NumConnections)
+
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer

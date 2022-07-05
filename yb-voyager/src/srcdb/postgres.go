@@ -21,7 +21,7 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 }
 
 func (pg *PostgreSQL) Connect() error {
-	db, err := pgx.Connect(context.Background(), pg.getConnectionString())
+	db, err := pgx.Connect(context.Background(), pg.GetConnectionUri())
 	pg.db = db
 	return err
 }
@@ -87,15 +87,15 @@ func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
 	panic("Not Implemented")
 }
 
-func (pg *PostgreSQL) getConnectionString() string {
+func (pg *PostgreSQL) GetConnectionUri() string {
 	source := pg.source
-
 	if source.Uri != "" {
 		return source.Uri
 	}
 
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
+	pg.source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+	return pg.source.Uri
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {

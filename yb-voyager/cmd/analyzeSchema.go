@@ -817,18 +817,13 @@ var analyzeSchemaCmd = &cobra.Command{
 
 		//marking flags as required based on conditions
 		cmd.MarkPersistentFlagRequired("source-db-type")
-		if source.Uri == "" { //if uri is not given
-			cmd.MarkPersistentFlagRequired("source-db-user")
-			cmd.MarkPersistentFlagRequired("source-db-password")
-			if source.DBType != ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-name")
-			} else if source.DBType == ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-schema")
-				validateOracleParams()
-			}
-		} else {
-			//check and parse the source
-			source.ParseURI()
+		cmd.MarkPersistentFlagRequired("source-db-user")
+		cmd.MarkPersistentFlagRequired("source-db-password")
+		if source.DBType != ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-name")
+		} else if source.DBType == ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-schema")
+			validateOracleParams()
 		}
 
 		if source.TableList != "" {

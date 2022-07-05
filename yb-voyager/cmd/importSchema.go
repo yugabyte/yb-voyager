@@ -25,7 +25,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -138,37 +137,4 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	}
 
 	return fetchedSchema == targetSchema
-}
-
-func generateSSLQueryStringIfNotExists(t *tgtdb.Target) string {
-	SSLQueryString := ""
-	if t.SSLMode == "" {
-		t.SSLMode = "prefer"
-	}
-	if t.SSLQueryString == "" {
-
-		if t.SSLMode == "disable" || t.SSLMode == "allow" || t.SSLMode == "prefer" || t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
-			SSLQueryString = "sslmode=" + t.SSLMode
-			if t.SSLMode == "require" || t.SSLMode == "verify-ca" || t.SSLMode == "verify-full" {
-				SSLQueryString = fmt.Sprintf("sslmode=%s", t.SSLMode)
-				if t.SSLCertPath != "" {
-					SSLQueryString += "&sslcert=" + t.SSLCertPath
-				}
-				if t.SSLKey != "" {
-					SSLQueryString += "&sslkey=" + t.SSLKey
-				}
-				if t.SSLRootCert != "" {
-					SSLQueryString += "&sslrootcert=" + t.SSLRootCert
-				}
-				if t.SSLCRL != "" {
-					SSLQueryString += "&sslcrl=" + t.SSLCRL
-				}
-			}
-		} else {
-			fmt.Println("Invalid sslmode entered")
-		}
-	} else {
-		SSLQueryString = t.SSLQueryString
-	}
-	return SSLQueryString
 }

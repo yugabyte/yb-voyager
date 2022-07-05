@@ -9,6 +9,7 @@ import (
 
 type SourceDB interface {
 	Connect() error
+	GetConnectionUri() string
 	GetTableRowCount(tableName string) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string

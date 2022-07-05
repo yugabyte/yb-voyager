@@ -21,7 +21,7 @@ func newOracle(s *Source) *Oracle {
 }
 
 func (ora *Oracle) Connect() error {
-	db, err := sql.Open("godror", ora.getConnectionString())
+	db, err := sql.Open("godror", ora.GetConnectionUri())
 	ora.db = db
 	return err
 }
@@ -112,10 +112,13 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) []string {
 	return partitionNames
 }
 
-func (ora *Oracle) getConnectionString() string {
+func (ora *Oracle) GetConnectionUri() string {
 	source := ora.source
-	var connStr string
+	if source.Uri != "" {
+		return source.Uri
+	}
 
+	var connStr string
 	switch true {
 	case source.DBSid != "":
 		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
@@ -129,7 +132,8 @@ func (ora *Oracle) getConnectionString() string {
 			source.User, source.Password, source.Host, source.Port, source.DBName)
 	}
 
-	return connStr
+	ora.source.Uri = connStr
+	return ora.source.Uri
 }
 
 func (ora *Oracle) ExportSchema(exportDir string) {

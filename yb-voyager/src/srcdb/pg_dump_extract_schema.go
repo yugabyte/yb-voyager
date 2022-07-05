@@ -15,18 +15,11 @@ import (
 func pgdumpExtractSchema(source *Source, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
-	SSLQueryString := generateSSLQueryStringIfNotExists(source)
-	preparePgdumpCommandString := ""
 
-	if source.Uri != "" {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s`, source.Uri, filepath.Join(exportDir, "temp", "schema.sql"))
-	} else {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s`, source.User, source.Password, source.Host,
-			source.Port, source.DBName, SSLQueryString, filepath.Join(exportDir, "temp", "schema.sql"))
-	}
-
-	log.Infof("Running command: %s", preparePgdumpCommandString)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s`,
+		source.sourceDB.GetConnectionUri(), filepath.Join(exportDir, "temp", "schema.sql"))
+	log.Infof("Running command: %s", cmd)
+	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
 	stdout, err := preparedYsqldumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
