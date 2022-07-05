@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -41,17 +42,17 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
-		requiredMap = getMappingForTableNameVsTableFileName(exportDir + "/data")
+		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tablesProgressMetadata[key].FullTableName
 
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
-				tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/" + requiredMap[fullTableName]
+				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
 				if tablesProgressMetadata[key].TableSchema == "public" {
-					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + tableName + "_data.sql"
+					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName+"_data.sql")
 				} else {
-					tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + fullTableName + "_data.sql"
+					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", fullTableName+"_data.sql")
 				}
 			} else {
 				log.Infof("deleting an entry %q from tablesProgressMetadata: ", key)
@@ -65,8 +66,8 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 			// if tablesProgressMetadata[key].IsPartition {
 			// 	targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
 			// }
-			tablesProgressMetadata[key].InProgressFilePath = exportDir + "/data/tmp_" + targetTableName + "_data.sql"
-			tablesProgressMetadata[key].FinalFilePath = exportDir + "/data/" + targetTableName + "_data.sql"
+			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
+			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
 		}
 	}
 
@@ -78,7 +79,7 @@ func UpdateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 }
 
 func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
-	tocTextFilePath := dataDirPath + "/toc.txt"
+	tocTextFilePath := filepath.Join(dataDirPath, "toc.txt")
 	// waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
 		// waitingFlag = 1
@@ -131,7 +132,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	}
 
 	//extracted SQL for setval() and put it into a postexport.sql file
-	ioutil.WriteFile(dataDirPath+"/postdata.sql", []byte(sequencesPostData.String()), 0644)
+	ioutil.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
 	return tableNameVsFileNameMap
 }
 
@@ -233,14 +234,14 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	projectDirPath := exportDir
 
 	for _, subdir := range projectSubdirs {
-		err := exec.Command("mkdir", "-p", projectDirPath+"/"+subdir).Run()
+		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath, err)
 		}
 	}
 
 	// Put info to metainfo/schema about the source db
-	sourceInfoFile := projectDirPath + "/metainfo/schema/" + "source-db-" + dbType
+	sourceInfoFile := filepath.Join(projectDirPath, "metainfo", "schema", "source-db-"+dbType)
 	_, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
 	if err != nil {
 		utils.ErrExit("coludn't touch file %q: %v", sourceInfoFile, err)
@@ -255,9 +256,9 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 		databaseObjectDirName := strings.ToLower(schemaObjectType) + "s"
 
-		err := exec.Command("mkdir", "-p", projectDirPath+"/schema/"+databaseObjectDirName).Run()
+		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, "schema", databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath+"/schema", err)
+			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
 
