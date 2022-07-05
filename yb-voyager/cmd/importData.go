@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -839,15 +840,16 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 
 			dbVersion := targetServer.DB().GetVersion()
 
-			for i, statement := range IMPORT_SESSION_SETTERS {
-				if checkSessionVariableSupported(i, dbVersion) {
-					_, err := conn.Exec(context.Background(), statement)
-					if err != nil {
-						utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
+			if !addCustomSessionVars(conn) {
+				for i, statement := range IMPORT_SESSION_SETTERS {
+					if checkSessionVariableSupported(i, dbVersion) {
+						_, err := conn.Exec(context.Background(), statement)
+						if err != nil {
+							utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
+						}
 					}
 				}
 			}
-
 			reader, err := os.Open(inProgressFilePath)
 			if err != nil {
 				utils.ErrExit("open %q: %s", inProgressFilePath, err)
@@ -901,6 +903,35 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 			time.Sleep(200 * time.Millisecond)
 		}
 	}
+}
+
+func addCustomSessionVars(conn *pgx.Conn) bool {
+	sessionVarsPath := exportDir + "/metainfo/yb_session_vars.sql"
+	if _, err := os.Stat(sessionVarsPath); errors.Is(err, os.ErrNotExist) {
+		return false
+	}
+	utils.PrintAndLog("Using custom session variables from %s.", sessionVarsPath)
+	varsFile, err := os.Open(sessionVarsPath)
+	if err != nil {
+		utils.ErrExit("Error while opening yb_session_vars.sql: %v", err)
+	}
+	defer varsFile.Close()
+	fileScanner := bufio.NewScanner(varsFile)
+	fileScanner.Split(bufio.ScanLines)
+
+	var curLine string
+	setVarRegex := regexp.MustCompile(`(?i)SET `)
+	for fileScanner.Scan() {
+		curLine = fileScanner.Text()
+		if !setVarRegex.MatchString(curLine) {
+			utils.ErrExit("Only SET statements allowed in yb_session_vars.sql. Found: %s.", curLine)
+		}
+		_, err := conn.Exec(context.Background(), curLine)
+		if err != nil {
+			utils.ErrExit("Error while modifying custom session variables: %v")
+		}
+	}
+	return true
 }
 
 /*

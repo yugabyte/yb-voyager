@@ -22,6 +22,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 	} else {
 		utils.PrintAndLog("Using custom base_ora2pg.conf for migration.")
 		source.PopulateOra2pgConfigFile(customConfigFilePath)
+		configFilePath = customConfigFilePath
 	}
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
