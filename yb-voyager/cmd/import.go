@@ -54,10 +54,7 @@ func validateImportFlags(cmd *cobra.Command) {
 	checkExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
-	if target.Uri == "" {
-		cmd.MarkFlagRequired("target-db-user")
-		cmd.MarkFlagRequired("target-db-password")
-	}
+
 	if target.TableList != "" {
 		checkTableListFlag(target.TableList)
 	}
@@ -75,15 +72,14 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&target.User, "target-db-user", "",
 		"Username with which to connect to the target YugabyteDB server")
+	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&target.Password, "target-db-password", "",
 		"Password with which to connect to the target YugabyteDB server")
+	cmd.MarkFlagRequired("target-db-password")
 
 	cmd.Flags().StringVar(&target.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
 		"Name of the database on the target YugabyteDB server on which import needs to be done")
-
-	cmd.Flags().StringVar(&target.Uri, "target-db-uri", "",
-		"Complete connection uri to the target YugabyteDB server")
 
 	cmd.Flags().StringVar(&target.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
@@ -165,11 +161,9 @@ func validateTargetPortRange() {
 }
 
 func checkOrSetDefaultTargetSSLMode() {
-	if target.Uri == "" {
-		if target.SSLMode == "" {
-			target.SSLMode = "prefer"
-		} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
-			utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
-		}
+	if target.SSLMode == "" {
+		target.SSLMode = "prefer"
+	} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
+		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
 	}
 }

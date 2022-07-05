@@ -31,17 +31,8 @@ import (
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 	projectDirPath := exportDir
 
-	targetConnectionURI := ""
-	if target.Uri == "" {
-		targetConnectionURI = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
-			target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
-	} else {
-		targetConnectionURI = target.Uri
-	}
-
 	//this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
-
 	for _, importObjectType := range importObjectOrderList {
 		var importObjectDirPath, importObjectFilePath string
 
@@ -65,7 +56,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 
 		log.Infof("Importing %q", importObjectFilePath)
 
-		conn, err := pgx.Connect(context.Background(), targetConnectionURI)
+		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel
