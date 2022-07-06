@@ -68,6 +68,8 @@ func (ora *Oracle) GetAllTableNames() []string {
 			SELECT log_owner, log_table
 			FROM all_mview_logs)
 		ORDER BY table_name ASC`, ora.source.Schema)
+	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
+
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v", err)

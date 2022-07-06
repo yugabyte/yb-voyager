@@ -58,6 +58,8 @@ func (ms *MySQL) GetAllTableNames() []string {
 	var tableNames []string
 	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
 		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", ms.source.DBName)
+	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
+
 	rows, err := ms.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v\n", err)
