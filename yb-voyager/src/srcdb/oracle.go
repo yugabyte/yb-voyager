@@ -21,7 +21,7 @@ func newOracle(s *Source) *Oracle {
 }
 
 func (ora *Oracle) Connect() error {
-	db, err := sql.Open("godror", ora.getConnectionString())
+	db, err := sql.Open("godror", ora.getConnectionUri())
 	ora.db = db
 	return err
 }
@@ -112,24 +112,26 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) []string {
 	return partitionNames
 }
 
-func (ora *Oracle) getConnectionString() string {
+func (ora *Oracle) getConnectionUri() string {
 	source := ora.source
-	var connStr string
+	if source.Uri != "" {
+		return source.Uri
+	}
 
 	switch true {
 	case source.DBSid != "":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
+		source.Uri = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
 			source.User, source.Password, source.Host, source.Port, source.DBSid)
 
 	case source.TNSAlias != "":
-		connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
+		source.Uri = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
 
 	case source.DBName != "":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+		source.Uri = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
 			source.User, source.Password, source.Host, source.Port, source.DBName)
 	}
 
-	return connStr
+	return source.Uri
 }
 
 func (ora *Oracle) ExportSchema(exportDir string) {

@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -29,31 +30,20 @@ import (
 )
 
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
-	projectDirPath := exportDir
-
-	targetConnectionURI := ""
-	if target.Uri == "" {
-		targetConnectionURI = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
-			target.User, target.Password, target.Host, target.Port, target.DBName, generateSSLQueryStringIfNotExists(target))
-	} else {
-		targetConnectionURI = target.Uri
-	}
-
 	//this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
-
 	for _, importObjectType := range importObjectOrderList {
 		var importObjectDirPath, importObjectFilePath string
 
 		if importObjectType != "INDEX" {
-			importObjectDirPath = projectDirPath + "/schema/" + strings.ToLower(importObjectType) + "s"
-			importObjectFilePath = importObjectDirPath + "/" + strings.ToLower(importObjectType) + ".sql"
+			importObjectDirPath = filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
+			importObjectFilePath = filepath.Join(importObjectDirPath, strings.ToLower(importObjectType)+".sql")
 		} else {
 			if target.ImportIndexesAfterData {
 				continue
 			}
-			importObjectDirPath = projectDirPath + "/schema/" + "tables"
-			importObjectFilePath = importObjectDirPath + "/" + "INDEXES_table.sql"
+			importObjectDirPath = filepath.Join(exportDir, "schema", "tables")
+			importObjectFilePath = filepath.Join(importObjectDirPath, "INDEXES_table.sql")
 		}
 
 		if !utils.FileOrFolderExists(importObjectFilePath) {
@@ -65,7 +55,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 
 		log.Infof("Importing %q", importObjectFilePath)
 
-		conn, err := pgx.Connect(context.Background(), targetConnectionURI)
+		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel

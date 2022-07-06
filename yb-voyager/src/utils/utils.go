@@ -215,9 +215,9 @@ func PrettifyJsonString(jsonStr string) string {
 func GetObjectDirPath(schemaDirPath string, objType string) string {
 	var requiredPath string
 	if objType == "INDEX" {
-		requiredPath = schemaDirPath + "/tables"
+		requiredPath = filepath.Join(schemaDirPath, "tables")
 	} else {
-		requiredPath = schemaDirPath + "/" + strings.ToLower(objType) + "s"
+		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s")
 	}
 	return requiredPath
 }
@@ -225,10 +225,10 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
 	if objType == "INDEX" {
-		requiredPath = schemaDirPath + "/tables/INDEXES_table.sql"
+		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else {
-		requiredPath = schemaDirPath + "/" + strings.ToLower(objType) + "s/" +
-			strings.ToLower(objType) + ".sql"
+		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s",
+			strings.ToLower(objType)+".sql")
 	}
 	return requiredPath
 }
