@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -11,21 +12,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, exportDir string) {
+func pgdumpExtractSchema(connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
-	SSLQueryString := generateSSLQueryStringIfNotExists(source)
-	preparePgdumpCommandString := ""
 
-	if source.Uri != "" {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
-	} else {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
-			source.Port, source.DBName, SSLQueryString, exportDir)
-	}
-
-	log.Infof("Running command: %s", preparePgdumpCommandString)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s`,
+		connectionUri, filepath.Join(exportDir, "temp", "schema.sql"))
+	log.Infof("Running command: %s", cmd)
+	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
 	stdout, err := preparedYsqldumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
@@ -39,7 +33,7 @@ func pgdumpExtractSchema(source *Source, exportDir string) {
 	}
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(source, exportDir)
+	parseSchemaFile(exportDir)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- 0
@@ -47,10 +41,10 @@ func pgdumpExtractSchema(source *Source, exportDir string) {
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(source *Source, exportDir string) {
+func parseSchemaFile(exportDir string) {
 	log.Info("Begun parsing the schema file.")
-	schemaFilePath := exportDir + "/temp" + "/schema.sql"
-	schemaDirPath := exportDir + "/schema"
+	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
+	schemaDirPath := filepath.Join(exportDir, "schema")
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read file %q: %v", schemaFilePath, err)
@@ -129,27 +123,27 @@ func parseSchemaFile(source *Source, exportDir string) {
 	//TODO: convert below code into a for-loop
 
 	//writing to .sql files in project
-	ioutil.WriteFile(schemaDirPath+"/tables/table.sql", []byte(setSessionVariables.String()+createTableSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/tables/INDEXES_table.sql", []byte(setSessionVariables.String()+createIndexSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/functions/function.sql", []byte(setSessionVariables.String()+createFunctionSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/procedures/procedure.sql", []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/triggers/trigger.sql", []byte(setSessionVariables.String()+createTriggerSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "tables", "table.sql"), []byte(setSessionVariables.String()+createTableSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql"), []byte(setSessionVariables.String()+createIndexSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "functions", "function.sql"), []byte(setSessionVariables.String()+createFunctionSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "procedures", "procedure.sql"), []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "triggers", "trigger.sql"), []byte(setSessionVariables.String()+createTriggerSqls.String()), 0644)
 
-	ioutil.WriteFile(schemaDirPath+"/types/type.sql", []byte(setSessionVariables.String()+createTypeSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/domains/domain.sql", []byte(setSessionVariables.String()+createDomainSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "types", "type.sql"), []byte(setSessionVariables.String()+createTypeSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "domains", "domain.sql"), []byte(setSessionVariables.String()+createDomainSqls.String()), 0644)
 
-	ioutil.WriteFile(schemaDirPath+"/aggregates/aggregate.sql", []byte(setSessionVariables.String()+createAggregateSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/mviews/mview.sql", []byte(setSessionVariables.String()+createMatViewSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "aggregates", "aggregate.sql"), []byte(setSessionVariables.String()+createAggregateSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "rules", "rule.sql"), []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "sequences", "sequence.sql"), []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "views", "view.sql"), []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "mviews", "mview.sql"), []byte(setSessionVariables.String()+createMatViewSqls.String()), 0644)
 
 	if uncategorizedSqls.Len() > 0 {
-		ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		ioutil.WriteFile(filepath.Join(schemaDirPath, "uncategorized.sql"), []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 	}
 
-	ioutil.WriteFile(schemaDirPath+"/schemas/schema.sql", []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/extensions/extension.sql", []byte(setSessionVariables.String()+createExtensionSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "schemas", "schema.sql"), []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
+	ioutil.WriteFile(filepath.Join(schemaDirPath, "extensions", "extension.sql"), []byte(setSessionVariables.String()+createExtensionSqls.String()), 0644)
 
 }
 

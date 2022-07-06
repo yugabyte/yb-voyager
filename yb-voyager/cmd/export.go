@@ -48,18 +48,13 @@ var exportCmd = &cobra.Command{
 
 		//marking flags as required based on conditions
 		cmd.MarkPersistentFlagRequired("source-db-type")
-		if source.Uri == "" { //if uri is not given
-			cmd.MarkPersistentFlagRequired("source-db-user")
-			cmd.MarkPersistentFlagRequired("source-db-password")
-			if source.DBType != ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-name")
-			} else if source.DBType == ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-schema")
-				validateOracleParams()
-			}
-		} else {
-			//check and parse the source
-			source.ParseURI()
+		cmd.MarkPersistentFlagRequired("source-db-user")
+		cmd.MarkPersistentFlagRequired("source-db-password")
+		if source.DBType != ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-name")
+		} else if source.DBType == ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-schema")
+			validateOracleParams()
 		}
 
 		if source.TableList != "" {
@@ -139,17 +134,6 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	cmd.PersistentFlags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
 		"provide SSL Root Certificate Revocation List (CRL)")
-
-	cmd.PersistentFlags().StringVar(&source.Uri, "source-db-uri", "",
-		`URI for connecting to the source database
-	format:
-		1. Oracle:	user/password@//host:port:SID	OR
-				user/password@//host:port/service_name	OR
-				user/password@TNS_alias
-		2. MySQL:	mysql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-		3. PostgreSQL:	postgresql://[user[:[password]]@]host[:port][/dbname][?sslmode=mode&sslcert=cert_path...]
-		
-	`)
 
 	cmd.PersistentFlags().BoolVar(&startClean, "start-clean", false,
 		"clean the project's data directory for already existing files before start(Note: works only for export data command)")

@@ -139,7 +139,7 @@ func getYBServers() []*tgtdb.Target {
 		if err != nil {
 			utils.ErrExit("Error resolving host: %v\n", err)
 		}
-		url := getTargetConnectionUri(&target)
+		url := target.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
 			utils.ErrExit("Unable to connect to database: %v", err)
@@ -217,7 +217,7 @@ func testYbServers(targets []*tgtdb.Target) {
 	}
 	for _, target := range targets {
 		log.Infof("testing server: %s\n", spew.Sdump(target))
-		conn, err := pgx.Connect(context.Background(), target.Uri)
+		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
 			utils.ErrExit("error while testing yb servers: %v", err)
 		}
@@ -230,7 +230,7 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 	var cloneConnectionUri string
 	if clone.Uri == "" {
 		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
-		cloneConnectionUri = getTargetConnectionUri(clone)
+		cloneConnectionUri = clone.GetConnectionUri()
 	} else {
 		targetConnectionUri, err := url.Parse(clone.Uri)
 		if err == nil {
@@ -241,17 +241,6 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 		}
 	}
 	return cloneConnectionUri
-}
-
-func getTargetConnectionUri(targetStruct *tgtdb.Target) string {
-	if len(targetStruct.Uri) != 0 {
-		return targetStruct.Uri
-	} else {
-		uri := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?%s",
-			targetStruct.User, targetStruct.Password, targetStruct.Host, targetStruct.Port, targetStruct.DBName, generateSSLQueryStringIfNotExists(targetStruct))
-		targetStruct.Uri = uri
-		return uri
-	}
 }
 
 func importData() {
@@ -414,7 +403,7 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 }
 
 func checkPrimaryKey(tableName string) bool {
-	url := getTargetConnectionUri(&target)
+	url := target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), url)
 	if err != nil {
 		utils.ErrExit("Unable to connect to database (uri=%s): %s", url, err)
