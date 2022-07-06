@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
 	dataDirPath := exportDir + "/data"
@@ -38,7 +38,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	// Using pgdump for exporting data in directory format.
 	cmd := fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`,
-		source.sourceDB.GetConnectionUri(), tableListPatterns, dataDirPath, source.NumConnections)
+	connectionUri, tableListPatterns, dataDirPath, source.NumConnections)
 
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
