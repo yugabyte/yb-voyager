@@ -2,10 +2,9 @@ package srcdb
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
-	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -14,15 +13,15 @@ import (
 )
 
 func ora2pgExtractSchema(source *Source, exportDir string) {
-	schemaDirPath := exportDir + "/schema"
-	customConfigFilePath := exportDir + "/metainfo/base_ora2pg.conf"
-	configFilePath := exportDir + "/temp/.ora2pg.conf"
-	if _, err := os.Stat(customConfigFilePath); errors.Is(err, os.ErrNotExist) {
-		source.PopulateOra2pgConfigFile(configFilePath)
-	} else {
-		utils.PrintAndLog("Using custom base_ora2pg.conf for migration.")
+	schemaDirPath := filepath.Join(exportDir, "schema")
+	customConfigFilePath := filepath.Join(exportDir, "metainfo", "base_ora2pg.conf")
+	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
+	if utils.FileOrFolderExists(customConfigFilePath) {
+		utils.PrintAndLog("Using custom base_ora2pg.conf for schema migration.")
 		source.PopulateOra2pgConfigFile(customConfigFilePath)
 		configFilePath = customConfigFilePath
+	} else {
+		source.PopulateOra2pgConfigFile(configFilePath)
 	}
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)

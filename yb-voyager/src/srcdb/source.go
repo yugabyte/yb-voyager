@@ -151,12 +151,21 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 }
 
 //go:embed data/sample-ora2pg.conf
-var SampleOra2pgConfigFile string
+var Ora2pgConfigFile string
 
 func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 	sourceDSN := source.getSourceDSN()
-
-	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
+	var SampleOra2pgConfigFile string
+	if strings.HasSuffix(configFilePath, "base_ora2pg.conf") {
+		Ora2pgConfigFile, err := ioutil.ReadFile(configFilePath)
+		if err != nil {
+			utils.ErrExit("Error while reading custom ora2pg configuration file: %v", err)
+		}
+		SampleOra2pgConfigFile = string(Ora2pgConfigFile)
+	} else {
+		SampleOra2pgConfigFile = Ora2pgConfigFile
+	}
+	lines := strings.Split(SampleOra2pgConfigFile, "\n")
 
 	for i, line := range lines {
 		if strings.HasPrefix(line, "ORACLE_DSN") {

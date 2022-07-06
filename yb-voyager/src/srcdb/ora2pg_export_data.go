@@ -63,6 +63,14 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	defer utils.WaitGroup.Done()
 
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
+	customConfigFilePath := filepath.Join(exportDir, "metainfo", "base_ora2pg.conf")
+	if utils.FileOrFolderExists(customConfigFilePath) {
+		utils.PrintAndLog("Using custom base_ora2pg.conf for data migration.")
+		source.PopulateOra2pgConfigFile(customConfigFilePath)
+		configFilePath = customConfigFilePath
+	} else {
+		source.PopulateOra2pgConfigFile(configFilePath)
+	}
 	source.PopulateOra2pgConfigFile(configFilePath)
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
