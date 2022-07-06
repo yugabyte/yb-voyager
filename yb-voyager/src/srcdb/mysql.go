@@ -22,7 +22,7 @@ func newMySQL(s *Source) *MySQL {
 }
 
 func (ms *MySQL) Connect() error {
-	db, err := sql.Open("mysql", ms.GetConnectionUri())
+	db, err := sql.Open("mysql", ms.getConnectionUri())
 	ms.db = db
 	return err
 }
@@ -78,7 +78,7 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
 	panic("Not Implemented")
 }
 
-func (ms *MySQL) GetConnectionUri() string {
+func (ms *MySQL) getConnectionUri() string {
 	source := ms.source
 	if source.Uri != "" {
 		return source.Uri
@@ -105,9 +105,9 @@ func (ms *MySQL) GetConnectionUri() string {
 		panic(errMsg)
 	}
 
-	ms.source.Uri = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
+	source.Uri = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, tlsString)
-	return ms.source.Uri
+	return source.Uri
 }
 
 func (ms *MySQL) ExportSchema(exportDir string) {

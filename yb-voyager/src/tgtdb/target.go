@@ -45,7 +45,6 @@ func (t *Target) GetConnectionUri() string {
 		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
 			t.User, t.Password, t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
 	}
-	//TODO: else do a regex match for the correct Uri pattern of user input
 
 	return t.Uri
 }

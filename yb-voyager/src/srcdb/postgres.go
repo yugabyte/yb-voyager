@@ -21,7 +21,7 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 }
 
 func (pg *PostgreSQL) Connect() error {
-	db, err := pgx.Connect(context.Background(), pg.GetConnectionUri())
+	db, err := pgx.Connect(context.Background(), pg.getConnectionUri())
 	pg.db = db
 	return err
 }
@@ -87,23 +87,23 @@ func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
 	panic("Not Implemented")
 }
 
-func (pg *PostgreSQL) GetConnectionUri() string {
+func (pg *PostgreSQL) getConnectionUri() string {
 	source := pg.source
 	if source.Uri != "" {
 		return source.Uri
 	}
 
-	pg.source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
+	source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
-	return pg.source.Uri
+	return source.Uri
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pgdumpExtractSchema(pg.source, exportDir)
+	pgdumpExtractSchema(pg.getConnectionUri(), exportDir)
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	pgdumpExportDataOffline(ctx, pg.source, exportDir, tableList, quitChan, exportDataStart)
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
