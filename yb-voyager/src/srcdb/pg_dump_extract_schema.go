@@ -12,7 +12,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
+func pgdumpExtractSchema(connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 
@@ -33,7 +33,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	}
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(source, exportDir)
+	parseSchemaFile(exportDir)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- 0
@@ -41,7 +41,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(source *Source, exportDir string) {
+func parseSchemaFile(exportDir string) {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 	schemaDirPath := filepath.Join(exportDir, "schema")
