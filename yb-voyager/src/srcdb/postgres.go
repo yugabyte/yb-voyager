@@ -55,6 +55,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableP
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
 		"where oid = '%s'::regclass", tableProgressMetadata.FullTableName)
+	// table partition names are under schema as a namespace
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
 	if err != nil {
