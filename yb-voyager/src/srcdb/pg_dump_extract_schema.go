@@ -80,34 +80,13 @@ func parseSchemaFile(exportDir string) {
 
 			// TODO: TABLESPACE
 			switch sqlType {
-			case "SCHEMA":
-				objSqlStmts["SCHEMA"].WriteString(sqlStatement)
-			case "TYPE":
-				objSqlStmts["TYPE"].WriteString(sqlStatement)
-			case "DOMAIN":
-				objSqlStmts["DOMAIN"].WriteString(sqlStatement)
-			case "SEQUENCE":
-				objSqlStmts["SEQUENCE"].WriteString(sqlStatement)
+			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
+				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION":
+				objSqlStmts[sqlType].WriteString(sqlStatement)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				objSqlStmts["TABLE"].WriteString(sqlStatement)
-			case "INDEX":
-				objSqlStmts["INDEX"].WriteString(sqlStatement)
-			case "RULE":
-				objSqlStmts["RULE"].WriteString(sqlStatement)
-			case "FUNCTION":
-				objSqlStmts["FUNCTION"].WriteString(sqlStatement)
-			case "AGGREGATE":
-				objSqlStmts["AGGREGATE"].WriteString(sqlStatement)
-			case "PROCEDURE":
-				objSqlStmts["PROCEDURE"].WriteString(sqlStatement)
-			case "VIEW":
-				objSqlStmts["VIEW"].WriteString(sqlStatement)
-			case "TRIGGER":
-				objSqlStmts["TRIGGER"].WriteString(sqlStatement)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(sqlStatement)
-			case "EXTENSION":
-				objSqlStmts["EXTENSION"].WriteString(sqlStatement)
 			default:
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
@@ -123,14 +102,15 @@ func parseSchemaFile(exportDir string) {
 	}
 
 	for objType, sqlStmts := range objSqlStmts {
-		if sqlStmts.Len() > 0 { // create .sql file only if there are DDLs
-			filePath := utils.GetObjectFilePath(schemaDirPath, objType)
-			dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
+		if sqlStmts.Len() == 0 { // create .sql file only if there are DDLs
+			continue
+		}
+		filePath := utils.GetObjectFilePath(schemaDirPath, objType)
+		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
-			err := ioutil.WriteFile(filePath, dataBytes, 0644)
-			if err != nil {
-				utils.ErrExit("Failed to create sql file for for %q: %v", objType, err)
-			}
+		err := ioutil.WriteFile(filePath, dataBytes, 0644)
+		if err != nil {
+			utils.ErrExit("Failed to create sql file for for %q: %v", objType, err)
 		}
 	}
 
