@@ -48,10 +48,10 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 	var query string
 	if !tableProgressMetadata.IsPartition {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM USER_TABLES "+
-			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
 	} else {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
-			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName)
 	}
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
