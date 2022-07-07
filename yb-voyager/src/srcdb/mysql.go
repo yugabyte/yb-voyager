@@ -38,10 +38,25 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount
+}
+
+func (ms *MySQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
+		"where table_name = '%s'", tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	err := ms.db.QueryRow(query).Scan(&approxRowCount)
+	if err != nil {
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName, err)
+	}
+
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName, approxRowCount)
+	return approxRowCount.Int64
 }
 
 func (ms *MySQL) GetVersion() string {
