@@ -33,7 +33,7 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
-	conn, err := pgx.Connect(context.Background(), pg.getConnectionString())
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
 	}
