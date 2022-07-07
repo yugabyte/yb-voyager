@@ -136,53 +136,25 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	return tableNameVsFileNameMap
 }
 
-func UpdateTableRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var maxTableLines, totalTableLines int64
-
 	payload := callhome.GetPayload(exportDir)
 
-	fmt.Println("calculating num of rows to export for each table...")
-	if !source.VerboseMode {
-		go utils.Wait()
-	}
-
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
-	utils.PrintIfTrue(fmt.Sprintf("| %50s | %20s |\n", "Table", "Row Count"), source.VerboseMode)
-
+	utils.PrintAndLog("calculating approx num of rows to export for each table...")
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
-		utils.PrintIfTrue(fmt.Sprintf("|%s|\n", strings.Repeat("-", 75)), source.VerboseMode)
-
-		utils.PrintIfTrue(fmt.Sprintf("| %50s ", key), source.VerboseMode)
-
-		if source.VerboseMode {
-			go utils.Wait()
+		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key])
+		if approxRowCount > maxTableLines {
+			maxTableLines = approxRowCount
 		}
+		totalTableLines += approxRowCount
 
-		rowCount := source.DB().GetTableRowCount(tablesProgressMetadata[key].FullTableName)
-
-		if rowCount > maxTableLines {
-			maxTableLines = rowCount
-		}
-		totalTableLines += rowCount
-
-		if source.VerboseMode {
-			utils.WaitChannel <- 0
-			<-utils.WaitChannel
-		}
-
-		tablesProgressMetadata[key].CountTotalRows = rowCount
-		utils.PrintIfTrue(fmt.Sprintf("| %20d |\n", rowCount), source.VerboseMode)
-	}
-	utils.PrintIfTrue(fmt.Sprintf("+%s+\n", strings.Repeat("-", 75)), source.VerboseMode)
-	if !source.VerboseMode {
-		utils.WaitChannel <- 0
-		<-utils.WaitChannel
+		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
 
 	payload.LargestTableRows = maxTableLines
 	payload.TotalRows = totalTableLines
-	log.Tracef("After updating total row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
+	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 
 func GetTableRowCount(filePath string) map[string]int64 {
