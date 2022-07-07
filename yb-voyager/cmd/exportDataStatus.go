@@ -72,7 +72,7 @@ func initializeExportTableMetadata(tableList []string) {
 
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
-		if source.DBType == ORACLE {
+		if source.DBType == ORACLE || source.DBType == MYSQL {
 			partitionList := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionList) > 0 {
 				utils.PrintAndLog("Table %q has partitions: %v", parentTable, partitionList)
@@ -82,6 +82,9 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
 					tablesProgressMetadata[key].TableSchema = source.Schema
+					if source.DBType == MYSQL { // for a table in MySQL: database and schema is same
+						tablesProgressMetadata[key].TableSchema = source.DBName
+					}
 					tablesProgressMetadata[key].TableName = partitionName
 
 					// partition are unique under a table in oracle

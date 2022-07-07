@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -144,28 +143,6 @@ func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesPro
 		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
 	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
-}
-
-func GetTableRowCount(filePath string) map[string]int64 {
-	tableRowCountMap := make(map[string]int64)
-
-	fileBytes, err := ioutil.ReadFile(filePath)
-	if err != nil {
-		utils.ErrExit("read file %q: %s", filePath, err)
-	}
-
-	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
-
-	for _, line := range lines {
-		tableName := strings.Split(line, ",")[0]
-		rowCount := strings.Split(line, ",")[1]
-		rowCountInt64, _ := strconv.ParseInt(rowCount, 10, 64)
-
-		tableRowCountMap[tableName] = rowCountInt64
-	}
-
-	log.Infof("tableRowCountMap: %v", tableRowCountMap)
-	return tableRowCountMap
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {
