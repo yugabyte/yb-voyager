@@ -137,14 +137,9 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var maxTableLines, totalTableLines int64
-
 	payload := callhome.GetPayload(exportDir)
 
 	utils.PrintAndLog("calculating approx num of rows to export for each table...")
-	if !source.VerboseMode {
-		go utils.Wait()
-	}
-
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key])
@@ -156,10 +151,6 @@ func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesPro
 		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
 
-	if !source.VerboseMode {
-		utils.WaitChannel <- 0
-		<-utils.WaitChannel
-	}
 	payload.LargestTableRows = maxTableLines
 	payload.TotalRows = totalTableLines
 	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)

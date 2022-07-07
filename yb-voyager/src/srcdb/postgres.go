@@ -37,6 +37,7 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
 	}
+	defer conn.Close(context.Background())
 
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)
