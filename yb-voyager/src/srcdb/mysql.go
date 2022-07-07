@@ -112,12 +112,14 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
 
 	var partitionNames []string
 	for rows.Next() {
-		var partitionName string
+		var partitionName sql.NullString
 		err = rows.Scan(&partitionName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}
-		partitionNames = append(partitionNames, partitionName)
+		if partitionName.Valid {
+			partitionNames = append(partitionNames, partitionName.String)
+		}
 	}
 	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
 	return partitionNames
