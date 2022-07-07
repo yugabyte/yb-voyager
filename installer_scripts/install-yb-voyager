@@ -280,9 +280,11 @@ install_ora2pg() {
 	sudo cpanm DBD::mysql Test::NoWarnings DBD::Oracle 1>&2
 
 	output "Installing ora2pg."
-	wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
-	tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
-	cd ora2pg-${ORA2PG_VERSION}/
+	# wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
+	# tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
+	# cd ora2pg-${ORA2PG_VERSION}/
+	git clone https://github.com/darold/ora2pg.git # master branch
+	cd ora2pg
 	perl Makefile.PL 1>&2
 	make 1>&2
 	sudo make install 1>&2
