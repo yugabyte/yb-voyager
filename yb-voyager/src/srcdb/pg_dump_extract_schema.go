@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -11,21 +12,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, exportDir string) {
+func pgdumpExtractSchema(connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
-	SSLQueryString := generateSSLQueryStringIfNotExists(source)
-	preparePgdumpCommandString := ""
 
-	if source.Uri != "" {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.Uri, exportDir)
-	} else {
-		preparePgdumpCommandString = fmt.Sprintf(`pg_dump "postgresql://%s:%s@%s:%d/%s?%s" --schema-only --no-owner -f %s/temp/schema.sql`, source.User, source.Password, source.Host,
-			source.Port, source.DBName, SSLQueryString, exportDir)
-	}
-
-	log.Infof("Running command: %s", preparePgdumpCommandString)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", preparePgdumpCommandString)
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s --no-privileges`,
+		connectionUri, filepath.Join(exportDir, "temp", "schema.sql"))
+	log.Infof("Running command: %s", cmd)
+	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
 	stdout, err := preparedYsqldumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
@@ -39,7 +33,7 @@ func pgdumpExtractSchema(source *Source, exportDir string) {
 	}
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(source, exportDir)
+	parseSchemaFile(exportDir)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- 0
@@ -47,10 +41,10 @@ func pgdumpExtractSchema(source *Source, exportDir string) {
 }
 
 //NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(source *Source, exportDir string) {
+func parseSchemaFile(exportDir string) {
 	log.Info("Begun parsing the schema file.")
-	schemaFilePath := exportDir + "/temp" + "/schema.sql"
-	schemaDirPath := exportDir + "/schema"
+	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
+	schemaDirPath := filepath.Join(exportDir, "schema")
 	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read file %q: %v", schemaFilePath, err)
@@ -61,57 +55,38 @@ func parseSchemaFile(source *Source, exportDir string) {
 
 	sessionVariableStartPattern := regexp.MustCompile("-- Dumped by pg_dump.*")
 
-	//For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+	// For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 	sqlTypeInfoCommentPattern := regexp.MustCompile("--.*Type:.*")
 
-	var createTableSqls, createFunctionSqls, createTriggerSqls,
-		createIndexSqls, createTypeSqls, createSequenceSqls, createDomainSqls,
-		createRuleSqls, createAggregateSqls, createViewSqls, createMatViewSqls, uncategorizedSqls,
-		createSchemaSqls, createExtensionSqls, createProcedureSqls, setSessionVariables strings.Builder
+	// map to store the sql statements for each db object type
+	// map's key are based on the elements of 'utils.postgresSchemaObjectList' array
+	objSqlStmts := make(map[string]*strings.Builder)
+
+	// initialize the map
+	pgObjList := utils.GetSchemaObjectList("postgresql")
+	for _, objType := range pgObjList {
+		objSqlStmts[objType] = &strings.Builder{}
+	}
+
+	var uncategorizedSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
 	for i := 0; i < numLines; i++ {
 		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
 
-			i += 2 //jumping to start of sql statement
+			i += 2 // jumping to start of sql statement
 			sqlStatement := extractSqlStatements(schemaFileLines, &i)
 
-			//Missing: PARTITION, PROCEDURE, MVIEW, TABLESPACE, ROLE, GRANT ...
+			// TODO: TABLESPACE
 			switch sqlType {
+			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
+				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION":
+				objSqlStmts[sqlType].WriteString(sqlStatement)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
-				createTableSqls.WriteString(sqlStatement)
-			case "INDEX":
-				createIndexSqls.WriteString(sqlStatement)
-
-			case "FUNCTION":
-				createFunctionSqls.WriteString(sqlStatement)
-
-			case "PROCEDURE":
-				createProcedureSqls.WriteString(sqlStatement)
-
-			case "TRIGGER":
-				createTriggerSqls.WriteString(sqlStatement)
-
-			case "TYPE":
-				createTypeSqls.WriteString(sqlStatement)
-			case "DOMAIN":
-				createDomainSqls.WriteString(sqlStatement)
-
-			case "AGGREGATE":
-				createAggregateSqls.WriteString(sqlStatement)
-			case "RULE":
-				createRuleSqls.WriteString(sqlStatement)
-			case "SEQUENCE":
-				createSequenceSqls.WriteString(sqlStatement)
-			case "VIEW":
-				createViewSqls.WriteString(sqlStatement)
+				objSqlStmts["TABLE"].WriteString(sqlStatement)
 			case "MATERIALIZED VIEW":
-				createMatViewSqls.WriteString(sqlStatement)
-			case "SCHEMA":
-				createSchemaSqls.WriteString(sqlStatement)
-			case "EXTENSION":
-				createExtensionSqls.WriteString(sqlStatement)
+				objSqlStmts["MVIEW"].WriteString(sqlStatement)
 			default:
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
@@ -126,31 +101,22 @@ func parseSchemaFile(source *Source, exportDir string) {
 		}
 	}
 
-	//TODO: convert below code into a for-loop
+	for objType, sqlStmts := range objSqlStmts {
+		if sqlStmts.Len() == 0 { // create .sql file only if there are DDLs
+			continue
+		}
+		filePath := utils.GetObjectFilePath(schemaDirPath, objType)
+		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
-	//writing to .sql files in project
-	ioutil.WriteFile(schemaDirPath+"/tables/table.sql", []byte(setSessionVariables.String()+createTableSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/tables/INDEXES_table.sql", []byte(setSessionVariables.String()+createIndexSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/functions/function.sql", []byte(setSessionVariables.String()+createFunctionSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/procedures/procedure.sql", []byte(setSessionVariables.String()+createProcedureSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/triggers/trigger.sql", []byte(setSessionVariables.String()+createTriggerSqls.String()), 0644)
-
-	ioutil.WriteFile(schemaDirPath+"/types/type.sql", []byte(setSessionVariables.String()+createTypeSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/domains/domain.sql", []byte(setSessionVariables.String()+createDomainSqls.String()), 0644)
-
-	ioutil.WriteFile(schemaDirPath+"/aggregates/aggregate.sql", []byte(setSessionVariables.String()+createAggregateSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/rules/rule.sql", []byte(setSessionVariables.String()+createRuleSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/sequences/sequence.sql", []byte(setSessionVariables.String()+createSequenceSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/views/view.sql", []byte(setSessionVariables.String()+createViewSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/mviews/mview.sql", []byte(setSessionVariables.String()+createMatViewSqls.String()), 0644)
-
-	if uncategorizedSqls.Len() > 0 {
-		ioutil.WriteFile(schemaDirPath+"/uncategorized.sql", []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		err := ioutil.WriteFile(filePath, dataBytes, 0644)
+		if err != nil {
+			utils.ErrExit("Failed to create sql file for for %q: %v", objType, err)
+		}
 	}
 
-	ioutil.WriteFile(schemaDirPath+"/schemas/schema.sql", []byte(setSessionVariables.String()+createSchemaSqls.String()), 0644)
-	ioutil.WriteFile(schemaDirPath+"/extensions/extension.sql", []byte(setSessionVariables.String()+createExtensionSqls.String()), 0644)
-
+	if uncategorizedSqls.Len() > 0 {
+		ioutil.WriteFile(filepath.Join(schemaDirPath, "uncategorized.sql"), []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+	}
 }
 
 func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {

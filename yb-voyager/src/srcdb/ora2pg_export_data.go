@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -61,8 +62,7 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
 	defer utils.WaitGroup.Done()
 
-	projectDirPath := exportDir
-	configFilePath := projectDirPath + "/temp/.ora2pg.conf"
+	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	source.PopulateOra2pgConfigFile(configFilePath)
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
@@ -70,7 +70,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	// TODO: ora2pg fails to export data from MySQL database when source.NumConnections is greater
 	// than 1.
 	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header",
-		source.NumConnections, projectDirPath, configFilePath)
+		source.NumConnections, exportDir, configFilePath)
 
 	//Exporting all the tables in the schema
 	log.Infof("Executing command: %s", exportDataCommandString)
@@ -101,7 +101,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 func extractAlterSequenceStatements(exportDir string) {
 	alterSequenceRegex := regexp.MustCompile(`(?)ALTER SEQUENCE`)
-	filePath := exportDir + "/data/data.sql"
+	filePath := filepath.Join(exportDir, "data", "data.sql")
 	var requiredLines strings.Builder
 
 	bytes, err := ioutil.ReadFile(filePath)
@@ -116,5 +116,5 @@ func extractAlterSequenceStatements(exportDir string) {
 		}
 	}
 
-	ioutil.WriteFile(exportDir+"/data/postdata.sql", []byte(requiredLines.String()), 0644)
+	ioutil.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
 }

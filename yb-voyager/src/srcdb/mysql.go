@@ -22,7 +22,7 @@ func newMySQL(s *Source) *MySQL {
 }
 
 func (ms *MySQL) Connect() error {
-	db, err := sql.Open("mysql", ms.getConnectionString())
+	db, err := sql.Open("mysql", ms.getConnectionUri())
 	ms.db = db
 	return err
 }
@@ -73,6 +73,8 @@ func (ms *MySQL) GetAllTableNames() []string {
 	var tableNames []string
 	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
 		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", ms.source.DBName)
+	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
+
 	rows, err := ms.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v\n", err)
@@ -93,8 +95,12 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
 	panic("Not Implemented")
 }
 
-func (ms *MySQL) getConnectionString() string {
+func (ms *MySQL) getConnectionUri() string {
 	source := ms.source
+	if source.Uri != "" {
+		return source.Uri
+	}
+
 	parseSSLString(source)
 	var tlsString string
 	switch source.SSLMode {
@@ -115,9 +121,10 @@ func (ms *MySQL) getConnectionString() string {
 		errMsg := "Incorrect SSL Mode Provided. Please enter a valid sslmode."
 		panic(errMsg)
 	}
-	connStr := fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
+
+	source.Uri = fmt.Sprintf("%s:%s@(%s:%d)/%s?%s", source.User, source.Password,
 		source.Host, source.Port, source.DBName, tlsString)
-	return connStr
+	return source.Uri
 }
 
 func (ms *MySQL) ExportSchema(exportDir string) {

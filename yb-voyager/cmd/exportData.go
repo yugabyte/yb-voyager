@@ -190,8 +190,8 @@ func checkTableListFlag(tableListString string) {
 }
 
 func checkDataDirs() {
-	exportDataDir := exportDir + "/data"
-	flagFilePath := exportDir + "/metainfo/flags/exportDataDone"
+	exportDataDir := filepath.Join(exportDir, "data")
+	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
@@ -205,7 +205,7 @@ func checkDataDirs() {
 }
 
 func createExportDataDoneFlag() {
-	exportDoneFlagPath := filepath.Join(exportDir, "/metainfo/flags/exportDataDone")
+	exportDoneFlagPath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	_, err := os.Create(exportDoneFlagPath)
 	if err != nil {
 		utils.ErrExit("creating exportDataDone flag: %v", err)

@@ -79,7 +79,7 @@ func exportSchema() {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir)
-	utils.PrintAndLog("\nExported schema files created under directory: %s\n", exportDir+"/schema")
+	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir)
 	payload.SourceDBType = source.DBType
@@ -101,7 +101,7 @@ func init() {
 }
 
 func schemaIsExported(exportDir string) bool {
-	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
 	_, err := os.Stat(flagFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -113,7 +113,7 @@ func schemaIsExported(exportDir string) bool {
 }
 
 func setSchemaIsExported(exportDir string) {
-	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
 	fh, err := os.Create(flagFilePath)
 	if err != nil {
 		utils.ErrExit("create %q: %s", flagFilePath, err)
@@ -122,6 +122,6 @@ func setSchemaIsExported(exportDir string) {
 }
 
 func clearSchemaIsExported(exportDir string) {
-	flagFilePath := exportDir + "/metainfo/flags/exportSchemaDone"
+	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
 	os.Remove(flagFilePath)
 }

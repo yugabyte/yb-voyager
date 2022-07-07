@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"path/filepath"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
@@ -710,16 +711,16 @@ func generateTxtReport(Report utils.Report) string {
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
 	reportStruct = utils.Report{}
-	schemaDir := exportDir + "/schema"
+	schemaDir := filepath.Join(exportDir, "schema")
 	sourceObjList = utils.GetSchemaObjectList(source.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var filePath string
 		if objType == "INDEX" {
-			filePath = schemaDir + "/tables/INDEXES_table.sql"
+			filePath = filepath.Join(schemaDir, "tables", "INDEXES_table.sql")
 		} else {
-			filePath = schemaDir + "/" + strings.ToLower(objType) + "s"
-			filePath += "/" + strings.ToLower(objType) + ".sql"
+			filePath = filepath.Join(schemaDir, strings.ToLower(objType)+"s")
+			filePath = filepath.Join(filePath, strings.ToLower(objType)+".sql")
 		}
 
 		if !utils.FileOrFolderExists(filePath) {
@@ -737,7 +738,7 @@ func analyzeSchemaInternal() utils.Report {
 
 func analyzeSchema() {
 	reportFile := "report." + outputFormat
-	reportPath := exportDir + "/reports/" + reportFile
+	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
 	if !schemaIsExported(exportDir) {
 		utils.ErrExit("run export schema before running analyze-schema")
@@ -816,18 +817,13 @@ var analyzeSchemaCmd = &cobra.Command{
 
 		//marking flags as required based on conditions
 		cmd.MarkPersistentFlagRequired("source-db-type")
-		if source.Uri == "" { //if uri is not given
-			cmd.MarkPersistentFlagRequired("source-db-user")
-			cmd.MarkPersistentFlagRequired("source-db-password")
-			if source.DBType != ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-name")
-			} else if source.DBType == ORACLE {
-				cmd.MarkPersistentFlagRequired("source-db-schema")
-				validateOracleParams()
-			}
-		} else {
-			//check and parse the source
-			source.ParseURI()
+		cmd.MarkPersistentFlagRequired("source-db-user")
+		cmd.MarkPersistentFlagRequired("source-db-password")
+		if source.DBType != ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-name")
+		} else if source.DBType == ORACLE {
+			cmd.MarkPersistentFlagRequired("source-db-schema")
+			validateOracleParams()
 		}
 
 		if source.TableList != "" {
