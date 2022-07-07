@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -105,9 +107,73 @@ func (migstate *MigrationState) MarkBatchPending(batch *Batch) error {
 }
 
 func (migstate *MigrationState) MarkBatchDone(batch *Batch) error {
+	batch.ImportAttempts++
+	batch.Err = ""
+	batchFileName := migstate.pendingBatchPath(batch)
+	err := batch.SaveTo(batchFileName)
+	if err != nil {
+		return err
+	}
+
 	fromPath := migstate.pendingBatchPath(batch)
 	toPath := migstate.doneBatchPath(batch)
-	err := os.Rename(fromPath, toPath)
+	err = os.Rename(fromPath, toPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (migstate *MigrationState) MarkBatchFailed(batch *Batch, e error) error {
+	failedPath := migstate.failedBatchPath(batch)
+	tmpFailedPath := failedPath + ".tmp"
+
+	_, err := os.Stat(failedPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		fmt.Printf("stat %q: %s\n", failedPath, err)
+		return err
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		_ = os.Remove(tmpFailedPath)
+		err = migstate.writeBatchDataToFile(batch, tmpFailedPath)
+		if err != nil {
+			fmt.Printf("write batch %d: %s\n", batch.BatchNumber, tmpFailedPath)
+			return err
+		}
+		err = os.Rename(tmpFailedPath, failedPath)
+		if err != nil {
+			fmt.Printf("rename %q -> %q: %s\n", tmpFailedPath, failedPath, err)
+			return err
+		}
+	}
+	batch.FileName = failedPath
+	batch.StartOffset = 0
+	batch.EndOffset = -1
+	batch.Err = e.Error()
+	batch.ImportAttempts++
+
+	batchFileName := migstate.pendingBatchPath(batch)
+	err = batch.SaveTo(batchFileName)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (migstate *MigrationState) writeBatchDataToFile(batch *Batch, fileName string) error {
+	fh, err := os.Create(fileName)
+	if err != nil {
+		return err
+	}
+	defer fh.Close()
+
+	r, err := batch.Reader()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	_, err = io.Copy(fh, r)
 	if err != nil {
 		return err
 	}
