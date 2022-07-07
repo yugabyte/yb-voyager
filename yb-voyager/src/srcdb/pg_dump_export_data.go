@@ -37,8 +37,8 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	tableListPatterns := createTableListPatterns(tableList)
 
 	// Using pgdump for exporting data in directory format.
-	cmd := fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --compress=0 %s -Fd --file %s --jobs %d`,
-	connectionUri, tableListPatterns, dataDirPath, source.NumConnections)
+	cmd := fmt.Sprintf(`pg_dump "%s" --no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges`,
+		connectionUri, tableListPatterns, dataDirPath, source.NumConnections)
 
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
@@ -51,7 +51,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		log.Infof("%s", outbuf.String())
 	}
 	if err != nil {
-		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.", err, exportDir)
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
@@ -65,7 +65,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
 	if err != nil {
-		fmt.Printf("pg_dump failed to export data with error: %v. For more details check '%s/yb-voyager.log'.", err, exportDir)
+		fmt.Printf("pg_dump failed to export data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
