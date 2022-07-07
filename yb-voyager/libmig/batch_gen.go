@@ -8,14 +8,27 @@ import (
 )
 
 type Batch struct {
-	TableID        *TableID
-	FileName       string
-	BatchNumber    int
-	StartOffset    int64
-	EndOffset      int64
-	SizeInBaseFile int64
-	RecordCount    int
-	Desc           *DataFileDescriptor
+	TableID     *TableID
+	BatchNumber int
+
+	Desc *DataFileDescriptor
+
+	// BaseFile* attributes of a batch never change. They are required to recover after restart.
+	BaseFileName          string
+	StartOffsetInBaseFile int64
+	EndOffsetInBaseFile   int64
+
+	// This FileName starts with same as BaseFileName. But when the batch fails and is dumped in the
+	// `failed/` directory, the following attribute change to point to the new file.
+	FileName    string
+	StartOffset int64
+	EndOffset   int64
+
+	RecordCount int
+
+	NumRecordsImported int
+	Err                string
+	ImportAttempts     int
 }
 
 func (b *Batch) Reader() (io.ReadCloser, error) {
@@ -31,12 +44,16 @@ func (b *Batch) Reader() (io.ReadCloser, error) {
 }
 
 func (b *Batch) SaveTo(fileName string) error {
-	bs, err := json.Marshal(b)
+	bs, err := json.MarshalIndent(b, "", "    ")
 	if err != nil {
 		return err
 	}
 	err = ioutil.WriteFile(fileName, bs, 0644)
 	return err
+}
+
+func (b *Batch) SizeInBaseFile() int64 {
+	return b.EndOffsetInBaseFile - b.StartOffsetInBaseFile
 }
 
 func LoadBatchFrom(fileName string) (*Batch, error) {
@@ -86,14 +103,20 @@ func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	if n > 0 {
 		mgr.lastBatchNumber++
 		batch = &Batch{
-			TableID:        mgr.TableID,
-			FileName:       mgr.FileName,
-			BatchNumber:    mgr.lastBatchNumber,
-			StartOffset:    startOffset,
-			EndOffset:      endOffset,
-			SizeInBaseFile: endOffset - startOffset,
-			RecordCount:    n,
-			Desc:           mgr.Desc,
+			TableID:     mgr.TableID,
+			BatchNumber: mgr.lastBatchNumber,
+
+			Desc: mgr.Desc,
+
+			BaseFileName:          mgr.FileName,
+			StartOffsetInBaseFile: startOffset,
+			EndOffsetInBaseFile:   endOffset,
+
+			FileName:    mgr.FileName,
+			StartOffset: startOffset,
+			EndOffset:   endOffset,
+
+			RecordCount: n,
 		}
 	}
 	return batch, eof, err

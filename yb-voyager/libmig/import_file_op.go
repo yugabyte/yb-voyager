@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +14,7 @@ const (
 type ImportFileOp struct {
 	migState         *MigrationState
 	progressReporter *ProgressReporter
+	tdb              *TargetDB
 
 	FileName    string
 	TableID     *TableID
@@ -28,12 +27,16 @@ type ImportFileOp struct {
 	dataFile                  DataFile
 	lastBatchFromPrevRun      *Batch
 	pendingBatchesFromPrevRun []*Batch
+	failedBatchCount          int
 }
 
-func NewImportFileOp(migState *MigrationState, progressReporter *ProgressReporter, fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
+func NewImportFileOp(
+	migState *MigrationState, progressReporter *ProgressReporter, tdb *TargetDB,
+	fileName string, tableID *TableID, desc *DataFileDescriptor) *ImportFileOp {
 	return &ImportFileOp{
 		migState:         migState,
 		progressReporter: progressReporter,
+		tdb:              tdb,
 		FileName:         fileName,
 		TableID:          tableID,
 		Desc:             desc,
@@ -72,7 +75,10 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	op.notifyImportFileStarted()
 
 	for _, batch := range op.pendingBatchesFromPrevRun {
-		op.submitBatch(batch)
+		err = op.submitBatch(batch)
+		if err != nil {
+			return err
+		}
 	}
 	for {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
@@ -81,7 +87,10 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			if err2 != nil {
 				return err2
 			}
-			op.submitBatch(batch)
+			err2 = op.submitBatch(batch)
+			if err2 != nil {
+				return err2
+			}
 		}
 		if eof {
 			log.Info("Done splitting file.")
@@ -110,7 +119,7 @@ func (op *ImportFileOp) openDataFile() error {
 	// Start from where we left off.
 	offset := int64(0)
 	if op.lastBatchFromPrevRun != nil {
-		offset = op.lastBatchFromPrevRun.EndOffset
+		offset = op.lastBatchFromPrevRun.EndOffsetInBaseFile
 	}
 	// Open DataFile and jump to the correct offset.
 	op.dataFile = NewDataFile(op.FileName, offset, op.Desc)
@@ -138,42 +147,48 @@ func (op *ImportFileOp) notifyImportFileStarted() {
 	op.progressReporter.ImportFileStarted(op.TableID, op.dataFile.Size())
 
 	if op.lastBatchFromPrevRun != nil {
-		p := op.lastBatchFromPrevRun.EndOffset
+		p := op.lastBatchFromPrevRun.EndOffsetInBaseFile
 		for _, batch := range op.pendingBatchesFromPrevRun {
-			p -= batch.SizeInBaseFile
+			p -= batch.SizeInBaseFile()
 		}
 		op.progressReporter.AddProgressAmount(op.TableID, p)
 	}
 }
 
-func (op *ImportFileOp) submitBatch(batch *Batch) {
+func (op *ImportFileOp) submitBatch(batch *Batch) error {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
 	// TODO: Submit a batch for import and return.
-	op.importBatch(batch)
+	return op.importBatch(batch)
 }
 
-func (op *ImportFileOp) importBatch(batch *Batch) {
-	_ = debugPrintBatch
-	_ = debugPrintBatch2
-	time.Sleep(time.Second)
-	/*
-		dataFile.CopyCommand
-		err = targetDB.Copy(copyCommand, batch.Reader)
-		if err != nil {
-			err2 := migstate.MarkBatchFailed(op.TableID, batch)
-			if err2 != nil {
-				panic
-			}
-			op.failedBatchCount++  // stop producing more batches if failedBatchCount exceeds threshold.
-			return
+func (op *ImportFileOp) importBatch(batch *Batch) error {
+	ctx := context.Background()
+	r, err := batch.Reader()
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	n, err := op.tdb.Copy(ctx, op.CopyCommand, r)
+	if err != nil {
+		log.Errorf("COPY batch %s %d failed: %s", batch.TableID, batch.BatchNumber, err)
+		err2 := op.migState.MarkBatchFailed(batch, err)
+		if err2 != nil {
+			err = fmt.Errorf("batch copy failed with %q. couldn't mark batch as failed: %w", err, err2)
 		}
-		migstate.MarkBatchDone(batch)
-		progressReporter.AddProgressAmount(...)
-	*/
-	op.migState.MarkBatchDone(batch)
-	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile)
+		op.failedBatchCount++ // TODO stop producing more batches if failedBatchCount exceeds threshold.
+		return err
+	}
+	// TODO Handle case where fewer than expected rows are imported.
+	batch.NumRecordsImported = n
+	err = op.migState.MarkBatchDone(batch)
+	if err != nil {
+		return err
+	}
+	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile())
+	return nil
 }
 
+/*
 func debugPrintBatch(batch *Batch) {
 	r, err := batch.Reader()
 	if err != nil {
@@ -206,3 +221,4 @@ func debugPrintBatch2(batch *Batch) {
 	}
 	fmt.Printf("%s", string(bs))
 }
+*/
