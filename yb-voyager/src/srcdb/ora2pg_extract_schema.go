@@ -14,15 +14,13 @@ import (
 
 func ora2pgExtractSchema(source *Source, exportDir string) {
 	schemaDirPath := filepath.Join(exportDir, "schema")
-	customConfigFilePath := filepath.Join(exportDir, "metainfo", "base_ora2pg.conf")
+	customConfigFilePath := filepath.Join(exportDir, "metainfo", "base-ora2pg.conf")
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	if utils.FileOrFolderExists(customConfigFilePath) {
-		utils.PrintAndLog("Using custom base_ora2pg.conf for schema migration.")
-		source.PopulateOra2pgConfigFile(customConfigFilePath)
+		utils.PrintAndLog("Using custom base-ora2pg.conf for schema migration.")
 		configFilePath = customConfigFilePath
-	} else {
-		source.PopulateOra2pgConfigFile(configFilePath)
 	}
+	source.PopulateOra2pgConfigFile(configFilePath)
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
