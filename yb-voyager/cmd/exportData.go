@@ -138,7 +138,7 @@ func exportDataOffline() bool {
 	initializeExportTablePartitionMetadata(tableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
-	UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
+	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation

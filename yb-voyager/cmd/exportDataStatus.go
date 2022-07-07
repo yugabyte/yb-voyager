@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -158,12 +159,9 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 }
 
 func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool) {
-
 	tableName := mapKey
 	tableMetadata := tablesProgressMetadata[mapKey]
-
-	total := int64(100)
-
+	total := int64(0) // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
 	bar := progressContainer.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
 		// mpb.BarRemoveOnComplete(),
@@ -176,17 +174,21 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
 			),
 			decor.OnComplete(
-				//TODO: default feature by package, need to verify the correctness/algorithm for ETA
 				decor.AverageETA(decor.ET_STYLE_GO), "",
 			),
 		),
 	)
 
-	if tableMetadata.CountTotalRows == 0 {
-		bar.IncrInt64(100)
-		tableMetadata.Status = utils.TABLE_MIGRATION_DONE
-		return
-	}
+	// initialize PB total with identified approx row count
+	bar.SetTotal(tableMetadata.CountTotalRows, false)
+
+	// parallel goroutine to calculate and set total to actual row count
+	go func() {
+		actualRowCount := source.DB().GetTableRowCount(tableMetadata.FullTableName)
+		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
+			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.FullTableName)
+		bar.SetTotal(actualRowCount, false)
+	}()
 
 	tableDataFileName := tableMetadata.InProgressFilePath
 	if utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
@@ -201,14 +203,10 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	defer tableDataFile.Close()
 
 	reader := bufio.NewReader(tableDataFile)
-	// var prevLine string
 
 	go func() { //for continuously increasing PB percentage
 		for !bar.Completed() {
-			PercentageValueFloat := float64(tableMetadata.CountLiveRows) / float64(tableMetadata.CountTotalRows) * 100
-			PercentageValueInt64 := int64(PercentageValueFloat)
-			incrementValue := (PercentageValueInt64) - bar.Current()
-			bar.IncrInt64(incrementValue)
+			bar.SetCurrent(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 		}
 	}()
@@ -256,9 +254,8 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	*/
 	readLines()
 
-	if !bar.Completed() {
-		bar.IncrBy(100) // Completing remaining progress bar to continue the execution.
-	}
+	// PB will not change from "100%" -> "completed" until this function call is made
+	bar.SetTotal(-1, true) // Completing remaining progress bar by setting current equal to total
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 }
 
