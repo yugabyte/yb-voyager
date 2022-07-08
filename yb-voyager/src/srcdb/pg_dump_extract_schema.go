@@ -81,7 +81,7 @@ func parseSchemaFile(exportDir string) {
 			// TODO: TABLESPACE
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
-				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION":
+				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
 				objSqlStmts[sqlType].WriteString(sqlStatement)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				objSqlStmts["TABLE"].WriteString(sqlStatement)
@@ -115,7 +115,10 @@ func parseSchemaFile(exportDir string) {
 	}
 
 	if uncategorizedSqls.Len() > 0 {
-		ioutil.WriteFile(filepath.Join(schemaDirPath, "uncategorized.sql"), []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
+		// TODO: add it to the analyze-schema report in case of postgresql
+		utils.PrintAndLog("Some uncategorized sql statements are present in %q, Needs to review and import them manually!!", filePath)
+		ioutil.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 	}
 }
 
