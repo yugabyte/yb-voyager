@@ -177,7 +177,7 @@ func parseFileTableMapping() {
 }
 
 func checkImportDataFileFlags() {
-	checkExportDirFlag()
+	validateExportDirFlag()
 	fileFormat = strings.ToLower(fileFormat)
 	checkFileFormat()
 	checkDataDirFlag()

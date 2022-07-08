@@ -809,28 +809,10 @@ var analyzeSchemaCmd = &cobra.Command{
 	Long:  ``,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		checkExportDirFlag()
-		checkSourceDBType()
-		setSourceDefaultPort() //will set only if required
-		validatePortRange()
-		checkOrSetDefaultSSLMode()
-
-		//marking flags as required based on conditions
-		cmd.MarkPersistentFlagRequired("source-db-type")
-		cmd.MarkPersistentFlagRequired("source-db-user")
-		cmd.MarkPersistentFlagRequired("source-db-password")
-		if source.DBType != ORACLE {
-			cmd.MarkPersistentFlagRequired("source-db-name")
-		} else if source.DBType == ORACLE {
-			cmd.MarkPersistentFlagRequired("source-db-schema")
-			validateOracleParams()
-		}
-
-		if source.TableList != "" {
-			checkTableListFlag(source.TableList)
-		}
-
-		checkReportOutputFormat()
+		setExportFlagsDefaults()
+		validateReportOutputFormat()
+		validateExportFlags()
+		markFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -847,7 +829,7 @@ func init() {
 		"allowed report formats: html | txt | json | xml")
 }
 
-func checkReportOutputFormat() {
+func validateReportOutputFormat() {
 	allowedOutputFormats := []string{"html", "json", "txt", "xml"}
 	outputFormat = strings.ToLower(outputFormat)
 
@@ -856,5 +838,5 @@ func checkReportOutputFormat() {
 			return
 		}
 	}
-	utils.ErrExit("Invalid output format: %s. Supported formats are [%v]", outputFormat, allowedOutputFormats)
+	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
 }
