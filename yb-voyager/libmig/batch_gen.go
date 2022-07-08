@@ -26,7 +26,7 @@ type Batch struct {
 
 	RecordCount int
 
-	NumRecordsImported int
+	NumRecordsImported int64
 	Err                string
 	ImportAttempts     int
 }
