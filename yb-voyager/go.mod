@@ -16,6 +16,8 @@ require (
 	github.com/tevino/abool/v2 v2.0.1
 	github.com/vbauerster/mpb/v7 v7.3.0
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
+	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
 
 require (
@@ -39,7 +41,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
-	github.com/pkg/xattr v0.4.7 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.2.0 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
@@ -48,7 +49,6 @@ require (
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce // indirect
-	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d // indirect
 	golang.org/x/net v0.0.0-20220111093109-d55c255bac03 // indirect
 	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f // indirect
 	golang.org/x/text v0.3.7 // indirect

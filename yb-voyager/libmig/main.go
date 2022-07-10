@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/semaphore"
 )
 
 func main() {
@@ -13,6 +14,7 @@ func main() {
 	log.Infof("Start.")
 	ctx := context.Background()
 
+	sema := semaphore.NewWeighted(2)
 	//	migstate := NewMigrationState("/Users/amit.jambure/export-dir")
 	migstate := NewMigrationState("/tmp/export-dir")
 	progressReporter := NewProgressReporter()
@@ -29,16 +31,18 @@ func main() {
 	tdb := NewTargetDB(connPool)
 
 	desc1 := &DataFileDescriptor{FileType: FILE_TYPE_CSV}
-	op1 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/test.txt", NewTableID("testdb", "public", "foo"), desc1)
+	op1 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/test.txt", NewTableID("testdb", "public", "foo"), desc1, sema)
 	op1.BatchSize = 4
 	err = op1.Run(ctx)
 	panicOnErr(err)
+	op1.Wait()
 
 	desc2 := &DataFileDescriptor{FileType: FILE_TYPE_ORA2PG}
-	op2 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/category_data.sql", NewTableID("testdb", "public", "category"), desc2)
+	op2 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/category_data.sql", NewTableID("testdb", "public", "category"), desc2, sema)
 	op2.BatchSize = 5
 	err = op2.Run(ctx)
 	panicOnErr(err)
+	op2.Wait()
 
 	time.Sleep(time.Second)
 }
