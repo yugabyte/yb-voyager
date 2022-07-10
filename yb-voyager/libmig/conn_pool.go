@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/jackc/pgx/v4"
@@ -61,13 +62,20 @@ func (pool *ConnectionPool) createNewConnection() (conn *pgx.Conn, err error) {
 	for i := 0; i < n; i++ {
 		uri := pool.params.ConnUriList[(idx+i)%n]
 		conn, err = pgx.Connect(context.Background(), uri)
-		if err == nil {
-			// Connection established.
-			log.Infof("Connected to %q", uri)
-			break
+		if err != nil {
+			log.Warnf("Failed to connect to %q: %s", uri, err)
+			continue
 		}
+		// Connection established.
+		log.Infof("Connected to %q", uri)
+		err = pool.setSessionVars(conn)
+		if err != nil {
+			conn.Close(context.Background())
+			return nil, err
+		}
+		break
 	}
-	return
+	return conn, err
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {
@@ -79,4 +87,23 @@ func (pool *ConnectionPool) getNextUriIndex() int {
 		pool.nextUriIndex = 0
 	}
 	return pool.nextUriIndex
+}
+
+var sessionVars = map[string]string{
+	"client_encoding":                 "'UTF-8'",
+	"yb_disable_transactional_writes": "true",
+	"session_replication_role":        "replica",
+	"yb_enable_upsert_mode":           "true",
+}
+
+func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
+	for k, v := range sessionVars {
+		// TODO: Add version check.
+		cmd := fmt.Sprintf("SET %s TO %s;", k, v)
+		_, err := conn.Exec(context.Background(), cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
