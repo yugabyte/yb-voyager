@@ -43,8 +43,8 @@ type TableProgressMetadata struct {
 
 // the list elements order is same as the import objects order
 // TODO: Need to make each of the list comprehensive, not missing any database object category
-var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "INDEX", "PACKAGE", "VIEW",
-	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", "PARTITION", /*"TABLESPACE",*/
+var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", "INDEX", "PACKAGE", "VIEW",
+	/*"GRANT",*/ "TRIGGER", "FUNCTION", "PROCEDURE", /*"TABLESPACE",*/
 	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
 // In PG, PARTITION are exported along with TABLE
@@ -53,8 +53,8 @@ var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
 	"MVIEW", "EXTENSION", "COMMENT" /*TABLESPACES, GRANT, ROLE*/}
 
 // In MYSQL, TYPE and SEQUENCE are not supported
-var mysqlSchemaObjectList = []string{"TABLE", "INDEX", "VIEW", /*"GRANT*/
-	"TRIGGER", "FUNCTION", "PROCEDURE", "PARTITION" /* "TABLESPACE, "*/}
+var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
+	"TRIGGER", "FUNCTION", "PROCEDURE" /* "TABLESPACE, "*/}
 
 type ExportMetaInfo struct {
 	SourceDBType   string
