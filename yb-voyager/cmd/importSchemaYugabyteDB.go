@@ -16,103 +16,50 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
-	"github.com/jackc/pgx/v4"
 )
 
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
-	//this list also has defined the order to create object type in target YugabyteDB
+	schemaDirPath := filepath.Join(exportDir, "schema")
+	// this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
 	for _, importObjectType := range importObjectOrderList {
-		var importObjectDirPath, importObjectFilePath string
-
-		if importObjectType != "INDEX" {
-			importObjectDirPath = filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
-			importObjectFilePath = filepath.Join(importObjectDirPath, strings.ToLower(importObjectType)+".sql")
-		} else {
-			if target.ImportIndexesAfterData {
-				continue
-			}
-			importObjectDirPath = filepath.Join(exportDir, "schema", "tables")
-			importObjectFilePath = filepath.Join(importObjectDirPath, "INDEXES_table.sql")
+		if importObjectType == "INDEX" && target.ImportIndexesAfterData {
+			continue
 		}
 
+		importObjectFilePath := utils.GetObjectFilePath(schemaDirPath, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
+			log.Warnf("file %q doesn't exist, no import", importObjectFilePath)
 			continue
 		}
 
 		fmt.Printf("importing %10s %5s", importObjectType, "")
+		log.Infof("importing %q", importObjectFilePath)
 		go utils.Wait("done\n", "")
 
-		log.Infof("Importing %q", importObjectFilePath)
-
-		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
-		if err != nil {
-			utils.WaitChannel <- 1
-			<-utils.WaitChannel
-			utils.ErrExit("Failed to connect to the target DB: %s", err)
+		status := executeSqlFile(importObjectFilePath, importObjectType)
+		if status == 1 {
+			utils.ErrExit("Abort! error occured during %q import", importObjectType)
 		}
 
-		// target-db-schema is not public and source is either Oracle/MySQL
-		if sourceDBType != POSTGRESQL {
-			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-			log.Infof("Running query %q on the target DB", setSchemaQuery)
-			_, err := conn.Exec(context.Background(), setSchemaQuery)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", setSchemaQuery, err)
-			}
-
-			log.Infof("Running query %q on the target DB", SET_CLIENT_ENCODING_TO_UTF8)
-			_, err = conn.Exec(context.Background(), SET_CLIENT_ENCODING_TO_UTF8)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", SET_CLIENT_ENCODING_TO_UTF8, err)
+		if importObjectType == "INDEX" && !target.ImportIndexesAfterData {
+			partIdxFilePath := filepath.Join(schemaDirPath, "partitions/PARTITION_INDEXES_partition.sql")
+			status = executeSqlFile(partIdxFilePath, importObjectType)
+			if status == 1 {
+				utils.ErrExit("Abort! error occured during %q import", importObjectType)
 			}
 		}
 
-		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
-		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)
-		errOccured := 0
-		for _, sqlStr := range sqlStrArray {
-			log.Infof("Execute STATEMENT:\n%s", sqlStr[1])
-			_, err := conn.Exec(context.Background(), sqlStr[0])
-			if err != nil {
-				log.Errorf("Previous SQL statement failed with error: %s", err)
-				if strings.Contains(err.Error(), "already exists") {
-					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlStr[1]) {
-						fmt.Printf("\b \n    %s\n", err.Error())
-						fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
-						if !target.ContinueOnError {
-							os.Exit(1)
-						}
-					}
-				} else {
-					errOccured = 1
-					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
-					if !target.ContinueOnError { //default case
-						fmt.Println(err)
-						os.Exit(1)
-					}
-				}
-				log.Infof("Continuing despite error: IgnoreIfExists(%v), ContinueOnError(%v)",
-					target.IgnoreIfExists, target.ContinueOnError)
-			}
-		}
-
-		utils.WaitChannel <- errOccured
+		utils.WaitChannel <- status
 		<-utils.WaitChannel
-
-		conn.Close(context.Background())
 	}
 	log.Info("Schema import is complete.")
 }

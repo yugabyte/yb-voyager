@@ -687,19 +687,40 @@ func executePostImportDataSqls() {
 	*/
 	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
 	indexesFilePath := filepath.Join(exportDir, "/schema/tables/INDEXES_table.sql")
+	partitionIndexesFilePath := filepath.Join(exportDir, "/schema/partitions/PARTITION_INDEXES_partition.sql")
 
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
 		go utils.Wait("done\n", "")
-		executeSqlFile(sequenceFilePath)
+		status := executeSqlFile(sequenceFilePath, "SEQUENCE")
+		if status == 1 {
+			utils.ErrExit("Abort! error occured during %q import", "SEQUENCE")
+		}
+		utils.WaitChannel <- status
+		<-utils.WaitChannel
 	}
 
-	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
+	if target.ImportIndexesAfterData {
 		fmt.Printf("creating indexes %10s", "")
-		go utils.Wait("done\n", "")
-		executeSqlFile(indexesFilePath)
-	}
+		var status int
+		if utils.FileOrFolderExists(indexesFilePath) {
+			go utils.Wait("done\n", "")
+			status = executeSqlFile(indexesFilePath, "INDEX")
+			if status == 1 {
+				utils.ErrExit("Abort! error occured during %q import", "INDEX")
+			}
+		}
 
+		if utils.FileOrFolderExists(partitionIndexesFilePath) {
+			status = executeSqlFile(partitionIndexesFilePath, "INDEX")
+			if status == 1 {
+				utils.ErrExit("Abort! error occured during %q import", "INDEX")
+			}
+		}
+
+		utils.WaitChannel <- status
+		<-utils.WaitChannel
+	}
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {
@@ -912,54 +933,61 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	}
 }
 
-func executeSqlFile(file string) {
-	log.Infof("Execute SQL file %q on target %q", file, target.Host)
-	connectionURI := target.GetConnectionUri()
-	conn, err := pgx.Connect(context.Background(), connectionURI)
+func executeSqlFile(filePath string, objectType string) int {
+	log.Infof("Execute SQL file %q on target %q", filePath, target.Host)
+	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 	if err != nil {
-		utils.WaitChannel <- 1
-		<-utils.WaitChannel
-		utils.ErrExit("connect to target db: %s", err)
+		utils.PrintAndLog("Failed to connect to the target DB: %s", err)
+		return 1
 	}
 	defer conn.Close(context.Background())
 
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+	// target-db-schema is not public and source is either Oracle/MySQL
+	if sourceDBType != POSTGRESQL {
 		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+		log.Infof("Running query %q on the target DB", setSchemaQuery)
 		_, err := conn.Exec(context.Background(), setSchemaQuery)
 		if err != nil {
-			utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
+			utils.PrintAndLog("Failed to run %q on target DB: %s", setSchemaQuery, err)
+			return 1
+		}
+
+		setClientEncQuery := IMPORT_SESSION_SETTERS[0]
+		log.Infof("Running query %q on the target DB", setClientEncQuery)
+		_, err = conn.Exec(context.Background(), setClientEncQuery)
+		if err != nil {
+			utils.PrintAndLog("Failed to run %q on target DB: %s", setClientEncQuery, err)
+			return 1
 		}
 	}
 
-	var errOccured = 0
-	sqlStrArray := createSqlStrArray(file, "")
+	sqlStrArray := createSqlStrArray(filePath, objectType)
 	for _, sqlStr := range sqlStrArray {
-		log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
+		log.Infof("Execute STATEMENT:\n%s", sqlStr[1])
 		_, err := conn.Exec(context.Background(), sqlStr[0])
 		if err != nil {
-			log.Errorf("Run query %q on target %q: %s", sqlStr[1], target.Host, err)
+			log.Errorf("Previous SQL statement failed with error: %s", err)
 			if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
 					fmt.Printf("\b \n    %s\n", err.Error())
 					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 					if !target.ContinueOnError {
-						os.Exit(1)
+						return 1
 					}
 				}
 			} else {
-				errOccured = 1
 				fmt.Printf("\b \n    %s\n", err.Error())
 				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 				if !target.ContinueOnError { //default case
-					fmt.Println(err)
-					os.Exit(1)
+					return 1
 				}
 			}
+			log.Infof("Continuing despite error: IgnoreIfExists(%v), ContinueOnError(%v)",
+				target.IgnoreIfExists, target.ContinueOnError)
 		}
 	}
 
-	utils.WaitChannel <- errOccured
-	<-utils.WaitChannel
+	return 0
 }
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
