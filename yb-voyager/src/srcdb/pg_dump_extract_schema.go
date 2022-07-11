@@ -12,16 +12,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(connectionUri string, exportDir string) {
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 
-	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s --no-privileges`,
-		connectionUri, filepath.Join(exportDir, "temp", "schema.sql"))
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --schema "%s" --no-owner -f %s --no-privileges`,
+		connectionUri, source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
 	log.Infof("Running command: %s", cmd)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", cmd)
+	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
-	stdout, err := preparedYsqldumpCommand.CombinedOutput()
+	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
 	if string(stdout) != "" {
 		log.Infof("%s", string(stdout))

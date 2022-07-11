@@ -95,7 +95,7 @@ var importDataCmd = &cobra.Command{
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags(cmd)
+		validateImportFlags()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

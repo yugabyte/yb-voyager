@@ -100,7 +100,8 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	cmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
-		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
+		"source schema name which needs to be migrated to YugabyteDB (valid for Oracle, PostgreSQL)\n"+
+			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -154,6 +155,7 @@ func setDefaultSSLMode() {
 func validateExportFlags() {
 	validateExportDirFlag()
 	validateSourceDBType()
+	validateSourceSchema()
 	validatePortRange()
 	validateSSLMode()
 	validateOracleParams()
@@ -171,11 +173,6 @@ func validateExportFlags() {
 			utils.ErrExit("Error: --oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 	}
-	if source.DBType == MYSQL {
-		if source.Schema != "" {
-			utils.ErrExit("Error: --source-db-schema flag is not valid for 'MySQL' db type")
-		}
-	}
 }
 
 func validateSourceDBType() {
@@ -186,6 +183,25 @@ func validateSourceDBType() {
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
 		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
+	}
+}
+
+func validateSourceSchema() {
+	if source.Schema == "" {
+		return
+	}
+
+	schemaList := utils.CsvStringToSlice(source.Schema)
+	switch source.DBType {
+	case MYSQL:
+		utils.ErrExit("Error: --source-db-schema flag is not valid for 'MySQL' db type")
+	case ORACLE:
+		if len(schemaList) > 1 {
+			utils.ErrExit("Error: single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+		}
+	case POSTGRESQL:
+		// In PG, its supported to export more than one schema
+		source.Schema = strings.Join(schemaList, "|") // clean and correct formatted for pg
 	}
 }
 
