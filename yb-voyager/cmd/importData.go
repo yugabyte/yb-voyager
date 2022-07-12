@@ -827,20 +827,21 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 			defer conn.Close(context.Background())
 
 			dbVersion := targetServer.DB().GetVersion()
+			sessionVarsPath := filepath.Join("/", "etc", "ybSessionVariables.sql")
 
-			for i, statement := range IMPORT_SESSION_SETTERS {
-				if checkSessionVariableSupported(i, dbVersion) {
-					_, err := conn.Exec(context.Background(), statement)
-					if err != nil {
-						utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
+			if utils.FileOrFolderExists(sessionVarsPath) {
+				setSessionVars(conn, sessionVarsPath)
+			} else {
+				for i, statement := range IMPORT_SESSION_SETTERS {
+					if checkSessionVariableSupported(i, dbVersion) {
+						_, err := conn.Exec(context.Background(), statement)
+						if err != nil {
+							utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
+						}
 					}
 				}
 			}
 
-			sessionVarsPath := filepath.Join(exportDir, "metainfo", "ybSessionVars.sql")
-			if utils.FileOrFolderExists(sessionVarsPath) {
-				setCustomSessionVars(conn, sessionVarsPath)
-			}
 			reader, err := os.Open(inProgressFilePath)
 			if err != nil {
 				utils.ErrExit("open %q: %s", inProgressFilePath, err)
@@ -896,11 +897,10 @@ func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
 	}
 }
 
-func setCustomSessionVars(conn *pgx.Conn, sessionVarsPath string) bool {
-	utils.PrintAndLog("Using custom session variables for data import from %s.", sessionVarsPath)
+func setSessionVars(conn *pgx.Conn, sessionVarsPath string) {
 	varsFile, err := os.Open(sessionVarsPath)
 	if err != nil {
-		utils.ErrExit("Error while opening ybSessionVars.sql: %v", err)
+		utils.ErrExit("Error while opening ybSessionVariables.sql: %v", err)
 	}
 	defer varsFile.Close()
 	fileScanner := bufio.NewScanner(varsFile)
@@ -910,14 +910,13 @@ func setCustomSessionVars(conn *pgx.Conn, sessionVarsPath string) bool {
 	for fileScanner.Scan() {
 		curLine = strings.TrimSpace(fileScanner.Text())
 		if !setVarRegex.MatchString(curLine) {
-			utils.ErrExit("Only SET statements allowed in ybSessionVars.sql. Found: %s.", curLine)
+			utils.ErrExit("Only SET statements allowed in ybSessionVariables.sql. Found: %s.", curLine)
 		}
 		_, err := conn.Exec(context.Background(), curLine)
 		if err != nil {
-			utils.ErrExit("Error while running custom session variables statement (%q): %v", curLine, err)
+			utils.ErrExit("Error while running session variables statement (%q): %v", curLine, err)
 		}
 	}
-	return true
 }
 
 /*

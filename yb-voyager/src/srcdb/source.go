@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -156,17 +157,21 @@ var Ora2pgConfigFile string
 
 func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 	sourceDSN := source.getSourceDSN()
-	var SampleOra2pgConfigFile string
-	if filepath.Base(configFilePath) == "base-ora2pg.conf" {
-		Ora2pgConfigFile, err := ioutil.ReadFile(configFilePath)
-		if err != nil {
-			utils.ErrExit("Error while reading custom ora2pg configuration file: %v", err)
-		}
-		SampleOra2pgConfigFile = string(Ora2pgConfigFile)
-	} else {
-		SampleOra2pgConfigFile = Ora2pgConfigFile
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		utils.ErrExit("Error while querying for home directory for ora2pg config file: %v", err)
 	}
-	lines := strings.Split(SampleOra2pgConfigFile, "\n")
+	var BaseOra2pgConfigFile []byte
+	baseConfigFilePath := filepath.Join(homeDir, ".yb-voyager-base-ora2pg.conf")
+	if utils.FileOrFolderExists(baseConfigFilePath) {
+		BaseOra2pgConfigFile, err = ioutil.ReadFile(baseConfigFilePath)
+		if err != nil {
+			utils.ErrExit("Error while reading base ora2pg configuration file: %v", err)
+		}
+		Ora2pgConfigFile = string(BaseOra2pgConfigFile)
+	}
+
+	lines := strings.Split(Ora2pgConfigFile, "\n")
 
 	for i, line := range lines {
 		if strings.HasPrefix(line, "ORACLE_DSN") {
@@ -193,7 +198,7 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 	}
 
 	output := strings.Join(lines, "\n")
-	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
+	err = ioutil.WriteFile(configFilePath, []byte(output), 0644)
 	if err != nil {
 		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
 	}
