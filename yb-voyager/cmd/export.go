@@ -21,6 +21,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/spf13/cobra"
 )
@@ -39,27 +40,9 @@ var exportCmd = &cobra.Command{
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		checkExportDirFlag()
-		checkSourceDBType()
+		setExportFlagsDefaults()
 		validateExportFlags()
-		setSourceDefaultPort() //will set only if required
-		validatePortRange()
-		checkOrSetDefaultSSLMode()
-
-		//marking flags as required based on conditions
-		cmd.MarkPersistentFlagRequired("source-db-type")
-		cmd.MarkPersistentFlagRequired("source-db-user")
-		cmd.MarkPersistentFlagRequired("source-db-password")
-		if source.DBType != ORACLE {
-			cmd.MarkPersistentFlagRequired("source-db-name")
-		} else if source.DBType == ORACLE {
-			cmd.MarkPersistentFlagRequired("source-db-schema")
-			validateOracleParams()
-		}
-
-		if source.TableList != "" {
-			checkTableListFlag(source.TableList)
-		}
+		markFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -117,7 +100,8 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	cmd.PersistentFlags().StringVar(&source.Schema, "source-db-schema", "",
-		"[For Oracle Only] source schema name which needs to be migrated to YugabyteDB")
+		"source schema name which needs to be migrated to YugabyteDB (valid for Oracle, PostgreSQL)\n"+
+			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.PersistentFlags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
@@ -139,85 +123,113 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
 }
 
-func checkSourceDBType() {
-	if source.DBType == "" {
-		utils.ErrExit("Requried flag: source-db-type. Supported source db types are: %s", supportedSourceDBTypes)
-	}
-
-	source.DBType = strings.ToLower(source.DBType)
-	for _, sourceDBType := range supportedSourceDBTypes {
-		if sourceDBType == source.DBType {
-			return //if matches any allowed type
-		}
-	}
-	utils.ErrExit("Invalid source db type: %s. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
-}
-
-func validateExportFlags() {
-	if source.DBType != ORACLE {
-		if source.DBSid != "" {
-			utils.ErrExit("ERROR: --oracle-db-sid flag is only valid for 'oracle' db type")
-		}
-		if source.OracleHome != "" {
-			utils.ErrExit("ERROR: --oracle-home flag is only valid for 'oracle' db type")
-		}
-		if source.TNSAlias != "" {
-			utils.ErrExit("ERROR: --oracle-tns-alias flag is only valid for 'oracle' db type")
-		}
-		if source.Schema != "" {
-			utils.ErrExit("ERROR: --source-db-schema flag is only valid for 'oracle' db type")
-		}
-	}
+func setExportFlagsDefaults() {
+	setSourceDefaultPort() //will set only if required
+	setDefaultSSLMode()
 }
 
 func setSourceDefaultPort() {
-	if source.Port == -1 {
-		switch source.DBType {
-		case ORACLE:
-			source.Port = ORACLE_DEFAULT_PORT
-		case POSTGRESQL:
-			source.Port = POSTGRES_DEFAULT_PORT
-		case MYSQL:
-			source.Port = MYSQL_DEFAULT_PORT
+	if source.Port != -1 {
+		return
+	}
+	switch source.DBType {
+	case ORACLE:
+		source.Port = ORACLE_DEFAULT_PORT
+	case POSTGRESQL:
+		source.Port = POSTGRES_DEFAULT_PORT
+	case MYSQL:
+		source.Port = MYSQL_DEFAULT_PORT
+	}
+}
+
+func setDefaultSSLMode() {
+	if source.SSLMode != "" {
+		return
+	}
+	switch source.DBType {
+	case MYSQL, POSTGRESQL:
+		source.SSLMode = "prefer"
+	}
+}
+
+func validateExportFlags() {
+	validateExportDirFlag()
+	validateSourceDBType()
+	validateSourceSchema()
+	validatePortRange()
+	validateSSLMode()
+	validateOracleParams()
+	validateTableListFlag(source.TableList)
+
+	// checking if wrong flag is given used for a db type
+	if source.DBType != ORACLE {
+		if source.DBSid != "" {
+			utils.ErrExit("Error: --oracle-db-sid flag is only valid for 'oracle' db type")
 		}
+		if source.OracleHome != "" {
+			utils.ErrExit("Error: --oracle-home flag is only valid for 'oracle' db type")
+		}
+		if source.TNSAlias != "" {
+			utils.ErrExit("Error: --oracle-tns-alias flag is only valid for 'oracle' db type")
+		}
+	}
+}
+
+func validateSourceDBType() {
+	if source.DBType == "" {
+		utils.ErrExit("Error: required flag \"source-db-type\" not set")
+	}
+
+	source.DBType = strings.ToLower(source.DBType)
+	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
+		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
+	}
+}
+
+func validateSourceSchema() {
+	if source.Schema == "" {
+		return
+	}
+
+	schemaList := utils.CsvStringToSlice(source.Schema)
+	switch source.DBType {
+	case MYSQL:
+		utils.ErrExit("Error: --source-db-schema flag is not valid for 'MySQL' db type")
+	case ORACLE:
+		if len(schemaList) > 1 {
+			utils.ErrExit("Error: single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+		}
+	case POSTGRESQL:
+		// In PG, its supported to export more than one schema
+		source.Schema = strings.Join(schemaList, "|") // clean and correct formatted for pg
 	}
 }
 
 func validatePortRange() {
 	if source.Port < 0 || source.Port > 65535 {
-		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", source.Port)
+		utils.ErrExit("Error: Invalid port number %d. Valid range is 0-65535", source.Port)
 	}
 }
 
-func checkOrSetDefaultSSLMode() {
-
-	switch source.DBType {
-	case MYSQL:
-		if source.SSLMode == "disable" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-			return
-		} else if source.SSLMode == "" {
-			source.SSLMode = "prefer"
-		} else {
-			utils.ErrExit("Invalid sslmode %q. Required one of [disable, prefer, require, verify-ca, verify-full]", source.SSLMode)
-		}
-	case POSTGRESQL:
-		if source.SSLMode == "disable" || source.SSLMode == "allow" || source.SSLMode == "prefer" || source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full" {
-			return
-		} else if source.SSLMode == "" {
-			source.SSLMode = "prefer"
-		} else {
-			utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", source.SSLMode)
-		}
+func validateSSLMode() {
+	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
+		return
+	} else {
+		utils.ErrExit("Error: Invalid sslmode: %q. Valid SSL modes are %v", validSSLModes[source.DBType])
 	}
 }
 
 func validateOracleParams() {
+	if source.DBType != ORACLE {
+		return
+	}
+
 	// in oracle, object names are stored in UPPER CASE by default(case insensitive)
 	if !utils.IsQuotedString(source.Schema) {
 		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-		utils.ErrExit(`ERROR: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
+		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		utils.PrintAndLog("Using TNS Alias for export.")
@@ -230,4 +242,19 @@ func validateOracleParams() {
 		utils.PrintAndLog("Using SID for export.")
 	}
 
+}
+
+func markFlagsRequired(cmd *cobra.Command) {
+	// mandatory for all
+	cmd.MarkPersistentFlagRequired("source-db-type")
+	cmd.MarkPersistentFlagRequired("source-db-user")
+	cmd.MarkPersistentFlagRequired("source-db-password")
+
+	switch source.DBType {
+	case POSTGRESQL, ORACLE: // schema and database names are mandatory
+		cmd.MarkPersistentFlagRequired("source-db-name")
+		cmd.MarkPersistentFlagRequired("source-db-schema")
+	case MYSQL:
+		cmd.MarkPersistentFlagRequired("source-db-name")
+	}
 }

@@ -34,12 +34,13 @@ var importCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags(cmd)
+		validateImportFlags()
+		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		markImportFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importSchema()
 		importData()
 	},
@@ -50,17 +51,13 @@ func init() {
 	registerCommonImportFlags(importCmd)
 }
 
-func validateImportFlags(cmd *cobra.Command) {
-	checkExportDirFlag()
+func validateImportFlags() {
+	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 
-	if target.TableList != "" {
-		checkTableListFlag(target.TableList)
-	}
-	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
-		utils.ErrExit("ERROR: --target-db-schema flag is only valid for export from 'oracle' and 'mysql' db type")
-	}
+	validateTableListFlag(target.TableList)
+	validateTargetSchemaFlag()
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -160,10 +157,26 @@ func validateTargetPortRange() {
 	}
 }
 
+func validateTargetSchemaFlag() {
+	if target.Schema == "" {
+		return
+	}
+	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
+		utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+	}
+}
+
 func checkOrSetDefaultTargetSSLMode() {
 	if target.SSLMode == "" {
 		target.SSLMode = "prefer"
 	} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
 		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
+	}
+}
+
+func markImportFlagsRequired(cmd *cobra.Command) {
+	switch sourceDBType {
+	case ORACLE, MYSQL:
+		cmd.MarkPersistentFlagRequired("target-db-schema")
 	}
 }

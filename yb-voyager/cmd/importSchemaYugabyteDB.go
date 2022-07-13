@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -79,6 +80,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 			}
 		}
 
+		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
 		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)
 		errOccured := 0
 		for _, sqlStr := range sqlStrArray {
@@ -87,7 +89,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 			if err != nil {
 				log.Errorf("Previous SQL statement failed with error: %s", err)
 				if strings.Contains(err.Error(), "already exists") {
-					if !target.IgnoreIfExists {
+					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlStr[1]) {
 						fmt.Printf("\b \n    %s\n", err.Error())
 						fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 						if !target.ContinueOnError {

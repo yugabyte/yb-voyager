@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -76,14 +77,16 @@ func (pg *PostgreSQL) GetVersion() string {
 }
 
 func (pg *PostgreSQL) GetAllTableNames() []string {
-	query := `SELECT table_schema, table_name
+	list := strings.Split(pg.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(list, "','") + "'"
+	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema NOT IN ('pg_catalog', 'information_schema');`
+			        table_schema IN (%s);`, querySchemaList)
 
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v\n", err)
+		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
 	defer rows.Close()
 
@@ -121,7 +124,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pgdumpExtractSchema(pg.getConnectionUri(), exportDir)
+	pgdumpExtractSchema(pg.source.Schema, pg.getConnectionUri(), exportDir)
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {

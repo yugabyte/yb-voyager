@@ -45,3 +45,8 @@ var IMPORT_SESSION_SETTERS = []string{
 }
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
+
+var validSSLModes = map[string][]string{
+	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
+	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+}

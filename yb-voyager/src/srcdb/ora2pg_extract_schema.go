@@ -51,10 +51,10 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					log.Infof("ERROR in output scanner goroutine: %s", line)
+					log.Infof("ERROR in output scanner goroutine: \"%s\"", line)
 					runtime.Goexit()
 				} else {
-					log.Infof("ora2pg STDOUT: %s", outScanner.Text())
+					log.Infof("ora2pg STDOUT: \"%s\"", outScanner.Text())
 				}
 			}
 		}()
@@ -66,10 +66,10 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 				if strings.Contains(line, "error") {
 					utils.WaitChannel <- 1 //stop waiting with exit code 1
 					<-utils.WaitChannel
-					log.Infof("ERROR in error scanner goroutine: %s", line)
+					log.Infof("ERROR in error scanner goroutine: \"%s\"", line)
 					runtime.Goexit()
 				} else {
-					utils.PrintAndLog("ora2pg STDERR: %s", errScanner.Text())
+					utils.PrintAndLog("ora2pg STDERR: \"%s\"", errScanner.Text())
 				}
 			}
 		}()

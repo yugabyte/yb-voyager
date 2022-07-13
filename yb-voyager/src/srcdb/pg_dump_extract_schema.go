@@ -12,16 +12,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(connectionUri string, exportDir string) {
+func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 
-	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --no-owner -f %s --no-privileges`,
-		connectionUri, filepath.Join(exportDir, "temp", "schema.sql"))
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --schema "%s" --no-owner -f %s --no-privileges`,
+		connectionUri, schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
 	log.Infof("Running command: %s", cmd)
-	preparedYsqldumpCommand := exec.Command("/bin/bash", "-c", cmd)
+	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
-	stdout, err := preparedYsqldumpCommand.CombinedOutput()
+	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.
 	if string(stdout) != "" {
 		log.Infof("%s", string(stdout))
@@ -81,7 +81,7 @@ func parseSchemaFile(exportDir string) {
 			// TODO: TABLESPACE
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
-				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION":
+				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
 				objSqlStmts[sqlType].WriteString(sqlStatement)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				objSqlStmts["TABLE"].WriteString(sqlStatement)
@@ -115,7 +115,10 @@ func parseSchemaFile(exportDir string) {
 	}
 
 	if uncategorizedSqls.Len() > 0 {
-		ioutil.WriteFile(filepath.Join(schemaDirPath, "uncategorized.sql"), []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
+		// TODO: add it to the analyze-schema report in case of postgresql
+		utils.PrintAndLog("Some uncategorized sql statements are present in %q, Needs to review and import them manually!!", filePath)
+		ioutil.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 	}
 }
 
