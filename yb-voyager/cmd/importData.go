@@ -264,7 +264,7 @@ func importData() {
 	}
 	log.Infof("targetUriList: %s", targetUriList)
 	params := &tgtdb.ConnectionParams{
-		NumConnections: parallelImportJobs,
+		NumConnections: parallelImportJobs + 1,
 		ConnUriList:    targetUriList,
 		SessionVars: map[string]string{
 			"yb_disable_transactional_writes": fmt.Sprintf("%v", disableTransactionalWrites),
