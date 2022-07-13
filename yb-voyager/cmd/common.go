@@ -137,23 +137,14 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 }
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
-	var maxTableLines, totalTableLines int64
-	payload := callhome.GetPayload(exportDir)
 
 	utils.PrintAndLog("calculating approx num of rows to export for each table...")
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key])
-		if approxRowCount > maxTableLines {
-			maxTableLines = approxRowCount
-		}
-		totalTableLines += approxRowCount
-
 		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
 
-	payload.LargestTableRows = maxTableLines
-	payload.TotalRows = totalTableLines
 	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 
@@ -180,6 +171,9 @@ func GetTableRowCount(filePath string) map[string]int64 {
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {
+	var maxTableLines, totalTableLines int64
+	payload := callhome.GetPayload(exportDir)
+
 	fmt.Println("exported num of rows for each table")
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
@@ -189,11 +183,20 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
+
+	var rowCount int64
 	for _, key := range keys {
+		rowCount = exportedRowCount[key]
+		if rowCount > maxTableLines {
+			maxTableLines = rowCount
+		}
+		totalTableLines += rowCount
 		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
-		fmt.Printf("| %30s | %30d |\n", key, exportedRowCount[key])
+		fmt.Printf("| %30s | %30d |\n", key, rowCount)
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	payload.LargestTableRows = maxTableLines
+	payload.TotalRows = totalTableLines
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
