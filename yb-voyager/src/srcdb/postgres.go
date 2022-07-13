@@ -124,7 +124,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
+	pgdumpExtractSchema(pg.source.Schema, pg.getConnectionUri(), exportDir)
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
