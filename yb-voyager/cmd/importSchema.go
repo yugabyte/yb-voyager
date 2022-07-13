@@ -72,7 +72,7 @@ func importSchema() {
 		targetSchemas = utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")
 	} else if sourceDBType == "oracle" { // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, YUGABYTEDB_DEFAULT_SCHEMA)
+		targetSchemas = append(targetSchemas, target.Schema)
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
 	}
 
@@ -101,7 +101,7 @@ func importSchema() {
 		}
 	}
 
-	if sourceDBType != POSTGRESQL {
+	if sourceDBType != POSTGRESQL { // with the new schema list flag, pg_dump takes care of all schema creation DDLs
 		schemaExists := checkIfTargetSchemaExists(conn, target.Schema)
 		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", target.Schema)
 		/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
