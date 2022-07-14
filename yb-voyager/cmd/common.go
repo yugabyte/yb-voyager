@@ -27,7 +27,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -137,23 +136,14 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 }
 
 func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
-	var maxTableLines, totalTableLines int64
-	payload := callhome.GetPayload(exportDir)
 
 	utils.PrintAndLog("calculating approx num of rows to export for each table...")
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	for _, key := range sortedKeys {
 		approxRowCount := source.DB().GetTableApproxRowCount(tablesProgressMetadata[key])
-		if approxRowCount > maxTableLines {
-			maxTableLines = approxRowCount
-		}
-		totalTableLines += approxRowCount
-
 		tablesProgressMetadata[key].CountTotalRows = approxRowCount
 	}
 
-	payload.LargestTableRows = maxTableLines
-	payload.TotalRows = totalTableLines
 	log.Tracef("After updating total approx row count, TablesProgressMetadata: %+v", tablesProgressMetadata)
 }
 
