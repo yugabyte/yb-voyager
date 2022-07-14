@@ -1013,4 +1013,6 @@ func getProgressAmount(filePath string) int64 {
 func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
+	importDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data export (default false)")
 }

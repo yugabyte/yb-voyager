@@ -66,6 +66,9 @@ func init() {
 
 	exportCmd.PersistentFlags().IntVar(&source.NumConnections, "parallel-jobs", 1,
 		"number of Parallel Jobs to extract data from source database")
+
+	exportCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data export (default false)")
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {

@@ -49,6 +49,8 @@ var importCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(importCmd)
 	registerCommonImportFlags(importCmd)
+	importCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data import (default false)")
 }
 
 func validateImportFlags() {
@@ -138,9 +140,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
-
-	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data import (default false)")
 
 	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", false,
 		"true - to enable upsert for insert in target tables (default false)")

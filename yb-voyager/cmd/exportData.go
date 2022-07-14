@@ -52,6 +52,8 @@ var exportDataCmd = &cobra.Command{
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data export(default false)")
 }
 
 func exportData() {
@@ -151,12 +153,13 @@ func exportDataOffline() bool {
 	// Wait for the export data to start.
 	<-exportDataStart
 
-	UpdateFilePaths(&source, exportDir, tablesProgressMetadata)
-	utils.WaitGroup.Add(1)
-	exportDataStatus(ctx, tablesProgressMetadata, quitChan)
+	updateFilePaths(&source, exportDir, tablesProgressMetadata)
+	if !disablePb {
+		utils.WaitGroup.Add(1)
+		exportDataStatus(ctx, tablesProgressMetadata, quitChan)
+	}
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
-
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
 		return false
