@@ -123,10 +123,13 @@ func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetad
 		oldFilePath := tableProgressMetadata.InProgressFilePath
 		newFilePath := tableProgressMetadata.FinalFilePath
 		if utils.FileOrFolderExists(oldFilePath) {
+			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
 			err := os.Rename(oldFilePath, newFilePath)
 			if err != nil {
 				utils.ErrExit("renaming data file for table %q after data export: %v", tableProgressMetadata.TableName, err)
 			}
+		} else {
+			log.Infof("File %q to rename doesn't exists!", oldFilePath)
 		}
 	}
 }
