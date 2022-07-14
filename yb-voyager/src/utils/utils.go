@@ -258,7 +258,7 @@ func GetSortedKeys(tablesProgressMetadata map[string]*TableProgressMetadata) []s
 func CsvStringToSlice(str string) []string {
 	result := strings.Split(str, ",")
 	for i := 0; i < len(result); i++ {
-		result[i] = strings.Trim(result[i], " ")
+		result[i] = strings.TrimSpace(result[i])
 	}
 
 	return result

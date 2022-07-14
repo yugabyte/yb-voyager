@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -36,7 +35,7 @@ var importSchemaCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags(cmd)
+		validateImportFlags()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -67,13 +66,13 @@ func importSchema() {
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
 
-	// in case of postgreSQL as source, there can be multiple schemas present in a database
-	targetSchemas := []string{target.Schema}
-	if sourceDBType == "postgresql" {
+	var targetSchemas []string
+	if sourceDBType == "postgresql" { // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")...)
+		targetSchemas = utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")
 	} else if sourceDBType == "oracle" { // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
+		targetSchemas = append(targetSchemas, target.Schema)
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
 	}
 
@@ -102,22 +101,23 @@ func importSchema() {
 		}
 	}
 
-	schemaExists := checkIfTargetSchemaExists(conn, target.Schema)
-	createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", target.Schema)
-	/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
-	only create target.Schema, other required schemas are created via .sql files */
-	if !schemaExists {
-		utils.PrintAndLog("creating schema '%s' in target database...", target.Schema)
-		_, err := conn.Exec(bgCtx, createSchemaQuery)
-		if err != nil {
-			utils.ErrExit("Failed to create %q schema in the target DB: %s", target.Schema, err)
+	if sourceDBType != POSTGRESQL { // with the new schema list flag, pg_dump takes care of all schema creation DDLs
+		schemaExists := checkIfTargetSchemaExists(conn, target.Schema)
+		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", target.Schema)
+		/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
+		only create target.Schema, other required schemas are created via .sql files */
+		if !schemaExists {
+			utils.PrintAndLog("creating schema '%s' in target database...", target.Schema)
+			_, err := conn.Exec(bgCtx, createSchemaQuery)
+			if err != nil {
+				utils.ErrExit("Failed to create %q schema in the target DB: %s", target.Schema, err)
+			}
 		}
-	}
 
-	if sourceDBType != POSTGRESQL && target.Schema == "public" &&
-		!utils.AskPrompt("do you really want to import into 'public' schema") {
-		log.Infof("User selected not to import in the `public` schema. Exiting.")
-		os.Exit(1)
+		if target.Schema == YUGABYTEDB_DEFAULT_SCHEMA &&
+			!utils.AskPrompt("do you really want to import into 'public' schema") {
+			utils.ErrExit("User selected not to import in the `public` schema. Exiting.")
+		}
 	}
 
 	YugabyteDBImportSchema(&target, exportDir)

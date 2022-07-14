@@ -95,7 +95,7 @@ var importDataCmd = &cobra.Command{
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags(cmd)
+		validateImportFlags()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -258,6 +258,21 @@ func importData() {
 	targets := getYBServers()
 	payload.NodeCount = len(targets)
 
+	var targetUriList []string
+	for _, t := range targets {
+		targetUriList = append(targetUriList, t.Uri)
+	}
+	log.Infof("targetUriList: %s", targetUriList)
+	params := &tgtdb.ConnectionParams{
+		NumConnections: parallelImportJobs + 1,
+		ConnUriList:    targetUriList,
+		SessionVars: map[string]string{
+			"yb_disable_transactional_writes": fmt.Sprintf("%v", disableTransactionalWrites),
+			"yb_enable_upsert_mode":           fmt.Sprintf("%v", enableUpsert),
+		},
+	}
+	connPool := tgtdb.NewConnectionPool(params)
+
 	var parallelism = parallelImportJobs
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
@@ -269,11 +284,9 @@ func importData() {
 		splitFileChannelSize = parallelism + 1
 	}
 	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
-	targetServerChannel := make(chan *tgtdb.Target, 1)
 
-	go roundRobinTargets(targets, targetServerChannel)
 	generateSmallerSplits(splitFilesChannel)
-	go doImport(splitFilesChannel, parallelism, targetServerChannel)
+	go doImport(splitFilesChannel, parallelism, connPool)
 	checkForDone()
 
 	time.Sleep(time.Second * 2)
@@ -308,14 +321,6 @@ func checkForDone() {
 		}
 	}
 
-}
-
-func roundRobinTargets(targets []*tgtdb.Target, channel chan *tgtdb.Target) {
-	index := 0
-	for Done.IsNotSet() {
-		channel <- targets[index%len(targets)]
-		index++
-	}
 }
 
 func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
@@ -764,7 +769,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	return doneTables, interruptedTables, remainingTables, nil
 }
 
-func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan chan *tgtdb.Target) {
+func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
 	if Done.IsSet() { //if import is already done, return
 		log.Infof("Done is already set.")
 		return
@@ -787,7 +792,7 @@ func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan c
 				time.Sleep(time.Second * 2)
 			}
 			atomic.AddInt64(&parallelImportCount, 1)
-			go doImportInParallel(t, targetChan, &parallelImportCount)
+			go doImportInParallel(t, connPool, &parallelImportCount)
 		default:
 			// fmt.Printf("No file sleeping for 2 seconds\n")
 			time.Sleep(2 * time.Second)
@@ -797,145 +802,80 @@ func doImport(taskQueue chan *SplitFileImportTask, parallelism int, targetChan c
 	importProgressContainer.container.Wait()
 }
 
-func doImportInParallel(t *SplitFileImportTask, targetChan chan *tgtdb.Target, parallelImportCount *int64) {
-	doOneImport(t, targetChan)
+func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, parallelImportCount *int64) {
+	doOneImport(t, connPool)
 	atomic.AddInt64(parallelImportCount, -1)
 }
 
-func doOneImport(task *SplitFileImportTask, targetChan chan *tgtdb.Target) {
+func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	splitImportDone := false
 	for !splitImportDone {
-		select {
-		case targetServer := <-targetChan:
-			log.Infof("Importing %q using target node %q", task.SplitFilePath, targetServer.Host)
-			//this is done to signal start progress bar for this table
-			if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
-				tablesProgressMetadata[task.TableName].CountLiveRows = 0
-			}
-			// Rename the file to .P
-			inProgressFilePath := getInProgressFilePath(task)
-			log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
-			err := os.Rename(task.SplitFilePath, inProgressFilePath)
-			if err != nil {
-				utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
-			}
-
-			conn, err := pgx.Connect(context.Background(), targetServer.GetConnectionUri())
-			if err != nil {
-				utils.ErrExit("connect to YB node %q: %s", targetServer.Host, err)
-			}
-			defer conn.Close(context.Background())
-
-			dbVersion := targetServer.DB().GetVersion()
-			sessionVarsPath := filepath.Join("/", "etc", "ybSessionVariables.sql")
-
-			if utils.FileOrFolderExists(sessionVarsPath) {
-				setSessionVars(conn, sessionVarsPath)
-			} else {
-				for i, statement := range IMPORT_SESSION_SETTERS {
-					if checkSessionVariableSupported(i, dbVersion) {
-						_, err := conn.Exec(context.Background(), statement)
-						if err != nil {
-							utils.ErrExit("import file %q: run query %q on %q: %s", inProgressFilePath, statement, targetServer.Host, err)
-						}
-					}
-				}
-			}
-
-			reader, err := os.Open(inProgressFilePath)
-			if err != nil {
-				utils.ErrExit("open %q: %s", inProgressFilePath, err)
-			}
-
-			//setting the schema so that COPY command can acesss the table
-			if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-				setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-				_, err := conn.Exec(context.Background(), setSchemaQuery)
-				if err != nil {
-					utils.ErrExit("run query %q on %q: %s", setSchemaQuery, targetServer.Host, err)
-				}
-			}
-
-			copyCommand := getCopyCommand(task.TableName)
-			// copyCommand is empty when there are no rows for that table
-			if copyCommand != "" {
-				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-				rowsCount := res.RowsAffected()
-				log.Infof("%q => %d rows affected", copyCommand, rowsCount)
-				if err != nil {
-					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-					if !strings.Contains(err.Error(), "violates unique constraint") {
-						utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
-					} else { //in case of unique key violation error take row count from the split task
-						rowsCount = task.OffsetEnd - task.OffsetStart
-						log.Infof("got error:%v, assuming affected rows count %v for %q", err, rowsCount, task.TableName)
-					}
-				}
-				if rowsCount != task.OffsetEnd-task.OffsetStart {
-					// TODO: print info/details about missed rows on the screen after progress bar is complete
-					log.Warnf("Expected to import %v records from %s. Imported %v.",
-						task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
-				}
-				incrementImportProgressBar(task.TableName, inProgressFilePath)
-			}
-			doneFilePath := getDoneFilePath(task)
-			log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
-			err = os.Rename(inProgressFilePath, doneFilePath)
-			if err != nil {
-				utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
-			}
-
-			err = os.Truncate(doneFilePath, 0)
-			if err != nil {
-				log.Warnf("truncate file %q: %s", doneFilePath, err)
-			}
-			splitImportDone = true
-		default:
-			// fmt.Printf("No server sleeping for 2 seconds\n")
-			time.Sleep(200 * time.Millisecond)
+		log.Infof("Importing %q", task.SplitFilePath)
+		//this is done to signal start progress bar for this table
+		if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
+			tablesProgressMetadata[task.TableName].CountLiveRows = 0
 		}
-	}
-}
-
-func setSessionVars(conn *pgx.Conn, sessionVarsPath string) {
-	varsFile, err := os.Open(sessionVarsPath)
-	if err != nil {
-		utils.ErrExit("Error while opening ybSessionVariables.sql: %v", err)
-	}
-	defer varsFile.Close()
-	fileScanner := bufio.NewScanner(varsFile)
-
-	var curLine string
-	setVarRegex := regexp.MustCompile(`(?i)^SET `)
-	for fileScanner.Scan() {
-		curLine = strings.TrimSpace(fileScanner.Text())
-		if !setVarRegex.MatchString(curLine) {
-			utils.ErrExit("Only SET statements allowed in ybSessionVariables.sql. Found: %s.", curLine)
-		}
-		_, err := conn.Exec(context.Background(), curLine)
+		// Rename the file to .P
+		inProgressFilePath := getInProgressFilePath(task)
+		log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
+		err := os.Rename(task.SplitFilePath, inProgressFilePath)
 		if err != nil {
-			utils.ErrExit("Error while running session variables statement (%q): %v", curLine, err)
+			utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
 		}
-	}
-}
 
-/*
-	function to check for session variable supported or not based on YBDB version
-*/
-func checkSessionVariableSupported(idx int, dbVersion string) bool {
-	// YB version includes compatible postgres version also, for example: 11.2-YB-2.13.0.0-b0
-	// splits := strings.Split(dbVersion, "YB-")
-	// dbVersion = splits[len(splits)-1]
+		reader, err := os.Open(inProgressFilePath)
+		if err != nil {
+			utils.ErrExit("open %q: %s", inProgressFilePath, err)
+		}
 
-	if idx == 1 { // yb_disable_transactional_writes
-		// only supported for these versions
-		// return strings.Compare(dbVersion, "2.8.1") == 0 || strings.Compare(dbVersion, "2.11.2") >= 0
-		// TODO: enable it for identified version which doesn't have the bug
-		return disableTransactionalWrites
-	} else if idx == 3 { // yb_enable_upsert_mode
-		return enableUpsert
+		copyCommand := getCopyCommand(task.TableName)
+		// copyCommand is empty when there are no rows for that table
+		if copyCommand != "" {
+			var rowsCount int64
+			err := connPool.WithConn(func(conn *pgx.Conn) error {
+				//setting the schema so that COPY command can acesss the table
+				if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+					setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+					_, err := conn.Exec(context.Background(), setSchemaQuery)
+					if err != nil {
+						utils.ErrExit("run query %q: %s", setSchemaQuery, err)
+					}
+				}
+				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+				rowsCount = res.RowsAffected()
+				return err
+			})
+
+			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+			if err != nil {
+				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+				if !strings.Contains(err.Error(), "violates unique constraint") {
+					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
+				} else { //in case of unique key violation error take row count from the split task
+					rowsCount = task.OffsetEnd - task.OffsetStart
+					log.Infof("got error:%v, assuming affected rows count %v for %q", err, rowsCount, task.TableName)
+				}
+			}
+			if rowsCount != task.OffsetEnd-task.OffsetStart {
+				// TODO: print info/details about missed rows on the screen after progress bar is complete
+				log.Warnf("Expected to import %v records from %s. Imported %v.",
+					task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
+			}
+			incrementImportProgressBar(task.TableName, inProgressFilePath)
+		}
+		doneFilePath := getDoneFilePath(task)
+		log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
+		err = os.Rename(inProgressFilePath, doneFilePath)
+		if err != nil {
+			utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
+		}
+
+		err = os.Truncate(doneFilePath, 0)
+		if err != nil {
+			log.Warnf("truncate file %q: %s", doneFilePath, err)
+		}
+		splitImportDone = true
 	}
-	return true
 }
 
 func executeSqlFile(file string) {

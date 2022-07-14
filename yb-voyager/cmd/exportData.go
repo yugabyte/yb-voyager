@@ -89,7 +89,7 @@ func exportDataOffline() bool {
 
 	var tableList []string
 	if source.TableList != "" {
-		userTableList := strings.Split(source.TableList, ",")
+		userTableList := utils.CsvStringToSlice(source.TableList)
 
 		if source.DBType == POSTGRESQL {
 			// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
@@ -138,7 +138,7 @@ func exportDataOffline() bool {
 	initializeExportTablePartitionMetadata(tableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
-	UpdateTableRowCount(&source, exportDir, tablesProgressMetadata)
+	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
@@ -177,14 +177,17 @@ func exportDataOnline() bool {
 	return false
 }
 
-func checkTableListFlag(tableListString string) {
-	tableList := strings.Split(tableListString, ",")
-	//TODO: update regexp once table name with double quotes are allowed/supported
-	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
+func validateTableListFlag(tableListString string) {
+	if tableListString == "" {
+		return
+	}
 
+	tableList := utils.CsvStringToSlice(tableListString)
+	// TODO: update regexp once table name with double quotes are allowed/supported
+	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("invalid table name '%v' with --table-list flag", table)
+			utils.ErrExit("Error: Invalid table name '%v' provided wtih --table-list flag", table)
 		}
 	}
 }

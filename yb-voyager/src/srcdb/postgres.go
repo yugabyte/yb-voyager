@@ -2,7 +2,9 @@ package srcdb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -31,16 +33,37 @@ func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
+	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	if err != nil {
+		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
+	}
+	defer conn.Close(context.Background())
+
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName)
-
 	log.Infof("Querying row count of table %q", tableName)
-	err := pg.db.QueryRow(context.Background(), query).Scan(&rowCount)
+	err = conn.QueryRow(context.Background(), query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query row count of %q: %s", tableName, err)
+		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
 	return rowCount
+}
+
+func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
+	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
+		"where oid = '%s'::regclass", tableProgressMetadata.FullTableName)
+
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
+	if err != nil {
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.FullTableName, err)
+	}
+
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.FullTableName, approxRowCount)
+	return approxRowCount.Int64
 }
 
 func (pg *PostgreSQL) GetVersion() string {
@@ -54,14 +77,16 @@ func (pg *PostgreSQL) GetVersion() string {
 }
 
 func (pg *PostgreSQL) GetAllTableNames() []string {
-	query := `SELECT table_schema, table_name
+	list := strings.Split(pg.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(list, "','") + "'"
+	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
-			        table_schema NOT IN ('pg_catalog', 'information_schema');`
+			        table_schema IN (%s);`, querySchemaList)
 
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v\n", err)
+		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
 	defer rows.Close()
 
@@ -99,7 +124,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pgdumpExtractSchema(pg.getConnectionUri(), exportDir)
+	pgdumpExtractSchema(pg.source.Schema, pg.getConnectionUri(), exportDir)
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
