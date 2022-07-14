@@ -27,7 +27,6 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -171,7 +170,6 @@ func GetTableRowCount(filePath string) map[string]int64 {
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {
-
 	fmt.Println("exported num of rows for each table")
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
@@ -181,28 +179,11 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
-
 	for _, key := range keys {
 		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
 		fmt.Printf("| %30s | %30d |\n", key, exportedRowCount[key])
 	}
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
-
-}
-
-func callhomeActualRowCounts(exportedRowCount map[string]int64) {
-	var maxTableLines, totalTableLines int64
-	payload := callhome.GetPayload(exportDir)
-	var rowCount int64
-	for key := range exportedRowCount {
-		rowCount = exportedRowCount[key]
-		if rowCount > maxTableLines {
-			maxTableLines = rowCount
-		}
-		totalTableLines += rowCount
-	}
-	payload.LargestTableRows = maxTableLines
-	payload.TotalRows = totalTableLines
 }
 
 //setup a project having subdirs for various database objects IF NOT EXISTS
