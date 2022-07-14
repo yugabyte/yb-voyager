@@ -67,13 +67,18 @@ func importSchema() {
 	payload.TargetDBVersion = targetDBVersion
 
 	var targetSchemas []string
-	if sourceDBType == "postgresql" { // in case of postgreSQL as source, there can be multiple schemas present in a database
+	switch sourceDBType {
+	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")
-	} else if sourceDBType == "oracle" { // ORACLE PACKAGEs are exported as SCHEMAs
+	case "oracle": // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = append(targetSchemas, target.Schema)
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
+	case "mysql":
+		source = srcdb.Source{DBType: sourceDBType}
+		targetSchemas = append(targetSchemas, target.Schema)
+
 	}
 
 	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
