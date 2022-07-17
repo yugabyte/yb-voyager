@@ -1,18 +1,22 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/semaphore"
 )
 
 var (
@@ -35,9 +39,56 @@ var importDataFileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags()
 		parseFileTableMapping()
-		prepareForImportDataCmd()
-		importData()
+		importDataFiles()
+		//prepareForImportDataCmd()
+		//importData()
 	},
+}
+
+func importDataFiles() {
+	ctx := context.Background()
+	sema := semaphore.NewWeighted(20)
+	migstate := libmig.NewMigrationState(exportDir)
+	progressReporter := libmig.NewProgressReporter()
+	connPool := newConnPool()
+	tdb := libmig.NewTargetDB(connPool)
+	dfd := &libmig.DataFileDescriptor{
+		FileType: fileFormat,
+		// TODO Fill up other data descriptor options.
+	}
+	dbName, schemaName := target.DBName, target.Schema
+	for tableName, filePath := range tableNameVsFilePath {
+		tableID := libmig.NewTableID(dbName, schemaName, tableName)
+		op := libmig.NewImportFileOp(migstate, progressReporter, tdb, filePath, tableID, dfd, sema)
+		op.BatchSize = int(numLinesInASplit)
+		err := op.Run(ctx)
+		if err != nil {
+			utils.ErrExit("Failed to import %s: %s", tableID, err)
+		}
+		op.Wait()
+		// TODO: Check for err and output report.
+	}
+	// Let the progress bars end properly.
+	time.Sleep(time.Second)
+}
+
+func newConnPool() *libmig.ConnectionPool {
+	targets := getYBServers()
+	var targetUriList []string
+	for _, t := range targets {
+		targetUriList = append(targetUriList, t.Uri)
+	}
+	log.Infof("targetUriList: %s", targetUriList)
+	params := &libmig.ConnectionParams{
+		NumConnections: parallelImportJobs + 1,
+		ConnUriList:    targetUriList,
+		SessionVars: map[string]string{
+			"yb_disable_transactional_writes": fmt.Sprintf("%v", disableTransactionalWrites),
+			"yb_enable_upsert_mode":           fmt.Sprintf("%v", enableUpsert),
+		},
+	}
+	connPool := libmig.NewConnectionPool(params)
+	return connPool
 }
 
 func prepareForImportDataCmd() {

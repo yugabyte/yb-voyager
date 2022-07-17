@@ -169,6 +169,7 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 	log.Infof("Submitting batch %d", batch.BatchNumber)
 	go func() {
 		_ = op.importBatch(batch)
+		// TODO: Handle error.
 		op.Sema.Release(1)
 		op.wg.Done()
 	}()

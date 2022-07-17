@@ -30,9 +30,9 @@ func NewDataFile(fileName string, offset int64, desc *DataFileDescriptor) DataFi
 //============================================================================
 
 const (
-	FILE_TYPE_CSV    = "CSV"
-	FILE_TYPE_TEXT   = "TEXT"
-	FILE_TYPE_ORA2PG = "ORA2PG"
+	FILE_TYPE_CSV    = "csv"
+	FILE_TYPE_TEXT   = "text"
+	FILE_TYPE_ORA2PG = "ora2pg"
 )
 
 type DataFileDescriptor struct {
