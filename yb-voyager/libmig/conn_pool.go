@@ -3,15 +3,23 @@ package libmig
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 )
 
+var sessionVars = map[string]string{
+	"client_encoding":          "'UTF-8'",
+	"session_replication_role": "replica",
+}
+
 type ConnectionParams struct {
 	NumConnections int
 	ConnUriList    []string
+	SessionVars    map[string]string
 }
 
 type ConnectionPool struct {
@@ -28,6 +36,12 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
+	}
+	if pool.params.SessionVars == nil {
+		pool.params.SessionVars = map[string]string{}
+	}
+	for k, v := range sessionVars {
+		pool.params.SessionVars[k] = v
 	}
 	return pool
 }
@@ -56,52 +70,61 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) error) error {
 	return err
 }
 
-func (pool *ConnectionPool) createNewConnection() (conn *pgx.Conn, err error) {
+func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
 	idx := pool.getNextUriIndex()
-	n := len(pool.params.ConnUriList)
-	for i := 0; i < n; i++ {
-		uri := pool.params.ConnUriList[(idx+i)%n]
-		conn, err = pgx.Connect(context.Background(), uri)
-		if err != nil {
-			log.Warnf("Failed to connect to %q: %s", uri, err)
-			continue
+	uri := pool.params.ConnUriList[idx]
+	conn, err := pool.connect(uri)
+	if err != nil {
+		for _, uri := range pool.shuffledConnUriList() {
+			conn, err = pool.connect(uri)
+			if err == nil {
+				break
+			}
 		}
-		// Connection established.
-		log.Infof("Connected to %q", uri)
-		err = pool.setSessionVars(conn)
-		if err != nil {
-			conn.Close(context.Background())
-			return nil, err
-		}
-		break
 	}
 	return conn, err
+}
+
+func (pool *ConnectionPool) connect(uri string) (*pgx.Conn, error) {
+	conn, err := pgx.Connect(context.Background(), uri)
+	if err != nil {
+		log.Warnf("Failed to connect to %q: %s", uri, err)
+		return nil, err
+	}
+	log.Infof("Connected to %q", uri)
+	err = pool.setSessionVars(conn)
+	if err != nil {
+		log.Warnf("Failed to set session vars %q: %s", uri, err)
+		conn.Close(context.Background())
+		conn = nil
+	}
+	return conn, err
+}
+
+func (pool *ConnectionPool) shuffledConnUriList() []string {
+	connUriList := make([]string, len(pool.params.ConnUriList))
+	copy(connUriList, pool.params.ConnUriList)
+
+	rand.Shuffle(len(connUriList), func(i, j int) {
+		connUriList[i], connUriList[j] = connUriList[j], connUriList[i]
+	})
+	return connUriList
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {
 	pool.Lock()
 	defer pool.Unlock()
 
-	pool.nextUriIndex++
-	if pool.nextUriIndex == len(pool.params.ConnUriList) {
-		pool.nextUriIndex = 0
-	}
+	pool.nextUriIndex = (pool.nextUriIndex + 1) % len(pool.params.ConnUriList)
+
 	return pool.nextUriIndex
 }
 
-var sessionVars = map[string]string{
-	"client_encoding":                 "'UTF-8'",
-	"yb_disable_transactional_writes": "true",
-	"session_replication_role":        "replica",
-	"yb_enable_upsert_mode":           "true",
-}
-
 func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
-	for k, v := range sessionVars {
-		// TODO: Add version check.
+	for k, v := range pool.params.SessionVars {
 		cmd := fmt.Sprintf("SET %s TO %s;", k, v)
 		_, err := conn.Exec(context.Background(), cmd)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "unrecognized configuration parameter") {
 			return err
 		}
 	}
