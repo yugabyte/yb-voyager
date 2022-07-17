@@ -5,6 +5,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -16,10 +17,10 @@ func main() {
 
 	sema := semaphore.NewWeighted(2)
 	//	migstate := NewMigrationState("/Users/amit.jambure/export-dir")
-	migstate := NewMigrationState("/tmp/export-dir")
-	progressReporter := NewProgressReporter()
+	migstate := libmig.NewMigrationState("/tmp/export-dir")
+	progressReporter := libmig.NewProgressReporter()
 
-	params := &ConnectionParams{
+	params := &libmig.ConnectionParams{
 		NumConnections: 3,
 		ConnUriList: []string{
 			"postgresql://yugabyte@127.0.0.1:5433/testdb",
@@ -27,18 +28,18 @@ func main() {
 			"postgresql://yugabyte@127.0.0.3:5433/testdb",
 		},
 	}
-	connPool := NewConnectionPool(params)
-	tdb := NewTargetDB(connPool)
+	connPool := libmig.NewConnectionPool(params)
+	tdb := libmig.NewTargetDB(connPool)
 
-	desc1 := &DataFileDescriptor{FileType: FILE_TYPE_CSV}
-	op1 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/test.txt", NewTableID("testdb", "public", "foo"), desc1, sema)
+	desc1 := &libmig.DataFileDescriptor{FileType: libmig.FILE_TYPE_CSV}
+	op1 := libmig.NewImportFileOp(migstate, progressReporter, tdb, "/tmp/test.txt", libmig.NewTableID("testdb", "public", "foo"), desc1, sema)
 	op1.BatchSize = 4
 	err = op1.Run(ctx)
 	panicOnErr(err)
 	op1.Wait()
 
-	desc2 := &DataFileDescriptor{FileType: FILE_TYPE_ORA2PG}
-	op2 := NewImportFileOp(migstate, progressReporter, tdb, "/tmp/category_data.sql", NewTableID("testdb", "public", "category"), desc2, sema)
+	desc2 := &libmig.DataFileDescriptor{FileType: libmig.FILE_TYPE_ORA2PG}
+	op2 := libmig.NewImportFileOp(migstate, progressReporter, tdb, "/tmp/category_data.sql", libmig.NewTableID("testdb", "public", "category"), desc2, sema)
 	op2.BatchSize = 5
 	err = op2.Run(ctx)
 	panicOnErr(err)
