@@ -65,10 +65,6 @@ func importDataFiles() {
 		if err != nil {
 			utils.ErrExit("Failed to import %s: %s", tableID, err)
 		}
-		op.Wait()
-		if op.Err != nil {
-			utils.ErrExit("Failed to fully import %s: %s", tableID, op.Err)
-		}
 	}
 	// Let the progress bars end properly.
 	time.Sleep(time.Second)

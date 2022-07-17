@@ -57,10 +57,6 @@ func NewImportFileOp(
 	}
 }
 
-func (op *ImportFileOp) Wait() {
-	op.wg.Wait()
-}
-
 func (op *ImportFileOp) Run(ctx context.Context) error {
 	log.Infof("Run ImportFileOp")
 
@@ -95,6 +91,10 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			return err
 		}
 	}
+
+	// Wait until all submitted batches are done before returning.
+	defer op.wg.Wait()
+
 	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
