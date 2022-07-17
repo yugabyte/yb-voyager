@@ -95,6 +95,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	// Wait until all submitted batches are done before returning.
 	defer op.wg.Wait()
 
+	count := 0
 	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
@@ -102,7 +103,12 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			if err2 != nil {
 				return err2
 			}
+			count++
 			op.submitBatch(batch)
+			// First 5 batches in each run are imported synchronously.
+			if count <= 5 {
+				op.wg.Wait()
+			}
 		}
 		if eof {
 			log.Info("Done splitting file.")
