@@ -16,28 +16,33 @@ const (
 type ImportFileOp struct {
 	sync.Mutex
 	Sema *semaphore.Weighted
+	wg   sync.WaitGroup
 
 	migState         *MigrationState
 	progressReporter *ProgressReporter
 	tdb              *TargetDB
+	batchGen         *BatchGenerator
 
+	// Input.
 	FileName    string
 	TableID     *TableID
 	Desc        *DataFileDescriptor
 	CopyCommand string
 	BatchSize   int
 
-	batchGen                  *BatchGenerator
+	// Output.
+	Err error
+
 	dataFile                  DataFile
 	lastBatchFromPrevRun      *Batch
 	pendingBatchesFromPrevRun []*Batch
 	failedBatches             []*Batch
-	wg                        sync.WaitGroup
 }
 
 func NewImportFileOp(
 	migState *MigrationState, progressReporter *ProgressReporter, tdb *TargetDB,
 	fileName string, tableID *TableID, desc *DataFileDescriptor, sema *semaphore.Weighted) *ImportFileOp {
+
 	return &ImportFileOp{
 		Sema:             sema,
 		migState:         migState,
@@ -90,8 +95,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			return err
 		}
 	}
-	for {
-		// TODO Stop producing more batches if some batches have failed.
+	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
 			err2 := op.migState.MarkBatchPending(batch)
@@ -108,6 +112,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			return err
 		}
 	}
+	return op.Err
 }
 
 func (op *ImportFileOp) loadStateFromPrevRun() error {
@@ -168,8 +173,15 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 	op.Sema.Acquire(context.Background(), 1)
 	log.Infof("Submitting batch %d", batch.BatchNumber)
 	go func() {
-		_ = op.importBatch(batch)
-		// TODO: Handle error.
+		err := op.importBatch(batch)
+		if err != nil {
+			op.Lock()
+			op.failedBatches = append(op.failedBatches, batch)
+			if op.Err == nil {
+				op.Err = err
+			}
+			op.Unlock()
+		}
 		op.Sema.Release(1)
 		op.wg.Done()
 	}()
