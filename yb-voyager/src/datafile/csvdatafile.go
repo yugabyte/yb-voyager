@@ -82,6 +82,7 @@ func (df *CsvDataFile) GetHeader() string {
 		return df.Header
 	}
 
+	// TODO: This will break COPY command if column names are not separated by comma.
 	line, err := df.NextLine()
 	if err != nil {
 		utils.ErrExit("finding header for csvdata file: %v", err)
