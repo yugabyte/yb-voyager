@@ -14,6 +14,8 @@ type DataFile interface {
 	Size() int64
 	SkipRecords(n int) (int, bool, error)
 	GetCopyCommand(tableID *TableID) (string, error)
+	GetHeader() (string, error)
+	SkipHeader() error
 }
 
 func NewDataFile(fileName string, offset int64, desc *DataFileDescriptor) DataFile {
@@ -67,12 +69,13 @@ func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	switch df.Desc.FileType {
 	case FILE_TYPE_CSV:
 		if df.Desc.HasHeader {
-			header, err := df.getHeader()
+			header, err := df.GetHeader()
 			if err != nil {
 				return "", err
 			}
+			columnNames := strings.Join(strings.Split(header, df.Desc.Delimiter), ",")
 			cmd = fmt.Sprintf(`COPY %s.%s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', HEADER)`,
-				tableID.SchemaName, tableID.TableName, header, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
+				tableID.SchemaName, tableID.TableName, columnNames, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
 		} else {
 			cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s')`,
 				tableID.SchemaName, tableID.TableName, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
@@ -84,9 +87,12 @@ func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	return cmd, nil
 }
 
-func (df *CSVDataFile) getHeader() (string, error) {
+func (df *CSVDataFile) GetHeader() (string, error) {
 	if df.header != "" {
 		return df.header, nil
+	}
+	if !df.Desc.HasHeader {
+		return "", nil
 	}
 
 	fh, err := os.Open(df.FileName)
@@ -95,6 +101,7 @@ func (df *CSVDataFile) getHeader() (string, error) {
 	}
 	defer fh.Close()
 
+	// Treat first non-empty line as a header.
 	reader := bufio.NewReader(fh)
 	line := ""
 	for line == "" {
@@ -105,7 +112,7 @@ func (df *CSVDataFile) getHeader() (string, error) {
 		line = strings.TrimSpace(line)
 	}
 
-	df.header = strings.Join(strings.Split(line, df.Desc.Delimiter), ",")
+	df.header = line
 	return df.header, nil
 }
 
@@ -168,6 +175,10 @@ func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	return "", err
 }
 
+func (df *Ora2pgDataFile) GetHeader() (string, error) {
+	return "", nil
+}
+
 //============================================================================
 
 type baseDataFile struct {
@@ -214,19 +225,27 @@ func (df *baseDataFile) Size() int64 {
 	return df.size
 }
 
-func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
-	skipLine := df.Desc.HasHeader && df.offset == 0
-	count := 0
-	for count < n && df.scanner.Scan() {
+func (df *baseDataFile) SkipHeader() error {
+	if !df.Desc.HasHeader || df.offset != 0 {
+		return nil
+	}
+	for df.scanner.Scan() {
 		line := df.scanner.Text()
 		df.offset += int64(len(line)) + 1 // Add 1 to account for '\n'.
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
-		if skipLine {
-			skipLine = false
-			continue
-		}
+		// Found the header.
+		break
+	}
+	return df.scanner.Err()
+}
+
+func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
+	count := 0
+	for count < n && df.scanner.Scan() {
+		line := df.scanner.Text()
+		df.offset += int64(len(line)) + 1 // Add 1 to account for '\n'.
 		if df.isDataLine(line) {
 			count++
 		}

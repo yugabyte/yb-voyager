@@ -149,6 +149,7 @@ func (migstate *MigrationState) MarkBatchFailed(batch *Batch, e error) error {
 	batch.FileName = failedPath
 	batch.StartOffset = 0
 	batch.EndOffset = -1
+	batch.Header = "" // If there was a header, it will be dumped in the batch data file.
 	batch.Err = e.Error()
 	batch.ImportAttempts++
 
