@@ -69,6 +69,7 @@ func importDataFiles() {
 			utils.ErrExit("Failed to import %s: %s", tableID, err)
 		}
 	}
+	// TODO Output report.
 	// Let the progress bars end properly.
 	time.Sleep(time.Second)
 }

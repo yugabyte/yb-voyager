@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 )
 
 type Batch struct {
@@ -24,6 +25,7 @@ type Batch struct {
 	StartOffset int64
 	EndOffset   int64
 
+	Header      string
 	RecordCount int
 
 	NumRecordsImported int64
@@ -32,15 +34,22 @@ type Batch struct {
 }
 
 func (b *Batch) Reader() (io.ReadCloser, error) {
+	var reader io.ReadCloser
+	var err error
+
 	switch b.Desc.FileType {
 	case FILE_TYPE_CSV:
-		return NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
+		reader, err = NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
 	case FILE_TYPE_ORA2PG:
 		// `insideCopyStmt` is false only for the first batch.
-		return NewOra2pgFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset, b.BatchNumber > 1)
+		reader, err = NewOra2pgFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset, b.BatchNumber > 1)
 	default:
 		panic(fmt.Sprintf("unknown file-type: %q", b.Desc.FileType))
 	}
+	if err == nil && b.Header != "" {
+		reader = NewConcatReadCloser(strings.NewReader(b.Header+"\n"), reader)
+	}
+	return reader, err
 }
 
 func (b *Batch) SaveTo(fileName string) error {
@@ -53,7 +62,12 @@ func (b *Batch) SaveTo(fileName string) error {
 }
 
 func (b *Batch) SizeInBaseFile() int64 {
-	return b.EndOffsetInBaseFile - b.StartOffsetInBaseFile
+	if b.BatchNumber == 1 {
+		// StartOffsetInBaseFile is considered as 0 (even if there is a header line).
+		return b.EndOffsetInBaseFile
+	} else {
+		return b.EndOffsetInBaseFile - b.StartOffsetInBaseFile
+	}
 }
 
 func LoadBatchFrom(fileName string) (*Batch, error) {
@@ -71,6 +85,40 @@ func LoadBatchFrom(fileName string) (*Batch, error) {
 
 //===============================================================================
 
+type ConcatReadCloser struct {
+	first  io.Reader
+	second io.Reader
+
+	multiReader io.Reader
+}
+
+func NewConcatReadCloser(first, second io.Reader) *ConcatReadCloser {
+	return &ConcatReadCloser{
+		first:       first,
+		second:      second,
+		multiReader: io.MultiReader(first, second),
+	}
+}
+
+func (cr *ConcatReadCloser) Read(buf []byte) (int, error) {
+	return cr.multiReader.Read(buf)
+}
+
+func (cr *ConcatReadCloser) Close() error {
+	for _, r := range []io.Reader{cr.first, cr.second} {
+		c, ok := r.(io.Closer)
+		if ok {
+			err := c.Close()
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+//===============================================================================
+
 type BatchGenerator struct {
 	FileName string
 	TableID  *TableID
@@ -78,44 +126,59 @@ type BatchGenerator struct {
 
 	dataFile        DataFile
 	lastBatchNumber int
+	header          string
 }
 
 func NewBatchGenerator(fileName string, tableID *TableID, desc *DataFileDescriptor) *BatchGenerator {
 	return &BatchGenerator{FileName: fileName, TableID: tableID, Desc: desc}
 }
 
-func (mgr *BatchGenerator) Init(dataFile DataFile, lastBatch *Batch) error {
-	// Start from where we left off.
-	mgr.dataFile = dataFile
+func (bg *BatchGenerator) Init(dataFile DataFile, lastBatch *Batch) error {
+	bg.dataFile = dataFile
 	if lastBatch != nil {
-		mgr.lastBatchNumber = lastBatch.BatchNumber
+		// Start from where we left off.
+		bg.lastBatchNumber = lastBatch.BatchNumber
+	}
+	if bg.Desc.HasHeader {
+		header, err := dataFile.GetHeader() // For ora2pg file type, header will be "".
+		if err != nil {
+			return err
+		}
+		bg.header = header
 	}
 	return nil
 }
 
-func (mgr *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
+func (bg *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	var batch *Batch
 
-	startOffset := mgr.dataFile.Offset()
-	n, eof, err := mgr.dataFile.SkipRecords(batchSize)
-	endOffset := mgr.dataFile.Offset()
+	if bg.Desc.HasHeader && bg.dataFile.Offset() == 0 {
+		err := bg.dataFile.SkipHeader()
+		if err != nil {
+			return nil, false, err
+		}
+	}
+	startOffset := bg.dataFile.Offset()
+	n, eof, err := bg.dataFile.SkipRecords(batchSize)
+	endOffset := bg.dataFile.Offset()
 
 	if n > 0 {
-		mgr.lastBatchNumber++
+		bg.lastBatchNumber++
 		batch = &Batch{
-			TableID:     mgr.TableID,
-			BatchNumber: mgr.lastBatchNumber,
+			TableID:     bg.TableID,
+			BatchNumber: bg.lastBatchNumber,
 
-			Desc: mgr.Desc,
+			Desc: bg.Desc,
 
-			BaseFileName:          mgr.FileName,
+			BaseFileName:          bg.FileName,
 			StartOffsetInBaseFile: startOffset,
 			EndOffsetInBaseFile:   endOffset,
 
-			FileName:    mgr.FileName,
+			FileName:    bg.FileName,
 			StartOffset: startOffset,
 			EndOffset:   endOffset,
 
+			Header:      bg.header,
 			RecordCount: n,
 		}
 	}
