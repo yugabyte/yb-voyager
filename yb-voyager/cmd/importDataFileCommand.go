@@ -47,14 +47,17 @@ var importDataFileCmd = &cobra.Command{
 
 func importDataFiles() {
 	ctx := context.Background()
-	sema := semaphore.NewWeighted(20)
 	migstate := libmig.NewMigrationState(exportDir)
 	progressReporter := libmig.NewProgressReporter()
 	connPool := newConnPool()
+	sema := semaphore.NewWeighted(int64(parallelImportJobs * 2))
 	tdb := libmig.NewTargetDB(connPool)
 	dfd := &libmig.DataFileDescriptor{
-		FileType: fileFormat,
-		// TODO Fill up other data descriptor options.
+		FileType:   fileFormat,
+		Delimiter:  delimiter,
+		HasHeader:  hasHeader,
+		EscapeChar: fileOptsMap["escape_char"],
+		QuoteChar:  fileOptsMap["quote_char"],
 	}
 	dbName, schemaName := target.DBName, target.Schema
 	for tableName, filePath := range tableNameVsFilePath {

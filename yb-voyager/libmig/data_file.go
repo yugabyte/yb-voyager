@@ -36,13 +36,18 @@ const (
 )
 
 type DataFileDescriptor struct {
-	FileType string
+	FileType   string
+	Delimiter  string
+	HasHeader  bool
+	EscapeChar string
+	QuoteChar  string
 }
 
 //============================================================================
 
 type CSVDataFile struct {
 	*baseDataFile
+	header string
 }
 
 func NewCSVDataFile(fileName string, offset int64, desc *DataFileDescriptor) *CSVDataFile {
@@ -57,9 +62,51 @@ func (df *CSVDataFile) isDataLine(line string) bool {
 }
 
 func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
-	// TODO Use Desc to correctly set FORMAT, DELIMITER, etc.
-	cmd := fmt.Sprintf("COPY %s.%s FROM STDIN;", tableID.SchemaName, tableID.TableName)
+	var cmd string
+
+	switch df.Desc.FileType {
+	case FILE_TYPE_CSV:
+		if df.Desc.HasHeader {
+			header, err := df.getHeader()
+			if err != nil {
+				return "", err
+			}
+			cmd = fmt.Sprintf(`COPY %s.%s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', HEADER)`,
+				tableID.SchemaName, tableID.TableName, header, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
+		} else {
+			cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s')`,
+				tableID.SchemaName, tableID.TableName, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
+		}
+	case FILE_TYPE_TEXT:
+		cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT TEXT, DELIMITER '%s')`,
+			tableID.SchemaName, tableID.TableName, df.Desc.Delimiter)
+	}
 	return cmd, nil
+}
+
+func (df *CSVDataFile) getHeader() (string, error) {
+	if df.header != "" {
+		return df.header, nil
+	}
+
+	fh, err := os.Open(df.FileName)
+	if err != nil {
+		return "", err
+	}
+	defer fh.Close()
+
+	reader := bufio.NewReader(fh)
+	line := ""
+	for line == "" {
+		line, err = reader.ReadString('\n')
+		if err != nil {
+			return "", err
+		}
+		line = strings.TrimSpace(line)
+	}
+
+	df.header = strings.Join(strings.Split(line, df.Desc.Delimiter), ",")
+	return df.header, nil
 }
 
 //============================================================================
@@ -168,10 +215,18 @@ func (df *baseDataFile) Size() int64 {
 }
 
 func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
+	skipLine := df.Desc.HasHeader && df.offset == 0
 	count := 0
 	for count < n && df.scanner.Scan() {
 		line := df.scanner.Text()
 		df.offset += int64(len(line)) + 1 // Add 1 to account for '\n'.
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if skipLine {
+			skipLine = false
+			continue
+		}
 		if df.isDataLine(line) {
 			count++
 		}
