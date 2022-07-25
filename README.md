@@ -76,9 +76,9 @@ Schema objects and data objects are both migrated as per the following compatibi
 
 |Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|Packages|Synonyms|Tablespaces|
 |-|-|-|-|-|-|-|-|-|-|-|-|-|-|
-|MySQL/MariaDB|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/55)|N/A|Y|N/A|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
-|PostgreSQL|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
-|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/47)|
+|MySQL/MariaDB|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/55)|N/A|Y|N/A|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
+|PostgreSQL|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
+|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
 
 
 *Note that the following versions have been tested with yb-voyager:*

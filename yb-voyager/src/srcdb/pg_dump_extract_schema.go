@@ -16,7 +16,7 @@ func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir stri
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 
-	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --schema "%s" --no-owner -f %s --no-privileges`,
+	cmd := fmt.Sprintf(`pg_dump "%s" --schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces`,
 		connectionUri, schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
 	log.Infof("Running command: %s", cmd)
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
