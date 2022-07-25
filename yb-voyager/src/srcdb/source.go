@@ -156,7 +156,7 @@ var Ora2pgConfigFile string
 
 func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 	sourceDSN := source.getSourceDSN()
-	baseConfigFilePath := filepath.Join("/", "etc", "yb-voyager-base-ora2pg.conf")
+	baseConfigFilePath := filepath.Join("/", "etc", "yb-voyager", "base-ora2pg.conf")
 	if utils.FileOrFolderExists(baseConfigFilePath) {
 		BaseOra2pgConfigFile, err := ioutil.ReadFile(baseConfigFilePath)
 		if err != nil {

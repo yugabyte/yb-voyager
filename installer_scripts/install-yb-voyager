@@ -99,8 +99,8 @@ centos_main() {
 	update_yb_voyager_bashrc
 	install_ora2pg
 	install_yb_voyager
-	insert_ora2pg_conf
-	insert_yb_session_vars_file
+	create_base_ora2pg_conf_file
+	create_yb_session_vars_file
 	update_bashrc
 
 	set +x
@@ -123,8 +123,8 @@ ubuntu_main() {
 	update_yb_voyager_bashrc
 	install_ora2pg
 	install_yb_voyager
-	insert_ora2pg_conf
-	insert_yb_session_vars_file
+	create_base_ora2pg_conf_file
+	create_yb_session_vars_file
 	update_bashrc
 
 	set +x
@@ -140,7 +140,7 @@ macos_main() {
 	macos_install_pg_dump
 	install_golang darwin
 	install_yb_voyager
-	insert_yb_session_vars_file
+	create_yb_session_vars_file
 	update_bashrc
 }
 
@@ -304,18 +304,22 @@ update_bashrc() {
 	done
 }
 
-insert_yb_session_vars_file() {
-	sudo touch /etc/ybSessionVariables.sql
-	sudo sh -c 'printf "SET client_encoding TO '\''UTF8'\'';\nSET session_replication_role TO replica;" > /etc/ybSessionVariables.sql'
+create_yb_session_vars_file() {
+	vars_file_name="/etc/yb-voyager/ybSessionVariables.sql"
+	if [ -f "$vars_file_name" ]
+		return
+	fi
+	sudo touch $vars_file_name
+	sudo wget -qO $vars_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/files/ybSessionVariables.sql
 }
 
-insert_ora2pg_conf() {
-conf_file_name="/etc/yb-voyager-base-ora2pg.conf"
-sudo touch $conf_file_name
-if ! grep -qxF "####################  Ora2Pg Configuration file   #####################" $conf_file_name; then 
-	sudo wget -q https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
-	sudo mv sample-ora2pg.conf $conf_file_name
-fi
+create_base_ora2pg_conf_file() {
+	conf_file_name="/etc/yb-voyager/base-ora2pg.conf"
+	if [ -f "$conf_file_name" ]
+		return
+	fi
+	sudo touch $conf_file_name
+	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
 
