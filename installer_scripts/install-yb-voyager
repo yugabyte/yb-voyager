@@ -99,6 +99,8 @@ centos_main() {
 	update_yb_voyager_bashrc
 	install_ora2pg
 	install_yb_voyager
+	create_yb_session_vars_file
+	create_base_ora2pg_conf_file
 	update_bashrc
 
 	set +x
@@ -121,6 +123,8 @@ ubuntu_main() {
 	update_yb_voyager_bashrc
 	install_ora2pg
 	install_yb_voyager
+	create_yb_session_vars_file
+	create_base_ora2pg_conf_file
 	update_bashrc
 
 	set +x
@@ -136,6 +140,7 @@ macos_main() {
 	macos_install_pg_dump
 	install_golang darwin
 	install_yb_voyager
+	create_yb_session_vars_file
 	update_bashrc
 }
 
@@ -297,6 +302,27 @@ update_bashrc() {
 		* ) ;;
 		esac
 	done
+}
+
+create_yb_session_vars_file() {
+	vars_file_name="/etc/yb-voyager/ybSessionVariables.sql"
+	if [ -f "$vars_file_name" ]
+	then
+		output "No need to create ybSessionVariables.sql again. Skipping."
+		return
+	fi
+	sudo mkdir -p /etc/yb-voyager
+	sudo wget -qO $vars_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/files/ybSessionVariables.sql
+}
+
+create_base_ora2pg_conf_file() {
+	conf_file_name="/etc/yb-voyager/base-ora2pg.conf"
+	if [ -f "$conf_file_name" ]
+	then
+		output "No need to create base-ora2pg.conf again. Skipping."
+		return
+	fi
+	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
 

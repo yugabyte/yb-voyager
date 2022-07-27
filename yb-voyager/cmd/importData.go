@@ -275,12 +275,9 @@ func importData() {
 	}
 	log.Infof("targetUriList: %s", targetUriList)
 	params := &tgtdb.ConnectionParams{
-		NumConnections: parallelImportJobs + 1,
-		ConnUriList:    targetUriList,
-		SessionVars: map[string]string{
-			"yb_disable_transactional_writes": fmt.Sprintf("%v", disableTransactionalWrites),
-			"yb_enable_upsert_mode":           fmt.Sprintf("%v", enableUpsert),
-		},
+		NumConnections:    parallelImportJobs + 1,
+		ConnUriList:       targetUriList,
+		SessionInitScript: getYBSessionInitScript(),
 	}
 	connPool := tgtdb.NewConnectionPool(params)
 
@@ -1019,6 +1016,46 @@ func getProgressAmount(filePath string) int64 {
 
 	log.Debugf("got progress amount=%d for file %q", p, filePath)
 	return p
+}
+
+func getYBSessionInitScript() []string {
+	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
+	var sessionVars []string
+	disableTransactionalWritesCmd := fmt.Sprintf("SET yb_disable_transactional_writes to %v", disableTransactionalWrites)
+	enableUpsertCmd := fmt.Sprintf("SET yb_enable_upsert_mode to %v", enableUpsert)
+	defaultSessionVars := []string{
+		"SET client_encoding to 'UTF-8'",
+		"SET session_replication_role to replica",
+		disableTransactionalWritesCmd,
+		enableUpsertCmd,
+	}
+
+	if !utils.FileOrFolderExists(sessionVarsPath) {
+		return defaultSessionVars
+	}
+
+	varsFile, err := os.Open(sessionVarsPath)
+	if err != nil {
+		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
+		return defaultSessionVars
+	}
+	defer varsFile.Close()
+	fileScanner := bufio.NewScanner(varsFile)
+
+	var curLine string
+	for fileScanner.Scan() {
+		curLine = strings.TrimSpace(fileScanner.Text())
+		sessionVars = append(sessionVars, curLine)
+	}
+
+	//Only override the file if the flags are explicitly true (default false)
+	if enableUpsert {
+		sessionVars = append(sessionVars, enableUpsertCmd)
+	}
+	if disableTransactionalWrites {
+		sessionVars = append(sessionVars, disableTransactionalWritesCmd)
+	}
+	return sessionVars
 }
 
 func init() {

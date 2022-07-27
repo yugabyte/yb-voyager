@@ -2,7 +2,6 @@ package tgtdb
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -11,15 +10,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var sessionVars = map[string]string{
-	"client_encoding":          "'UTF-8'",
-	"session_replication_role": "replica",
+var defaultSessionVars = []string{
+	"SET client_encoding to 'UTF-8'",
+	"SET session_replication_role to replica",
 }
 
 type ConnectionParams struct {
-	NumConnections int
-	ConnUriList    []string
-	SessionVars    map[string]string
+	NumConnections    int
+	ConnUriList       []string
+	SessionInitScript []string
 }
 
 type ConnectionPool struct {
@@ -37,11 +36,8 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
 	}
-	if pool.params.SessionVars == nil {
-		pool.params.SessionVars = map[string]string{}
-	}
-	for k, v := range sessionVars {
-		pool.params.SessionVars[k] = v
+	if pool.params.SessionInitScript == nil {
+		pool.params.SessionInitScript = defaultSessionVars
 	}
 	return pool
 }
@@ -92,7 +88,7 @@ func (pool *ConnectionPool) connect(uri string) (*pgx.Conn, error) {
 		return nil, err
 	}
 	log.Infof("Connected to %q", uri)
-	err = pool.setSessionVars(conn)
+	err = pool.initSession(conn)
 	if err != nil {
 		log.Warnf("Failed to set session vars %q: %s", uri, err)
 		conn.Close(context.Background())
@@ -120,10 +116,9 @@ func (pool *ConnectionPool) getNextUriIndex() int {
 	return pool.nextUriIndex
 }
 
-func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
-	for k, v := range pool.params.SessionVars {
-		cmd := fmt.Sprintf("SET %s TO %s;", k, v)
-		_, err := conn.Exec(context.Background(), cmd)
+func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
+	for _, v := range pool.params.SessionInitScript {
+		_, err := conn.Exec(context.Background(), v)
 		if err != nil && !strings.Contains(err.Error(), "unrecognized configuration parameter") {
 			return err
 		}
