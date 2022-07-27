@@ -1008,7 +1008,7 @@ func getProgressAmount(filePath string) int64 {
 }
 
 func getYBSessionInitScript() []string {
-	sessionVarsPath := filepath.Join("/", "etc", "yb-voyager", "ybSessionVariables.sql")
+	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
 	var sessionVars []string
 	disableTransactionalWritesCmd := fmt.Sprintf("SET yb_disable_transactional_writes to %v", disableTransactionalWrites)
 	enableUpsertCmd := fmt.Sprintf("SET yb_enable_upsert_mode to %v", enableUpsert)
@@ -1032,12 +1032,8 @@ func getYBSessionInitScript() []string {
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string
-	setVarRegex := regexp.MustCompile(`(?i)^SET `)
 	for fileScanner.Scan() {
 		curLine = strings.TrimSpace(fileScanner.Text())
-		if !setVarRegex.MatchString(curLine) {
-			utils.ErrExit("Only SET statements allowed in ybSessionVariables.sql. Found: %s.", curLine)
-		}
 		sessionVars = append(sessionVars, curLine)
 	}
 

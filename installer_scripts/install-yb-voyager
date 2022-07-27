@@ -312,7 +312,6 @@ create_yb_session_vars_file() {
 		return
 	fi
 	sudo mkdir -p /etc/yb-voyager
-	sudo touch $vars_file_name
 	sudo wget -qO $vars_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/files/ybSessionVariables.sql
 }
 
@@ -323,7 +322,6 @@ create_base_ora2pg_conf_file() {
 		output "No need to create base-ora2pg.conf again. Skipping."
 		return
 	fi
-	sudo touch $conf_file_name
 	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
