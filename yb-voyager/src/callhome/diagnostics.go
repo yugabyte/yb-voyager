@@ -85,12 +85,12 @@ func initJSON(exportdir string) {
 	if Payload.MigrationUuid == uuid.Nil {
 		Payload.MigrationUuid, err = uuid.NewUUID()
 		Payload.StartTime = time.Now().Format("2006-01-02 15:04:05")
-		Payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 		if err != nil {
 			log.Errorf("Error while generating new UUID for diagnostics.json: %v", err)
 			return
 		}
 	}
+	Payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 
 }
 

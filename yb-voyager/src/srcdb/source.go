@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -151,12 +152,20 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 }
 
 //go:embed data/sample-ora2pg.conf
-var SampleOra2pgConfigFile string
+var Ora2pgConfigFile string
 
 func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 	sourceDSN := source.getSourceDSN()
+	baseConfigFilePath := filepath.Join("/", "etc", "yb-voyager", "base-ora2pg.conf")
+	if utils.FileOrFolderExists(baseConfigFilePath) {
+		BaseOra2pgConfigFile, err := ioutil.ReadFile(baseConfigFilePath)
+		if err != nil {
+			utils.ErrExit("Error while reading base ora2pg configuration file: %v", err)
+		}
+		Ora2pgConfigFile = string(BaseOra2pgConfigFile)
+	}
 
-	lines := strings.Split(string(SampleOra2pgConfigFile), "\n")
+	lines := strings.Split(Ora2pgConfigFile, "\n")
 
 	for i, line := range lines {
 		if strings.HasPrefix(line, "ORACLE_DSN") {

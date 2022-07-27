@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 
@@ -12,8 +13,8 @@ import (
 )
 
 func ora2pgExtractSchema(source *Source, exportDir string) {
-	schemaDirPath := exportDir + "/schema"
-	configFilePath := exportDir + "/temp/.ora2pg.conf"
+	schemaDirPath := filepath.Join(exportDir, "schema")
+	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	source.PopulateOra2pgConfigFile(configFilePath)
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
