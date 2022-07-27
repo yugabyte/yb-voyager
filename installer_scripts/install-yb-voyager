@@ -77,7 +77,7 @@ main() {
 		"AlmaLinux")
 			centos_main
 			;;
-		"Red Hat Enterprise Linux"
+		"Red Hat Enterprise Linux")
 			centos_main
 			;;
 		"Ubuntu")
