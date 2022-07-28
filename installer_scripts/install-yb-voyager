@@ -98,7 +98,7 @@ centos_main() {
 	$YUM mysql-devel 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
 	sudo yum -qy module disable postgresql
-	$YUM postgresql14-server 1>&2
+	$YUM postgresql14 1>&2
 	$YUM perl-ExtUtils-MakeMaker 1>&2
 
 	install_golang linux
