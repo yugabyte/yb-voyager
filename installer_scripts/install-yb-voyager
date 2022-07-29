@@ -81,7 +81,15 @@ main() {
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			sudo yum -qy module disable postgresql
+			version=$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | tr -d '"' | awk -F'.' '{print $1}')
+			if [ $version -ge 8 ] 
+			then
+				#disable default PostgreSQL repo
+				sudo yum -qy module disable postgresql
+			fi
+			centos_main
+			;;
+		"Red Hat Enterprise Linux Server")
 			centos_main
 			;;
 		"Ubuntu")
