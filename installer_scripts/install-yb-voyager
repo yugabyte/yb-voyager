@@ -77,16 +77,11 @@ main() {
 			centos_main
 			;;
 		"AlmaLinux")
-			sudo yum -qy module disable postgresql
+			disable_default_pg_repo
 			centos_main
 			;;
 		"Red Hat Enterprise Linux")
-			version=$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | tr -d '"' | awk -F'.' '{print $1}')
-			if [ $version -ge 8 ] 
-			then
-				#disable default PostgreSQL repo
-				sudo yum -qy module disable postgresql
-			fi
+			disable_default_pg_repo
 			centos_main
 			;;
 		"Red Hat Enterprise Linux Server")
@@ -160,6 +155,15 @@ macos_main() {
 #=============================================================================
 # COMMON
 #=============================================================================
+
+disable_default_pg_repo() {
+	version=$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | tr -d '"' | awk -F'.' '{print $1}')
+	if [ $version -ge 8 ] 
+	then
+		#disable default PostgreSQL repo
+		sudo yum -qy module disable postgresql
+	fi
+}
 
 update_yb_voyager_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
