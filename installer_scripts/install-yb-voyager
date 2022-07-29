@@ -156,15 +156,6 @@ macos_main() {
 # COMMON
 #=============================================================================
 
-disable_default_pg_repo() {
-	version=$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | tr -d '"' | awk -F'.' '{print $1}')
-	if [ $version -ge 8 ] 
-	then
-		#disable default PostgreSQL repo
-		sudo yum -qy module disable postgresql
-	fi
-}
-
 update_yb_voyager_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
 	insert_into_rc_file 'export ORACLE_HOME=/usr/lib/oracle/21/client64'
@@ -325,6 +316,15 @@ update_bashrc() {
 #=============================================================================
 # CENTOS
 #=============================================================================
+
+disable_default_pg_repo() {
+	version=$(cat /etc/os-release | grep -w VERSION_ID | awk -F'=' '{print $2}' | tr -d '"' | awk -F'.' '{print $1}')
+	if [ $version -ge 8 ] 
+	then
+		#disable default PostgreSQL repo
+		sudo yum -qy module disable postgresql
+	fi
+}
 
 centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
