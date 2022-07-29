@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 # This script installs yb-voyager in /usr/local/bin and all of its dependencies.
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
 
 set -e
 
@@ -75,6 +77,14 @@ main() {
 			centos_main
 			;;
 		"AlmaLinux")
+			sudo yum -qy module disable postgresql
+			centos_main
+			;;
+		"Red Hat Enterprise Linux")
+			sudo yum -qy module disable postgresql
+			centos_main
+			;;
+		"Red Hat Enterprise Linux Server")
 			centos_main
 			;;
 		"Ubuntu")
@@ -94,7 +104,7 @@ centos_main() {
 	$YUM perl perl-DBI perl-App-cpanminus 1>&2
 	$YUM mysql-devel 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
-	$YUM postgresql14-server 1>&2
+	$YUM postgresql14 1>&2
 	$YUM perl-ExtUtils-MakeMaker 1>&2
 
 	install_golang linux
