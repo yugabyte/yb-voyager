@@ -37,8 +37,10 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	PreRun: func(cmd *cobra.Command, args []string) {
+		setExportFlagsDefaults()
+		validateExportFlags()
+		markFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -92,11 +94,12 @@ func exportSchema() {
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
+	registerCommonExportFlags(exportSchemaCmd)
 	// Hide num-connections flag from help description from Export Schema command
-	exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
-		command.Flags().MarkHidden("parallel-jobs")
-		command.Parent().HelpFunc()(command, strings)
-	})
+	// exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
+	// 	command.Flags().MarkHidden("parallel-jobs")
+	// 	command.Parent().HelpFunc()(command, strings)
+	// })
 
 }
 
