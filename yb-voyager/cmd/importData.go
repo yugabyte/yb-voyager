@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -37,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -134,12 +134,8 @@ func getYBServers() []*tgtdb.Target {
 			targets = append(targets, clone)
 		}
 	} else {
-		potentialLBIps, err := net.LookupIP(target.Host)
 		loadBalancerUsed = true
-		if err != nil {
-			utils.ErrExit("Error resolving host: %v\n", err)
-		}
-		url := getTargetConnectionUri(&target)
+		url := target.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
 			utils.ErrExit("Unable to connect to database: %v", err)
@@ -164,10 +160,8 @@ func getYBServers() []*tgtdb.Target {
 
 			// check if given host is one of the server in cluster
 			if loadBalancerUsed {
-				for _, ip := range potentialLBIps {
-					if ip.String() == host || ip.String() == public_ip {
-						loadBalancerUsed = false
-					}
+				if isSeedTargetHost(host, public_ip) {
+					loadBalancerUsed = false
 				}
 			}
 
@@ -224,6 +218,24 @@ func testYbServers(targets []*tgtdb.Target) {
 		conn.Close(context.Background())
 	}
 	log.Infof("all target servers are accessible")
+}
+
+func isSeedTargetHost(names ...string) bool {
+	var allIPs []string
+	for _, name := range names {
+		if name != "" {
+			allIPs = append(allIPs, utils.LookupIP(name)...)
+		}
+	}
+
+	seedHostIPs := utils.LookupIP(target.Host)
+	for _, seedHostIP := range seedHostIPs {
+		if slices.Contains(allIPs, seedHostIP) {
+			log.Infof("Target.Host=%s matched with one of ips in %v\n", seedHostIP, allIPs)
+			return true
+		}
+	}
+	return false
 }
 
 func getCloneConnectionUri(clone *tgtdb.Target) string {
