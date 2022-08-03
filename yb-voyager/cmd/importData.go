@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -37,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -160,7 +160,9 @@ func getYBServers() []*tgtdb.Target {
 
 			// check if given host is one of the server in cluster
 			if loadBalancerUsed {
-				tryMatchingWithTargetHost(host, public_ip)
+				if isSeedTargetHost(host, public_ip) {
+					loadBalancerUsed = false
+				}
 			}
 
 			if usePublicIp {
@@ -218,45 +220,22 @@ func testYbServers(targets []*tgtdb.Target) {
 	log.Infof("all target servers are accessible")
 }
 
-func tryMatchingWithTargetHost(private_ip string, public_ip string) {
-	potentialLBIps, err := net.LookupIP(target.Host)
-	if err != nil {
-		utils.ErrExit("Error resolving host: %v\n", err)
-	}
-
-	// matching with host private ip
-	hostPrivateIps, err := net.LookupIP(private_ip)
-	if err != nil {
-		utils.ErrExit("Error resolving host: %v\n", err)
-	}
-	log.Infof("Resolved private host=%s is %v\n", private_ip, hostPrivateIps)
-	for _, potentialLBIp := range potentialLBIps {
-		for _, hostPrivateIp := range hostPrivateIps {
-			if potentialLBIp.String() == hostPrivateIp.String() {
-				log.Infof("Target.Host=%s found at private_ip=%s\n", potentialLBIp, hostPrivateIp)
-				loadBalancerUsed = false
-				return
-			}
+func isSeedTargetHost(names ...string) bool {
+	var allIPs []string
+	for _, name := range names {
+		if name != "" {
+			allIPs = append(allIPs, utils.LookupIP(name)...)
 		}
 	}
 
-	// matching with host public ip
-	if public_ip != "" {
-		hostPublicIps, err := net.LookupIP(public_ip)
-		if err != nil {
-			utils.ErrExit("Error resolving host: %v\n", err)
-		}
-		log.Infof("Resolved public host=%s is %v", public_ip, hostPublicIps)
-		for _, potentialLBIp := range potentialLBIps {
-			for _, hostPublicIp := range hostPublicIps {
-				if potentialLBIp.String() == hostPublicIp.String() {
-					loadBalancerUsed = false
-					log.Infof("Target.Host=%s found at public_ip=%s\n", potentialLBIp, hostPublicIp)
-					return
-				}
-			}
+	seedHostIPs := utils.LookupIP(target.Host)
+	for _, seedHostIP := range seedHostIPs {
+		if slices.Contains(allIPs, seedHostIP) {
+			log.Infof("Target.Host=%s matched with one of ips in %v\n", seedHostIP, allIPs)
+			return true
 		}
 	}
+	return false
 }
 
 func getCloneConnectionUri(clone *tgtdb.Target) string {

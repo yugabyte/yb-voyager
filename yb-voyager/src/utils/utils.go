@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -261,5 +262,19 @@ func CsvStringToSlice(str string) []string {
 		result[i] = strings.TrimSpace(result[i])
 	}
 
+	return result
+}
+
+func LookupIP(name string) []string {
+	var result []string
+
+	ips, err := net.LookupIP(name)
+	if err != nil {
+		ErrExit("Error Resolving name=%s: %v", name, err)
+	}
+
+	for _, ip := range ips {
+		result = append(result, ip.String())
+	}
 	return result
 }
