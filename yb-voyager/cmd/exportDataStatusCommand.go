@@ -57,7 +57,7 @@ func runExportDataStatusCmd() error {
 	} else if utils.FileOrFolderExists(dbTypeFlag+"mysql") || utils.FileOrFolderExists(dbTypeFlag+"oracle") {
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {
-			return fmt.Errorf("Error while checking data directory for export data status: %v", err)
+			return fmt.Errorf("error while checking data directory for export data status: %v", err)
 		}
 		var fileName string
 		for _, file := range files {
@@ -70,7 +70,7 @@ func runExportDataStatusCmd() error {
 			}
 		}
 	} else {
-		return fmt.Errorf("Unable to identify source-db-type.")
+		return fmt.Errorf("unable to identify source-db-type")
 	}
 
 	if len(tableMap) > 0 {
