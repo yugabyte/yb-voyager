@@ -134,11 +134,7 @@ func getYBServers() []*tgtdb.Target {
 			targets = append(targets, clone)
 		}
 	} else {
-		potentialLBIps, err := net.LookupIP(target.Host)
 		loadBalancerUsed = true
-		if err != nil {
-			utils.ErrExit("Error resolving host: %v\n", err)
-		}
 		url := target.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
@@ -164,11 +160,7 @@ func getYBServers() []*tgtdb.Target {
 
 			// check if given host is one of the server in cluster
 			if loadBalancerUsed {
-				for _, ip := range potentialLBIps {
-					if ip.String() == host || ip.String() == public_ip {
-						loadBalancerUsed = false
-					}
-				}
+				tryMatchingWithTargetHost(host, public_ip)
 			}
 
 			if usePublicIp {
@@ -224,6 +216,47 @@ func testYbServers(targets []*tgtdb.Target) {
 		conn.Close(context.Background())
 	}
 	log.Infof("all target servers are accessible")
+}
+
+func tryMatchingWithTargetHost(private_ip string, public_ip string) {
+	potentialLBIps, err := net.LookupIP(target.Host)
+	if err != nil {
+		utils.ErrExit("Error resolving host: %v\n", err)
+	}
+
+	// matching with host private ip
+	hostPrivateIps, err := net.LookupIP(private_ip)
+	if err != nil {
+		utils.ErrExit("Error resolving host: %v\n", err)
+	}
+	log.Infof("Resolved private host=%s is %v\n", private_ip, hostPrivateIps)
+	for _, potentialLBIp := range potentialLBIps {
+		for _, hostPrivateIp := range hostPrivateIps {
+			if potentialLBIp.String() == hostPrivateIp.String() {
+				log.Infof("Target.Host=%s found at private_ip=%s\n", potentialLBIp, hostPrivateIp)
+				loadBalancerUsed = false
+				return
+			}
+		}
+	}
+
+	// matching with host public ip
+	if public_ip != "" {
+		hostPublicIps, err := net.LookupIP(public_ip)
+		if err != nil {
+			utils.ErrExit("Error resolving host: %v\n", err)
+		}
+		log.Infof("Resolved public host=%s is %v", public_ip, hostPublicIps)
+		for _, potentialLBIp := range potentialLBIps {
+			for _, hostPublicIp := range hostPublicIps {
+				if potentialLBIp.String() == hostPublicIp.String() {
+					loadBalancerUsed = false
+					log.Infof("Target.Host=%s found at public_ip=%s\n", potentialLBIp, hostPublicIp)
+					return
+				}
+			}
+		}
+	}
 }
 
 func getCloneConnectionUri(clone *tgtdb.Target) string {
