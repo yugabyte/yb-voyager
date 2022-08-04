@@ -377,7 +377,6 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		truncateTables(allTables)
 		log.Infof("cleaning the database and %s/metadata/data directory", exportDir)
 		utils.CleanDir(exportDir + "/metainfo/data")
-
 		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
@@ -500,19 +499,21 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		extractCopyStmtForTable(t, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
-		log.Infof("Collect interrupted splits.")
+		log.Infof("Collect all interrupted/remaining splits.")
 		largestCreatedSplitSoFar := int64(0)
 		largestOffsetSoFar := int64(0)
 		fileFullySplit := false
 		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDir, t)
 		matches, _ := filepath.Glob(pattern)
-		// in progress are interrupted ones
-		interruptedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[P]$", t)
-		interruptedRegexp := regexp.MustCompile(interruptedRegexStr)
+
+		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
+		doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
+		validTableSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
+		validTableSplitRegex := regexp.MustCompile(validTableSplitRegexStr)
+
 		for _, filepath := range matches {
-			submatches := interruptedRegexp.FindAllStringSubmatch(filepath, -1)
+			submatches := validTableSplitRegex.FindAllStringSubmatch(filepath, -1)
 			for _, match := range submatches {
-				// This means a match. Submit the task with interrupted = true
 				// fmt.Printf("filepath: %s, %v\n", filepath, match)
 				/*
 					offsets are 0-based, while numLines are 1-based
@@ -532,32 +533,9 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 				if offsetEnd > largestOffsetSoFar {
 					largestOffsetSoFar = offsetEnd
 				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
-			}
-		}
-		log.Infof("Collect files which were generated but processing did not start.")
-		// schedule import task for them
-		createdButNotStartedRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[C]$", t)
-		createdButNotStartedRegex := regexp.MustCompile(createdButNotStartedRegexStr)
-		// fmt.Printf("created but not started regex = %s\n", createdButNotStartedRegex.String())
-		for _, filepath := range matches {
-			submatches := createdButNotStartedRegex.FindAllStringSubmatch(filepath, -1)
-			for _, match := range submatches {
-				// This means a match. Submit the task with interrupted = true
-				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetStart := offsetEnd - numLines
-				if splitNum == LAST_SPLIT_NUM {
-					fileFullySplit = true
+				if !doneSplitRegexp.MatchString(filepath) {
+					addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 				}
-				if splitNum > largestCreatedSplitSoFar {
-					largestCreatedSplitSoFar = splitNum
-				}
-				if offsetEnd > largestOffsetSoFar {
-					largestOffsetSoFar = offsetEnd
-				}
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
 
@@ -760,19 +738,23 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		donePattern := fmt.Sprintf("%s/%s.%s.D", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
 		interruptedPattern := fmt.Sprintf("%s/%s.%s.P", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
 		createdPattern := fmt.Sprintf("%s/%s.%s.C", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
+		lastSplitPattern := fmt.Sprintf("%s/%s.%s.[CPD]", metaInfoDataDir, t, LAST_SPLIT_PATTERN)
 
 		doneMatches, _ := filepath.Glob(donePattern)
 		interruptedMatches, _ := filepath.Glob(interruptedPattern)
 		createdMatches, _ := filepath.Glob(createdPattern)
+		lastSplitMatches, _ := filepath.Glob(lastSplitPattern)
 
-		//[Important] This function's return result is based on assumption that the rate of ingestion is slower than splitting
-		if len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
+		// Not Vaild Now: [Important] This function's return result is based on assumption that the rate of ingestion is slower than splitting
+		if len(lastSplitMatches) > 0 && len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
 			doneTables = append(doneTables, t)
-		} else if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
-			(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
-			remainingTables = append(remainingTables, t)
 		} else {
-			interruptedTables = append(interruptedTables, t)
+			if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
+				(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
+				remainingTables = append(remainingTables, t)
+			} else {
+				interruptedTables = append(interruptedTables, t)
+			}
 		}
 	}
 
