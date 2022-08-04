@@ -98,7 +98,7 @@ func runExportDataStatusCmd() error {
 			status = "NOT_STARTED"
 		}
 		if source.DBType == ORACLE || source.DBType == MYSQL {
-			tableName = tableName[:len(tableName)-9]
+			finalFullTableName = tableName[:len(tableName)-9]
 		}
 		row := &exportTableMigStatusOutputRow{
 			tableName: finalFullTableName,
