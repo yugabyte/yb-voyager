@@ -32,6 +32,7 @@ const (
 	POSTGRESQL                  = "postgresql"
 	LAST_SPLIT_NUM              = 0
 	SPLIT_INFO_PATTERN          = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
+	LAST_SPLIT_PATTERN          = "0.[0-9]*.[0-9]*.[0-9]*"
 	COPY_MAX_RETRY_COUNT        = 5
 	MAX_SLEEP_SECOND            = 10
 )
