@@ -15,7 +15,7 @@ import (
 
 var exportDataStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Print status of an ongoing/completed export.",
+	Short: "Print status of an ongoing/completed data export.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
@@ -51,10 +51,11 @@ func runExportDataStatusCmd() error {
 
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
-	dbTypeFlag := filepath.Join(exportDir, "metainfo", "schema", "source-db-")
-	if utils.FileOrFolderExists(dbTypeFlag + "postgresql") {
+	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
+	source.DBType = dbTypeFlag
+	if dbTypeFlag == "postgresql" {
 		tableMap = GetMappingForTableNameVsTableFileName(dataDir)
-	} else if utils.FileOrFolderExists(dbTypeFlag+"mysql") || utils.FileOrFolderExists(dbTypeFlag+"oracle") {
+	} else if dbTypeFlag == "mysql" || dbTypeFlag == "oracle" {
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {
 			return fmt.Errorf("error while checking data directory for export data status: %v", err)
@@ -64,41 +65,43 @@ func runExportDataStatusCmd() error {
 			fileName = filepath.Base(file)
 			//Sample file name: [tmp_]YB_VOYAGER_TEST_data.sql
 			if strings.HasPrefix(fileName, "tmp_") {
-				tableMap[fileName[4:len(fileName)-9]] = fileName[:len(fileName)-9]
+				tableMap[fileName[4:]] = fileName
 			} else {
-				tableMap[fileName[:len(fileName)-9]] = "tmp_" + fileName[:len(fileName)-9]
+				tableMap[fileName] = "tmp_" + fileName
 			}
 		}
 	} else {
 		return fmt.Errorf("unable to identify source-db-type")
 	}
-
 	if len(tableMap) > 0 {
 		fmt.Printf("%-30s %-12s\n", "TABLE", "STATUS")
 	}
 	var outputRows []*exportTableMigStatusOutputRow
-	var fullTableName string
+	var finalFullTableName string
 	for tableName := range tableMap {
 		//"_" is treated as a wildcard character in regex query for Glob
-		if tableName == "postdata" {
+		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
 			continue
 		}
 		if strings.HasPrefix(tableName, "public.") {
-			fullTableName = tableName[7:]
+			finalFullTableName = tableName[7:]
 		} else {
-			fullTableName = tableName
+			finalFullTableName = tableName
 		}
 		var status string
-		if utils.FileOrFolderExists(filepath.Join(dataDir, fullTableName) + "_data.sql") {
+		//postgresql map returns table names, oracle/mysql map contains file names
+		if (source.DBType == POSTGRESQL && utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)+"_data.sql")) || utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)) {
 			status = "DONE"
-		} else if utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])+"_data.sql") || utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])) {
+		} else if utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])) {
 			status = "MIGRATING"
 		} else {
 			status = "NOT_STARTED"
 		}
-
+		if source.DBType == ORACLE || source.DBType == MYSQL {
+			tableName = tableName[:len(tableName)-9]
+		}
 		row := &exportTableMigStatusOutputRow{
-			tableName: tableName,
+			tableName: finalFullTableName,
 			status:    status,
 		}
 		outputRows = append(outputRows, row)

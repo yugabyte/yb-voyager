@@ -15,7 +15,7 @@ import (
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Print status of an ongoing/completed import.",
+	Short: "Print status of an ongoing/completed data import.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
