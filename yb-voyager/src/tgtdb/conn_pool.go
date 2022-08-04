@@ -42,25 +42,27 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	return pool
 }
 
-func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) error) error {
+func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
+	retry := true
 
-	conn := <-pool.conns
-	if conn == nil {
-		conn, err = pool.createNewConnection()
-		if err != nil {
-			return err
+	for retry {
+		conn := <-pool.conns
+		if conn == nil {
+			conn, err = pool.createNewConnection()
+			if err != nil {
+				return err
+			}
 		}
-	}
 
-	err = fn(conn)
-
-	if err != nil {
-		// On err, drop the connection.
-		conn.Close(context.Background())
-		pool.conns <- nil
-	} else {
-		pool.conns <- conn
+		retry, err = fn(conn)
+		if err != nil {
+			// On err, drop the connection.
+			conn.Close(context.Background())
+			pool.conns <- nil
+		} else {
+			pool.conns <- conn
+		}
 	}
 
 	return err
