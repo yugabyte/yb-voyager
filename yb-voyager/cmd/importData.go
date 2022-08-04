@@ -375,8 +375,13 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	if startClean { //start data migraiton from beginning
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
-		log.Infof("cleaning the database and %s/metadata/data directory", exportDir)
-		utils.CleanDir(exportDir + "/metainfo/data")
+
+		for _, table := range allTables {
+			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
+			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
+			utils.ClearMatchingFiles(filePattern)
+			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
+		}
 		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
