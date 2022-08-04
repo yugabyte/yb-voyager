@@ -844,7 +844,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 			var rowsCount int64
 			var copyErr error
 			// if retry=n, total try call will be n+1
-			copyTryCount := COPY_AUTORETRY_COUNT + 1
+			copyRetryCount := COPY_MAX_RETRY_COUNT + 1
 
 			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 				// reset the reader to begin for every call
@@ -864,11 +864,11 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 					if !strings.Contains(err.Error(), "violates unique constraint") {
 						log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
-						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, math.Pow(2, float64(COPY_AUTORETRY_COUNT+1-copyTryCount))))
+						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, math.Pow(2, float64(COPY_MAX_RETRY_COUNT+1-copyRetryCount))))
 						log.Infof("sleep for duration %d before retrying...", duration)
 						time.Sleep(time.Second * duration) // delay for 1 sec before retrying
-						copyTryCount--
-						return copyTryCount > 0, err
+						copyRetryCount--
+						return copyRetryCount > 0, err
 					}
 				}
 
