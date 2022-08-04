@@ -379,8 +379,8 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		for _, table := range allTables {
 			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
 			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
-			utils.ClearMatchingFiles(filePattern)
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
+			utils.ClearMatchingFiles(filePattern)
 		}
 		importTables = allTables //since all tables needs to imported now
 	} else {
@@ -513,11 +513,11 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 
 		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
 		doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-		validTableSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
-		validTableSplitRegex := regexp.MustCompile(validTableSplitRegexStr)
+		splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
+		splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
 
 		for _, filepath := range matches {
-			submatches := validTableSplitRegex.FindAllStringSubmatch(filepath, -1)
+			submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
 			for _, match := range submatches {
 				// fmt.Printf("filepath: %s, %v\n", filepath, match)
 				/*
@@ -750,7 +750,10 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		createdMatches, _ := filepath.Glob(createdPattern)
 		lastSplitMatches, _ := filepath.Glob(lastSplitPattern)
 
-		// Not Vaild Now: [Important] This function's return result is based on assumption that the rate of ingestion is slower than splitting
+		if len(lastSplitMatches) > 1 {
+			utils.ErrExit("More than one last split is present, which is not valid scenario. last split names are: %v", lastSplitMatches)
+		}
+
 		if len(lastSplitMatches) > 0 && len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
 			doneTables = append(doneTables, t)
 		} else {
