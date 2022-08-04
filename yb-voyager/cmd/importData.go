@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -841,41 +842,38 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 		// copyCommand is empty when there are no rows for that table
 		if copyCommand != "" {
 			var rowsCount int64
-
 			var copyErr error
-			for i := 1; i <= COPY_AUTORETRY_COUNT; i++ {
-				// reset the reader to begin for every retry
+			// if retry=n, total try call will be n+1
+			copyTryCount := COPY_AUTORETRY_COUNT + 1
+
+			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				// reset the reader to begin for every call
 				reader.Seek(0, io.SeekStart)
-
-				copyErr = connPool.WithConn(func(conn *pgx.Conn) error {
-					//setting the schema so that COPY command can acesss the table
-					if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-						setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-						_, err := conn.Exec(context.Background(), setSchemaQuery)
-						if err != nil {
-							utils.ErrExit("run query %q: %s", setSchemaQuery, err)
-						}
+				//setting the schema so that COPY command can acesss the table
+				if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
+					setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+					_, err := conn.Exec(context.Background(), setSchemaQuery)
+					if err != nil {
+						utils.ErrExit("run query %q: %s", setSchemaQuery, err)
 					}
-					res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-					rowsCount = res.RowsAffected()
-					return err
-				})
-
-				if copyErr != nil {
-					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, copyErr)
-					if !strings.Contains(copyErr.Error(), "violates unique constraint") {
-						log.Warnf("RETRYING.. due to encountered err: %v while executing COPY %q FROM file %q.", copyErr, task.TableName, inProgressFilePath)
-						time.Sleep(time.Second * 1) // delay for 1 sec before retrying
-						continue
-					} else { //in case of unique key violation error take row count from the split task
-						rowsCount = task.OffsetEnd - task.OffsetStart
-						log.Infof("NOT RETRYING.. got error:%v, assuming affected rows count %v for %q", copyErr, rowsCount, task.TableName)
-						break
-					}
-				} else { // if err==nil break and proceed further
-					break
 				}
-			}
+				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
+				rowsCount = res.RowsAffected()
+
+				if err != nil {
+					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+					if !strings.Contains(err.Error(), "violates unique constraint") {
+						log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
+						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, math.Pow(2, float64(COPY_AUTORETRY_COUNT+1-copyTryCount))))
+						log.Infof("sleep for duration %d before retrying...", duration)
+						time.Sleep(time.Second * duration) // delay for 1 sec before retrying
+						copyTryCount--
+						return copyTryCount > 0, err
+					}
+				}
+
+				return false, err
+			})
 
 			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
 			if copyErr != nil {

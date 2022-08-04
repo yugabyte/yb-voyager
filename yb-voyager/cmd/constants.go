@@ -32,7 +32,8 @@ const (
 	POSTGRESQL                  = "postgresql"
 	LAST_SPLIT_NUM              = 0
 	SPLIT_INFO_PATTERN          = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
-	COPY_AUTORETRY_COUNT		= 5
+	COPY_AUTORETRY_COUNT        = 5
+	MAX_SLEEP_SECOND           = 10
 )
 
 var IMPORT_SESSION_SETTERS = []string{
