@@ -880,7 +880,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 				return false, err
 			})
 
-			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+			log.Infof("COPY %q => %d rows affected", inProgressFilePath, rowsCount)
 			if copyErr != nil {
 				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, copyErr)
 				if !strings.Contains(copyErr.Error(), "violates unique constraint") {

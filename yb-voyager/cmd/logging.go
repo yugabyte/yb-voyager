@@ -49,6 +49,10 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 func InitLogging(logDir string) {
 	// Redirect log messages to ${logDir}/yb-voyager.log .
 	logFileName := filepath.Join(logDir, "yb-voyager.log")
+	// Do not log anything for the "import data status" command.
+	if os.Args[2] == "data" && os.Args[3] == "status" {
+		logFileName = "/dev/null"
+	}
 	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialise logging: open log file %q: %s", logFileName, err))
