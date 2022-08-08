@@ -69,6 +69,9 @@ func init() {
 
 	exportCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export (default false)")
+
+	exportCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while exporting data (no-op if --table-list is used) (Note: works only for export data command)")
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {

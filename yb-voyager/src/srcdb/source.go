@@ -15,26 +15,27 @@ import (
 )
 
 type Source struct {
-	DBType         string
-	Host           string
-	Port           int
-	User           string
-	Password       string
-	DBName         string
-	DBSid          string
-	OracleHome     string
-	TNSAlias       string
-	Schema         string
-	SSLMode        string
-	SSLCertPath    string
-	SSLKey         string
-	SSLRootCert    string
-	SSLCRL         string
-	SSLQueryString string
-	Uri            string
-	NumConnections int
-	VerboseMode    bool
-	TableList      string
+	DBType           string
+	Host             string
+	Port             int
+	User             string
+	Password         string
+	DBName           string
+	DBSid            string
+	OracleHome       string
+	TNSAlias         string
+	Schema           string
+	SSLMode          string
+	SSLCertPath      string
+	SSLKey           string
+	SSLRootCert      string
+	SSLCRL           string
+	SSLQueryString   string
+	Uri              string
+	NumConnections   int
+	VerboseMode      bool
+	TableList        string
+	ExcludeTableList string
 
 	sourceDB SourceDB
 }
