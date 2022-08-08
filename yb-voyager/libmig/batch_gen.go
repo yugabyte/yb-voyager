@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Batch struct {
@@ -46,10 +48,11 @@ func (b *Batch) Reader() (io.ReadCloser, error) {
 	default:
 		panic(fmt.Sprintf("unknown file-type: %q", b.Desc.FileType))
 	}
+	// Ensure that every batch gets the header.
 	if err == nil && b.Header != "" {
 		reader = NewConcatReadCloser(strings.NewReader(b.Header+"\n"), reader)
 	}
-	return reader, err
+	return reader, fmt.Errorf("prepare reader: %w", err)
 }
 
 func (b *Batch) SaveTo(fileName string) error {
@@ -73,13 +76,14 @@ func (b *Batch) SizeInBaseFile() int64 {
 func LoadBatchFrom(fileName string) (*Batch, error) {
 	bs, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read file %s: %w", fileName, err)
 	}
 	b := &Batch{}
 	err = json.Unmarshal(bs, b)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("parse contents of %s: %w", fileName, err)
 	}
+	log.Infof("loaded batch from file %s:\n%s", fileName, string(bs))
 	return b, nil
 }
 
@@ -134,6 +138,7 @@ func NewBatchGenerator(fileName string, tableID *TableID, desc *DataFileDescript
 }
 
 func (bg *BatchGenerator) Init(dataFile DataFile, lastBatch *Batch) error {
+	log.Infof("Initialise batch generator")
 	bg.dataFile = dataFile
 	if lastBatch != nil {
 		// Start from where we left off.
@@ -142,10 +147,11 @@ func (bg *BatchGenerator) Init(dataFile DataFile, lastBatch *Batch) error {
 	if bg.Desc.HasHeader {
 		header, err := dataFile.GetHeader() // For ora2pg file type, header will be "".
 		if err != nil {
-			return err
+			return fmt.Errorf("get header from data file: %w", err)
 		}
 		bg.header = header
 	}
+	log.Infof("Starting batch generation from index %v. Header %q.", bg.lastBatchNumber+1, bg.header)
 	return nil
 }
 

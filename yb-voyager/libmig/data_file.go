@@ -71,7 +71,7 @@ func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 		if df.Desc.HasHeader {
 			header, err := df.GetHeader()
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("get header: %w", err)
 			}
 			columnNames := strings.Join(strings.Split(header, df.Desc.Delimiter), ",")
 			cmd = fmt.Sprintf(`COPY %s.%s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', HEADER)`,
@@ -154,7 +154,7 @@ func (df *Ora2pgDataFile) isDataLine(line string) bool {
 func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	fh, err := os.Open(df.FileName)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("open %s: %w", df.FileName, err)
 	}
 	defer fh.Close()
 
@@ -169,10 +169,11 @@ func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 		}
 	}
 	err = scanner.Err()
-	if err == nil {
-		err = fmt.Errorf("no COPY statement found in %q", df.FileName)
+	if err != nil {
+		return "", fmt.Errorf("scan %s: %w", df.FileName, err)
 	}
-	return "", err
+	return "", fmt.Errorf("no COPY statement found in %q", df.FileName)
+
 }
 
 func (df *Ora2pgDataFile) GetHeader() (string, error) {
@@ -199,18 +200,18 @@ func newBaseDataFile(fileName string, offset int64, desc *DataFileDescriptor, is
 func (df *baseDataFile) Open() error {
 	fh, err := os.Open(df.FileName)
 	if err != nil {
-		return err
+		return fmt.Errorf("open %s: %w", df.FileName, err)
 	}
 	_, err = fh.Seek(df.offset, 0)
 	if err != nil {
-		return err
+		return fmt.Errorf("seek %s to %v: %w", df.FileName, df.offset, err)
 	}
 	df.fh = fh
 	df.scanner = bufio.NewScanner(fh)
 
 	fi, err := fh.Stat()
 	if err != nil {
-		return err
+		return fmt.Errorf("stat %s: %w", df.FileName, err)
 	}
 	df.size = fi.Size()
 

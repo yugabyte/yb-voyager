@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/semaphore"
 )
@@ -58,29 +59,29 @@ func NewImportFileOp(
 }
 
 func (op *ImportFileOp) Run(ctx context.Context) error {
-	log.Infof("Run ImportFileOp")
+	log.Infof("Run ImportFileOp: %s => %s [cmd: %q]", op.FileName, op.TableID, op.CopyCommand)
 
 	// TODO Implement StartClean.
 	err := op.migState.PrepareForImport(op.TableID)
 	if err != nil {
-		return err
+		return fmt.Errorf("prepare for import: %w", err)
 	}
-	err = op.loadStateFromPrevRun()
+	err = op.recoverStateFromPrevRun()
 	if err != nil {
-		return err
+		return fmt.Errorf("recover state from previous run: %w", err)
 	}
 	err = op.openDataFile()
 	if err != nil {
-		return err
+		return fmt.Errorf("open data file: %w", err)
 	}
 	err = op.setCopyCommand()
 	if err != nil {
-		return err
+		return fmt.Errorf("set COPY command: %w", err)
 	}
 	// op.lastBatchFromPrevRun will be nil for first time execution.
 	err = op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
 	if err != nil {
-		return err
+		return fmt.Errorf("initialise batch generation: %w", err)
 	}
 
 	op.notifyImportFileStarted()
@@ -88,14 +89,17 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	for _, batch := range op.pendingBatchesFromPrevRun {
 		err = op.importBatch(batch)
 		if err != nil {
-			return err
+			return fmt.Errorf("import batch %d: %w", batch.BatchNumber, err)
 		}
 	}
 
-	// Wait until all submitted batches are done before returning.
-	defer op.wg.Wait()
+	defer func() {
+		log.Infof("[%s] Wait until all submitted batches are done before returning.", op.TableID)
+		op.wg.Wait()
+		log.Infof("[%s] Finished processing all batches.", op.TableID)
+	}()
 
-	count := 0
+	batchCount := 0
 	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
@@ -103,33 +107,38 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			if err2 != nil {
 				return err2
 			}
-			count++
+			batchCount++
 			op.submitBatch(batch)
 			// First 5 batches in each run are imported synchronously.
-			if count <= 5 {
+			if batchCount <= 5 {
 				op.wg.Wait()
 			}
 		}
 		if eof {
-			log.Info("Done splitting file.")
+			log.Info("Done splitting file %s", op.FileName)
 			return nil
 		}
 		if err != nil {
-			return err
+			return fmt.Errorf("prepare batch: %w", err)
 		}
 	}
+	log.Errorf("[%s] Stopping batch generation. Batch %d failed with error: %s", op.TableID, op.failedBatches[0].BatchNumber, op.Err)
 	return op.Err
 }
 
-func (op *ImportFileOp) loadStateFromPrevRun() error {
+func (op *ImportFileOp) recoverStateFromPrevRun() error {
 	var err error
+	log.Infof("Recover state from previous run: %q", op.TableID)
+
 	op.lastBatchFromPrevRun, err = op.migState.GetLastBatch(op.TableID)
 	if err != nil {
-		return err
+		return fmt.Errorf("find last batch: %w", err)
 	}
+	log.Infof("last batch from previous run:\n%s", spew.Sdump(op.lastBatchFromPrevRun))
+
 	op.pendingBatchesFromPrevRun, err = op.migState.PendingBatches(op.TableID)
 	if err != nil {
-		return err
+		return fmt.Errorf("find pending batches: %w", err)
 	}
 	return nil
 }
@@ -140,22 +149,24 @@ func (op *ImportFileOp) openDataFile() error {
 	if op.lastBatchFromPrevRun != nil {
 		offset = op.lastBatchFromPrevRun.EndOffsetInBaseFile
 	}
-	// Open DataFile and jump to the correct offset.
+
+	log.Infof("Open DataFile %q and jump to offset %v.", op.FileName, offset)
 	op.dataFile = NewDataFile(op.FileName, offset, op.Desc)
 	err := op.dataFile.Open()
 	if err != nil {
-		return err
+		return fmt.Errorf("open data file: %w", err)
 	}
-	return err
+	return nil
 }
 
 func (op *ImportFileOp) setCopyCommand() error {
+	log.Infof("Determine COPY command for the table %q.", op.TableID)
 	if op.CopyCommand != "" {
 		return nil
 	}
 	cmd, err := op.dataFile.GetCopyCommand(op.TableID)
 	if err != nil {
-		return err
+		return fmt.Errorf("determine COPY command from file contents: %w", err)
 	}
 	op.CopyCommand = cmd
 	log.Infof("COPY command for %s => %s", op.TableID, cmd)
@@ -163,6 +174,8 @@ func (op *ImportFileOp) setCopyCommand() error {
 }
 
 func (op *ImportFileOp) notifyImportFileStarted() {
+	log.Infof("Notify import file start [%s]", op.TableID)
+
 	op.progressReporter.ImportFileStarted(op.TableID, op.dataFile.Size())
 
 	if op.lastBatchFromPrevRun != nil {
@@ -177,10 +190,11 @@ func (op *ImportFileOp) notifyImportFileStarted() {
 func (op *ImportFileOp) submitBatch(batch *Batch) {
 	op.wg.Add(1)
 	op.Sema.Acquire(context.Background(), 1)
-	log.Infof("Submitting batch %d", batch.BatchNumber)
+	log.Infof("Submitting batch %s %d", op.TableID, batch.BatchNumber)
 	go func() {
 		err := op.importBatch(batch)
 		if err != nil {
+			log.Errorf("Failed to import batch %s %d: %s", op.TableID, batch.BatchNumber, err)
 			op.Lock()
 			op.failedBatches = append(op.failedBatches, batch)
 			if op.Err == nil {
@@ -194,10 +208,12 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 }
 
 func (op *ImportFileOp) importBatch(batch *Batch) error {
+	log.Infof("Import batch %s %d: file %q, start: %v, end: %v",
+		op.TableID, batch.BatchNumber, batch.FileName, batch.StartOffset, batch.EndOffset)
 	ctx := context.Background()
 	r, err := batch.Reader()
 	if err != nil {
-		return err
+		return fmt.Errorf("read batch %v from file %q: %w", batch.BatchNumber, batch.FileName, err)
 	}
 	defer r.Close()
 	n, err := op.tdb.Copy(ctx, op.CopyCommand, r)
@@ -205,12 +221,13 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 		log.Errorf("COPY batch %s %d failed: %s", batch.TableID, batch.BatchNumber, err)
 		err2 := op.migState.MarkBatchFailed(batch, err)
 		if err2 != nil {
-			err = fmt.Errorf("batch copy failed with %q. couldn't mark batch as failed: %w", err, err2)
+			log.Errorf("Error while marking batch %s %d as failed: %s", batch.TableID, batch.BatchNumber, err2)
+			err = fmt.Errorf("batch import failed with %q. couldn't mark batch as failed: %w", err, err2)
 		}
 		op.Lock()
 		op.failedBatches = append(op.failedBatches, batch)
 		op.Unlock()
-		return err
+		return fmt.Errorf("COPY: %w", err)
 	}
 	// TODO Handle case where fewer than expected rows are imported.
 	// If upsert mode is ON, retry until n == batchSize.
@@ -220,7 +237,7 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Batch %s %d imported", batch.TableID, batch.BatchNumber)
+	log.Infof("Imported %v records from batch %s %d.", batch.NumRecordsImported, batch.TableID, batch.BatchNumber)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile())
 	return nil
 }

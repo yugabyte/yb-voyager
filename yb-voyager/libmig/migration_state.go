@@ -45,7 +45,7 @@ func (migstate *MigrationState) PrepareForImport(tableID *TableID) error {
 		log.Infof("Create dir: %s\n", dir)
 		err := os.MkdirAll(dir, 0755)
 		if err != nil {
-			return err
+			return fmt.Errorf("create dir %q: %w", dir, err)
 		}
 	}
 	return nil
@@ -57,7 +57,7 @@ func (migstate *MigrationState) GetLastBatch(tableID *TableID) (*Batch, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	return batch, err
+	return batch, fmt.Errorf("load batch: %w", err)
 }
 
 func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, error) {
@@ -66,13 +66,13 @@ func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, erro
 	pendingDir := migstate.pendingDir(tableID)
 	fileInfoList, err := ioutil.ReadDir(pendingDir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read dir %s: %w", pendingDir, err)
 	}
 	for _, fileInfo := range fileInfoList {
 		fileName := filepath.Join(pendingDir, fileInfo.Name())
 		batch, err := LoadBatchFrom(fileName)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("load batch: %w", err)
 		}
 		batches = append(batches, batch)
 	}

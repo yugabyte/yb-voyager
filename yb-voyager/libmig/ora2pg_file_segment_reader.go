@@ -29,20 +29,24 @@ func NewOra2pgFileSegmentReader(
 }
 
 func (r *Ora2pgFileSegmentReader) Read(buf []byte) (n int, err error) {
-	remaining := buf[:]
+	remainingBuf := buf[:]
 
+	// When we read a line from the underlying FileSegmentReader, it is possible
+	// that, the `buf` doesn't have enough room to accommodate the entire line.
+	// In that case, we fill the buf as much as we can and arrange to return the
+	// remaining bytes to be returned in the next invocation of this function.
 	outputLine := func(bs []byte) (deferredBytes []byte) {
-		n := copy(remaining, bs)
+		n := copy(remainingBuf, bs)
 		if n < len(bs) { // Fewer bytes were copied.
 			deferredBytes = bs[n:]
 		}
-		remaining = remaining[n:]
+		remainingBuf = remainingBuf[n:]
 		return
 	}
 
 	if len(r.deferredBytes) != 0 {
 		r.deferredBytes = outputLine(r.deferredBytes)
-		if len(remaining) == 0 {
+		if len(remainingBuf) == 0 {
 			return len(buf), nil
 		}
 	}
@@ -50,19 +54,19 @@ func (r *Ora2pgFileSegmentReader) Read(buf []byte) (n int, err error) {
 		line := r.scanner.Text()
 		if r.isDataLine(line) {
 			r.deferredBytes = outputLine([]byte(line + "\n"))
-			if len(remaining) == 0 {
+			if len(remainingBuf) == 0 {
 				break
 			}
 		}
 	}
 
-	if len(remaining) > 0 { // The for loop exited because Scan() returned false.
+	if len(remainingBuf) > 0 { // The for loop exited because Scan() returned false.
 		err = r.scanner.Err()
 		if err == nil {
 			err = io.EOF
 		}
 	}
-	return len(buf) - len(remaining), err
+	return len(buf) - len(remainingBuf), err
 }
 
 func (r *Ora2pgFileSegmentReader) isDataLine(line string) bool {

@@ -1,8 +1,11 @@
 package libmig
 
 import (
+	"fmt"
 	"io"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type FileSegmentReader struct {
@@ -16,12 +19,12 @@ type FileSegmentReader struct {
 func NewFileSegmentReader(fileName string, startOffset, endOffset int64) (*FileSegmentReader, error) {
 	fh, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open %s: %w", fileName, err)
 	}
 	if endOffset == -1 {
 		fi, err := fh.Stat()
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("stat %s: %w", fileName, err)
 		}
 		endOffset = fi.Size()
 	}
@@ -32,6 +35,7 @@ func NewFileSegmentReader(fileName string, startOffset, endOffset int64) (*FileS
 		EndOffset:   endOffset,
 		CurOffset:   startOffset,
 	}
+	log.Infof("New segment reader created %s [%v -> %v]", fileName, startOffset, endOffset)
 	return r, nil
 }
 
