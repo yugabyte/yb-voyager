@@ -831,7 +831,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 
 		// copyCommand is empty when there are no rows for that table
 		if copyCommand != "" {
-			var rowsCount int64
+			var rowsAffected int64
 			var copyErr error
 			// if retry=n, total try call will be n+1
 			copyRetryCount := COPY_MAX_RETRY_COUNT + 1
@@ -848,39 +848,36 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 					}
 				}
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-				rowsCount = res.RowsAffected()
-
-				if err != nil {
+				rowsAffected = res.RowsAffected()
+				
+				if err != nil && strings.Contains(err.Error(), "invalid input syntax") {
+					return false, err
+				}
+				// retry if: err is not nil(except invalid syntax) or the rowsAffected doesn't match
+				if err != nil || (rowsAffected != (task.OffsetEnd - task.OffsetStart)) {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-					if !strings.Contains(err.Error(), "violates unique constraint") {
+					if err != nil {
 						log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
-						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, math.Pow(2, float64(COPY_MAX_RETRY_COUNT+1-copyRetryCount))))
-						log.Infof("sleep for duration %d before retrying...", duration)
-						time.Sleep(time.Second * duration) // delay for 1 sec before retrying
-						copyRetryCount--
-						return copyRetryCount > 0, err
+					} else {
+						log.Errorf("RETRYING.. COPY %q FROM file %q since rows affected(%d) doesn't match actual row count(%d)",
+							task.TableName, inProgressFilePath, rowsAffected, task.OffsetEnd-task.OffsetStart)
 					}
+					duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(COPY_MAX_RETRY_COUNT+1-copyRetryCount)))
+					log.Infof("sleep for duration %d before retrying...", duration)
+					time.Sleep(time.Second * duration)
+					copyRetryCount--
+					return copyRetryCount > 0, err
 				}
 
 				return false, err
 			})
 
-			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 			if copyErr != nil {
 				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, copyErr)
-				if !strings.Contains(copyErr.Error(), "violates unique constraint") {
-					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
-				} else { //in case of unique key violation error take row count from the split task
-					rowsCount = task.OffsetEnd - task.OffsetStart
-					log.Infof("got error:%v, assuming affected rows count %v for %q", copyErr, rowsCount, task.TableName)
-				}
+				utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
 			}
 
-			if rowsCount != task.OffsetEnd-task.OffsetStart {
-				// TODO: print info/details about missed rows on the screen after progress bar is complete
-				log.Warnf("Expected to import %v records from %s. Imported %v.",
-					task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
-			}
 			incrementImportProgressBar(task.TableName, inProgressFilePath)
 		}
 		doneFilePath := getDoneFilePath(task)
@@ -1031,17 +1028,26 @@ func getProgressAmount(filePath string) int64 {
 }
 
 func getYBSessionInitScript() []string {
-	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
-	var sessionVars []string
-	disableTransactionalWritesCmd := fmt.Sprintf("SET yb_disable_transactional_writes to %v", disableTransactionalWrites)
-	enableUpsertCmd := fmt.Sprintf("SET yb_enable_upsert_mode to %v", enableUpsert)
-	defaultSessionVars := []string{
-		"SET client_encoding to 'UTF-8'",
-		"SET session_replication_role to replica",
-		disableTransactionalWritesCmd,
-		enableUpsertCmd,
+	var defaultSessionVars []string
+
+	if checkSessionVariableSupport(SET_CLIENT_ENCODING_TO_UTF8) {
+		defaultSessionVars = append(defaultSessionVars, SET_CLIENT_ENCODING_TO_UTF8)
+	}
+	if checkSessionVariableSupport(SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
+		defaultSessionVars = append(defaultSessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
 	}
 
+	if enableUpsert {
+		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
+			defaultSessionVars = append(defaultSessionVars, SET_YB_ENABLE_UPSERT_MODE)
+			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
+			if disableTransactionalWrites && checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
+				defaultSessionVars = append(defaultSessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
+			}
+		}
+	}
+
+	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
 	if !utils.FileOrFolderExists(sessionVarsPath) {
 		return defaultSessionVars
 	}
@@ -1055,19 +1061,34 @@ func getYBSessionInitScript() []string {
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string
+	var sessionVars []string
 	for fileScanner.Scan() {
 		curLine = strings.TrimSpace(fileScanner.Text())
-		sessionVars = append(sessionVars, curLine)
+		if checkSessionVariableSupport(curLine) {
+			sessionVars = append(sessionVars, curLine)
+		}
 	}
 
-	//Only override the file if the flags are explicitly true (default false)
-	if enableUpsert {
-		sessionVars = append(sessionVars, enableUpsertCmd)
-	}
-	if disableTransactionalWrites {
-		sessionVars = append(sessionVars, disableTransactionalWritesCmd)
-	}
 	return sessionVars
+}
+
+func checkSessionVariableSupport(sqlStmt string) bool {
+	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	if err != nil {
+		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
+	}
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(context.Background(), sqlStmt)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
+			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
+		} else {
+			utils.PrintAndLog("Warning: %q is not supported: %v", sqlStmt, err)
+		}
+	}
+
+	return err == nil
 }
 
 func init() {

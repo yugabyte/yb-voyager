@@ -141,12 +141,12 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
 
-	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", false,
-		"true - to enable upsert for insert in target tables (default false)")
+	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
+		"true - to enable upsert for insert in target tables")
 
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
-	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
-		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
+	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", true,
+		"true - to disable transactional writes in tables for faster data ingestion \n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 }
 
