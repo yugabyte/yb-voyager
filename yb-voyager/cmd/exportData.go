@@ -26,6 +26,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -97,20 +98,14 @@ func exportDataOffline() bool {
 	if source.TableList != "" {
 		finalTableList = extractTableListFromString(source.TableList)
 	} else {
-		excludeTable := false
+
 		tableList = source.DB().GetAllTableNames()
 		if len(excludeTableList) > 0 {
 			for _, tableName := range tableList {
-				for _, excludeTableName := range excludeTableList {
-					if excludeTableName == tableName {
-						excludeTable = true
-						break
-					}
+				if slices.Contains(excludeTableList, tableName) {
+					continue
 				}
-				if !excludeTable {
-					finalTableList = append(finalTableList, tableName)
-				}
-				excludeTable = false
+				finalTableList = append(finalTableList, tableName)
 			}
 		} else {
 			finalTableList = tableList
@@ -181,7 +176,7 @@ func exportDataOnline() bool {
 	return false
 }
 
-func validateTableListFlag(tableListString string) {
+func validateTableListFlag(tableListString string, excludeList bool) {
 	if tableListString == "" {
 		return
 	}
@@ -191,7 +186,11 @@ func validateTableListFlag(tableListString string) {
 	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided wtih --table-list flag", table)
+			if !excludeList {
+				utils.ErrExit("Error: Invalid table name '%v' provided wtih --table-list flag", table)
+			} else {
+				utils.ErrExit("Error: Invalid table name '%v' provided wtih --exclude-table-list flag", table)
+			}
 		}
 	}
 }

@@ -21,6 +21,7 @@ type Target struct {
 	IgnoreIfExists         bool
 	VerboseMode            bool
 	TableList              string
+	ExcludeTableList       string
 	ImportMode             bool
 	dbVersion              string
 
