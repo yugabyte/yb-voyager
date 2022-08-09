@@ -1031,23 +1031,22 @@ func getProgressAmount(filePath string) int64 {
 }
 
 func getYBSessionInitScript() []string {
-	var defaultSessionVars []string
-
+	var sessionVars []string
 	if checkSessionVariableSupport(SET_CLIENT_ENCODING_TO_UTF8) {
-		defaultSessionVars = append(defaultSessionVars, SET_CLIENT_ENCODING_TO_UTF8)
+		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
 	}
 	if checkSessionVariableSupport(SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
-		defaultSessionVars = append(defaultSessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
+		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
 	}
 
 	if enableUpsert {
 		// upsert_mode parameters was introduced later than yb_disable_transactional writes in yb releases
 		// hence if upsert_mode is supported then its safe to assume yb_disable_transactional_writes is already there
 		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
-			defaultSessionVars = append(defaultSessionVars, SET_YB_ENABLE_UPSERT_MODE)
+			sessionVars = append(sessionVars, SET_YB_ENABLE_UPSERT_MODE)
 			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
 			if disableTransactionalWrites && checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
-				defaultSessionVars = append(defaultSessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
+				sessionVars = append(sessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
 			}
 		} else {
 			log.Infof("Falling back to transactional inserts of batches during data import")
@@ -1056,26 +1055,26 @@ func getYBSessionInitScript() []string {
 
 	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
 	if !utils.FileOrFolderExists(sessionVarsPath) {
-		return defaultSessionVars
+		return sessionVars
 	}
 
 	varsFile, err := os.Open(sessionVarsPath)
 	if err != nil {
 		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
-		return defaultSessionVars
+		return sessionVars
 	}
 	defer varsFile.Close()
 	fileScanner := bufio.NewScanner(varsFile)
 
 	var curLine string
-	var sessionVars []string
 	for fileScanner.Scan() {
 		curLine = strings.TrimSpace(fileScanner.Text())
-		if checkSessionVariableSupport(curLine) {
+		if curLine != "" && checkSessionVariableSupport(curLine) {
 			sessionVars = append(sessionVars, curLine)
 		}
 	}
 
+	log.Infof("YBSessionInitScript: %v\n", sessionVars)
 	return sessionVars
 }
 
