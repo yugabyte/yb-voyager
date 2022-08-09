@@ -834,7 +834,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 			var rowsAffected int64
 			var copyErr error
 			// if retry=n, total try call will be n+1
-			copyRetryCount := COPY_MAX_RETRY_COUNT + 1
+			remainingRetries := COPY_MAX_RETRY_COUNT + 1
 
 			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 				// reset the reader to begin for every call
@@ -849,11 +849,11 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 				}
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 				rowsAffected = res.RowsAffected()
-				
+
 				if err != nil && strings.Contains(err.Error(), "invalid input syntax") {
 					return false, err
 				}
-				// retry if: err is not nil(except invalid syntax) or the rowsAffected doesn't match
+
 				if err != nil || (rowsAffected != (task.OffsetEnd - task.OffsetStart)) {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 					if err != nil {
@@ -862,11 +862,15 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 						log.Errorf("RETRYING.. COPY %q FROM file %q since rows affected(%d) doesn't match actual row count(%d)",
 							task.TableName, inProgressFilePath, rowsAffected, task.OffsetEnd-task.OffsetStart)
 					}
-					duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(COPY_MAX_RETRY_COUNT+1-copyRetryCount)))
-					log.Infof("sleep for duration %d before retrying...", duration)
-					time.Sleep(time.Second * duration)
-					copyRetryCount--
-					return copyRetryCount > 0, err
+					remainingRetries--
+					if remainingRetries > 0 {
+						retryNum := COPY_MAX_RETRY_COUNT + 1 - remainingRetries
+						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(retryNum)))
+						log.Infof("sleep for duration %d before retrying the file %s for %d time...",
+							duration, inProgressFilePath, retryNum)
+						time.Sleep(time.Second * duration)
+					}
+					return remainingRetries > 0, err
 				}
 
 				return false, err
@@ -874,7 +878,6 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 
 			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 			if copyErr != nil {
-				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, copyErr)
 				utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
 			}
 
@@ -1038,12 +1041,16 @@ func getYBSessionInitScript() []string {
 	}
 
 	if enableUpsert {
+		// upsert_mode parameters was introduced later than yb_disable_transactional writes in yb releases
+		// hence if upsert_mode is supported then its safe to assume yb_disable_transactional_writes is already there
 		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
 			defaultSessionVars = append(defaultSessionVars, SET_YB_ENABLE_UPSERT_MODE)
 			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
 			if disableTransactionalWrites && checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
 				defaultSessionVars = append(defaultSessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
 			}
+		} else {
+			log.Infof("Falling back to transactional inserts of batches during data import")
 		}
 	}
 
@@ -1084,7 +1091,7 @@ func checkSessionVariableSupport(sqlStmt string) bool {
 		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
 			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
 		} else {
-			utils.PrintAndLog("Warning: %q is not supported: %v", sqlStmt, err)
+			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
 		}
 	}
 
