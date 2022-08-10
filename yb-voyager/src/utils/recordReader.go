@@ -12,9 +12,22 @@ type RecordReader struct {
 	reader     *bufio.Reader
 }
 
+func NewRecordReader(file *os.File) *RecordReader {
+	return &RecordReader{
+		reader:     bufio.NewReader(file),
+		file:       file,
+		NumRecords: 0,
+	}
+}
+
 func (rr *RecordReader) Read(p []byte) (n int, err error) {
 	n, err = rr.reader.Read(p)
 
+	/*
+		Amit's comment
+		If the CSV file is UTF-8 encoded (which is essential), then this code may not be correct. Refer https://golangbyexample.com/iterate-over-a-string-golang/ . Reading each byte separately may lead to incorrectly classifying some bytes as \n.
+		Unfortunately, a for-range loop may not also be enough. Consider a case where only the first byte of a multi-byte character was included in the buffer p. In that case, the for loop will fail with “invalid byte in utf-8” error.
+	*/
 	for i := 0; i < n; i++ {
 		if string(p[i]) == "\n" {
 			rr.NumRecords++
@@ -25,15 +38,10 @@ func (rr *RecordReader) Read(p []byte) (n int, err error) {
 }
 
 func (rr *RecordReader) RestartFromBegin() {
-	rr.file.Seek(0, io.SeekStart)
+	_, err := rr.file.Seek(0, io.SeekStart)
+	if err != nil {
+		ErrExit("unable to reset offset to beginning for file %q: %v", rr.file.Name(), err)
+	}
 	rr.reader.Reset(rr.file)
 	rr.NumRecords = 0
-}
-
-func NewRecordReader(file *os.File) *RecordReader {
-	return &RecordReader{
-		reader:     bufio.NewReader(file),
-		file:       file,
-		NumRecords: 0,
-	}
 }
