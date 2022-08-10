@@ -854,6 +854,11 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 					return false, err
 				}
 
+				/*
+					Note: If a user retries after deleting some row(s) from a batch,
+					yb-voyager will never be able to mark the batch as completed
+					github issue: https://github.com/yugabyte/yb-voyager/issues/223
+				*/
 				if err != nil || (rowsAffected != (task.OffsetEnd - task.OffsetStart)) {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
 					if err != nil {
