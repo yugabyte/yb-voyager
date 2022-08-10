@@ -852,7 +852,8 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 				rowsAffected = res.RowsAffected()
 
-				if err != nil && strings.Contains(err.Error(), "invalid input syntax") {
+				if err != nil && (strings.Contains(err.Error(), "invalid input syntax") ||
+					strings.Contains(err.Error(), "violates unique constraint")) {
 					return false, err
 				}
 
@@ -885,7 +886,12 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 
 			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 			if copyErr != nil {
-				utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
+				if strings.Contains(copyErr.Error(), "violates unique constraint") {
+					rowsAffected = task.OffsetEnd - task.OffsetStart
+					log.Warnf("got error:%v, assuming affected rows count %v for %q", copyErr, rowsAffected, task.TableName)
+				} else {
+					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
+				}
 			}
 
 			incrementImportProgressBar(task.TableName, inProgressFilePath)
