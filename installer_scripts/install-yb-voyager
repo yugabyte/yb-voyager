@@ -45,11 +45,7 @@ on_exit() {
 		echo "Done!"
 	else
 		echo "Script failed. Check log file ${LOG_FILE} ."
-		Var="${ON_INSTALLER_ERROR_OUTPUT_LOG:-N}"
-		if [[ $Var = "Y" ]]
-		then
-			sudo cat ${LOG_FILE}
-		fi
+		[ "${ON_INSTALLER_ERROR_OUTPUT_LOG}" == "Y" ] && cat ${LOG_FILE}
 	fi
 }
 

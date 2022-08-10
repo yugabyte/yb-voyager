@@ -824,11 +824,13 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 		}
 
 		copyCommand := getCopyCommand(task.TableName)
-		reader, err := os.Open(inProgressFilePath)
+		file, err := os.Open(inProgressFilePath)
 		if err != nil {
 			utils.ErrExit("open %q: %s", inProgressFilePath, err)
 		}
+		defer file.Close()
 
+		reader := utils.NewRecordReader(file)
 		// copyCommand is empty when there are no rows for that table
 		if copyCommand != "" {
 			var rowsAffected int64
@@ -838,7 +840,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 
 			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 				// reset the reader to begin for every call
-				reader.Seek(0, io.SeekStart)
+				reader.RestartFromBegin()
 				//setting the schema so that COPY command can acesss the table
 				if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
 					setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
@@ -859,13 +861,13 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 					yb-voyager will never be able to mark the batch as completed
 					github issue: https://github.com/yugabyte/yb-voyager/issues/223
 				*/
-				if err != nil || (rowsAffected != (task.OffsetEnd - task.OffsetStart)) {
-					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+				if err != nil || (rowsAffected != reader.NumRecords) {
+					log.Warnf("COPY FROM file %q: %v", inProgressFilePath, err)
 					if err != nil {
 						log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
 					} else {
-						log.Errorf("RETRYING.. COPY %q FROM file %q since rows affected(%d) doesn't match actual row count(%d)",
-							task.TableName, inProgressFilePath, rowsAffected, task.OffsetEnd-task.OffsetStart)
+						log.Errorf("RETRYING.. COPY %q FROM file %q since rows affected(%d) doesn't match rows read by reader(%d)",
+							task.TableName, inProgressFilePath, rowsAffected, reader.NumRecords)
 					}
 					remainingRetries--
 					if remainingRetries > 0 {
@@ -899,6 +901,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 		if err != nil {
 			log.Warnf("truncate file %q: %s", doneFilePath, err)
 		}
+		log.Infof("Import Task for file %q complete", task.SplitFilePath)
 		splitImportDone = true
 	}
 }
