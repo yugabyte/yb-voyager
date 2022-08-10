@@ -93,12 +93,12 @@ func runExportDataStatusCmd() error {
 		if (source.DBType == POSTGRESQL && utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)+"_data.sql")) || utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)) {
 			status = "DONE"
 		} else if utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])) {
-			status = "MIGRATING"
+			status = "EXPORTING"
 		} else {
 			status = "NOT_STARTED"
 		}
 		if source.DBType == ORACLE || source.DBType == MYSQL {
-			finalFullTableName = tableName[:len(tableName)-9]
+			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
 		}
 		row := &exportTableMigStatusOutputRow{
 			tableName: finalFullTableName,
@@ -109,7 +109,7 @@ func runExportDataStatusCmd() error {
 
 	// First sort by status and then by table-name.
 	sort.Slice(outputRows, func(i, j int) bool {
-		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "NOT_STARTED": 3}
+		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3}
 		row1 := outputRows[i]
 		row2 := outputRows[j]
 		if row1.status == row2.status {

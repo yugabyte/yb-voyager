@@ -95,12 +95,6 @@ func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 
 	registerCommonExportFlags(exportSchemaCmd)
-	// Hide num-connections flag from help description from Export Schema command
-	// exportSchemaCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
-	// 	command.Flags().MarkHidden("parallel-jobs")
-	// 	command.Parent().HelpFunc()(command, strings)
-	// })
-
 }
 
 func schemaIsExported(exportDir string) bool {
