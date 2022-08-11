@@ -19,8 +19,11 @@ func NewRecordReader(file *os.File, hasHeader bool) *RecordReader {
 	rr := &RecordReader{
 		reader:     bufio.NewReader(file),
 		file:       file,
-		NumRecords: initializeNumRecords(hasHeader),
+		NumRecords: 0,
 		hasHeader:  hasHeader,
+	}
+	if rr.hasHeader {
+		rr.NumRecords--
 	}
 	log.Infof("Created NewRecordReader for filename=%q, NumRecords=%d, hasHeader=%t",
 		rr.file.Name(), rr.NumRecords, rr.hasHeader)
@@ -50,13 +53,8 @@ func (rr *RecordReader) RestartFromBegin() {
 		ErrExit("unable to reset offset to beginning for file %q: %v", rr.file.Name(), err)
 	}
 	rr.reader.Reset(rr.file)
-	rr.NumRecords = initializeNumRecords(rr.hasHeader)
-}
-
-func initializeNumRecords(hasHeader bool) int64 {
-	var numRecords int64 = 0
-	if hasHeader {
-		numRecords = -1
+	rr.NumRecords = 0
+	if rr.hasHeader {
+		rr.NumRecords--
 	}
-	return numRecords
 }
