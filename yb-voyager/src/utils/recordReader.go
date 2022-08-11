@@ -4,20 +4,27 @@ import (
 	"bufio"
 	"io"
 	"os"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type RecordReader struct {
 	file       *os.File
 	NumRecords int64
 	reader     *bufio.Reader
+	hasHeader  bool
 }
 
-func NewRecordReader(file *os.File) *RecordReader {
-	return &RecordReader{
+func NewRecordReader(file *os.File, hasHeader bool) *RecordReader {
+	rr := &RecordReader{
 		reader:     bufio.NewReader(file),
 		file:       file,
-		NumRecords: 0,
+		NumRecords: initializeNumRecords(hasHeader),
+		hasHeader:  hasHeader,
 	}
+	log.Infof("Created NewRecordReader for filename=%q, NumRecords=%d, hasHeader=%t",
+		rr.file.Name(), rr.NumRecords, rr.hasHeader)
+	return rr
 }
 
 func (rr *RecordReader) Read(p []byte) (n int, err error) {
@@ -43,5 +50,13 @@ func (rr *RecordReader) RestartFromBegin() {
 		ErrExit("unable to reset offset to beginning for file %q: %v", rr.file.Name(), err)
 	}
 	rr.reader.Reset(rr.file)
-	rr.NumRecords = 0
+	rr.NumRecords = initializeNumRecords(rr.hasHeader)
+}
+
+func initializeNumRecords(hasHeader bool) int64 {
+	var numRecords int64 = 0
+	if hasHeader {
+		numRecords = -1
+	}
+	return numRecords
 }

@@ -827,7 +827,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 		}
 		defer file.Close()
 
-		reader := utils.NewRecordReader(file)
+		reader := utils.NewRecordReader(file, dataFileDescriptor.HasHeader)
 		// copyCommand is empty when there are no rows for that table
 		if copyCommand != "" {
 			var rowsAffected int64
