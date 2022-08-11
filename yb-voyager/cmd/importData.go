@@ -384,7 +384,7 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		}
 
 		//Removing intersection of doneTables and ExcludeTableList from allTables list, just for startClean
-		importTables = removeExcludeTables(allTables) //since all tables needs to imported now
+		importTables = removeExcludeTables(allTables, utils.CsvStringToSlice(target.ExcludeTableList)) //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
 		utils.PrintIfTrue("looking for tables without a Primary Key...\n", target.VerboseMode)
@@ -768,7 +768,8 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		}
 	}
 
-	return doneTables, removeExcludeTables(interruptedTables), removeExcludeTables(remainingTables), nil
+	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
+	return doneTables, removeExcludeTables(interruptedTables, excludeTableList), removeExcludeTables(remainingTables, excludeTableList), nil
 }
 
 func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
@@ -1072,11 +1073,10 @@ func getYBSessionInitScript() []string {
 	return sessionVars
 }
 
-func removeExcludeTables(tableList []string) []string {
-	if len(tableList) == 0 || target.ExcludeTableList == "" {
+func removeExcludeTables(tableList []string, excludeTableList []string) []string {
+	if len(tableList) == 0 || len(excludeTableList) == 0 {
 		return tableList
 	}
-	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
 	var finalTableList []string
 	for _, table := range tableList {
 		if slices.Contains(excludeTableList, table) {

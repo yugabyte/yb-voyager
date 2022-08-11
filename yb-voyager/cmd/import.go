@@ -63,8 +63,8 @@ func validateImportFlags() {
 	if target.TableList != "" && target.ExcludeTableList != "" {
 		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
 	}
-	validateTableListFlag(target.TableList, false)
-	validateTableListFlag(target.ExcludeTableList, true)
+	validateTableListFlag(target.TableList, "table-list")
+	validateTableListFlag(target.ExcludeTableList, "exclude-table-list")
 	validateTargetSchemaFlag()
 }
 

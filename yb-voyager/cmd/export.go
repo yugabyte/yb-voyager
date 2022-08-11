@@ -169,8 +169,8 @@ func validateExportFlags() {
 	if source.TableList != "" && source.ExcludeTableList != "" {
 		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
 	}
-	validateTableListFlag(source.TableList, false)
-	validateTableListFlag(source.ExcludeTableList, true)
+	validateTableListFlag(source.TableList, "table-list")
+	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {

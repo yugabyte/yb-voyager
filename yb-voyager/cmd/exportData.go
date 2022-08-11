@@ -26,7 +26,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -94,22 +93,12 @@ func exportDataOffline() bool {
 
 	var tableList []string
 	var finalTableList []string
-	excludeTableList := extractTableListFromString(source.ExcludeTableList) //function handles null case
+	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
 		finalTableList = extractTableListFromString(source.TableList)
 	} else {
-
 		tableList = source.DB().GetAllTableNames()
-		if len(excludeTableList) > 0 {
-			for _, tableName := range tableList {
-				if slices.Contains(excludeTableList, tableName) {
-					continue
-				}
-				finalTableList = append(finalTableList, tableName)
-			}
-		} else {
-			finalTableList = tableList
-		}
+		finalTableList = removeExcludeTables(tableList, excludeTableList)
 		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
@@ -176,21 +165,17 @@ func exportDataOnline() bool {
 	return false
 }
 
-func validateTableListFlag(tableListString string, excludeList bool) {
+//flagName can be "exclude-table-list" or "table-list"
+func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
 		return
 	}
-
 	tableList := utils.CsvStringToSlice(tableListString)
 	// TODO: update regexp once table name with double quotes are allowed/supported
 	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			if !excludeList {
-				utils.ErrExit("Error: Invalid table name '%v' provided wtih --table-list flag", table)
-			} else {
-				utils.ErrExit("Error: Invalid table name '%v' provided wtih --exclude-table-list flag", table)
-			}
+			utils.ErrExit("Error: Invalid table name '%v' provided wtih --%s flag", table, flagName)
 		}
 	}
 }
@@ -212,22 +197,22 @@ func checkDataDirs() {
 
 func extractTableListFromString(flagTableList string) []string {
 	var finalTableList []string
-	if flagTableList != "" {
-		tableList := utils.CsvStringToSlice(flagTableList)
-		if source.DBType == POSTGRESQL {
-			// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
-			for _, table := range tableList {
-				parts := strings.Split(table, ".")
-				if len(parts) == 1 {
-					finalTableList = append(finalTableList, "public."+table)
-				} else if len(parts) == 2 {
-					finalTableList = append(finalTableList, table)
-				} else {
-					utils.ErrExit("invalid table name %q in the --table-list flag.", table)
-				}
-			}
+	if flagTableList == "" {
+		return []string{}
+	}
+	tableList := utils.CsvStringToSlice(flagTableList)
+	if source.DBType != POSTGRESQL {
+		return tableList
+	}
+	// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
+	for _, table := range tableList {
+		parts := strings.Split(table, ".")
+		if len(parts) == 1 {
+			finalTableList = append(finalTableList, "public."+table)
+		} else if len(parts) == 2 {
+			finalTableList = append(finalTableList, table)
 		} else {
-			finalTableList = tableList
+			utils.ErrExit("invalid table name %q in the --table-list flag.", table)
 		}
 	}
 	return finalTableList
