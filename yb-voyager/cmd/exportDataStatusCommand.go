@@ -54,7 +54,7 @@ func runExportDataStatusCmd() error {
 	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
 	source.DBType = dbTypeFlag
 	if dbTypeFlag == "postgresql" {
-		tableMap = GetMappingForTableNameVsTableFileName(dataDir)
+		tableMap = getMappingForTableNameVsTableFileName(dataDir)
 	} else if dbTypeFlag == "mysql" || dbTypeFlag == "oracle" {
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {

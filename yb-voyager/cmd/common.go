@@ -41,7 +41,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
-		requiredMap = GetMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
+		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tablesProgressMetadata[key].FullTableName
@@ -77,7 +77,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-func GetMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
+func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
 	tocTextFilePath := filepath.Join(dataDirPath, "toc.txt")
 	// waitingFlag := 0
 	for !utils.FileOrFolderExists(tocTextFilePath) {
