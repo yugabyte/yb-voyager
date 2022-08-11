@@ -40,8 +40,10 @@ var exportDataCmd = &cobra.Command{
 	Short: "This command is used to export table's data from source database to *.sql files",
 	Long:  ``,
 
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	PreRun: func(cmd *cobra.Command, args []string) {
+		setExportFlagsDefaults()
+		validateExportFlags()
+		markFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -52,8 +54,18 @@ var exportDataCmd = &cobra.Command{
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+	registerCommonExportFlags(exportDataCmd)
 	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export(default false)")
+
+	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
+		"list of the tables to export data")
+
+	exportDataCmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
+		"mode can be offline | online")
+
+	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
+		"number of Parallel Jobs to extract data from source database")
 }
 
 func exportData() {

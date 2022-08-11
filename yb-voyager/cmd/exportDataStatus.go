@@ -164,12 +164,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	total := int64(0) // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
 	bar := progressContainer.AddBar(total,
 		mpb.BarFillerClearOnComplete(),
-		// mpb.BarRemoveOnComplete(),
+		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(tableName),
 		),
 		mpb.AppendDecorators(
-			// decor.Percentage(decor.WCSyncSpaceR),
 			decor.OnComplete(
 				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
 			),
