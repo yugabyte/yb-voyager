@@ -590,6 +590,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	}
 	var readLineErr error = nil
 	var line string
+	linesWrittenToBuffer := false
 	for readLineErr == nil {
 		line, readLineErr = dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
@@ -598,10 +599,11 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			numLinesInThisSplit += 1
 		}
 
-		if line != "" {
-			line = fmt.Sprintf("%s\n", line)
+		if linesWrittenToBuffer {
+			line = fmt.Sprintf("\n%s", line)
 		}
 		length, err := bufferedWriter.WriteString(line)
+		linesWrittenToBuffer = true
 		if err != nil {
 			utils.ErrExit("Write line to %q: %s", outfile.Name(), err)
 		}
@@ -644,6 +646,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
 				numLinesInThisSplit = 0
+				linesWrittenToBuffer = false
 				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
 				log.Infof("create next temp file: %q", currTmpFileName)
 				outfile, err = os.Create(currTmpFileName)
@@ -895,7 +898,6 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 		if err != nil {
 			log.Warnf("truncate file %q: %s", doneFilePath, err)
 		}
-		log.Infof("Import Task for file %q complete", task.SplitFilePath)
 		splitImportDone = true
 	}
 }
