@@ -298,7 +298,6 @@ func importData() {
 	generateSmallerSplits(splitFilesChannel)
 	go doImport(splitFilesChannel, parallelism, connPool)
 	checkForDone()
-
 	time.Sleep(time.Second * 2)
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
@@ -308,21 +307,27 @@ func importData() {
 func checkForDone() {
 	for Done.IsNotSet() {
 		if GenerateSplitsDone.IsSet() {
-			// InProgress Pattern
-			inProgressPattern := fmt.Sprintf("%s/%s/data/*.P", exportDir, metaInfoDir)
-			m1, err := filepath.Glob(inProgressPattern)
-			if err != nil {
-				utils.ErrExit("glob %q: %s", inProgressPattern, err)
+			checkPassed := true
+			for _, table := range importTables {
+				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDir, table)
+				m1, err := filepath.Glob(inProgressPattern)
+				if err != nil {
+					utils.ErrExit("glob %q: %s", inProgressPattern, err)
+				}
+				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDir, table)
+				m2, err := filepath.Glob(inCreatedPattern)
+				if err != nil {
+					utils.ErrExit("glob %q: %s", inCreatedPattern, err)
+				}
+
+				if len(m1) > 0 || len(m2) > 0 {
+					checkPassed = false
+					time.Sleep(2 * time.Second)
+					break
+				}
 			}
-			inCreatedPattern := fmt.Sprintf("%s/%s/data/*.C", exportDir, metaInfoDir)
-			m2, err := filepath.Glob(inCreatedPattern)
-			if err != nil {
-				utils.ErrExit("glob %q: %s", inCreatedPattern, err)
-			}
-			// in progress are interrupted ones
-			if len(m1) > 0 || len(m2) > 0 {
-				time.Sleep(2 * time.Second)
-			} else {
+			if checkPassed {
+				// once above loop is executed for each table, import is done
 				log.Infof("No in-progress or newly-created splits. Import Done.")
 				Done.Set()
 			}
@@ -330,7 +335,6 @@ func checkForDone() {
 			time.Sleep(5 * time.Second)
 		}
 	}
-
 }
 
 func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
