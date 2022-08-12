@@ -33,6 +33,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -102,7 +103,8 @@ var importDataCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		importData()
+		//importData()
+		newImportData()
 	},
 }
 
@@ -254,6 +256,79 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 		}
 	}
 	return cloneConnectionUri
+}
+
+func newImportData() {
+	// Prepare fileNameToTargetTableID.
+	tableNameToFilePath := getExportedTables()
+	// TODO: Take --table-list and --exclude-table-list into account.
+	filePathToTableID := map[string]*libmig.TableID{}
+	for qualifiedTableName, filePath := range tableNameToFilePath {
+		schemaName, tableName := extractSchemaTableName(qualifiedTableName)
+		tableID := libmig.NewTableID(target.DBName, schemaName, tableName)
+		filePathToTableID[filePath] = tableID
+	}
+
+	// TODO: Unify libmig.DataFileDescriptor and datafile.Descriptor.
+	// Prepare libmig.DataFileDescriptor.
+	expdfd := datafile.OpenDescriptor(exportDir)
+	dfd := &libmig.DataFileDescriptor{
+		FileType:  expdfd.FileFormat,
+		Delimiter: expdfd.Delimiter,
+		HasHeader: expdfd.HasHeader,
+		// TODO: Find default values for EscapeChar and QuoteChar for ora2pg.
+		EscapeChar: `"`,
+		QuoteChar:  `"`,
+	}
+
+	// For PG, extract COPY commands from the toc.txt.
+	tableNameToCopyCommand := map[string]string{}
+	if sourceDBType == POSTGRESQL {
+		tableNameToCopyCommand = pgGetCopyCommandsFromTOC()
+	}
+
+	importDataFiles(dfd, filePathToTableID, tableNameToCopyCommand)
+	// TODO: Create Indexes.
+	//executePostImportDataSqls()
+}
+
+func pgGetCopyCommandsFromTOC() map[string]string {
+	tableNameToCopyCommand := map[string]string{}
+
+	fh, err := os.Open(filepath.Join(exportDir, "data", "toc.txt"))
+	if err != nil {
+		utils.ErrExit("failed to open toc.txt: %s", err)
+	}
+	defer fh.Close()
+
+	scanner := bufio.NewScanner(fh)
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.Trim(line, " \n")
+		// Example line: "COPY public.category (category_id, name, last_update) FROM stdin;"
+		if strings.HasPrefix(line, "COPY ") && strings.HasSuffix(line, " FROM stdin;") {
+			parts := strings.Split(line, " ")
+			tableName := parts[1]
+			tableNameToCopyCommand[tableName] = line
+		}
+	}
+	if scanner.Err() != nil {
+		utils.ErrExit("could not read toc.txt: %s", scanner.Err())
+	}
+	return tableNameToCopyCommand
+}
+
+func extractSchemaTableName(tableName string) (string, string) {
+	parts := strings.Split(tableName, ".")
+	switch len(parts) {
+	case 1:
+		return "public", parts[0]
+	case 2:
+		return parts[0], parts[1]
+	default:
+		utils.ErrExit("invalid tableName: %s", tableName)
+	}
+	panic("UNREACHABLE CODE")
 }
 
 func importData() {
@@ -705,9 +780,10 @@ func executePostImportDataSqls() {
 
 }
 
-func getTablesToImport() ([]string, []string, []string, error) {
-	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDir)
+func getExportedTables() map[string]string {
+	tableNameToFileName := map[string]string{}
 
+	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDir)
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
@@ -737,13 +813,23 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	}
 
 	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	var tables []string
-	for _, v := range datafiles {
-		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
+	for _, fileName := range datafiles {
+		tablenameMatches := pat.FindAllStringSubmatch(fileName, -1)
 		for _, match := range tablenameMatches {
-			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
+			tableName := match[1]
+			tableNameToFileName[tableName] = fileName
 		}
 	}
+	log.Infof("Exported tables:\n%s", spew.Sdump(tableNameToFileName))
+	return tableNameToFileName
+}
+
+func getTablesToImport() ([]string, []string, []string, error) {
+	var tables []string
+	for tableName, _ := range getExportedTables() {
+		tables = append(tables, tableName)
+	}
+	metaInfoDataDir := fmt.Sprintf("%s/metainfo/data", exportDir)
 
 	var doneTables []string
 	var interruptedTables []string

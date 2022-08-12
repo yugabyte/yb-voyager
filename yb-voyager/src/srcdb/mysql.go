@@ -138,7 +138,7 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []s
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.SQL,
+		FileFormat:    datafile.ORA2PG,
 		TableRowCount: exportedRowCount,
 		Delimiter:     "\t",
 		HasHeader:     false,

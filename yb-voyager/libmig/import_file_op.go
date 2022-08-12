@@ -97,6 +97,9 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 		log.Infof("[%s] Wait until all submitted batches are done before returning.", op.TableID)
 		op.wg.Wait()
 		log.Infof("[%s] Finished processing all batches.", op.TableID)
+		if op.Err == nil {
+			op.progressReporter.TableImportDone(op.TableID)
+		}
 	}()
 
 	batchCount := 0

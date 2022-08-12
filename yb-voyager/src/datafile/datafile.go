@@ -6,9 +6,9 @@ import (
 )
 
 const (
-	CSV  = "csv"
-	SQL  = "sql"
-	TEXT = "text"
+	CSV    = "csv"
+	ORA2PG = "ora2pg"
+	TEXT   = "text"
 )
 
 type DataFile interface {
@@ -27,7 +27,7 @@ func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV, TEXT:
 		return openCsvDataFile(filePath, descriptor)
-	case SQL:
+	case ORA2PG:
 		return openSqlDataFile(filePath, descriptor)
 	default:
 		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileFormat))

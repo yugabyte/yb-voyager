@@ -30,7 +30,7 @@ func (pr *ProgressReporter) ImportFileStarted(tableID *TableID, totalProgressAmo
 	name := fmt.Sprintf("%s:%s", tableID.SchemaName, tableID.TableName)
 	bar := pr.progress.AddBar(totalProgressAmount,
 		mpb.BarFillerClearOnComplete(),
-		//mpb.BarRemoveOnComplete(),
+		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(name),
 		),
@@ -53,4 +53,13 @@ func (pr *ProgressReporter) AddProgressAmount(tableID *TableID, progressAmount i
 	log.Infof("Add %v progress to table %s", progressAmount, tableID)
 	progressBar := pr.progressBars[tableID.String()]
 	progressBar.IncrInt64(progressAmount)
+}
+
+func (pr *ProgressReporter) TableImportDone(tableID *TableID) {
+	pr.Lock()
+	defer pr.Unlock()
+
+	log.Infof("%s import completed", tableID)
+	progressBar := pr.progressBars[tableID.String()]
+	progressBar.SetTotal(-1, true)
 }

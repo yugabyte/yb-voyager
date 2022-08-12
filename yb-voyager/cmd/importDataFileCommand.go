@@ -6,15 +6,18 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
@@ -39,31 +42,46 @@ var importDataFileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags()
 		parseFileTableMapping()
-		importDataFiles()
+		dfd := &libmig.DataFileDescriptor{
+			FileType:   fileFormat,
+			Delimiter:  delimiter,
+			HasHeader:  hasHeader,
+			EscapeChar: fileOptsMap["escape_char"],
+			QuoteChar:  fileOptsMap["quote_char"],
+		}
+		filePathToTableID := map[string]*libmig.TableID{}
+		for tableName, filePath := range tableNameVsFilePath {
+			tableID := libmig.NewTableID(target.DBName, target.Schema, tableName)
+			filePathToTableID[filePath] = tableID
+		}
+		importDataFiles(dfd, filePathToTableID, map[string]string{})
 		//prepareForImportDataCmd()
 		//importData()
 	},
 }
 
-func importDataFiles() {
+func importDataFiles(
+	dfd *libmig.DataFileDescriptor,
+	filePathToTableID map[string]*libmig.TableID,
+	tableNameToCopyCommand map[string]string) {
+
+	log.Infof("data file descriptor:\n%s", spew.Sdump(dfd))
+	log.Infof("filePath => tableID: %s", spew.Sdump(filePathToTableID))
+
 	ctx := context.Background()
 	migstate := libmig.NewMigrationState(exportDir)
 	progressReporter := libmig.NewProgressReporter()
 	connPool := newConnPool()
-	sema := semaphore.NewWeighted(int64(parallelImportJobs * 2))
 	tdb := libmig.NewTargetDB(connPool)
-	dfd := &libmig.DataFileDescriptor{
-		FileType:   fileFormat,
-		Delimiter:  delimiter,
-		HasHeader:  hasHeader,
-		EscapeChar: fileOptsMap["escape_char"],
-		QuoteChar:  fileOptsMap["quote_char"],
-	}
-	dbName, schemaName := target.DBName, target.Schema
-	for tableName, filePath := range tableNameVsFilePath {
-		tableID := libmig.NewTableID(dbName, schemaName, tableName)
+	// parallelImportJobs is set after newConnPool() returns.
+	sema := semaphore.NewWeighted(int64(parallelImportJobs * 2))
+	filePaths := maps.Keys(filePathToTableID)
+	sort.Strings(filePaths)
+	for _, filePath := range filePaths {
+		tableID := filePathToTableID[filePath]
 		op := libmig.NewImportFileOp(migstate, progressReporter, tdb, filePath, tableID, dfd, sema)
 		op.BatchSize = int(numLinesInASplit)
+		op.CopyCommand = tableNameToCopyCommand[tableID.QualifiedName()]
 		err := op.Run(ctx)
 		if err != nil {
 			utils.ErrExit("Failed to import %s: %s", tableID, err)

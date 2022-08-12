@@ -52,7 +52,10 @@ func (b *Batch) Reader() (io.ReadCloser, error) {
 	if err == nil && b.Header != "" {
 		reader = NewConcatReadCloser(strings.NewReader(b.Header+"\n"), reader)
 	}
-	return reader, fmt.Errorf("prepare reader: %w", err)
+	if err != nil {
+		return reader, fmt.Errorf("prepare reader: %w", err)
+	}
+	return reader, nil
 }
 
 func (b *Batch) SaveTo(fileName string) error {

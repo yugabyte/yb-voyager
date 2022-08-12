@@ -13,3 +13,7 @@ func NewTableID(dbName, schemaName, tableName string) *TableID {
 func (tableID *TableID) String() string {
 	return fmt.Sprintf("%s:%s:%s", tableID.DatabaseName, tableID.SchemaName, tableID.TableName)
 }
+
+func (tableID *TableID) QualifiedName() string {
+	return fmt.Sprintf("%s.%s", tableID.SchemaName, tableID.TableName)
+}

@@ -57,7 +57,10 @@ func (migstate *MigrationState) GetLastBatch(tableID *TableID) (*Batch, error) {
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
-	return batch, fmt.Errorf("load batch: %w", err)
+	if err != nil {
+		return batch, fmt.Errorf("load batch: %w", err)
+	}
+	return batch, nil
 }
 
 func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, error) {
