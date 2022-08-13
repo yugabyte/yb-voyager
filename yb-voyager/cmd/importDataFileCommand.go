@@ -102,10 +102,6 @@ func newConnPool() *libmig.ConnectionPool {
 	params := &libmig.ConnectionParams{
 		NumConnections: parallelImportJobs + 1,
 		ConnUriList:    targetUriList,
-		SessionVars: map[string]string{
-			"yb_disable_transactional_writes": fmt.Sprintf("%v", disableTransactionalWrites),
-			"yb_enable_upsert_mode":           fmt.Sprintf("%v", enableUpsert),
-		},
 	}
 	connPool := libmig.NewConnectionPool(params)
 	return connPool

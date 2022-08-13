@@ -11,6 +11,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO: Unify with tgtdb.ConnectionPool.
+
 var sessionVars = map[string]string{
 	"client_encoding":          "'UTF-8'",
 	"session_replication_role": "replica",
@@ -121,12 +123,30 @@ func (pool *ConnectionPool) getNextUriIndex() int {
 }
 
 func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
-	for k, v := range pool.params.SessionVars {
-		cmd := fmt.Sprintf("SET %s TO %s;", k, v)
-		_, err := conn.Exec(context.Background(), cmd)
-		if err != nil && !strings.Contains(err.Error(), "unrecognized configuration parameter") {
+	err := setSessionVar(conn, "SET client_encoding TO 'UTF-8'")
+	if err != nil {
+		return err
+	}
+	err = setSessionVar(conn, "SET session_replication_role TO replica")
+	if err != nil {
+		return err
+	}
+	err = setSessionVar(conn, "SET yb_enable_upsert_mode TO true")
+	if err != nil {
+		if strings.Contains(err.Error(), "unrecognized configuration parameter") {
+			log.Warnf("UPSERT mode is not available. Using transactional COPY.")
+			return nil
+		} else {
 			return err
 		}
+	}
+	return setSessionVar(conn, "SET yb_disable_transactional_writes TO true")
+}
+
+func setSessionVar(conn *pgx.Conn, sqlStmt string) error {
+	_, err := conn.Exec(context.Background(), sqlStmt)
+	if err != nil {
+		return fmt.Errorf("%s: %w", sqlStmt, err)
 	}
 	return nil
 }

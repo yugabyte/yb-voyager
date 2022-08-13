@@ -163,6 +163,7 @@ func (op *ImportFileOp) openDataFile() error {
 }
 
 func (op *ImportFileOp) setCopyCommand() error {
+	// TODO: set MAX_ROWS_PER_TRANSACTION as per batch size.
 	log.Infof("Determine COPY command for the table %q.", op.TableID)
 	if op.CopyCommand != "" {
 		return nil
@@ -214,12 +215,7 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 	log.Infof("Import batch %s %d: file %q, start: %v, end: %v",
 		op.TableID, batch.BatchNumber, batch.FileName, batch.StartOffset, batch.EndOffset)
 	ctx := context.Background()
-	r, err := batch.Reader()
-	if err != nil {
-		return fmt.Errorf("read batch %v from file %q: %w", batch.BatchNumber, batch.FileName, err)
-	}
-	defer r.Close()
-	n, err := op.tdb.Copy(ctx, op.CopyCommand, r)
+	n, err := op.tdb.Copy(ctx, op.CopyCommand, batch)
 	if err != nil {
 		log.Errorf("COPY batch %s %d failed: %s", batch.TableID, batch.BatchNumber, err)
 		err2 := op.migState.MarkBatchFailed(batch, err)
