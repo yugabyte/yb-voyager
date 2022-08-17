@@ -145,6 +145,7 @@ func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
 
 func setSessionVar(conn *pgx.Conn, sqlStmt string) error {
 	_, err := conn.Exec(context.Background(), sqlStmt)
+	log.Infof("%s ==> %v", sqlStmt, err)
 	if err != nil {
 		return fmt.Errorf("%s: %w", sqlStmt, err)
 	}

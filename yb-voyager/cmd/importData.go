@@ -259,16 +259,27 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 }
 
 func newImportData() {
+	includeTableList := utils.CsvStringToSlice(target.TableList)
+	for i := 0; i < len(includeTableList); i++ {
+		schemaName, tableName := extractSchemaTableName(includeTableList[i])
+		includeTableList[i] = fmt.Sprintf("%s.%s", schemaName, tableName)
+	}
+
 	// Prepare fileNameToTargetTableID.
 	tableNameToFilePath := getExportedTables()
-	// TODO: Take --table-list and --exclude-table-list into account.
+	// TODO: Take --exclude-table-list into account.
 	filePathToTableID := map[string]*libmig.TableID{}
 	for qualifiedTableName, filePath := range tableNameToFilePath {
 		schemaName, tableName := extractSchemaTableName(qualifiedTableName)
-		tableID := libmig.NewTableID(target.DBName, schemaName, tableName)
-		filePathToTableID[filePath] = tableID
+		qualifiedTableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		if len(includeTableList) == 0 || slices.Contains(includeTableList, qualifiedTableName) {
+			tableID := libmig.NewTableID(target.DBName, schemaName, tableName)
+			filePathToTableID[filePath] = tableID
+		}
 	}
-
+	if len(filePathToTableID) == 0 {
+		utils.ErrExit("Nothing to import.")
+	}
 	// TODO: Unify libmig.DataFileDescriptor and datafile.Descriptor.
 	// Prepare libmig.DataFileDescriptor.
 	expdfd := datafile.OpenDescriptor(exportDir)
