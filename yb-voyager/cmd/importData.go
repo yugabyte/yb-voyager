@@ -366,13 +366,16 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		}
 	}
 
+	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
+	importTables = removeExcludeTables(importTables, excludeTableList)
+	allTables = removeExcludeTables(allTables, excludeTableList)
 	sort.Strings(allTables)
 	sort.Strings(importTables)
 
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
 
-	if startClean { //start data migraiton from beginning
+	if startClean { //start data migraiton from beginning only for table-list (or neglect cleaning if in exclude-table-list)
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
 
@@ -382,9 +385,7 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
 		}
-
-		//Removing intersection of doneTables and ExcludeTableList from allTables list, just for startClean
-		importTables = removeExcludeTables(allTables, utils.CsvStringToSlice(target.ExcludeTableList)) //since all tables needs to imported now
+		importTables = allTables //since all tables needs to imported now
 	} else {
 		//truncate tables with no primary key
 		utils.PrintIfTrue("looking for tables without a Primary Key...\n", target.VerboseMode)
@@ -768,8 +769,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 		}
 	}
 
-	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
-	return doneTables, removeExcludeTables(interruptedTables, excludeTableList), removeExcludeTables(remainingTables, excludeTableList), nil
+	return doneTables, interruptedTables, remainingTables, nil
 }
 
 func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
