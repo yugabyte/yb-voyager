@@ -41,7 +41,7 @@ var rootCmd = &cobra.Command{
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			InitLogging(exportDir)
+			InitLogging(exportDir, cmd.Use == "status")
 		}
 	},
 

@@ -8,7 +8,6 @@ import (
 	"sort"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -21,7 +20,6 @@ var exportDataStatusCmd = &cobra.Command{
 		validateExportDirFlag()
 		err := runExportDataStatusCmd()
 		if err != nil {
-			log.Errorf("Get export data status failed: %s", err)
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
 		}
