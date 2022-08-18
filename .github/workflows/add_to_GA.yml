@@ -6,8 +6,6 @@ on:
       - completed
   issues:
     types:
-      - reopened
-      - opened
       - labeled
 
 jobs:
@@ -22,7 +20,6 @@ jobs:
         #Project 10 is yb-voyager 1.0 GA
           project-url: https://github.com/orgs/yugabyte/projects/10
           github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
-          labeled: triage, GA1.0
-          label-operator: OR
+          labeled: GA1.0
     
 
