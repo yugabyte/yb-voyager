@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -46,8 +47,12 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging(logDir string) {
-	// Redirect log messages to ${logDir}/yb-voyager.log .
+func InitLogging(logDir string, disableLogging bool) {
+	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
+	if disableLogging {
+		log.SetOutput(ioutil.Discard)
+		return
+	}
 	logFileName := filepath.Join(logDir, "yb-voyager.log")
 	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
@@ -57,7 +62,6 @@ func InitLogging(logDir string) {
 
 	log.SetReportCaller(true)
 	log.SetFormatter(&MyFormatter{})
-
 	log.Info("Logging initialised.")
 	log.Infof("Args: %v", os.Args)
 }
