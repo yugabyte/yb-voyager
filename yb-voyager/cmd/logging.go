@@ -47,9 +47,9 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging(logDir string, statusCommand bool) {
+func InitLogging(logDir string, disableLogging bool) {
 	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
-	if statusCommand {
+	if disableLogging {
 		log.SetOutput(ioutil.Discard)
 		return
 	}
