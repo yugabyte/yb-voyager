@@ -2,6 +2,7 @@ package libmig
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -13,15 +14,12 @@ import (
 
 // TODO: Unify with tgtdb.ConnectionPool.
 
-var sessionVars = map[string]string{
-	"client_encoding":          "'UTF-8'",
-	"session_replication_role": "replica",
-}
-
 type ConnectionParams struct {
 	NumConnections int
 	ConnUriList    []string
-	SessionVars    map[string]string
+
+	EnableUpsertMode           bool
+	DisableTransactionalWrites bool
 }
 
 type ConnectionPool struct {
@@ -38,12 +36,6 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
-	}
-	if pool.params.SessionVars == nil {
-		pool.params.SessionVars = map[string]string{}
-	}
-	for k, v := range sessionVars {
-		pool.params.SessionVars[k] = v
 	}
 	return pool
 }
@@ -131,16 +123,46 @@ func (pool *ConnectionPool) setSessionVars(conn *pgx.Conn) error {
 	if err != nil {
 		return err
 	}
-	err = setSessionVar(conn, "SET yb_enable_upsert_mode TO true")
-	if err != nil {
-		if strings.Contains(err.Error(), "unrecognized configuration parameter") {
-			log.Warnf("UPSERT mode is not available. Using transactional COPY.")
-			return nil
-		} else {
+
+	// If UPSERT mode is not available/opted, the COPY must be transactional:
+	//     When UPSERT mode is not enabled and transactions are disabled, a COPY command can
+	//     fail midway. Upon retrying the same batch, COPY will fail with the "unique key violation" error.
+	//     In this case, there is no way to take the batch to completion. Hence transactional mode
+	//     is a MUST, when UPSERT mode is not enabled.
+	//
+	//     When UPSERT mode is NOT enabled AND transactional mode is enabled AND
+	//       COPY command fails with the "unique key violation" error,
+	//     it indicates that the batch was already fully inserted on the target. Safe to ignore the error.
+	//
+	// If UPSERT mode is active, transactions can be enabled or disabled.
+	//     When UPSERT mode is enabled, retrying a partially inserted batch will not** produce the
+	//     "unique key violation" error--irrespective of whether transactions are enabled/disabled.
+	//
+	// ** CAVEAT:
+	//    - Because of https://github.com/yugabyte/yb-voyager/issues/235, retrying the same batch in
+	//      UPSERT mode, DOES (incorrectly!) produce the "unique key violation" error.
+	//    - Because of https://github.com/yugabyte/yb-voyager/issues/239, when transactions are disabled,
+	//      a COPY command can fail with the "Illegal state: Used read time is not set".
+	//
+	// CONCLUSION: Until the above two issues are fixed, only the transactional mode is known
+	//             to work correctly in all cases.
+	//
+	// Our eventual goal is to use the fastest combination: upsert mode enabled and transactions disabled.
+	if pool.params.EnableUpsertMode {
+		err = setSessionVar(conn, "SET yb_enable_upsert_mode TO true")
+		if err != nil {
+			if strings.Contains(err.Error(), "unrecognized configuration parameter") {
+				msg := "UPSERT mode is not supported on the target YB version; " +
+					"retry after removing the --enable-upsert option"
+				return errors.New(msg)
+			}
 			return err
 		}
-	}
-	return setSessionVar(conn, "SET yb_disable_transactional_writes TO true")
+		if pool.params.DisableTransactionalWrites {
+			return setSessionVar(conn, "SET yb_disable_transactional_writes TO true")
+		}
+	} // else COPY is transactional.
+	return nil
 }
 
 func setSessionVar(conn *pgx.Conn, sqlStmt string) error {

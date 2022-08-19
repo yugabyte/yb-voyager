@@ -100,8 +100,10 @@ func newConnPool() *libmig.ConnectionPool {
 	}
 	log.Infof("targetUriList: %s", targetUriList)
 	params := &libmig.ConnectionParams{
-		NumConnections: parallelImportJobs + 1,
-		ConnUriList:    targetUriList,
+		NumConnections:             parallelImportJobs,
+		ConnUriList:                targetUriList,
+		EnableUpsertMode:           enableUpsert,
+		DisableTransactionalWrites: disableTransactionalWrites,
 	}
 	connPool := libmig.NewConnectionPool(params)
 	return connPool
