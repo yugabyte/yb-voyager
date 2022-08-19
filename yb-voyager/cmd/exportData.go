@@ -57,6 +57,8 @@ func init() {
 	registerCommonExportFlags(exportDataCmd)
 	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export(default false)")
+	exportDataCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while exporting data(no-op if --table-list is used)")
 
 	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")
@@ -102,35 +104,17 @@ func exportDataOffline() bool {
 	// defer cancel()
 
 	var tableList []string
+	var finalTableList []string
+	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
-		userTableList := utils.CsvStringToSlice(source.TableList)
-
-		if source.DBType == POSTGRESQL {
-			// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
-			for _, table := range userTableList {
-				parts := strings.Split(table, ".")
-				if len(parts) == 1 {
-					tableList = append(tableList, "public."+table)
-				} else if len(parts) == 2 {
-					tableList = append(tableList, table)
-				} else {
-					utils.ErrExit("invalid table name %q in the --table-list flag.", table)
-				}
-			}
-		} else {
-			tableList = userTableList
-		}
-
-		log.Infof("table list for data export: %v", tableList)
-		if source.VerboseMode {
-			fmt.Printf("table list flag values: %v\n", tableList)
-		}
+		finalTableList = extractTableListFromString(source.TableList)
 	} else {
 		tableList = source.DB().GetAllTableNames()
-		fmt.Printf("Num tables to export: %d\n", len(tableList))
-		utils.PrintAndLog("table list for data export: %v", tableList)
+		finalTableList = removeExcludeTables(tableList, excludeTableList)
+		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
+		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
-	if len(tableList) == 0 {
+	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		os.Exit(0)
 	}
@@ -148,8 +132,8 @@ func exportDataOffline() bool {
 		}
 	}()
 
-	initializeExportTableMetadata(tableList)
-	initializeExportTablePartitionMetadata(tableList)
+	initializeExportTableMetadata(finalTableList)
+	initializeExportTablePartitionMetadata(finalTableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
@@ -157,11 +141,11 @@ func exportDataOffline() bool {
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
-		tableList = append(tableList, sequenceList...)
+		finalTableList = append(finalTableList, sequenceList...)
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, tableList, quitChan, exportDataStart)
+	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart)
 	// Wait for the export data to start.
 	<-exportDataStart
 
@@ -193,17 +177,17 @@ func exportDataOnline() bool {
 	return false
 }
 
-func validateTableListFlag(tableListString string) {
+//flagName can be "exclude-table-list" or "table-list"
+func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
 		return
 	}
-
 	tableList := utils.CsvStringToSlice(tableListString)
 	// TODO: update regexp once table name with double quotes are allowed/supported
 	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided wtih --table-list flag", table)
+			utils.ErrExit("Error: Invalid table name '%v' provided wtih --%s flag", table, flagName)
 		}
 	}
 }
@@ -221,6 +205,29 @@ func checkDataDirs() {
 			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
+}
+
+func extractTableListFromString(flagTableList string) []string {
+	var finalTableList []string
+	if flagTableList == "" {
+		return []string{}
+	}
+	tableList := utils.CsvStringToSlice(flagTableList)
+	if source.DBType != POSTGRESQL {
+		return tableList
+	}
+	// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
+	for _, table := range tableList {
+		parts := strings.Split(table, ".")
+		if len(parts) == 1 {
+			finalTableList = append(finalTableList, "public."+table)
+		} else if len(parts) == 2 {
+			finalTableList = append(finalTableList, table)
+		} else {
+			utils.ErrExit("invalid table name %q in the --table-list flag.", table)
+		}
+	}
+	return finalTableList
 }
 
 func createExportDataDoneFlag() {

@@ -68,6 +68,9 @@ func init() {
 
 	exportCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export (default false)")
+
+	exportCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while exporting data (no-op if --table-list is used) (Note: works only for export data command)")
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {
@@ -161,7 +164,12 @@ func validateExportFlags() {
 	validatePortRange()
 	validateSSLMode()
 	validateOracleParams()
-	validateTableListFlag(source.TableList)
+
+	if source.TableList != "" && source.ExcludeTableList != "" {
+		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
+	}
+	validateTableListFlag(source.TableList, "table-list")
+	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {

@@ -370,13 +370,16 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		}
 	}
 
+	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
+	importTables = removeExcludeTables(importTables, excludeTableList)
+	allTables = removeExcludeTables(allTables, excludeTableList)
 	sort.Strings(allTables)
 	sort.Strings(importTables)
 
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
 
-	if startClean { //start data migraiton from beginning
+	if startClean { //start data migraiton from beginning only for table-list (or neglect cleaning if in exclude-table-list)
 		fmt.Printf("Truncating all tables: %v\n", allTables)
 		truncateTables(allTables)
 
@@ -1074,9 +1077,25 @@ func getYBSessionInitScript() []string {
 	return sessionVars
 }
 
+func removeExcludeTables(tableList []string, excludeTableList []string) []string {
+	if len(tableList) == 0 || len(excludeTableList) == 0 {
+		return tableList
+	}
+	var finalTableList []string
+	for _, table := range tableList {
+		if slices.Contains(excludeTableList, table) {
+			continue
+		}
+		finalTableList = append(finalTableList, table)
+	}
+	return finalTableList
+}
+
 func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	importDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export (default false)")
+	importDataCmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while importing data (no-op if --table-list is used)")
 }

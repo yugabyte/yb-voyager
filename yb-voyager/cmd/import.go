@@ -51,6 +51,8 @@ func init() {
 	registerCommonImportFlags(importCmd)
 	importCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
+	importCmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while importing data (no-op if --table-list is used) (Note: works only for import data command)")
 }
 
 func validateImportFlags() {
@@ -58,7 +60,11 @@ func validateImportFlags() {
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 
-	validateTableListFlag(target.TableList)
+	if target.TableList != "" && target.ExcludeTableList != "" {
+		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
+	}
+	validateTableListFlag(target.TableList, "table-list")
+	validateTableListFlag(target.ExcludeTableList, "exclude-table-list")
 	validateTargetSchemaFlag()
 }
 
