@@ -7,7 +7,7 @@
 # To get a newer version, you will need to update the SHA.
 # You can also reference a tag or branch, but the action may change without warning.
 
-name: Label issues
+name: Organize issues
 on:
   issues:
     types:
@@ -24,3 +24,10 @@ jobs:
         with:
           add-labels: "triage"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Add issue to project
+        uses: actions/add-to-project@RELEASE_VERSION
+        with:
+        #Project 10 is yb-voyager 1.0 GA
+          project-url: https://github.com/orgs/yugabyte/projects/10
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
+          labeled: triage
