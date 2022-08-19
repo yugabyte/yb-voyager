@@ -258,13 +258,20 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 	return cloneConnectionUri
 }
 
-func newImportData() {
-	includeTableList := utils.CsvStringToSlice(target.TableList)
-	for i := 0; i < len(includeTableList); i++ {
-		schemaName, tableName := extractSchemaTableName(includeTableList[i])
-		includeTableList[i] = fmt.Sprintf("%s.%s", schemaName, tableName)
+func getQualifiedTableNames(tableNameList string) []string {
+	result := utils.CsvStringToSlice(tableNameList)
+	for i := 0; i < len(result); i++ {
+		schemaName, tableName := extractSchemaTableName(result[i])
+		result[i] = fmt.Sprintf("%s.%s", schemaName, tableName)
 	}
+	return result
+}
 
+func newImportData() {
+	includeTableList := getQualifiedTableNames(target.TableList)
+	log.Infof("includeTableList: %v", includeTableList)
+	excludeTableList := getQualifiedTableNames(target.ExcludeTableList)
+	log.Infof("excludeTableList: %v", excludeTableList)
 	// Prepare fileNameToTargetTableID.
 	tableNameToFilePath := getExportedTables()
 	// TODO: Take --exclude-table-list into account.
@@ -272,9 +279,13 @@ func newImportData() {
 	for qualifiedTableName, filePath := range tableNameToFilePath {
 		schemaName, tableName := extractSchemaTableName(qualifiedTableName)
 		qualifiedTableName = fmt.Sprintf("%s.%s", schemaName, tableName)
-		if len(includeTableList) == 0 || slices.Contains(includeTableList, qualifiedTableName) {
+		if (len(includeTableList) == 0 || slices.Contains(includeTableList, qualifiedTableName)) &&
+			(len(excludeTableList) == 0 || !slices.Contains(excludeTableList, qualifiedTableName)) {
+
 			tableID := libmig.NewTableID(target.DBName, schemaName, tableName)
 			filePathToTableID[filePath] = tableID
+		} else {
+			log.Infof("Skipping table %v", qualifiedTableName)
 		}
 	}
 	if len(filePathToTableID) == 0 {
