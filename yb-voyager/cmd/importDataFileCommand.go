@@ -17,7 +17,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
@@ -75,16 +74,37 @@ func importDataFiles(
 	tdb := libmig.NewTargetDB(connPool)
 	// parallelImportJobs is set after newConnPool() returns.
 	sema := semaphore.NewWeighted(int64(parallelImportJobs * 2))
-	filePaths := maps.Keys(filePathToTableID)
-	sort.Strings(filePaths)
-	for _, filePath := range filePaths {
-		tableID := filePathToTableID[filePath]
+
+	// Prepare ops.
+	ops := []*libmig.ImportFileOp{}
+	for filePath, tableID := range filePathToTableID {
 		op := libmig.NewImportFileOp(migstate, progressReporter, tdb, filePath, tableID, dfd, sema)
 		op.BatchSize = int(numLinesInASplit)
 		op.CopyCommand = tableNameToCopyCommand[tableID.QualifiedName()]
+		err := op.Init()
+		if err != nil {
+			utils.ErrExit("Failed to initialise import operation for %s => %s", filePath, tableID)
+		}
+		ops = append(ops, op)
+	}
+	// Implement --start-clean and --start-clean-all .
+	err := maybeStartClean(ops)
+	if err != nil {
+		utils.ErrExit("Failed to clean start: %s", err)
+	}
+	// Ensure that import starts with IN_PROGRESS tables.
+	// Sort ops in sequence DONE=3, IN_PROGRESS=2, NOT_STARTED=1 .
+	sort.Slice(ops, func(i, j int) bool {
+		return ops[j].State() < ops[i].State()
+	})
+	for _, op := range ops {
+		if op.State() == libmig.DONE {
+			log.Infof("Table %s is already imported.", op.TableID)
+			continue
+		}
 		err := op.Run(ctx)
 		if err != nil {
-			utils.ErrExit("Failed to import %s: %s", tableID, err)
+			utils.ErrExit("Failed to import %s: %s", op.TableID, err)
 		}
 	}
 	// TODO Output report.
@@ -107,6 +127,40 @@ func newConnPool() *libmig.ConnectionPool {
 	}
 	connPool := libmig.NewConnectionPool(params)
 	return connPool
+}
+
+func maybeStartClean(ops []*libmig.ImportFileOp) error {
+	// Find the list of tables that needs to be cleaned.
+	cleanOps := []*libmig.ImportFileOp{}
+	tableNames := []string{}
+	for _, op := range ops {
+		if startCleanAll || (startClean && op.State() != libmig.DONE) {
+			cleanOps = append(cleanOps, op)
+			tableNames = append(tableNames, op.TableID.QualifiedName())
+		}
+	}
+
+	if len(cleanOps) == 0 {
+		return nil
+	}
+
+	// Ask for confirmation.
+	sort.Strings(tableNames)
+	fmt.Printf("Following tables will be truncated in the target DB and their data import will restart:\n\n%v\n\n", tableNames)
+	proceed := utils.AskPrompt("Do you want to continue?")
+	if !proceed {
+		utils.PrintAndLog("Exiting.")
+		os.Exit(0)
+	}
+
+	for _, op := range cleanOps {
+		utils.PrintAndLog("Cleaning %s .", op.TableID.QualifiedName())
+		err := op.Clean()
+		if err != nil {
+			return fmt.Errorf("clean %s: %s", op.TableID, err)
+		}
+	}
+	return nil
 }
 
 func prepareForImportDataCmd() {

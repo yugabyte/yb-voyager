@@ -21,6 +21,15 @@ func NewTargetDB(connPool *ConnectionPool) *TargetDB {
 	return &TargetDB{connPool: connPool}
 }
 
+func (tdb *TargetDB) TruncateTable(ctx context.Context, tableID *TableID) error {
+	log.Infof("Truncate table: %s", tableID)
+	return tdb.connPool.WithConn(func(conn *pgx.Conn) error {
+		cmd := fmt.Sprintf("TRUNCATE TABLE %s;", tableID.QualifiedName())
+		_, err := conn.Exec(ctx, cmd)
+		return err
+	})
+}
+
 func (tdb *TargetDB) Copy(ctx context.Context, copyCommand string, batch *Batch) (int64, error) {
 	var rowsAffected int64
 	var err error

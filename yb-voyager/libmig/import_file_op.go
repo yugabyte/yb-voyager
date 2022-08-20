@@ -11,8 +11,29 @@ import (
 )
 
 const (
-	DEFAULT_BATCH_SIZE = 100_000
+	DEFAULT_BATCH_SIZE = 20_000
 )
+
+//============================================================================
+
+type EnumOpState int
+
+const (
+	NOT_STARTED EnumOpState = 1
+	IN_PROGRESS EnumOpState = 2
+	DONE        EnumOpState = 3
+)
+
+var stateNames = []string{"NOT_STARTED", "IN_PROGRESS", "DONE"}
+
+func (v EnumOpState) String() string {
+	if v < NOT_STARTED || v > DONE {
+		return "INVALID_STATE"
+	}
+	return stateNames[v]
+}
+
+//============================================================================
 
 type ImportFileOp struct {
 	sync.Mutex
@@ -34,6 +55,7 @@ type ImportFileOp struct {
 	// Output.
 	Err error
 
+	state                     EnumOpState
 	dataFile                  DataFile
 	lastBatchFromPrevRun      *Batch
 	pendingBatchesFromPrevRun []*Batch
@@ -58,10 +80,9 @@ func NewImportFileOp(
 	}
 }
 
-func (op *ImportFileOp) Run(ctx context.Context) error {
-	log.Infof("Run ImportFileOp: %s => %s [cmd: %q]", op.FileName, op.TableID, op.CopyCommand)
-
-	// TODO Implement StartClean.
+func (op *ImportFileOp) Init() error {
+	// IMPORTANT: This method can be called twice if --start-clean is provided.
+	log.Infof("Initialise import state for %s => %s.", op.FileName, op.TableID)
 	err := op.migState.PrepareForImport(op.TableID)
 	if err != nil {
 		return fmt.Errorf("prepare for import: %w", err)
@@ -78,8 +99,30 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("set COPY command: %w", err)
 	}
+	return nil
+}
+
+func (op *ImportFileOp) State() EnumOpState {
+	return op.state
+}
+
+func (op *ImportFileOp) Clean() error {
+	err := op.migState.CleanState(op.TableID)
+	if err != nil {
+		return fmt.Errorf("clean local state: %s", err)
+	}
+	err = op.tdb.TruncateTable(context.Background(), op.TableID)
+	if err != nil {
+		return fmt.Errorf("truncate table: %w", err)
+	}
+	return op.Init()
+}
+
+func (op *ImportFileOp) Run(ctx context.Context) error {
+	log.Infof("Run ImportFileOp: %s => %s [cmd: %q]", op.FileName, op.TableID, op.CopyCommand)
+
 	// op.lastBatchFromPrevRun will be nil for first time execution.
-	err = op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
+	err := op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
 	if err != nil {
 		return fmt.Errorf("initialise batch generation: %w", err)
 	}
@@ -87,6 +130,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	op.notifyImportFileStarted()
 
 	for _, batch := range op.pendingBatchesFromPrevRun {
+		// TODO Concurrently import pending batches.
 		err = op.importBatch(batch)
 		if err != nil {
 			return fmt.Errorf("import batch %d: %w", batch.BatchNumber, err)
@@ -99,6 +143,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 		log.Infof("[%s] Finished processing all batches.", op.TableID)
 		if op.Err == nil {
 			op.progressReporter.TableImportDone(op.TableID)
+			op.state = DONE
 		}
 	}()
 
@@ -106,6 +151,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
+			op.state = IN_PROGRESS
 			err2 := op.migState.MarkBatchPending(batch)
 			if err2 != nil {
 				return err2
@@ -143,6 +189,16 @@ func (op *ImportFileOp) recoverStateFromPrevRun() error {
 	if err != nil {
 		return fmt.Errorf("find pending batches: %w", err)
 	}
+
+	// Set state.
+	if op.lastBatchFromPrevRun == nil {
+		op.state = NOT_STARTED
+	} else if op.lastBatchFromPrevRun.IsFinalBatch && len(op.pendingBatchesFromPrevRun) == 0 {
+		// Batch generation is done && all batches are imported ==> DONE .
+		op.state = DONE
+	} else {
+		op.state = IN_PROGRESS
+	}
 	return nil
 }
 
@@ -153,6 +209,11 @@ func (op *ImportFileOp) openDataFile() error {
 		offset = op.lastBatchFromPrevRun.EndOffsetInBaseFile
 	}
 
+	// openDataFile() can be called twice in case of --start-clean.
+	if op.dataFile != nil {
+		op.dataFile.Close()
+		op.dataFile = nil
+	}
 	log.Infof("Open DataFile %q and jump to offset %v.", op.FileName, offset)
 	op.dataFile = NewDataFile(op.FileName, offset, op.Desc)
 	err := op.dataFile.Open()

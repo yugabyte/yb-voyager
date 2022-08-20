@@ -10,6 +10,7 @@ import (
 
 type DataFile interface {
 	Open() error
+	Close()
 	Offset() int64
 	Size() int64
 	SkipRecords(n int) (int, bool, error)
@@ -216,6 +217,11 @@ func (df *baseDataFile) Open() error {
 	df.size = fi.Size()
 
 	return nil
+}
+
+func (df *baseDataFile) Close() {
+	df.fh.Close()
+	df.scanner = nil
 }
 
 func (df *baseDataFile) Offset() int64 {

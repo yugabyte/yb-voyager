@@ -20,7 +20,7 @@ type Batch struct {
 	BaseFileName          string
 	StartOffsetInBaseFile int64
 	EndOffsetInBaseFile   int64
-	IsLastBatch           bool
+	IsFinalBatch          bool
 
 	// This FileName starts with same as BaseFileName. But when the batch fails and is dumped in the
 	// `failed/` directory, the following attribute change to point to the new file.
@@ -188,9 +188,9 @@ func (bg *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 			StartOffset: startOffset,
 			EndOffset:   endOffset,
 
-			IsLastBatch: eof,
-			Header:      bg.header,
-			RecordCount: n,
+			IsFinalBatch: eof,
+			Header:       bg.header,
+			RecordCount:  n,
 		}
 	}
 	return batch, eof, err
