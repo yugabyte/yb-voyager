@@ -276,7 +276,8 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 	log.Infof("Import batch %s %d: file %q, start: %v, end: %v",
 		op.TableID, batch.BatchNumber, batch.FileName, batch.StartOffset, batch.EndOffset)
 	ctx := context.Background()
-	n, err := op.tdb.Copy(ctx, op.CopyCommand, batch)
+	copyCommand := fmt.Sprintf(op.CopyCommand, op.BatchSize)
+	n, err := op.tdb.Copy(ctx, copyCommand, batch)
 	if err != nil {
 		log.Errorf("COPY batch %s %d failed: %s", batch.TableID, batch.BatchNumber, err)
 		err2 := op.migState.MarkBatchFailed(batch, err)

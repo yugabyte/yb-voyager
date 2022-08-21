@@ -75,14 +75,14 @@ func (df *CSVDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 				return "", fmt.Errorf("get header: %w", err)
 			}
 			columnNames := strings.Join(strings.Split(header, df.Desc.Delimiter), ",")
-			cmd = fmt.Sprintf(`COPY %s.%s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', HEADER)`,
+			cmd = fmt.Sprintf(`COPY %s.%s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', HEADER, ROWS_PER_TRANSACTION %%v)`,
 				tableID.SchemaName, tableID.TableName, columnNames, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
 		} else {
-			cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s')`,
+			cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT CSV, DELIMITER '%s', ESCAPE '%s', QUOTE '%s', ROWS_PER_TRANSACTION %%v)`,
 				tableID.SchemaName, tableID.TableName, df.Desc.Delimiter, df.Desc.EscapeChar, df.Desc.QuoteChar)
 		}
 	case FILE_TYPE_TEXT:
-		cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT TEXT, DELIMITER '%s')`,
+		cmd = fmt.Sprintf(`COPY %s.%s FROM STDIN WITH (FORMAT TEXT, DELIMITER '%s', ROWS_PER_TRANSACTION %%v)`,
 			tableID.SchemaName, tableID.TableName, df.Desc.Delimiter)
 	}
 	return cmd, nil
@@ -162,9 +162,11 @@ func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	scanner := bufio.NewScanner(fh)
 	for scanner.Scan() {
 		line := scanner.Text()
+		// Example line: `COPY "Foo" ("v") FROM STDIN;`
 		if reCopy.MatchString(line) {
 			words := strings.Fields(line)
 			words[1] = fmt.Sprintf("%s.%s", tableID.SchemaName, tableID.TableName)
+			words[len(words)-1] = "STDIN WITH (ROWS_PER_TRANSACTION %%v);"
 			line = strings.Join(words, " ")
 			return line, nil
 		}
