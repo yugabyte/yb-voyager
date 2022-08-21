@@ -87,10 +87,12 @@ func importDataFiles(
 		}
 		ops = append(ops, op)
 	}
-	// Implement --start-clean and --start-clean-all .
-	err := maybeStartClean(ops)
-	if err != nil {
-		utils.ErrExit("Failed to clean start: %s", err)
+
+	if startClean {
+		err := cleanImportState(ops)
+		if err != nil {
+			utils.ErrExit("Failed to clean start: %s", err)
+		}
 	}
 	// Ensure that import starts with IN_PROGRESS tables.
 	// Sort ops in sequence DONE=3, IN_PROGRESS=2, NOT_STARTED=1 .
@@ -129,19 +131,14 @@ func newConnPool() *libmig.ConnectionPool {
 	return connPool
 }
 
-func maybeStartClean(ops []*libmig.ImportFileOp) error {
-	// Find the list of tables that needs to be cleaned.
-	cleanOps := []*libmig.ImportFileOp{}
+func cleanImportState(ops []*libmig.ImportFileOp) error {
+	if !startClean || len(ops) == 0 {
+		return nil
+	}
+	// Find the list of tables names that needs to be cleaned.
 	tableNames := []string{}
 	for _, op := range ops {
-		if startCleanAll || (startClean && op.State() != libmig.DONE) {
-			cleanOps = append(cleanOps, op)
-			tableNames = append(tableNames, op.TableID.QualifiedName())
-		}
-	}
-
-	if len(cleanOps) == 0 {
-		return nil
+		tableNames = append(tableNames, op.TableID.QualifiedName())
 	}
 
 	// Ask for confirmation.
@@ -153,7 +150,7 @@ func maybeStartClean(ops []*libmig.ImportFileOp) error {
 		os.Exit(0)
 	}
 
-	for _, op := range cleanOps {
+	for _, op := range ops {
 		utils.PrintAndLog("Cleaning %s .", op.TableID.QualifiedName())
 		err := op.Clean()
 		if err != nil {

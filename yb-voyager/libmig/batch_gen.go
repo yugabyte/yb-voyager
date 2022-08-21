@@ -87,7 +87,6 @@ func LoadBatchFrom(fileName string) (*Batch, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse contents of %s: %w", fileName, err)
 	}
-	log.Infof("loaded batch from file %s:\n%s", fileName, string(bs))
 	return b, nil
 }
 

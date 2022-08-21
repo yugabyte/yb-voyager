@@ -31,7 +31,6 @@ var (
 	exportDir     string
 	migrationMode string
 	startClean    bool
-	startCleanAll bool
 	logLevel      string
 )
 

@@ -115,8 +115,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing database-objects/table-rows to start from zero")
-	cmd.Flags().BoolVar(&startCleanAll, "start-clean-all", false,
-		"delete all existing database-objects/table-rows to start from zero")
 
 	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
 		"Maximum size of each batch import ")

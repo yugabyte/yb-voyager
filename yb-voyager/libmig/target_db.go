@@ -22,9 +22,9 @@ func NewTargetDB(connPool *ConnectionPool) *TargetDB {
 }
 
 func (tdb *TargetDB) TruncateTable(ctx context.Context, tableID *TableID) error {
-	log.Infof("Truncate table: %s", tableID)
+	cmd := fmt.Sprintf("TRUNCATE TABLE %s CASCADE;", tableID.QualifiedName())
+	log.Infof("Running SQL command: %s", cmd)
 	return tdb.connPool.WithConn(func(conn *pgx.Conn) error {
-		cmd := fmt.Sprintf("TRUNCATE TABLE %s;", tableID.QualifiedName())
 		_, err := conn.Exec(ctx, cmd)
 		return err
 	})
@@ -105,6 +105,9 @@ func countRowsInBatch(batch *Batch) (int64, error) {
 		if line != "" {
 			count++
 		}
+	}
+	if count > 0 && batch.Desc.HasHeader {
+		count--
 	}
 	return count, scanner.Err()
 }
