@@ -21,6 +21,7 @@ type Batch struct {
 	StartOffsetInBaseFile int64
 	EndOffsetInBaseFile   int64
 	IsFinalBatch          bool
+	ProgressFraction      float32
 
 	// This FileName starts with same as BaseFileName. But when the batch fails and is dumped in the
 	// `failed/` directory, the following attribute change to point to the new file.
@@ -191,6 +192,7 @@ func (bg *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 			Header:       bg.header,
 			RecordCount:  n,
 		}
+		batch.ProgressFraction = float32(batch.SizeInBaseFile()) / float32(bg.dataFile.Size())
 	}
 	return batch, eof, err
 }

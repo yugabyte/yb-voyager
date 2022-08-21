@@ -81,15 +81,23 @@ func (migstate *MigrationState) GetLastBatch(tableID *TableID) (*Batch, error) {
 }
 
 func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, error) {
-	var batches []*Batch
+	dirPath := migstate.pendingDir(tableID)
+	return migstate.getBatches(dirPath)
+}
 
-	pendingDir := migstate.pendingDir(tableID)
-	fileInfoList, err := ioutil.ReadDir(pendingDir)
+func (migstate *MigrationState) DoneBatches(tableID *TableID) ([]*Batch, error) {
+	dirPath := migstate.doneDir(tableID)
+	return migstate.getBatches(dirPath)
+}
+
+func (migstate *MigrationState) getBatches(dirPath string) ([]*Batch, error) {
+	var batches []*Batch
+	fileInfoList, err := ioutil.ReadDir(dirPath)
 	if err != nil {
-		return nil, fmt.Errorf("read dir %s: %w", pendingDir, err)
+		return nil, fmt.Errorf("read dir %s: %w", dirPath, err)
 	}
 	for _, fileInfo := range fileInfoList {
-		fileName := filepath.Join(pendingDir, fileInfo.Name())
+		fileName := filepath.Join(dirPath, fileInfo.Name())
 		batch, err := LoadBatchFrom(fileName)
 		if err != nil {
 			return nil, fmt.Errorf("load batch: %w", err)
@@ -97,6 +105,96 @@ func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, erro
 		batches = append(batches, batch)
 	}
 	return batches, nil
+}
+
+type ImportDataProgress struct {
+	Progress map[string]*TableImportDataProgress
+}
+
+func newImportDataProgress() *ImportDataProgress {
+	return &ImportDataProgress{Progress: make(map[string]*TableImportDataProgress)}
+}
+
+type TableImportDataProgress struct {
+	*TableID
+	State              string
+	NumRecordsImported int64
+	PercentComlete     float32
+}
+
+func (migstate *MigrationState) GetImportDataProgress() (*ImportDataProgress, error) {
+	result := newImportDataProgress()
+
+	tableIDList, err := migstate.getTableIDList()
+	if err != nil {
+		return nil, fmt.Errorf("find table list: %w", err)
+	}
+	for _, tableID := range tableIDList {
+		progress, err := migstate.getTableImportDataProgress(tableID)
+		if err != nil {
+			return nil, fmt.Errorf("get table import data progress for %s: %w", tableID, err)
+		}
+		result.Progress[tableID.QualifiedName()] = progress
+	}
+	return result, nil
+}
+
+func (migstate *MigrationState) getTableImportDataProgress(tableID *TableID) (*TableImportDataProgress, error) {
+	progress := &TableImportDataProgress{}
+	progress.TableID = tableID
+
+	lastBatch, err := migstate.GetLastBatch(tableID)
+	if err != nil {
+		return nil, fmt.Errorf("get last batch of %s: %w", tableID, err)
+	}
+	if lastBatch == nil {
+		progress.State = "NOT_STARTED"
+		return progress, nil
+	}
+	pendingBatches, err := migstate.PendingBatches(tableID)
+	if err != nil {
+		return nil, fmt.Errorf("find pending batches of table %s: %w", tableID, err)
+	}
+	doneBatches, err := migstate.DoneBatches(tableID)
+	if err != nil {
+		return nil, fmt.Errorf("find completed batches of table %s: %w", tableID, err)
+	}
+	if len(pendingBatches) > 0 {
+		progress.State = "IN_PROGRESS"
+	} else {
+		progress.State = "DONE"
+	}
+	for _, batch := range doneBatches {
+		progress.NumRecordsImported += batch.NumRecordsImported
+		progress.PercentComlete += batch.ProgressFraction
+	}
+	return progress, nil
+}
+
+func (migstate *MigrationState) getTableIDList() ([]*TableID, error) {
+	result := []*TableID{}
+
+	dbNames, err := migstate.getDatabaseNames()
+	if err != nil {
+		return nil, fmt.Errorf("find database names: %w", err)
+	}
+	for _, dbName := range dbNames {
+		schemaNames, err := migstate.getSchemaNames(dbName)
+		if err != nil {
+			return nil, fmt.Errorf("find schemas in db %q: %w", dbName, err)
+		}
+		for _, schemaName := range schemaNames {
+			tableNames, err := migstate.getTableNames(dbName, schemaName)
+			if err != nil {
+				return nil, fmt.Errorf("find tables from db %q and schema %q: %w", dbName, schemaName, err)
+			}
+			for _, tableName := range tableNames {
+				tableID := NewTableID(dbName, schemaName, tableName)
+				result = append(result, tableID)
+			}
+		}
+	}
+	return result, nil
 }
 
 func (migstate *MigrationState) MarkBatchPending(batch *Batch) error {
@@ -230,4 +328,31 @@ func (migstate *MigrationState) doneBatchPath(batch *Batch) string {
 func (migstate *MigrationState) failedBatchPath(batch *Batch) string {
 	baseName := fmt.Sprintf("%s.%d", batch.TableID.TableName, batch.BatchNumber)
 	return filepath.Join(migstate.failedDir(batch.TableID), baseName)
+}
+
+func (migstate *MigrationState) getDatabaseNames() ([]string, error) {
+	dirPath := filepath.Join(migstate.ExportDir, "import-data")
+	return migstate.listDBEntries(dirPath)
+}
+
+func (migstate *MigrationState) getSchemaNames(dbName string) ([]string, error) {
+	dirPath := filepath.Join(migstate.ExportDir, "import-data", dbName)
+	return migstate.listDBEntries(dirPath)
+}
+
+func (migstate *MigrationState) getTableNames(dbName, schemaName string) ([]string, error) {
+	dirPath := filepath.Join(migstate.ExportDir, "import-data", dbName, schemaName)
+	return migstate.listDBEntries(dirPath)
+}
+
+func (migstate *MigrationState) listDBEntries(dirPath string) ([]string, error) {
+	fileInfoList, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %q: %w", dirPath, err)
+	}
+	result := []string{}
+	for _, fileInfo := range fileInfoList {
+		result = append(result, fileInfo.Name())
+	}
+	return result, nil
 }
