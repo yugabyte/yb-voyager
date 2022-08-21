@@ -53,17 +53,11 @@ func (migstate *MigrationState) PrepareForImport(tableID *TableID) error {
 
 func (migstate *MigrationState) CleanState(tableID *TableID) error {
 	log.Infof("Cleaning state associated with: %s", tableID)
-	dirs := []string{
-		migstate.pendingDir(tableID),
-		migstate.doneDir(tableID),
-		migstate.failedDir(tableID),
-	}
-	for _, dir := range dirs {
-		log.Infof("Remove dir: %s\n", dir)
-		err := os.RemoveAll(dir)
-		if err != nil {
-			return fmt.Errorf("create dir %q: %w", dir, err)
-		}
+	dir := migstate.tableDir(tableID)
+	log.Infof("Remove dir: %s\n", dir)
+	err := os.RemoveAll(dir)
+	if err != nil {
+		return fmt.Errorf("remove dir %q: %w", dir, err)
 	}
 	return nil
 }

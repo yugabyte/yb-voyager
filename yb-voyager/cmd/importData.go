@@ -331,7 +331,7 @@ func pgGetCopyCommandsFromTOC() map[string]string {
 		if strings.HasPrefix(line, "COPY ") && strings.HasSuffix(line, " FROM stdin;") {
 			parts := strings.Split(line, " ")
 			tableName := parts[1]
-			parts[len(parts)-1] = "stdin WITH (ROWS_PER_TRANSACTION %%v);"
+			parts[len(parts)-1] = "stdin WITH (ROWS_PER_TRANSACTION %v);"
 			line = strings.Join(parts, " ")
 			tableNameToCopyCommand[tableName] = line
 		}

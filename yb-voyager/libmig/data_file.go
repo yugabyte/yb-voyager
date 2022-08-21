@@ -166,7 +166,7 @@ func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 		if reCopy.MatchString(line) {
 			words := strings.Fields(line)
 			words[1] = fmt.Sprintf("%s.%s", tableID.SchemaName, tableID.TableName)
-			words[len(words)-1] = "STDIN WITH (ROWS_PER_TRANSACTION %%v);"
+			words[len(words)-1] = "STDIN WITH (ROWS_PER_TRANSACTION %v);"
 			line = strings.Join(words, " ")
 			return line, nil
 		}

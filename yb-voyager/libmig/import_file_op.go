@@ -164,7 +164,7 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 			}
 		}
 		if eof {
-			log.Info("Done splitting file %s", op.FileName)
+			log.Infof("Done splitting file %s", op.FileName)
 			return nil
 		}
 		if err != nil {
@@ -226,15 +226,14 @@ func (op *ImportFileOp) openDataFile() error {
 func (op *ImportFileOp) setCopyCommand() error {
 	// TODO: set MAX_ROWS_PER_TRANSACTION as per batch size.
 	log.Infof("Determine COPY command for the table %q.", op.TableID)
-	if op.CopyCommand != "" {
-		return nil
+	if op.CopyCommand == "" {
+		cmd, err := op.dataFile.GetCopyCommand(op.TableID)
+		if err != nil {
+			return fmt.Errorf("determine COPY command from file contents: %w", err)
+		}
+		op.CopyCommand = cmd
 	}
-	cmd, err := op.dataFile.GetCopyCommand(op.TableID)
-	if err != nil {
-		return fmt.Errorf("determine COPY command from file contents: %w", err)
-	}
-	op.CopyCommand = cmd
-	log.Infof("COPY command for %s => %s", op.TableID, cmd)
+	log.Infof("COPY command for %s => %s", op.TableID, op.CopyCommand)
 	return nil
 }
 
@@ -298,7 +297,7 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Imported %v records from batch %s %d.", batch.NumRecordsImported, batch.TableID, batch.BatchNumber)
+	log.Infof("Imported %v/%v records from batch %s %d.", batch.NumRecordsImported, batch.RecordCount, batch.TableID, batch.BatchNumber)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile())
 	return nil
 }

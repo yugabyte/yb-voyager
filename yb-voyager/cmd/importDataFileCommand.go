@@ -151,7 +151,7 @@ func cleanImportState(ops []*libmig.ImportFileOp) error {
 	}
 
 	for _, op := range ops {
-		utils.PrintAndLog("Cleaning %s .", op.TableID.QualifiedName())
+		utils.PrintAndLog("Cleaning %s", op.TableID.QualifiedName())
 		err := op.Clean()
 		if err != nil {
 			return fmt.Errorf("clean %s: %s", op.TableID, err)
