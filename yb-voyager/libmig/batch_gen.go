@@ -43,7 +43,7 @@ func (b *Batch) Reader() (io.ReadCloser, error) {
 	var err error
 
 	switch b.Desc.FileType {
-	case FILE_TYPE_CSV:
+	case FILE_TYPE_CSV, FILE_TYPE_TEXT:
 		reader, err = NewFileSegmentReader(b.FileName, b.StartOffset, b.EndOffset)
 	case FILE_TYPE_ORA2PG:
 		// `insideCopyStmt` is false only for the first batch.
