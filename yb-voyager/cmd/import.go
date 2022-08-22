@@ -165,6 +165,8 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"List of tables to exclude while importing data (no-op if --table-list is used) (Note: works only for import data command)")
 	cmd.Flags().StringVar(&target.TableList, "table-list", "",
 		"List of tables to include while importing data (Note: works only for import data command)")
+	cmd.PersistentFlags().BoolVar(&fallback, "fallback", false,
+		"INTERNAL: Used to fallback to old import code paths.")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -19,9 +20,16 @@ var importDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed data import.",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
 		validateExportDirFlag()
-		migstate := libmig.NewMigrationState(exportDir)
-		err := runNewImportDataStatusCmd(migstate, nil)
+		if fallback {
+			log.Info("Using old import data status code path.")
+			err = runImportDataStatusCmd()
+		} else {
+			log.Info("Using new import data status code path.")
+			migstate := libmig.NewMigrationState(exportDir)
+			err = runNewImportDataStatusCmd(migstate, nil)
+		}
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)

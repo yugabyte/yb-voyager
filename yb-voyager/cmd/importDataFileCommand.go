@@ -42,6 +42,13 @@ var importDataFileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags()
 		parseFileTableMapping()
+		if fallback {
+			log.Info("Using old import data file code path.")
+			prepareForImportDataCmd()
+			importData()
+			return
+		}
+		log.Info("Using new import data file code path.")
 		dfd := &libmig.DataFileDescriptor{
 			FileType:   fileFormat,
 			Delimiter:  delimiter,
@@ -55,8 +62,6 @@ var importDataFileCmd = &cobra.Command{
 			filePathToTableID[filePath] = tableID
 		}
 		importDataFiles(dfd, filePathToTableID, map[string]string{})
-		//prepareForImportDataCmd()
-		//importData()
 	},
 }
 

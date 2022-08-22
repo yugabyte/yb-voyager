@@ -74,6 +74,7 @@ var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
 var enableUpsert bool               // upsert instead of insert for import data
 var disableTransactionalWrites bool // to disable transactional writes for copy command
+var fallback bool
 
 const (
 	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
@@ -103,8 +104,13 @@ var importDataCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		//importData()
-		newImportData()
+		if fallback {
+			log.Info("Using old import data code path.")
+			importData()
+		} else {
+			log.Info("Using new import data code path.")
+			newImportData()
+		}
 	},
 }
 
@@ -850,7 +856,7 @@ func getExportedTables() map[string]string {
 
 func getTablesToImport() ([]string, []string, []string, error) {
 	var tables []string
-	for tableName, _ := range getExportedTables() {
+	for tableName := range getExportedTables() {
 		tables = append(tables, tableName)
 	}
 	metaInfoDataDir := fmt.Sprintf("%s/metainfo/data", exportDir)
