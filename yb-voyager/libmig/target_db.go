@@ -105,8 +105,18 @@ func (tdb *TargetDB) copy(ctx context.Context, copyCommand string, batch *Batch)
 		// All is well.
 		return rowsAffected, false, nil
 	}
-	if err != nil && !strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-		// TODO: Handle COPY syntax error.
+	if strings.Contains(err.Error(), "invalid input syntax") {
+		// Retrying is not going to help when the batch data has some syntax error.
+		return rowsAffected, false, fmt.Errorf("COPY: %w", err)
+	}
+	// See: https://github.com/yugabyte/yb-voyager/issues/240
+	if strings.Contains(err.Error(), "Sending too long RPC message") {
+		// This error doesn't go away even if we retry. Request the user to reduce batch size.
+		utils.PrintAndLog("Target server reported error: %s", err)
+		utils.PrintAndLog("\nRetry after reducing the --batch-size.\n")
+		return rowsAffected, false, fmt.Errorf("COPY: %w", err)
+	}
+	if !strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
 		// COPY failed with unknown error. Request for retry.
 		return rowsAffected, true, err
 	}
@@ -114,7 +124,7 @@ func (tdb *TargetDB) copy(ctx context.Context, copyCommand string, batch *Batch)
 	// - UPSERT mode is not being used.
 	// - Transactional COPY is in effect.
 	// - The batch was successfully imported earlier, but retried by yb-voyager.
-	log.Infof("Received unique constraint violation error batch %d. Counting rows from batch.", batch.BatchNumber)
+	log.Infof("Received unique constraint violation error batch %d. Counting rows from batch data.", batch.BatchNumber)
 	rowsAffected, err = countRowsInBatch(batch)
 	if err != nil {
 		err = fmt.Errorf("count rows from batch %d: %w", batch.BatchNumber, err)
