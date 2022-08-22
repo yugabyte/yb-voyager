@@ -17,6 +17,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
@@ -109,9 +110,14 @@ func importDataFiles(
 			utils.ErrExit("Failed to import %s: %s", op.TableID, err)
 		}
 	}
-	// TODO Output report.
+
 	// Let the progress bars end properly.
 	time.Sleep(time.Second)
+
+	err := runNewImportDataStatusCmd(migstate, maps.Values(filePathToTableID))
+	if err != nil {
+		utils.ErrExit("Failed to output import data report: %s", err)
+	}
 }
 
 func newConnPool() *libmig.ConnectionPool {

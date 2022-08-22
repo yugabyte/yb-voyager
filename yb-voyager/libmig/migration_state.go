@@ -116,12 +116,15 @@ type TableImportDataProgress struct {
 	PercentComlete     float32
 }
 
-func (migstate *MigrationState) GetImportDataProgress() (*ImportDataProgress, error) {
+func (migstate *MigrationState) GetImportDataProgress(tableIDList []*TableID) (*ImportDataProgress, error) {
+	var err error
 	result := newImportDataProgress()
 
-	tableIDList, err := migstate.getTableIDList()
-	if err != nil {
-		return nil, fmt.Errorf("find table list: %w", err)
+	if tableIDList == nil {
+		tableIDList, err = migstate.getTableIDList()
+		if err != nil {
+			return nil, fmt.Errorf("find table list: %w", err)
+		}
 	}
 	for _, tableID := range tableIDList {
 		progress, err := migstate.getTableImportDataProgress(tableID)
@@ -155,12 +158,17 @@ func (migstate *MigrationState) getTableImportDataProgress(tableID *TableID) (*T
 	}
 	if len(pendingBatches) > 0 {
 		progress.State = "IN_PROGRESS"
+		for _, batch := range pendingBatches {
+			if batch.Err != "" {
+				progress.State = "FAILED"
+			}
+		}
 	} else {
 		progress.State = "DONE"
 	}
 	for _, batch := range doneBatches {
 		progress.NumRecordsImported += batch.NumRecordsImported
-		progress.PercentComlete += batch.ProgressFraction
+		progress.PercentComlete += batch.ProgressContribution
 	}
 	return progress, nil
 }

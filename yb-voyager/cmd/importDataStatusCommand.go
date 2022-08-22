@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"golang.org/x/exp/maps"
 )
 
 var importDataStatusCmd = &cobra.Command{
@@ -18,7 +20,8 @@ var importDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		err := runImportDataStatusCmd()
+		migstate := libmig.NewMigrationState(exportDir)
+		err := runNewImportDataStatusCmd(migstate, nil)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s\n", err)
 			os.Exit(1)
@@ -112,6 +115,38 @@ func runImportDataStatusCmd() error {
 	for _, row := range outputRows {
 		fmt.Printf("%-30s %-12s %10d %13d %10.2f\n",
 			row.tableName, row.status, row.totalRowCount, row.importedRowCount, row.percentageComplete)
+	}
+	return nil
+}
+
+// Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
+// held in the main `import data` process.
+func runNewImportDataStatusCmd(migstate *libmig.MigrationState, tableIDList []*libmig.TableID) error {
+	progress, err := migstate.GetImportDataProgress(tableIDList)
+	if err != nil {
+		return fmt.Errorf("get import data status: %w", err)
+	}
+	if len(progress.Progress) == 0 && len(tableIDList) > 0 {
+		fmt.Printf("No progress to report. Has the import data started?")
+		return nil
+	}
+	fmt.Printf("%-40s %-12s %13s %10s\n", "TABLE", "STATUS", "IMPORTED_ROWS", "PERCENTAGE")
+
+	tableProgressList := maps.Values(progress.Progress)
+	// First sort by status and then by table-name.
+	ordStates := map[string]int{"FAILED": 0, "IN_PROGRESS": 1, "DONE": 2, "NOT_STARTED": 3}
+	sort.Slice(tableProgressList, func(i, j int) bool {
+		tp1 := tableProgressList[i]
+		tp2 := tableProgressList[j]
+		if tp1.State == tp2.State {
+			return strings.Compare(tp1.TableID.QualifiedName(), tp2.TableID.QualifiedName()) < 0
+		} else {
+			return ordStates[tp1.State] < ordStates[tp2.State]
+		}
+	})
+	for _, tp := range tableProgressList {
+		fmt.Printf("%-40s %-12s %13d %10.2f\n",
+			tp.TableID.QualifiedName(), tp.State, tp.NumRecordsImported, tp.PercentComlete)
 	}
 	return nil
 }
