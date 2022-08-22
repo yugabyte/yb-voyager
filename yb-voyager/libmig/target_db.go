@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // TODO: Unify with tgtdb.TargetDB.
@@ -28,6 +29,37 @@ func (tdb *TargetDB) TruncateTable(ctx context.Context, tableID *TableID) error 
 		_, err := conn.Exec(ctx, cmd)
 		return err
 	})
+}
+
+func (tdb *TargetDB) TableHasPK(ctx context.Context, tableID *TableID) (bool, error) {
+	var tableName string
+	if utils.IsQuotedString(tableID.TableName) {
+		tableName = strings.Trim(tableID.TableName, `"`)
+	} else {
+		tableName = strings.ToLower(tableID.TableName)
+	}
+	query := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
+	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, tableName, tableID.SchemaName)
+
+	var rows pgx.Rows
+	var err error
+	err = tdb.connPool.WithConn(func(conn *pgx.Conn) error {
+		log.Infof("Running query on target DB: %s", query)
+		rows, err = conn.Query(ctx, query)
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("query target db to check if PK exists: %w", err)
+	}
+	defer rows.Close()
+
+	if rows.Next() {
+		log.Infof("Table %q has a PK", tableID)
+		return true, nil
+	} else {
+		log.Infof("Table %q does not have a PK", tableID)
+		return false, nil
+	}
 }
 
 func (tdb *TargetDB) Copy(ctx context.Context, copyCommand string, batch *Batch) (int64, error) {
@@ -102,7 +134,7 @@ func countRowsInBatch(batch *Batch) (int64, error) {
 	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line != "" {
+		if line != "" && line != `\.` {
 			count++
 		}
 	}

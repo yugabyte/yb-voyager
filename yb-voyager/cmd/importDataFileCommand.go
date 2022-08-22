@@ -89,12 +89,11 @@ func importDataFiles(
 		ops = append(ops, op)
 	}
 
-	if startClean {
-		err := cleanImportState(ops)
-		if err != nil {
-			utils.ErrExit("Failed to clean start: %s", err)
-		}
+	err := maybeCleanImportState(ops, tdb)
+	if err != nil {
+		utils.ErrExit("Failed to clean start: %s", err)
 	}
+
 	// Ensure that import starts with IN_PROGRESS tables.
 	// Sort ops in sequence DONE=3, IN_PROGRESS=2, NOT_STARTED=1 .
 	sort.Slice(ops, func(i, j int) bool {
@@ -114,7 +113,7 @@ func importDataFiles(
 	// Let the progress bars end properly.
 	time.Sleep(time.Second)
 
-	err := runNewImportDataStatusCmd(migstate, maps.Values(filePathToTableID))
+	err = runNewImportDataStatusCmd(migstate, maps.Values(filePathToTableID))
 	if err != nil {
 		utils.ErrExit("Failed to output import data report: %s", err)
 	}
@@ -137,16 +136,33 @@ func newConnPool() *libmig.ConnectionPool {
 	return connPool
 }
 
-func cleanImportState(ops []*libmig.ImportFileOp) error {
-	if !startClean || len(ops) == 0 {
-		return nil
-	}
+func maybeCleanImportState(ops []*libmig.ImportFileOp, tdb *libmig.TargetDB) error {
 	// Find the list of tables names that needs to be cleaned.
 	tableNames := []string{}
-	for _, op := range ops {
-		tableNames = append(tableNames, op.TableID.QualifiedName())
+	if startClean {
+		for _, op := range ops {
+			tableNames = append(tableNames, op.TableID.QualifiedName())
+		}
+	} else {
+		for _, op := range ops {
+			if op.State() == libmig.IN_PROGRESS {
+				tableHasPK, err := tdb.TableHasPK(context.Background(), op.TableID)
+				if err != nil {
+					return fmt.Errorf("check if table %s has primary key: %w", op.TableID, err)
+				}
+				if !tableHasPK {
+					tableNames = append(tableNames, op.TableID.QualifiedName())
+				}
+			}
+		}
+		if len(tableNames) > 0 {
+			utils.PrintAndLog("Following tables do not have primary key defined on them:\n%v\n", tableNames)
+		}
 	}
-
+	if len(tableNames) == 0 {
+		log.Infof("Nothing to clean.")
+		return nil
+	}
 	// Ask for confirmation.
 	sort.Strings(tableNames)
 	fmt.Printf("Following tables will be truncated in the target DB and their data import will restart:\n\n%v\n\n", tableNames)
