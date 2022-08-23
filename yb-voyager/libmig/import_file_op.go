@@ -118,11 +118,11 @@ func (op *ImportFileOp) Clean() error {
 	return op.Init()
 }
 
-func (op *ImportFileOp) Run(ctx context.Context) error {
+func (op *ImportFileOp) Run(ctx context.Context) (err error) {
 	log.Infof("Run ImportFileOp: %s => %s [cmd: %q]", op.FileName, op.TableID, op.CopyCommand)
 
 	// op.lastBatchFromPrevRun will be nil for first time execution.
-	err := op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
+	err = op.batchGen.Init(op.dataFile, op.lastBatchFromPrevRun)
 	if err != nil {
 		return fmt.Errorf("initialise batch generation: %w", err)
 	}
@@ -141,9 +141,11 @@ func (op *ImportFileOp) Run(ctx context.Context) error {
 		log.Infof("[%s] Wait until all submitted batches are done before returning.", op.TableID)
 		op.wg.Wait()
 		log.Infof("[%s] Finished processing all batches.", op.TableID)
+		op.progressReporter.TableImportDone(op.TableID) // So that the ProgressBar is removed.
 		if op.Err == nil {
-			op.progressReporter.TableImportDone(op.TableID)
 			op.state = DONE
+		} else {
+			err = fmt.Errorf("import table %s: %w", op.TableID, op.Err)
 		}
 	}()
 
@@ -260,7 +262,6 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 		if err != nil {
 			log.Errorf("Failed to import batch %s %d: %s", op.TableID, batch.BatchNumber, err)
 			op.Lock()
-			op.failedBatches = append(op.failedBatches, batch)
 			if op.Err == nil {
 				op.Err = err
 			}
@@ -289,13 +290,10 @@ func (op *ImportFileOp) importBatch(batch *Batch) error {
 		op.Unlock()
 		return fmt.Errorf("COPY: %w", err)
 	}
-	// TODO Handle case where fewer than expected rows are imported.
-	// If upsert mode is ON, retry until n == batchSize.
-	// Else, COPY returns 0 whenever fewer than batchSize rows are imported.
 	batch.NumRecordsImported = n
 	err = op.migState.MarkBatchDone(batch)
 	if err != nil {
-		return err
+		return fmt.Errorf("mark batch %s %d as DONE: %w", batch.TableID, batch.BatchNumber, err)
 	}
 	log.Infof("Imported %v/%v records from batch %s %d.", batch.NumRecordsImported, batch.RecordCount, batch.TableID, batch.BatchNumber)
 	op.progressReporter.AddProgressAmount(op.TableID, batch.SizeInBaseFile())

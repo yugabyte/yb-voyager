@@ -75,7 +75,7 @@ func importDataFiles(
 
 	ctx := context.Background()
 	migstate := libmig.NewMigrationState(exportDir)
-	progressReporter := libmig.NewProgressReporter()
+	progressReporter := libmig.NewProgressReporter(disablePb)
 	connPool := newConnPool()
 	tdb := libmig.NewTargetDB(connPool)
 	// parallelImportJobs is set after newConnPool() returns.

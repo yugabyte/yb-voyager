@@ -18,7 +18,7 @@ func main() {
 	sema := semaphore.NewWeighted(2)
 	//	migstate := NewMigrationState("/Users/amit.jambure/export-dir")
 	migstate := libmig.NewMigrationState("/tmp/export-dir")
-	progressReporter := libmig.NewProgressReporter()
+	progressReporter := libmig.NewProgressReporter(false)
 
 	params := &libmig.ConnectionParams{
 		NumConnections: 3,
