@@ -280,7 +280,6 @@ func newImportData() {
 	log.Infof("excludeTableList: %v", excludeTableList)
 	// Prepare fileNameToTargetTableID.
 	tableNameToFilePath := getExportedTables()
-	// TODO: Take --exclude-table-list into account.
 	filePathToTableID := map[string]*importdata.TableID{}
 	for qualifiedTableName, filePath := range tableNameToFilePath {
 		schemaName, tableName := extractSchemaTableName(qualifiedTableName)
@@ -316,8 +315,8 @@ func newImportData() {
 	}
 
 	importDataFiles(dfd, filePathToTableID, tableNameToCopyCommand)
-	// TODO: Create Indexes.
-	//executePostImportDataSqls()
+	log.Infof("Data import complete. Create remaining schema objects.")
+	executePostImportDataSqls()
 }
 
 func pgGetCopyCommandsFromTOC() map[string]string {
