@@ -149,8 +149,8 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
 
-	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", false,
-		"true - to enable upsert for insert in target tables (default false)")
+	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
+		"true - to enable upsert for insert in target tables")
 
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
 	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
