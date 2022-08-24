@@ -14,7 +14,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
+	"github.com/yugabyte/yb-voyager/yb-voyager/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/maps"
@@ -49,16 +49,16 @@ var importDataFileCmd = &cobra.Command{
 			return
 		}
 		log.Info("Using new import data file code path.")
-		dfd := &libmig.DataFileDescriptor{
+		dfd := &importdata.DataFileDescriptor{
 			FileType:   fileFormat,
 			Delimiter:  delimiter,
 			HasHeader:  hasHeader,
 			EscapeChar: fileOptsMap["escape_char"],
 			QuoteChar:  fileOptsMap["quote_char"],
 		}
-		filePathToTableID := map[string]*libmig.TableID{}
+		filePathToTableID := map[string]*importdata.TableID{}
 		for tableName, filePath := range tableNameVsFilePath {
-			tableID := libmig.NewTableID(target.DBName, target.Schema, tableName)
+			tableID := importdata.NewTableID(target.DBName, target.Schema, tableName)
 			filePathToTableID[filePath] = tableID
 		}
 		importDataFiles(dfd, filePathToTableID, map[string]string{})
@@ -66,25 +66,25 @@ var importDataFileCmd = &cobra.Command{
 }
 
 func importDataFiles(
-	dfd *libmig.DataFileDescriptor,
-	filePathToTableID map[string]*libmig.TableID,
+	dfd *importdata.DataFileDescriptor,
+	filePathToTableID map[string]*importdata.TableID,
 	tableNameToCopyCommand map[string]string) {
 
 	log.Infof("data file descriptor:\n%s", spew.Sdump(dfd))
 	log.Infof("filePath => tableID: %s", spew.Sdump(filePathToTableID))
 
 	ctx := context.Background()
-	migstate := libmig.NewMigrationState(exportDir)
-	progressReporter := libmig.NewProgressReporter(disablePb)
+	migstate := importdata.NewMigrationState(exportDir)
+	progressReporter := importdata.NewProgressReporter(disablePb)
 	connPool := newConnPool()
-	tdb := libmig.NewTargetDB(connPool)
+	tdb := importdata.NewTargetDB(connPool)
 	// parallelImportJobs is set after newConnPool() returns.
 	sema := semaphore.NewWeighted(int64(parallelImportJobs * 2))
 
 	// Prepare ops.
-	ops := []*libmig.ImportFileOp{}
+	ops := []*importdata.ImportFileOp{}
 	for filePath, tableID := range filePathToTableID {
-		op := libmig.NewImportFileOp(migstate, progressReporter, tdb, filePath, tableID, dfd, sema)
+		op := importdata.NewImportFileOp(migstate, progressReporter, tdb, filePath, tableID, dfd, sema)
 		op.BatchSize = int(numLinesInASplit)
 		op.CopyCommand = tableNameToCopyCommand[tableID.QualifiedName()]
 		err := op.Init()
@@ -105,7 +105,7 @@ func importDataFiles(
 		return ops[j].State() < ops[i].State()
 	})
 	for _, op := range ops {
-		if op.State() == libmig.DONE {
+		if op.State() == importdata.DONE {
 			log.Infof("Table %s is already imported.", op.TableID)
 			continue
 		}
@@ -124,24 +124,24 @@ func importDataFiles(
 	}
 }
 
-func newConnPool() *libmig.ConnectionPool {
+func newConnPool() *importdata.ConnectionPool {
 	targets := getYBServers()
 	var targetUriList []string
 	for _, t := range targets {
 		targetUriList = append(targetUriList, t.Uri)
 	}
 	log.Infof("targetUriList: %s", targetUriList)
-	params := &libmig.ConnectionParams{
+	params := &importdata.ConnectionParams{
 		NumConnections:             parallelImportJobs,
 		ConnUriList:                targetUriList,
 		EnableUpsertMode:           enableUpsert,
 		DisableTransactionalWrites: disableTransactionalWrites,
 	}
-	connPool := libmig.NewConnectionPool(params)
+	connPool := importdata.NewConnectionPool(params)
 	return connPool
 }
 
-func maybeCleanImportState(ops []*libmig.ImportFileOp, tdb *libmig.TargetDB) error {
+func maybeCleanImportState(ops []*importdata.ImportFileOp, tdb *importdata.TargetDB) error {
 	// Find the list of tables names that needs to be cleaned.
 	tableNames := []string{}
 	if startClean {
@@ -150,7 +150,7 @@ func maybeCleanImportState(ops []*libmig.ImportFileOp, tdb *libmig.TargetDB) err
 		}
 	} else {
 		for _, op := range ops {
-			if op.State() == libmig.IN_PROGRESS {
+			if op.State() == importdata.IN_PROGRESS {
 				tableHasPK, err := tdb.TableHasPK(context.Background(), op.TableID)
 				if err != nil {
 					return fmt.Errorf("check if table %s has primary key: %w", op.TableID, err)

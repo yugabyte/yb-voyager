@@ -33,7 +33,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
+	"github.com/yugabyte/yb-voyager/yb-voyager/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -281,14 +281,14 @@ func newImportData() {
 	// Prepare fileNameToTargetTableID.
 	tableNameToFilePath := getExportedTables()
 	// TODO: Take --exclude-table-list into account.
-	filePathToTableID := map[string]*libmig.TableID{}
+	filePathToTableID := map[string]*importdata.TableID{}
 	for qualifiedTableName, filePath := range tableNameToFilePath {
 		schemaName, tableName := extractSchemaTableName(qualifiedTableName)
 		qualifiedTableName = fmt.Sprintf("%s.%s", schemaName, tableName)
 		if (len(includeTableList) == 0 || slices.Contains(includeTableList, qualifiedTableName)) &&
 			(len(excludeTableList) == 0 || !slices.Contains(excludeTableList, qualifiedTableName)) {
 
-			tableID := libmig.NewTableID(target.DBName, schemaName, tableName)
+			tableID := importdata.NewTableID(target.DBName, schemaName, tableName)
 			filePathToTableID[filePath] = tableID
 		} else {
 			log.Infof("Skipping table %v", qualifiedTableName)
@@ -297,10 +297,10 @@ func newImportData() {
 	if len(filePathToTableID) == 0 {
 		utils.ErrExit("Nothing to import.")
 	}
-	// TODO: Unify libmig.DataFileDescriptor and datafile.Descriptor.
-	// Prepare libmig.DataFileDescriptor.
+	// TODO: Unify importdata.DataFileDescriptor and datafile.Descriptor.
+	// Prepare importdata.DataFileDescriptor.
 	expdfd := datafile.OpenDescriptor(exportDir)
-	dfd := &libmig.DataFileDescriptor{
+	dfd := &importdata.DataFileDescriptor{
 		FileType:  expdfd.FileFormat,
 		Delimiter: expdfd.Delimiter,
 		HasHeader: expdfd.HasHeader,

@@ -10,7 +10,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/libmig"
+	"github.com/yugabyte/yb-voyager/yb-voyager/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"golang.org/x/exp/maps"
 )
@@ -27,7 +27,7 @@ var importDataStatusCmd = &cobra.Command{
 			err = runImportDataStatusCmd()
 		} else {
 			log.Info("Using new import data status code path.")
-			migstate := libmig.NewMigrationState(exportDir)
+			migstate := importdata.NewMigrationState(exportDir)
 			err = runNewImportDataStatusCmd(migstate, nil)
 		}
 		if err != nil {
@@ -129,7 +129,7 @@ func runImportDataStatusCmd() error {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runNewImportDataStatusCmd(migstate *libmig.MigrationState, tableIDList []*libmig.TableID) error {
+func runNewImportDataStatusCmd(migstate *importdata.MigrationState, tableIDList []*importdata.TableID) error {
 	progress, err := migstate.GetImportDataProgress(tableIDList)
 	if err != nil {
 		return fmt.Errorf("get import data status: %w", err)

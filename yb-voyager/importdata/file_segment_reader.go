@@ -1,4 +1,4 @@
-package libmig
+package importdata
 
 import (
 	"fmt"
