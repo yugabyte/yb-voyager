@@ -348,10 +348,14 @@ func pgGetCopyCommandsFromTOC() map[string]string {
 }
 
 func extractSchemaTableName(tableName string) (string, string) {
+	// IMP:
+	// The `tableName` is inferred from the *_data.sql files in the data/ dir.
+	// It is assumed that if a table name doesn't have schema specified,
+	// then it is destined to be in the `target.Schema` schema (which defaults to "public").
 	parts := strings.Split(tableName, ".")
 	switch len(parts) {
 	case 1:
-		return "public", parts[0]
+		return target.Schema, parts[0]
 	case 2:
 		return parts[0], parts[1]
 	default:

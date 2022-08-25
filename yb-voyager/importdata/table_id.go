@@ -7,6 +7,9 @@ type TableID struct {
 }
 
 func NewTableID(dbName, schemaName, tableName string) *TableID {
+	if schemaName == "" {
+		schemaName = "public"
+	}
 	return &TableID{DatabaseName: dbName, SchemaName: schemaName, TableName: tableName}
 }
 
