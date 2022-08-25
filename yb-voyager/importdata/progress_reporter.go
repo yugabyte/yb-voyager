@@ -70,9 +70,8 @@ func (pr *ProgressReporter) AddProgressAmount(tableID *TableID, progressAmount i
 func (pr *ProgressReporter) TableImportDone(tableID *TableID) {
 	pr.Lock()
 	defer pr.Unlock()
-
-	utils.PrintAndLog("Table %s: import completed", tableID)
 	if pr.disablePb {
+		utils.PrintAndLog("Table %s: import completed", tableID)
 		return
 	}
 	progressBar := pr.progressBars[tableID.String()]
