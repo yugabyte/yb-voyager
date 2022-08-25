@@ -21,7 +21,7 @@ EXPORT_DIR/
 					last
 					pending/
 					done/
-					failed/
+					batch-data/
 */
 
 type MigrationState struct {
@@ -32,14 +32,12 @@ func NewMigrationState(exportDir string) *MigrationState {
 	return &MigrationState{ExportDir: exportDir}
 }
 
-// func (migstate *MigrationState)
-
 func (migstate *MigrationState) PrepareForImport(tableID *TableID) error {
 	log.Infof("Prepare for import: %s", tableID)
 	dirs := []string{
 		migstate.pendingDir(tableID),
 		migstate.doneDir(tableID),
-		migstate.failedDir(tableID),
+		migstate.batchDataDir(tableID),
 	}
 	for _, dir := range dirs {
 		log.Infof("Create dir: %s\n", dir)
@@ -245,32 +243,38 @@ func (migstate *MigrationState) MarkBatchDone(batch *Batch) error {
 }
 
 func (migstate *MigrationState) MarkBatchFailed(batch *Batch, e error) error {
-	failedPath := migstate.failedBatchPath(batch)
-	tmpFailedPath := failedPath + ".tmp"
+	batchDataPath := migstate.batchDataDirPath(batch)
+	tmpBatchDataPath := batchDataPath + ".tmp"
 
-	_, err := os.Stat(failedPath)
+	_, err := os.Stat(batchDataPath)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		fmt.Printf("stat %q: %s\n", failedPath, err)
+		fmt.Printf("stat %q: %s\n", batchDataPath, err)
 		return err
 	}
 	if errors.Is(err, fs.ErrNotExist) {
-		_ = os.Remove(tmpFailedPath)
-		err = migstate.writeBatchDataToFile(batch, tmpFailedPath)
+		_ = os.Remove(tmpBatchDataPath)
+		err = migstate.writeBatchDataToFile(batch, tmpBatchDataPath)
 		if err != nil {
-			fmt.Printf("write batch %d: %s\n", batch.BatchNumber, tmpFailedPath)
+			fmt.Printf("write batch %d: %s\n", batch.BatchNumber, tmpBatchDataPath)
 			return err
 		}
-		err = os.Rename(tmpFailedPath, failedPath)
+		err = os.Rename(tmpBatchDataPath, batchDataPath)
 		if err != nil {
-			fmt.Printf("rename %q -> %q: %s\n", tmpFailedPath, failedPath, err)
+			fmt.Printf("rename %q -> %q: %s\n", tmpBatchDataPath, batchDataPath, err)
 			return err
 		}
 	}
-	batch.FileName = failedPath
+	batch.FileName = batchDataPath
 	batch.StartOffset = 0
 	batch.EndOffset = -1
 	batch.Header = "" // If there was a header, it will be dumped in the batch data file.
 	batch.Err = e.Error()
+	if batch.Desc.FileType == FILE_TYPE_ORA2PG {
+		// For ora2pg, the extracted batch does not have any COPY commands in them.
+		batch.Desc.FileType = FILE_TYPE_TEXT
+		batch.Desc.Delimiter = "\t"
+		batch.Desc.HasHeader = false
+	}
 	batch.ImportAttempts++
 
 	batchFileName := migstate.pendingBatchPath(batch)
@@ -284,19 +288,19 @@ func (migstate *MigrationState) MarkBatchFailed(batch *Batch, e error) error {
 func (migstate *MigrationState) writeBatchDataToFile(batch *Batch, fileName string) error {
 	fh, err := os.Create(fileName)
 	if err != nil {
-		return err
+		return fmt.Errorf("create %s: %w", fileName, err)
 	}
 	defer fh.Close()
 
 	r, err := batch.Reader()
 	if err != nil {
-		return err
+		return fmt.Errorf("create new reader for batch %s %d: %w", batch.TableID, batch.BatchNumber, err)
 	}
 	defer r.Close()
 
 	_, err = io.Copy(fh, r)
 	if err != nil {
-		return err
+		return fmt.Errorf("copy batch %s %d to %s: %w", batch.TableID, batch.BatchNumber, fileName, err)
 	}
 	return nil
 }
@@ -313,8 +317,8 @@ func (migstate *MigrationState) doneDir(tableID *TableID) string {
 	return filepath.Join(migstate.tableDir(tableID), "done")
 }
 
-func (migstate *MigrationState) failedDir(tableID *TableID) string {
-	return filepath.Join(migstate.tableDir(tableID), "failed")
+func (migstate *MigrationState) batchDataDir(tableID *TableID) string {
+	return filepath.Join(migstate.tableDir(tableID), "batch-data")
 }
 
 func (migstate *MigrationState) pendingBatchPath(batch *Batch) string {
@@ -327,9 +331,9 @@ func (migstate *MigrationState) doneBatchPath(batch *Batch) string {
 	return filepath.Join(migstate.doneDir(batch.TableID), baseName)
 }
 
-func (migstate *MigrationState) failedBatchPath(batch *Batch) string {
+func (migstate *MigrationState) batchDataDirPath(batch *Batch) string {
 	baseName := fmt.Sprintf("%s.%d", batch.TableID.TableName, batch.BatchNumber)
-	return filepath.Join(migstate.failedDir(batch.TableID), baseName)
+	return filepath.Join(migstate.batchDataDir(batch.TableID), baseName)
 }
 
 func (migstate *MigrationState) getDatabaseNames() ([]string, error) {
