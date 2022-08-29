@@ -32,6 +32,8 @@ jobs:
       run: |
         cd installer_scripts
         yes | ./install-yb-voyager local
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
     - name: Test PostgreSQL Connection
       run: |
