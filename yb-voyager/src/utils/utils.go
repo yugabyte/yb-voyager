@@ -278,3 +278,14 @@ func LookupIP(name string) []string {
 	}
 	return result
 }
+
+func InsensitiveSliceContains(slice []string, s string) bool {
+	for i := 0; i < len(slice); i++ {
+		if strings.Contains(strings.ToLower(s), strings.ToLower(slice[i])) {
+			log.Infof("string s=%q contains slice[i]=%q", s, slice[i])
+			return true
+		}
+	}
+	log.Infof("string s=%q did not match with any string in %v", s, slice)
+	return false
+}

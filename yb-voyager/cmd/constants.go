@@ -33,23 +33,27 @@ const (
 	LAST_SPLIT_NUM              = 0
 	SPLIT_INFO_PATTERN          = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN          = "0.[0-9]*.[0-9]*.[0-9]*"
-	COPY_MAX_RETRY_COUNT        = 5
-	MAX_SLEEP_SECOND            = 10
+	COPY_MAX_RETRY_COUNT        = 10
+	MAX_SLEEP_SECOND            = 60
 )
 
-var IMPORT_SESSION_SETTERS = []string{
-	"SET client_encoding TO 'UTF8';",
-	// Disable transactions to improve ingestion throughput.
-	"SET yb_disable_transactional_writes to true;",
-	//Disable triggers or fkeys constraint checks.
-	"SET session_replication_role TO replica;",
-	// Enable UPSERT mode instead of normal inserts into a table.
-	"SET yb_enable_upsert_mode to true;",
-}
+// import session parameters
+const (
+	SET_CLIENT_ENCODING_TO_UTF8           = "SET client_encoding TO 'UTF8'"
+	SET_SESSION_REPLICATE_ROLE_TO_REPLICA = "SET session_replication_role TO replica" //Disable triggers or fkeys constraint checks.
+	SET_YB_ENABLE_UPSERT_MODE             = "SET yb_enable_upsert_mode to true"
+	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
+)
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+}
+
+var NonRetryCopyErrors = []string{
+	"Sending too long RPC message",
+	"invalid input syntax",
+	"violates unique constraint",
 }

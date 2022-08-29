@@ -72,11 +72,10 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 				utils.ErrExit("Failed to run %q on target DB: %s", setSchemaQuery, err)
 			}
 
-			setClientEncQuery := IMPORT_SESSION_SETTERS[0]
-			log.Infof("Running query %q on the target DB", setClientEncQuery)
-			_, err = conn.Exec(context.Background(), setClientEncQuery)
+			log.Infof("Running query %q on the target DB", SET_CLIENT_ENCODING_TO_UTF8)
+			_, err = conn.Exec(context.Background(), SET_CLIENT_ENCODING_TO_UTF8)
 			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", setClientEncQuery, err)
+				utils.ErrExit("Failed to run %q on target DB: %s", SET_CLIENT_ENCODING_TO_UTF8, err)
 			}
 		}
 

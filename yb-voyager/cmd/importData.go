@@ -838,10 +838,12 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 
 		// copyCommand is empty when there are no rows for that table
 		if copyCommand != "" {
-			var rowsCount int64
+			copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
+			log.Infof("COPY command: %s", copyCommand)
+			var rowsAffected int64
 			var copyErr error
 			// if retry=n, total try call will be n+1
-			copyRetryCount := COPY_MAX_RETRY_COUNT + 1
+			remainingRetries := COPY_MAX_RETRY_COUNT + 1
 
 			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 				// reset the reader to begin for every call
@@ -855,39 +857,44 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 					}
 				}
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-				rowsCount = res.RowsAffected()
+				rowsAffected = res.RowsAffected()
 
+				if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
+					return false, err
+				}
+
+				/*
+					Note: If a user retries after deleting some row(s) from a batch,
+					yb-voyager will never be able to mark the batch as completed
+					github issue: https://github.com/yugabyte/yb-voyager/issues/223
+				*/
 				if err != nil {
 					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-					if !strings.Contains(err.Error(), "violates unique constraint") {
-						log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
-						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, math.Pow(2, float64(COPY_MAX_RETRY_COUNT+1-copyRetryCount))))
-						log.Infof("sleep for duration %d before retrying...", duration)
-						time.Sleep(time.Second * duration) // delay for 1 sec before retrying
-						copyRetryCount--
-						return copyRetryCount > 0, err
+					log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
+
+					remainingRetries--
+					if remainingRetries > 0 {
+						retryNum := COPY_MAX_RETRY_COUNT + 1 - remainingRetries
+						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(retryNum)))
+						log.Infof("sleep for duration %d before retrying the file %s for %d time...",
+							duration, inProgressFilePath, retryNum)
+						time.Sleep(time.Second * duration)
 					}
+					return remainingRetries > 0, err
 				}
 
 				return false, err
 			})
 
-			log.Infof("%q => %d rows affected", copyCommand, rowsCount)
+			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 			if copyErr != nil {
-				log.Warnf("COPY FROM file %q: %s", inProgressFilePath, copyErr)
-				if !strings.Contains(copyErr.Error(), "violates unique constraint") {
+				if !disableTransactionalWrites && strings.Contains(copyErr.Error(), "violates unique constraint") {
+					log.Infof("Ignoring encountered Error: %v, Assuming batch is already imported due to transactional mode", copyErr)
+				} else {
 					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
-				} else { //in case of unique key violation error take row count from the split task
-					rowsCount = task.OffsetEnd - task.OffsetStart
-					log.Infof("got error:%v, assuming affected rows count %v for %q", copyErr, rowsCount, task.TableName)
 				}
 			}
 
-			if rowsCount != task.OffsetEnd-task.OffsetStart {
-				// TODO: print info/details about missed rows on the screen after progress bar is complete
-				log.Warnf("Expected to import %v records from %s. Imported %v.",
-					task.OffsetEnd-task.OffsetStart, inProgressFilePath, rowsCount)
-			}
 			incrementImportProgressBar(task.TableName, inProgressFilePath)
 		}
 		doneFilePath := getDoneFilePath(task)
@@ -1001,6 +1008,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 			utils.ErrExit("error while readline for extraction of copy stmt from file %q: %v", fileToSearchIn, err)
 		}
 		if copyCommandRegex.MatchString(line) {
+			line = strings.Trim(line, ";") + ` WITH (ROWS_PER_TRANSACTION %v)`
 			copyTableFromCommands[table] = line
 			log.Infof("copyTableFromCommand for table %q is %q", table, line)
 			return
@@ -1038,25 +1046,43 @@ func getProgressAmount(filePath string) int64 {
 }
 
 func getYBSessionInitScript() []string {
-	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
 	var sessionVars []string
-	disableTransactionalWritesCmd := fmt.Sprintf("SET yb_disable_transactional_writes to %v", disableTransactionalWrites)
-	enableUpsertCmd := fmt.Sprintf("SET yb_enable_upsert_mode to %v", enableUpsert)
-	defaultSessionVars := []string{
-		"SET client_encoding to 'UTF-8'",
-		"SET session_replication_role to replica",
-		disableTransactionalWritesCmd,
-		enableUpsertCmd,
+	if checkSessionVariableSupport(SET_CLIENT_ENCODING_TO_UTF8) {
+		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
+	}
+	if checkSessionVariableSupport(SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
+		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
 	}
 
+	if enableUpsert {
+		// upsert_mode parameters was introduced later than yb_disable_transactional writes in yb releases
+		// hence if upsert_mode is supported then its safe to assume yb_disable_transactional_writes is already there
+		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
+			sessionVars = append(sessionVars, SET_YB_ENABLE_UPSERT_MODE)
+			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
+			if disableTransactionalWrites {
+				if checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
+					sessionVars = append(sessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
+				} else {
+					disableTransactionalWrites = false
+				}
+			}
+		} else {
+			log.Infof("Falling back to transactional inserts of batches during data import")
+		}
+	}
+
+	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
 	if !utils.FileOrFolderExists(sessionVarsPath) {
-		return defaultSessionVars
+		log.Infof("YBSessionInitScript: %v\n", sessionVars)
+		return sessionVars
 	}
 
 	varsFile, err := os.Open(sessionVarsPath)
 	if err != nil {
 		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
-		return defaultSessionVars
+		log.Infof("YBSessionInitScript: %v\n", sessionVars)
+		return sessionVars
 	}
 	defer varsFile.Close()
 	fileScanner := bufio.NewScanner(varsFile)
@@ -1064,17 +1090,31 @@ func getYBSessionInitScript() []string {
 	var curLine string
 	for fileScanner.Scan() {
 		curLine = strings.TrimSpace(fileScanner.Text())
-		sessionVars = append(sessionVars, curLine)
+		if curLine != "" && checkSessionVariableSupport(curLine) {
+			sessionVars = append(sessionVars, curLine)
+		}
+	}
+	log.Infof("YBSessionInitScript: %v\n", sessionVars)
+	return sessionVars
+}
+
+func checkSessionVariableSupport(sqlStmt string) bool {
+	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	if err != nil {
+		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
+	}
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(context.Background(), sqlStmt)
+	if err != nil {
+		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
+			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
+		} else {
+			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
+		}
 	}
 
-	//Only override the file if the flags are explicitly true (default false)
-	if enableUpsert {
-		sessionVars = append(sessionVars, enableUpsertCmd)
-	}
-	if disableTransactionalWrites {
-		sessionVars = append(sessionVars, disableTransactionalWritesCmd)
-	}
-	return sessionVars
+	return err == nil
 }
 
 func removeExcludeTables(tableList []string, excludeTableList []string) []string {
