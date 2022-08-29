@@ -45,6 +45,10 @@ on_exit() {
 		echo "Done!"
 	else
 		echo "Script failed. Check log file ${LOG_FILE} ."
+		if [[ ${ON_INSTALLER_ERROR_OUTPUT_LOG:-N} = "Y" ]]
+		then
+			sudo cat ${LOG_FILE}
+		fi
 	fi
 }
 
@@ -319,13 +323,8 @@ update_bashrc() {
 
 create_yb_session_vars_file() {
 	vars_file_name="/etc/yb-voyager/ybSessionVariables.sql"
-	if [ -f "$vars_file_name" ]
-	then
-		output "No need to create ybSessionVariables.sql again. Skipping."
-		return
-	fi
 	sudo mkdir -p /etc/yb-voyager
-	sudo wget -qO $vars_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/files/ybSessionVariables.sql
+	sudo touch $vars_file_name
 }
 
 create_base_ora2pg_conf_file() {
