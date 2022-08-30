@@ -20,7 +20,7 @@ const (
 	SPLIT_FILE_CHANNEL_SIZE     = 20
 	META_INFO_DIR_NAME          = "metainfo"
 	NEWLINE                     = '\n'
-	GET_YB_SERVERS_QUERY        = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers();"
+	GET_YB_SERVERS_QUERY        = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
 	ORACLE_DEFAULT_PORT         = 1521
 	MYSQL_DEFAULT_PORT          = 3306
 	POSTGRES_DEFAULT_PORT       = 5432
