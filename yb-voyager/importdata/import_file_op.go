@@ -7,6 +7,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -60,6 +61,7 @@ type ImportFileOp struct {
 	lastBatchFromPrevRun      *Batch
 	pendingBatchesFromPrevRun []*Batch
 	failedBatches             []*Batch
+	submittedBatchCount       int
 }
 
 func NewImportFileOp(
@@ -129,14 +131,6 @@ func (op *ImportFileOp) Run(ctx context.Context) (err error) {
 
 	op.notifyImportFileStarted()
 
-	for _, batch := range op.pendingBatchesFromPrevRun {
-		// TODO Concurrently import pending batches.
-		err = op.importBatch(batch)
-		if err != nil {
-			return fmt.Errorf("import batch %d: %w", batch.BatchNumber, err)
-		}
-	}
-
 	defer func() {
 		log.Infof("[%s] Wait until all submitted batches are done before returning.", op.TableID)
 		op.wg.Wait()
@@ -149,7 +143,13 @@ func (op *ImportFileOp) Run(ctx context.Context) (err error) {
 		}
 	}()
 
-	batchCount := 0
+	for _, batch := range op.pendingBatchesFromPrevRun {
+		if op.Err != nil {
+			break
+		}
+		op.submitBatch(batch)
+	}
+
 	for op.Err == nil {
 		batch, eof, err := op.batchGen.NextBatch(op.BatchSize)
 		if batch != nil {
@@ -158,12 +158,7 @@ func (op *ImportFileOp) Run(ctx context.Context) (err error) {
 			if err2 != nil {
 				return err2
 			}
-			batchCount++
 			op.submitBatch(batch)
-			// First 5 batches in each run are imported synchronously.
-			if batchCount <= 5 {
-				op.wg.Wait()
-			}
 		}
 		if eof {
 			log.Infof("Done splitting file %s", op.FileName)
@@ -191,7 +186,21 @@ func (op *ImportFileOp) recoverStateFromPrevRun() error {
 	if err != nil {
 		return fmt.Errorf("find pending batches: %w", err)
 	}
-
+	slices.SortFunc(op.pendingBatchesFromPrevRun, func(b1, b2 *Batch) bool {
+		// Keep the FAILED batches ahead of other pending batches.
+		// Keep both groups ordered by BatchNumber.
+		switch true {
+		case b1.Err == "" && b2.Err == "":
+			return b1.BatchNumber < b2.BatchNumber
+		case b1.Err != "" && b2.Err != "":
+			return b1.BatchNumber < b2.BatchNumber
+		case b1.Err != "":
+			return false // b1 has error. Keep it ahead of b2.
+		case b2.Err != "":
+			return true
+		}
+		panic("UNREACHABLE CASE")
+	})
 	// Set state.
 	if op.lastBatchFromPrevRun == nil {
 		op.state = NOT_STARTED
@@ -269,6 +278,11 @@ func (op *ImportFileOp) submitBatch(batch *Batch) {
 		op.Sema.Release(1)
 		op.wg.Done()
 	}()
+	op.submittedBatchCount++
+	if op.submittedBatchCount <= 3 {
+		// Synchronously import first 3 batches.
+		op.wg.Wait()
+	}
 }
 
 func (op *ImportFileOp) importBatch(batch *Batch) error {
