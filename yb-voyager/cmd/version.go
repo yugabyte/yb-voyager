@@ -14,14 +14,17 @@ var versionCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Printf("VERSION=%s\n", utils.YB_VOYAGER_VERSION)
-
+		h := utils.GitCommitHash()
+		if h != "" {
+			fmt.Printf("GIT_COMMIT_HASH=%s\n", h)
+		}
 		info, ok := debug.ReadBuildInfo()
 		if !ok {
 			return
 		}
 		for _, setting := range info.Settings {
 			if setting.Key == "vcs.revision" {
-				fmt.Printf("GIT_HASH=%s\n", setting.Value)
+				fmt.Printf("GIT_COMMIT_HASH=%s\n", setting.Value)
 			}
 			if setting.Key == "vcs.time" {
 				fmt.Printf("LAST_COMMIT_DATE=%s\n", setting.Value)
