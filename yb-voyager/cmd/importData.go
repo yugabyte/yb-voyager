@@ -990,14 +990,14 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		return
 	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
-	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]*(.*) FROM STDIN`, table))
+	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
 		// find the line from toc.txt file
 		fileToSearchIn = exportDir + "/data/toc.txt"
 
 		// if no schema then add public in tableName as it is there in postgres' toc file
 		if len(strings.Split(table, ".")) == 1 {
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]*(.*) FROM STDIN`, table))
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
 		}
 	}
 
