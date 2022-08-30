@@ -143,7 +143,7 @@ func getYBServers() []*tgtdb.Target {
 		}
 		defer conn.Close(context.Background())
 
-		rows, err := conn.Query(context.Background(), GET_SERVERS_QUERY)
+		rows, err := conn.Query(context.Background(), GET_YB_SERVERS_QUERY)
 		if err != nil {
 			utils.ErrExit("error in query rows from yb_servers(): %v", err)
 		}
