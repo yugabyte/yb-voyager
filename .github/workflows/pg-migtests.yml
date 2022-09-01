@@ -39,7 +39,7 @@ jobs:
 
     - name: Start YugabyteDB cluster
       run: |
-        docker pull yugabytedb/yugabyte:2.12.3.0-b19
+        docker pull yugabytedb/yugabyte:2.14.1.0-b36
         docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
         sleep 10
 
