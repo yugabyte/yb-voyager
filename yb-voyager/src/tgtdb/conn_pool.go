@@ -3,7 +3,6 @@ package tgtdb
 import (
 	"context"
 	"math/rand"
-	"strings"
 	"sync"
 
 	"github.com/jackc/pgx/v4"
@@ -121,7 +120,7 @@ func (pool *ConnectionPool) getNextUriIndex() int {
 func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
 	for _, v := range pool.params.SessionInitScript {
 		_, err := conn.Exec(context.Background(), v)
-		if err != nil && !strings.Contains(err.Error(), "unrecognized configuration parameter") {
+		if err != nil {
 			return err
 		}
 	}

@@ -16,6 +16,8 @@ jobs:
     - name: Run installer script
       run: |
         yes | ./installer_scripts/install-yb-voyager local
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
     - name: Start MySQL
       run: |
