@@ -2,7 +2,7 @@ package utils
 
 const (
 	// This constant must be updated on every release.
-	YB_VOYAGER_VERSION = "v1.0.0-beta.1"
+	YB_VOYAGER_VERSION = "v1.0.0-beta.2"
 
 	// @Refer: https://icinga.com/blog/2022/05/25/embedding-git-commit-information-in-go-binaries/
 	GIT_COMMIT_HASH = "$Format:%H$"
