@@ -620,7 +620,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			sz = 0
 		}
 
-		if numLinesInThisSplit == numLinesInASplit || readLineErr != nil {
+		if numLinesInThisSplit == numLinesInASplit || dataFile.GetBytesRead() == MAX_SPLIT_SIZE || readLineErr != nil {
 			err = bufferedWriter.Flush()
 			if err != nil {
 				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
