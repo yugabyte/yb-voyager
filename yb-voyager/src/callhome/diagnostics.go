@@ -150,7 +150,8 @@ func PackAndSendPayload(exportdir string) {
 }
 
 // Find the largest and total data sizes, and upload to diagnostics json
-func UpdateDataSize(exportdir string) {
+func UpdateDataStats(exportdir string, exportedRowCount map[string]int64) {
+	//Table Size Stats
 	datadirfiles := filepath.Join(exportdir, "data", "*_data*")
 
 	files, err := filepath.Glob(datadirfiles)
@@ -172,6 +173,18 @@ func UpdateDataSize(exportdir string) {
 		totalSize += fileInfo.Size()
 	}
 
+	//Row Count Stats
+	var maxTableLines, totalTableLines int64
+	var rowCount int64
+	for key := range exportedRowCount {
+		rowCount = exportedRowCount[key]
+		if rowCount > maxTableLines {
+			maxTableLines = rowCount
+		}
+		totalTableLines += rowCount
+	}
+	Payload.LargestTableRows = maxTableLines
+	Payload.TotalRows = totalTableLines
 	Payload.TotalSize = totalSize
 	Payload.LargestTableSize = maxFileSize
 }
