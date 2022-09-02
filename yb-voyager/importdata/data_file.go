@@ -159,7 +159,7 @@ func (df *Ora2pgDataFile) GetCopyCommand(tableID *TableID) (string, error) {
 	}
 	defer fh.Close()
 
-	scanner := bufio.NewScanner(fh)
+	scanner := newScanner(fh)
 	for scanner.Scan() {
 		line := scanner.Text()
 		// Example line: `COPY "Foo" ("v") FROM STDIN;`
@@ -210,7 +210,7 @@ func (df *baseDataFile) Open() error {
 		return fmt.Errorf("seek %s to %v: %w", df.FileName, df.offset, err)
 	}
 	df.fh = fh
-	df.scanner = bufio.NewScanner(fh)
+	df.scanner = newScanner(fh)
 
 	fi, err := fh.Stat()
 	if err != nil {
@@ -250,16 +250,20 @@ func (df *baseDataFile) SkipHeader() error {
 	return df.scanner.Err()
 }
 
+const MAX_BATCH_SIZE_IN_BYTES = 200 * 1024 * 1024
+
 func (df *baseDataFile) SkipRecords(n int) (int, bool, error) {
+	byteCount := 0
 	count := 0
-	for count < n && df.scanner.Scan() {
+	for count < n && byteCount < MAX_BATCH_SIZE_IN_BYTES && df.scanner.Scan() {
 		line := df.scanner.Text()
 		df.offset += int64(len(line)) + 1 // Add 1 to account for '\n'.
+		byteCount += len(line) + 1
 		if df.isDataLine(line) {
 			count++
 		}
 	}
-	eof := df.scanner.Err() == nil && count < n
+	eof := df.scanner.Err() == nil && count < n && byteCount < MAX_BATCH_SIZE_IN_BYTES
 	return count, eof, df.scanner.Err()
 }
 

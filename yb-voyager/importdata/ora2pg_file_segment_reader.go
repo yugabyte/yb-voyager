@@ -23,7 +23,7 @@ func NewOra2pgFileSegmentReader(
 	r := &Ora2pgFileSegmentReader{
 		FileSegmentReader: segReader,
 		insideCopyStmt:    insideCopyStmt,
-		scanner:           bufio.NewScanner(segReader),
+		scanner:           newScanner(segReader),
 	}
 	return r, nil
 }

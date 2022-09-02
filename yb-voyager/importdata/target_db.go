@@ -1,7 +1,6 @@
 package importdata
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"strings"
@@ -135,13 +134,17 @@ func (tdb *TargetDB) copy(ctx context.Context, copyCommand string, batch *Batch)
 func countRowsInBatch(batch *Batch) (int64, error) {
 	var count int64
 
+	if batch.BaseFileName == batch.FileName {
+		return int64(batch.RecordCount), nil
+	}
+
 	r, err := batch.Reader()
 	if err != nil {
 		return 0, fmt.Errorf("create reader for batch %d: %w", batch.BatchNumber, err)
 	}
 	defer r.Close()
 
-	scanner := bufio.NewScanner(r)
+	scanner := newScanner(r)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line != "" && line != `\.` {
