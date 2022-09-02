@@ -936,12 +936,19 @@ func executeSqlFile(file string) {
 
 	var errOccured = 0
 	sqlStrArray := createSqlStrArray(file, "")
-	for _, sqlStr := range sqlStrArray {
+	retryCount := INDEX_RETRY_COUNT
+	for i := 0; i < len(sqlStrArray); {
+		sqlStr := sqlStrArray[i]
 		log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
 		_, err := conn.Exec(context.Background(), sqlStr[0])
 		if err != nil {
-			log.Errorf("Run query %q on target %q: %s", sqlStr[1], target.Host, err)
-			if strings.Contains(err.Error(), "already exists") {
+			log.Errorf("Index creation failed %s", err)
+			if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
+				retryCount > 0 {
+				log.Infof("RETRYING INDEX CREATION: %q", sqlStr[0])
+				retryCount--
+				continue
+			} else if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
 					fmt.Printf("\b \n    %s\n", err.Error())
 					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
@@ -954,11 +961,13 @@ func executeSqlFile(file string) {
 				fmt.Printf("\b \n    %s\n", err.Error())
 				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 				if !target.ContinueOnError { //default case
-					fmt.Println(err)
-					os.Exit(1)
+					utils.ErrExit("%v", err)
 				}
 			}
+		} else { // restore the value in case of no error
+			retryCount = INDEX_RETRY_COUNT
 		}
+		i++
 	}
 
 	utils.WaitChannel <- errOccured
