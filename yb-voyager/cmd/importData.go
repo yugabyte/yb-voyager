@@ -936,17 +936,27 @@ func executeSqlFile(file string) {
 
 	var errOccured = 0
 	sqlStrArray := createSqlStrArray(file, "")
-	retryCount := INDEX_RETRY_COUNT
-	for i := 0; i < len(sqlStrArray); {
-		sqlStr := sqlStrArray[i]
-		log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
+	for _, sqlStr := range sqlStrArray {
+		executeSqlStmtWithRetries(conn, sqlStr, &errOccured)
+	}
+
+	utils.WaitChannel <- errOccured
+	<-utils.WaitChannel
+}
+
+func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string, errOccured *int) {
+	retryCount := 0
+	log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
+	for retryCount <= DDL_MAX_RETRY_COUNT {
 		_, err := conn.Exec(context.Background(), sqlStr[0])
 		if err != nil {
-			log.Errorf("Index creation failed %s", err)
+			log.Errorf("DDL Execution Failed %s", err)
 			if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-				retryCount > 0 {
-				log.Infof("RETRYING INDEX CREATION: %q", sqlStr[0])
-				retryCount--
+				retryCount < DDL_MAX_RETRY_COUNT {
+				log.Infof("RETRYING DDL: %q", sqlStr[0])
+				log.Infof("Sleep for 5 seconds")
+				time.Sleep(time.Second * 5)
+				retryCount++
 				continue
 			} else if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
@@ -957,21 +967,17 @@ func executeSqlFile(file string) {
 					}
 				}
 			} else {
-				errOccured = 1
+				*errOccured = 1
 				fmt.Printf("\b \n    %s\n", err.Error())
 				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 				if !target.ContinueOnError { //default case
-					utils.ErrExit("%v", err)
+					fmt.Println(err)
+					os.Exit(1)
 				}
 			}
-		} else { // restore the value in case of no error
-			retryCount = INDEX_RETRY_COUNT
 		}
-		i++
+		return // if there is no error or retry scenario DDL is succcessful
 	}
-
-	utils.WaitChannel <- errOccured
-	<-utils.WaitChannel
 }
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
