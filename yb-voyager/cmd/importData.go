@@ -937,18 +937,22 @@ func executeSqlFile(file string) {
 	var errOccured = 0
 	sqlStrArray := createSqlStrArray(file, "")
 	for _, sqlStr := range sqlStrArray {
-		executeSqlStmtWithRetries(conn, sqlStr, &errOccured)
+		err := executeSqlStmtWithRetries(conn, sqlStr)
+		if err != nil {
+			errOccured = 1
+		}
 	}
 
 	utils.WaitChannel <- errOccured
 	<-utils.WaitChannel
 }
 
-func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string, errOccured *int) {
+func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string) error {
+	var err error
 	retryCount := 0
 	log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
 	for retryCount <= DDL_MAX_RETRY_COUNT {
-		_, err := conn.Exec(context.Background(), sqlStr[0])
+		_, err = conn.Exec(context.Background(), sqlStr[0])
 		if err != nil {
 			log.Errorf("DDL Execution Failed %s", err)
 			if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
@@ -967,7 +971,6 @@ func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string, errOccured *int)
 					}
 				}
 			} else {
-				*errOccured = 1
 				fmt.Printf("\b \n    %s\n", err.Error())
 				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
 				if !target.ContinueOnError { //default case
@@ -976,8 +979,9 @@ func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string, errOccured *int)
 				}
 			}
 		}
-		return // if there is no error or retry scenario DDL is succcessful
+		return err // if there is no error or retry scenario DDL is succcessful
 	}
+	return err
 }
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
