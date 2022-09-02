@@ -132,9 +132,9 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"false - stop the execution in case of errors(default false)\n"+
 			"true - to ignore errors and continue")
 
-	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
+	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", true,
 		"true - to ignore errors if object already exists\n"+
-			"false - throw those errors to the standard output (default false)")
+			"false - throw those errors to the standard output")
 
 	cmd.Flags().StringVar(&importMode, "mode", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
