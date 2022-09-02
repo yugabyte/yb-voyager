@@ -952,11 +952,10 @@ func executeSqlFile(filePath string, objectType string) int {
 			return 1
 		}
 
-		setClientEncQuery := IMPORT_SESSION_SETTERS[0]
-		log.Infof("Running query %q on the target DB", setClientEncQuery)
-		_, err = conn.Exec(context.Background(), setClientEncQuery)
+		log.Infof("Running query %q on the target DB", SET_CLIENT_ENCODING_TO_UTF8)
+		_, err = conn.Exec(context.Background(), SET_CLIENT_ENCODING_TO_UTF8)
 		if err != nil {
-			utils.PrintAndLog("Failed to run %q on target DB: %s", setClientEncQuery, err)
+			utils.PrintAndLog("Failed to run %q on target DB: %s", SET_CLIENT_ENCODING_TO_UTF8, err)
 			return 1
 		}
 	}
