@@ -171,31 +171,33 @@ func (bg *BatchGenerator) NextBatch(batchSize int) (*Batch, bool, error) {
 	}
 	startOffset := bg.dataFile.Offset()
 	n, eof, err := bg.dataFile.SkipRecords(batchSize)
-	endOffset := bg.dataFile.Offset()
-
-	if n > 0 {
-		bg.lastBatchNumber++
-		batch = &Batch{
-			TableID:     bg.TableID,
-			BatchNumber: bg.lastBatchNumber,
-
-			Desc: bg.Desc,
-
-			BaseFileName:          bg.FileName,
-			StartOffsetInBaseFile: startOffset,
-			EndOffsetInBaseFile:   endOffset,
-
-			FileName:    bg.FileName,
-			StartOffset: startOffset,
-			EndOffset:   endOffset,
-
-			IsFinalBatch: eof,
-			Header:       bg.header,
-			RecordCount:  n,
-		}
-		if bg.dataFile.Size() > 0 {
-			batch.ProgressContribution = float32(batch.SizeInBaseFile()*100) / float32(bg.dataFile.Size())
-		}
+	if err != nil {
+		return nil, false, fmt.Errorf("skip %d records: %w", batchSize, err)
 	}
-	return batch, eof, err
+	endOffset := bg.dataFile.Offset()
+	bg.lastBatchNumber++
+	// IMP: The last batch can also be empty.
+	batch = &Batch{
+		TableID:     bg.TableID,
+		BatchNumber: bg.lastBatchNumber,
+
+		Desc: bg.Desc,
+
+		BaseFileName:          bg.FileName,
+		StartOffsetInBaseFile: startOffset,
+		EndOffsetInBaseFile:   endOffset,
+
+		FileName:    bg.FileName,
+		StartOffset: startOffset,
+		EndOffset:   endOffset,
+
+		IsFinalBatch: eof,
+		Header:       bg.header,
+		RecordCount:  n,
+	}
+	if bg.dataFile.Size() > 0 {
+		batch.ProgressContribution = float32(batch.SizeInBaseFile()*100) / float32(bg.dataFile.Size())
+	}
+
+	return batch, eof, nil
 }
