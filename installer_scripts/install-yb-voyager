@@ -103,6 +103,7 @@ main() {
 
 
 centos_main() {
+	check_binutils_version centos
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
 	$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -125,6 +126,7 @@ centos_main() {
 
 
 ubuntu_main() {
+	check_binutils_version ubuntu
 	output "Installing packages."
 	sudo apt update 1>&2
 	sudo apt-get -y install wget  1>&2
@@ -164,6 +166,27 @@ macos_main() {
 #=============================================================================
 # COMMON
 #=============================================================================
+
+check_binutils_version() {
+	output "Checking binutils version."
+	required_version='2.25'
+	os=$1
+	
+	if [ "$os" == "centos" ]
+	then
+		version=$(ld -v | grep -o 'version [0-9.]\+' | awk -F' ' '{print $2}')
+	elif [ "$os" == "ubuntu" ]
+	then
+		version=$(ld -v | grep -o '[0-9.]\+')
+	fi
+
+	 if [ "$(echo "$version $required_version" | awk '{print ($1 > $2)}')" == "0" ]
+	then 
+		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > 2.25 ."
+		exit 1
+	fi
+
+}
 
 update_yb_voyager_bashrc() {
 	output "Set environment variables in the $RC_FILE ."
