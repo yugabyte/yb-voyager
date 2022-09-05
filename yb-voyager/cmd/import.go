@@ -16,8 +16,11 @@ limitations under the License.
 package cmd
 
 import (
+	"strings"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/spf13/cobra"
 )
@@ -49,10 +52,8 @@ var importCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(importCmd)
 	registerCommonImportFlags(importCmd)
-	importCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data import (default false)")
-	importCmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while importing data (no-op if --table-list is used) (Note: works only for import data command)")
+	registerImportSchemaFlags(importCmd)
+	registerImportDataFlags(importCmd)
 }
 
 func validateImportFlags() {
@@ -65,6 +66,8 @@ func validateImportFlags() {
 	}
 	validateTableListFlag(target.TableList, "table-list")
 	validateTableListFlag(target.ExcludeTableList, "exclude-table-list")
+	validateImportObjectsFlag(target.ImportObjects, "object-list")
+	validateImportObjectsFlag(target.ExcludeImportObjects, "exclude-object-list")
 	validateTargetSchemaFlag()
 }
 
@@ -131,9 +134,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
 
-	cmd.Flags().StringVar(&target.TableList, "table-list", "",
-		"list of the tables to import data(Note: works only for import data command)")
-
 	cmd.Flags().StringVar(&importMode, "mode", "",
 		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
 
@@ -156,6 +156,22 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 }
 
+func registerImportDataFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data import (default false)")
+	cmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while importing data (no-op if --table-list is used) (Note: works only for import data command)")
+	cmd.Flags().StringVar(&target.TableList, "table-list", "",
+		"List of tables to include while importing data (Note: works only for import data command)")
+}
+
+func registerImportSchemaFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&target.ImportObjects, "object-list", "",
+		"List of schema object types to include while importing schema (Note: works only for import schema command)")
+	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
+		"List of schema object types to exclude while importing schema (no-op if --object-list is used) (Note: works only for import schema command)")
+}
+
 func validateTargetPortRange() {
 	if target.Port < 0 || target.Port > 65535 {
 		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", target.Port)
@@ -168,6 +184,20 @@ func validateTargetSchemaFlag() {
 	}
 	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
 		utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+	}
+}
+
+func validateImportObjectsFlag(importObjectsString string, flagName string) {
+	if importObjectsString == "" {
+		return
+	}
+	//We cannot access sourceDBType variable at this point, but exportDir has been validated
+	availableObjects := utils.GetSchemaObjectList(ExtractMetaInfo(exportDir).SourceDBType)
+	objectList := utils.CsvStringToSlice(importObjectsString)
+	for _, object := range objectList {
+		if !slices.Contains(availableObjects, strings.ToUpper(object)) {
+			utils.ErrExit("Error: Invalid object type '%v' specified wtih --%s flag", object, flagName)
+		}
 	}
 }
 

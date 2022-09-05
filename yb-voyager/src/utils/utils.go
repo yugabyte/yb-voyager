@@ -29,6 +29,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
+	"golang.org/x/exp/slices"
 )
 
 var DoNotPrompt bool
@@ -254,6 +255,20 @@ func GetSortedKeys(tablesProgressMetadata map[string]*TableProgressMetadata) []s
 
 	sort.Strings(keys)
 	return keys
+}
+
+func RemoveExcludeList(includeList []string, excludeList []string) []string {
+	if len(includeList) == 0 || len(excludeList) == 0 {
+		return includeList
+	}
+	var finalList []string
+	for _, object := range includeList {
+		if slices.Contains(excludeList, object) {
+			continue
+		}
+		finalList = append(finalList, object)
+	}
+	return finalList
 }
 
 func CsvStringToSlice(str string) []string {

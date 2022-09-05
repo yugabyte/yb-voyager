@@ -26,14 +26,31 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/jackc/pgx/v4"
 )
 
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
+	var finalImportObjectList []string
+	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
 	//this list also has defined the order to create object type in target YugabyteDB
 	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
-	for _, importObjectType := range importObjectOrderList {
+	if target.ImportObjects != "" {
+		//Maintain the order of importing the objects
+		for _, includeObject := range utils.CsvStringToSlice(target.ImportObjects) {
+			if slices.Contains(importObjectOrderList, includeObject) {
+				finalImportObjectList = append(finalImportObjectList, includeObject)
+			}
+		}
+	} else {
+		finalImportObjectList = utils.RemoveExcludeList(importObjectOrderList, excludeObjectList)
+	}
+	if len(finalImportObjectList) == 0 {
+		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", importObjectOrderList)
+	}
+
+	for _, importObjectType := range finalImportObjectList {
 		var importObjectDirPath, importObjectFilePath string
 
 		if importObjectType != "INDEX" {

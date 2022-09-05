@@ -23,6 +23,8 @@ type Target struct {
 	TableList              string
 	ExcludeTableList       string
 	ImportMode             bool
+	ImportObjects          string
+	ExcludeImportObjects   string
 	dbVersion              string
 
 	db *TargetDB
