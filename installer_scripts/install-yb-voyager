@@ -169,23 +169,31 @@ macos_main() {
 
 check_binutils_version() {
 	output "Checking binutils version."
-	required_version='2.25'
+	min_required_version='2.25'
 	os=$1
 	
-	if [ "$os" == "centos" ]
-	then
-		version=$(ld -v | grep -o 'version [0-9.]\+' | awk -F' ' '{print $2}')
-	elif [ "$os" == "ubuntu" ]
-	then
-		version=$(ld -v | grep -o '[0-9.]\+')
-	fi
+	case ${os} in 
+		"centos")
+			# Example output of "ld -v" on CentOS/RHEL:
+			# GNU ld version 2.30-113.el8
+			version=$(ld -v | grep -o 'version [0-9.]\+' | awk -F' ' '{print $2}')
+			;;
+		"ubuntu")
+			# Example output of "ld -v" on Ubuntu:
+			# GNU ld (GNU Binutils for Ubuntu) 2.38
+			version=$(ld -v | grep -o '[0-9.]\+')
+			;;
+		*)
+			echo "ERROR: unsupported linux distro"
+			exit 1
+			;;
+	esac
 
-	 if [ "$(echo "$version $required_version" | awk '{print ($1 > $2)}')" == "0" ]
-	then 
+	if [[ ! "$version" > "$min_required_version" ]] 
+	then
 		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > 2.25 ."
 		exit 1
 	fi
-
 }
 
 update_yb_voyager_bashrc() {
