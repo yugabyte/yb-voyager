@@ -8,6 +8,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -74,21 +76,25 @@ func (migstate *MigrationState) GetLastBatch(tableID *TableID) (*Batch, error) {
 
 func (migstate *MigrationState) PendingBatches(tableID *TableID) ([]*Batch, error) {
 	dirPath := migstate.pendingDir(tableID)
-	return migstate.getBatches(dirPath)
+	return migstate.getBatches(dirPath, tableID)
 }
 
 func (migstate *MigrationState) DoneBatches(tableID *TableID) ([]*Batch, error) {
 	dirPath := migstate.doneDir(tableID)
-	return migstate.getBatches(dirPath)
+	return migstate.getBatches(dirPath, tableID)
 }
 
-func (migstate *MigrationState) getBatches(dirPath string) ([]*Batch, error) {
+func (migstate *MigrationState) getBatches(dirPath string, tableID *TableID) ([]*Batch, error) {
 	var batches []*Batch
 	fileInfoList, err := ioutil.ReadDir(dirPath)
 	if err != nil {
 		return nil, fmt.Errorf("read dir %s: %w", dirPath, err)
 	}
 	for _, fileInfo := range fileInfoList {
+		if !isValidBatchFileName(fileInfo.Name(), tableID) {
+			log.Infof("%q is not a batch file. Skipping it.", fileInfo.Name())
+			continue
+		}
 		fileName := filepath.Join(dirPath, fileInfo.Name())
 		batch, err := LoadBatchFrom(fileName)
 		if err != nil {
@@ -97,6 +103,16 @@ func (migstate *MigrationState) getBatches(dirPath string) ([]*Batch, error) {
 		batches = append(batches, batch)
 	}
 	return batches, nil
+}
+
+func isValidBatchFileName(fileName string, tableID *TableID) bool {
+	// Batch file name has form: <table-name>.<batch-number>
+	parts := strings.Split(fileName, ".")
+	if len(parts) != 2 || parts[0] != tableID.TableName {
+		return false
+	}
+	_, err := strconv.Atoi(parts[1])
+	return err == nil
 }
 
 type ImportDataProgress struct {
@@ -154,15 +170,15 @@ func (migstate *MigrationState) getTableImportDataProgress(tableID *TableID) (*T
 	if err != nil {
 		return nil, fmt.Errorf("find completed batches of table %s: %w", tableID, err)
 	}
-	if len(pendingBatches) > 0 {
+	if lastBatch.IsFinalBatch && len(pendingBatches) == 0 {
+		progress.State = "DONE"
+	} else {
 		progress.State = "IN_PROGRESS"
 		for _, batch := range pendingBatches {
 			if batch.Err != "" {
 				progress.State = "FAILED"
 			}
 		}
-	} else {
-		progress.State = "DONE"
 	}
 	for _, batch := range doneBatches {
 		progress.NumRecordsImported += batch.NumRecordsImported
