@@ -60,12 +60,14 @@ func validateImportFlags() {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
-
 	if target.TableList != "" && target.ExcludeTableList != "" {
 		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
 	}
 	validateTableListFlag(target.TableList, "table-list")
 	validateTableListFlag(target.ExcludeTableList, "exclude-table-list")
+	if target.ImportObjects != "" && target.ExcludeImportObjects != "" {
+		utils.ErrExit("Error: Only one of --object-list and --exclude-object-list are allowed")
+	}
 	validateImportObjectsFlag(target.ImportObjects, "object-list")
 	validateImportObjectsFlag(target.ExcludeImportObjects, "exclude-object-list")
 	validateTargetSchemaFlag()
