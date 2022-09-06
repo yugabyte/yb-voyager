@@ -948,33 +948,31 @@ func executeSqlFile(file string, objType string) {
 }
 
 func executeSqlStmtWithRetries(conn *pgx.Conn, sqlInfo sqlInfo, objType string) error {
-	var err error
-	retryCount := 0
+	var err, err2 error
 	log.Infof("Run query %q on target %q", sqlInfo.formattedStmtStr, target.Host)
-	for retryCount <= DDL_MAX_RETRY_COUNT {
+	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; {
 		_, err = conn.Exec(context.Background(), sqlInfo.stmt)
 		if err != nil {
 			log.Errorf("DDL Execution Failed %s", err)
 			if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 				objType == "INDEX" {
 				// creating fresh connection
-				conn, err2 := pgx.Connect(context.Background(), target.GetConnectionUri())
+				conn, err2 = pgx.Connect(context.Background(), target.GetConnectionUri())
 				if err2 != nil {
 					utils.ErrExit("could not created a connection: %v", err2)
 				}
 
 				// DROP INDEX in case INVALID index got created
 				dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", sqlInfo.objName)
-				res, err2 := conn.Exec(context.Background(), dropIdxQuery)
-				log.Infof("Dropping index: %q, res: %v", dropIdxQuery, res)
+				log.Infof("Dropping index: %q", dropIdxQuery)
+				_, err2 = conn.Exec(context.Background(), dropIdxQuery)
 				if err2 != nil {
 					utils.ErrExit("Failed in dropping index before retry: %s", sqlInfo.objName)
 				}
 
-				log.Infof("Sleep for 5 seconds")
+				log.Infof("Sleep for 5 seconds for %dth time", retryCount)
 				time.Sleep(time.Second * 5)
 				log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
-				retryCount++
 				continue
 			} else if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
@@ -993,7 +991,7 @@ func executeSqlStmtWithRetries(conn *pgx.Conn, sqlInfo sqlInfo, objType string) 
 				}
 			}
 		}
-		return err // if there is no error or retry scenario DDL is succcessful
+		return err // if there is no error or retry scenario then move to next execute next SQL Stmt
 	}
 	return err
 }

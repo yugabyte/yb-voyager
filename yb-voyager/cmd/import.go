@@ -132,7 +132,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"false - stop the execution in case of errors(default false)\n"+
 			"true - to ignore errors and continue")
 
-	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", true,
+	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output")
 
