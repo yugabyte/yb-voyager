@@ -371,8 +371,8 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	}
 
 	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
-	importTables = utils.RemoveExcludeList(importTables, excludeTableList)
-	allTables = utils.RemoveExcludeList(allTables, excludeTableList)
+	importTables = utils.SetDifference(importTables, excludeTableList)
+	allTables = utils.SetDifference(allTables, excludeTableList)
 	sort.Strings(allTables)
 	sort.Strings(importTables)
 

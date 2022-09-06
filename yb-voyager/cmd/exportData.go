@@ -110,7 +110,7 @@ func exportDataOffline() bool {
 		finalTableList = extractTableListFromString(source.TableList)
 	} else {
 		tableList = source.DB().GetAllTableNames()
-		finalTableList = utils.RemoveExcludeList(tableList, excludeTableList)
+		finalTableList = utils.SetDifference(tableList, excludeTableList)
 		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}

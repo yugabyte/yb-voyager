@@ -257,7 +257,7 @@ func GetSortedKeys(tablesProgressMetadata map[string]*TableProgressMetadata) []s
 	return keys
 }
 
-func RemoveExcludeList(includeList []string, excludeList []string) []string {
+func SetDifference(includeList []string, excludeList []string) []string {
 	if len(includeList) == 0 || len(excludeList) == 0 {
 		return includeList
 	}

@@ -167,7 +167,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.ImportObjects, "object-list", "",
-		"List of schema object types to include while importing schema (Note: works only for import schema command)")
+		"List of schema object types to include while importing schema. (Note: works only for import schema command)")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
 		"List of schema object types to exclude while importing schema (no-op if --object-list is used) (Note: works only for import schema command)")
 }
@@ -196,7 +196,7 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 	objectList := utils.CsvStringToSlice(importObjectsString)
 	for _, object := range objectList {
 		if !slices.Contains(availableObjects, strings.ToUpper(object)) {
-			utils.ErrExit("Error: Invalid object type '%v' specified wtih --%s flag", object, flagName)
+			utils.ErrExit("Error: Invalid object type '%v' specified wtih --%s flag. Supported object types are: %v", object, flagName, availableObjects)
 		}
 	}
 }

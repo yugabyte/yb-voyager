@@ -32,22 +32,9 @@ import (
 )
 
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
-	var finalImportObjectList []string
-	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
-	//this list also has defined the order to create object type in target YugabyteDB
-	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
-	if target.ImportObjects != "" {
-		//Maintain the order of importing the objects
-		for _, includeObject := range utils.CsvStringToSlice(target.ImportObjects) {
-			if slices.Contains(importObjectOrderList, includeObject) {
-				finalImportObjectList = append(finalImportObjectList, includeObject)
-			}
-		}
-	} else {
-		finalImportObjectList = utils.RemoveExcludeList(importObjectOrderList, excludeObjectList)
-	}
+	finalImportObjectList := getImportObjectList()
 	if len(finalImportObjectList) == 0 {
-		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", importObjectOrderList)
+		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 	}
 
 	for _, importObjectType := range finalImportObjectList {
@@ -163,4 +150,29 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 		}
 	}
 	return metaInfo
+}
+
+func getImportObjectList() []string {
+	var finalImportObjectList []string
+	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
+	for i, item := range excludeObjectList {
+		excludeObjectList[i] = strings.ToUpper(item)
+	}
+	// This list also has defined the order to create object type in target YugabyteDB.
+	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
+	if target.ImportObjects != "" {
+		includeObjectList := utils.CsvStringToSlice(target.ImportObjects)
+		for i, item := range includeObjectList {
+			includeObjectList[i] = strings.ToUpper(item)
+		}
+		// Maintain the order of importing the objects.
+		for _, supportedObject := range importObjectOrderList {
+			if slices.Contains(includeObjectList, supportedObject) {
+				finalImportObjectList = append(finalImportObjectList, supportedObject)
+			}
+		}
+	} else {
+		finalImportObjectList = utils.SetDifference(importObjectOrderList, excludeObjectList)
+	}
+	return finalImportObjectList
 }
