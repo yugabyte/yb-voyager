@@ -103,7 +103,7 @@ main() {
 
 
 centos_main() {
-	check_binutils_version centos
+	check_binutils_version
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
 	$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -126,7 +126,7 @@ centos_main() {
 
 
 ubuntu_main() {
-	check_binutils_version ubuntu
+	check_binutils_version
 	output "Installing packages."
 	sudo apt update 1>&2
 	sudo apt-get -y install wget  1>&2
@@ -170,28 +170,16 @@ macos_main() {
 check_binutils_version() {
 	output "Checking binutils version."
 	min_required_version='2.25'
-	os=$1
-	
-	case ${os} in 
-		"centos")
-			# Example output of "ld -v" on CentOS/RHEL:
-			# GNU ld version 2.30-113.el8
-			version=$(ld -v | grep -o 'version [0-9.]\+' | awk -F' ' '{print $2}')
-			;;
-		"ubuntu")
-			# Example output of "ld -v" on Ubuntu:
-			# GNU ld (GNU Binutils for Ubuntu) 2.38
-			version=$(ld -v | grep -o '[0-9.]\+')
-			;;
-		*)
-			echo "ERROR: unsupported linux distro"
-			exit 1
-			;;
-	esac
+
+	# Example output of "ld -v" on CentOS/RHEL:
+	# GNU ld version 2.30-113.el8
+	# Example output of "ld -v" on Ubuntu:
+	# GNU ld (GNU Binutils for Ubuntu) 2.38
+	version=$(ld -v | awk '{print $NF}' | awk -F '-' '{print $1}')
 
 	if [[ ! "$version" > "$min_required_version" ]] 
 	then
-		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > 2.25 ."
+		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version} ."
 		exit 1
 	fi
 }
