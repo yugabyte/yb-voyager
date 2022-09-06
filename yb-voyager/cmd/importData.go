@@ -694,13 +694,13 @@ func executePostImportDataSqls() {
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
 		go utils.Wait("done\n", "")
-		executeSqlFile(sequenceFilePath)
+		executeSqlFile(sequenceFilePath, "SEQUENCE")
 	}
 
 	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
 		fmt.Printf("creating indexes %10s", "")
 		go utils.Wait("done\n", "")
-		executeSqlFile(indexesFilePath)
+		executeSqlFile(indexesFilePath, "INDEX")
 	}
 
 }
@@ -915,7 +915,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	}
 }
 
-func executeSqlFile(file string) {
+func executeSqlFile(file string, objType string) {
 	log.Infof("Execute SQL file %q on target %q", file, target.Host)
 	connectionURI := target.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connectionURI)
@@ -935,9 +935,9 @@ func executeSqlFile(file string) {
 	}
 
 	var errOccured = 0
-	sqlStrArray := createSqlStrArray(file, "")
-	for _, sqlStr := range sqlStrArray {
-		err := executeSqlStmtWithRetries(conn, sqlStr)
+	sqlInfoArr := createSqlStrInfoArray(file, objType)
+	for _, sqlInfo := range sqlInfoArr {
+		err := executeSqlStmtWithRetries(conn, sqlInfo, objType)
 		if err != nil {
 			errOccured = 1
 		}
@@ -947,32 +947,46 @@ func executeSqlFile(file string) {
 	<-utils.WaitChannel
 }
 
-func executeSqlStmtWithRetries(conn *pgx.Conn, sqlStr []string) error {
+func executeSqlStmtWithRetries(conn *pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
 	retryCount := 0
-	log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
+	log.Infof("Run query %q on target %q", sqlInfo.formattedStmtStr, target.Host)
 	for retryCount <= DDL_MAX_RETRY_COUNT {
-		_, err = conn.Exec(context.Background(), sqlStr[0])
+		_, err = conn.Exec(context.Background(), sqlInfo.stmt)
 		if err != nil {
 			log.Errorf("DDL Execution Failed %s", err)
 			if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-				retryCount < DDL_MAX_RETRY_COUNT {
-				log.Infof("RETRYING DDL: %q", sqlStr[0])
+				objType == "INDEX" {
+				// creating fresh connection
+				conn, err2 := pgx.Connect(context.Background(), target.GetConnectionUri())
+				if err2 != nil {
+					utils.ErrExit("could not created a connection: %v", err2)
+				}
+
+				// DROP INDEX in case INVALID index got created
+				dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", sqlInfo.objName)
+				res, err2 := conn.Exec(context.Background(), dropIdxQuery)
+				log.Infof("Dropping index: %q, res: %v", dropIdxQuery, res)
+				if err2 != nil {
+					utils.ErrExit("Failed in dropping index before retry: %s", sqlInfo.objName)
+				}
+
 				log.Infof("Sleep for 5 seconds")
 				time.Sleep(time.Second * 5)
+				log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 				retryCount++
 				continue
 			} else if strings.Contains(err.Error(), "already exists") {
 				if !target.IgnoreIfExists {
 					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 					if !target.ContinueOnError {
 						os.Exit(1)
 					}
 				}
 			} else {
 				fmt.Printf("\b \n    %s\n", err.Error())
-				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+				fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 				if !target.ContinueOnError { //default case
 					fmt.Println(err)
 					os.Exit(1)
