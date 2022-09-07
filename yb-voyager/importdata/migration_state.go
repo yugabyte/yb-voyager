@@ -127,7 +127,7 @@ type TableImportDataProgress struct {
 	*TableID
 	State              string
 	NumRecordsImported int64
-	PercentComlete     float32
+	PercentComplete    float32
 }
 
 func (migstate *MigrationState) GetImportDataProgress(tableIDList []*TableID) (*ImportDataProgress, error) {
@@ -182,7 +182,7 @@ func (migstate *MigrationState) getTableImportDataProgress(tableID *TableID) (*T
 	}
 	for _, batch := range doneBatches {
 		progress.NumRecordsImported += batch.NumRecordsImported
-		progress.PercentComlete += batch.ProgressContribution
+		progress.PercentComplete += batch.ProgressContribution
 	}
 	return progress, nil
 }

@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -130,6 +132,10 @@ func runImportDataStatusCmd() error {
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
 func runNewImportDataStatusCmd(migstate *importdata.MigrationState, tableIDList []*importdata.TableID) error {
+	tableNameToRowCount, err := getExportedTableRowCounts()
+	if err != nil {
+		return fmt.Errorf("get exported row count: %w", err)
+	}
 	progress, err := migstate.GetImportDataProgress(tableIDList)
 	if err != nil {
 		return fmt.Errorf("get import data status: %w", err)
@@ -138,7 +144,7 @@ func runNewImportDataStatusCmd(migstate *importdata.MigrationState, tableIDList 
 		fmt.Printf("No progress to report. Has the import data started?")
 		return nil
 	}
-	fmt.Printf("%-40s %-12s %13s %10s\n", "TABLE", "STATUS", "IMPORTED_ROWS", "PERCENTAGE")
+	fmt.Printf("%-40s %-12s %13s %10s %12s\n", "TABLE", "STATUS", "IMPORTED_ROWS", "PERCENTAGE", "EXPORTED_ROWS")
 
 	tableProgressList := maps.Values(progress.Progress)
 	// First sort by status and then by table-name.
@@ -153,8 +159,47 @@ func runNewImportDataStatusCmd(migstate *importdata.MigrationState, tableIDList 
 		}
 	})
 	for _, tp := range tableProgressList {
-		fmt.Printf("%-40s %-12s %13d %10.2f\n",
-			tp.TableID.QualifiedName(), tp.State, tp.NumRecordsImported, tp.PercentComlete)
+		fmt.Printf("%-40s %-12s %13d %10.2f %12s\n",
+			tp.TableID.QualifiedName(), tp.State, tp.NumRecordsImported, tp.PercentComplete,
+			getExportedTableRowCount(tableNameToRowCount, tp.TableID))
 	}
 	return nil
+}
+
+func getExportedTableRowCount(tableNameToRowCount map[string]int64, tableID *importdata.TableID) string {
+	count, ok := tableNameToRowCount[tableID.TableName]
+	if ok {
+		return fmt.Sprintf("%v", count)
+	}
+	count, ok = tableNameToRowCount[tableID.QualifiedName()]
+	if ok {
+		return fmt.Sprintf("%v", count)
+	}
+	return "NA"
+}
+
+func getExportedTableRowCounts() (map[string]int64, error) {
+	emptyMap := map[string]int64{}
+
+	filePath := filepath.Join(exportDir, "metainfo", "dataFileDescriptor.json")
+
+	dfd := &datafile.Descriptor{
+		ExportDir: exportDir,
+	}
+	dfdJson, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return emptyMap, nil
+		}
+		return nil, fmt.Errorf("load data descriptor: %w", err)
+	}
+
+	err = json.Unmarshal(dfdJson, &dfd)
+	if err != nil {
+		return nil, fmt.Errorf("parse data descriptor: %w", err)
+	}
+	if dfd.TableRowCount == nil {
+		return emptyMap, nil
+	}
+	return dfd.TableRowCount, nil
 }
