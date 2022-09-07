@@ -36,6 +36,7 @@ const (
 	COPY_MAX_RETRY_COUNT        = 10
 	MAX_SLEEP_SECOND            = 60
 	MAX_SPLIT_SIZE_BYTES        = 200 * 1024 * 1024
+	DEFAULT_BATCH_SIZE          = 20000
 )
 
 // import session parameters
