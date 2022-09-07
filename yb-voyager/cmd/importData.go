@@ -909,21 +909,25 @@ func newTargetConn() *pgx.Conn {
 }
 
 func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-		_, err := conn.Exec(context.Background(), setSchemaQuery)
-		if err != nil {
-			utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
-		}
+	if sourceDBType == POSTGRESQL || target.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+		// For PG, schema name is already included in the object name.
+		// No need to set schema if importing in the default schema.
+		return
+	}
+
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+	_, err := conn.Exec(context.Background(), setSchemaQuery)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 	}
 }
 
 func dropIdx(conn *pgx.Conn, idxName string) {
 	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
 	log.Infof("Dropping index: %q", dropIdxQuery)
-	_, err := (*conn).Exec(context.Background(), dropIdxQuery)
+	_, err := conn.Exec(context.Background(), dropIdxQuery)
 	if err != nil {
-		utils.ErrExit("Failed in dropping index: %s", idxName)
+		utils.ErrExit("Failed in dropping index %s: %v", idxName, err)
 	}
 }
 
@@ -931,7 +935,11 @@ func executeSqlFile(file string, objType string) {
 	log.Infof("Execute SQL file %q on target %q", file, target.Host)
 
 	conn := newTargetConn()
-	defer conn.Close(context.Background())
+	defer func() {
+		if conn != nil {
+			defer conn.Close(context.Background())
+		}
+	}()
 
 	var errOccured = 0
 	sqlInfoArr := createSqlStrInfoArray(file, objType)
@@ -989,14 +997,17 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				if !target.ContinueOnError {
 					os.Exit(1)
 				}
+			} else {
+				err = nil
 			}
 			return err
 		} else {
 			fmt.Printf("\b \n    %s\n", err.Error())
 			fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 			if !target.ContinueOnError { //default case
-				fmt.Println(err)
 				os.Exit(1)
+			} else {
+				err = nil
 			}
 			return err
 		}
