@@ -937,7 +937,7 @@ func executeSqlFile(file string, objType string) {
 	conn := newTargetConn()
 	defer func() {
 		if conn != nil {
-			defer conn.Close(context.Background())
+			conn.Close(context.Background())
 		}
 	}()
 
@@ -968,9 +968,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			return nil
 		}
 
-		log.Errorf("DDL Execution Failed %s", err)
+		log.Errorf("DDL Execution Failed: %s", err)
 		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			objType == "INDEX" {
+			objType == "INDEX" { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
@@ -981,35 +981,17 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
-
-			if retryCount == DDL_MAX_RETRY_COUNT {
-				fmt.Printf("\b \n    %s\n", err.Error())
-				fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-				if !target.ContinueOnError {
-					os.Exit(1)
-				}
-			}
 			continue
-		} else if strings.Contains(err.Error(), "already exists") {
-			if !target.IgnoreIfExists {
-				fmt.Printf("\b \n    %s\n", err.Error())
-				fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-				if !target.ContinueOnError {
-					os.Exit(1)
-				}
-			} else {
-				err = nil
-			}
-			return err
-		} else {
-			fmt.Printf("\b \n    %s\n", err.Error())
-			fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-			if !target.ContinueOnError { //default case
-				os.Exit(1)
-			} else {
-				err = nil
-			}
-			return err
+		} else if strings.Contains(err.Error(), "already exists") && target.IgnoreIfExists {
+			err = nil
+		}
+		break // no more iteration in case of non retriable error
+	}
+	if err != nil {
+		fmt.Printf("\b \n    %s\n", err.Error())
+		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+		if !target.ContinueOnError { //default case
+			os.Exit(1)
 		}
 	}
 	return err
