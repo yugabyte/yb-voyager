@@ -19,6 +19,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -88,17 +89,18 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 			}
 		}
 
-		sqlStrArray := createSqlStrArray(importObjectFilePath, importObjectType)
+		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
+		sqlInfoArr := createSqlStrInfoArray(importObjectFilePath, importObjectType)
 		errOccured := 0
-		for _, sqlStr := range sqlStrArray {
-			log.Infof("Execute STATEMENT:\n%s", sqlStr[1])
-			_, err := conn.Exec(context.Background(), sqlStr[0])
+		for _, sqlInfo := range sqlInfoArr {
+			log.Infof("Execute STATEMENT:\n%s", sqlInfo.formattedStmtStr)
+			_, err := conn.Exec(context.Background(), sqlInfo.stmt)
 			if err != nil {
 				log.Errorf("Previous SQL statement failed with error: %s", err)
 				if strings.Contains(err.Error(), "already exists") {
-					if !target.IgnoreIfExists {
+					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlInfo.formattedStmtStr) {
 						fmt.Printf("\b \n    %s\n", err.Error())
-						fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+						fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 						if !target.ContinueOnError {
 							os.Exit(1)
 						}
@@ -106,7 +108,7 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 				} else {
 					errOccured = 1
 					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
+					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 					if !target.ContinueOnError { //default case
 						fmt.Println(err)
 						os.Exit(1)

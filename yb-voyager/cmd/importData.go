@@ -482,23 +482,10 @@ func checkPrimaryKey(tableName string) bool {
 
 func truncateTables(tables []string) {
 	log.Infof("Truncating tables: %v", tables)
-	connectionURI := target.GetConnectionUri()
-	conn, err := pgx.Connect(context.Background(), connectionURI)
-	if err != nil {
-		utils.ErrExit("Unable to connect to database %q: %s", connectionURI, err)
-	}
-	defer conn.Close(context.Background())
-
 	log.Infof("Source DB type: %q", sourceDBType)
 
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-		_, err := conn.Exec(context.Background(), setSchemaQuery)
-		if err != nil {
-			utils.ErrExit("Failed to execute %q on target: %s", setSchemaQuery, err)
-		}
-	}
-
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
 	for _, table := range tables {
 		log.Infof("Truncating table: %q", table)
 		if target.VerboseMode {
@@ -702,13 +689,13 @@ func executePostImportDataSqls() {
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
 		go utils.Wait("done\n", "")
-		executeSqlFile(sequenceFilePath)
+		executeSqlFile(sequenceFilePath, "SEQUENCE")
 	}
 
 	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
 		fmt.Printf("creating indexes %10s", "")
 		go utils.Wait("done\n", "")
-		executeSqlFile(indexesFilePath)
+		executeSqlFile(indexesFilePath, "INDEX")
 	}
 
 }
@@ -860,13 +847,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 				// reset the reader to begin for every call
 				reader.Seek(0, io.SeekStart)
 				//setting the schema so that COPY command can acesss the table
-				if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-					setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-					_, err := conn.Exec(context.Background(), setSchemaQuery)
-					if err != nil {
-						utils.ErrExit("run query %q: %s", setSchemaQuery, err)
-					}
-				}
+				setTargetSchema(conn)
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 				rowsAffected = res.RowsAffected()
 
@@ -923,54 +904,105 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	}
 }
 
-func executeSqlFile(file string) {
-	log.Infof("Execute SQL file %q on target %q", file, target.Host)
-	connectionURI := target.GetConnectionUri()
-	conn, err := pgx.Connect(context.Background(), connectionURI)
+func newTargetConn() *pgx.Conn {
+	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
 		utils.ErrExit("connect to target db: %s", err)
 	}
-	defer conn.Close(context.Background())
 
-	if sourceDBType != POSTGRESQL && target.Schema != YUGABYTEDB_DEFAULT_SCHEMA {
-		setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-		_, err := conn.Exec(context.Background(), setSchemaQuery)
-		if err != nil {
-			utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
-		}
+	setTargetSchema(conn)
+	return conn
+}
+
+func setTargetSchema(conn *pgx.Conn) {
+	if sourceDBType == POSTGRESQL || target.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+		// For PG, schema name is already included in the object name.
+		// No need to set schema if importing in the default schema.
+		return
 	}
 
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+	_, err := conn.Exec(context.Background(), setSchemaQuery)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
+	}
+}
+
+func dropIdx(conn *pgx.Conn, idxName string) {
+	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
+	log.Infof("Dropping index: %q", dropIdxQuery)
+	_, err := conn.Exec(context.Background(), dropIdxQuery)
+	if err != nil {
+		utils.ErrExit("Failed in dropping index %s: %v", idxName, err)
+	}
+}
+
+func executeSqlFile(file string, objType string) {
+	log.Infof("Execute SQL file %q on target %q", file, target.Host)
+
+	conn := newTargetConn()
+	defer func() {
+		if conn != nil {
+			conn.Close(context.Background())
+		}
+	}()
+
 	var errOccured = 0
-	sqlStrArray := createSqlStrArray(file, "")
-	for _, sqlStr := range sqlStrArray {
-		log.Infof("Run query %q on target %q", sqlStr[1], target.Host)
-		_, err := conn.Exec(context.Background(), sqlStr[0])
+	sqlInfoArr := createSqlStrInfoArray(file, objType)
+	for _, sqlInfo := range sqlInfoArr {
+		if conn == nil {
+			conn = newTargetConn()
+		}
+		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
-			log.Errorf("Run query %q on target %q: %s", sqlStr[1], target.Host, err)
-			if strings.Contains(err.Error(), "already exists") {
-				if !target.IgnoreIfExists {
-					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
-					if !target.ContinueOnError {
-						os.Exit(1)
-					}
-				}
-			} else {
-				errOccured = 1
-				fmt.Printf("\b \n    %s\n", err.Error())
-				fmt.Printf("    STATEMENT: %s\n", sqlStr[1])
-				if !target.ContinueOnError { //default case
-					fmt.Println(err)
-					os.Exit(1)
-				}
-			}
+			conn.Close(context.Background())
+			conn = nil
+			errOccured = 1
 		}
 	}
 
 	utils.WaitChannel <- errOccured
 	<-utils.WaitChannel
+}
+
+func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
+	var err error
+	log.Infof("Run query %q on target %q", sqlInfo.formattedStmtStr, target.Host)
+	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
+		_, err = (*conn).Exec(context.Background(), sqlInfo.stmt)
+		if err == nil {
+			return nil
+		}
+
+		log.Errorf("DDL Execution Failed: %s", err)
+		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
+			objType == "INDEX" { // retriable error
+			// creating fresh connection
+			(*conn).Close(context.Background())
+			*conn = newTargetConn()
+
+			// DROP INDEX in case INVALID index got created
+			dropIdx(*conn, sqlInfo.objName)
+
+			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
+			time.Sleep(time.Second * 5)
+			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+			continue
+		} else if strings.Contains(err.Error(), "already exists") && target.IgnoreIfExists {
+			err = nil
+		}
+		break // no more iteration in case of non retriable error
+	}
+	if err != nil {
+		fmt.Printf("\b \n    %s\n", err.Error())
+		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+		if !target.ContinueOnError { //default case
+			os.Exit(1)
+		}
+	}
+	return err
 }
 
 func getInProgressFilePath(task *SplitFileImportTask) string {
