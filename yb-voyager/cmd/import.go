@@ -116,7 +116,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing database-objects/table-rows to start from zero")
 
-	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", 100000,
+	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
 		"Maximum size of each batch import ")
 	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
