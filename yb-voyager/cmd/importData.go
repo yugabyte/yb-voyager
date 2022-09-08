@@ -445,13 +445,31 @@ func checkPrimaryKey(tableName string) bool {
 		table = strings.Split(tableName, ".")[0]
 	}
 
-	if sourceDBType == ORACLE && !utils.IsQuotedString(table) {
+	if sourceDBType == ORACLE || !utils.IsQuotedString(table) {
 		table = strings.ToLower(table)
 	}
 
+	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, table)
+	log.Infof("Running query on target DB: %s", checkTableSql)
+
+	rowTable, e := conn.Query(context.Background(), checkTableSql)
+	if e != nil {
+		utils.ErrExit("error in querying to check table %q is present: %s", table, e)
+	}
+	
+	if(rowTable.Next()){
+		log.Infof("table %s is present in DB", table)
+	} else {
+		log.Infof("table %s is not present in DB", table)
+		return false
+	}
+
+    rowTable.Close()
+	
 	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
 	but in case of oracle exported data files(which we use for to extract tablename)
 	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
+
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
 	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
 	// fmt.Println(checkPKSql)
