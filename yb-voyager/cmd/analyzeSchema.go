@@ -101,7 +101,7 @@ var (
 	alterColumnStatsRegex           = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STATISTICS`)
 	alterColumnStorageRegex         = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STORAGE`)
 	alterColumnSetAttributesRegex   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET \(`)
-	alterColumnResetAttributesRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* RESET`)
+	alterColumnResetAttributesRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* RESET `)
 	alterConstrRegex                = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_."]+).* ALTER CONSTRAINT`)
 	setOidsRegex                    = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITH OIDS`)
 	clusterRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* CLUSTER `)
