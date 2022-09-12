@@ -844,12 +844,40 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 			remainingRetries := COPY_MAX_RETRY_COUNT + 1
 
 			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				// get the pid for this connection
+				rows, err2 := conn.Query(context.Background(), "SELECT pg_backend_pid()")
+				var pid int
+				if rows.Next() {
+					rows.Scan(&pid)
+				}
+				rows.Close()
+				if err2 != nil {
+					utils.ErrExit("unable to fetch pid for copyCommand=%q: %v", copyCommand, err)
+				}
+
 				// reset the reader to begin for every call
 				reader.Seek(0, io.SeekStart)
 				//setting the schema so that COPY command can acesss the table
 				setTargetSchema(conn)
 				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
 				rowsAffected = res.RowsAffected()
+
+				log.Infof("fetched pid=%d for copyCommand=%q", pid, copyCommand)
+				var tuples_processed int64
+				rows, err2 = conn.Query(context.Background(),
+					fmt.Sprintf("SELECT tuples_processed from pg_stat_progress_copy where pid = %d", pid))
+				if err2 != nil {
+					utils.ErrExit("unable to fetch tuples_processed for pid=%d: %v", pid, err2)
+				}
+				if rows.Next() {
+					rows.Scan(&tuples_processed)
+				}
+				rows.Close()
+				if rowsAffected != tuples_processed {
+					log.Infof("mismatch between tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
+				} else {
+					log.Infof("tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
+				}
 
 				if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
 					return false, err
