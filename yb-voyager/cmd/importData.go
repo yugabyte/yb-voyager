@@ -436,7 +436,7 @@ func checkPrimaryKey(tableName string) bool {
 	}
 	defer conn.Close(context.Background())
 
-	var table, schema string
+	var table, schema, originalTableName string
 	if len(strings.Split(tableName, ".")) == 2 {
 		schema = strings.Split(tableName, ".")[0]
 		table = strings.Split(tableName, ".")[1]
@@ -444,12 +444,18 @@ func checkPrimaryKey(tableName string) bool {
 		schema = target.Schema
 		table = strings.Split(tableName, ".")[0]
 	}
+	originalTableName = table
 
-	if sourceDBType == ORACLE || !utils.IsQuotedString(table) {
+
+	if !utils.IsQuotedString(table) {
 		table = strings.ToLower(table)
+	} else {
+		var unQuotedTableName string
+		unQuotedTableName = table[1 : len(table)-1]
+		table = unQuotedTableName
 	}
 
-	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, table)
+	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
 	log.Infof("Running query on target DB: %s", checkTableSql)
 
 	rowTable, e := conn.Query(context.Background(), checkTableSql)
