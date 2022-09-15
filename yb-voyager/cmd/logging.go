@@ -64,4 +64,5 @@ func InitLogging(logDir string) {
 
 	log.Info("Logging initialised.")
 	log.Infof("Args: %v", os.Args)
+	log.Infof("\n%s", getVersionInfo())
 }
