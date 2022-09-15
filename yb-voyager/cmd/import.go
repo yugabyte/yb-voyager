@@ -74,7 +74,7 @@ func validateImportFlags() {
 	validateTargetSchemaFlag()
 	// For beta2.0 release (and onwards until further notice)
 	if disableTransactionalWrites {
-		fmt.Println("WARNING: --disable-transactional-writes is an experimental feature")
+		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 }
 
