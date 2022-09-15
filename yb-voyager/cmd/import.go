@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -71,6 +72,10 @@ func validateImportFlags() {
 	validateImportObjectsFlag(target.ImportObjects, "object-list")
 	validateImportObjectsFlag(target.ExcludeImportObjects, "exclude-object-list")
 	validateTargetSchemaFlag()
+	// For beta2.0 release (and onwards until further notice)
+	if disableTransactionalWrites {
+		fmt.Println("WARNING: --disable-transactional-writes is an experimental feature")
+	}
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -156,6 +161,8 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
 		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
+	// Hidden for beta2.0 release (and onwards until further notice).
+	cmd.Flags().MarkHidden("disable-transactional-writes")
 }
 
 func registerImportDataFlags(cmd *cobra.Command) {
