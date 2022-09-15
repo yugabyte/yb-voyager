@@ -91,17 +91,21 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 			_, err := conn.Exec(context.Background(), sqlInfo.stmt)
 			if err != nil {
 				log.Errorf("Previous SQL statement failed with error: %s", err)
-				if strings.Contains(err.Error(), "already exists") && !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlInfo.formattedStmtStr) {
-					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-					if !target.ContinueOnError {
-						os.Exit(1)
+				if strings.Contains(err.Error(), "already exists") {
+					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlInfo.formattedStmtStr) {
+						fmt.Printf("\b \n    %s\n", err.Error())
+						fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+						if !target.ContinueOnError {
+							os.Exit(1)
+						}
 					}
-				} else if strings.Contains(err.Error(), "multiple primary keys") && !target.IgnoreIfExists {
-					fmt.Printf("\b \n	%s\n", err.Error())
-					fmt.Printf("	STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-					if !target.ContinueOnError {
-						os.Exit(1)
+				} else if strings.Contains(err.Error(), "multiple primary keys") {
+					if !target.IgnoreIfExists {
+						fmt.Printf("\b \n	%s\n", err.Error())
+						fmt.Printf("	STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+						if !target.ContinueOnError {
+							os.Exit(1)
+						}
 					}
 				} else {
 					errOccured = 1
