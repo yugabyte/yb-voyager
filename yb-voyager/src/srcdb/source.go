@@ -189,6 +189,8 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		} else if strings.HasPrefix(line, "PG_VERSION") {
 			lines[i] = "PG_VERSION " + strconv.Itoa(11) //TODO YugabyteDB compatible with postgres version ?
+		} else if strings.HasPrefix(line, "INDEXES_RENAMING") && source.DBType == "mysql"{
+			lines[i] = "INDEXES_RENAMING " + strconv.Itoa(1)
 		}
 	}
 
