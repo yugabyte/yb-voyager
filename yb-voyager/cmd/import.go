@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -63,6 +65,10 @@ func validateImportFlags(cmd *cobra.Command) {
 	}
 	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && ExtractMetaInfo(exportDir).SourceDBType == "postgresql" {
 		utils.ErrExit("ERROR: --target-db-schema flag is only valid for export from 'oracle' and 'mysql' db type")
+	}
+	// For beta2.0 release (and onwards until further notice)
+	if disableTransactionalWrites {
+		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 }
 
@@ -156,6 +162,8 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
 		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
+	// Hidden for beta2.0 release (and onwards until further notice).
+	cmd.Flags().MarkHidden("disable-transactional-writes")
 }
 
 func validateTargetPortRange() {
