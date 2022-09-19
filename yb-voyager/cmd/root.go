@@ -110,12 +110,10 @@ func initConfig() {
 
 func checkExportDirFlag() {
 	if exportDir == "" {
-		fmt.Fprintln(os.Stderr, `ERROR: required flag "export-dir" not set`)
-		os.Exit(1)
+		utils.ErrExit(`ERROR: required flag "export-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		fmt.Fprintf(os.Stderr, "Directory %q doesn't exists.\n", exportDir)
-		os.Exit(1)
+		utils.ErrExit("export-dir %q doesn't exists.\n", exportDir)
 	} else if exportDir == "." {
 		fmt.Println("Note: Using current working directory as export directory")
 	} else {

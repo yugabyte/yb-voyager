@@ -203,16 +203,26 @@ func checkFileFormat() {
 
 func checkDataDirFlag() {
 	if dataDir == "" {
-		fmt.Fprintln(os.Stderr, `ERROR: required flag "data-dir" not set`)
-		os.Exit(1)
+		utils.ErrExit(`ERROR: required flag "data-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(dataDir) {
-		fmt.Fprintf(os.Stderr, "Directory: %s doesn't exists!!\n", dataDir)
-		os.Exit(1)
-	} else if dataDir == "." {
+		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
+	}
+	dataDirAbs, err := filepath.Abs(dataDir)
+	if err != nil {
+		utils.ErrExit("unable to resolve absolute path for data-dir(%q): %v", dataDir, err)
+	}
+
+	exportDirAbs, err := filepath.Abs(exportDir)
+	if err != nil {
+		utils.ErrExit("unable to resolve absolute path for export-dir(%q): %v", exportDir, err)
+	}
+
+	if strings.HasPrefix(dataDirAbs, exportDirAbs) {
+		utils.ErrExit("ERROR: data-dir must be outside the export-dir")
+	}
+	if dataDir == "." {
 		fmt.Println("Note: Using current working directory as data directory")
-	} else {
-		dataDir = strings.TrimRight(dataDir, "/")
 	}
 }
 
