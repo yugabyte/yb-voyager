@@ -18,8 +18,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -32,6 +34,7 @@ var (
 	migrationMode string
 	startClean    bool
 	logLevel      string
+	lock          lockfile.Lockfile
 )
 
 var rootCmd = &cobra.Command{
@@ -40,7 +43,11 @@ var rootCmd = &cobra.Command{
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
+			if cmd.Use != "version" {
+				lockExportDir()
+			}
 			InitLogging(exportDir, cmd.Use == "status")
 		}
 	},
@@ -49,6 +56,14 @@ var rootCmd = &cobra.Command{
 		if len(args) == 0 {
 			cmd.Help()
 			os.Exit(0)
+		}
+	},
+
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
+			if cmd.Use != "version" {
+				unlockExportDir()
+			}
 		}
 	},
 }
@@ -119,4 +134,38 @@ func validateExportDirFlag() {
 	} else {
 		exportDir = strings.TrimRight(exportDir, "/")
 	}
+}
+
+func lockExportDir() {
+	lockfileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
+	if err != nil {
+		fmt.Println("Unable to create an absolute path for the export-dir lockfile")
+		os.Exit(1)
+	}
+
+	lock, err = lockfile.New(lockfileName)
+	if err != nil {
+		fmt.Printf("Failed to init lock on export-dir. Unable to create lockfile %v. Reason: %v", lockfileName, err)
+		os.Exit(1)
+	}
+
+	err = lock.TryLock()
+	if err == nil {
+		fmt.Println("Got the lock on export directory")
+	} else if err == lockfile.ErrBusy {
+		fmt.Println("Unable to lock the export-dir. Another instance of yb-voyager is running in the export-dir.")
+		os.Exit(1)
+	} else {
+		fmt.Printf("Unable to lock the export-dir. Reason: %v", err)
+		os.Exit(1)
+	}
+
+}
+
+func unlockExportDir() {
+	err := lock.Unlock()
+	if err != nil {
+		panic(fmt.Sprintf("Cannot unlock %q. Reason: %v", lock, err))
+	}
+	fmt.Println("Unlocked the export directory")
 }
