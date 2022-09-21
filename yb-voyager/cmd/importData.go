@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -867,22 +867,43 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 				rows, err2 = conn.Query(context.Background(),
 					fmt.Sprintf("SELECT tuples_processed from pg_stat_progress_copy where pid = %d", pid))
 				if err2 != nil {
-					utils.ErrExit("unable to fetch tuples_processed for pid=%d: %v", pid, err2)
-				}
-				if rows.Next() {
-					rows.Scan(&tuples_processed)
-				}
-				rows.Close()
-				if rowsAffected != tuples_processed {
-					log.Infof("mismatch between tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
+					log.Infof("unable to fetch tuples_processed for pid=%d: %v", pid, err2)
+					rows.Close() // closing previous rows
+					log.Infof("Logging pg_stat_activity entry for pid=%d: %v", pid)
+					newConn, err2 := pgx.Connect(context.Background(), target.GetConnectionUri())
+					if err2 != nil {
+						utils.ErrExit("error in creating new conn for pg_stat_activity query: %v", err2)
+					}
+					rows, err2 = newConn.Query(context.Background(),
+						fmt.Sprintf("Select * from pg_stat_activity where pid = %d", pid))
+					if err2 != nil {
+						utils.ErrExit("unable to fetch the pg_stat_activity table entry for pid=%d", pid)
+					}
+					res := fmt.Sprintf("pg_stat_activity entry for pid=%d: ", pid)
+					for rows.Next() {
+						columnValues, _ := rows.Values()
+						for i, v := range columnValues {
+							res += fmt.Sprintf("type of value at %v=%T, value=%v | ", i, v, v)
+						}
+					}
+					log.Infof(res)
+					rows.Close()
+					newConn.Close(context.Background())
 				} else {
-					log.Infof("tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
-				}
+					if rows.Next() {
+						rows.Scan(&tuples_processed)
+					}
+					rows.Close()
+					if rowsAffected != tuples_processed {
+						log.Infof("mismatch between tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
+					} else {
+						log.Infof("tuples_processed=%d for pid=%d and rowsAffected=%d\n copyCommand=%q, splitname=%q", tuples_processed, pid, rowsAffected, copyCommand, inProgressFilePath)
+					}
 
-				if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
-					return false, err
+					if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
+						return false, err
+					}
 				}
-
 				/*
 					Note: If a user retries after deleting some row(s) from a batch,
 					yb-voyager will never be able to mark the batch as completed
