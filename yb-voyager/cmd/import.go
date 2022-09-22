@@ -114,10 +114,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
 
-	cmd.Flags().BoolVar(&target.ImportIndexesAfterData, "import-indexes-after-data", true,
-		"false - import indexes before data\n"+
-			"true - create index after data i.e. index backfill")
-
 	cmd.Flags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
 

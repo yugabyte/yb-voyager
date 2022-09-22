@@ -31,42 +31,40 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
+func getImportObjectFilePath(importObjectType string) string {
+	if importObjectType == "INDEX" {
+		d := filepath.Join(exportDir, "schema", "tables")
+		return filepath.Join(d, "INDEXES_table.sql")
+	} else {
+		d := filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
+		return filepath.Join(d, strings.ToLower(importObjectType)+".sql")
+	}
+}
+
 func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 	finalImportObjectList := getImportObjectList()
 	if len(finalImportObjectList) == 0 {
 		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 	}
 
+	var err error
+	var conn *pgx.Conn
+
 	for _, importObjectType := range finalImportObjectList {
-		var importObjectDirPath, importObjectFilePath string
-
-		if importObjectType != "INDEX" {
-			importObjectDirPath = filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
-			importObjectFilePath = filepath.Join(importObjectDirPath, strings.ToLower(importObjectType)+".sql")
-		} else {
-			if target.ImportIndexesAfterData {
-				continue
-			}
-			importObjectDirPath = filepath.Join(exportDir, "schema", "tables")
-			importObjectFilePath = filepath.Join(importObjectDirPath, "INDEXES_table.sql")
-		}
-
+		importObjectFilePath := getImportObjectFilePath(importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
 
-		fmt.Printf("importing %10s %5s", importObjectType, "")
-		go utils.Wait("done\n", "")
-
+		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
 		log.Infof("Importing %q", importObjectFilePath)
 
-		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
-		if err != nil {
-			utils.WaitChannel <- 1
-			<-utils.WaitChannel
-			utils.ErrExit("Failed to connect to the target DB: %s", err)
+		if conn == nil {
+			conn, err = pgx.Connect(context.Background(), target.GetConnectionUri())
+			if err != nil {
+				utils.ErrExit("Failed to connect to the target DB: %s", err)
+			}
 		}
-
 		// target-db-schema is not public and source is either Oracle/MySQL
 		if sourceDBType != POSTGRESQL {
 			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
@@ -85,8 +83,14 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 
 		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
 		sqlInfoArr := createSqlStrInfoArray(importObjectFilePath, importObjectType)
-		errOccured := 0
 		for _, sqlInfo := range sqlInfoArr {
+			if !(strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")) {
+				if len(sqlInfo.stmt) < 80 {
+					fmt.Printf("%s\n", sqlInfo.stmt)
+				} else {
+					fmt.Printf("%s ...\n", sqlInfo.stmt[:80])
+				}
+			}
 			log.Infof("Execute STATEMENT:\n%s", sqlInfo.formattedStmtStr)
 			_, err := conn.Exec(context.Background(), sqlInfo.stmt)
 			if err != nil {
@@ -108,22 +112,21 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 						}
 					}
 				} else {
-					errOccured = 1
 					fmt.Printf("\b \n    %s\n", err.Error())
 					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
 					if !target.ContinueOnError { //default case
 						fmt.Println(err)
 						os.Exit(1)
 					}
+					conn.Close(context.Background())
+					conn = nil
 				}
 				log.Infof("Continuing despite error: IgnoreIfExists(%v), ContinueOnError(%v)",
 					target.IgnoreIfExists, target.ContinueOnError)
 			}
 		}
-
-		utils.WaitChannel <- errOccured
-		<-utils.WaitChannel
-
+	}
+	if conn != nil {
 		conn.Close(context.Background())
 	}
 	log.Info("Schema import is complete.")

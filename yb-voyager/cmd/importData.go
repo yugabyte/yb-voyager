@@ -704,7 +704,7 @@ func executePostImportDataSqls() {
 		executeSqlFile(sequenceFilePath, "SEQUENCE")
 	}
 
-	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
+	if utils.FileOrFolderExists(indexesFilePath) {
 		fmt.Printf("creating indexes %10s", "")
 		go utils.Wait("done\n", "")
 		executeSqlFile(indexesFilePath, "INDEX")
