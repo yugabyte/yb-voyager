@@ -31,27 +31,13 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-func getImportObjectFilePath(importObjectType string) string {
-	if importObjectType == "INDEX" {
-		d := filepath.Join(exportDir, "schema", "tables")
-		return filepath.Join(d, "INDEXES_table.sql")
-	} else {
-		d := filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
-		return filepath.Join(d, strings.ToLower(importObjectType)+".sql")
-	}
-}
-
-func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
-	finalImportObjectList := getImportObjectList()
-	if len(finalImportObjectList) == 0 {
-		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
-	}
-
+func importSchemaInternal(target *tgtdb.Target, exportDir string, importObjectList []string,
+	skipFn func(string, string) bool) {
 	var err error
 	var conn *pgx.Conn
-
-	for _, importObjectType := range finalImportObjectList {
-		importObjectFilePath := getImportObjectFilePath(importObjectType)
+	schemaDir := filepath.Join(exportDir, "schema")
+	for _, importObjectType := range importObjectList {
+		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
@@ -84,7 +70,11 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
 		sqlInfoArr := createSqlStrInfoArray(importObjectFilePath, importObjectType)
 		for _, sqlInfo := range sqlInfoArr {
-			if !(strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")) {
+			setOrSelectStmt := strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")
+			if !setOrSelectStmt && skipFn != nil && skipFn(importObjectType, sqlInfo.stmt) {
+				continue
+			}
+			if !setOrSelectStmt {
 				if len(sqlInfo.stmt) < 80 {
 					fmt.Printf("%s\n", sqlInfo.stmt)
 				} else {

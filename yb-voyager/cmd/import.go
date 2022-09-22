@@ -163,6 +163,8 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"List of schema object types to include while importing schema. (Note: works only for import schema command)")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
 		"List of schema object types to exclude while importing schema (no-op if --object-list is used) (Note: works only for import schema command)")
+	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,
+		"If set, creates indexes, foreign-keys, and triggers in target db")
 }
 
 func validateTargetPortRange() {

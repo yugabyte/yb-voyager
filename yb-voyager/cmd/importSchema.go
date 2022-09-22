@@ -51,15 +51,13 @@ func init() {
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
-func importSchema() {
-	utils.PrintAndLog("import of schema in %q database started", target.DBName)
-	bgCtx := context.Background()
+var flagPostImportData bool
 
+func importSchema() {
 	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
-
 	conn := target.DB().Conn()
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
@@ -67,6 +65,35 @@ func importSchema() {
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
 
+	if !flagPostImportData {
+		createTargetSchemas(conn)
+	}
+	var importObjectList []string
+	var skipFn func(objType, stmt string) bool
+	isCreateFKStmt := func(objType, stmt string) bool {
+		return objType == "TABLE" && strings.HasPrefix(stmt, "ALTER TABLE") &&
+			strings.Contains(stmt, "ADD CONSTRAINT") &&
+			strings.Contains(stmt, "FOREIGN KEY")
+	}
+	if !flagPostImportData { // Pre data load.
+		importObjectList = getImportObjectList()
+		importObjectList = utils.SetDifference(importObjectList, []string{"TRIGGER", "INDEX"})
+		if len(importObjectList) == 0 {
+			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+		}
+		// Do not create FK before loading data.
+		skipFn = isCreateFKStmt
+	} else { // Post data load.
+		importObjectList = []string{"TABLE", "INDEX", "TRIGGER"}
+		skipFn = func(objType, stmt string) bool {
+			return objType == "TABLE" && !isCreateFKStmt(objType, stmt)
+		}
+	}
+	importSchemaInternal(&target, exportDir, importObjectList, skipFn)
+	callhome.PackAndSendPayload(exportDir)
+}
+
+func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []string
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
@@ -97,7 +124,7 @@ func importSchema() {
 				}
 
 				utils.PrintAndLog("dropping schema '%s' in target database", targetSchema)
-				_, err := conn.Exec(bgCtx, dropSchemaQuery)
+				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
 					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
 				}
@@ -114,7 +141,7 @@ func importSchema() {
 		only create target.Schema, other required schemas are created via .sql files */
 		if !schemaExists {
 			utils.PrintAndLog("creating schema '%s' in target database...", target.Schema)
-			_, err := conn.Exec(bgCtx, createSchemaQuery)
+			_, err := conn.Exec(context.Background(), createSchemaQuery)
 			if err != nil {
 				utils.ErrExit("Failed to create %q schema in the target DB: %s", target.Schema, err)
 			}
@@ -125,9 +152,6 @@ func importSchema() {
 			utils.ErrExit("User selected not to import in the `public` schema. Exiting.")
 		}
 	}
-
-	YugabyteDBImportSchema(&target, exportDir)
-	callhome.PackAndSendPayload(exportDir)
 }
 
 func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
