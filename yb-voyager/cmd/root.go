@@ -151,7 +151,7 @@ func lockExportDir() {
 
 	err = lock.TryLock()
 	if err == nil {
-		fmt.Println("Locked the export directory")
+		return
 	} else if err == lockfile.ErrBusy {
 		fmt.Println("Another instance of yb-voyager is running in the export-dir.")
 		os.Exit(1)
@@ -167,5 +167,4 @@ func unlockExportDir() {
 	if err != nil {
 		panic(fmt.Sprintf("Unable to unlock %q: %v", lock, err))
 	}
-	fmt.Println("Unlocked the export directory")
 }
