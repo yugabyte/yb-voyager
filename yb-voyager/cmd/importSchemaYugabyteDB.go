@@ -16,108 +16,27 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
-
-	"github.com/jackc/pgx/v4"
 )
 
 func importSchemaInternal(target *tgtdb.Target, exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) {
-	var err error
-	var conn *pgx.Conn
 	schemaDir := filepath.Join(exportDir, "schema")
 	for _, importObjectType := range importObjectList {
 		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-
 		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
-		log.Infof("Importing %q", importObjectFilePath)
-
-		if conn == nil {
-			conn, err = pgx.Connect(context.Background(), target.GetConnectionUri())
-			if err != nil {
-				utils.ErrExit("Failed to connect to the target DB: %s", err)
-			}
-		}
-		// target-db-schema is not public and source is either Oracle/MySQL
-		if sourceDBType != POSTGRESQL {
-			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-			log.Infof("Running query %q on the target DB", setSchemaQuery)
-			_, err := conn.Exec(context.Background(), setSchemaQuery)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", setSchemaQuery, err)
-			}
-
-			log.Infof("Running query %q on the target DB", SET_CLIENT_ENCODING_TO_UTF8)
-			_, err = conn.Exec(context.Background(), SET_CLIENT_ENCODING_TO_UTF8)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", SET_CLIENT_ENCODING_TO_UTF8, err)
-			}
-		}
-
-		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
-		sqlInfoArr := createSqlStrInfoArray(importObjectFilePath, importObjectType)
-		for _, sqlInfo := range sqlInfoArr {
-			setOrSelectStmt := strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")
-			if !setOrSelectStmt && skipFn != nil && skipFn(importObjectType, sqlInfo.stmt) {
-				continue
-			}
-			if !setOrSelectStmt {
-				if len(sqlInfo.stmt) < 80 {
-					fmt.Printf("%s\n", sqlInfo.stmt)
-				} else {
-					fmt.Printf("%s ...\n", sqlInfo.stmt[:80])
-				}
-			}
-			log.Infof("Execute STATEMENT:\n%s", sqlInfo.formattedStmtStr)
-			_, err := conn.Exec(context.Background(), sqlInfo.stmt)
-			if err != nil {
-				log.Errorf("Previous SQL statement failed with error: %s", err)
-				if strings.Contains(err.Error(), "already exists") {
-					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlInfo.formattedStmtStr) {
-						fmt.Printf("\b \n    %s\n", err.Error())
-						fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-						if !target.ContinueOnError {
-							os.Exit(1)
-						}
-					}
-				} else if strings.Contains(err.Error(), "multiple primary keys") {
-					if !target.IgnoreIfExists {
-						fmt.Printf("\b \n	%s\n", err.Error())
-						fmt.Printf("	STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-						if !target.ContinueOnError {
-							os.Exit(1)
-						}
-					}
-				} else {
-					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-					if !target.ContinueOnError { //default case
-						fmt.Println(err)
-						os.Exit(1)
-					}
-					conn.Close(context.Background())
-					conn = nil
-				}
-				log.Infof("Continuing despite error: IgnoreIfExists(%v), ContinueOnError(%v)",
-					target.IgnoreIfExists, target.ContinueOnError)
-			}
-		}
-	}
-	if conn != nil {
-		conn.Close(context.Background())
+		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
 	log.Info("Schema import is complete.")
 }

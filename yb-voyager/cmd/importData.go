@@ -691,25 +691,11 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 }
 
 func executePostImportDataSqls() {
-	/*
-		Enable Sequences, if required
-		Add Indexes, if required
-	*/
 	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
-	indexesFilePath := filepath.Join(exportDir, "/schema/tables/INDEXES_table.sql")
-
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
-		go utils.Wait("done\n", "")
-		executeSqlFile(sequenceFilePath, "SEQUENCE")
+		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
 	}
-
-	if utils.FileOrFolderExists(indexesFilePath) {
-		fmt.Printf("creating indexes %10s", "")
-		go utils.Wait("done\n", "")
-		executeSqlFile(indexesFilePath, "INDEX")
-	}
-
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {
@@ -951,7 +937,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 	}
 }
 
-func executeSqlFile(file string, objType string) {
+func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
 	log.Infof("Execute SQL file %q on target %q", file, target.Host)
 
 	conn := newTargetConn()
@@ -961,27 +947,35 @@ func executeSqlFile(file string, objType string) {
 		}
 	}()
 
-	var errOccured = 0
 	sqlInfoArr := createSqlStrInfoArray(file, objType)
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
 		}
+
+		setOrSelectStmt := strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")
+		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
+			continue
+		}
+		if !setOrSelectStmt {
+			if len(sqlInfo.stmt) < 80 {
+				fmt.Printf("%s\n", sqlInfo.stmt)
+			} else {
+				fmt.Printf("%s ...\n", sqlInfo.stmt[:80])
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			errOccured = 1
 		}
 	}
-
-	utils.WaitChannel <- errOccured
-	<-utils.WaitChannel
 }
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
-	log.Infof("Run query %q on target %q", sqlInfo.formattedStmtStr, target.Host)
+	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmtStr)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		_, err = (*conn).Exec(context.Background(), sqlInfo.stmt)
 		if err == nil {
