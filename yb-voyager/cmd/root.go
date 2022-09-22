@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			if cmd.Use != "version" && cmd.Use != "status" {
+			if cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "status" {
 				lockExportDir()
 			}
 			InitLogging(exportDir, cmd.Use == "status")
@@ -61,7 +61,7 @@ var rootCmd = &cobra.Command{
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			if cmd.Use != "version" && cmd.Use != "status" {
+			if cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "status" {
 				unlockExportDir()
 			}
 		}
