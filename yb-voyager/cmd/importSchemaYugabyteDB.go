@@ -153,14 +153,12 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 	return metaInfo
 }
 
-func getImportObjectList() []string {
+func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	var finalImportObjectList []string
 	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
 	for i, item := range excludeObjectList {
 		excludeObjectList[i] = strings.ToUpper(item)
 	}
-	// This list also has defined the order to create object type in target YugabyteDB.
-	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
 	if target.ImportObjects != "" {
 		includeObjectList := utils.CsvStringToSlice(target.ImportObjects)
 		for i, item := range includeObjectList {
