@@ -503,7 +503,7 @@ func truncateTables(tables []string) {
 		if target.VerboseMode {
 			fmt.Printf("Truncating table %s...\n", table)
 		}
-		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
+		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s", table)
 		_, err := conn.Exec(context.Background(), truncateStmt)
 		if err != nil {
 			utils.ErrExit("error while truncating table %q: %s", table, err)
