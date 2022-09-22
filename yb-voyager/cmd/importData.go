@@ -447,30 +447,28 @@ func checkPrimaryKey(tableName string) bool {
 	originalTableName = table
 
 
-	if !utils.IsQuotedString(table) {
+	if utils.IsQuotedString(table) {
+		table = strings.Trim(table, `"`)
+	  } else {
 		table = strings.ToLower(table)
-	} else {
-		var unQuotedTableName string
-		unQuotedTableName = table[1 : len(table)-1]
-		table = unQuotedTableName
-	}
+	  }
 
 	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
 	log.Infof("Running query on target DB: %s", checkTableSql)
 
-	rowTable, e := conn.Query(context.Background(), checkTableSql)
-	if e != nil {
-		utils.ErrExit("error in querying to check table %q is present: %s", table, e)
+	rows, err := conn.Query(context.Background(), checkTableSql)
+	if err != nil {
+		utils.ErrExit("error in querying to check table %q is present: %s", table, err)
 	}
 	
-	if(rowTable.Next()){
+	if(rows.Next()){
 		log.Infof("table %s is present in DB", table)
 	} else {
 		log.Infof("table %s is not present in DB", table)
 		return false
 	}
 
-    rowTable.Close()
+    rows.Close()
 	
 	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
 	but in case of oracle exported data files(which we use for to extract tablename)
@@ -481,7 +479,7 @@ func checkPrimaryKey(tableName string) bool {
 	// fmt.Println(checkPKSql)
 
 	log.Infof("Running query on target DB: %s", checkPKSql)
-	rows, err := conn.Query(context.Background(), checkPKSql)
+	rows, err = conn.Query(context.Background(), checkPKSql)
 	if err != nil {
 		utils.ErrExit("error in querying to check PK on table %q: %s", table, err)
 	}
