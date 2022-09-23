@@ -34,7 +34,7 @@ var (
 	migrationMode string
 	startClean    bool
 	logLevel      string
-	lock          lockfile.Lockfile
+	lockFile      lockfile.Lockfile
 )
 
 var rootCmd = &cobra.Command{
@@ -135,19 +135,19 @@ func validateExportDirFlag() {
 }
 
 func lockExportDir() {
-	lockfileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
+	lockFileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
 		os.Exit(1)
 	}
 
-	lock, err = lockfile.New(lockfileName)
+	lockFile, err = lockfile.New(lockFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockfileName, err)
+		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockFileName, err)
 		os.Exit(1)
 	}
 
-	err = lock.TryLock()
+	err = lockFile.TryLock()
 	if err == nil {
 		return
 	} else if err == lockfile.ErrBusy {
@@ -161,9 +161,9 @@ func lockExportDir() {
 }
 
 func unlockExportDir() {
-	err := lock.Unlock()
+	err := lockFile.Unlock()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to unlock %q: %v\n", lock, err)
+		fmt.Fprintf(os.Stderr, "Unable to unlock %q: %v\n", lockFile, err)
 		os.Exit(1)
 	}
 }
