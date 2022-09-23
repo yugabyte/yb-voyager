@@ -464,8 +464,7 @@ func checkPrimaryKey(tableName string) bool {
 	if(rows.Next()){
 		log.Infof("table %s is present in DB", table)
 	} else {
-		log.Infof("table %s is not present in DB", table)
-		return false
+		utils.ErrExit("table %q doesn't exist in target DB", table)
 	}
 
     rows.Close()
