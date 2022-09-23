@@ -36,18 +36,6 @@ var importCmd = &cobra.Command{
 	Use:   "import",
 	Short: "import schema and data from compatible source database(Oracle, Mysql, Postgres)",
 	Long:  ``,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags()
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		markImportFlagsRequired(cmd)
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		target.ImportMode = true
-		importSchema()
-		importData()
-	},
 }
 
 func init() {
@@ -215,12 +203,5 @@ func checkOrSetDefaultTargetSSLMode() {
 		target.SSLMode = "prefer"
 	} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
 		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
-	}
-}
-
-func markImportFlagsRequired(cmd *cobra.Command) {
-	switch sourceDBType {
-	case ORACLE, MYSQL:
-		cmd.MarkPersistentFlagRequired("target-db-schema")
 	}
 }
