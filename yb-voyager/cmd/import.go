@@ -36,18 +36,6 @@ var importCmd = &cobra.Command{
 	Use:   "import",
 	Short: "import schema and data from compatible source database(Oracle, Mysql, Postgres)",
 	Long:  ``,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags()
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		markImportFlagsRequired(cmd)
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		target.ImportMode = true
-		importSchema()
-		importData()
-	},
 }
 
 func init() {

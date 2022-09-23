@@ -37,19 +37,6 @@ var exportCmd = &cobra.Command{
 	Short: "export schema and data from compatible source database(Oracle, Mysql, Postgres)",
 	Long: `Export has various sub-commands to extract schema, data and generate migration report.
 `,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		setExportFlagsDefaults()
-		validateExportFlags()
-		markFlagsRequired(cmd)
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		// log.Infof("parent export command called with source data type = %s", source.DBType)
-		checkDataDirs()
-		exportSchema()
-		exportData()
-	},
 }
 
 func init() {
