@@ -205,10 +205,3 @@ func checkOrSetDefaultTargetSSLMode() {
 		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
 	}
 }
-
-func markImportFlagsRequired(cmd *cobra.Command) {
-	switch sourceDBType {
-	case ORACLE, MYSQL:
-		cmd.MarkPersistentFlagRequired("target-db-schema")
-	}
-}
