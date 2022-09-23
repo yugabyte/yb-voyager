@@ -996,10 +996,11 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 			continue
-		} else if strings.Contains(err.Error(), "already exists") &&
-			(target.IgnoreIfExists || strings.EqualFold(sqlInfo.stmt, "CREATE SCHEMA public;")) {
-
-			err = nil
+		} else if strings.Contains(err.Error(), "already exists") {
+			fmt.Printf("XXX already exists error: %q\n", sqlInfo.stmt)
+			if target.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
+				err = nil
+			}
 		}
 		break // no more iteration in case of non retriable error
 	}
