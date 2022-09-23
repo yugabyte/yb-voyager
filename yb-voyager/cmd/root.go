@@ -60,10 +60,8 @@ var rootCmd = &cobra.Command{
 	},
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			if cmd.Use != "version" && cmd.Use != "status" {
-				unlockExportDir()
-			}
+		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" {
+			unlockExportDir()
 		}
 	},
 }
@@ -139,13 +137,13 @@ func validateExportDirFlag() {
 func lockExportDir() {
 	lockfileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
 	if err != nil {
-		fmt.Printf("Failed to get the lockfile path: %v", err)
+		fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
 		os.Exit(1)
 	}
 
 	lock, err = lockfile.New(lockfileName)
 	if err != nil {
-		fmt.Printf("Failed to create lockfile %q: %v", lockfileName, err)
+		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockfileName, err)
 		os.Exit(1)
 	}
 
@@ -153,10 +151,10 @@ func lockExportDir() {
 	if err == nil {
 		return
 	} else if err == lockfile.ErrBusy {
-		fmt.Println("Another instance of yb-voyager is running in the export-dir.")
+		fmt.Fprintf(os.Stderr, "Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
 		os.Exit(1)
 	} else {
-		fmt.Printf("Unable to lock the export-dir: %v", err)
+		fmt.Fprintf(os.Stderr, "Unable to lock the export-dir: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -165,6 +163,7 @@ func lockExportDir() {
 func unlockExportDir() {
 	err := lock.Unlock()
 	if err != nil {
-		panic(fmt.Sprintf("Unable to unlock %q: %v", lock, err))
+		fmt.Fprintf(os.Stderr, "Unable to unlock %q: %v\n", lock, err)
+		os.Exit(1)
 	}
 }
