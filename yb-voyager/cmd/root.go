@@ -18,8 +18,10 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -32,6 +34,7 @@ var (
 	migrationMode string
 	startClean    bool
 	logLevel      string
+	lockFile      lockfile.Lockfile
 )
 
 var rootCmd = &cobra.Command{
@@ -40,7 +43,11 @@ var rootCmd = &cobra.Command{
 	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
+			if cmd.Use != "version" && cmd.Use != "status" {
+				lockExportDir()
+			}
 			InitLogging(exportDir, cmd.Use == "status")
 		}
 	},
@@ -49,6 +56,12 @@ var rootCmd = &cobra.Command{
 		if len(args) == 0 {
 			cmd.Help()
 			os.Exit(0)
+		}
+	},
+
+	PersistentPostRun: func(cmd *cobra.Command, args []string) {
+		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" {
+			unlockExportDir()
 		}
 	},
 }
@@ -118,5 +131,39 @@ func validateExportDirFlag() {
 		fmt.Println("Note: Using current working directory as export directory")
 	} else {
 		exportDir = strings.TrimRight(exportDir, "/")
+	}
+}
+
+func lockExportDir() {
+	lockFileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
+		os.Exit(1)
+	}
+
+	lockFile, err = lockfile.New(lockFileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockFileName, err)
+		os.Exit(1)
+	}
+
+	err = lockFile.TryLock()
+	if err == nil {
+		return
+	} else if err == lockfile.ErrBusy {
+		fmt.Fprintf(os.Stderr, "Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
+		os.Exit(1)
+	} else {
+		fmt.Fprintf(os.Stderr, "Unable to lock the export-dir: %v\n", err)
+		os.Exit(1)
+	}
+
+}
+
+func unlockExportDir() {
+	err := lockFile.Unlock()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to unlock %q: %v\n", lockFile, err)
+		os.Exit(1)
 	}
 }
