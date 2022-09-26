@@ -458,15 +458,15 @@ func checkPrimaryKey(tableName string) bool {
 
 	rows, err := conn.Query(context.Background(), checkTableSql)
 	if err != nil {
-		utils.ErrExit("error in querying to check table %q is present: %s", table, err)
-	}
-	
-	if(rows.Next()){
-		log.Infof("table %s is present in DB", table)
+		if strings.Contains(err.Error(), "does not exist"){
+			utils.ErrExit("table %q doesn't exist in target DB", table)
+		} else {
+			utils.ErrExit("error in querying to check table %q is present: %v", table, err)
+		}
 	} else {
-		utils.ErrExit("table %q doesn't exist in target DB", table)
+		log.Infof("table %s is present in DB", table)
 	}
-
+		
     rows.Close()
 	
 	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
@@ -475,12 +475,11 @@ func checkPrimaryKey(tableName string) bool {
 
 	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
 	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
-	// fmt.Println(checkPKSql)
 
 	log.Infof("Running query on target DB: %s", checkPKSql)
 	rows, err = conn.Query(context.Background(), checkPKSql)
 	if err != nil {
-		utils.ErrExit("error in querying to check PK on table %q: %s", table, err)
+		utils.ErrExit("error in querying to check PK on table %q: %v", table, err)
 	}
 	defer rows.Close()
 
