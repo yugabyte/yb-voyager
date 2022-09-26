@@ -977,24 +977,29 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	var err error
 	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmtStr)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
+		if retryCount > 0 { // Not the first iteration.
+			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
+			time.Sleep(time.Second * 5)
+			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.stmt)
 		if err == nil {
 			return nil
 		}
 
 		log.Errorf("DDL Execution Failed: %s", err)
-		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
+		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
+			// creating fresh connection
+			(*conn).Close(context.Background())
+			*conn = newTargetConn()
+			continue
+		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			objType == "INDEX" { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
-
 			// DROP INDEX in case INVALID index got created
 			dropIdx(*conn, sqlInfo.objName)
-
-			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
-			time.Sleep(time.Second * 5)
-			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 			continue
 		} else if strings.Contains(err.Error(), "already exists") ||
 			strings.Contains(err.Error(), "multiple primary keys") {
