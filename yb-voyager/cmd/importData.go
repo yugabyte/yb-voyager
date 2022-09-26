@@ -443,69 +443,6 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	go splitDataFiles(importTables, taskQueue)
 }
 
-func checkPrimaryKey(tableName string) bool {
-	url := target.GetConnectionUri()
-	conn, err := pgx.Connect(context.Background(), url)
-	if err != nil {
-		utils.ErrExit("Unable to connect to database (uri=%s): %s", url, err)
-	}
-	defer conn.Close(context.Background())
-
-	var table, schema, originalTableName string
-	if len(strings.Split(tableName, ".")) == 2 {
-		schema = strings.Split(tableName, ".")[0]
-		table = strings.Split(tableName, ".")[1]
-	} else {
-		schema = target.Schema
-		table = strings.Split(tableName, ".")[0]
-	}
-	originalTableName = table
-
-	if utils.IsQuotedString(table) {
-		table = strings.Trim(table, `"`)
-	} else {
-		table = strings.ToLower(table)
-	}
-
-	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
-	log.Infof("Running query on target DB: %s", checkTableSql)
-
-	rows, err := conn.Query(context.Background(), checkTableSql)
-	if err != nil {
-		if strings.Contains(err.Error(), "does not exist") {
-			utils.ErrExit("table %q doesn't exist in target DB", table)
-		} else {
-			utils.ErrExit("error in querying to check table %q is present: %v", table, err)
-		}
-	} else {
-		log.Infof("table %s is present in DB", table)
-	}
-
-	rows.Close()
-
-	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
-	but in case of oracle exported data files(which we use for to extract tablename)
-	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
-
-	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
-	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
-
-	log.Infof("Running query on target DB: %s", checkPKSql)
-	rows, err = conn.Query(context.Background(), checkPKSql)
-	if err != nil {
-		utils.ErrExit("error in querying to check PK on table %q: %v", table, err)
-	}
-	defer rows.Close()
-
-	if rows.Next() {
-		log.Infof("table %q has a PK", table)
-		return true
-	} else {
-		log.Infof("table %q does not have a PK", table)
-		return false
-	}
-}
-
 func truncateTables(tables []string) {
 	log.Infof("Truncating tables: %v", tables)
 	log.Infof("Source DB type: %q", sourceDBType)
