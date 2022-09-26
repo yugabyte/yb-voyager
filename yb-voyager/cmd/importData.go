@@ -905,13 +905,8 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	err = connPool.WithConn(copyFn)
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
-		if !disableTransactionalWrites && strings.Contains(err.Error(), "violates unique constraint") {
-			log.Infof("Ignoring encountered Error: %v, Assuming batch is already imported due to transactional mode", err)
-		} else {
-			utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
-		}
+		utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
 	}
-
 	incrementImportProgressBar(task.TableName, inProgressFilePath)
 	markTaskDone(task)
 }
