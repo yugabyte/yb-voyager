@@ -42,6 +42,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/tevino/abool/v2"
 )
@@ -897,13 +898,80 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	markTaskDone(task)
 }
 
-func importSplit(conn *pgx.Conn, task *SplitFileImportTask, fh *os.File, copyCmd string) (int64, error) {
+func importSplit(conn *pgx.Conn, task *SplitFileImportTask, fh *os.File, copyCmd string) (rowsAffected int64, err error) {
 	// reset the reader to begin for every call
 	fh.Seek(0, io.SeekStart)
 	//setting the schema so that COPY command can acesss the table
 	setTargetSchema(conn)
-	res, err := conn.PgConn().CopyFrom(context.Background(), fh, copyCmd)
-	return res.RowsAffected(), err
+
+	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
+	ctx := context.Background()
+	var tx pgx.Tx
+	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		var err2 error
+		if err != nil {
+			err2 = tx.Rollback(ctx)
+			if err2 != nil {
+				rowsAffected = 0
+				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
+			}
+		} else {
+			err2 = tx.Commit(ctx)
+			if err2 != nil {
+				rowsAffected = 0
+				err = fmt.Errorf("commit txn: %w", err2)
+			}
+		}
+	}()
+
+	// Check if the split is already imported.
+	var alreadyImported bool
+	alreadyImported, rowsAffected, err = splitIsAlreadyImported(task, tx)
+	if err != nil {
+		return 0, err
+	}
+	if alreadyImported {
+		return rowsAffected, nil
+	}
+
+	// Import the split using COPY command.
+	var res pgconn.CommandTag
+	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), fh, copyCmd)
+	if err != nil {
+		return res.RowsAffected(), err
+	}
+
+	// Record an entry in ybvoyager.batches, that the split is imported.
+	rowsAffected = res.RowsAffected()
+	fileName := filepath.Base(getInProgressFilePath(task))
+	cmd := fmt.Sprintf("INSERT INTO ybvoyager.batches (file_name, rows_imported) VALUES ('%s', %v);",
+		fileName, rowsAffected)
+	_, err = tx.Exec(ctx, cmd)
+	if err != nil {
+		return 0, fmt.Errorf("insert into ybvoyager.batches: %w", err)
+	}
+	log.Infof("Inserted (%q, %v) in ybvoyager.batches", fileName, rowsAffected)
+	return rowsAffected, nil
+}
+
+func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
+	var rowsImported int64
+	fileName := filepath.Base(getInProgressFilePath(task))
+	query := fmt.Sprintf("SELECT rows_imported FROM ybvoyager.batches WHERE file_name = '%s';", fileName)
+	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
+	if err == nil {
+		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
+		return true, rowsImported, nil
+	}
+	if err == pgx.ErrNoRows {
+		log.Infof("%q is not imported yet", fileName)
+		return false, 0, nil
+	}
+	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
 }
 
 func markTaskDone(task *SplitFileImportTask) {
