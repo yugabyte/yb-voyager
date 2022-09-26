@@ -99,6 +99,14 @@ func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
 							os.Exit(1)
 						}
 					}
+				} else if strings.Contains(err.Error(), "multiple primary keys") {
+					if !target.IgnoreIfExists {
+						fmt.Printf("\b \n	%s\n", err.Error())
+						fmt.Printf("	STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+						if !target.ContinueOnError {
+							os.Exit(1)
+						}
+					}
 				} else {
 					errOccured = 1
 					fmt.Printf("\b \n    %s\n", err.Error())
