@@ -71,6 +71,7 @@ func importSchema() {
 	var objectList []string
 	var skipFn func(objType, stmt string) bool
 	isCreateFKStmt := func(objType, stmt string) bool {
+		stmt = strings.ToUpper(stmt)
 		return objType == "TABLE" && strings.HasPrefix(stmt, "ALTER TABLE") &&
 			strings.Contains(stmt, "ADD CONSTRAINT") &&
 			strings.Contains(stmt, "FOREIGN KEY")

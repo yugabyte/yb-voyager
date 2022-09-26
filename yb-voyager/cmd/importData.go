@@ -953,7 +953,8 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			conn = newTargetConn()
 		}
 
-		setOrSelectStmt := strings.HasPrefix(sqlInfo.stmt, "SET ") || strings.HasPrefix(sqlInfo.stmt, "SELECT ")
+		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
+			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
 		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
 		}
@@ -997,7 +998,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 			continue
 		} else if strings.Contains(err.Error(), "already exists") {
-			fmt.Printf("XXX already exists error: %q\n", sqlInfo.stmt)
+			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
+			// schema already exists on the target YB db, the create schema statement fails with
+			// "already exists" error. Ignore the error.
 			if target.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
 				err = nil
 			}
