@@ -511,6 +511,13 @@ func truncateTables(tables []string) {
 		if err != nil {
 			utils.ErrExit("error while truncating table %q: %s", table, err)
 		}
+
+		cmd := fmt.Sprintf(`DELETE FROM ybvoyager.batches WHERE file_name LIKE '%s\.%%'`, table)
+		res, err := conn.Exec(context.Background(), cmd)
+		if err != nil {
+			utils.ErrExit("remove %q related entries from ybvoyager.batches: %s", table, err)
+		}
+		log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	}
 }
 
