@@ -446,19 +446,18 @@ func checkPrimaryKey(tableName string) bool {
 	}
 	originalTableName = table
 
-
 	if utils.IsQuotedString(table) {
 		table = strings.Trim(table, `"`)
-	  } else {
+	} else {
 		table = strings.ToLower(table)
-	  }
+	}
 
 	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
 	log.Infof("Running query on target DB: %s", checkTableSql)
 
 	rows, err := conn.Query(context.Background(), checkTableSql)
 	if err != nil {
-		if strings.Contains(err.Error(), "does not exist"){
+		if strings.Contains(err.Error(), "does not exist") {
 			utils.ErrExit("table %q doesn't exist in target DB", table)
 		} else {
 			utils.ErrExit("error in querying to check table %q is present: %v", table, err)
@@ -466,9 +465,9 @@ func checkPrimaryKey(tableName string) bool {
 	} else {
 		log.Infof("table %s is present in DB", table)
 	}
-		
-    rows.Close()
-	
+
+	rows.Close()
+
 	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
 	but in case of oracle exported data files(which we use for to extract tablename)
 	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
@@ -997,7 +996,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 			continue
-		} else if strings.Contains(err.Error(), "already exists") {
+		} else if strings.Contains(err.Error(), "already exists") ||
+			strings.Contains(err.Error(), "multiple primary keys") {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
 			// "already exists" error. Ignore the error.
