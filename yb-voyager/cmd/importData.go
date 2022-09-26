@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -836,94 +835,88 @@ func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, 
 }
 
 func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
-	splitImportDone := false
-	for !splitImportDone {
-		log.Infof("Importing %q", task.SplitFilePath)
-		//this is done to signal start progress bar for this table
-		if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
-			tablesProgressMetadata[task.TableName].CountLiveRows = 0
+	log.Infof("Importing %q", task.SplitFilePath)
+	//this is done to signal start progress bar for this table
+	if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
+		tablesProgressMetadata[task.TableName].CountLiveRows = 0
+	}
+	// Rename the file to .P
+	inProgressFilePath := getInProgressFilePath(task)
+	log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
+	err := os.Rename(task.SplitFilePath, inProgressFilePath)
+	if err != nil {
+		utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
+	}
+
+	copyCommand := getCopyCommand(task.TableName)
+	fh, err := os.Open(inProgressFilePath)
+	if err != nil {
+		utils.ErrExit("open %q: %s", inProgressFilePath, err)
+	}
+
+	// copyCommand is empty when there are no rows for that table
+	if copyCommand == "" {
+		markTaskDone(task)
+		return
+	}
+	copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
+	log.Infof("COPY command: %s", copyCommand)
+	var rowsAffected int64
+	attempt := 0
+	sleepIntervalSec := 0
+	copyFn := func(conn *pgx.Conn) (bool, error) {
+		var err error
+		attempt++
+		rowsAffected, err = importSplit(conn, task, fh, copyCommand)
+		if err == nil ||
+			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
+			attempt == COPY_MAX_RETRY_COUNT {
+			return false, err
 		}
-		// Rename the file to .P
-		inProgressFilePath := getInProgressFilePath(task)
-		log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
-		err := os.Rename(task.SplitFilePath, inProgressFilePath)
-		if err != nil {
-			utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
+		log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
 		}
-
-		copyCommand := getCopyCommand(task.TableName)
-		reader, err := os.Open(inProgressFilePath)
-		if err != nil {
-			utils.ErrExit("open %q: %s", inProgressFilePath, err)
+		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
+			sleepIntervalSec, inProgressFilePath, attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+		return true, err
+	}
+	err = connPool.WithConn(copyFn)
+	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
+	if err != nil {
+		if !disableTransactionalWrites && strings.Contains(err.Error(), "violates unique constraint") {
+			log.Infof("Ignoring encountered Error: %v, Assuming batch is already imported due to transactional mode", err)
+		} else {
+			utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
 		}
+	}
 
-		// copyCommand is empty when there are no rows for that table
-		if copyCommand != "" {
-			copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
-			log.Infof("COPY command: %s", copyCommand)
-			var rowsAffected int64
-			var copyErr error
-			// if retry=n, total try call will be n+1
-			remainingRetries := COPY_MAX_RETRY_COUNT + 1
+	incrementImportProgressBar(task.TableName, inProgressFilePath)
+	markTaskDone(task)
+}
 
-			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-				// reset the reader to begin for every call
-				reader.Seek(0, io.SeekStart)
-				//setting the schema so that COPY command can acesss the table
-				setTargetSchema(conn)
-				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-				rowsAffected = res.RowsAffected()
+func importSplit(conn *pgx.Conn, task *SplitFileImportTask, fh *os.File, copyCmd string) (int64, error) {
+	// reset the reader to begin for every call
+	fh.Seek(0, io.SeekStart)
+	//setting the schema so that COPY command can acesss the table
+	setTargetSchema(conn)
+	res, err := conn.PgConn().CopyFrom(context.Background(), fh, copyCmd)
+	return res.RowsAffected(), err
+}
 
-				if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
-					return false, err
-				}
-
-				/*
-					Note: If a user retries after deleting some row(s) from a batch,
-					yb-voyager will never be able to mark the batch as completed
-					github issue: https://github.com/yugabyte/yb-voyager/issues/223
-				*/
-				if err != nil {
-					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-					log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
-
-					remainingRetries--
-					if remainingRetries > 0 {
-						retryNum := COPY_MAX_RETRY_COUNT + 1 - remainingRetries
-						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(retryNum)))
-						log.Infof("sleep for duration %d before retrying the file %s for %d time...",
-							duration, inProgressFilePath, retryNum)
-						time.Sleep(time.Second * duration)
-					}
-					return remainingRetries > 0, err
-				}
-
-				return false, err
-			})
-
-			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
-			if copyErr != nil {
-				if !disableTransactionalWrites && strings.Contains(copyErr.Error(), "violates unique constraint") {
-					log.Infof("Ignoring encountered Error: %v, Assuming batch is already imported due to transactional mode", copyErr)
-				} else {
-					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
-				}
-			}
-
-			incrementImportProgressBar(task.TableName, inProgressFilePath)
-		}
-		doneFilePath := getDoneFilePath(task)
-		log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
-		err = os.Rename(inProgressFilePath, doneFilePath)
-		if err != nil {
-			utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
-		}
-
-		err = os.Truncate(doneFilePath, 0)
-		if err != nil {
-			log.Warnf("truncate file %q: %s", doneFilePath, err)
-		}
-		splitImportDone = true
+func markTaskDone(task *SplitFileImportTask) {
+	inProgressFilePath := getInProgressFilePath(task)
+	doneFilePath := getDoneFilePath(task)
+	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
+	err := os.Rename(inProgressFilePath, doneFilePath)
+	if err != nil {
+		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
+	}
+	err = os.Truncate(doneFilePath, 0)
+	if err != nil {
+		log.Warnf("truncate file %q: %s", doneFilePath, err)
 	}
 }
 
