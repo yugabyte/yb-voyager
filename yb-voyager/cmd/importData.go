@@ -282,7 +282,10 @@ func importData() {
 		SessionInitScript: getYBSessionInitScript(),
 	}
 	connPool := tgtdb.NewConnectionPool(params)
-
+	err = createVoyagerSchemaOnTarget(connPool)
+	if err != nil {
+		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
+	}
 	var parallelism = parallelImportJobs
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
@@ -302,6 +305,24 @@ func importData() {
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
 	fmt.Printf("\nexiting...\n")
+}
+
+func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
+	cmds := []string{
+		"CREATE SCHEMA IF NOT EXISTS ybvoyager",
+		"CREATE TABLE IF NOT EXISTS ybvoyager.batches (file_name VARCHAR(250) PRIMARY KEY, rows_imported BIGINT);",
+	}
+	for _, cmd := range cmds {
+		log.Infof("Executing on target: [%s]", cmd)
+		err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			_, err := conn.Exec(context.Background(), cmd)
+			return false, err
+		})
+		if err != nil {
+			return fmt.Errorf("create ybvoyager schema on target: %w", err)
+		}
+	}
+	return nil
 }
 
 func checkForDone() {
