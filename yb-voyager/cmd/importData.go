@@ -446,19 +446,18 @@ func checkPrimaryKey(tableName string) bool {
 	}
 	originalTableName = table
 
-
 	if utils.IsQuotedString(table) {
 		table = strings.Trim(table, `"`)
-	  } else {
+	} else {
 		table = strings.ToLower(table)
-	  }
+	}
 
 	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
 	log.Infof("Running query on target DB: %s", checkTableSql)
 
 	rows, err := conn.Query(context.Background(), checkTableSql)
 	if err != nil {
-		if strings.Contains(err.Error(), "does not exist"){
+		if strings.Contains(err.Error(), "does not exist") {
 			utils.ErrExit("table %q doesn't exist in target DB", table)
 		} else {
 			utils.ErrExit("error in querying to check table %q is present: %v", table, err)
@@ -466,9 +465,9 @@ func checkPrimaryKey(tableName string) bool {
 	} else {
 		log.Infof("table %s is present in DB", table)
 	}
-		
-    rows.Close()
-	
+
+	rows.Close()
+
 	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
 	but in case of oracle exported data files(which we use for to extract tablename)
 	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
@@ -503,7 +502,7 @@ func truncateTables(tables []string) {
 		if target.VerboseMode {
 			fmt.Printf("Truncating table %s...\n", table)
 		}
-		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
+		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s", table)
 		_, err := conn.Exec(context.Background(), truncateStmt)
 		if err != nil {
 			utils.ErrExit("error while truncating table %q: %s", table, err)
@@ -691,25 +690,11 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 }
 
 func executePostImportDataSqls() {
-	/*
-		Enable Sequences, if required
-		Add Indexes, if required
-	*/
 	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
-	indexesFilePath := filepath.Join(exportDir, "/schema/tables/INDEXES_table.sql")
-
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s", "")
-		go utils.Wait("done\n", "")
-		executeSqlFile(sequenceFilePath, "SEQUENCE")
+		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
 	}
-
-	if utils.FileOrFolderExists(indexesFilePath) && target.ImportIndexesAfterData {
-		fmt.Printf("creating indexes %10s", "")
-		go utils.Wait("done\n", "")
-		executeSqlFile(indexesFilePath, "INDEX")
-	}
-
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {
@@ -951,7 +936,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 	}
 }
 
-func executeSqlFile(file string, objType string) {
+func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
 	log.Infof("Execute SQL file %q on target %q", file, target.Host)
 
 	conn := newTargetConn()
@@ -961,49 +946,69 @@ func executeSqlFile(file string, objType string) {
 		}
 	}()
 
-	var errOccured = 0
 	sqlInfoArr := createSqlStrInfoArray(file, objType)
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
 		}
+
+		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
+			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
+		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
+			continue
+		}
+		if !setOrSelectStmt {
+			if len(sqlInfo.stmt) < 80 {
+				fmt.Printf("%s\n", sqlInfo.stmt)
+			} else {
+				fmt.Printf("%s ...\n", sqlInfo.stmt[:80])
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
 			conn = nil
-			errOccured = 1
 		}
 	}
-
-	utils.WaitChannel <- errOccured
-	<-utils.WaitChannel
 }
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
-	log.Infof("Run query %q on target %q", sqlInfo.formattedStmtStr, target.Host)
+	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmtStr)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
+		if retryCount > 0 { // Not the first iteration.
+			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
+			time.Sleep(time.Second * 5)
+			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.stmt)
 		if err == nil {
 			return nil
 		}
 
 		log.Errorf("DDL Execution Failed: %s", err)
-		if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
+		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
+			// creating fresh connection
+			(*conn).Close(context.Background())
+			*conn = newTargetConn()
+			continue
+		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
 			objType == "INDEX" { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
-
 			// DROP INDEX in case INVALID index got created
 			dropIdx(*conn, sqlInfo.objName)
-
-			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
-			time.Sleep(time.Second * 5)
-			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 			continue
-		} else if strings.Contains(err.Error(), "already exists") && target.IgnoreIfExists {
-			err = nil
+		} else if strings.Contains(err.Error(), "already exists") ||
+			strings.Contains(err.Error(), "multiple primary keys") {
+			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
+			// schema already exists on the target YB db, the create schema statement fails with
+			// "already exists" error. Ignore the error.
+			if target.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
+				err = nil
+			}
 		}
 		break // no more iteration in case of non retriable error
 	}

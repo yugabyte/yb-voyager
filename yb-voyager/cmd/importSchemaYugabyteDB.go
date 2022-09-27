@@ -16,115 +16,27 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
-
-	"github.com/jackc/pgx/v4"
 )
 
-func YugabyteDBImportSchema(target *tgtdb.Target, exportDir string) {
-	finalImportObjectList := getImportObjectList()
-	if len(finalImportObjectList) == 0 {
-		utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
-	}
-
-	for _, importObjectType := range finalImportObjectList {
-		var importObjectDirPath, importObjectFilePath string
-
-		if importObjectType != "INDEX" {
-			importObjectDirPath = filepath.Join(exportDir, "schema", strings.ToLower(importObjectType)+"s")
-			importObjectFilePath = filepath.Join(importObjectDirPath, strings.ToLower(importObjectType)+".sql")
-		} else {
-			if target.ImportIndexesAfterData {
-				continue
-			}
-			importObjectDirPath = filepath.Join(exportDir, "schema", "tables")
-			importObjectFilePath = filepath.Join(importObjectDirPath, "INDEXES_table.sql")
-		}
-
+func importSchemaInternal(target *tgtdb.Target, exportDir string, importObjectList []string,
+	skipFn func(string, string) bool) {
+	schemaDir := filepath.Join(exportDir, "schema")
+	for _, importObjectType := range importObjectList {
+		importObjectFilePath := utils.GetObjectFilePath(schemaDir, importObjectType)
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-
-		fmt.Printf("importing %10s %5s", importObjectType, "")
-		go utils.Wait("done\n", "")
-
-		log.Infof("Importing %q", importObjectFilePath)
-
-		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
-		if err != nil {
-			utils.WaitChannel <- 1
-			<-utils.WaitChannel
-			utils.ErrExit("Failed to connect to the target DB: %s", err)
-		}
-
-		// target-db-schema is not public and source is either Oracle/MySQL
-		if sourceDBType != POSTGRESQL {
-			setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-			log.Infof("Running query %q on the target DB", setSchemaQuery)
-			_, err := conn.Exec(context.Background(), setSchemaQuery)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", setSchemaQuery, err)
-			}
-
-			log.Infof("Running query %q on the target DB", SET_CLIENT_ENCODING_TO_UTF8)
-			_, err = conn.Exec(context.Background(), SET_CLIENT_ENCODING_TO_UTF8)
-			if err != nil {
-				utils.ErrExit("Failed to run %q on target DB: %s", SET_CLIENT_ENCODING_TO_UTF8, err)
-			}
-		}
-
-		reCreateSchema := regexp.MustCompile(`(?i)CREATE SCHEMA public`)
-		sqlInfoArr := createSqlStrInfoArray(importObjectFilePath, importObjectType)
-		errOccured := 0
-		for _, sqlInfo := range sqlInfoArr {
-			log.Infof("Execute STATEMENT:\n%s", sqlInfo.formattedStmtStr)
-			_, err := conn.Exec(context.Background(), sqlInfo.stmt)
-			if err != nil {
-				log.Errorf("Previous SQL statement failed with error: %s", err)
-				if strings.Contains(err.Error(), "already exists") {
-					if !target.IgnoreIfExists && !reCreateSchema.MatchString(sqlInfo.formattedStmtStr) {
-						fmt.Printf("\b \n    %s\n", err.Error())
-						fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-						if !target.ContinueOnError {
-							os.Exit(1)
-						}
-					}
-				} else if strings.Contains(err.Error(), "multiple primary keys") {
-					if !target.IgnoreIfExists {
-						fmt.Printf("\b \n	%s\n", err.Error())
-						fmt.Printf("	STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-						if !target.ContinueOnError {
-							os.Exit(1)
-						}
-					}
-				} else {
-					errOccured = 1
-					fmt.Printf("\b \n    %s\n", err.Error())
-					fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
-					if !target.ContinueOnError { //default case
-						fmt.Println(err)
-						os.Exit(1)
-					}
-				}
-				log.Infof("Continuing despite error: IgnoreIfExists(%v), ContinueOnError(%v)",
-					target.IgnoreIfExists, target.ContinueOnError)
-			}
-		}
-
-		utils.WaitChannel <- errOccured
-		<-utils.WaitChannel
-
-		conn.Close(context.Background())
+		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
+		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
 	log.Info("Schema import is complete.")
 }
@@ -160,14 +72,12 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 	return metaInfo
 }
 
-func getImportObjectList() []string {
+func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	var finalImportObjectList []string
 	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
 	for i, item := range excludeObjectList {
 		excludeObjectList[i] = strings.ToUpper(item)
 	}
-	// This list also has defined the order to create object type in target YugabyteDB.
-	importObjectOrderList := utils.GetSchemaObjectList(sourceDBType)
 	if target.ImportObjects != "" {
 		includeObjectList := utils.CsvStringToSlice(target.ImportObjects)
 		for i, item := range includeObjectList {

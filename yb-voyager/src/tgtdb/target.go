@@ -3,29 +3,28 @@ package tgtdb
 import "fmt"
 
 type Target struct {
-	Host                   string
-	Port                   int
-	User                   string
-	Password               string
-	DBName                 string
-	Schema                 string
-	SSLMode                string
-	SSLCertPath            string
-	SSLKey                 string
-	SSLRootCert            string
-	SSLCRL                 string
-	SSLQueryString         string
-	Uri                    string
-	ImportIndexesAfterData bool
-	ContinueOnError        bool
-	IgnoreIfExists         bool
-	VerboseMode            bool
-	TableList              string
-	ExcludeTableList       string
-	ImportMode             bool
-	ImportObjects          string
-	ExcludeImportObjects   string
-	dbVersion              string
+	Host                 string
+	Port                 int
+	User                 string
+	Password             string
+	DBName               string
+	Schema               string
+	SSLMode              string
+	SSLCertPath          string
+	SSLKey               string
+	SSLRootCert          string
+	SSLCRL               string
+	SSLQueryString       string
+	Uri                  string
+	ContinueOnError      bool
+	IgnoreIfExists       bool
+	VerboseMode          bool
+	TableList            string
+	ExcludeTableList     string
+	ImportMode           bool
+	ImportObjects        string
+	ExcludeImportObjects string
+	dbVersion            string
 
 	db *TargetDB
 }
