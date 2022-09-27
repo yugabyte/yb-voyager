@@ -304,3 +304,13 @@ func InsensitiveSliceContains(slice []string, s string) bool {
 	log.Infof("string s=%q did not match with any string in %v", s, slice)
 	return false
 }
+
+func ToInsensitiveSlice(slice []string) []string {
+	for i, object := range slice {
+		if IsQuotedString(object) {
+			object = strings.Trim(object, "\"")
+		}
+		slice[i] = strings.ToLower(object)
+	}
+	return slice
+}
