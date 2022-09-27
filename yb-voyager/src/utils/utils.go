@@ -305,12 +305,10 @@ func InsensitiveSliceContains(slice []string, s string) bool {
 	return false
 }
 
-func ToInsensitiveSlice(slice []string) []string {
-	for i, object := range slice {
-		if IsQuotedString(object) {
-			object = strings.Trim(object, "\"")
-		}
-		slice[i] = strings.ToLower(object)
+func ToCaseInsensitiveNames(names []string) []string {
+	for i, object := range names {
+		object = strings.Trim(object, "\"")
+		names[i] = strings.ToLower(object)
 	}
-	return slice
+	return names
 }

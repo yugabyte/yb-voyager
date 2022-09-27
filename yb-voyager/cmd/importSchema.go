@@ -114,7 +114,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 		targetSchemas = append(targetSchemas, target.Schema)
 
 	}
-	targetSchemas = utils.ToInsensitiveSlice(targetSchemas)
+	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
 
