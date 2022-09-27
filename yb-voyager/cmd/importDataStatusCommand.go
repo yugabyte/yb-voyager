@@ -30,8 +30,7 @@ func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 }
 
-//totalCount stores the total number of rows in case of import data command and the total size of the file in bytes in case of import data file command.
-//importedCount stores the number of rows imported in case of import data command and the size of the file imported in bytes in case of import data file command.
+// totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	tableName          string
 	status             string
@@ -79,9 +78,8 @@ func runImportDataStatusCmd() error {
 
 	var outputRows []*tableMigStatusOutputRow
 	for _, tableName := range tableNames {
-		//totalCount stores the total number of rows in case of import data command and the total size of the file in bytes in case of import data file command.
+		// totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 		totalCount := totalRowCountMap[tableName]
-		//importedCount stores the number of rows imported in case of import data command and the size of the file imported in bytes in case of import data file command.
 		importedCount := importedRowCountMap[tableName]
 		if importedCount == -1 {
 			importedCount = 0
