@@ -28,7 +28,7 @@ GO_VERSION="go1.18"
 GO="$GOROOT/bin/go"
 
 LOG_FILE=/tmp/install-yb-voyager.log
-ORA2PG_VERSION="23.1"
+ORA2PG_VERSION="24a4761fdd2d0e6f167807e3fba0576c5f0af491"
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
@@ -299,14 +299,14 @@ install_ora2pg() {
 	sudo cpanm DBD::mysql Test::NoWarnings DBD::Oracle 1>&2
 
 	output "Installing ora2pg."
-	wget --no-verbose https://github.com/darold/ora2pg/archive/refs/tags/v${ORA2PG_VERSION}.tar.gz 1>&2
-	tar -xf v${ORA2PG_VERSION}.tar.gz 1>&2
+	wget --no-verbose https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
+	tar -xf ${ORA2PG_VERSION}.tar.gz 1>&2
 	cd ora2pg-${ORA2PG_VERSION}/
 	perl Makefile.PL 1>&2
 	make 1>&2
 	sudo make install 1>&2
 	cd ..
-	rm -f v${ORA2PG_VERSION}.tar.gz
+	rm -f ${ORA2PG_VERSION}.tar.gz
 	output "ora2pg installed."
 }
 
