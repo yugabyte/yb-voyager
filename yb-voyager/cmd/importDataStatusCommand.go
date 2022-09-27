@@ -30,11 +30,13 @@ func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 }
 
+//totalCount stores the total number of rows in case of import data command and the total size of the file in bytes in case of import data file command.
+//importedCount stores the number of rows imported in case of import data command and the size of the file imported in bytes in case of import data file command.
 type tableMigStatusOutputRow struct {
 	tableName          string
 	status             string
-	totalRowCount      float64
-	importedRowCount   float64
+	totalCount         int64
+	importedCount      int64
 	percentageComplete float64
 }
 
@@ -77,40 +79,31 @@ func runImportDataStatusCmd() error {
 
 	var outputRows []*tableMigStatusOutputRow
 	for _, tableName := range tableNames {
-		totalRowCount := totalRowCountMap[tableName]
-		importedRowCount := importedRowCountMap[tableName]
-		if importedRowCount == -1 {
-			importedRowCount = 0
+		//totalCount stores the total number of rows in case of import data command and the total size of the file in bytes in case of import data file command.
+		totalCount := totalRowCountMap[tableName]
+		//importedCount stores the number of rows imported in case of import data command and the size of the file imported in bytes in case of import data file command.
+		importedCount := importedRowCountMap[tableName]
+		if importedCount == -1 {
+			importedCount = 0
 		}
-		perc := float64(importedRowCount) * 100.0 / float64(totalRowCount)
+		perc := float64(importedCount) * 100.0 / float64(totalCount)
 
 		var status string
 		switch true {
-		case importedRowCount == totalRowCount:
+		case importedCount == totalCount:
 			status = "DONE"
-		case importedRowCount == 0:
+		case importedCount == 0:
 			status = "NOT_STARTED"
-		case importedRowCount < totalRowCount:
+		case importedCount < totalCount:
 			status = "MIGRATING"
 		}
 
 		row := &tableMigStatusOutputRow{
 			tableName:          tableName,
 			status:             status,
-			totalRowCount:      float64(totalRowCount),
-			importedRowCount:   float64(importedRowCount),
+			totalCount:         totalCount,
+			importedCount:      importedCount,
 			percentageComplete: perc,
-		}
-
-		if dataFileDescriptor.TableRowCount == nil {
-			// case of importDataFileCommand where file size is available not row counts
-
-			// converting size in bytes to megabytes
-			totalRowSize := float64(totalRowCount) / 1000000.0
-			importedRowSize := float64(importedRowCount) / 1000000.0
-
-			row.totalRowCount = totalRowSize
-			row.importedRowCount = importedRowSize
 		}
 
 		outputRows = append(outputRows, row)
@@ -131,11 +124,11 @@ func runImportDataStatusCmd() error {
 		if dataFileDescriptor.TableRowCount != nil {
 			// case of importData where row counts is available
 			fmt.Printf("%-30s %-12s %13d %13d %10.2f\n",
-				row.tableName, row.status, int64(row.totalRowCount), int64(row.importedRowCount), row.percentageComplete)
+				row.tableName, row.status, row.totalCount, row.importedCount, row.percentageComplete)
 		} else {
 			// case of importDataFileCommand where file size is available not row counts
 			fmt.Printf("%-30s %-12s %14.2f %17.2f %11.2f\n",
-				row.tableName, row.status, row.totalRowCount, row.importedRowCount, row.percentageComplete)
+				row.tableName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, row.percentageComplete)
 		}
 	}
 	return nil
