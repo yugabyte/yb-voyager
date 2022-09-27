@@ -304,3 +304,11 @@ func InsensitiveSliceContains(slice []string, s string) bool {
 	log.Infof("string s=%q did not match with any string in %v", s, slice)
 	return false
 }
+
+func ToCaseInsensitiveNames(names []string) []string {
+	for i, object := range names {
+		object = strings.Trim(object, "\"")
+		names[i] = strings.ToLower(object)
+	}
+	return names
+}

@@ -100,6 +100,7 @@ func importSchema() {
 
 func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []string
+	target.Schema = strings.ToLower(strings.Trim(target.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
@@ -113,6 +114,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 		targetSchemas = append(targetSchemas, target.Schema)
 
 	}
+	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
 
