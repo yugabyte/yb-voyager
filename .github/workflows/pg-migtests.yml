@@ -7,8 +7,10 @@ on:
     branches: [ main, v1.0.0-xbeta ]
 
 jobs:
-
   run-pg-migration-tests:
+    strategy:
+      matrix:
+        version: [2.14.2.0-b25, 2.15.2.0-b87]
     runs-on: ubuntu-latest
     services:
       postgres:
