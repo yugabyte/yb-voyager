@@ -7,8 +7,10 @@ on:
     branches: [ main, v1.0.0-xbeta ]
 
 jobs:
-
   run-mysql-migration-tests:
+    strategy:
+      matrix:
+        version: [2.14.2.0-b25, 2.15.2.0-b87]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -30,8 +32,8 @@ jobs:
 
     - name: Start YugabyteDB cluster
       run: |
-        docker pull yugabytedb/yugabyte:2.12.3.0-b19
-        docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        docker pull yugabytedb/yugabyte:${{ matrix.version }}
+        docker-compose -f migtests/setup/yb-docker-compose-${{ matrix.version }}.yaml up -d
         sleep 10
 
     - name: Test YugabyteDB connection
