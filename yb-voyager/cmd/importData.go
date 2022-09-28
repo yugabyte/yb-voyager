@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -1038,9 +1038,6 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
-	if getCopyCommand(table) != "" {
-		return
-	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
@@ -1051,6 +1048,10 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		if len(strings.Split(table, ".")) == 1 {
 			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
 		}
+	} else if sourceDBType == "oracle" {
+		// For oracle, there is only unique COPY per datafile
+		// In case of table partitions, parent table name is used in COPY
+		copyCommandRegex = regexp.MustCompile(`(?i)COPY .*[\s]+\(.*\) FROM STDIN`)
 	}
 
 	file, err := os.Open(fileToSearchIn)
