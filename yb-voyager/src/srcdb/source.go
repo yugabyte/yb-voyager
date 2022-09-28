@@ -188,9 +188,11 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
 			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
 		} else if strings.HasPrefix(line, "PG_VERSION") {
-			lines[i] = "PG_VERSION " + strconv.Itoa(11) 
-		} else if strings.HasPrefix(line, "INDEXES_RENAMING") && source.DBType == "mysql"{
+			lines[i] = "PG_VERSION " + strconv.Itoa(11)
+		} else if strings.HasPrefix(line, "INDEXES_RENAMING") && source.DBType == "mysql" {
 			lines[i] = "INDEXES_RENAMING 1"
+		} else if strings.HasPrefix(line, "PREFIX_PARTITION") {
+			lines[i] = "PREFIX_PARTITION 1"
 		}
 	}
 
