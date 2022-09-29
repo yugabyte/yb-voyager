@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -75,7 +75,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 		if source.DBType == ORACLE {
 			partitionList := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionList) > 0 {
-				utils.PrintAndLog("Table %q has partitions: %v", parentTable, partitionList)
+				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionList), partitionList)
 
 				for _, partitionName := range partitionList {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
@@ -291,10 +291,10 @@ func printExportedTables(exportedTables []string) {
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 /*
-	This function checks for based structure of data file which can be different
-	for different source db type based on tool used for export
-	postgresql - file has only data lines with "\." at the end
-	oracle/mysql - multiple copy statements with each having specific count of rows
+This function checks for based structure of data file which can be different
+for different source db type based on tool used for export
+postgresql - file has only data lines with "\." at the end
+oracle/mysql - multiple copy statements with each having specific count of rows
 */
 func isDataLine(line string, sourceDBType string, insideCopyStmt *bool) bool {
 	emptyLine := (len(line) == 0)
