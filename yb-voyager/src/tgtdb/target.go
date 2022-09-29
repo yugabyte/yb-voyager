@@ -1,6 +1,9 @@
 package tgtdb
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 type Target struct {
 	Host                   string
@@ -46,7 +49,7 @@ func (t *Target) DB() *TargetDB {
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
 		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
-			t.User, t.Password, t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
+			t.User, url.QueryEscape(t.Password), t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
 	}
 
 	return t.Uri
