@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+source ${SCRIPTS}/functions.sh
+
+echo "Initialising source database."
+run_oracle ${SOURCE_DB_NAME} orascript
