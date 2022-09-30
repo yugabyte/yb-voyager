@@ -53,7 +53,7 @@ var postgresSchemaObjectList = []string{"SCHEMA", "EXTENSION", "TYPE", "DOMAIN",
 	"MVIEW", "COMMENT" /* GRANT, ROLE*/}
 
 // In MYSQL, TYPE and SEQUENCE are not supported
-var mysqlSchemaObjectList = []string{"TABLE" /*, "PARTITION"*/, "INDEX", "VIEW", /*"GRANT*/
+var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE"}
 
 type ExportMetaInfo struct {
