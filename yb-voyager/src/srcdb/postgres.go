@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strings"
+	"net/url"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -118,7 +119,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 		return source.Uri
 	}
 
-	source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
+	source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", url.QueryEscape(source.User), url.QueryEscape(source.Password),
 		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
 	return source.Uri
 }
