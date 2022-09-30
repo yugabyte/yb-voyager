@@ -83,7 +83,7 @@ func parseSchemaFile(exportDir string) {
 			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
 				objSqlStmts[sqlType].WriteString(sqlStatement)
-			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
+			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "TABLE ATTACH":
 				objSqlStmts["TABLE"].WriteString(sqlStatement)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(sqlStatement)
