@@ -213,16 +213,32 @@ func extractTableListFromString(flagTableList string) []string {
 		return []string{}
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	if source.DBType != POSTGRESQL {
+	if source.DBType == MYSQL {
 		return tableList
 	}
 	// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
 	for _, table := range tableList {
 		parts := strings.Split(table, ".")
 		if len(parts) == 1 {
-			finalTableList = append(finalTableList, "public."+table)
+			if source.DBType == ORACLE {
+				if utils.IsQuotedString(parts[0]) {
+					parts[0] = strings.Trim(parts[0],`"`)
+				} else {
+					parts[0] = strings.ToUpper(parts[0])
+				}
+			} else if  source.DBType == POSTGRESQL {
+				finalTableList = append(finalTableList, "public."+table)
+			}
 		} else if len(parts) == 2 {
-			finalTableList = append(finalTableList, table)
+			if source.DBType == ORACLE {
+				if utils.IsQuotedString(parts[1]) {
+					parts[1] = strings.Trim(parts[1],`"`)
+				} else {
+					parts[1] = strings.ToUpper(parts[1])
+				}
+			} else if  source.DBType == POSTGRESQL {
+				finalTableList = append(finalTableList, table)
+			}
 		} else {
 			utils.ErrExit("invalid table name %q in the --table-list flag.", table)
 		}
