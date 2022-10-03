@@ -30,7 +30,7 @@ GO="$GOROOT/bin/go"
 LOG_FILE=/tmp/install-yb-voyager.log
 
 # the commit-hash is from main branch after the release 23.1
-ORA2PG_VERSION="24a4761fdd2d0e6f167807e3fba0576c5f0af491"
+ORA2PG_VERSION="e0de314698c5052d93373f2c45586a9a0c5fea8c"
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
