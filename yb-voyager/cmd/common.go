@@ -86,8 +86,10 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
+	log.Infof("cmd: %s", pgRestoreCmd.String())
+	log.Infof("output: %s", string(stdOut))
 	if err != nil {
-		utils.ErrExit("Couldn't parse the TOC file to collect the tablenames for data files: %s", err)
+		utils.ErrExit("ERROR: couldn't parse the TOC file to collect the tablenames for data files: %v", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
