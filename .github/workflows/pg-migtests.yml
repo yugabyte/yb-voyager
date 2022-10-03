@@ -44,7 +44,7 @@ jobs:
     - name: Start YugabyteDB cluster
       run: |
         docker pull yugabytedb/yugabyte:${{ matrix.version }}
-        docker-compose -f migtests/setup/yb-docker-compose-${{ matrix.version }}.yaml up -d
+        VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
         sleep 20
 
     - name: Test YugabyteDB connection
