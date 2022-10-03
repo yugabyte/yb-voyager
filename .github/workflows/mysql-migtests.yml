@@ -34,7 +34,11 @@ jobs:
       run: |
         docker pull yugabytedb/yugabyte:${{ matrix.version }}
         docker-compose -f migtests/setup/yb-docker-compose-${{ matrix.version }}.yaml up -d
+<<<<<<< HEAD
         sleep 10
+=======
+        sleep 20
+>>>>>>> e2bca8a9818a3174a6152f822b1124cecbddd0d2
 
     - name: Test YugabyteDB connection
       run: |

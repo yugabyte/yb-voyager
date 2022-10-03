@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -379,9 +379,13 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
 
-	if startClean { //start data migraiton from beginning only for table-list (or neglect cleaning if in exclude-table-list)
-		fmt.Printf("Truncating all tables: %v\n", allTables)
-		truncateTables(allTables)
+	if startClean {
+		nonEmptyTableNames := getNonEmptyTables(allTables)
+		if len(nonEmptyTableNames) > 0 {
+			utils.ErrExit("Following tables still has rows. "+
+				"TRUNCATE them before importing data with --start-clean.\n%s",
+				nonEmptyTableNames)
+		}
 
 		for _, table := range allTables {
 			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
@@ -508,6 +512,28 @@ func truncateTables(tables []string) {
 			utils.ErrExit("error while truncating table %q: %s", table, err)
 		}
 	}
+}
+
+func getNonEmptyTables(tables []string) []string {
+	result := []string{}
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
+
+	for _, table := range tables {
+		log.Infof("Checking if table %q is empty.", table)
+		tmp := false
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		err := conn.QueryRow(context.Background(), stmt).Scan(&tmp)
+		if err == pgx.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+		}
+		result = append(result, table)
+	}
+	log.Infof("non empty tables: %v", result)
+	return result
 }
 
 func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
@@ -1038,9 +1064,6 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
-	if getCopyCommand(table) != "" {
-		return
-	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
@@ -1051,6 +1074,10 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		if len(strings.Split(table, ".")) == 1 {
 			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
 		}
+	} else if sourceDBType == "oracle" {
+		// For oracle, there is only unique COPY per datafile
+		// In case of table partitions, parent table name is used in COPY
+		copyCommandRegex = regexp.MustCompile(`(?i)COPY .*[\s]+\(.*\) FROM STDIN`)
 	}
 
 	file, err := os.Open(fileToSearchIn)

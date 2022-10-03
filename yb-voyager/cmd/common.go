@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,9 +62,9 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			targetTableName := tablesProgressMetadata[key].TableName
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
-			// if tablesProgressMetadata[key].IsPartition {
-			// 	targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
-			// }
+			if tablesProgressMetadata[key].IsPartition {
+				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
+			}
 			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
 			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
 		}
@@ -87,8 +87,10 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 
 	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
+	log.Infof("cmd: %s", pgRestoreCmd.String())
+	log.Infof("output: %s", string(stdOut))
 	if err != nil {
-		utils.ErrExit("Couldn't parse the TOC file to collect the tablenames for data files: %s", err)
+		utils.ErrExit("ERROR: couldn't parse the TOC file to collect the tablenames for data files: %v", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -186,7 +188,7 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
 }
 
-//setup a project having subdirs for various database objects IF NOT EXISTS
+// setup a project having subdirs for various database objects IF NOT EXISTS
 func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
