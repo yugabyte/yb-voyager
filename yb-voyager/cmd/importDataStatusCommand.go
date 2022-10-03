@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 )
@@ -66,14 +68,15 @@ func runImportDataStatusCmd() error {
 
 	importedRowCountMap := getImportedRowsCount(exportDir, tableNames)
 
-	if len(tableNames) > 0 {
-		if dataFileDescriptor.TableRowCount != nil {
-			// case of importData where row counts is available
-			fmt.Printf("%-30s %-12s %13s %13s %10s\n", "TABLE", "STATUS", "TOTAL_ROWS", "IMPORTED_ROWS", "PERCENTAGE")
-		} else {
-			// case of importDataFileCommand where file size is available not row counts
-			fmt.Printf("%-30s %-12s %15s %13s %10s\n", "TABLE", "STATUS", "TOTAL_SIZE(MB)", "IMPORTED_SIZE(MB)", "PERCENTAGE")
-		}
+	table := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	if dataFileDescriptor.TableRowCount != nil {
+		// case of importData where row counts is available
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("TOTAL ROWS"), headerfmt("IMPORTED ROWS"), headerfmt("PERCENTAGE"))
+	} else {
+		// case of importDataFileCommand where file size is available not row counts
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE(MB)"), headerfmt("IMPORTED SIZE(MB)"), headerfmt("PERCENTAGE"))
 	}
 
 	var outputRows []*tableMigStatusOutputRow
@@ -118,16 +121,22 @@ func runImportDataStatusCmd() error {
 			return ordStates[row1.status] < ordStates[row2.status]
 		}
 	})
+
 	for _, row := range outputRows {
 		if dataFileDescriptor.TableRowCount != nil {
 			// case of importData where row counts is available
-			fmt.Printf("%-30s %-12s %13d %13d %10.2f\n",
-				row.tableName, row.status, row.totalCount, row.importedCount, row.percentageComplete)
+			table.AddRow(row.tableName, row.status, row.totalCount, row.importedCount, row.percentageComplete)
 		} else {
 			// case of importDataFileCommand where file size is available not row counts
-			fmt.Printf("%-30s %-12s %14.2f %17.2f %11.2f\n",
-				row.tableName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, row.percentageComplete)
+			table.AddRow(row.tableName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, row.percentageComplete)
 		}
 	}
+
+	if len(tableNames) > 0 {
+		fmt.Print("\n")
+		fmt.Println(table)
+		fmt.Print("\n")
+	}
+
 	return nil
 }
