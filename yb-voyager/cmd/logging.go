@@ -63,6 +63,16 @@ func InitLogging(logDir string, disableLogging bool) {
 	log.SetReportCaller(true)
 	log.SetFormatter(&MyFormatter{})
 	log.Info("Logging initialised.")
+	redactPasswordFromArgs()
 	log.Infof("Args: %v", os.Args)
 	log.Infof("\n%s", getVersionInfo())
+}
+
+func redactPasswordFromArgs() {
+	for i := 0; i < len(os.Args); i++ {
+		opt := os.Args[i]
+		if opt == "--source-db-password" || opt == "--target-db-password" {
+			os.Args[i+1] = "XXX"
+		}
+	}
 }
