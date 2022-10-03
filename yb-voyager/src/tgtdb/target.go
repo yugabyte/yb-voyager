@@ -48,8 +48,16 @@ func (t *Target) DB() *TargetDB {
 
 func (t *Target) GetConnectionUri() string {
 	if t.Uri == "" {
-		t.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s",
-			url.QueryEscape(t.User), url.QueryEscape(t.Password), t.Host, t.Port, t.DBName, generateSSLQueryStringIfNotExists(t))
+		hostAndPort := fmt.Sprintf("%s:%d", t.Host, t.Port)
+		targetUrl := &url.URL{
+			Scheme:   "postgresql",
+			User:     url.UserPassword(t.User, t.Password),
+			Host:     hostAndPort,
+			Path:     t.DBName,
+			RawQuery: generateSSLQueryStringIfNotExists(t),
+		}
+
+		t.Uri = targetUrl.String()
 	}
 
 	return t.Uri

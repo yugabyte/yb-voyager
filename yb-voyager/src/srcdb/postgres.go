@@ -118,9 +118,16 @@ func (pg *PostgreSQL) getConnectionUri() string {
 	if source.Uri != "" {
 		return source.Uri
 	}
+    hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(source.User, source.Password),
+		Host:     hostAndPort,
+		Path:     source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(source),
+	}
 
-	source.Uri = fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", url.QueryEscape(source.User), url.QueryEscape(source.Password),
-		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+	source.Uri = sourceUrl.String()
 	return source.Uri
 }
 

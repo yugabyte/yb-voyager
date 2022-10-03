@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	// "net/url"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -90,7 +91,6 @@ func (ora *Oracle) GetAllTableNames() []string {
 			FROM all_mview_logs)
 		ORDER BY table_name ASC`, ora.source.Schema)
 	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
-
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for table names: %v", err)
