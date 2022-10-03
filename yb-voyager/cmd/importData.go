@@ -379,9 +379,13 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
 
-	if startClean { //start data migraiton from beginning only for table-list (or neglect cleaning if in exclude-table-list)
-		fmt.Printf("Truncating all tables: %v\n", allTables)
-		truncateTables(allTables)
+	if startClean {
+		nonEmptyTableNames := getNonEmptyTables(allTables)
+		if len(nonEmptyTableNames) > 0 {
+			utils.ErrExit("Following tables still has rows. "+
+				"TRUNCATE them before importing data with --start-clean.\n%s",
+				nonEmptyTableNames)
+		}
 
 		for _, table := range allTables {
 			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
@@ -508,6 +512,28 @@ func truncateTables(tables []string) {
 			utils.ErrExit("error while truncating table %q: %s", table, err)
 		}
 	}
+}
+
+func getNonEmptyTables(tables []string) []string {
+	result := []string{}
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
+
+	for _, table := range tables {
+		log.Infof("Checking if table %q is empty.", table)
+		tmp := false
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		err := conn.QueryRow(context.Background(), stmt).Scan(&tmp)
+		if err == pgx.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+		}
+		result = append(result, table)
+	}
+	log.Infof("non empty tables: %v", result)
+	return result
 }
 
 func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
