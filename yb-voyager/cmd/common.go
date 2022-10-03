@@ -27,6 +27,8 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/fatih/color"
+	"github.com/gosuri/uitable"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
@@ -172,20 +174,24 @@ func GetTableRowCount(filePath string) map[string]int64 {
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {
-	fmt.Println("exported num of rows for each table")
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
-	fmt.Printf("| %30s | %30s |\n", "Table", "Row Count")
 
 	var keys []string
 	for key := range exportedRowCount {
 		keys = append(keys, key)
 	}
+
+	table := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	table.AddRow(headerfmt("TABLE"), headerfmt("ROW COUNT"))
+
 	sort.Strings(keys)
 	for _, key := range keys {
-		fmt.Printf("|%s|\n", strings.Repeat("-", 65))
-		fmt.Printf("| %30s | %30d |\n", key, exportedRowCount[key])
+		table.AddRow(key, exportedRowCount[key])
 	}
-	fmt.Printf("+%s+\n", strings.Repeat("-", 65))
+	fmt.Print("\n")
+	fmt.Println(table)
+	fmt.Print("\n")
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS

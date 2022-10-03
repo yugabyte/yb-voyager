@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/fatih/color"
+	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -71,9 +73,7 @@ func runExportDataStatusCmd() error {
 	} else {
 		return fmt.Errorf("unable to identify source-db-type")
 	}
-	if len(tableMap) > 0 {
-		fmt.Printf("%-30s %-12s\n", "TABLE", "STATUS")
-	}
+
 	var outputRows []*exportTableMigStatusOutputRow
 	var finalFullTableName string
 	for tableName := range tableMap {
@@ -86,6 +86,7 @@ func runExportDataStatusCmd() error {
 		} else {
 			finalFullTableName = tableName
 		}
+
 		var status string
 		//postgresql map returns table names, oracle/mysql map contains file names
 		if (source.DBType == POSTGRESQL && utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)+"_data.sql")) || utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)) {
@@ -105,6 +106,11 @@ func runExportDataStatusCmd() error {
 		outputRows = append(outputRows, row)
 	}
 
+	table := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+
 	// First sort by status and then by table-name.
 	sort.Slice(outputRows, func(i, j int) bool {
 		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3}
@@ -117,8 +123,13 @@ func runExportDataStatusCmd() error {
 		}
 	})
 	for _, row := range outputRows {
-		fmt.Printf("%-30s %-12s\n",
-			row.tableName, row.status)
+		table.AddRow(row.tableName, row.status)
 	}
+	if len(tableMap) > 0 {
+		fmt.Print("\n")
+		fmt.Println(table)
+		fmt.Print("\n")
+	}
+
 	return nil
 }
