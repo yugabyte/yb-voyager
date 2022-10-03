@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -115,9 +116,17 @@ func (pg *PostgreSQL) getConnectionString() string {
 	if source.Uri != "" {
 		return source.Uri
 	}
+    hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.UserPassword(source.User, source.Password),
+		Host:     hostAndPort,
+		Path:     source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(source),
+	}
 
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?%s", source.User, source.Password,
-		source.Host, source.Port, source.DBName, generateSSLQueryStringIfNotExists(source))
+	source.Uri = sourceUrl.String()
+	return source.Uri
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
