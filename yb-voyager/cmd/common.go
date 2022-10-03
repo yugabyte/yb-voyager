@@ -180,8 +180,6 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 		keys = append(keys, key)
 	}
 
-	fmt.Println("exported num of rows for each table")
-
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
