@@ -139,10 +139,10 @@ centos_main() {
 		install_ora2pg
 	fi
 	install_yb_voyager
+	create_yb_session_vars_file
 	if [ $ONLY_PG == "false" ] ; then
 		create_base_ora2pg_conf_file
 	fi
-	create_yb_session_vars_file
 	update_bashrc
 
 	set +x
@@ -168,10 +168,10 @@ ubuntu_main() {
 		install_ora2pg
 	fi
 	install_yb_voyager
+	create_yb_session_vars_file
 	if [ $ONLY_PG == "false" ] ; then
 		create_base_ora2pg_conf_file
 	fi
-	create_yb_session_vars_file
 	update_bashrc
 
 	set +x
