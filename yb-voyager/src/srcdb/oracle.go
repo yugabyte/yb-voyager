@@ -139,14 +139,14 @@ func (ora *Oracle) getConnectionString() string {
 
 	switch true {
 	case source.DBSid != "":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
+		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))"`,
 			source.User, source.Password, source.Host, source.Port, source.DBSid)
 
 	case source.TNSAlias != "":
-		connStr = fmt.Sprintf("%s/%s@%s", source.User, source.Password, source.TNSAlias)
+		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, source.User, source.Password, source.TNSAlias)
 
 	case source.DBName != "":
-		connStr = fmt.Sprintf("%s/%s@(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+		connStr = fmt.Sprintf(`user="%s" password="%s" connectString="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))"`,
 			source.User, source.Password, source.Host, source.Port, source.DBName)
 	}
 
