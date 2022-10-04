@@ -569,7 +569,7 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 
 		if strings.Contains(curr, "--") { //in case there is a space before '--'
 			reportNextSql = invalidSqlComment(curr)
-			if reportNextSql != 0 && dollarQuoteFlag == 0 { // ignore comment only if it is outside a DDL
+			if dollarQuoteFlag == 0 { // ignore comment only if it is outside a DDL
 				continue
 			}
 		}
