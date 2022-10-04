@@ -17,7 +17,7 @@ jobs:
 
     - name: Run installer script
       run: |
-        yes | ./installer_scripts/install-yb-voyager local
+        yes | ./installer_scripts/install-yb-voyager -v local
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
