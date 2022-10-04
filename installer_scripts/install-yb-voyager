@@ -137,9 +137,11 @@ centos_main() {
 		centos_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
-		create_base_ora2pg_conf_file
 	fi
 	install_yb_voyager
+	if [ $ONLY_PG == "false" ] ; then
+		create_base_ora2pg_conf_file
+	fi
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -164,9 +166,11 @@ ubuntu_main() {
 		ubuntu_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
-		create_base_ora2pg_conf_file
 	fi
 	install_yb_voyager
+	if [ $ONLY_PG == "false" ] ; then
+		create_base_ora2pg_conf_file
+	fi
 	create_yb_session_vars_file
 	update_bashrc
 
