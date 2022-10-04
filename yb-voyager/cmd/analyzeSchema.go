@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -55,7 +55,7 @@ var (
 	primaryCons      = make(map[string]string)
 	summaryMap       = make(map[string]*summaryInfo)
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
-	dollarQuoteRegex = regexp.MustCompile(`\$.*\$`)
+	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
 	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
@@ -428,7 +428,7 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 	}
 }
 
-//all other cases to check
+// all other cases to check
 func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
@@ -546,6 +546,7 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 
 	codeBlock := isCodeBlockPossible(objType)
 	dollarQuoteFlag := 0 //denotes the code/body part is not started
+	outerDollarQuotedStr := ""
 	reportNextSql := 0
 
 	file, err := os.Open(path)
@@ -567,7 +568,9 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 
 		if strings.Contains(curr, "--") { //in case there is a space before '--'
 			reportNextSql = invalidSqlComment(curr)
-			continue
+			if reportNextSql != 0 && dollarQuoteFlag == 0 { // ignore comment only if it is outside a DDL
+				continue
+			}
 		}
 
 		singleLine += curr + " "
@@ -576,23 +579,24 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 		if codeBlock {
 			// Assuming that both the dollar quote strings will not be in same line
 			if dollarQuoteFlag == 0 {
-				if dollarQuoteRegex.MatchString(curr) {
-
+				if idx := dollarQuoteRegex.FindStringSubmatch(curr); idx != nil {
 					dollarQuoteFlag = 1 //denotes start of the code/body part
-
+					outerDollarQuotedStr = idx[0]
 				} else if strings.Contains(curr, ";") { // in case, there is no body part
 					//one liner sql string created, now will check for obj count and report cases
 					processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
 				}
 			} else if dollarQuoteFlag == 1 {
-				if dollarQuoteRegex.MatchString(curr) {
+				if strings.Contains(curr, outerDollarQuotedStr) {
 					dollarQuoteFlag = 2 //denotes end of code/body part
 				}
 			}
 			if dollarQuoteFlag == 2 {
 				if strings.Contains(curr, ";") {
 					processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
-					dollarQuoteFlag = 0 //resetting for other objects
+					//reset for parsing other sqls
+					dollarQuoteFlag = 0
+					outerDollarQuotedStr = ""
 				}
 			}
 		} else {
