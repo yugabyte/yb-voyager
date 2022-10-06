@@ -69,13 +69,6 @@ func importSchema() {
 		createTargetSchemas(conn)
 	}
 	var objectList []string
-	var skipFn func(objType, stmt string) bool
-	isCreateFKStmt := func(objType, stmt string) bool {
-		stmt = strings.ToUpper(stmt)
-		return objType == "TABLE" && strings.HasPrefix(stmt, "ALTER TABLE") &&
-			strings.Contains(stmt, "ADD CONSTRAINT") &&
-			strings.Contains(stmt, "FOREIGN KEY")
-	}
 	if !flagPostImportData { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
@@ -83,18 +76,12 @@ func importSchema() {
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
-		// Do not create FK before loading data.
-		skipFn = isCreateFKStmt
 	} else { // Post data load.
-		objectList = []string{"TABLE", "INDEX", "TRIGGER"}
-		skipFn = func(objType, stmt string) bool {
-			// From tables.sql, ignore all statements except ones which create FK constraints.
-			return objType == "TABLE" && !isCreateFKStmt(objType, stmt)
-		}
+		objectList = []string{"INDEX", "TRIGGER"}
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
-	importSchemaInternal(&target, exportDir, objectList, skipFn)
+	importSchemaInternal(&target, exportDir, objectList, nil)
 	callhome.PackAndSendPayload(exportDir)
 }
 
