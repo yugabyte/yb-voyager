@@ -226,6 +226,8 @@ func extractTableListFromString(flagTableList string) []string {
 				} else {
 					parts[0] = strings.ToUpper(parts[0])
 				}
+				table = strings.Join(parts, ".")
+				finalTableList = append(finalTableList, table)
 			} else if  source.DBType == POSTGRESQL {
 				finalTableList = append(finalTableList, "public."+table)
 			}
@@ -236,6 +238,8 @@ func extractTableListFromString(flagTableList string) []string {
 				} else {
 					parts[1] = strings.ToUpper(parts[1])
 				}
+				table = strings.Join(parts, ".")
+				finalTableList = append(finalTableList, table)
 			} else if  source.DBType == POSTGRESQL {
 				finalTableList = append(finalTableList, table)
 			}
