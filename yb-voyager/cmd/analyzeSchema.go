@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strconv"
 
@@ -169,10 +170,14 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
+
+	//reading source db metainfo
+	sourceDBMetaInfo := openMetaInfoJsonFile()
+
 	if !target.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = source.DBName
-		reportStruct.Summary.SchemaName = source.Schema
-		reportStruct.Summary.DBVersion = source.DB().GetVersion()
+		reportStruct.Summary.DBName = sourceDBMetaInfo.SourceDBName
+		reportStruct.Summary.SchemaName = sourceDBMetaInfo.SourceDBSchema
+		reportStruct.Summary.DBVersion = sourceDBMetaInfo.SourceDBVersion
 	}
 
 	// requiredJson += `"databaseObjects": [`
@@ -634,11 +639,14 @@ func initializeSummaryMap() {
 func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
+	//reading source db metainfo
+	sourceDBMetaInfo := openMetaInfoJsonFile()
+
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(source.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>" + strings.ToUpper(sourceDBMetaInfo.SourceDBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -726,9 +734,12 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
+	//reading source db metainfo
+	sourceDBMetaInfo := openMetaInfoJsonFile()
+
 	reportStruct = utils.Report{}
 	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(source.DBType)
+	sourceObjList = utils.GetSchemaObjectList(sourceDBMetaInfo.SourceDBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var filePath string
@@ -759,10 +770,7 @@ func analyzeSchema() {
 	if !schemaIsExported(exportDir) {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to the source database: %s", err)
-	}
+
 	analyzeSchemaInternal()
 
 	var finalReport string
@@ -825,10 +833,8 @@ var analyzeSchemaCmd = &cobra.Command{
 	Long:  ``,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		setExportFlagsDefaults()
 		validateReportOutputFormat()
-		validateExportFlags()
-		markFlagsRequired(cmd)
+		validateExportDirFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -838,8 +844,6 @@ var analyzeSchemaCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
-
-	registerCommonExportFlags(analyzeSchemaCmd)
 
 	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
@@ -855,4 +859,26 @@ func validateReportOutputFormat() {
 		}
 	}
 	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
+}
+
+func openMetaInfoJsonFile() *MetaInfo {
+
+	metaInfo := &MetaInfo{}
+
+	metaInfoFilePath := filepath.Join(exportDir, META_INFO_DIR_NAME, "metaInfo.json")
+
+	log.Infof("loading db meta info from %q", metaInfoFilePath)
+
+	metaInfoJson, err := ioutil.ReadFile(metaInfoFilePath)
+	if err != nil {
+		utils.ErrExit("load source db meta info file: %v", err)
+	}
+
+	err = json.Unmarshal(metaInfoJson, &metaInfo)
+	if err != nil {
+		utils.ErrExit("unmarshal source db meta info json: %v", err)
+	}
+
+	log.Infof("parsed source db meta info: %+v", metaInfo)
+	return metaInfo
 }
