@@ -94,10 +94,6 @@ analyze_schema() {
 		--output-format txt
 		--send-diagnostics=false
 	"
-        if [ "${SOURCE_DB_SCHEMA}" != "" ]
-        then
-                args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
-        fi
         yb-voyager analyze-schema ${args} $*
 }
 
