@@ -106,6 +106,7 @@ main() {
 
 centos_main() {
 	check_binutils_version
+	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
 	$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -362,6 +363,17 @@ create_base_ora2pg_conf_file() {
 #=============================================================================
 # CENTOS
 #=============================================================================
+
+centos_check_base_repo_enabled() {
+
+	output "Checking if base repo is enabled."
+
+	if [[ -z "$(yum repolist enabled | grep base)" ]]
+	then 
+		echo "ERROR: base repo is not enabled. Enable the repo and retry."
+		exit 1
+	fi
+}
 
 centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
