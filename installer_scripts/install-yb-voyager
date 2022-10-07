@@ -369,7 +369,7 @@ centos_check_base_repo_enabled() {
 	enabled=$(yum repolist enabled | grep base)
 	if [ -z "$enabled" ] 
 	then 
-		output "ERROR: base repo is not enabled. Enable the repo and retry."
+		echo "ERROR: base repo is not enabled. Enable the repo and retry."
 		exit 1 
 	fi
 }
