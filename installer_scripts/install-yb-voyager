@@ -367,7 +367,7 @@ create_base_ora2pg_conf_file() {
 centos_check_base_repo_enabled() {
 	output "Checking if base repo is enabled"
 	enabled=$(yum repolist enabled | grep base)
-	if [ -z "$var" ] 
+	if [ -z "$enabled" ] 
 	then 
 		output "ERROR: base repo is not enabled. Enable the repo and retry."
 		exit 1 
