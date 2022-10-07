@@ -353,7 +353,7 @@ create_base_ora2pg_conf_file() {
 	if [ -f "$conf_file_name" ]
 	then
 		output "Found base-ora2pg.conf. Creating a backup of it in /etc/yb-voyager."
-		sudo mv conf_file_name /etc/yb-voyager/base-ora2pg-backup.conf
+		sudo mv /etc/yb-voyager/base-ora2pg.conf /etc/yb-voyager/base-ora2pg-backup.conf
 	fi
 	output "Installing the latest base-ora2pg.conf"
 	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
