@@ -352,10 +352,10 @@ create_base_ora2pg_conf_file() {
 	conf_file_name="/etc/yb-voyager/base-ora2pg.conf"
 	if [ -f "$conf_file_name" ]
 	then
-		output "Found base-ora2pg.conf. Creating a backup of it in /etc/yb-voyager."
 		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
-		sudo mv /etc/yb-voyager/base-ora2pg.conf /etc/yb-voyager/base-ora2pg-backup-$curr_date.conf
-		output "You are suggested to migrate your settings from the backup base-ora2pg.conf file to the new base-ora2pg.conf file"
+		backup_file_name="${conf_file_name}.${curr_date}"
+		sudo mv ${conf_file_name} ${backup_file_name}
+		output "Overwriting ${conf_file_name}. Existing contents are backed up in ${backup_file_name}"
 	fi
 	output "Installing the latest base-ora2pg.conf"
 	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
