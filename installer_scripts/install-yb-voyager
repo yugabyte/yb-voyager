@@ -352,9 +352,10 @@ create_base_ora2pg_conf_file() {
 	conf_file_name="/etc/yb-voyager/base-ora2pg.conf"
 	if [ -f "$conf_file_name" ]
 	then
-		output "No need to create base-ora2pg.conf again. Skipping."
-		return
+		output "Found base-ora2pg.conf. Creating a backup of it in /etc/yb-voyager."
+		sudo mv base-ora2pg.conf base-ora2pg-backup.conf
 	fi
+	output "Installing the latest base-ora2pg.conf"
 	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
