@@ -53,6 +53,7 @@ func InitLogging(logDir string, disableLogging bool) {
 		log.SetOutput(ioutil.Discard)
 		return
 	}
+	replaceLogFileIfNeeded(logDir)
 	logFileName := filepath.Join(logDir, "yb-voyager.log")
 	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
 	if err != nil {
@@ -65,4 +66,25 @@ func InitLogging(logDir string, disableLogging bool) {
 	log.Info("Logging initialised.")
 	log.Infof("Args: %v", os.Args)
 	log.Infof("\n%s", getVersionInfo())
+}
+
+func replaceLogFileIfNeeded(logDir string) {
+	logFilePath := filepath.Join(logDir, "yb-voyager.log")
+	oldLogFilePath := filepath.Join(logDir, "yb-voyager-old.log")
+	fileInfo, err := os.Stat(logFilePath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to read log file %q: %s", logFilePath, err))
+	}
+	if fileInfo.Size() < FOUR_MB {
+		return
+	}
+	fmt.Printf("Creating new log file. Previous logs can be found at %s\n", oldLogFilePath)
+	err = os.Remove(oldLogFilePath)
+	if err != nil && !os.IsNotExist(err) {
+		panic(fmt.Sprintf("Unable to remove stale log file %q: %s", oldLogFilePath, err))
+	}
+	err = os.Rename(logFilePath, oldLogFilePath)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to rename log file %q to an older version: %s", logFilePath, err))
+	}
 }
