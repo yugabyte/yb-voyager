@@ -33,7 +33,7 @@ jobs:
     - name: Run installer script
       run: |
         cd installer_scripts
-        yes | ./install-yb-voyager local
+        yes | ./install-yb-voyager --install-from-local-source
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
