@@ -16,10 +16,8 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -28,10 +26,6 @@ import (
 
 	"github.com/spf13/cobra"
 )
-
-type MetaInfo struct {
-	SourceDBType, SourceDBName, SourceDBSchema, SourceDBVersion string
-}
 
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
@@ -63,12 +57,10 @@ func exportSchema() {
 			if !proceed {
 				return
 			}
-			//clear directories
+
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
-			//clear files
-			utils.ClearMatchingFiles(filepath.Join(exportDir, META_INFO_DIR_NAME, "metaInfo.json"))
 
 			clearSchemaIsExported(exportDir)
 		} else {
@@ -99,7 +91,18 @@ func exportSchema() {
 	callhome.PackAndSendPayload(exportDir)
 
 	setSchemaIsExported(exportDir)
-	createMetaInfoJsonFile()
+
+	miginfo := &MigInfo{
+		SourceDBType:    source.DBType,
+		SourceDBName:    source.DBName,
+		SourceDBSchema:  source.Schema,
+		SourceDBVersion: source.DB().GetVersion(),
+		ExportDir:       exportDir,
+	}
+	err = SaveMigInfo(miginfo)
+	if err != nil {
+		utils.ErrExit("unable to save migration info: %s", err)
+	}
 }
 
 func init() {
@@ -132,26 +135,4 @@ func setSchemaIsExported(exportDir string) {
 func clearSchemaIsExported(exportDir string) {
 	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
 	os.Remove(flagFilePath)
-}
-
-func createMetaInfoJsonFile() {
-	data := MetaInfo{
-		SourceDBType:    source.DBType,
-		SourceDBName:    source.DBName,
-		SourceDBSchema:  source.Schema,
-		SourceDBVersion: source.DB().GetVersion(),
-	}
-
-	file, err := json.MarshalIndent(data, "", " ")
-	if err != nil {
-		utils.ErrExit("unable to parse meta info data into json: %s", err)
-	}
-
-	metaInfoFilePath := filepath.Join(exportDir, META_INFO_DIR_NAME, "metaInfo.json")
-
-	err = ioutil.WriteFile(metaInfoFilePath, file, 0644)
-	if err != nil {
-		utils.ErrExit("unable to write meta info file: %s", err)
-	}
-
 }
