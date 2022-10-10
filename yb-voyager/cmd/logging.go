@@ -73,6 +73,9 @@ func replaceLogFileIfNeeded(logDir string) {
 	oldLogFilePath := filepath.Join(logDir, "yb-voyager-old.log")
 	fileInfo, err := os.Stat(logFilePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return
+		}
 		panic(fmt.Sprintf("Failed to read log file %q: %s", logFilePath, err))
 	}
 	if fileInfo.Size() < FOUR_MB {
