@@ -103,11 +103,11 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 		}
 		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
 	}
-	rows.Close()
+	defer rows.Close()
 
 	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database %v\n", schemaNotPresent)
+		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
 	} 
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
