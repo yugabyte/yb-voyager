@@ -6,12 +6,8 @@ export LC_ALL=en_US.UTF-8
 
 set -e
 
-OPTS=$(getopt -o v: --long version:,only-pg-support -n 'install-yb-voyager' -- "$@")
+OPTS=$(getopt -o "", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- "$@")
 
-if [ $? != 0 ]; then 
-	echo "Unable to process the options. Exiting..." >&2; 
-	exit 1; 
-fi
 
 eval set -- "$OPTS"
 
@@ -20,19 +16,17 @@ ONLY_PG="false"
 
 while true; do
 	case "$1" in
-		-v | --version ) 
-			if [ "$2" == local ]; 
-			then 
-				# Install from locally checked out branch.
-				VERSION="$2"; shift 2;
-			else
-				echo "ERROR: Invalid version"
-				exit 1
-			fi 
+		--install-from-local-source ) 
+			VERSION="local"
+			shift
 			;;
-		--only-pg-support ) ONLY_PG="true"; shift ;;
-		-- ) shift; break ;;
-		* ) break ;;
+		--only-pg-support ) 
+			ONLY_PG="true"; 
+			shift 
+			;;
+		* ) 
+			break 
+			;;
 	esac
 done
 
@@ -137,12 +131,10 @@ centos_main() {
 		centos_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
+		create_base_ora2pg_conf_file
 	fi
 	install_yb_voyager
 	create_yb_session_vars_file
-	if [ $ONLY_PG == "false" ] ; then
-		create_base_ora2pg_conf_file
-	fi
 	update_bashrc
 
 	set +x
@@ -166,12 +158,10 @@ ubuntu_main() {
 		ubuntu_install_oracle_instant_clients
 		update_yb_voyager_bashrc
 		install_ora2pg
+		create_base_ora2pg_conf_file
 	fi
 	install_yb_voyager
 	create_yb_session_vars_file
-	if [ $ONLY_PG == "false" ] ; then
-		create_base_ora2pg_conf_file
-	fi
 	update_bashrc
 
 	set +x
@@ -376,6 +366,7 @@ create_yb_session_vars_file() {
 
 create_base_ora2pg_conf_file() {
 	conf_file_name="/etc/yb-voyager/base-ora2pg.conf"
+	sudo mkdir -p /etc/yb-voyager
 	if [ -f "$conf_file_name" ]
 	then
 		output "No need to create base-ora2pg.conf again. Skipping."
