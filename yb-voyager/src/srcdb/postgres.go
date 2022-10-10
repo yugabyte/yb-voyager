@@ -79,13 +79,42 @@ func (pg *PostgreSQL) GetVersion() string {
 
 func (pg *PostgreSQL) GetAllTableNames() []string {
 	list := strings.Split(pg.source.Schema, "|")
-	querySchemaList := "'" + strings.Join(list, "','") + "'"
+	var trimmedList []string
+	for _,schema := range list {
+		if utils.IsQuotedString(schema) {
+			schema = strings.Trim(schema, `"`)
+		}
+		trimmedList = append(trimmedList, schema)
+	}
+	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
+	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
+	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
+	rows, err := pg.db.Query(context.Background(), chkSchemaExistsQuery)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
+	}
+	var listOfSchemaPresent []string
+	var tableSchemaName string
+
+	for rows.Next() {
+		err = rows.Scan(&tableSchemaName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for schema names: %v\n", err)
+		}
+		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
+	}
+	rows.Close()
+
+	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
+	if len(schemaNotPresent) > 0 {
+		utils.ErrExit("Following schemas are not present in source database %v\n", schemaNotPresent)
+	} 
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
 
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err = pg.db.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
