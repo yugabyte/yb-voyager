@@ -739,7 +739,6 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
-	//reading source db metainfo
 	miginfo, err := LoadMigInfo(exportDir)
 	if err != nil {
 		utils.ErrExit("unable to load migration info: %s", err)

@@ -97,7 +97,9 @@ func exportSchema() {
 		SourceDBName:    source.DBName,
 		SourceDBSchema:  source.Schema,
 		SourceDBVersion: source.DB().GetVersion(),
-		ExportDir:       exportDir,
+		SourceDBSid:     source.DBSid,
+		SourceTNSAlias:  source.TNSAlias,
+		exportDir:       exportDir,
 	}
 	err = SaveMigInfo(miginfo)
 	if err != nil {

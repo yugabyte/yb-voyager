@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 
@@ -13,23 +14,23 @@ type MigInfo struct {
 	SourceDBName    string
 	SourceDBSchema  string
 	SourceDBVersion string
-	ExportDir       string
+	SourceDBSid     string
+	SourceTNSAlias  string
+	exportDir       string
 }
 
 func SaveMigInfo(miginfo *MigInfo) error {
 
 	file, err := json.MarshalIndent(miginfo, "", " ")
 	if err != nil {
-		// unable to parse meta info data into json
-		return err
+		return fmt.Errorf("marshal miginfo: %w", err)
 	}
 
-	migInfoFilePath := filepath.Join(miginfo.ExportDir, META_INFO_DIR_NAME, "miginfo.json")
+	migInfoFilePath := filepath.Join(miginfo.exportDir, META_INFO_DIR_NAME, "miginfo.json")
 
 	err = ioutil.WriteFile(migInfoFilePath, file, 0644)
 	if err != nil {
-		// unable to write miginfo.json file
-		return err
+		return fmt.Errorf("write to %q: %w", migInfoFilePath, err)
 	}
 
 	return nil
@@ -37,24 +38,23 @@ func SaveMigInfo(miginfo *MigInfo) error {
 
 func LoadMigInfo(exportDir string) (*MigInfo, error) {
 
-	metaInfo := &MigInfo{}
+	migInfo := &MigInfo{}
 
 	migInfoFilePath := filepath.Join(exportDir, META_INFO_DIR_NAME, "miginfo.json")
 
 	log.Infof("loading db meta info from %q", migInfoFilePath)
 
-	metaInfoJson, err := ioutil.ReadFile(migInfoFilePath)
+	migInfoJson, err := ioutil.ReadFile(migInfoFilePath)
 	if err != nil {
-		// unable to load miginfo.json file
-		return nil, err
+		return nil, fmt.Errorf("read %q: %w", migInfoFilePath, err)
 	}
 
-	err = json.Unmarshal(metaInfoJson, &metaInfo)
+	err = json.Unmarshal(migInfoJson, &migInfo)
 	if err != nil {
-		// unable to unmarshal miginfo json
-		return nil, err
+		return nil, fmt.Errorf("unmarshal miginfo: %w", err)
 	}
 
-	log.Infof("parsed source db meta info: %+v", metaInfo)
-	return metaInfo, nil
+	migInfo.exportDir = exportDir
+	log.Infof("parsed source db meta info: %+v", migInfo)
+	return migInfo, nil
 }
