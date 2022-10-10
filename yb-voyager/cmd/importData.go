@@ -401,11 +401,13 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	log.Infof("importTables: %s", importTables)
 
 	if startClean {
-		nonEmptyTableNames := getNonEmptyTables(allTables)
+		conn := newTargetConn()
+		defer conn.Close(context.Background())
+		nonEmptyTableNames := getNonEmptyTables(conn, allTables)
 		if len(nonEmptyTableNames) > 0 {
-			utils.ErrExit("Following tables still has rows. "+
+			utils.ErrExit("Following tables are not empty. "+
 				"TRUNCATE them before importing data with --start-clean.\n%s",
-				nonEmptyTableNames)
+				strings.Join(nonEmptyTableNames, ", "))
 		}
 
 		for _, table := range allTables {
@@ -413,7 +415,15 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
+
+			cmd := fmt.Sprintf(`DELETE FROM ybvoyager.batches WHERE file_name LIKE '%s.%%'`, table)
+			res, err := conn.Exec(context.Background(), cmd)
+			if err != nil {
+				utils.ErrExit("remove %q related entries from ybvoyager.batches: %s", table, err)
+			}
+			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 		}
+
 		importTables = allTables //since all tables needs to imported now
 	}
 
@@ -443,36 +453,8 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	go splitDataFiles(importTables, taskQueue)
 }
 
-func truncateTables(tables []string) {
-	log.Infof("Truncating tables: %v", tables)
-	log.Infof("Source DB type: %q", sourceDBType)
-
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
-	for _, table := range tables {
-		log.Infof("Truncating table: %q", table)
-		if target.VerboseMode {
-			fmt.Printf("Truncating table %s...\n", table)
-		}
-		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s", table)
-		_, err := conn.Exec(context.Background(), truncateStmt)
-		if err != nil {
-			utils.ErrExit("error while truncating table %q: %s", table, err)
-		}
-
-		cmd := fmt.Sprintf(`DELETE FROM ybvoyager.batches WHERE file_name LIKE '%s\.%%'`, table)
-		res, err := conn.Exec(context.Background(), cmd)
-		if err != nil {
-			utils.ErrExit("remove %q related entries from ybvoyager.batches: %s", table, err)
-		}
-		log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
-	}
-}
-
-func getNonEmptyTables(tables []string) []string {
+func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	result := []string{}
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
 
 	for _, table := range tables {
 		log.Infof("Checking if table %q is empty.", table)
