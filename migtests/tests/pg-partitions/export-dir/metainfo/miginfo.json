@@ -1,0 +1,8 @@
+{
+ "SourceDBType": "postgresql",
+ "SourceDBName": "partitions",
+ "SourceDBSchema": "public",
+ "SourceDBVersion": "14.5",
+ "SourceDBSid": "",
+ "SourceTNSAlias": ""
+}

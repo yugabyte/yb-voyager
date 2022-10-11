@@ -1,0 +1,136 @@
+PGDMP
+partitions
+14.5
+14.5
+ENCODING
+ENCODING
+SET client_encoding = 'UTF8';
+false
+STDSTRINGS
+STDSTRINGS
+SET standard_conforming_strings = 'on';
+false
+SEARCHPATH
+SEARCHPATH
+SELECT pg_catalog.set_config('search_path', '', false);
+false
+1262
+17626
+partitions
+DATABASE
+CREATE DATABASE partitions WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.UTF-8';
+DROP DATABASE partitions;
+postgres
+false
+17640
+boston
+TABLE DATA
+COPY public.boston (id, amount, branch, region) FROM stdin;
+public
+postgres
+false
+4112.dat
+17687
+cust_other
+TABLE DATA
+COPY public.cust_other (id, statuses, arr) FROM stdin;
+public
+postgres
+false
+4119.dat
+17695
+cust_part11
+TABLE DATA
+COPY public.cust_part11 (id, statuses, arr) FROM stdin;
+public
+postgres
+false
+4120.dat
+17700
+cust_part12
+TABLE DATA
+COPY public.cust_part12 (id, statuses, arr) FROM stdin;
+public
+postgres
+false
+4121.dat
+17708
+cust_part21
+TABLE DATA
+COPY public.cust_part21 (id, statuses, arr) FROM stdin;
+public
+postgres
+false
+4122.dat
+17713
+cust_part22
+TABLE DATA
+COPY public.cust_part22 (id, statuses, arr) FROM stdin;
+public
+postgres
+false
+4123.dat
+17666
+emp_0
+TABLE DATA
+COPY public.emp_0 (emp_id, emp_name, dep_code) FROM stdin;
+public
+postgres
+false
+4116.dat
+17671
+emp_1
+TABLE DATA
+COPY public.emp_1 (emp_id, emp_name, dep_code) FROM stdin;
+public
+postgres
+false
+4117.dat
+17676
+emp_2
+TABLE DATA
+COPY public.emp_2 (emp_id, emp_name, dep_code) FROM stdin;
+public
+postgres
+false
+4118.dat
+17630
+london
+TABLE DATA
+COPY public.london (id, amount, branch, region) FROM stdin;
+public
+postgres
+false
+4110.dat
+17648
+sales_2019_q4
+TABLE DATA
+COPY public.sales_2019_q4 (id, p_name, amount, sale_date) FROM stdin;
+public
+postgres
+false
+4113.dat
+17653
+sales_2020_q1
+TABLE DATA
+COPY public.sales_2020_q1 (id, p_name, amount, sale_date) FROM stdin;
+public
+postgres
+false
+4114.dat
+17658
+sales_2020_q2
+TABLE DATA
+COPY public.sales_2020_q2 (id, p_name, amount, sale_date) FROM stdin;
+public
+postgres
+false
+4115.dat
+17635
+sydney
+TABLE DATA
+COPY public.sydney (id, amount, branch, region) FROM stdin;
+public
+postgres
+false
+4111.dat

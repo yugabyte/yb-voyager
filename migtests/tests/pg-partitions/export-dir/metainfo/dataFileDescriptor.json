@@ -1,0 +1,22 @@
+{
+	"FileFormat": "text",
+	"TableRowCount": {
+		"boston": 0,
+		"cust_other": 0,
+		"cust_part11": 0,
+		"cust_part12": 0,
+		"cust_part21": 0,
+		"cust_part22": 0,
+		"emp_0": 0,
+		"emp_1": 0,
+		"emp_2": 0,
+		"london": 0,
+		"sales_2019_q4": 0,
+		"sales_2020_q1": 0,
+		"sales_2020_q2": 0,
+		"sydney": 0
+	},
+	"TableFileSize": null,
+	"Delimiter": "\t",
+	"HasHeader": false
+}
