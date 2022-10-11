@@ -57,9 +57,11 @@ func exportSchema() {
 			if !proceed {
 				return
 			}
+
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
+
 			clearSchemaIsExported(exportDir)
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
@@ -89,6 +91,20 @@ func exportSchema() {
 	callhome.PackAndSendPayload(exportDir)
 
 	setSchemaIsExported(exportDir)
+
+	miginfo := &MigInfo{
+		SourceDBType:    source.DBType,
+		SourceDBName:    source.DBName,
+		SourceDBSchema:  source.Schema,
+		SourceDBVersion: source.DB().GetVersion(),
+		SourceDBSid:     source.DBSid,
+		SourceTNSAlias:  source.TNSAlias,
+		exportDir:       exportDir,
+	}
+	err = SaveMigInfo(miginfo)
+	if err != nil {
+		utils.ErrExit("unable to save migration info: %s", err)
+	}
 }
 
 func init() {
