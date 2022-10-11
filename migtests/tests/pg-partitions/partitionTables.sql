@@ -16,7 +16,7 @@ WITH region_list AS (
                 amount[1 + mod(n, array_length(amount, 1))], 
                 'Branch ' || n as branch, 
                 region[1 + mod(n, array_length(region, 1))] 
-                    FROM amount_list, region_list, generate_series(1,100) as n;
+                    FROM amount_list, region_list, generate_series(1,1000) as n;
 
 
 -- Partition by range
@@ -43,7 +43,7 @@ WITH amount_list AS (
                         FROM 
                         amount_list,
                         date_list,
-                        generate_series(1,100) as n;
+                        generate_series(1,1000) as n;
 
 -- Partition by hash
 
@@ -53,7 +53,7 @@ CREATE TABLE emp_0 PARTITION OF emp FOR VALUES WITH (MODULUS 3,REMAINDER 0);
 CREATE TABLE emp_1 PARTITION OF emp FOR VALUES WITH (MODULUS 3,REMAINDER 1);
 CREATE TABLE emp_2 PARTITION OF emp FOR VALUES WITH (MODULUS 3,REMAINDER 2);
 
-INSERT INTO emp SELECT num, 'user_' || num , (RANDOM()*50)::INTEGER FROM generate_series(1,100) AS num;
+INSERT INTO emp SELECT num, 'user_' || num , (RANDOM()*50)::INTEGER FROM generate_series(1,1000) AS num;
 
 
 -- Multilevel Partition
@@ -80,7 +80,7 @@ WITH status_list AS (
             SELECT  n,
                     statuses[1 + mod(n, array_length(statuses, 1))],
                     (RANDOM()*200)::INTEGER
-                        FROM generate_series(1,100) AS n, status_list;
+                        FROM generate_series(1,1000) AS n, status_list;
 
 
 
