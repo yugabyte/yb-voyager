@@ -1064,6 +1064,9 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
+	if getCopyCommand(table) != "" {
+		return
+	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {
