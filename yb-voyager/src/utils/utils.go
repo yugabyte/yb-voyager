@@ -231,6 +231,8 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else if objType == "FTS_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
+	} else if objType == "PARTITION_INDEX" {
+		requiredPath = filepath.Join(schemaDirPath, "partitions", "PARTITION_INDEXES_partition.sql")
 	} else {
 		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s",
 			strings.ToLower(objType)+".sql")
