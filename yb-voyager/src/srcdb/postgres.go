@@ -16,9 +16,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var PgDumpPath string
-var PgRestorePath string
-
 const PG_COMMAND_VERSION float64 = 14.0
 
 type PostgreSQL struct {
@@ -39,8 +36,8 @@ func (pg *PostgreSQL) Connect() error {
 
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
-	FindCorrectPGCommandPath(&PgDumpPath, "pg_dump")
-	FindCorrectPGCommandPath(&PgRestorePath, "pg_restore")
+	// pgDumpPath, _ := GetAbsPathOfPGCommand("pg_dump")
+	// pgRestorePath, _ := GetAbsPathOfPGCommand("pg_restore")
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
@@ -192,31 +189,33 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 }
 
 //find correct path of pg command depending on the version required
-func FindCorrectPGCommandPath(pathVariable *string, executableName string) {
-	paths, err := findAllExecutablesInPath(executableName)
+func GetAbsPathOfPGCommand(cmd string) (string, error) {
+	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
-		utils.ErrExit("error in finding executables: %v", err)
+		err = fmt.Errorf("error in finding executables: %v", err)
+		return "", err
 	}
 
 	for _, path := range paths {
 		cmd := exec.Command(path, "--version")
 		stdout, err := cmd.Output()
 		if err != nil {
-			utils.ErrExit("error in finding version of %v from path %v: %v", executableName, path, err)
+			err = fmt.Errorf("error in finding version of %v from path %v: %v", cmd, path, err)
+			return "", err
 		}
 
 		//example output: pg_restore (PostgreSQL) 14.5
 		version, err := strconv.ParseFloat(regexp.MustCompile(`[ \n]`).Split(string(stdout), -1)[2], 64)
 		if err != nil {
-			utils.ErrExit("error in converting version found from string to float: %v", err)
+			err = fmt.Errorf("error in converting version found from string to float: %v", err)
+			return "", err
 		}
 
 		if version >= PG_COMMAND_VERSION {
-			*pathVariable = path
-			return
+			return path, nil
 		}
 	}
 
-	utils.ErrExit("could not find %v with version greater than or equal to %v", executableName, PG_COMMAND_VERSION)
-
+	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
+	return "", err
 }
