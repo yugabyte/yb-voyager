@@ -951,6 +951,15 @@ func setTargetSchema(conn *pgx.Conn) {
 	if err != nil {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 	}
+
+	if sourceDBType == ORACLE {
+		// append oracle schema in the search_path for orafce
+		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
+		_, err := conn.Exec(context.Background(), updateSearchPath)
+		if err != nil {
+			utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		}
+	}
 }
 
 func dropIdx(conn *pgx.Conn, idxName string) {
