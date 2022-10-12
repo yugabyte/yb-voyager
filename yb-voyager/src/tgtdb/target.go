@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/ucarion/redact"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -102,6 +101,6 @@ func generateSSLQueryStringIfNotExists(t *Target) string {
 func GetRedactedTarget(t *Target) *Target {
 	redactedTarget := *t
 	redactedTarget.Uri = utils.GetRedactedURLs([]string{t.Uri})[0]
-	redact.Redact([]string{"Password"}, &redactedTarget)
+	redactedTarget.Password = "XXX"
 	return &redactedTarget
 }
