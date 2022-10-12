@@ -131,7 +131,7 @@ func getYBServers() []*tgtdb.Target {
 			}
 
 			clone.Uri = getCloneConnectionUri(clone)
-			log.Infof("using yb server for import data: %+v", clone)
+			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTarget(clone))
 			targets = append(targets, clone)
 		}
 	} else {
@@ -211,7 +211,7 @@ func testYbServers(targets []*tgtdb.Target) {
 		utils.ErrExit("no yb servers available/given for data import")
 	}
 	for _, target := range targets {
-		log.Infof("testing server: %s\n", spew.Sdump(target))
+		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTarget(target)))
 		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
 			utils.ErrExit("error while testing yb servers: %v", err)
@@ -275,7 +275,7 @@ func importData() {
 	for _, t := range targets {
 		targetUriList = append(targetUriList, t.Uri)
 	}
-	log.Infof("targetUriList: %s", targetUriList)
+	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 	params := &tgtdb.ConnectionParams{
 		NumConnections:    parallelImportJobs + 1,
 		ConnUriList:       targetUriList,

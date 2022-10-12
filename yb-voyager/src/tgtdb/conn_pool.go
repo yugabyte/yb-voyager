@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var defaultSessionVars = []string{
@@ -84,14 +85,15 @@ func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
 
 func (pool *ConnectionPool) connect(uri string) (*pgx.Conn, error) {
 	conn, err := pgx.Connect(context.Background(), uri)
+	redactedUri := utils.GetRedactedURLs([]string{uri})[0]
 	if err != nil {
-		log.Warnf("Failed to connect to %q: %s", uri, err)
+		log.Warnf("Failed to connect to %q: %s", redactedUri, err)
 		return nil, err
 	}
-	log.Infof("Connected to %q", uri)
+	log.Infof("Connected to %q", redactedUri)
 	err = pool.initSession(conn)
 	if err != nil {
-		log.Warnf("Failed to set session vars %q: %s", uri, err)
+		log.Warnf("Failed to set session vars %q: %s", redactedUri, err)
 		conn.Close(context.Background())
 		conn = nil
 	}

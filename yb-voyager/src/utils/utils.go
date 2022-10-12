@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -311,4 +312,16 @@ func ToCaseInsensitiveNames(names []string) []string {
 		names[i] = strings.ToLower(object)
 	}
 	return names
+}
+
+func GetRedactedURLs(urlList []string) []string {
+	result := []string{}
+	for _, u := range urlList {
+		obj, err := url.Parse(u)
+		if err != nil {
+			ErrExit("invalid URL: %q", u)
+		}
+		result = append(result, obj.Redacted())
+	}
+	return result
 }

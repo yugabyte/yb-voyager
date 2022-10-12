@@ -3,6 +3,8 @@ package tgtdb
 import (
 	"fmt"
 	"net/url"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Target struct {
@@ -94,4 +96,11 @@ func generateSSLQueryStringIfNotExists(t *Target) string {
 		SSLQueryString = t.SSLQueryString
 	}
 	return SSLQueryString
+}
+
+func GetRedactedTarget(t *Target) *Target {
+	redactedTarget := *t
+	redactedTarget.Uri = utils.GetRedactedURLs([]string{t.Uri})[0]
+	redactedTarget.Password = "XXX"
+	return &redactedTarget
 }
