@@ -6,7 +6,7 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Initialising source database."
-run_oracle ${SOURCE_DB_NAME} partitions_schema
+run_sqlplus ${SOURCE_DB_NAME} partitions_schema
 
 echo "Initialising source database."
-run_oracle ${SOURCE_DB_NAME} partitions_data
+run_sqlplus ${SOURCE_DB_NAME} partitions_data
