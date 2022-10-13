@@ -190,7 +190,7 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
-		err = fmt.Errorf("error in finding executables: %v", err)
+		err = fmt.Errorf("error in finding executables: %w", err)
 		return "", err
 	}
 	if len(paths) == 0 {
@@ -202,19 +202,15 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 		cmd := exec.Command(path, "--version")
 		stdout, err := cmd.Output()
 		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %v", cmd, path, err)
+			err = fmt.Errorf("error in finding version of %v from path %v: %w", cmd, path, err)
 			return "", err
 		}
 
 		// example output centos: pg_restore (PostgreSQL) 14.5
 		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
 		currVersion := strings.Fields(string(stdout))[2]
-		if err != nil {
-			err = fmt.Errorf("error in converting version found from string to float: %v", err)
-			return "", err
-		}
 
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) > 0 {
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) >= 0 {
 			return path, nil
 		}
 	}
