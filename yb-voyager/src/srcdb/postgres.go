@@ -35,8 +35,6 @@ func (pg *PostgreSQL) Connect() error {
 
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
-	// pgDumpPath, _ := GetAbsPathOfPGCommand("pg_dump")
-	// pgRestorePath, _ := GetAbsPathOfPGCommand("pg_restore")
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
