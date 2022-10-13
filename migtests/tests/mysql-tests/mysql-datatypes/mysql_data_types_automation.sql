@@ -13,10 +13,10 @@ insert into int_types values (126,254,32766,32766,8388606,8388606,2147483646,214
 
 
 drop table if exists fixed_point_types;
-create table if not exists fixed_point_types(d_us decimal(10,2) unsigned zerofill,
-											 dec_type dec(5,5) unsigned zerofill,
-                                             numeric_type numeric(10,5) unsigned zerofill,
-                                             fixed_type fixed(10,3) unsigned zerofill);
+create table if not exists fixed_point_types(d_us decimal(10,2) zerofill,
+											 dec_type dec(5,5) zerofill,
+                                             numeric_type numeric(10,5)  zerofill,
+                                             fixed_type fixed(10,3) zerofill);
 insert into fixed_point_types values (1264587.64,0.12566,12397.64563,12645.12);
 insert into fixed_point_types values (12645.64,0.32,12397.64563,12645.12);
 insert into fixed_point_types values (0.987546789,0,12397.64563,1264.12);
