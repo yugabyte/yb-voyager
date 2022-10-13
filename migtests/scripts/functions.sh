@@ -100,6 +100,7 @@ analyze_schema() {
 		--output-format txt
 		--send-diagnostics=false
 		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-name ${SOURCE_DB_NAME}
 	"
     yb-voyager analyze-schema ${args} $*
 }
