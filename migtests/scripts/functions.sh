@@ -71,6 +71,7 @@ export_schema() {
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false
 		--start-clean
+		--yes
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -89,6 +90,7 @@ export_data() {
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false
 		--start-clean
+		--yes
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
