@@ -99,6 +99,7 @@ analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--output-format txt
 		--send-diagnostics=false
+		--source-db-type ${SOURCE_DB_TYPE}
 	"
         yb-voyager analyze-schema ${args} $*
 }
