@@ -36,7 +36,7 @@ func findAllExecutablesInPath(executableName string) ([]string, error) {
 	if pathString == "" {
 		return nil, fmt.Errorf("PATH environment variable is not set")
 	}
-	paths := strings.Split(pathString, ":")
+	paths := strings.Split(pathString, string(os.PathListSeparator))
 	var result []string
 	for _, dir := range paths {
 		fullPath := path.Join(dir, executableName)

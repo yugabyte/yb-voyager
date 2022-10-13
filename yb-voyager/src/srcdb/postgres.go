@@ -6,17 +6,16 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
-	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-const PG_COMMAND_VERSION float64 = 14.0
+const PG_COMMAND_VERSION string = "14.0"
 
 type PostgreSQL struct {
 	source *Source
@@ -188,11 +187,16 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 	dfd.Save()
 }
 
-//find correct path of pg command depending on the version required
+// Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
+// the executable file having version >= `PG_COMMAND_VERSION`.
 func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	paths, err := findAllExecutablesInPath(cmd)
 	if err != nil {
 		err = fmt.Errorf("error in finding executables: %v", err)
+		return "", err
+	}
+	if len(paths) == 0 {
+		err = fmt.Errorf("the command %v is not installed", cmd)
 		return "", err
 	}
 
@@ -204,14 +208,15 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 			return "", err
 		}
 
-		//example output: pg_restore (PostgreSQL) 14.5
-		version, err := strconv.ParseFloat(regexp.MustCompile(`[ \n]`).Split(string(stdout), -1)[2], 64)
+		// example output centos: pg_restore (PostgreSQL) 14.5
+		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
+		currVersion := strings.Fields(string(stdout))[2]
 		if err != nil {
 			err = fmt.Errorf("error in converting version found from string to float: %v", err)
 			return "", err
 		}
 
-		if version >= PG_COMMAND_VERSION {
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) > 0 {
 			return path, nil
 		}
 	}
