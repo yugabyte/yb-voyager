@@ -59,5 +59,8 @@ jobs:
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental
 
+    - name: "TEST: pg-partitions"
+      run: migtests/scripts/run-test.sh pg-partitions
+
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
