@@ -47,3 +47,21 @@ jobs:
 
     - name: "TEST: mysql-sakila"
       run: migtests/scripts/run-test.sh mysql-sakila
+
+    - name: "TEST: mysql-datatypes"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-datatypes
+
+    - name: "TEST: mysql-constraints"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-constraints
+
+    - name: "TEST: mysql-case-sensitive"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-case-sensitive
+
+    - name: "TEST: mysql-case-indexes"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-indexes
+
+    - name: "TEST: mysql-case-sequences"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-sequences    
+
+    - name: "TEST: mysql-case-views"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-views
