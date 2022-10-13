@@ -131,7 +131,7 @@ func getYBServers() []*tgtdb.Target {
 			}
 
 			clone.Uri = getCloneConnectionUri(clone)
-			log.Infof("using yb server for import data: %+v", clone)
+			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTarget(clone))
 			targets = append(targets, clone)
 		}
 	} else {
@@ -211,7 +211,7 @@ func testYbServers(targets []*tgtdb.Target) {
 		utils.ErrExit("no yb servers available/given for data import")
 	}
 	for _, target := range targets {
-		log.Infof("testing server: %s\n", spew.Sdump(target))
+		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTarget(target)))
 		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
 			utils.ErrExit("error while testing yb servers: %v", err)
@@ -275,7 +275,7 @@ func importData() {
 	for _, t := range targets {
 		targetUriList = append(targetUriList, t.Uri)
 	}
-	log.Infof("targetUriList: %s", targetUriList)
+	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 	params := &tgtdb.ConnectionParams{
 		NumConnections:    parallelImportJobs + 1,
 		ConnUriList:       targetUriList,
@@ -951,6 +951,15 @@ func setTargetSchema(conn *pgx.Conn) {
 	if err != nil {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 	}
+
+	if sourceDBType == ORACLE {
+		// append oracle schema in the search_path for orafce
+		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
+		_, err := conn.Exec(context.Background(), updateSearchPath)
+		if err != nil {
+			utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		}
+	}
 }
 
 func dropIdx(conn *pgx.Conn, idxName string) {
@@ -1064,6 +1073,9 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
+	if getCopyCommand(table) != "" {
+		return
+	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
 	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
 	if sourceDBType == "postgresql" {

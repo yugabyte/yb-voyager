@@ -36,6 +36,7 @@ type Source struct {
 	VerboseMode      bool
 	TableList        string
 	ExcludeTableList string
+	UseOrafce        bool
 
 	sourceDB SourceDB
 }
@@ -172,10 +173,8 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 		if strings.HasPrefix(line, "ORACLE_DSN") {
 			lines[i] = "ORACLE_DSN	" + sourceDSN
 		} else if strings.HasPrefix(line, "ORACLE_USER") {
-			// fmt.Println(line)
 			lines[i] = "ORACLE_USER	" + source.User
 		} else if strings.HasPrefix(line, "ORACLE_HOME") && source.OracleHome != "" {
-			// fmt.Println(line)
 			lines[i] = "ORACLE_HOME	" + source.OracleHome
 		} else if strings.HasPrefix(line, "ORACLE_PWD") {
 			lines[i] = "ORACLE_PWD	" + source.Password
@@ -193,6 +192,10 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 			lines[i] = "INDEXES_RENAMING 1"
 		} else if strings.HasPrefix(line, "PREFIX_PARTITION") {
 			lines[i] = "PREFIX_PARTITION 1"
+		} else if strings.HasPrefix(line, "USE_ORAFCE") {
+			if source.UseOrafce && strings.EqualFold(source.DBType, "oracle") {
+				lines[i] = "USE_ORAFCE 1"
+			}
 		}
 	}
 

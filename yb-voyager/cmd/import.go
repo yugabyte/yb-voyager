@@ -64,6 +64,7 @@ func validateImportFlags() {
 	if disableTransactionalWrites {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
+	validateBatchSizeFlag(numLinesInASplit)
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -201,5 +202,11 @@ func checkOrSetDefaultTargetSSLMode() {
 		target.SSLMode = "prefer"
 	} else if target.SSLMode != "disable" && target.SSLMode != "prefer" && target.SSLMode != "require" && target.SSLMode != "verify-ca" && target.SSLMode != "verify-full" {
 		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", target.SSLMode)
+	}
+}
+
+func validateBatchSizeFlag(numLinesInASplit int64) {
+	if numLinesInASplit > 20000 {
+		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, DEFAULT_BATCH_SIZE)
 	}
 }

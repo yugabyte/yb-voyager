@@ -37,14 +37,19 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	tableListPatterns := createTableListPatterns(tableList)
 
 	// Using pgdump for exporting data in directory format.
+
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
-	cmd := fmt.Sprintf(`%s "%s" --no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces`, pgDumpPath,
-		connectionUri, tableListPatterns, dataDirPath, source.NumConnections)
 
-	log.Infof("Running command: %s", cmd)
+	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces`,
+		tableListPatterns, dataDirPath, source.NumConnections)
+	cmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, connectionUri, pgDumpArgs)
+	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
+	redactedCmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, redactedUri, pgDumpArgs)
+	log.Infof("Running command: %s", redactedCmd)
+
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)

@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: [ main, v1.0.0-xbeta ]
+    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
   pull_request:
-    branches: [ main, v1.0.0-xbeta ]
+    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
 
 jobs:
   run-pg-migration-tests:
@@ -58,6 +58,9 @@ jobs:
 
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental
+
+    - name: "TEST: pg-partitions"
+      run: migtests/scripts/run-test.sh pg-partitions
 
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test

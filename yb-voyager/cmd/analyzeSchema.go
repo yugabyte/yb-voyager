@@ -169,10 +169,17 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
+
+	//reading source db metainfo
+	miginfo, err := LoadMigInfo(exportDir)
+	if err != nil {
+		utils.ErrExit("unable to load migration info: %s", err)
+	}
+
 	if !target.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = source.DBName
-		reportStruct.Summary.SchemaName = source.Schema
-		reportStruct.Summary.DBVersion = source.DB().GetVersion()
+		reportStruct.Summary.DBName = miginfo.SourceDBName
+		reportStruct.Summary.SchemaName = miginfo.SourceDBSchema
+		reportStruct.Summary.DBVersion = miginfo.SourceDBVersion
 	}
 
 	// requiredJson += `"databaseObjects": [`
@@ -634,11 +641,17 @@ func initializeSummaryMap() {
 func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
+	//reading source db metainfo
+	miginfo, err := LoadMigInfo(exportDir)
+	if err != nil {
+		utils.ErrExit("unable to load migration info: %s", err)
+	}
+
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(source.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>" + strings.ToUpper(miginfo.SourceDBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Auto-Migrated</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -726,9 +739,14 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
+	miginfo, err := LoadMigInfo(exportDir)
+	if err != nil {
+		utils.ErrExit("unable to load migration info: %s", err)
+	}
+
 	reportStruct = utils.Report{}
 	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(source.DBType)
+	sourceObjList = utils.GetSchemaObjectList(miginfo.SourceDBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var filePath string
@@ -759,10 +777,7 @@ func analyzeSchema() {
 	if !schemaIsExported(exportDir) {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
-	err := source.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to the source database: %s", err)
-	}
+
 	analyzeSchemaInternal()
 
 	var finalReport string
@@ -825,10 +840,8 @@ var analyzeSchemaCmd = &cobra.Command{
 	Long:  ``,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
-		setExportFlagsDefaults()
 		validateReportOutputFormat()
-		validateExportFlags()
-		markFlagsRequired(cmd)
+		validateExportDirFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -838,8 +851,6 @@ var analyzeSchemaCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
-
-	registerCommonExportFlags(analyzeSchemaCmd)
 
 	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
