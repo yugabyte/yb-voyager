@@ -86,7 +86,6 @@ export_data() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
-		--disable-pb
 		--send-diagnostics=false
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
