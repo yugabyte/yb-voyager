@@ -70,6 +70,7 @@ export_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false
+		--start-clean
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -87,6 +88,7 @@ export_data() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false
+		--start-clean
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -119,6 +121,7 @@ import_schema() {
 		--target-db-name ${TARGET_DB_NAME} \
 		--yes \
 		--send-diagnostics=false \
+		--start-clean
 		$*
 }
 
@@ -131,6 +134,7 @@ import_data() {
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb \
 		--send-diagnostics=false \
+		--start-clean
 		$*
 }
 
