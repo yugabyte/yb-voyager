@@ -87,7 +87,11 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 		time.Sleep(time.Second * 1)
 	}
 
-	pgRestoreCmd := exec.Command("pg_restore", "-l", dataDirPath)
+	pgRestorePath, err := srcdb.GetAbsPathOfPGCommand("pg_restore")
+	if err != nil {
+		utils.ErrExit("could not get absolute path of pg_restore command: %v", pgRestorePath)
+	}
+	pgRestoreCmd := exec.Command(pgRestorePath, "-l", dataDirPath)
 	stdOut, err := pgRestoreCmd.Output()
 	log.Infof("cmd: %s", pgRestoreCmd.String())
 	log.Infof("output: %s", string(stdOut))

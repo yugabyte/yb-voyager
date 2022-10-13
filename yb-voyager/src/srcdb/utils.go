@@ -1,7 +1,11 @@
 package srcdb
 
 import (
+	"fmt"
+	"os"
 	"os/exec"
+	"path"
+	"strings"
 	"unicode"
 
 	log "github.com/sirupsen/logrus"
@@ -25,4 +29,20 @@ func nameContainsCapitalLetter(name string) bool {
 		}
 	}
 	return false
+}
+
+func findAllExecutablesInPath(executableName string) ([]string, error) {
+	pathString := os.Getenv("PATH")
+	if pathString == "" {
+		return nil, fmt.Errorf("PATH environment variable is not set")
+	}
+	paths := strings.Split(pathString, string(os.PathListSeparator))
+	var result []string
+	for _, dir := range paths {
+		fullPath := path.Join(dir, executableName)
+		if _, err := os.Stat(fullPath); err == nil {
+			result = append(result, fullPath)
+		}
+	}
+	return result, nil
 }

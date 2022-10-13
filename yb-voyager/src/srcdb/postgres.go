@@ -4,14 +4,18 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 	"net/url"
+	"os/exec"
+	"strings"
 
 	"github.com/jackc/pgx/v4"
+	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+const PG_COMMAND_VERSION string = "14.0"
 
 type PostgreSQL struct {
 	source *Source
@@ -30,7 +34,7 @@ func (pg *PostgreSQL) Connect() error {
 }
 
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
-	checkTools("pg_dump", "strings", "pg_restore")
+	checkTools("strings")
 }
 
 func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
@@ -80,7 +84,7 @@ func (pg *PostgreSQL) GetVersion() string {
 func (pg *PostgreSQL) GetAllTableNames() []string {
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
-	for _,schema := range list {
+	for _, schema := range list {
 		if utils.IsQuotedString(schema) {
 			schema = strings.Trim(schema, `"`)
 		}
@@ -108,7 +112,7 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
 		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
-	} 
+	}
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
@@ -147,7 +151,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 	if source.Uri != "" {
 		return source.Uri
 	}
-    hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
 	sourceUrl := &url.URL{
 		Scheme:   "postgresql",
 		User:     url.UserPassword(source.User, source.Password),
@@ -179,4 +183,38 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+}
+
+// Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
+// the executable file having version >= `PG_COMMAND_VERSION`.
+func GetAbsPathOfPGCommand(cmd string) (string, error) {
+	paths, err := findAllExecutablesInPath(cmd)
+	if err != nil {
+		err = fmt.Errorf("error in finding executables: %w", err)
+		return "", err
+	}
+	if len(paths) == 0 {
+		err = fmt.Errorf("the command %v is not installed", cmd)
+		return "", err
+	}
+
+	for _, path := range paths {
+		cmd := exec.Command(path, "--version")
+		stdout, err := cmd.Output()
+		if err != nil {
+			err = fmt.Errorf("error in finding version of %v from path %v: %w", cmd, path, err)
+			return "", err
+		}
+
+		// example output centos: pg_restore (PostgreSQL) 14.5
+		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
+		currVersion := strings.Fields(string(stdout))[2]
+
+		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) >= 0 {
+			return path, nil
+		}
+	}
+
+	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
+	return "", err
 }
