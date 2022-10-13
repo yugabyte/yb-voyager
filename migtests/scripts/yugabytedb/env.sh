@@ -3,7 +3,6 @@ export TARGET_DB_PORT=${TARGET_DB_PORT:-5433}
 export TARGET_DB_USER=${TARGET_DB_USER:-"ybvoyager"}
 export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD:-"password"}
 export TARGET_DB_NAME="partition_tests"
-export TARGET_DB_SCHEMA="partition_test_schema"
 # # The PG driver, used to connect to YB, is case-sensitive about database name.
 # if [ "${TARGET_DB_NAME}" == "" ]
 # then
