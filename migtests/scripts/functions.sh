@@ -106,6 +106,7 @@ analyze_schema() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
+		--source-db-schema ${SOURCE_DB_SCHEMA}
 	"
         yb-voyager analyze-schema ${args} $*
 }
