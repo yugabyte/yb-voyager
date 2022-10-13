@@ -1,0 +1,43 @@
+name: "MySQL: Migration Tests"
+
+on:
+  push:
+    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+  pull_request:
+    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+
+jobs:
+  run-oracle-migration-tests:
+    strategy:
+      matrix:
+        version: [2.14.2.0-b25, 2.15.2.0-b87]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Run installer script
+      run: |
+        yes | ./installer_scripts/install-yb-voyager --install-from-local-source
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+    - name: Start YugabyteDB cluster
+      run: |
+        docker pull yugabytedb/yugabyte:${{ matrix.version }}
+        VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+        sleep 20
+
+    - name: Test YugabyteDB connection
+      run: |
+        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+    - name: Enable yb-tserver-n1 name resolution
+      run: |
+        echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+        psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+    - name: "TEST: oracle-partitions migration"
+      run: migtests/scripts/run-test.sh ora-partition-tests
+
+    - name: "TEST: oracle-foreign-key-migration "
+      run: migtests/scripts/run-test.sh ora-foreign-key-tests
