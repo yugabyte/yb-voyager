@@ -27,6 +27,10 @@ jobs:
         VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
         sleep 20
 
+    - name: Test Oracle Connection
+      run: |
+        psql "sqlplus ADMIN/Password1@ssinghal-dms-oracle.cbtcvpszcgdq.us-west-2.rds.amazonaws.com:1521/DMS"
+
     - name: Test YugabyteDB connection
       run: |
         psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
