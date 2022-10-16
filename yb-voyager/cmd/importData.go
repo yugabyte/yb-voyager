@@ -785,13 +785,12 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	if err != nil {
 		utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
 	}
-
-	copyCommand := getCopyCommand(task.TableName)
-	fh, err := os.Open(inProgressFilePath)
+	file, err := os.Open(inProgressFilePath)
 	if err != nil {
 		utils.ErrExit("open %q: %s", inProgressFilePath, err)
 	}
 
+	copyCommand := getCopyCommand(task.TableName)
 	// copyCommand is empty when there are no rows for that table
 	if copyCommand == "" {
 		markTaskDone(task)
@@ -805,7 +804,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		var err error
 		attempt++
-		rowsAffected, err = importSplit(conn, task, fh, copyCommand)
+		rowsAffected, err = importSplit(conn, task, file, copyCommand)
 		if err == nil ||
 			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
 			attempt == COPY_MAX_RETRY_COUNT {
@@ -830,9 +829,9 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	markTaskDone(task)
 }
 
-func importSplit(conn *pgx.Conn, task *SplitFileImportTask, fh *os.File, copyCmd string) (rowsAffected int64, err error) {
+func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyCmd string) (rowsAffected int64, err error) {
 	// reset the reader to begin for every call
-	fh.Seek(0, io.SeekStart)
+	file.Seek(0, io.SeekStart)
 	//setting the schema so that COPY command can acesss the table
 	setTargetSchema(conn)
 
@@ -872,7 +871,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, fh *os.File, copyCmd
 
 	// Import the split using COPY command.
 	var res pgconn.CommandTag
-	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), fh, copyCmd)
+	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCmd)
 	if err != nil {
 		return res.RowsAffected(), err
 	}
