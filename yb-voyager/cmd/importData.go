@@ -310,7 +310,12 @@ func importData() {
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager",
-		"CREATE TABLE IF NOT EXISTS ybvoyager.batches (file_name VARCHAR(250) PRIMARY KEY, rows_imported BIGINT);",
+		`CREATE TABLE IF NOT EXISTS ybvoyager.batches (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);`,
 	}
 	for _, cmd := range cmds {
 		log.Infof("Executing on target: [%s]", cmd)
@@ -879,20 +884,25 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	// Record an entry in ybvoyager.batches, that the split is imported.
 	rowsAffected = res.RowsAffected()
 	fileName := filepath.Base(getInProgressFilePath(task))
-	cmd := fmt.Sprintf("INSERT INTO ybvoyager.batches (file_name, rows_imported) VALUES ('%s', %v);",
-		fileName, rowsAffected)
+	schemaName := getTargetSchemaName(task)
+	cmd := fmt.Sprintf(
+		`INSERT INTO ybvoyager.batches (schema_name, file_name, rows_imported)
+		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
 	_, err = tx.Exec(ctx, cmd)
 	if err != nil {
 		return 0, fmt.Errorf("insert into ybvoyager.batches: %w", err)
 	}
-	log.Infof("Inserted (%q, %v) in ybvoyager.batches", fileName, rowsAffected)
+	log.Infof("Inserted (%q, %q, %v) in ybvoyager.batches", schemaName, fileName, rowsAffected)
 	return rowsAffected, nil
 }
 
 func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
 	var rowsImported int64
 	fileName := filepath.Base(getInProgressFilePath(task))
-	query := fmt.Sprintf("SELECT rows_imported FROM ybvoyager.batches WHERE file_name = '%s';", fileName)
+	schemaName := getTargetSchemaName(task)
+	query := fmt.Sprintf(
+		"SELECT rows_imported FROM ybvoyager.batches WHERE schema_name = '%s' AND file_name = '%s';",
+		schemaName, fileName)
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
@@ -1057,6 +1067,14 @@ func getInProgressFilePath(task *SplitFileImportTask) string {
 func getDoneFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
 	return path[0:len(path)-1] + "D" // *.P -> *.D
+}
+
+func getTargetSchemaName(task *SplitFileImportTask) string {
+	parts := strings.Split(task.TableName, ".")
+	if len(parts) == 2 {
+		return parts[0]
+	}
+	return target.Schema // default set to "public"
 }
 
 func incrementImportProgressBar(tableName string, splitFilePath string) {
