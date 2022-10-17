@@ -69,6 +69,7 @@ func importSchema() {
 		createTargetSchemas(conn)
 	}
 	var objectList []string
+
 	if !flagPostImportData { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
@@ -81,7 +82,18 @@ func importSchema() {
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
-	importSchemaInternal(&target, exportDir, objectList, nil)
+
+	skipFn := func(objType, stmt string) bool {
+		stmt = strings.ToUpper(stmt)
+		return strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+	importSchemaInternal(&target, exportDir, objectList, skipFn)
+
+	skipFn = func(objType, stmt string) bool {
+		stmt = strings.ToUpper(stmt)
+		return !strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+	importSchemaInternal(&target, exportDir, objectList, skipFn)
 	callhome.PackAndSendPayload(exportDir)
 }
 
