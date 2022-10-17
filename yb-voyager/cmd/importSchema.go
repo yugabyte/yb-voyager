@@ -83,17 +83,21 @@ func importSchema() {
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
 
-	skipFn := func(objType, stmt string) bool {
+	// Import ALTER TABLE statements from sequence.sql only after importing everything else
+	isAlterStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(stmt)
-		return strings.HasPrefix(stmt, "ALTER TABLE")
+		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+
+	skipFn := isAlterStatement
+	importSchemaInternal(&target, exportDir, objectList, skipFn)
+
+	// Import the skipped ALTER TABLE statements from sequence.sql
+	skipFn = func(objType, stmt string) bool {
+		return !isAlterStatement(objType, stmt)
 	}
 	importSchemaInternal(&target, exportDir, objectList, skipFn)
 
-	skipFn = func(objType, stmt string) bool {
-		stmt = strings.ToUpper(stmt)
-		return !strings.HasPrefix(stmt, "ALTER TABLE")
-	}
-	importSchemaInternal(&target, exportDir, objectList, skipFn)
 	callhome.PackAndSendPayload(exportDir)
 }
 
