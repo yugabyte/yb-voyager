@@ -79,7 +79,7 @@ func importSchema() {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 	} else { // Post data load.
-		objectList = []string{"INDEX", "TRIGGER"}
+		objectList = []string{"INDEX", "FTS_INDEX", "TRIGGER"}
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
