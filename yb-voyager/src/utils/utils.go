@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -229,6 +229,8 @@ func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
 	if objType == "INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
+	} else if objType == "FTS_INDEX" {
+		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
 	} else {
 		requiredPath = filepath.Join(schemaDirPath, strings.ToLower(objType)+"s",
 			strings.ToLower(objType)+".sql")
