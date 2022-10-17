@@ -112,7 +112,6 @@ func exportDataOffline() bool {
 		tableList = source.DB().GetAllTableNames()
 		finalTableList = utils.SetDifference(tableList, excludeTableList)
 		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
-		fmt.Printf("Num of parallel jobs: %v\n", source.NumConnections)
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
 	if len(finalTableList) == 0 {
