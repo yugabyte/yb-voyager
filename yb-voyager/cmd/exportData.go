@@ -66,7 +66,7 @@ func init() {
 	exportDataCmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
 		"mode can be offline | online")
 
-	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
+	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 }
 
@@ -229,8 +229,8 @@ func extractTableListFromString(flagTableList string) []string {
 			tableName = parts[1]
 		}
 		if utils.IsQuotedString(tableName) {
-			if  source.DBType == ORACLE {
-				tableName = strings.Trim(tableName,`"`)
+			if source.DBType == ORACLE {
+				tableName = strings.Trim(tableName, `"`)
 			}
 		} else {
 			switch source.DBType {
