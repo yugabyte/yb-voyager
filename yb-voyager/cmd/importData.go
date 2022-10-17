@@ -1019,7 +1019,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
-		_, err = (*conn).Exec(context.Background(), sqlInfo.stmt)
+		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmtStr)
 		if err == nil {
 			return nil
 		}
