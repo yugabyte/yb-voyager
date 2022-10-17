@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"math"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -43,6 +42,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
 
+	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	"github.com/tevino/abool/v2"
 )
@@ -282,7 +282,10 @@ func importData() {
 		SessionInitScript: getYBSessionInitScript(),
 	}
 	connPool := tgtdb.NewConnectionPool(params)
-
+	err = createVoyagerSchemaOnTarget(connPool)
+	if err != nil {
+		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
+	}
 	var parallelism = parallelImportJobs
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
@@ -302,6 +305,29 @@ func importData() {
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
 	fmt.Printf("\nexiting...\n")
+}
+
+func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
+	cmds := []string{
+		"CREATE SCHEMA IF NOT EXISTS ybvoyager",
+		`CREATE TABLE IF NOT EXISTS ybvoyager.batches (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);`,
+	}
+	for _, cmd := range cmds {
+		log.Infof("Executing on target: [%s]", cmd)
+		err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			_, err := conn.Exec(context.Background(), cmd)
+			return false, err
+		})
+		if err != nil {
+			return fmt.Errorf("create ybvoyager schema on target: %w", err)
+		}
+	}
+	return nil
 }
 
 func checkForDone() {
@@ -380,11 +406,13 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	log.Infof("importTables: %s", importTables)
 
 	if startClean {
-		nonEmptyTableNames := getNonEmptyTables(allTables)
+		conn := newTargetConn()
+		defer conn.Close(context.Background())
+		nonEmptyTableNames := getNonEmptyTables(conn, allTables)
 		if len(nonEmptyTableNames) > 0 {
-			utils.ErrExit("Following tables still has rows. "+
+			utils.ErrExit("Following tables are not empty. "+
 				"TRUNCATE them before importing data with --start-clean.\n%s",
-				nonEmptyTableNames)
+				strings.Join(nonEmptyTableNames, ", "))
 		}
 
 		for _, table := range allTables {
@@ -392,18 +420,16 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
-		}
-		importTables = allTables //since all tables needs to imported now
-	} else {
-		//truncate tables with no primary key
-		utils.PrintIfTrue("looking for tables without a Primary Key...\n", target.VerboseMode)
-		for _, tableName := range importTables {
-			if !checkPrimaryKey(tableName) {
-				fmt.Printf("truncate table '%s' with NO Primary Key for import of data to restart from beginning...\n", tableName)
-				utils.ClearMatchingFiles(exportDir + "/metainfo/data/" + tableName + ".[0-9]*.[0-9]*.[0-9]*.*") //correct and complete pattern to avoid matching cases with other table names
-				truncateTables([]string{tableName})
+
+			cmd := fmt.Sprintf(`DELETE FROM ybvoyager.batches WHERE file_name LIKE '%s.%%'`, table)
+			res, err := conn.Exec(context.Background(), cmd)
+			if err != nil {
+				utils.ErrExit("remove %q related entries from ybvoyager.batches: %s", table, err)
 			}
+			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 		}
+
+		importTables = allTables //since all tables needs to imported now
 	}
 
 	if target.VerboseMode {
@@ -432,92 +458,8 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	go splitDataFiles(importTables, taskQueue)
 }
 
-func checkPrimaryKey(tableName string) bool {
-	url := target.GetConnectionUri()
-	conn, err := pgx.Connect(context.Background(), url)
-	if err != nil {
-		utils.ErrExit("Unable to connect to database (uri=%s): %s", url, err)
-	}
-	defer conn.Close(context.Background())
-
-	var table, schema, originalTableName string
-	if len(strings.Split(tableName, ".")) == 2 {
-		schema = strings.Split(tableName, ".")[0]
-		table = strings.Split(tableName, ".")[1]
-	} else {
-		schema = target.Schema
-		table = strings.Split(tableName, ".")[0]
-	}
-	originalTableName = table
-
-	if utils.IsQuotedString(table) {
-		table = strings.Trim(table, `"`)
-	} else {
-		table = strings.ToLower(table)
-	}
-
-	checkTableSql := fmt.Sprintf(`SELECT '%s.%s'::regclass;`, schema, originalTableName)
-	log.Infof("Running query on target DB: %s", checkTableSql)
-
-	rows, err := conn.Query(context.Background(), checkTableSql)
-	if err != nil {
-		if strings.Contains(err.Error(), "does not exist") {
-			utils.ErrExit("table %q doesn't exist in target DB", table)
-		} else {
-			utils.ErrExit("error in querying to check table %q is present: %v", table, err)
-		}
-	} else {
-		log.Infof("table %s is present in DB", table)
-	}
-
-	rows.Close()
-
-	/* currently object names for yugabytedb is implemented as case-sensitive i.e. lower-case
-	but in case of oracle exported data files(which we use for to extract tablename)
-	so eg. file EMPLOYEE_data.sql -> table EMPLOYEE which needs to converted for using further */
-
-	checkPKSql := fmt.Sprintf(`SELECT * FROM information_schema.table_constraints
-	WHERE constraint_type = 'PRIMARY KEY' AND table_name = '%s' AND table_schema = '%s';`, table, schema)
-
-	log.Infof("Running query on target DB: %s", checkPKSql)
-	rows, err = conn.Query(context.Background(), checkPKSql)
-	if err != nil {
-		utils.ErrExit("error in querying to check PK on table %q: %v", table, err)
-	}
-	defer rows.Close()
-
-	if rows.Next() {
-		log.Infof("table %q has a PK", table)
-		return true
-	} else {
-		log.Infof("table %q does not have a PK", table)
-		return false
-	}
-}
-
-func truncateTables(tables []string) {
-	log.Infof("Truncating tables: %v", tables)
-	log.Infof("Source DB type: %q", sourceDBType)
-
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
-	for _, table := range tables {
-		log.Infof("Truncating table: %q", table)
-		if target.VerboseMode {
-			fmt.Printf("Truncating table %s...\n", table)
-		}
-		truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s", table)
-		_, err := conn.Exec(context.Background(), truncateStmt)
-		if err != nil {
-			utils.ErrExit("error while truncating table %q: %s", table, err)
-		}
-	}
-}
-
-func getNonEmptyTables(tables []string) []string {
+func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	result := []string{}
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
 
 	for _, table := range tables {
 		log.Infof("Checking if table %q is empty.", table)
@@ -836,94 +778,154 @@ func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, 
 }
 
 func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
-	splitImportDone := false
-	for !splitImportDone {
-		log.Infof("Importing %q", task.SplitFilePath)
-		//this is done to signal start progress bar for this table
-		if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
-			tablesProgressMetadata[task.TableName].CountLiveRows = 0
+	log.Infof("Importing %q", task.SplitFilePath)
+	//this is done to signal start progress bar for this table
+	if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
+		tablesProgressMetadata[task.TableName].CountLiveRows = 0
+	}
+	// Rename the file to .P
+	inProgressFilePath := getInProgressFilePath(task)
+	log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
+	err := os.Rename(task.SplitFilePath, inProgressFilePath)
+	if err != nil {
+		utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
+	}
+	file, err := os.Open(inProgressFilePath)
+	if err != nil {
+		utils.ErrExit("open %q: %s", inProgressFilePath, err)
+	}
+
+	copyCommand := getCopyCommand(task.TableName)
+	// copyCommand is empty when there are no rows for that table
+	if copyCommand == "" {
+		markTaskDone(task)
+		return
+	}
+	copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
+	log.Infof("COPY command: %s", copyCommand)
+	var rowsAffected int64
+	attempt := 0
+	sleepIntervalSec := 0
+	copyFn := func(conn *pgx.Conn) (bool, error) {
+		var err error
+		attempt++
+		rowsAffected, err = importSplit(conn, task, file, copyCommand)
+		if err == nil ||
+			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
+			attempt == COPY_MAX_RETRY_COUNT {
+			return false, err
 		}
-		// Rename the file to .P
-		inProgressFilePath := getInProgressFilePath(task)
-		log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
-		err := os.Rename(task.SplitFilePath, inProgressFilePath)
+		log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
+			sleepIntervalSec, inProgressFilePath, attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+		return true, err
+	}
+	err = connPool.WithConn(copyFn)
+	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
+	if err != nil {
+		utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
+	}
+	incrementImportProgressBar(task.TableName, inProgressFilePath)
+	markTaskDone(task)
+}
+
+func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyCmd string) (rowsAffected int64, err error) {
+	// reset the reader to begin for every call
+	file.Seek(0, io.SeekStart)
+	//setting the schema so that COPY command can acesss the table
+	setTargetSchema(conn)
+
+	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
+	ctx := context.Background()
+	var tx pgx.Tx
+	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return 0, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() {
+		var err2 error
 		if err != nil {
-			utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
-		}
-
-		copyCommand := getCopyCommand(task.TableName)
-		reader, err := os.Open(inProgressFilePath)
-		if err != nil {
-			utils.ErrExit("open %q: %s", inProgressFilePath, err)
-		}
-
-		// copyCommand is empty when there are no rows for that table
-		if copyCommand != "" {
-			copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
-			log.Infof("COPY command: %s", copyCommand)
-			var rowsAffected int64
-			var copyErr error
-			// if retry=n, total try call will be n+1
-			remainingRetries := COPY_MAX_RETRY_COUNT + 1
-
-			copyErr = connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-				// reset the reader to begin for every call
-				reader.Seek(0, io.SeekStart)
-				//setting the schema so that COPY command can acesss the table
-				setTargetSchema(conn)
-				res, err := conn.PgConn().CopyFrom(context.Background(), reader, copyCommand)
-				rowsAffected = res.RowsAffected()
-
-				if err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) {
-					return false, err
-				}
-
-				/*
-					Note: If a user retries after deleting some row(s) from a batch,
-					yb-voyager will never be able to mark the batch as completed
-					github issue: https://github.com/yugabyte/yb-voyager/issues/223
-				*/
-				if err != nil {
-					log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
-					log.Errorf("RETRYING.. COPY %q FROM file %q due to encountered error: %v ", task.TableName, inProgressFilePath, err)
-
-					remainingRetries--
-					if remainingRetries > 0 {
-						retryNum := COPY_MAX_RETRY_COUNT + 1 - remainingRetries
-						duration := time.Duration(math.Min(MAX_SLEEP_SECOND, 10*float64(retryNum)))
-						log.Infof("sleep for duration %d before retrying the file %s for %d time...",
-							duration, inProgressFilePath, retryNum)
-						time.Sleep(time.Second * duration)
-					}
-					return remainingRetries > 0, err
-				}
-
-				return false, err
-			})
-
-			log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
-			if copyErr != nil {
-				if !disableTransactionalWrites && strings.Contains(copyErr.Error(), "violates unique constraint") {
-					log.Infof("Ignoring encountered Error: %v, Assuming batch is already imported due to transactional mode", copyErr)
-				} else {
-					utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, copyErr)
-				}
+			err2 = tx.Rollback(ctx)
+			if err2 != nil {
+				rowsAffected = 0
+				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
 			}
+		} else {
+			err2 = tx.Commit(ctx)
+			if err2 != nil {
+				rowsAffected = 0
+				err = fmt.Errorf("commit txn: %w", err2)
+			}
+		}
+	}()
 
-			incrementImportProgressBar(task.TableName, inProgressFilePath)
-		}
-		doneFilePath := getDoneFilePath(task)
-		log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
-		err = os.Rename(inProgressFilePath, doneFilePath)
-		if err != nil {
-			utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
-		}
+	// Check if the split is already imported.
+	var alreadyImported bool
+	alreadyImported, rowsAffected, err = splitIsAlreadyImported(task, tx)
+	if err != nil {
+		return 0, err
+	}
+	if alreadyImported {
+		return rowsAffected, nil
+	}
 
-		err = os.Truncate(doneFilePath, 0)
-		if err != nil {
-			log.Warnf("truncate file %q: %s", doneFilePath, err)
-		}
-		splitImportDone = true
+	// Import the split using COPY command.
+	var res pgconn.CommandTag
+	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCmd)
+	if err != nil {
+		return res.RowsAffected(), err
+	}
+
+	// Record an entry in ybvoyager.batches, that the split is imported.
+	rowsAffected = res.RowsAffected()
+	fileName := filepath.Base(getInProgressFilePath(task))
+	schemaName := getTargetSchemaName(task)
+	cmd := fmt.Sprintf(
+		`INSERT INTO ybvoyager.batches (schema_name, file_name, rows_imported)
+		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
+	_, err = tx.Exec(ctx, cmd)
+	if err != nil {
+		return 0, fmt.Errorf("insert into ybvoyager.batches: %w", err)
+	}
+	log.Infof("Inserted (%q, %q, %v) in ybvoyager.batches", schemaName, fileName, rowsAffected)
+	return rowsAffected, nil
+}
+
+func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
+	var rowsImported int64
+	fileName := filepath.Base(getInProgressFilePath(task))
+	schemaName := getTargetSchemaName(task)
+	query := fmt.Sprintf(
+		"SELECT rows_imported FROM ybvoyager.batches WHERE schema_name = '%s' AND file_name = '%s';",
+		schemaName, fileName)
+	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
+	if err == nil {
+		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
+		return true, rowsImported, nil
+	}
+	if err == pgx.ErrNoRows {
+		log.Infof("%q is not imported yet", fileName)
+		return false, 0, nil
+	}
+	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
+}
+
+func markTaskDone(task *SplitFileImportTask) {
+	inProgressFilePath := getInProgressFilePath(task)
+	doneFilePath := getDoneFilePath(task)
+	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
+	err := os.Rename(inProgressFilePath, doneFilePath)
+	if err != nil {
+		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
+	}
+	err = os.Truncate(doneFilePath, 0)
+	if err != nil {
+		log.Warnf("truncate file %q: %s", doneFilePath, err)
 	}
 }
 
@@ -1065,6 +1067,14 @@ func getInProgressFilePath(task *SplitFileImportTask) string {
 func getDoneFilePath(task *SplitFileImportTask) string {
 	path := task.SplitFilePath
 	return path[0:len(path)-1] + "D" // *.P -> *.D
+}
+
+func getTargetSchemaName(task *SplitFileImportTask) string {
+	parts := strings.Split(task.TableName, ".")
+	if len(parts) == 2 {
+		return parts[0]
+	}
+	return target.Schema // default set to "public"
 }
 
 func incrementImportProgressBar(tableName string, splitFilePath string) {
