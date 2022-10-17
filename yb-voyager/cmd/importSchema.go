@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 )
@@ -69,6 +70,7 @@ func importSchema() {
 		createTargetSchemas(conn)
 	}
 	var objectList []string
+
 	if !flagPostImportData { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
@@ -81,7 +83,24 @@ func importSchema() {
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
-	importSchemaInternal(&target, exportDir, objectList, nil)
+
+	// Import ALTER TABLE statements from sequence.sql only after importing everything else
+	isAlterStatement := func(objType, stmt string) bool {
+		stmt = strings.ToUpper(strings.TrimSpace(stmt))
+		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+
+	skipFn := isAlterStatement
+	importSchemaInternal(&target, exportDir, objectList, skipFn)
+
+	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	if slices.Contains(objectList, "SEQUENCE") {
+		skipFn = func(objType, stmt string) bool {
+			return !isAlterStatement(objType, stmt)
+		}
+		importSchemaInternal(&target, exportDir, []string{"SEQUENCE"}, skipFn)
+	}
+
 	callhome.PackAndSendPayload(exportDir)
 }
 
