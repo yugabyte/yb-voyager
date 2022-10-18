@@ -194,7 +194,8 @@ func getYBServers() []*tgtdb.Target {
 	}
 
 	if parallelImportJobs == -1 {
-		parallelImportJobs = len(targets)
+		parallelImportJobs = fetchParllelJobs(targets)
+		fmt.Printf("Uhhh you have %d jobs", parallelImportJobs)
 	}
 
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
@@ -204,6 +205,38 @@ func getYBServers() []*tgtdb.Target {
 		testYbServers(targets)
 	}
 	return targets
+}
+
+func fetchParllelJobs(targets []*tgtdb.Target) int {
+	totalCores := 0
+	targetCores := 0
+	for _, target := range targets {
+		conn, err := pgx.Connect(context.Background(), target.Uri)
+		if err != nil {
+			utils.ErrExit("Unable to reach target while querying cores: %v", err)
+		}
+		_, err = conn.Query(context.Background(), "CREATE TEMP TABLE cores(num_cores int);")
+		if err != nil {
+			utils.ErrExit("Unable to create tables on target DB: %v", err)
+		}
+		_, err = conn.Query(context.Background(), "COPY cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';")
+		if err != nil {
+			fmt.Printf("There was some error1: %v", err) //REMOVE
+			totalCores += 2
+			continue
+		}
+		rows, err := conn.Query(context.Background(), "SELECT * FROM cores;")
+		if err != nil {
+			fmt.Printf("There was some error2: %v", err) //REMOVE
+			totalCores += 2
+			continue
+		}
+		if err = rows.Scan(&targetCores); err != nil {
+			utils.ErrExit("Error while scanning core count for parallel jobs: %v", err)
+		}
+		totalCores += targetCores
+	}
+	return totalCores / 2
 }
 
 func testYbServers(targets []*tgtdb.Target) {
