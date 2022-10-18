@@ -15,4 +15,4 @@ echo "Checking the row counts once data is created on the source DB"
 run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM ORDER_ITEMS_RANGE_PARTITIONED;
                                SELECT count(*) FROM ACCOUNTS_LIST_PARTITIONED;
                                SELECT count(*) FROM ORDERS_INTERVAL_PARTITION;
-                               SELECT count(*) FROM sales_hash;"
+                               SELECT count(*) FROM sales_hash;"  
