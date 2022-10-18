@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -884,7 +885,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	// Record an entry in ybvoyager_metadata.batches, that the split is imported.
 	rowsAffected = res.RowsAffected()
 	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task)
+	schemaName := getTargetSchemaName(task.TableName)
 	cmd := fmt.Sprintf(
 		`INSERT INTO ybvoyager_metadata.batches (schema_name, file_name, rows_imported)
 		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
@@ -899,7 +900,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
 	var rowsImported int64
 	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task)
+	schemaName := getTargetSchemaName(task.TableName)
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM ybvoyager_metadata.batches WHERE schema_name = '%s' AND file_name = '%s';",
 		schemaName, fileName)
@@ -1010,6 +1011,30 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}
 }
 
+func getIndexName(sqlQuery string, indexName string) (string, error) {
+	sqlQuery = strings.TrimSpace(sqlQuery)
+	if !strings.HasPrefix(strings.ToUpper(sqlQuery), "CREATE INDEX") {
+		err := fmt.Errorf("not a CREATE INDEX statement")
+		return "", err
+	}
+
+	// Return the index name itself if it is aleady qualified with schema name
+	if len(strings.Split(indexName, ".")) == 2 {
+		return indexName, nil
+	}
+
+	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
+
+	for index, part := range parts {
+		if strings.EqualFold(part, "ON") {
+			tableName := parts[index+1]
+			schemaName := getTargetSchemaName(tableName)
+			return fmt.Sprintf("%s.%s", schemaName, indexName), nil
+		}
+	}
+	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
+}
+
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
 	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmtStr)
@@ -1035,8 +1060,15 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
+
+			// Extract the schema name and add to the index name
+			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
+			if err != nil {
+				utils.ErrExit("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
+			}
+
 			// DROP INDEX in case INVALID index got created
-			dropIdx(*conn, sqlInfo.objName)
+			dropIdx(*conn, fullyQualifiedObjName)
 			continue
 		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
@@ -1068,8 +1100,8 @@ func getDoneFilePath(task *SplitFileImportTask) string {
 	return path[0:len(path)-1] + "D" // *.P -> *.D
 }
 
-func getTargetSchemaName(task *SplitFileImportTask) string {
-	parts := strings.Split(task.TableName, ".")
+func getTargetSchemaName(tableName string) string {
+	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
 		return parts[0]
 	}
