@@ -1038,7 +1038,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// DROP INDEX in case INVALID index got created
 			dropIdx(*conn, sqlInfo.objName)
 			continue
-		} else if isDuplicateDDL(err.Error()) {
+		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
 			// "already exists" error. Ignore the error.
