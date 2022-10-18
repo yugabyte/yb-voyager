@@ -1023,19 +1023,16 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 		return indexName, nil
 	}
 
-	fullyQualifiedIndexName := indexName
-
 	splits := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
 
 	for index, split := range splits {
 		if strings.EqualFold(split, "ON") {
 			tableName := splits[index+1]
 			schemaName := getTargetSchemaName(tableName)
-			fullyQualifiedIndexName = schemaName + "." + indexName
-			break
+			return fmt.Sprintf("%s.%s", schemaName, indexName), nil
 		}
 	}
-	return fullyQualifiedIndexName, nil
+	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
 }
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
@@ -1067,7 +1064,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				utils.ErrExit("unable to get index name qualified with schema name for DDL %v: %w", sqlInfo.stmt, err)
+				utils.ErrExit("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
