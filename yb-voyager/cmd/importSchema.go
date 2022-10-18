@@ -181,3 +181,15 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 
 	return fetchedSchema == targetSchema
 }
+
+func isAlreadyExists(errString string) bool {
+	alreadyExistsErrors := []string{"already exists",
+		"multiple primary keys",
+		"already a partition"}
+	for _, subStr := range alreadyExistsErrors {
+		if strings.Contains(errString, subStr) {
+			return true
+		}
+	}
+	return false
+}
