@@ -41,4 +41,4 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: Oracle partitions migration"
-      run: migtests/scripts/run-test.sh oracle-partition-tests
+      run: migtests/scripts/run-test.sh oracle-partition-test
