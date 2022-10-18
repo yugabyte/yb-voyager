@@ -1023,11 +1023,11 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 		return indexName, nil
 	}
 
-	splits := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
+	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
 
-	for index, split := range splits {
-		if strings.EqualFold(split, "ON") {
-			tableName := splits[index+1]
+	for index, part := range parts {
+		if strings.EqualFold(part, "ON") {
+			tableName := parts[index+1]
 			schemaName := getTargetSchemaName(tableName)
 			return fmt.Sprintf("%s.%s", schemaName, indexName), nil
 		}
