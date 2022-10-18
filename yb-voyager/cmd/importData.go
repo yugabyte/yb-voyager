@@ -30,6 +30,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -1024,7 +1025,7 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 
 	fullyQualifiedIndexName := indexName
 
-	splits := strings.Fields(sqlQuery)
+	splits := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
 
 	for index, split := range splits {
 		if strings.EqualFold(split, "ON") {
