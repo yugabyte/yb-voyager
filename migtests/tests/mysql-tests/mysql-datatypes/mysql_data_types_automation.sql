@@ -13,24 +13,18 @@ insert into int_types values (126,254,32766,32766,8388606,8388606,2147483646,214
 
 
 drop table if exists fixed_point_types;
-create table if not exists fixed_point_types(d_us decimal(10,2) zerofill,
-											 dec_type dec(5,5) zerofill,
-                                             numeric_type numeric(10,5)  zerofill,
-                                             fixed_type fixed(10,3) zerofill);
+create table if not exists fixed_point_types(d_us decimal(10,2),dec_type dec(5,5),numeric_type numeric(10,5),fixed_type fixed(10,3));
 insert into fixed_point_types values (1264587.64,0.12566,12397.64563,12645.12);
 insert into fixed_point_types values (12645.64,0.32,12397.64563,12645.12);
 insert into fixed_point_types values (0.987546789,0,12397.64563,1264.12);
 
 
 drop table if exists floating_point_types;
-create table if not exists floating_point_types(float_type float,
-												double_type double,
-                                                real_type REAL);
-insert into floating_point_types values (-3.402823466E+38,-1.7976931348623E+308,-1.797693134862E+308);
-insert into floating_point_types values (-1.175494351E-38,-2.2250738585072E-308,-2.2250738585072E-308);
-insert into floating_point_types values (0,0,0);
-insert into floating_point_types values (1.175494351E-38,-1.7976931348623E+308,-1.7976931348623E+308);
-insert into floating_point_types values (3.402823466E+38,2.2250738585072E-308,2.225073858507E-308);
+create table if not exists floating_point_types(id int,float_type float, double_type double, real_type REAL);
+insert into floating_point_types values (1,0.456,0.12313,0.9);
+ insert into floating_point_types values (2,123456.456,0.1246533,1.9);
+insert into floating_point_types values (3,0,0,0);
+insert into floating_point_types values (4,126.156,0.1,1.9999);
 
 
 drop table if exists bit_types;
