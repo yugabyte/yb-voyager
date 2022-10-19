@@ -11,6 +11,8 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
+export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+
 export DATA_FILE_NAME="OneMRows.text"
 export COMPRESSED_DATA_FILE_NAME="${DATA_FILE_NAME}.gz"
 
@@ -38,9 +40,9 @@ main() {
 
 	pushd ${TEST_DIR}
 
-        step "Create target database."
-        run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-        run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+	step "Create target database."
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Unzip the data file."
 	gunzip ${COMPRESSED_DATA_FILE_NAME}
@@ -51,6 +53,9 @@ main() {
 	step "Import data file"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
 		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
+
+	step "Run validations."
+	 "${TEST_DIR}/validate" FILE_IMPORT_DONE
 }
 
 main
