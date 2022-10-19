@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var importMode string
 var sourceDBType string
 
 // target struct will be populated by CLI arguments parsing
@@ -104,16 +103,8 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.SSLCRL, "target-ssl-crl", "",
 		"provide SSL Root Certificate Revocation List (CRL)")
 
-	cmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
-		"mode can be offline | online(applicable only for data migration)")
-
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
 		"delete all existing database-objects/table-rows to start from zero")
-
-	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
-		"Maximum size of each batch import ")
-	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
-		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
 
 	cmd.Flags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
@@ -121,27 +112,29 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&target.ContinueOnError, "continue-on-error", false,
 		"false - stop the execution in case of errors(default false)\n"+
 			"true - to ignore errors and continue")
+}
 
-	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
-		"true - to ignore errors if object already exists\n"+
-			"false - throw those errors to the standard output (default false)")
-
-	cmd.Flags().StringVar(&importMode, "mode", "",
-		"By default the data migration mode is offline. Use '--mode online' to change the mode to online migration")
-
+func registerImportDataFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - to disable progress bar during data import (default false)")
+	cmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
+		"List of tables to exclude while importing data (no-op if --table-list is used)")
+	cmd.Flags().StringVar(&target.TableList, "table-list", "",
+		"List of tables to include while importing data")
+	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
+		"Maximum size of each batch import ")
+	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
+		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
+	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
+		"true - to enable upsert for insert in target tables")
 	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
 		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
 			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
-
 	cmd.Flags().StringVar(&targetEndpoints, "target-endpoints", "",
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
-
-	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
-		"true - to enable upsert for insert in target tables")
-
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
 	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
 		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
@@ -150,22 +143,16 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("disable-transactional-writes")
 }
 
-func registerImportDataFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data import (default false)")
-	cmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while importing data (no-op if --table-list is used) (Note: works only for import data command)")
-	cmd.Flags().StringVar(&target.TableList, "table-list", "",
-		"List of tables to include while importing data (Note: works only for import data command)")
-}
-
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.ImportObjects, "object-list", "",
-		"List of schema object types to include while importing schema. (Note: works only for import schema command)")
+		"List of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
-		"List of schema object types to exclude while importing schema (no-op if --object-list is used) (Note: works only for import schema command)")
+		"List of schema object types to exclude while importing schema (no-op if --object-list is used)")
 	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
+	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
+		"true - to ignore errors if object already exists\n"+
+			"false - throw those errors to the standard output (default false)")
 }
 
 func validateTargetPortRange() {

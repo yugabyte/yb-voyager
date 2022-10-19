@@ -63,9 +63,6 @@ func init() {
 	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")
 
-	exportDataCmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
-		"mode can be offline | online")
-
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 }
@@ -74,10 +71,10 @@ func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 
 	var success bool
-	if migrationMode == "offline" {
-		success = exportDataOffline()
-	} else {
+	if migrationMode == "online" {
 		success = exportDataOnline()
+	} else {
+		success = exportDataOffline()
 	}
 
 	if success {
