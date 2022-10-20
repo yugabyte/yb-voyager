@@ -47,7 +47,7 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	var query string
 	if !tableProgressMetadata.IsPartition {
-		query = fmt.Sprintf("SELECT NUM_ROWS FROM USER_TABLES "+
+		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
 			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
 	} else {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
