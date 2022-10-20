@@ -47,9 +47,6 @@ func init() {
 	exportCmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data(Note: works only for export data command)")
 
-	exportCmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
-		"mode can be offline | online(applicable only for data migration)")
-
 	exportCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
 		"number of Parallel Jobs to extract data from source database")
 
@@ -113,9 +110,6 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
 		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
-
-	cmd.Flags().BoolVar(&source.UseOrafce, "use-orafce", true,
-		"enable using orafce extension in export schema")
 }
 
 func setExportFlagsDefaults() {

@@ -29,12 +29,11 @@ import (
 )
 
 var (
-	cfgFile       string
-	exportDir     string
-	migrationMode string
-	startClean    bool
-	logLevel      string
-	lockFile      lockfile.Lockfile
+	cfgFile    string
+	exportDir  string
+	startClean bool
+	logLevel   string
+	lockFile   lockfile.Lockfile
 )
 
 var rootCmd = &cobra.Command{
