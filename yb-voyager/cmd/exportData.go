@@ -70,12 +70,7 @@ func init() {
 func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 
-	var success bool
-	if migrationMode == "online" {
-		success = exportDataOnline()
-	} else {
-		success = exportDataOffline()
-	}
+	success := exportDataOffline()
 
 	if success {
 		createExportDataDoneFlag()
@@ -165,13 +160,6 @@ func exportDataOffline() bool {
 	callhome.UpdateDataStats(exportDir, tableRowCount)
 	callhome.PackAndSendPayload(exportDir)
 	return true
-}
-
-func exportDataOnline() bool {
-	errMsg := "online migration not supported yet\n"
-	utils.ErrExit(errMsg)
-
-	return false
 }
 
 //flagName can be "exclude-table-list" or "table-list"
