@@ -1012,12 +1012,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
-	sqlQuery = strings.TrimSpace(sqlQuery)
-	if !strings.HasPrefix(strings.ToUpper(sqlQuery), "CREATE INDEX") {
-		err := fmt.Errorf("not a CREATE INDEX statement")
-		return "", err
-	}
-
 	// Return the index name itself if it is aleady qualified with schema name
 	if len(strings.Split(indexName, ".")) == 2 {
 		return indexName, nil
@@ -1064,7 +1058,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// Extract the schema name and add to the index name
 			fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 			if err != nil {
-				utils.ErrExit("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
+				utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
