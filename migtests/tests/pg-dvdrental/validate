@@ -1,0 +1,47 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks({
+		"MIGRATION_COMPLETED": migration_completed_checks,
+	})
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'actor': 200,
+	'address': 603,
+	'category': 16,
+	'city': 600,
+	'country': 109,
+	'customer': 599,
+	'film_actor': 5462,
+	'film_category': 1000,
+	'film': 1000,
+	'inventory': 4581,
+	'language': 6,
+	'payment': 14596,
+	'rental': 16044,
+	'staff': 2,
+	'store': 2,
+}
+
+def migration_completed_checks(tgt, tag):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 15
+
+	view_list = tgt.get_objects_of_type("VIEW")
+	print("view_list:", view_list)
+	assert len(view_list) == 7
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+
+if __name__ == "__main__":
+	main()

@@ -18,6 +18,8 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
+export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
@@ -45,7 +47,10 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Fix schema."
-	[ -x "${TEST_DIR}/fix-schema" ] && "${TEST_DIR}/fix-schema"
+	if [ -x "${TEST_DIR}/fix-schema" ]
+	then
+		 "${TEST_DIR}/fix-schema"
+	fi
 
 	step "Analyze schema."
 	analyze_schema
@@ -70,6 +75,12 @@ main() {
 	import_schema --post-import-data
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft"
+
+	step "Run validations."
+	if [ -x "${TEST_DIR}/validate" ]
+	then
+		 "${TEST_DIR}/validate" MIGRATION_COMPLETED
+	fi
 }
 
 main

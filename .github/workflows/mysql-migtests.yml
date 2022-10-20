@@ -15,6 +15,12 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install python3 and psycopg2
+      run: |
+        sudo apt install -y python3
+        sudo apt install -y libpq-dev
+        sudo pip3 install psycopg2
+
     - name: Run installer script
       run: |
         yes | ./installer_scripts/install-yb-voyager --install-from-local-source
