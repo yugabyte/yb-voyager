@@ -65,6 +65,7 @@ var (
 	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING spgist`)
 	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING rtree`)
 	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_."]+)")
+	ginRegex		= regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING GIN([^,]+(?:,[^,]+){0,})`)
 	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
 	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
 	fetchRegex         = regexp.MustCompile(`(?i)FETCH .*FROM`)
@@ -197,6 +198,26 @@ func reportSummary() {
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 }
+// Checks Whether there is a GIN index
+func checkGin(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlInfo := range sqlInfoArr {
+		idx := ginRegex.FindStringSubmatch(sqlInfo.stmt)
+		if idx != nil {
+			columnsFromGin :=  strings.Trim(idx[4], `()`)
+			columnList := strings.Split(columnsFromGin, ",")
+			if len(columnList) > 1 {
+				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
+					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", idx[2], sqlInfo.formattedStmtStr)
+			} else {
+				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
+					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", idx[2], sqlInfo.formattedStmtStr)
+				}
+			}
+		}
+	}
+}
+
 
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
@@ -454,6 +475,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
+	checkGin(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
