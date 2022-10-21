@@ -42,9 +42,9 @@ main() {
 	export_schema
 	# find ${EXPORT_DIR}/schema -name '*.sql' | xargs grep -wh CREATE
 
-	step "Analyze schema."
-	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	# step "Analyze schema."
+	# analyze_schema
+	# tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -52,9 +52,9 @@ main() {
 		 "${TEST_DIR}/fix-schema"
 	fi
 
-	step "Analyze schema."
-	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	# step "Analyze schema."
+	# analyze_schema
+	# tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Export data."
 	export_data
