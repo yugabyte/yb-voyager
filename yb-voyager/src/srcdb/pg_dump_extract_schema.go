@@ -95,6 +95,8 @@ func parseSchemaFile(exportDir string) {
 				objSqlStmts["TABLE"].WriteString(sqlStatement)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(sqlStatement)
+			case "COLLATION":
+				objSqlStmts["COLLATION"].WriteString(sqlStatement)
 			default:
 				uncategorizedSqls.WriteString(sqlStatement)
 			}
