@@ -102,6 +102,9 @@ analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
 		--source-db-name ${SOURCE_DB_NAME}
+		--source-db-password ${SOURCE_DB_PASSWORD}
+		--source-db-schema ${SOURCE_DB_SCHEMA}
+		--source-db-user ${SOURCE_DB_USER}
 		--output-format txt
 		--send-diagnostics=false
 	"
