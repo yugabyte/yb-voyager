@@ -54,6 +54,13 @@ run_mysql() {
 	mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
 }
 
+run_sqlplus() {
+	db_name=$1
+	sql=$2
+	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = ${SOURCE_DB_HOST}) (PORT = ${SOURCE_DB_PORT}))(CONNECT_DATA = (SID = ${db_name})))"
+	echo exit | sqlplus ${conn_string} @${sql}
+}
+
 export_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
