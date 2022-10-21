@@ -137,3 +137,27 @@ import_data_file() {
 		--send-diagnostics=false \
 		$*
 }
+
+ora_drop_table_if_exist() {
+	args = "BEGIN
+   				EXECUTE IMMEDIATE 'DROP TABLE ' || table_name;
+			EXCEPTION
+   				WHEN OTHERS THEN
+      				IF SQLCODE != -942 THEN
+         				RAISE;
+      				END IF;
+			END;"
+	run_sqlplus ${SOURCE_DB_NAME} args;
+}
+
+ora_drop_index_if_exist() {
+	args = "BEGIN
+   				EXECUTE IMMEDIATE 'DROP INDEX ' || table_name;
+			EXCEPTION
+   				WHEN OTHERS THEN
+      				IF SQLCODE != -1418 THEN
+         				RAISE;
+      				END IF;
+			END;"
+	run_sqlplus ${SOURCE_DB_NAME} args;
+}
