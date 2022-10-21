@@ -70,8 +70,6 @@ export_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false
-		--start-clean
-		--yes
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
