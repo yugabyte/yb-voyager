@@ -165,13 +165,14 @@ ora_drop_index_if_exist() {
 check_if_export_directory_exists() {
 	dir = $1
 	if [-d dir] 
-	then
+		then
 		rm -rf dir
 		if [-d dir]
-		then
-			echo "Export directory still present"
+			then
+				echo "Export directory still present"
 		else
-			echo "Export directory is deleted, HURRAY..!!"
+				echo "Export directory is deleted, HURRAY..!!"
+		fi
 	else
 		echo "Export directory present now..!!"
 	fi
