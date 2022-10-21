@@ -29,8 +29,10 @@ source ${SCRIPTS}/functions.sh
 
 main() {
 	rm -rf ${EXPORT_DIR}
-	
+	check_if_export_directory_exists ${EXPORT_DIR}
+
 	mkdir -p ${EXPORT_DIR}
+	check_if_export_directory_exists ${EXPORT_DIR}
 
 	step "START: ${TEST_NAME}"
 	print_env

@@ -161,3 +161,13 @@ ora_drop_index_if_exist() {
 			END;"
 	run_sqlplus ${SOURCE_DB_NAME} args;
 }
+
+check_if_export_directory_exists() {
+	dir = $1
+	if [-d dir] 
+	then
+		echo "Export directory not present"
+	else
+		echo "Export directory present now..!!"
+	fi
+}
