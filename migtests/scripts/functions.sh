@@ -166,7 +166,12 @@ check_if_export_directory_exists() {
 	dir = $1
 	if [-d dir] 
 	then
-		echo "Export directory not present"
+		rm -rf dir
+		if [-d dir]
+		then
+			echo "Export directory still present"
+		else
+			echo "Export directory is deleted, HURRAY..!!"
 	else
 		echo "Export directory present now..!!"
 	fi
