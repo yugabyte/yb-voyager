@@ -100,6 +100,7 @@ export_data() {
 
 analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
+		--source-db-type ${SOURCE_DB_TYPE}
 		--output-format txt
 		--send-diagnostics=false
 	"
