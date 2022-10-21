@@ -48,7 +48,7 @@ var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", 
 	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
 // In PG, PARTITION are exported along with TABLE
-var postgresSchemaObjectList = []string{"SCHEMA", "EXTENSION", "TYPE", "DOMAIN", "SEQUENCE",
+var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "INDEX", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
 	"MVIEW", "COMMENT" /* GRANT, ROLE*/}
 
