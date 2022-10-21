@@ -71,15 +71,16 @@ func importSchema() {
 	}
 	var objectList []string
 
+	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
 	if !flagPostImportData { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
-		objectList = utils.SetDifference(objectList, []string{"TRIGGER", "INDEX"})
+		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 	} else { // Post data load.
-		objectList = []string{"INDEX", "FTS_INDEX", "TRIGGER"}
+		objectList = objectsToImportAfterData
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)

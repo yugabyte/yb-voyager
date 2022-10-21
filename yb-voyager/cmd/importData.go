@@ -970,7 +970,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 	log.Infof("Dropping index: %q", dropIdxQuery)
 	_, err := conn.Exec(context.Background(), dropIdxQuery)
 	if err != nil {
-		utils.ErrExit("Failed in dropping index %s: %v", idxName, err)
+		utils.ErrExit("Failed in dropping index %q: %v", idxName, err)
 	}
 }
 
@@ -1043,14 +1043,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			return nil
 		}
 
-		log.Errorf("DDL Execution Failed: %s", err)
+		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmtStr, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			objType == "INDEX" { // retriable error
+			objType == "INDEX" || objType == "PARTITION_INDEX" { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
@@ -1121,7 +1121,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		if len(strings.Split(table, ".")) == 1 {
 			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
 		}
-	} else if sourceDBType == "oracle" {
+	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
 		// For oracle, there is only unique COPY per datafile
 		// In case of table partitions, parent table name is used in COPY
 		copyCommandRegex = regexp.MustCompile(`(?i)COPY .*[\s]+\(.*\) FROM STDIN`)
