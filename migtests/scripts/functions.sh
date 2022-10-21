@@ -122,7 +122,6 @@ import_data() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
-		--disable-pb \
 		--send-diagnostics=false \
 		$*
 }
