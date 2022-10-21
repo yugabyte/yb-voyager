@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+source ${SCRIPTS}/functions.sh
+
+echo "Initialising source database & inserting data"
+run_sqlplus ${SOURCE_DB_NAME} datatypes_schema_data
+
+echo "Checking the row counts once data is created on the source DB"
+run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM LONG_TYPE;
+                               SELECT count(*) FROM CHAR_TYPES;"

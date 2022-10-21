@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}/schema
+
+echo "Truncate the synonym.sql"
+echo "" > synonyms/synonym.sql
