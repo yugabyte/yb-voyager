@@ -6,7 +6,7 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Initialising source database & inserting data"
-run_sqlplus ${SOURCE_DB_NAME} datatypes_schema_data
+run_sqlplus ${SOURCE_DB_NAME} datatypes_schema_data.sql
 
 echo "Checking the row counts once data is created on the source DB"
 run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM LONG_TYPE;

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-#!/usr/bin/env bash
 
 set -e
 set -x
@@ -7,13 +6,10 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Initialising source database"
-run_sqlplus ${SOURCE_DB_NAME} partition_schema
+run_sqlplus ${SOURCE_DB_NAME} index.sql
 
 echo "Populating data in source database"
-run_sqlplus ${SOURCE_DB_NAME} partition_data
+run_sqlplus ${SOURCE_DB_NAME} index_data.sql
 
 echo "Checking the row counts once data is created on the source DB"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM ORDER_ITEMS_RANGE_PARTITIONED;
-                               SELECT count(*) FROM ACCOUNTS_LIST_PARTITIONED;
-                               SELECT count(*) FROM ORDERS_INTERVAL_PARTITION;
-                               SELECT count(*) FROM sales_hash;"
+run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM members;"
