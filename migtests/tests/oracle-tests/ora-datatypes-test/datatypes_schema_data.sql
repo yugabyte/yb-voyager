@@ -123,11 +123,15 @@ INSERT INTO RAW_TYPE VALUES(NULL,NULL);
 INSERT INTO RAW_TYPE VALUES('','');
 select * from RAW_TYPE;
 
-
-drop table json_academic_business;
-drop table json_academic_checkin;
-drop table json_academic_review;
-drop table json_academic_tip;
-drop table json_academic_user;
-drop table composite_unique_check;
 commit;
+
+select count(*) from numeric_types_number;
+select count(*) from numeric_types_float;
+select count(*) from numeric_types_binary_float;
+select count(*) from numeric_types_binary_double;
+select count(*) from numeric_types;
+select count(*) from date_time_types;
+select count(*) from interval_types;
+select count(*) from CHAR_TYPES;
+select count(*) from LONG_TYPE;
+select count(*) from RAW_TYPE;
