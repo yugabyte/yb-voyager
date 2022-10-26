@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+export TEST_NAME="import-file"
+
+export REPO_ROOT="${PWD}"
+export SCRIPTS="${REPO_ROOT}/migtests/scripts"
+export TESTS_DIR="${REPO_ROOT}/migtests/tests"
+export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
+export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
+
+export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+
+export DATA_FILE_NAME="OneMRows.text"
+export COMPRESSED_DATA_FILE_NAME="${DATA_FILE_NAME}.gz"
+
+source ${SCRIPTS}/yugabytedb/env.sh
+source ${SCRIPTS}/functions.sh
+
+export TARGET_DB_NAME="migrate_csv"
+export TARGET_TABLE_NAME="csv_table"
+
+CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
+    userid_fill uuid,
+    idtype_fill text,
+    userid uuid,
+    idtype text,
+    level int,
+    locationgroupid uuid,
+    locationid uuid,
+    parentid uuid,
+    attrs jsonb,
+    PRIMARY KEY (userid, level, locationgroupid, parentid, locationid)
+);"
+
+main() {
+	mkdir -p ${EXPORT_DIR}
+
+	pushd ${TEST_DIR}
+
+	step "Create target database."
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+
+	step "Unzip the data file."
+	gunzip ${COMPRESSED_DATA_FILE_NAME}
+
+	step "Create target table."
+	run_ysql ${TARGET_DB_NAME} "${CMD}"
+
+	step "Import data file"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
+		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
+
+	step "Run validations."
+	 "${TEST_DIR}/validate" FILE_IMPORT_DONE
+}
+
+main
