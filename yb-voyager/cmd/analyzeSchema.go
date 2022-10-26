@@ -199,19 +199,25 @@ func reportSummary() {
 	}
 }
 // Checks Whether there is a GIN index
+/*
+Following type of SQL queries are being taken care of by this function - 
+	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
+	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
+	3. CREATE EXTENSION btree_gin;
+*/
 func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
-		idx := ginRegex.FindStringSubmatch(sqlInfo.stmt)
-		if idx != nil {
-			columnsFromGin :=  strings.Trim(idx[4], `()`)
+		matchGin := ginRegex.FindStringSubmatch(sqlInfo.stmt)
+		if matchGin != nil {
+			columnsFromGin :=  strings.Trim(matchGin[4], `()`)
 			columnList := strings.Split(columnsFromGin, ",")
 			if len(columnList) > 1 {
 				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
-					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", idx[2], sqlInfo.formattedStmtStr)
+					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmtStr)
 			} else {
 				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
 					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", idx[2], sqlInfo.formattedStmtStr)
+						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmtStr)
 				}
 			}
 		}
