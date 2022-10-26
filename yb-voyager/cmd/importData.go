@@ -1031,19 +1031,19 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
-	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmtStr)
+	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmt)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
-		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmtStr)
+		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
 			return nil
 		}
 
-		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmtStr, err)
+		log.Errorf("DDL Execution Failed for %q: %s", sqlInfo.formattedStmt, err)
 		if strings.Contains(strings.ToLower(err.Error()), "conflicts with higher priority transaction") {
 			// creating fresh connection
 			(*conn).Close(context.Background())
@@ -1076,7 +1076,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	}
 	if err != nil {
 		fmt.Printf("\b \n    %s\n", err.Error())
-		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmtStr)
+		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
 		if !target.ContinueOnError { //default case
 			os.Exit(1)
 		}
