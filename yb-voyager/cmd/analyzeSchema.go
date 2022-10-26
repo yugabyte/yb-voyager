@@ -533,7 +533,7 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	} else if objType == "SYNONYM" {
 		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?VIEW[\s\n]+([a-zA-Z0-9_."]+)`)
 		objNameIndex = 2
-	} else if objType == "INDEX" {
+	} else if objType == "INDEX" || objType == "PARTITION_INDEX" || objType == "FTS_INDEX" {
 		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(UNIQUE[\s\n]*)?INDEX[\s\n]+(IF NOT EXISTS)?[\s\n]*([a-zA-Z0-9_."]+)`)
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
