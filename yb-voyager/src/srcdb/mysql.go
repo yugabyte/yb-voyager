@@ -176,3 +176,13 @@ func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetada
 	}
 	dfd.Save()
 }
+
+func (ms MySQL) GetCharset() (string, error) {
+	var charset string
+	query := "SELECT @@character_set_database"
+	err := ms.db.QueryRow(query).Scan(&charset)
+	if err != nil {
+		return "", fmt.Errorf("run query %q on source: %w", query, err)
+	}
+	return charset, nil
+}

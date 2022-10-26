@@ -218,3 +218,13 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
 	return "", err
 }
+
+func (pg *PostgreSQL) GetCharset() (string, error) {
+	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
+	encoding := ""
+	err := pg.db.QueryRow(context.Background(), query).Scan(&encoding)
+	if err != nil {
+		return "", fmt.Errorf("error in querying database encoding: %w", err)
+	}
+	return encoding, nil
+}
