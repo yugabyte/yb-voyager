@@ -123,7 +123,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	}
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
-	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
+	utils.PrintAndLog("schemas to be present in target database %q: %v\n", target.DBName, targetSchemas)
 
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
