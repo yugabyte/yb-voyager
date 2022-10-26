@@ -195,7 +195,7 @@ func getYBServers() []*tgtdb.Target {
 
 	if parallelImportJobs == -1 {
 		parallelImportJobs = fetchParllelJobs(targets)
-		fmt.Printf("Parallel Jobs: %d\n", parallelImportJobs)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
 	}
 
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
