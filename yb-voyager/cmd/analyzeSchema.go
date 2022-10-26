@@ -65,6 +65,7 @@ var (
 	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING spgist`)
 	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING rtree`)
 	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_."]+)")
+	ginRegex		= regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING GIN([^,]+(?:,[^,]+){0,})`)
 	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
 	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
 	fetchRegex         = regexp.MustCompile(`(?i)FETCH .*FROM`)
@@ -197,6 +198,36 @@ func reportSummary() {
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 }
+// Checks Whether there is a GIN index
+/*
+Following type of SQL queries are being taken care of by this function - 
+	1. CREATE INDEX index_name ON table_name USING gin(column1, column2 ...)
+	2. CREATE INDEX index_name ON table_name USING gin(column1 [ASC/DESC/HASH])
+	3. CREATE EXTENSION btree_gin;
+*/
+func checkGin(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlInfo := range sqlInfoArr {
+		matchGin := ginRegex.FindStringSubmatch(sqlInfo.stmt)
+		if matchGin != nil {
+			columnsFromGin :=  strings.Trim(matchGin[4], `()`)
+			columnList := strings.Split(columnsFromGin, ",")
+			if len(columnList) > 1 {
+				reportCase(fpath, "Schema contains gin index on multi column which is not supported.",
+					"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmtStr)
+			} else {
+				if strings.Contains(strings.ToUpper(columnList[0]), "ASC") || strings.Contains(strings.ToUpper(columnList[0]), "DESC") || strings.Contains(strings.ToUpper(columnList[0]), "HASH") {
+					reportCase(fpath, "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+						"https://github.com/yugabyte/yugabyte-db/issues/7850", "", "INDEX", matchGin[2], sqlInfo.formattedStmtStr)
+				}
+			}
+		}
+		if strings.Contains(strings.ToLower(sqlInfo.stmt), "extension btree_gin") {
+			reportCase(fpath, "Schema contains btree_gin extension which is not supported for YB",
+				"https://github.com/yugabyte/yugabyte-db/issues/9958", "", "EXTENSION", "btree_gin", sqlInfo.formattedStmtStr)
+		}
+	}
+}
+
 
 // Checks whether there is gist index
 func checkGist(sqlInfoArr []sqlInfo, fpath string) {
@@ -454,6 +485,7 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
+	checkGin(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
