@@ -21,7 +21,8 @@ func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir stri
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces`, schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
+	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --load-via-partition-root`,
+	schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
 	cmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
 	redactedCmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, redactedUri, pgDumpArgs)
