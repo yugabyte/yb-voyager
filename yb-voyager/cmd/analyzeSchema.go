@@ -43,8 +43,8 @@ type summaryInfo struct {
 
 type sqlInfo struct {
 	objName          string
-	stmt             string
-	formattedStmtStr string
+	stmt             string // denotes single line sql statements (used for analyze-schema regexp matching)
+	formattedStmtStr string // denotes single string(formatted) sql statements which can have new line character
 }
 
 var (
@@ -471,10 +471,6 @@ func getMapKeys(receivedMap map[string]bool) string {
 	return keyString
 }
 
-func isCodeBlockPossible(objType string) bool {
-	return objType == "PROCEDURE" || objType == "FUNCTION" || objType == "TRIGGER" || objType == "PACKAGE"
-}
-
 func invalidSqlComment(line string) int {
 	if cmt := unsupportedCommentRegex1.FindStringSubmatch(line); cmt != nil {
 		return 1
@@ -546,13 +542,8 @@ func processCollectedSql(fpath string, singleLine *string, singleString *string,
 func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
 
-	/*
-		sqlInfoArr[i[[0] denotes single line sql statements
-		sqlInfoArr[i][1] denotes single string(formatted) sql statements which can have new line character
-	*/
 	var sqlInfoArr []sqlInfo
 
-	codeBlock := isCodeBlockPossible(objType)
 	dollarQuoteFlag := 0 //denotes the code/body part is not started
 	outerDollarQuotedStr := ""
 	reportNextSql := 0
@@ -584,32 +575,26 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 		singleLine += curr + " "
 		singleString += curr + "\n"
 
-		if codeBlock {
-			// Assuming that both the dollar quote strings will not be in same line
-			if dollarQuoteFlag == 0 {
-				if idx := dollarQuoteRegex.FindStringSubmatch(curr); idx != nil {
-					dollarQuoteFlag = 1 //denotes start of the code/body part
-					outerDollarQuotedStr = idx[0]
-				} else if strings.Contains(curr, ";") { // in case, there is no body part
-					//one liner sql string created, now will check for obj count and report cases
-					processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
-				}
-			} else if dollarQuoteFlag == 1 {
-				if strings.Contains(curr, outerDollarQuotedStr) {
-					dollarQuoteFlag = 2 //denotes end of code/body part
-				}
+		// Assuming that both the dollar quote strings will not be in same line
+		if dollarQuoteFlag == 0 {
+			if idx := dollarQuoteRegex.FindStringSubmatch(curr); idx != nil {
+				dollarQuoteFlag = 1 //denotes start of the code/body part
+				outerDollarQuotedStr = idx[0]
+			} else if strings.Contains(curr, ";") { // in case, there is no body part
+				//one liner sql string created, now will check for obj count and report cases
+				processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
 			}
-			if dollarQuoteFlag == 2 {
-				if strings.Contains(curr, ";") {
-					processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
-					//reset for parsing other sqls
-					dollarQuoteFlag = 0
-					outerDollarQuotedStr = ""
-				}
+		} else if dollarQuoteFlag == 1 {
+			if strings.Contains(curr, outerDollarQuotedStr) {
+				dollarQuoteFlag = 2 //denotes end of code/body part
 			}
-		} else {
+		}
+		if dollarQuoteFlag == 2 {
 			if strings.Contains(curr, ";") {
 				processCollectedSql(path, &singleLine, &singleString, objType, &sqlInfoArr, &reportNextSql)
+				//reset for parsing other sqls
+				dollarQuoteFlag = 0
+				outerDollarQuotedStr = ""
 			}
 		}
 	}
