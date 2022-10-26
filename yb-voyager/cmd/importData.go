@@ -195,7 +195,7 @@ func getYBServers() []*tgtdb.Target {
 
 	if parallelImportJobs == -1 {
 		parallelImportJobs = fetchParllelJobs(targets)
-		fmt.Printf("Uhhh you have %d jobs", parallelImportJobs)
+		fmt.Printf("Parallel Jobs: %d\n", parallelImportJobs)
 	}
 
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
@@ -210,33 +210,38 @@ func getYBServers() []*tgtdb.Target {
 func fetchParllelJobs(targets []*tgtdb.Target) int {
 	totalCores := 0
 	targetCores := 0
+	queriedTargets := 0
 	for _, target := range targets {
 		conn, err := pgx.Connect(context.Background(), target.Uri)
 		if err != nil {
 			utils.ErrExit("Unable to reach target while querying cores: %v", err)
 		}
-		_, err = conn.Query(context.Background(), "CREATE TEMP TABLE cores(num_cores int);")
+		_, err = conn.Exec(context.Background(), "CREATE TEMP TABLE yb_voyager_cores(num_cores int);")
 		if err != nil {
 			utils.ErrExit("Unable to create tables on target DB: %v", err)
 		}
-		_, err = conn.Query(context.Background(), "COPY cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';")
+		_, err = conn.Exec(context.Background(), "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';")
 		if err != nil {
-			fmt.Printf("There was some error1: %v", err) //REMOVE
-			totalCores += 2
 			continue
 		}
-		rows, err := conn.Query(context.Background(), "SELECT * FROM cores;")
+		rows, err := conn.Query(context.Background(), "SELECT num_cores FROM yb_voyager_cores;")
 		if err != nil {
-			fmt.Printf("There was some error2: %v", err) //REMOVE
-			totalCores += 2
 			continue
 		}
-		if err = rows.Scan(&targetCores); err != nil {
-			utils.ErrExit("Error while scanning core count for parallel jobs: %v", err)
+		for rows.Next() {
+			if err = rows.Scan(&targetCores); err != nil {
+				utils.ErrExit("Error while scanning core count for parallel jobs: %v", err)
+			}
 		}
+		queriedTargets++
 		totalCores += targetCores
 	}
-	return totalCores / 2
+	// Return twice the number of nodes if querying was not possible.
+	if queriedTargets == 0 {
+		return len(targets) * 2
+	}
+	// Return the extrapolated value of sum(cores)/2 in the case of partial or full querying.
+	return totalCores * len(targets) / (2 * queriedTargets)
 }
 
 func testYbServers(targets []*tgtdb.Target) {
