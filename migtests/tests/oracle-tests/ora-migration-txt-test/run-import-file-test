@@ -13,26 +13,35 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="annual-enterprise-survey-2021-financial-year-provisional-csv.csv"
+export DATA_FILE_NAME="SMSA.txt"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
-export TARGET_DB_NAME="migrate_csv"
-export TARGET_TABLE_NAME="csv_table"
+export TARGET_DB_NAME="migrate_txt"
+export TARGET_TABLE_NAME="txt_table"
 
 CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
-    Industry_Year INT,
-    Industry_Aggregation_Level VARCHAR(100),
-    Industry_Code VARCHAR(10),
-    Industry_Type TEXT,
-    Dollar_Percentage TEXT,
-    Industry_name CHAR(10),
-    Variable_Sub_Category VARCHAR(100),
-    Variable_Category VARCHAR(100),
-    Industry_Valuation TEXT,
-    Industry_Class TEXT
-);"
+    City VARCHAR(50),
+    city_state CHAR(8),
+    Jan_temp SMALLINT,
+    July_temp INTEGER,
+    Relhum BIGINT,
+    Rain INT,
+    Mortality NUMERIC,
+    Education REAL,
+    Pop_density DOUBLE PRECISION,
+    PNonWhite SMALLINT,
+    Pwc NUMERIC,
+    Pop TEXT,
+    Pop_house INTEGER,
+    Income TEXT,
+    HcPot NUMERIC,
+    NOxpot REAL,
+    SO2pot DOUBLE PRECISION,
+    NOx NUMERIC
+);
+CREATE UNIQUE INDEX CITY_IND on TXT_TEST(City);"
 
 main() {
 	mkdir -p ${EXPORT_DIR}
@@ -47,7 +56,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "${CMD}"
 
 	step "Import data file"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter ',' \
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
 
 	step "Run validations."
