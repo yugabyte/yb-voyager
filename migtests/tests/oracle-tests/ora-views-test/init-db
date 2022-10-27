@@ -12,11 +12,13 @@ echo "Creating the views on source database"
 run_sqlplus ${SOURCE_DB_NAME} ddl/view_definition
 
 echo "Creating the constraints on source database"
-run_sqlplus ${SOURCE_DB_NAME} ddl/constraints
+run_sqlplus ${SOURCE_DB_NAME} dml/constraints
+
+echo "Remove blob objects"
+run_sqlplus ${SOURCE_DB_NAME} dml/remove_blob
 
 echo "Populating data in source database"
 run_sqlplus ${SOURCE_DB_NAME} dml/customers_data
-run_sqlplus ${SOURCE_DB_NAME} dml/products_data
 run_sqlplus ${SOURCE_DB_NAME} dml/stores_data
 run_sqlplus ${SOURCE_DB_NAME} dml/orders_data
 run_sqlplus ${SOURCE_DB_NAME} dml/shipments_data
