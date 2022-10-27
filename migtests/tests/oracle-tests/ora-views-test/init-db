@@ -11,6 +11,9 @@ run_sqlplus ${SOURCE_DB_NAME} ddl/schema
 echo "Creating the views on source database"
 run_sqlplus ${SOURCE_DB_NAME} ddl/view_definition
 
+echo "Creating the constraints on source database"
+run_sqlplus ${SOURCE_DB_NAME} ddl/constraints
+
 echo "Populating data in source database"
 run_sqlplus ${SOURCE_DB_NAME} dml/customers_data
 run_sqlplus ${SOURCE_DB_NAME} dml/products_data
