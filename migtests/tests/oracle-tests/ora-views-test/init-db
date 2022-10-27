@@ -6,19 +6,19 @@ set -x
 source ${SCRIPTS}/functions.sh
 
 echo "Initialising source database"
-run_sqlplus ${SOURCE_DB_NAME} schema-ddl/schema.sql
+run_sqlplus ${SOURCE_DB_NAME} "SOURCE /schema-ddl/schema.sql"
 
 echo "Creating the views on source database"
-run_sqlplus ${SOURCE_DB_NAME} schema-ddl/view_definition.sql
+run_sqlplus ${SOURCE_DB_NAME} "SOURCE /schema-ddl/view_definition.sql"
 
 echo "Populating data in source database"
-run_sqlplus ${SOURCE_DB_NAME} data-dml/customers_data.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/products_data.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/stores_data.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/orders_data.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/shipments_data.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/order_items.sql
-run_sqlplus ${SOURCE_DB_NAME} data-dml/inventory.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/customers_data.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/products_data.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/stores_data.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/orders_data.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/shipments_data.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/order_items.sql
+run_sqlplus ${SOURCE_DB_NAME} /data-dml/inventory.sql
 
 echo "Checking the row counts once data is created on the source DB"
 run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM customers;"
