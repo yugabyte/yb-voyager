@@ -274,7 +274,7 @@ install_golang() {
 	file_name="${GO_VERSION}.${os}-${arch}.tar.gz"
 	output "Installing golang os=${os} arch=${arch}."
 
-	wget --no-verbose https://golang.org/dl/${file_name} 1>&2
+	wget -nv https://golang.org/dl/${file_name} 1>&2
 	rm -rf $GOROOT
 	tar -C /tmp -xzf ${file_name} 1>&2
 	rm ${file_name}
@@ -327,7 +327,7 @@ install_ora2pg() {
 	sudo cpanm DBD::mysql Test::NoWarnings DBD::Oracle 1>&2
 
 	output "Installing ora2pg."
-	wget --no-verbose https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
+	wget -nv https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
 	tar -xf ${ORA2PG_VERSION}.tar.gz 1>&2
 	cd ora2pg-${ORA2PG_VERSION}/
 	perl Makefile.PL 1>&2
@@ -385,7 +385,7 @@ create_base_ora2pg_conf_file() {
 		output "Overwriting ${conf_file_name}. Existing contents are backed up in ${backup_file_name}"
 	fi
 	output "Installing the latest base-ora2pg.conf"
-	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
+	sudo wget -nv $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
 
@@ -423,7 +423,7 @@ ubuntu_install_postgres() {
 	output "Installing postgres."
 	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
 	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
-	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+	wget -nv -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 	sudo apt-get update 1>&2
 	sudo apt-get -y install postgresql-14 1>&2
 	output "Postgres Installed."
@@ -445,7 +445,7 @@ ubuntu_install_oic() {
 		echo "$1 is already installed."
 	else
 		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
-		wget https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
+		wget -nv https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
 		sudo alien -i ${rpm_name} 1>&2
 		rm ${rpm_name}
 	fi
