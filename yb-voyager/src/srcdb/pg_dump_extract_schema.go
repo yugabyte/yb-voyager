@@ -23,9 +23,9 @@ func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir stri
 
 	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --load-via-partition-root`,
 	schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
-	cmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, connectionUri, pgDumpArgs)
+	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
-	redactedCmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, redactedUri, pgDumpArgs)
+	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)
 	log.Infof("Running command: %s", redactedCmd)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
