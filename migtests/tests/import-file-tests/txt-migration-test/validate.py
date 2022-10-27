@@ -9,7 +9,7 @@ def main():
 
 
 def file_import_done_checks(tgt, tag):
-	row_count = tgt.get_row_count("target_table")
+	row_count = tgt.get_row_count("txt_table")
 	print(f"row_count: {row_count}")
 	assert row_count == 100
 
