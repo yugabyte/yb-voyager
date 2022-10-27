@@ -193,13 +193,10 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	if parallelImportJobs == -1 {
-		parallelImportJobs = fetchParllelJobs(targets)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
-	}
-
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
+		parallelImportJobs = 2 * len(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
 		targets = []*tgtdb.Target{&target}
 	} else {
 		testYbServers(targets)
@@ -207,41 +204,35 @@ func getYBServers() []*tgtdb.Target {
 	return targets
 }
 
-func fetchParllelJobs(targets []*tgtdb.Target) int {
+func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
+	coreQueries := []string{"CREATE TEMP TABLE yb_voyager_cores(num_cores int);",
+		"COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';",
+		"SELECT num_cores FROM yb_voyager_cores;"}
 	totalCores := 0
 	targetCores := 0
-	queriedTargets := 0
 	for _, target := range targets {
 		conn, err := pgx.Connect(context.Background(), target.Uri)
 		if err != nil {
 			utils.ErrExit("Unable to reach target while querying cores: %v", err)
 		}
-		_, err = conn.Exec(context.Background(), "CREATE TEMP TABLE yb_voyager_cores(num_cores int);")
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(context.Background(), coreQueries[0])
 		if err != nil {
 			utils.ErrExit("Unable to create tables on target DB: %v", err)
 		}
-		_, err = conn.Exec(context.Background(), "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';")
+		_, err = conn.Exec(context.Background(), coreQueries[1])
 		if err != nil {
-			continue
+			// There may occur scenarios where we cannot query the cores, store in log as a warning, continue with nodeCount * 2.
+			log.Warnf("Error while running query %s on host %s: %v", coreQueries[1], utils.GetRedactedURLs([]string{target.Uri}), err)
+			return len(targets) * 2
 		}
-		rows, err := conn.Query(context.Background(), "SELECT num_cores FROM yb_voyager_cores;")
-		if err != nil {
-			continue
+		rows := conn.QueryRow(context.Background(), coreQueries[2])
+		if err = rows.Scan(&targetCores); err != nil {
+			utils.ErrExit("Error while running query %s: %v", coreQueries[2], err)
 		}
-		for rows.Next() {
-			if err = rows.Scan(&targetCores); err != nil {
-				utils.ErrExit("Error while scanning core count for parallel jobs: %v", err)
-			}
-		}
-		queriedTargets++
 		totalCores += targetCores
 	}
-	// Return twice the number of nodes if querying was not possible.
-	if queriedTargets == 0 {
-		return len(targets) * 2
-	}
-	// Return the extrapolated value of sum(cores)/2 in the case of partial or full querying.
-	return totalCores * len(targets) / (2 * queriedTargets)
+	return totalCores / 2
 }
 
 func testYbServers(targets []*tgtdb.Target) {
@@ -314,6 +305,12 @@ func importData() {
 		targetUriList = append(targetUriList, t.Uri)
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
+
+	if parallelImportJobs == -1 {
+		parallelImportJobs = fetchDefaultParllelJobs(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+	}
+
 	params := &tgtdb.ConnectionParams{
 		NumConnections:    parallelImportJobs + 1,
 		ConnUriList:       targetUriList,
