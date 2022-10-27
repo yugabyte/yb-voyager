@@ -57,8 +57,8 @@ run_mysql() {
 run_sqlplus() {
 	db_name=$1
 	sql=$2
-	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = ${SOURCE_DB_HOST}) (PORT = ${SOURCE_DB_PORT}))(CONNECT_DATA = (SID = ${db_name})))"
-	echo exit | sqlplus -f -s ${conn_string} @${sql}
+	conn_string=${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = ${SOURCE_DB_HOST}) (PORT = ${SOURCE_DB_PORT}))(CONNECT_DATA = (SID = ${db_name})))
+	echo exit | sqlplus -f ${conn_string} @${sql}
 }
 
 export_schema() {
