@@ -71,6 +71,7 @@ func exportSchema() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
+	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
 

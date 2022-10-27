@@ -176,3 +176,13 @@ func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMeta
 	}
 	dfd.Save()
 }
+
+func (ora *Oracle) GetCharset() (string, error) {
+	var charset string
+	query := "SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET'"
+	err := ora.db.QueryRow(query).Scan(&charset)
+	if err != nil {
+		return "", fmt.Errorf("failed to query %q for database encoding: %s", query, err)
+	}
+	return charset, nil
+}

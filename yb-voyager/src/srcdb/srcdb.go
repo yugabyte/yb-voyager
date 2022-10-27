@@ -18,6 +18,7 @@ type SourceDB interface {
 	ExportSchema(exportDir string)
 	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
+	GetCharset() (string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

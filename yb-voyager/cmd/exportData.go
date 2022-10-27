@@ -87,7 +87,7 @@ func exportDataOffline() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
-
+	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
@@ -243,5 +243,23 @@ func createExportDataDoneFlag() {
 	_, err := os.Create(exportDoneFlagPath)
 	if err != nil {
 		utils.ErrExit("creating exportDataDone flag: %v", err)
+	}
+}
+
+func checkSourceDBCharset() {
+	// If source db does not use unicode character set, ask for confirmation before
+	// proceeding for export.
+	charset, err := source.DB().GetCharset()
+	if err != nil {
+		utils.PrintAndLog("[WARNING] Failed to find character set of the source db: %s", err)
+		return
+	}
+	log.Infof("Source database charset: %q", charset)
+	if !strings.Contains(strings.ToLower(charset), "utf") {
+		utils.PrintAndLog("voyager supports only unicode character set for source database. "+
+			"But the source database is using '%s' character set. ", charset)
+		if !utils.AskPrompt("Are you sure you want to proceed with export? ") {
+			utils.ErrExit("Export aborted.")
+		}
 	}
 }
