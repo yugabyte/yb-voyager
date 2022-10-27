@@ -21,10 +21,4 @@ run_sqlplus ${SOURCE_DB_NAME} dml/order_items
 run_sqlplus ${SOURCE_DB_NAME} dml/inventory
 
 echo "Checking the row counts once data is created on the source DB"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM customers;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM stores;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM products;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM orders;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM shipments;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM order_items;"
-run_sqlplus ${SOURCE_DB_NAME} "SELECT count(*) FROM inventory;"
+run_sqlplus ${SOURCE_DB_NAME} row_count_source_db
