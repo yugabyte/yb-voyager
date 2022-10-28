@@ -5,5 +5,8 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
+echo "Delete all tables and schema objects"
+run_sqlplus ${SOURCE_DB_NAME} oracle-tests/schema_deletion
+
 echo "Initialising source database & inserting data"
 run_sqlplus ${SOURCE_DB_NAME} datatypes_schema_data
