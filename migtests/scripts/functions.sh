@@ -140,6 +140,5 @@ import_data_file() {
 
 ora_delete_schema_contents() {
 	db_name=$1
-	sql="select 'drop ' || object_type || ' ' || owner || '.' || object_name || case when object_type = 'TABLE' then ' cascade constraints' else '' end || ';' from dba_objects where owner = upper('${SOURCE_DB_SCHEMA}') and object_type in ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'TRIGGER', 'SEQUENCE', 'SYNONYM');"
-	run_sqlplus ${db_name} "${sql}"
+	run_sqlplus ${db_name} migtests/scripts/oracle/schema_deletion
 }
