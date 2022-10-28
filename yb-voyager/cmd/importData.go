@@ -194,17 +194,51 @@ func getYBServers() []*tgtdb.Target {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	if parallelImportJobs == -1 {
-		parallelImportJobs = len(targets)
-	}
-
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
+		parallelImportJobs = 2 * len(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
 		targets = []*tgtdb.Target{&target}
 	} else {
 		testYbServers(targets)
 	}
 	return targets
+}
+
+func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
+	totalCores := 0
+	targetCores := 0
+	for _, target := range targets {
+		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{target.Uri})[0])
+		conn, err := pgx.Connect(context.Background(), target.Uri)
+		if err != nil {
+			log.Warnf("Unable to reach target while querying cores: %v", err)
+			return len(targets) * 2
+		}
+		defer conn.Close(context.Background())
+
+		cmd := "CREATE TEMP TABLE yb_voyager_cores(num_cores int);"
+		_, err = conn.Exec(context.Background(), cmd)
+		if err != nil {
+			log.Warnf("Unable to create tables on target DB: %v", err)
+			return len(targets) * 2
+		}
+
+		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
+		_, err = conn.Exec(context.Background(), cmd)
+		if err != nil {
+			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{target.Uri}), err)
+			return len(targets) * 2
+		}
+
+		cmd = "SELECT num_cores FROM yb_voyager_cores;"
+		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
+			log.Warnf("Error while running query %s: %v", cmd, err)
+			return len(targets) * 2
+		}
+		totalCores += targetCores
+	}
+	return totalCores / 2
 }
 
 func testYbServers(targets []*tgtdb.Target) {
@@ -277,6 +311,12 @@ func importData() {
 		targetUriList = append(targetUriList, t.Uri)
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
+
+	if parallelImportJobs == -1 {
+		parallelImportJobs = fetchDefaultParllelJobs(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+	}
+
 	params := &tgtdb.ConnectionParams{
 		NumConnections:    parallelImportJobs + 1,
 		ConnUriList:       targetUriList,
