@@ -5,5 +5,8 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
+echo "Deleting existing data in target database"
+run_sqlplus ${SOURCE_DB_NAME} delete_full_schema
+
 echo "Initialising source database & inserting data"
 run_sqlplus ${SOURCE_DB_NAME} datatypes_schema_data
