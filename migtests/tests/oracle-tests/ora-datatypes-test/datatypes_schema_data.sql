@@ -1,9 +1,11 @@
+drop table if exists numeric_types_number;
 create table numeric_types_number(num_val NUMBER);
 insert into numeric_types_number values(123.79);
 insert into numeric_types_number values(1.2e-4);
 insert into numeric_types_number values(1.2e-5);
 insert into numeric_types_number values(NULL);
 
+drop table if exists numeric_types_float;
 create table numeric_types_float(num_val FLOAT(5));
 insert into numeric_types_float values(123.45);
 insert into numeric_types_float values(0);

@@ -5,7 +5,7 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
-echo "Initialising source database"
+echo "Initialising source database & creating views"
 run_sqlplus ${SOURCE_DB_NAME} ddl/schema
 
 echo "Creating the views on source database"

@@ -4,11 +4,11 @@ import yb
 
 def main():
 	yb.run_checks({
-		"FILE_IMPORT_DONE": file_import_done_checks,
+		"MIGRATION_COMPLETED": migration_completed_checks,
 	})
 
 
-def file_import_done_checks(tgt, tag):
+def migration_completed_checks(tgt, tag):
     tables = tgt.row_count_of_all_tables()
     assert tables.get("numeric_types_number") == 4
     assert tables.get("numeric_types_float") == 5
