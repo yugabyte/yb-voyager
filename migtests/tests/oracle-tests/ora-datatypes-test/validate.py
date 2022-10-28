@@ -7,19 +7,24 @@ def main():
 		"MIGRATION_COMPLETED": migration_completed_checks,
 	})
 
+EXPECTED_ROW_COUNT = {
+	'numeric_types_number': 4,
+	'numeric_types_float': 5,
+	'numeric_types_binary_float': 5,
+	'numeric_types_binary_double': 5,
+	'numeric_types': 8,
+	'date_time_types': 10,
+	'interval_types': 4,
+	'CHAR_TYPES': 6,
+	'LONG_TYPE': 3,
+	'RAW_TYPE': 6
+}
 
 def migration_completed_checks(tgt, tag):
-    tables = tgt.row_count_of_all_tables()
-    assert tables.get("numeric_types_number") == 4
-    assert tables.get("numeric_types_float") == 5
-    assert tables.get("numeric_types_binary_float") == 5
-    assert tables.get("numeric_types_binary_double") == 5
-    assert tables.get("numeric_types") == 8
-    assert tables.get("date_time_types") == 10
-    assert tables.get("interval_types") == 4
-    assert tables.get("CHAR_TYPES") == 6
-    assert tables.get("LONG_TYPE") == 3
-    assert tables.get("RAW_TYPE") == 6
+    got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
 
 if __name__ == "__main__":
 	main()

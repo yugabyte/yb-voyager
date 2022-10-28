@@ -137,9 +137,3 @@ import_data_file() {
 		--send-diagnostics=false \
 		$*
 }
-
-ora_delete_schema_contents() {
-	db_name=$1
-	sql=$2
-	run_sqlplus ${db_name} oracle-tests/utils/schema_deletion
-}
