@@ -18,7 +18,7 @@ def migration_completed_checks(tgt, tag):
     assert tables.get("date_time_types") == 10
     assert tables.get("interval_types") == 4
     assert tables.get("CHAR_TYPES") == 6
-    assert tables.get("LONG_TYPE") == 4
+    assert tables.get("LONG_TYPE") == 3
     assert tables.get("RAW_TYPE") == 6
 
 if __name__ == "__main__":
