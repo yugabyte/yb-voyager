@@ -140,5 +140,5 @@ import_data_file() {
 
 ora_delete_schema_contents() {
 	db_name=$1
-	run_sqlplus ${db_name} "${PWD}"/oracle/schema_deletion
+	run_sqlplus ${db_name} oracle-tests/utils/schema_deletion
 }
