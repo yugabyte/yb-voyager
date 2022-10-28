@@ -32,6 +32,8 @@ main() {
 	rm -rf ${EXPORT_DIR}
 	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
+	echo "Assigning permissions to the export-dir"
+	chmod +x ${TEST_DIR}/init-db
 
 	step "START: ${TEST_NAME}"
 	print_env
