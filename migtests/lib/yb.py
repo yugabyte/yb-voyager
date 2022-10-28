@@ -9,7 +9,7 @@ def run_checks(checkFn):
 	tgt = new_target_db()
 	tgt.connect()
 	print("Connected")
-	checksFn(tgt)
+	checkFn(tgt)
 	tgt.close()
 	print("Disconnected")
 
