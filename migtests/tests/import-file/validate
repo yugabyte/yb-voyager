@@ -3,12 +3,10 @@
 import yb
 
 def main():
-	yb.run_checks({
-		"FILE_IMPORT_DONE": file_import_done_checks,
-	})
+	yb.run_checks(file_import_done_checks)
 
 
-def file_import_done_checks(tgt, tag):
+def file_import_done_checks(tgt):
 	row_count = tgt.get_row_count("target_table")
 	print(f"row_count: {row_count}")
 	assert row_count == 1000000

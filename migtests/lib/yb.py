@@ -5,19 +5,11 @@ from typing import Dict, List
 import psycopg2
 
 
-def run_checks(checks):
-	if len(sys.argv) != 2:
-		raise StandardError("expected one positional argument tag.")
-
-	tag = sys.argv[1]
-	if tag not in checks:
-		print("unknown tag: '{}'".format(tag))
-		return
-
+def run_checks(checkFn):
 	tgt = new_target_db()
 	tgt.connect()
 	print("Connected")
-	checks[tag](tgt, tag)
+	checksFn(tgt)
 	tgt.close()
 	print("Disconnected")
 

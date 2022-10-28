@@ -55,7 +55,7 @@ main() {
 		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
 
 	step "Run validations."
-	 "${TEST_DIR}/validate" FILE_IMPORT_DONE
+	 "${TEST_DIR}/validate"
 }
 
 main

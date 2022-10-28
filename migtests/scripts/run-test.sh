@@ -79,7 +79,7 @@ main() {
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]
 	then
-		 "${TEST_DIR}/validate" MIGRATION_COMPLETED
+		 "${TEST_DIR}/validate"
 	fi
 }
 

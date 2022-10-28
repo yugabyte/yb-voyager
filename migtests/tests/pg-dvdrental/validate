@@ -3,9 +3,7 @@
 import yb
 
 def main():
-	yb.run_checks({
-		"MIGRATION_COMPLETED": migration_completed_checks,
-	})
+	yb.run_checks(migration_completed_checks)
 
 
 #=============================================================================
@@ -28,7 +26,7 @@ EXPECTED_ROW_COUNT = {
 	'store': 2,
 }
 
-def migration_completed_checks(tgt, tag):
+def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
 	assert len(table_list) == 15
