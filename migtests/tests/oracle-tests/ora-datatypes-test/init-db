@@ -4,6 +4,7 @@ set -e
 set -x
 
 source ${SCRIPTS}/functions.sh
+source ${TESTS_DIR}/utils/schema_deletion.sql
 
 echo "Delete all tables and schema objects"
 run_sqlplus ${SOURCE_DB_NAME} schema_deletion
