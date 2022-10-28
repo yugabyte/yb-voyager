@@ -9,7 +9,7 @@ echo "Deleting existing data in target database"
 run_sqlplus ${SOURCE_DB_NAME} delete_full_schema
 
 echo "Initialising source database"
-run_sqlplus ${SOURCE_DB_NAME} partition_schema
+run_sqlplus ${SOURCE_DB_NAME} index
 
 echo "Populating data in source database"
-run_sqlplus ${SOURCE_DB_NAME} partition_data
+run_sqlplus ${SOURCE_DB_NAME} index_data
