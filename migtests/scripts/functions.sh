@@ -138,42 +138,8 @@ import_data_file() {
 		$*
 }
 
-ora_drop_table_if_exist() {
-	args = "BEGIN
-   				EXECUTE IMMEDIATE 'DROP TABLE ' || table_name;
-			EXCEPTION
-   				WHEN OTHERS THEN
-      				IF SQLCODE != -942 THEN
-         				RAISE;
-      				END IF;
-			END;"
-	run_sqlplus ${SOURCE_DB_NAME} args;
-}
-
-ora_drop_index_if_exist() {
-	args = "BEGIN
-   				EXECUTE IMMEDIATE 'DROP INDEX ' || table_name;
-			EXCEPTION
-   				WHEN OTHERS THEN
-      				IF SQLCODE != -1418 THEN
-         				RAISE;
-      				END IF;
-			END;"
-	run_sqlplus ${SOURCE_DB_NAME} args;
-}
-
-check_if_export_directory_exists() {
-	dir = $1
-	if [-d $dir] 
-		then
-		rm -rf $dir
-		if [-d $dir]
-			then
-				echo "Export directory still present"
-		else
-				echo "Export directory is deleted, HURRAY..!!"
-		fi
-	else
-		echo "Export directory present now..!!"
-	fi
+ora_delete_schema_contents() {
+	db_name=$1
+	sql="select 'drop ' || object_type || ' ' || owner || '.' || object_name || case when object_type = 'TABLE' then ' cascade constraints' else '' end || ';' from dba_objects where owner = upper('${SOURCE_DB_SCHEMA}') and object_type in ('TABLE', 'VIEW', 'PROCEDURE', 'FUNCTION', 'PACKAGE', 'PACKAGE BODY', 'TRIGGER', 'SEQUENCE', 'SYNONYM');"
+	run_sqlplus ${db_name} "${sql}" | grep -v "^$" | grep -v "^SQL>" | grep -v "^Connected to:" | grep -v "^Disconnected from Oracle" | grep -v "^WARNING:" | grep -v "^ORA-" | grep -v "^SP2-" | grep -v "^SP3-" | grep -v "^SP4-" | grep -v "^SP5-" | grep -v "^SP6-" | grep -v "^SP7-" | grep -v "^SP8-" | grep -v "^SP9-" | grep -v "^SP10-" | grep -v "^SP11-" | grep -v "^SP12-" | grep -v "^SP13-" | grep -v "^SP14-" | grep -v "^SP15-" | grep -v "^SP16-" | grep -v "^SP17-" | grep -v "^SP18-" | grep -v "^SP19-" | grep -v "^SP20-" | grep -v "^SP21-" | grep -v "^SP22-" | grep -v "^SP23-" | grep -v "^SP24-" | grep -v "^SP25-" | grep -v "^SP26-" | grep -v "^SP27-" | grep -v "^SP28-" | grep -v "^SP29-" | grep -v "^SP30-" | grep -v "^SP31-" | grep -v "^SP32-" | grep -v "^SP33-" | grep -v "^SP34-" | grep -v "^SP35-" | grep -v "^SP36-" | grep -v "^SP37-" | grep -v "^SP38-" | grep -v "^SP39-" | grep -v "^SP40-" | grep -v "^SP41-" | grep -v "^SP42-" | grep -v "^SP43-" | grep -v "^SP44-" | grep -v "^SP45
 }
