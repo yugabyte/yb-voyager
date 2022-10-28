@@ -72,7 +72,7 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger)."
-	import_schema --post-import-data
+	import_schema --import-indexes-after-data
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
