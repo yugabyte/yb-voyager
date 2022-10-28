@@ -208,6 +208,7 @@ func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
 	totalCores := 0
 	targetCores := 0
 	for _, target := range targets {
+		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{target.Uri})[0])
 		conn, err := pgx.Connect(context.Background(), target.Uri)
 		if err != nil {
 			log.Warnf("Unable to reach target while querying cores: %v", err)
