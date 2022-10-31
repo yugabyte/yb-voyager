@@ -68,7 +68,7 @@ export_schema() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
-	yb-voyager export schema ${args} $*
+	/home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager export schema ${args} $*
 }
 
 export_data() {
@@ -86,7 +86,7 @@ export_data() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
-	yb-voyager export data ${args} $*
+	/home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager export data ${args} $*
 }
 
 analyze_schema() {
@@ -94,11 +94,11 @@ analyze_schema() {
 		--output-format txt
 		--send-diagnostics=false
 	"
-        yb-voyager analyze-schema ${args} $*
+        /home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager analyze-schema ${args} $*
 }
 
 import_schema() {
-	yb-voyager import schema --export-dir ${EXPORT_DIR} \
+	/home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager import schema --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
@@ -110,7 +110,7 @@ import_schema() {
 }
 
 import_data() {
-	yb-voyager import data --export-dir ${EXPORT_DIR} \
+	/home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager import data --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
@@ -122,7 +122,7 @@ import_data() {
 }
 
 import_data_file() {
-	yb-voyager import data file --export-dir ${EXPORT_DIR} \
+	/home/centos/code/new_code/yb-voyager/yb-voyager/yb-voyager import data file --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
