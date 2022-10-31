@@ -43,8 +43,7 @@ CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
     NOxpot REAL,
     SO2pot DOUBLE PRECISION,
     NOx NUMERIC
-);
-CREATE UNIQUE INDEX CITY_IND on TXT_TEST(City);"
+);"
 
 main() {
 	mkdir -p ${EXPORT_DIR}
