@@ -7,7 +7,7 @@ export TEST_NAME="txt-migration-test"
 
 export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
-export TESTS_DIR="${REPO_ROOT}/migtests/tests/inport-file-tests"
+export TESTS_DIR="${REPO_ROOT}/migtests/tests/import-file-tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export TARGET_DB_HOST=${TARGET_DB_HOST:-"10.9.118.29"}
