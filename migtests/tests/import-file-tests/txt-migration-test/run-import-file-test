@@ -10,10 +10,13 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
+export TARGET_DB_HOST=${TARGET_DB_HOST:-"10.9.118.29"}
+export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD:-"password"}
+export TARGET_DB_NAME=${TARGET_DB_NAME:-"csv_migration_test"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="txt-migration-test/SMSA.txt"
+export DATA_FILE_NAME="SMSA.txt"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
