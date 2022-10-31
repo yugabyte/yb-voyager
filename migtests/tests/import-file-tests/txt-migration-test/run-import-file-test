@@ -3,7 +3,7 @@
 set -e
 set -x
 
-export TEST_NAME="import-file"
+export TEST_NAME="txt-migration-test"
 
 export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
