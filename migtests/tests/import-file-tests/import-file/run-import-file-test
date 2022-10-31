@@ -13,8 +13,8 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="OneMRows.text"
-export COMPRESSED_DATA_FILE_NAME="${DATA_FILE_NAME}.gz"
+export DATA_FILE_NAME="import-file/OneMRows.text"
+export COMPRESSED_DATA_FILE_NAME="import-file/${DATA_FILE_NAME}.gz"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh

@@ -13,7 +13,7 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="SMSA.txt"
+export DATA_FILE_NAME="txt-migration-test/SMSA.txt"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh

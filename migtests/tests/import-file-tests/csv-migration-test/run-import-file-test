@@ -16,7 +16,7 @@ export TARGET_DB_NAME=${TARGET_DB_NAME:-"csv_migration_test"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="annual-enterprise-survey-2021-financial-year-provisional-csv.csv"
+export DATA_FILE_NAME="csv-migration-test/annual-enterprise-survey-2021-financial-year-provisional-csv.csv"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
