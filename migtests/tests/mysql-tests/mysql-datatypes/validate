@@ -51,6 +51,7 @@ EXPECTED_SUM_OF_COLUMN = {
 }
 
 EXPECTED_ENUM_VALUES = ['low', 'high', 'med']
+EXPECTED_UUIDs_VALUES = ['x5c9876dd589611eda0fa06954a74ceb5', 'x5c987888589611eda0fa06954a74ceb5', 'x5c98795f589611eda0fa06954a74ceb5']
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
@@ -80,6 +81,12 @@ def migration_completed_checks(tgt):
 	for distinct_value in distinct_values_bool_types:
 		print(f"{distinct_value}")
 		assert distinct_value == 0 or distinct_value == 1
+		
+	id_values_of_uuid_try = tgt.get_distinct_values__of_column_of_table("uuid_try", "id", "public")
+	print(f"id_values_of_uuid_try:")
+	for id_value in id_values_of_uuid_try:
+		print(f"{id_value}")
+		assert id_value in EXPECTED_UUIDs_VALUES
 
 
 if __name__ == "__main__":

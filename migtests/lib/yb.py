@@ -1,6 +1,8 @@
+from contextlib import nullcontext
 import os
 import sys
 from typing import Any, Dict, List
+from xmlrpc.client import boolean
 
 import psycopg2
 
@@ -93,6 +95,15 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
 		return [value[0] for value in cur.fetchall()]
+
+	# takes query and error_code and return true id the error_code you believe that query should throw matches
+	def run_query_and_chk_error(self, query, error_code) -> boolean:
+		cur = self.conn.cursor()
+		try:
+			cur.execute(f"{query}")
+		except psycopg2.errors.lookup("{error_code}"):
+			return "true"
+		return "false"
 
 
 
