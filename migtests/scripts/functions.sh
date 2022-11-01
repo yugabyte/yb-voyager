@@ -30,7 +30,7 @@ print_env() {
 run_psql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
+	psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
 }
 
 grant_user_permission_postgresql() {
@@ -53,13 +53,13 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
+	psql "postgresql://yugabyte:""@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
 run_mysql() {
 	db_name=$1
 	sql=$2
-	mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
+	mysql -u root -proot -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
 }
 
 grant_user_permission_mysql() {
@@ -75,6 +75,7 @@ grant_user_permission_mysql() {
 
 	# For older versions
 	run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+
 }
 
 export_schema() {
