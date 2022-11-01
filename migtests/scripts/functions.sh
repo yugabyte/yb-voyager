@@ -33,6 +33,16 @@ run_psql() {
 	psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
 }
 
+create_user_psql() {
+	db_name=$1
+	run_psql ${db_name} "CREATE USER ybvoyager PASSWORD 'password';"
+	run_psql ${db_name} "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
+	run_psql ${db_name} "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
+	run_psql ${db_name} "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
+	export SOURCE_DB_USER="ybvoyager"
+	export SOURCE_DB_PASSWORD="password"
+}
+
 run_pg_restore() {
 	db_name=$1
 	file_name=$2
@@ -48,10 +58,35 @@ run_ysql() {
 	psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
+create_user_ysql() {
+	db_name=$1
+	run_ysql ${db_name} "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+	export TARGET_DB_USER="ybvoyager"
+	export TARGET_DB_PASSWORD="password"
+}
+
 run_mysql() {
 	db_name=$1
 	sql=$2
 	mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
+}
+
+create_user_mysql() {
+	db_name=$1
+	run_mysql ${db_name} "CREATE USER 'ybvoyager'@'${SOURCE_DB_HOST}' IDENTIFIED WITH  mysql_native_password BY 'Password#123';"
+	run_mysql ${db_name} "GRANT PROCESS ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	run_mysql ${db_name} "GRANT SELECT ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	run_mysql ${db_name} "GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	run_mysql ${db_name} "GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+
+	# For MySQL >= 8.0.20
+	run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+
+	# For older versions
+	run_mysql ${db_name} "GRANT SELECT ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+
+	export SOURCE_DB_USER="ybvoyager"
+	export SOURCE_DB_PASSWORD="Password#123"
 }
 
 export_schema() {
