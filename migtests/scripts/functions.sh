@@ -44,9 +44,9 @@ grant_user_permission_postgresql() {
 run_pg_restore() {
 	db_name=$1
 	file_name=$2
-	export PGPASSWORD=${SOURCE_DB_PASSWORD}
+	export PGPASSWORD="secret"
 	pg_restore --no-password -h ${SOURCE_DB_HOST} -p ${SOURCE_DB_PORT} \
-		-U ${SOURCE_DB_USER} -d ${db_name} ${file_name}
+		-U postgres -d ${db_name} ${file_name}
 	unset PGPASSWORD
 }
 
