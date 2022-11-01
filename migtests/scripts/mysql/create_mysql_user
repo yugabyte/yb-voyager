@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -e "CREATE USER 'ybvoyager'@'localhost' IDENTIFIED WITH  mysql_native_password BY 'Password#123';"
+mysql -u root -proot -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -e "CREATE USER 'ybvoyager'@'localhost' IDENTIFIED WITH  mysql_native_password BY 'Password#123';"

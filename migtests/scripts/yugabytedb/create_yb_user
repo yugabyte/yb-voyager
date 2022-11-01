@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}" -c ${db_name} "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+psql "postgresql://yugabyte:@${TARGET_DB_HOST}:${TARGET_DB_PORT}" -c ${db_name} "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
