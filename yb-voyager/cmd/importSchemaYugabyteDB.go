@@ -174,6 +174,6 @@ func mergeSqlFilesIfNeeded(filePath string, objType string) {
 		}
 	}
 	if err = file.Close(); err != nil {
-		log.Warn("Unable to close file %s after merging statements: %v", filePath, err)
+		log.Warnf("Unable to close file %s after merging statements: %v", filePath, err)
 	}
 }
