@@ -33,7 +33,7 @@ run_psql() {
 	psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
 }
 
-create_user_psql() {
+create_user_postgresql() {
 	db_name=$1
 	run_psql ${db_name} "CREATE USER ybvoyager PASSWORD 'password';"
 	run_psql ${db_name} "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
@@ -83,7 +83,7 @@ create_user_mysql() {
 	run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	# For older versions
-	run_mysql ${db_name} "GRANT SELECT ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	# run_mysql ${db_name} "GRANT SELECT ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	export SOURCE_DB_USER="ybvoyager"
 	export SOURCE_DB_PASSWORD="Password#123"
