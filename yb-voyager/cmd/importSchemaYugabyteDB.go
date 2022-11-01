@@ -103,12 +103,22 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 
 func mergeSqlFilesIfNeeded(filePath string, objType string) {
 	// Used for scenarios when we have statements exclusively of the type "\i <filename>.sql" in the file(s) used during import schema.
+	rollbackTransaction := func(initFile *os.File, initFilePath string, copyFilePath string) {
+		if err := initFile.Close(); err != nil {
+			utils.ErrExit("Error while merging statements: %v. Replace the contents of file %s with contents of file %s before retrying", err, initFilePath, copyFilePath)
+		}
+		// Rename automatically overwrites contents of the new file location.
+		if err := os.Rename(copyFilePath, initFilePath); err != nil {
+			utils.ErrExit("Error while merging statements: %v. Rename file %s to %s before retrying", err, copyFilePath, initFilePath)
+		}
+	}
+
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0644)
 	if err != nil {
 		utils.ErrExit("Error while opening %s: %v", filePath, err)
 	}
-	defer file.Close()
 
+	// Gather list of files to merge (if any).
 	fileMergeQueue := []string{}
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -123,22 +133,47 @@ func mergeSqlFilesIfNeeded(filePath string, objType string) {
 		}
 		fileMergeQueue = append(fileMergeQueue, copyFromFileRegex.FindStringSubmatch(strings.TrimLeft(currLine, ""))[1])
 	}
+	if len(fileMergeQueue) == 0 {
+		return
+	}
+	// Preserve contents of file in case something goes wrong.
+	tempFilePath := filepath.Join(filepath.Dir(filePath), strings.ToLower(objType)+"_old.sql")
+	tempFile, err := os.OpenFile(tempFilePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		utils.ErrExit("Error while opening %s: %v", filePath, err)
+	}
+	if _, err = file.Seek(0, 0); err != nil {
+		utils.ErrExit("Error while merging DDLs into file %s: %v", filePath, err)
+	}
+	if _, err := io.Copy(tempFile, file); err != nil {
+		utils.ErrExit("Could not preserve original contents of file %s in temp file: %v", filePath, err)
+	}
+	if err = tempFile.Close(); err != nil {
+		utils.ErrExit("Error while closing copy file %s: %v", tempFilePath, err)
+	}
+
+	// Merge the files' contents into intended file.
 	file.Truncate(0)
 	_, err = file.Seek(0, 0)
 	if err != nil {
+		rollbackTransaction(file, filePath, tempFilePath)
 		utils.ErrExit("Error while merging DDLs into file %s: %v", filePath, err)
 	}
 	for _, mergeFilePath := range fileMergeQueue {
 		mergeFile, err := os.Open(mergeFilePath)
 		if err != nil {
+			rollbackTransaction(file, filePath, tempFilePath)
 			utils.ErrExit("Error while opening %s: %v", filePath, err)
 		}
 		defer mergeFile.Close()
 		utils.PrintAndLog("Merging file %s", mergeFilePath)
 		_, err = io.Copy(file, mergeFile)
 		if err != nil {
+			rollbackTransaction(file, filePath, tempFilePath)
 			utils.ErrExit("Error while copying from file %s: %v", mergeFilePath, err)
 		}
 	}
-	return
+	if err = file.Close(); err != nil {
+		log.Warn("Unable to close file %s after merging statements: %v", filePath, err)
+	}
 }
