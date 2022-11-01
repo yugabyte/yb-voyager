@@ -1016,7 +1016,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
 	log.Infof("Execute SQL file %q on target %q", file, target.Host)
-
+	mergeSqlFilesIfNeeded(file, objType)
 	conn := newTargetConn()
 	defer func() {
 		if conn != nil {

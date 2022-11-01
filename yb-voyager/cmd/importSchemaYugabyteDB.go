@@ -16,9 +16,12 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -96,4 +99,46 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 		finalImportObjectList = append([]string{"SCHEMA"}, finalImportObjectList...)
 	}
 	return finalImportObjectList
+}
+
+func mergeSqlFilesIfNeeded(filePath string, objType string) {
+	// Used for scenarios when we have statements exclusively of the type "\i <filename>.sql" in the file(s) used during import schema.
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR, 0644)
+	if err != nil {
+		utils.ErrExit("Error while opening %s: %v", filePath, err)
+	}
+	defer file.Close()
+
+	fileMergeQueue := []string{}
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		currLine := scanner.Text()
+		if len(currLine) == 0 {
+			continue
+		}
+		copyFromFileRegex := regexp.MustCompile(`(?i)\\i (.*.sql)`)
+		if !copyFromFileRegex.MatchString(strings.TrimLeft(currLine, " ")) {
+			// This file contains DDL, no need for merging.
+			return
+		}
+		fileMergeQueue = append(fileMergeQueue, copyFromFileRegex.FindStringSubmatch(strings.TrimLeft(currLine, ""))[1])
+	}
+	file.Truncate(0)
+	_, err = file.Seek(0, 0)
+	if err != nil {
+		utils.ErrExit("Error while merging DDLs into file %s: %v", filePath, err)
+	}
+	for _, mergeFilePath := range fileMergeQueue {
+		mergeFile, err := os.Open(mergeFilePath)
+		if err != nil {
+			utils.ErrExit("Error while opening %s: %v", filePath, err)
+		}
+		defer mergeFile.Close()
+		utils.PrintAndLog("Merging file %s", mergeFilePath)
+		_, err = io.Copy(file, mergeFile)
+		if err != nil {
+			utils.ErrExit("Error while copying from file %s: %v", mergeFilePath, err)
+		}
+	}
+	return
 }
