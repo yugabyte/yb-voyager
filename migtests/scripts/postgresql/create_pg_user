@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 
-psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}" -c "CREATE USER ybvoyager PASSWORD 'password';"
+psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}" -c "CREATE USER ybvoyager PASSWORD 'password';"
 	
