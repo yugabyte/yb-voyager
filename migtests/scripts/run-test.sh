@@ -38,8 +38,8 @@ main() {
 	step "Initialise source database."
 	./init-db
 
-	step "Create source database user"
-	create_user_${SOURCE_DB_TYPE} ${SOURCE_DB_NAME}
+	step "Grant source database user permissions"
+	grant_user_permission_${SOURCE_DB_TYPE} ${SOURCE_DB_NAME}
 
 	step "Export schema."
 	export_schema
@@ -66,9 +66,6 @@ main() {
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-
-	step "Create target database user"
-	create_user_ysql ${TARGET_DB_NAME}
 
 	step "Import schema."
 	import_schema
