@@ -67,8 +67,8 @@ main() {
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
-	# step "Create target database user"
-	# create_user_ysql ${SOURCE_DB_NAME}
+	step "Create target database user"
+	create_user_ysql ${TARGET_DB_NAME}
 
 	step "Import schema."
 	import_schema

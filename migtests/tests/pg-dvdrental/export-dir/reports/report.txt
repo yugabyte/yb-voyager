@@ -1,0 +1,69 @@
++---------------------------+
+| Database Migration Report |
++---------------------------+
+Database Name	dvdrental
+Schema Name	public
+DB Version	14.5
+
+Objects:
+
+Object:         SCHEMA
+Total Count:    1
+Valid Count:    1
+Invalid Count:  0
+Object Names:   public
+
+Object:         TYPE
+Total Count:    1
+Valid Count:    1
+Invalid Count:  0
+Object Names:   public.mpaa_rating
+
+Object:         DOMAIN
+Total Count:    1
+Valid Count:    1
+Invalid Count:  0
+Object Names:   public.year
+
+Object:         SEQUENCE
+Total Count:    13
+Valid Count:    13
+Invalid Count:  0
+Object Names:   public.customer_customer_id_seq, public.film_film_id_seq, public.language_language_id_seq, public.city_city_id_seq, public.country_country_id_seq, public.inventory_inventory_id_seq, public.payment_payment_id_seq, public.rental_rental_id_seq, public.actor_actor_id_seq, public.category_category_id_seq, public.address_address_id_seq, public.staff_staff_id_seq, public.store_store_id_seq
+
+Object:         TABLE
+Total Count:    15
+Valid Count:    15
+Invalid Count:  0
+Object Names:   public.film_actor, public.rental, public.store, public.customer, public.film_category, public.language, public.payment, public.actor, public.address, public.city, public.country, public.category, public.film, public.inventory, public.staff
+
+Object:         INDEX
+Total Count:    16
+Valid Count:    16
+Invalid Count:  0
+Object Names:   idx_store_id_film_id, idx_actor_last_name, idx_fk_address_id, idx_last_name, idx_fk_language_id, idx_fk_rental_id, idx_unq_manager_staff_id, idx_fk_store_id, idx_title, idx_unq_rental_rental_date_inventory_id_customer_id, idx_fk_city_id, idx_fk_country_id, idx_fk_film_id, idx_fk_customer_id, idx_fk_inventory_id, idx_fk_staff_id
+
+Object:         FUNCTION
+Total Count:    9
+Valid Count:    9
+Invalid Count:  0
+Object Names:   public._group_concat, public.film_in_stock, public.film_not_in_stock, public.inventory_in_stock, public.rewards_report, public.get_customer_balance, public.inventory_held_by_customer, public.last_day, public.last_updated
+
+Object:         AGGREGATE
+Total Count:    1
+Valid Count:    1
+Invalid Count:  0
+Object Names:   public.group_concat
+
+Object:         VIEW
+Total Count:    7
+Valid Count:    7
+Invalid Count:  0
+Object Names:   public.film_list, public.nicer_but_slower_film_list, public.sales_by_film_category, public.sales_by_store, public.staff_list, public.actor_info, public.customer_list
+
+Object:         TRIGGER
+Total Count:    15
+Valid Count:    15
+Invalid Count:  0
+Object Names:   film_fulltext_trigger, last_updated
+
