@@ -83,17 +83,23 @@ run_mysql() {
 
 create_user_mysql() {
 	db_name=$1
-	run_mysql ${db_name} "CREATE USER 'ybvoyager'@'${SOURCE_DB_HOST}' IDENTIFIED WITH  mysql_native_password BY 'Password#123';"
+	if [[ $(mysql -u ${SOURCE_DB_USER} -p${SOURCE_DB_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "select user from mysql.user;  "| grep ybvoyager) ]]
+	then 
+		echo "User already exists. Skipping creation. Granting only permissions."
+	else
+		run_mysql ${db_name} "CREATE USER 'ybvoyager'@'${SOURCE_DB_HOST}' IDENTIFIED WITH  mysql_native_password BY 'Password#123';"
+	fi
+	
 	run_mysql ${db_name} "GRANT PROCESS ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 	run_mysql ${db_name} "GRANT SELECT ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 	run_mysql ${db_name} "GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 	run_mysql ${db_name} "GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	# For MySQL >= 8.0.20
-	run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	# run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	# For older versions
-	# run_mysql ${db_name} "GRANT SELECT ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
+	run_mysql ${db_name} "GRANT SELECT ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	export SOURCE_DB_USER="ybvoyager"
 	export SOURCE_DB_PASSWORD="Password#123"
