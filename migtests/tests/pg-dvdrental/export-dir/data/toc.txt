@@ -1,0 +1,222 @@
+PGDMP
+dvdrental
+14.5
+14.5
+ENCODING
+ENCODING
+SET client_encoding = 'UTF8';
+false
+STDSTRINGS
+STDSTRINGS
+SET standard_conforming_strings = 'on';
+false
+SEARCHPATH
+SEARCHPATH
+SELECT pg_catalog.set_config('search_path', '', false);
+false
+1262
+21240
+dvdrental
+DATABASE
+CREATE DATABASE dvdrental WITH TEMPLATE = template0 ENCODING = 'UTF8' LOCALE = 'en_US.UTF-8';
+DROP DATABASE dvdrental;
+postgres
+false
+21275
+actor
+TABLE DATA
+COPY public.actor (actor_id, first_name, last_name, last_update) FROM stdin;
+public
+postgres
+false
+4214.dat
+21324
+country
+TABLE DATA
+COPY public.country (country_id, country, last_update) FROM stdin;
+public
+postgres
+false
+4226.dat
+21318
+city
+TABLE DATA
+COPY public.city (city_id, city, country_id, last_update) FROM stdin;
+public
+postgres
+false
+4224.dat
+21312
+address
+TABLE DATA
+COPY public.address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin;
+public
+postgres
+false
+4222.dat
+21281
+category
+TABLE DATA
+COPY public.category (category_id, name, last_update) FROM stdin;
+public
+postgres
+false
+4216.dat
+21265
+customer
+TABLE DATA
+COPY public.customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin;
+public
+postgres
+false
+4212.dat
+21346
+language
+TABLE DATA
+COPY public.language (language_id, name, last_update) FROM stdin;
+public
+postgres
+false
+4230.dat
+21287
+film
+TABLE DATA
+COPY public.film (film_id, title, description, release_year, language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin;
+public
+postgres
+false
+4218.dat
+21298
+film_actor
+TABLE DATA
+COPY public.film_actor (actor_id, film_id, last_update) FROM stdin;
+public
+postgres
+false
+4219.dat
+21302
+film_category
+TABLE DATA
+COPY public.film_category (film_id, category_id, last_update) FROM stdin;
+public
+postgres
+false
+4220.dat
+21340
+inventory
+TABLE DATA
+COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin;
+public
+postgres
+false
+4228.dat
+21373
+staff
+TABLE DATA
+COPY public.staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin;
+public
+postgres
+false
+4236.dat
+21362
+rental
+TABLE DATA
+COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin;
+public
+postgres
+false
+4234.dat
+21357
+payment
+TABLE DATA
+COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin;
+public
+postgres
+false
+4232.dat
+21382
+store
+TABLE DATA
+COPY public.store (store_id, manager_staff_id, address_id, last_update) FROM stdin;
+public
+postgres
+false
+4238.dat
+actor_actor_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+public
+postgres
+false
+address_address_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.address_address_id_seq', 605, true);
+public
+postgres
+false
+category_category_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.category_category_id_seq', 16, true);
+public
+postgres
+false
+city_city_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.city_city_id_seq', 600, true);
+public
+postgres
+false
+country_country_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.country_country_id_seq', 109, true);
+public
+postgres
+false
+customer_customer_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.customer_customer_id_seq', 599, true);
+public
+postgres
+false
+film_film_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.film_film_id_seq', 1000, true);
+public
+postgres
+false
+inventory_inventory_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.inventory_inventory_id_seq', 4581, true);
+public
+postgres
+false
+language_language_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.language_language_id_seq', 6, true);
+public
+postgres
+false
+payment_payment_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.payment_payment_id_seq', 32098, true);
+public
+postgres
+false
+rental_rental_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.rental_rental_id_seq', 16049, true);
+public
+postgres
+false
+staff_staff_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.staff_staff_id_seq', 2, true);
+public
+postgres
+false
+store_store_id_seq
+SEQUENCE SET
+SELECT pg_catalog.setval('public.store_store_id_seq', 2, true);
+public
+postgres
+false

@@ -35,10 +35,16 @@ run_psql() {
 
 create_user_postgresql() {
 	db_name=$1
-	run_psql ${db_name} "CREATE USER ybvoyager PASSWORD 'password';"
-	run_psql ${db_name} "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
-	run_psql ${db_name} "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
-	run_psql ${db_name} "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec"
+	userExists=$(psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/dvdrental" -c "\du" | grep ybvoyager)
+	if [ -z "${userExists}" ]
+	then 
+		run_psql ${db_name} "CREATE USER ybvoyager PASSWORD 'password';"
+	else
+		echo "User already exists. Skipping creation. Granting only permissions."
+	fi
+	echo "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	echo "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	echo "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://${SOURCE_DB_USER}:${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
 	export SOURCE_DB_USER="ybvoyager"
 	export SOURCE_DB_PASSWORD="password"
 }
@@ -60,7 +66,13 @@ run_ysql() {
 
 create_user_ysql() {
 	db_name=$1
-	run_ysql ${db_name} "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+	userExists=$(psql "postgresql://yugabyte:${TARGET_DB_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "\du" | grep ybvoyager)
+	if [ -z "${userExists}" ]
+	then 
+		run_ysql ${db_name} "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+	else
+		echo "User already exists. Skipping creation. Granting only permissions."
+	fi
 	export TARGET_DB_USER="ybvoyager"
 	export TARGET_DB_PASSWORD="password"
 }

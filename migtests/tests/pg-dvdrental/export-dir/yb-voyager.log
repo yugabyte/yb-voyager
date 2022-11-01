@@ -1,0 +1,2271 @@
+2022-11-01 02:35:27 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:27 INFO logging.go:67 Args: [yb-voyager export schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name dvdrental --send-diagnostics=false --source-db-schema public]
+2022-11-01 02:35:27 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:27 INFO logging.go:33 export of schema for source type as 'postgresql'
+
+2022-11-01 02:35:27 INFO utils.go:21 Found "/usr/bin/strings"
+2022-11-01 02:35:27 INFO logging.go:33 postgresql version: 14.5
+
+2022-11-01 02:35:27 INFO pg_dump_extract_schema.go:28 Running command: /usr/pgsql-14/bin/pg_dump "postgresql://ybvoyager:xxxxx@127.0.0.1:5432/dvdrental?sslmode=prefer" --schema-only --schema "public" --no-owner -f /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/temp/schema.sql --no-privileges --no-tablespaces
+2022-11-01 02:35:27 INFO pg_dump_extract_schema.go:53 Begun parsing the schema file.
+2022-11-01 02:35:27 INFO logging.go:33 Some uncategorized sql statements are present in "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/uncategorized.sql", Needs to review and import them manually!!
+2022-11-01 02:35:27 INFO pg_dump_extract_schema.go:46 Export of schema completed.
+2022-11-01 02:35:27 INFO logging.go:33 
+Exported schema files created under directory: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema
+
+2022-11-01 02:35:27 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:27 INFO logging.go:67 Args: [yb-voyager analyze-schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --output-format txt --send-diagnostics=false]
+2022-11-01 02:35:27 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:27 INFO logging.go:67 Args: [yb-voyager analyze-schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --output-format txt --send-diagnostics=false]
+2022-11-01 02:35:27 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:27 INFO logging.go:67 Args: [yb-voyager export data --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name dvdrental --disable-pb --send-diagnostics=false --source-db-schema public]
+2022-11-01 02:35:27 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:27 INFO logging.go:33 export of data for source type as 'postgresql'
+2022-11-01 02:35:27 INFO utils.go:21 Found "/usr/bin/strings"
+2022-11-01 02:35:27 INFO postgres.go:141 Query found 15 tables in the source db: [public.actor public.store public.film public.address public.category public.city public.country public.customer public.film_actor public.film_category public.inventory public.language public.rental public.staff public.payment]
+2022-11-01 02:35:27 INFO logging.go:33 table list for data export: [public.actor public.store public.film public.address public.category public.city public.country public.customer public.film_actor public.film_category public.inventory public.language public.rental public.staff public.payment]
+2022-11-01 02:35:27 INFO exportData.go:130 Export table metadata: (map[string]*utils.TableProgressMetadata) (len=15) {
+ (string) (len=16) "public.inventory": (*utils.TableProgressMetadata)(0xc00026f440)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=9) "inventory",
+  FullTableName: (string) (len=16) "public.inventory",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=15) "public.language": (*utils.TableProgressMetadata)(0xc00026f4d0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=8) "language",
+  FullTableName: (string) (len=15) "public.language",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=13) "public.rental": (*utils.TableProgressMetadata)(0xc00026f560)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=6) "rental",
+  FullTableName: (string) (len=13) "public.rental",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=12) "public.staff": (*utils.TableProgressMetadata)(0xc00026f5f0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=5) "staff",
+  FullTableName: (string) (len=12) "public.staff",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=12) "public.actor": (*utils.TableProgressMetadata)(0xc00026eea0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=5) "actor",
+  FullTableName: (string) (len=12) "public.actor",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=11) "public.film": (*utils.TableProgressMetadata)(0xc00026efc0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=4) "film",
+  FullTableName: (string) (len=11) "public.film",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=11) "public.city": (*utils.TableProgressMetadata)(0xc00026f170)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=4) "city",
+  FullTableName: (string) (len=11) "public.city",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=14) "public.country": (*utils.TableProgressMetadata)(0xc00026f200)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=7) "country",
+  FullTableName: (string) (len=14) "public.country",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=15) "public.customer": (*utils.TableProgressMetadata)(0xc00026f290)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=8) "customer",
+  FullTableName: (string) (len=15) "public.customer",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=14) "public.payment": (*utils.TableProgressMetadata)(0xc00026f680)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=7) "payment",
+  FullTableName: (string) (len=14) "public.payment",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=12) "public.store": (*utils.TableProgressMetadata)(0xc00026ef30)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=5) "store",
+  FullTableName: (string) (len=12) "public.store",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=14) "public.address": (*utils.TableProgressMetadata)(0xc00026f050)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=7) "address",
+  FullTableName: (string) (len=14) "public.address",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=15) "public.category": (*utils.TableProgressMetadata)(0xc00026f0e0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=8) "category",
+  FullTableName: (string) (len=15) "public.category",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=17) "public.film_actor": (*utils.TableProgressMetadata)(0xc00026f320)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=10) "film_actor",
+  FullTableName: (string) (len=17) "public.film_actor",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ }),
+ (string) (len=20) "public.film_category": (*utils.TableProgressMetadata)(0xc00026f3b0)({
+  TableSchema: (string) (len=6) "public",
+  TableName: (string) (len=13) "film_category",
+  FullTableName: (string) (len=20) "public.film_category",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ })
+}
+
+2022-11-01 02:35:27 INFO logging.go:33 calculating approx num of rows to export for each table...
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.actor'::regclass' approx row count of table "actor"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.actor" has approx {200 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.address'::regclass' approx row count of table "address"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.address" has approx {603 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.category'::regclass' approx row count of table "category"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.category" has approx {16 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.city'::regclass' approx row count of table "city"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.city" has approx {600 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.country'::regclass' approx row count of table "country"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.country" has approx {109 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.customer'::regclass' approx row count of table "customer"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.customer" has approx {599 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.film'::regclass' approx row count of table "film"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.film" has approx {1000 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.film_actor'::regclass' approx row count of table "film_actor"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.film_actor" has approx {5462 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.film_category'::regclass' approx row count of table "film_category"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.film_category" has approx {1000 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.inventory'::regclass' approx row count of table "inventory"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.inventory" has approx {4581 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.language'::regclass' approx row count of table "language"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.language" has approx {6 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.payment'::regclass' approx row count of table "payment"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.payment" has approx {14596 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.rental'::regclass' approx row count of table "rental"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.rental" has approx {16044 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.staff'::regclass' approx row count of table "staff"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.staff" has approx {2 true} rows.
+2022-11-01 02:35:27 INFO postgres.go:64 Querying 'SELECT reltuples::bigint FROM pg_class where oid = 'public.store'::regclass' approx row count of table "store"
+2022-11-01 02:35:27 INFO postgres.go:70 Table "public.store" has approx {2 true} rows.
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 02:35:27 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 02:35:27 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:27 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:27 INFO pg_dump_export_data.go:51 Running command: /usr/pgsql-14/bin/pg_dump "postgresql://ybvoyager:xxxxx@127.0.0.1:5432/dvdrental?sslmode=prefer" --no-blobs --data-only --no-owner --compress=0 -t 'public.actor' -t 'public.store' -t 'public.film' -t 'public.address' -t 'public.category' -t 'public.city' -t 'public.country' -t 'public.customer' -t 'public.film_actor' -t 'public.film_category' -t 'public.inventory' -t 'public.language' -t 'public.rental' -t 'public.staff' -t 'public.payment' -t 'public.actor_actor_id_seq' -t 'public.address_address_id_seq' -t 'public.category_category_id_seq' -t 'public.city_city_id_seq' -t 'public.country_country_id_seq' -t 'public.customer_customer_id_seq' -t 'public.film_film_id_seq' -t 'public.inventory_inventory_id_seq' -t 'public.language_language_id_seq' -t 'public.payment_payment_id_seq' -t 'public.rental_rental_id_seq' -t 'public.staff_staff_id_seq' -t 'public.store_store_id_seq'  -Fd --file /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data --jobs 4 --no-privileges --no-tablespaces
+2022-11-01 02:35:27 INFO logging.go:33 Data export started.
+2022-11-01 02:35:30 INFO pg_dump_export_data.go:93 toc.dat file successfully created.
+2022-11-01 02:35:31 INFO common.go:96 cmd: /usr/pgsql-14/bin/pg_restore -l /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data
+2022-11-01 02:35:31 INFO common.go:97 output: ;
+; Archive created at 2022-11-01 02:35:27 EDT
+;     dbname: dvdrental
+;     TOC Entries: 32
+;     Compression: 0
+;     Dump Version: 1.14-0
+;     Format: DIRECTORY
+;     Integer: 4 bytes
+;     Offset: 8 bytes
+;     Dumped from database version: 14.5
+;     Dumped by pg_dump version: 14.5
+;
+;
+; Selected TOC Entries:
+;
+4214; 0 21275 TABLE DATA public actor postgres
+4226; 0 21324 TABLE DATA public country postgres
+4224; 0 21318 TABLE DATA public city postgres
+4222; 0 21312 TABLE DATA public address postgres
+4216; 0 21281 TABLE DATA public category postgres
+4212; 0 21265 TABLE DATA public customer postgres
+4230; 0 21346 TABLE DATA public language postgres
+4218; 0 21287 TABLE DATA public film postgres
+4219; 0 21298 TABLE DATA public film_actor postgres
+4220; 0 21302 TABLE DATA public film_category postgres
+4228; 0 21340 TABLE DATA public inventory postgres
+4236; 0 21373 TABLE DATA public staff postgres
+4234; 0 21362 TABLE DATA public rental postgres
+4232; 0 21357 TABLE DATA public payment postgres
+4238; 0 21382 TABLE DATA public store postgres
+4245; 0 0 SEQUENCE SET public actor_actor_id_seq postgres
+4246; 0 0 SEQUENCE SET public address_address_id_seq postgres
+4247; 0 0 SEQUENCE SET public category_category_id_seq postgres
+4248; 0 0 SEQUENCE SET public city_city_id_seq postgres
+4249; 0 0 SEQUENCE SET public country_country_id_seq postgres
+4250; 0 0 SEQUENCE SET public customer_customer_id_seq postgres
+4251; 0 0 SEQUENCE SET public film_film_id_seq postgres
+4252; 0 0 SEQUENCE SET public inventory_inventory_id_seq postgres
+4253; 0 0 SEQUENCE SET public language_language_id_seq postgres
+4254; 0 0 SEQUENCE SET public payment_payment_id_seq postgres
+4255; 0 0 SEQUENCE SET public rental_rental_id_seq postgres
+4256; 0 0 SEQUENCE SET public staff_staff_id_seq postgres
+4257; 0 0 SEQUENCE SET public store_store_id_seq postgres
+
+2022-11-01 02:35:31 INFO common.go:79 After updating data file paths, TablesProgressMetadata:&{TableSchema:public TableName:actor FullTableName:public.actor InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4214.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql Status:0 CountLiveRows:0 CountTotalRows:200 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:address FullTableName:public.address InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4222.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql Status:0 CountLiveRows:0 CountTotalRows:603 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:category FullTableName:public.category InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4216.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql Status:0 CountLiveRows:0 CountTotalRows:16 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:city FullTableName:public.city InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4224.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql Status:0 CountLiveRows:0 CountTotalRows:600 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:country FullTableName:public.country InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4226.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql Status:0 CountLiveRows:0 CountTotalRows:109 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:customer FullTableName:public.customer InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4212.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql Status:0 CountLiveRows:0 CountTotalRows:599 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:film FullTableName:public.film InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4218.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql Status:0 CountLiveRows:0 CountTotalRows:1000 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:film_actor FullTableName:public.film_actor InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4219.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql Status:0 CountLiveRows:0 CountTotalRows:5462 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:film_category FullTableName:public.film_category InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4220.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql Status:0 CountLiveRows:0 CountTotalRows:1000 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:inventory FullTableName:public.inventory InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4228.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql Status:0 CountLiveRows:0 CountTotalRows:4581 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:language FullTableName:public.language InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4230.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql Status:0 CountLiveRows:0 CountTotalRows:6 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:payment FullTableName:public.payment InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4232.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql Status:0 CountLiveRows:0 CountTotalRows:14596 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:rental FullTableName:public.rental InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4234.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql Status:0 CountLiveRows:0 CountTotalRows:16044 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:staff FullTableName:public.staff InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4236.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql Status:0 CountLiveRows:0 CountTotalRows:2 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+&{TableSchema:public TableName:store FullTableName:public.store InProgressFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4238.dat FinalFilePath:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql Status:0 CountLiveRows:0 CountTotalRows:2 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4238.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4222.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4216.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4219.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4220.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4228.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4230.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4234.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4236.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4214.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4218.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4224.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4226.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4212.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql"
+2022-11-01 02:35:31 INFO pg_dump_export_data.go:135 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/4232.dat" -> "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql"
+2022-11-01 02:35:31 INFO descriptor.go:47 storing DataFileDescriptor at "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:31 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:31 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:31 INFO exportData.go:78 Export of data completed.
+2022-11-01 02:35:36 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:36 INFO logging.go:67 Args: [yb-voyager import schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --target-db-host 127.0.0.1 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name dvdrental --yes --send-diagnostics=false]
+2022-11-01 02:35:36 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:36 INFO importSchemaYugabyteDB.go:45 Extracting the metainfo about the source database.
+2022-11-01 02:35:36 INFO logging.go:33 YugabyteDB version: 11.2-YB-2.15.2.0-b0
+
+2022-11-01 02:35:36 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:36 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 02:35:36 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 02:35:36 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 02:35:36 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:36 INFO logging.go:33 schemas to be present in target database: [public]
+
+2022-11-01 02:35:37 INFO importSchema.go:175 check if schema "public" exists: fetchedSchema: "public", err: %!s(<nil>)
+2022-11-01 02:35:37 INFO logging.go:33 schema 'public' already present in target database, continuing with it..
+
+2022-11-01 02:35:37 INFO importSchema.go:85 List of schema objects to import: [SCHEMA EXTENSION TYPE DOMAIN SEQUENCE TABLE RULE FUNCTION AGGREGATE PROCEDURE VIEW MVIEW COMMENT]
+2022-11-01 02:35:37 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql" on target "127.0.0.1"
+2022-11-01 02:35:37 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SCHEMA public;
+
+2022-11-01 02:35:37 ERROR importData.go:1052 DDL Execution Failed: ERROR: schema "public" already exists (SQLSTATE 42P06)
+2022-11-01 02:35:37 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql" on target "127.0.0.1"
+2022-11-01 02:35:37 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TYPE public.mpaa_rating AS ENUM (
+    'G',
+    'PG',
+    'PG-13',
+    'R',
+    'NC-17'
+);
+
+2022-11-01 02:35:37 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql" on target "127.0.0.1"
+2022-11-01 02:35:37 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE DOMAIN public.year AS integer
+	CONSTRAINT year_check CHECK (((VALUE >= 1901) AND (VALUE <= 2155)));
+
+2022-11-01 02:35:37 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql" on target "127.0.0.1"
+2022-11-01 02:35:37 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.customer_customer_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.actor_actor_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.category_category_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.film_film_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.address_address_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.city_city_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.country_country_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.inventory_inventory_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.language_language_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.payment_payment_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.rental_rental_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.staff_staff_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE SEQUENCE public.store_store_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+2022-11-01 02:35:37 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql" on target "127.0.0.1"
+2022-11-01 02:35:37 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.customer (
+    customer_id integer DEFAULT nextval('public.customer_customer_id_seq'::regclass) NOT NULL,
+    store_id smallint NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    email character varying(50),
+    address_id smallint NOT NULL,
+    activebool boolean DEFAULT true NOT NULL,
+    create_date date DEFAULT ('now'::text)::date NOT NULL,
+    last_update timestamp without time zone DEFAULT now(),
+    active integer
+);
+
+2022-11-01 02:35:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.actor (
+    actor_id integer DEFAULT nextval('public.actor_actor_id_seq'::regclass) NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.category (
+    category_id integer DEFAULT nextval('public.category_category_id_seq'::regclass) NOT NULL,
+    name character varying(25) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.film (
+    film_id integer DEFAULT nextval('public.film_film_id_seq'::regclass) NOT NULL,
+    title character varying(255) NOT NULL,
+    description text,
+    release_year public.year,
+    language_id smallint NOT NULL,
+    rental_duration smallint DEFAULT 3 NOT NULL,
+    rental_rate numeric(4,2) DEFAULT 4.99 NOT NULL,
+    length smallint,
+    replacement_cost numeric(5,2) DEFAULT 19.99 NOT NULL,
+    rating public.mpaa_rating DEFAULT 'G'::public.mpaa_rating,
+    last_update timestamp without time zone DEFAULT now() NOT NULL,
+    special_features text[],
+    fulltext tsvector NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.film_actor (
+    actor_id smallint NOT NULL,
+    film_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.film_category (
+    film_id smallint NOT NULL,
+    category_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.address (
+    address_id integer DEFAULT nextval('public.address_address_id_seq'::regclass) NOT NULL,
+    address character varying(50) NOT NULL,
+    address2 character varying(50),
+    district character varying(20) NOT NULL,
+    city_id smallint NOT NULL,
+    postal_code character varying(10),
+    phone character varying(20) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.city (
+    city_id integer DEFAULT nextval('public.city_city_id_seq'::regclass) NOT NULL,
+    city character varying(50) NOT NULL,
+    country_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.country (
+    country_id integer DEFAULT nextval('public.country_country_id_seq'::regclass) NOT NULL,
+    country character varying(50) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.inventory (
+    inventory_id integer DEFAULT nextval('public.inventory_inventory_id_seq'::regclass) NOT NULL,
+    film_id smallint NOT NULL,
+    store_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:38 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.language (
+    language_id integer DEFAULT nextval('public.language_language_id_seq'::regclass) NOT NULL,
+    name character(20) NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.payment (
+    payment_id integer DEFAULT nextval('public.payment_payment_id_seq'::regclass) NOT NULL,
+    customer_id smallint NOT NULL,
+    staff_id smallint NOT NULL,
+    rental_id integer NOT NULL,
+    amount numeric(5,2) NOT NULL,
+    payment_date timestamp without time zone NOT NULL
+);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.rental (
+    rental_id integer DEFAULT nextval('public.rental_rental_id_seq'::regclass) NOT NULL,
+    rental_date timestamp without time zone NOT NULL,
+    inventory_id integer NOT NULL,
+    customer_id smallint NOT NULL,
+    return_date timestamp without time zone,
+    staff_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.staff (
+    staff_id integer DEFAULT nextval('public.staff_staff_id_seq'::regclass) NOT NULL,
+    first_name character varying(45) NOT NULL,
+    last_name character varying(45) NOT NULL,
+    address_id smallint NOT NULL,
+    email character varying(50),
+    store_id smallint NOT NULL,
+    active boolean DEFAULT true NOT NULL,
+    username character varying(16) NOT NULL,
+    password character varying(40),
+    last_update timestamp without time zone DEFAULT now() NOT NULL,
+    picture bytea
+);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TABLE public.store (
+    store_id integer DEFAULT nextval('public.store_store_id_seq'::regclass) NOT NULL,
+    manager_staff_id smallint NOT NULL,
+    address_id smallint NOT NULL,
+    last_update timestamp without time zone DEFAULT now() NOT NULL
+);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.actor
+    ADD CONSTRAINT actor_pkey PRIMARY KEY (actor_id);
+
+2022-11-01 02:35:39 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.address
+    ADD CONSTRAINT address_pkey PRIMARY KEY (address_id);
+
+2022-11-01 02:35:40 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.category
+    ADD CONSTRAINT category_pkey PRIMARY KEY (category_id);
+
+2022-11-01 02:35:40 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.city
+    ADD CONSTRAINT city_pkey PRIMARY KEY (city_id);
+
+2022-11-01 02:35:41 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.country
+    ADD CONSTRAINT country_pkey PRIMARY KEY (country_id);
+
+2022-11-01 02:35:41 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.customer
+    ADD CONSTRAINT customer_pkey PRIMARY KEY (customer_id);
+
+2022-11-01 02:35:42 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_actor
+    ADD CONSTRAINT film_actor_pkey PRIMARY KEY (actor_id, film_id);
+
+2022-11-01 02:35:42 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_category
+    ADD CONSTRAINT film_category_pkey PRIMARY KEY (film_id, category_id);
+
+2022-11-01 02:35:42 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film
+    ADD CONSTRAINT film_pkey PRIMARY KEY (film_id);
+
+2022-11-01 02:35:43 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.inventory
+    ADD CONSTRAINT inventory_pkey PRIMARY KEY (inventory_id);
+
+2022-11-01 02:35:43 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.language
+    ADD CONSTRAINT language_pkey PRIMARY KEY (language_id);
+
+2022-11-01 02:35:44 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.payment
+    ADD CONSTRAINT payment_pkey PRIMARY KEY (payment_id);
+
+2022-11-01 02:35:44 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.rental
+    ADD CONSTRAINT rental_pkey PRIMARY KEY (rental_id);
+
+2022-11-01 02:35:44 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.staff
+    ADD CONSTRAINT staff_pkey PRIMARY KEY (staff_id);
+
+2022-11-01 02:35:45 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.store
+    ADD CONSTRAINT store_pkey PRIMARY KEY (store_id);
+
+2022-11-01 02:35:45 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.customer
+    ADD CONSTRAINT customer_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:45 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_actor
+    ADD CONSTRAINT film_actor_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES public.actor(actor_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:45 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_actor
+    ADD CONSTRAINT film_actor_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:45 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_category
+    ADD CONSTRAINT film_category_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.category(category_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film_category
+    ADD CONSTRAINT film_category_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.film
+    ADD CONSTRAINT film_language_id_fkey FOREIGN KEY (language_id) REFERENCES public.language(language_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.address
+    ADD CONSTRAINT fk_address_city FOREIGN KEY (city_id) REFERENCES public.city(city_id);
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.city
+    ADD CONSTRAINT fk_city FOREIGN KEY (country_id) REFERENCES public.country(country_id);
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.inventory
+    ADD CONSTRAINT inventory_film_id_fkey FOREIGN KEY (film_id) REFERENCES public.film(film_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.payment
+    ADD CONSTRAINT payment_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.payment
+    ADD CONSTRAINT payment_rental_id_fkey FOREIGN KEY (rental_id) REFERENCES public.rental(rental_id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.payment
+    ADD CONSTRAINT payment_staff_id_fkey FOREIGN KEY (staff_id) REFERENCES public.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.rental
+    ADD CONSTRAINT rental_customer_id_fkey FOREIGN KEY (customer_id) REFERENCES public.customer(customer_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.rental
+    ADD CONSTRAINT rental_inventory_id_fkey FOREIGN KEY (inventory_id) REFERENCES public.inventory(inventory_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.rental
+    ADD CONSTRAINT rental_staff_id_key FOREIGN KEY (staff_id) REFERENCES public.staff(staff_id);
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.staff
+    ADD CONSTRAINT staff_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.store
+    ADD CONSTRAINT store_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.address(address_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:1040 On 127.0.0.1 run query:
+ALTER TABLE ONLY public.store
+    ADD CONSTRAINT store_manager_staff_id_fkey FOREIGN KEY (manager_staff_id) REFERENCES public.staff(staff_id) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+2022-11-01 02:35:46 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql" on target "127.0.0.1"
+2022-11-01 02:35:47 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public._group_concat(text, text) RETURNS text
+    LANGUAGE sql IMMUTABLE
+    AS $_$
+SELECT CASE
+  WHEN $2 IS NULL THEN $1
+  WHEN $1 IS NULL THEN $2
+  ELSE $1 || ', ' || $2
+END
+$_$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.film_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
+    LANGUAGE sql
+    AS $_$
+     SELECT inventory_id
+     FROM inventory
+     WHERE film_id = $1
+     AND store_id = $2
+     AND inventory_in_stock(inventory_id);
+$_$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.film_not_in_stock(p_film_id integer, p_store_id integer, OUT p_film_count integer) RETURNS SETOF integer
+    LANGUAGE sql
+    AS $_$
+    SELECT inventory_id
+    FROM inventory
+    WHERE film_id = $1
+    AND store_id = $2
+    AND NOT inventory_in_stock(inventory_id);
+$_$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.get_customer_balance(p_customer_id integer, p_effective_date timestamp without time zone) RETURNS numeric
+    LANGUAGE plpgsql
+    AS $$
+       --#OK, WE NEED TO CALCULATE THE CURRENT BALANCE GIVEN A CUSTOMER_ID AND A DATE
+       --#THAT WE WANT THE BALANCE TO BE EFFECTIVE FOR. THE BALANCE IS:
+       --#   1) RENTAL FEES FOR ALL PREVIOUS RENTALS
+       --#   2) ONE DOLLAR FOR EVERY DAY THE PREVIOUS RENTALS ARE OVERDUE
+       --#   3) IF A FILM IS MORE THAN RENTAL_DURATION * 2 OVERDUE, CHARGE THE REPLACEMENT_COST
+       --#   4) SUBTRACT ALL PAYMENTS MADE BEFORE THE DATE SPECIFIED
+DECLARE
+    v_rentfees DECIMAL(5,2); --#FEES PAID TO RENT THE VIDEOS INITIALLY
+    v_overfees INTEGER;      --#LATE FEES FOR PRIOR RENTALS
+    v_payments DECIMAL(5,2); --#SUM OF PAYMENTS MADE PREVIOUSLY
+BEGIN
+    SELECT COALESCE(SUM(film.rental_rate),0) INTO v_rentfees
+    FROM film, inventory, rental
+    WHERE film.film_id = inventory.film_id
+      AND inventory.inventory_id = rental.inventory_id
+      AND rental.rental_date <= p_effective_date
+      AND rental.customer_id = p_customer_id;
+    SELECT COALESCE(SUM(IF((rental.return_date - rental.rental_date) > (film.rental_duration * '1 day'::interval),
+        ((rental.return_date - rental.rental_date) - (film.rental_duration * '1 day'::interval)),0)),0) INTO v_overfees
+    FROM rental, inventory, film
+    WHERE film.film_id = inventory.film_id
+      AND inventory.inventory_id = rental.inventory_id
+      AND rental.rental_date <= p_effective_date
+      AND rental.customer_id = p_customer_id;
+    SELECT COALESCE(SUM(payment.amount),0) INTO v_payments
+    FROM payment
+    WHERE payment.payment_date <= p_effective_date
+    AND payment.customer_id = p_customer_id;
+    RETURN v_rentfees + v_overfees - v_payments;
+END
+$$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.inventory_held_by_customer(p_inventory_id integer) RETURNS integer
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_customer_id INTEGER;
+BEGIN
+  SELECT customer_id INTO v_customer_id
+  FROM rental
+  WHERE return_date IS NULL
+  AND inventory_id = p_inventory_id;
+  RETURN v_customer_id;
+END $$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.inventory_in_stock(p_inventory_id integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    v_rentals INTEGER;
+    v_out     INTEGER;
+BEGIN
+    -- AN ITEM IS IN-STOCK IF THERE ARE EITHER NO ROWS IN THE rental TABLE
+    -- FOR THE ITEM OR ALL ROWS HAVE return_date POPULATED
+    SELECT count(*) INTO v_rentals
+    FROM rental
+    WHERE inventory_id = p_inventory_id;
+    IF v_rentals = 0 THEN
+      RETURN TRUE;
+    END IF;
+    SELECT COUNT(rental_id) INTO v_out
+    FROM inventory LEFT JOIN rental USING(inventory_id)
+    WHERE inventory.inventory_id = p_inventory_id
+    AND rental.return_date IS NULL;
+    IF v_out > 0 THEN
+      RETURN FALSE;
+    ELSE
+      RETURN TRUE;
+    END IF;
+END $$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.last_day(timestamp without time zone) RETURNS date
+    LANGUAGE sql IMMUTABLE STRICT
+    AS $_$
+  SELECT CASE
+    WHEN EXTRACT(MONTH FROM $1) = 12 THEN
+      (((EXTRACT(YEAR FROM $1) + 1) operator(pg_catalog.||) '-01-01')::date - INTERVAL '1 day')::date
+    ELSE
+      ((EXTRACT(YEAR FROM $1) operator(pg_catalog.||) '-' operator(pg_catalog.||) (EXTRACT(MONTH FROM $1) + 1) operator(pg_catalog.||) '-01')::date - INTERVAL '1 day')::date
+    END
+$_$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.last_updated() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    NEW.last_update = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END $$;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE FUNCTION public.rewards_report(min_monthly_purchases integer, min_dollar_amount_purchased numeric) RETURNS SETOF public.customer
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $_$
+DECLARE
+    last_month_start DATE;
+    last_month_end DATE;
+rr RECORD;
+tmpSQL TEXT;
+BEGIN
+    /* Some sanity checks... */
+    IF min_monthly_purchases = 0 THEN
+        RAISE EXCEPTION 'Minimum monthly purchases parameter must be > 0';
+    END IF;
+    IF min_dollar_amount_purchased = 0.00 THEN
+        RAISE EXCEPTION 'Minimum monthly dollar amount purchased parameter must be > $0.00';
+    END IF;
+    last_month_start := CURRENT_DATE - '3 month'::interval;
+    last_month_start := to_date((extract(YEAR FROM last_month_start) || '-' || extract(MONTH FROM last_month_start) || '-01'),'YYYY-MM-DD');
+    last_month_end := LAST_DAY(last_month_start);
+    /*
+    Create a temporary storage area for Customer IDs.
+    */
+    CREATE TEMPORARY TABLE tmpCustomer (customer_id INTEGER NOT NULL PRIMARY KEY);
+    /*
+    Find all customers meeting the monthly purchase requirements
+    */
+    tmpSQL := 'INSERT INTO tmpCustomer (customer_id)
+        SELECT p.customer_id
+        FROM payment AS p
+        WHERE DATE(p.payment_date) BETWEEN '||quote_literal(last_month_start) ||' AND '|| quote_literal(last_month_end) || '
+        GROUP BY customer_id
+        HAVING SUM(p.amount) > '|| min_dollar_amount_purchased || '
+        AND COUNT(customer_id) > ' ||min_monthly_purchases ;
+    EXECUTE tmpSQL;
+    /*
+    Output ALL customer information of matching rewardees.
+    Customize output as needed.
+    */
+    FOR rr IN EXECUTE 'SELECT c.* FROM tmpCustomer AS t INNER JOIN customer AS c ON t.customer_id = c.customer_id' LOOP
+        RETURN NEXT rr;
+    END LOOP;
+    /* Clean up */
+    tmpSQL := 'DROP TABLE tmpCustomer';
+    EXECUTE tmpSQL;
+RETURN;
+END
+$_$;
+
+2022-11-01 02:35:47 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql" on target "127.0.0.1"
+2022-11-01 02:35:47 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE AGGREGATE public.group_concat(text) (
+    SFUNC = public._group_concat,
+    STYPE = text
+);
+
+2022-11-01 02:35:47 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql" on target "127.0.0.1"
+2022-11-01 02:35:47 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.actor_info AS
+ SELECT a.actor_id,
+    a.first_name,
+    a.last_name,
+    public.group_concat(DISTINCT (((c.name)::text || ': '::text) || ( SELECT public.group_concat((f.title)::text) AS group_concat
+           FROM ((public.film f
+             JOIN public.film_category fc_1 ON ((f.film_id = fc_1.film_id)))
+             JOIN public.film_actor fa_1 ON ((f.film_id = fa_1.film_id)))
+          WHERE ((fc_1.category_id = c.category_id) AND (fa_1.actor_id = a.actor_id))
+          GROUP BY fa_1.actor_id))) AS film_info
+   FROM (((public.actor a
+     LEFT JOIN public.film_actor fa ON ((a.actor_id = fa.actor_id)))
+     LEFT JOIN public.film_category fc ON ((fa.film_id = fc.film_id)))
+     LEFT JOIN public.category c ON ((fc.category_id = c.category_id)))
+  GROUP BY a.actor_id, a.first_name, a.last_name;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.customer_list AS
+ SELECT cu.customer_id AS id,
+    (((cu.first_name)::text || ' '::text) || (cu.last_name)::text) AS name,
+    a.address,
+    a.postal_code AS "zip code",
+    a.phone,
+    city.city,
+    country.country,
+        CASE
+            WHEN cu.activebool THEN 'active'::text
+            ELSE ''::text
+        END AS notes,
+    cu.store_id AS sid
+   FROM (((public.customer cu
+     JOIN public.address a ON ((cu.address_id = a.address_id)))
+     JOIN public.city ON ((a.city_id = city.city_id)))
+     JOIN public.country ON ((city.country_id = country.country_id)));
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.film_list AS
+ SELECT film.film_id AS fid,
+    film.title,
+    film.description,
+    category.name AS category,
+    film.rental_rate AS price,
+    film.length,
+    film.rating,
+    public.group_concat((((actor.first_name)::text || ' '::text) || (actor.last_name)::text)) AS actors
+   FROM ((((public.category
+     LEFT JOIN public.film_category ON ((category.category_id = film_category.category_id)))
+     LEFT JOIN public.film ON ((film_category.film_id = film.film_id)))
+     JOIN public.film_actor ON ((film.film_id = film_actor.film_id)))
+     JOIN public.actor ON ((film_actor.actor_id = actor.actor_id)))
+  GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.nicer_but_slower_film_list AS
+ SELECT film.film_id AS fid,
+    film.title,
+    film.description,
+    category.name AS category,
+    film.rental_rate AS price,
+    film.length,
+    film.rating,
+    public.group_concat((((upper("substring"((actor.first_name)::text, 1, 1)) || lower("substring"((actor.first_name)::text, 2))) || upper("substring"((actor.last_name)::text, 1, 1))) || lower("substring"((actor.last_name)::text, 2)))) AS actors
+   FROM ((((public.category
+     LEFT JOIN public.film_category ON ((category.category_id = film_category.category_id)))
+     LEFT JOIN public.film ON ((film_category.film_id = film.film_id)))
+     JOIN public.film_actor ON ((film.film_id = film_actor.film_id)))
+     JOIN public.actor ON ((film_actor.actor_id = actor.actor_id)))
+  GROUP BY film.film_id, film.title, film.description, category.name, film.rental_rate, film.length, film.rating;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.sales_by_film_category AS
+ SELECT c.name AS category,
+    sum(p.amount) AS total_sales
+   FROM (((((public.payment p
+     JOIN public.rental r ON ((p.rental_id = r.rental_id)))
+     JOIN public.inventory i ON ((r.inventory_id = i.inventory_id)))
+     JOIN public.film f ON ((i.film_id = f.film_id)))
+     JOIN public.film_category fc ON ((f.film_id = fc.film_id)))
+     JOIN public.category c ON ((fc.category_id = c.category_id)))
+  GROUP BY c.name
+  ORDER BY (sum(p.amount)) DESC;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.sales_by_store AS
+ SELECT (((c.city)::text || ','::text) || (cy.country)::text) AS store,
+    (((m.first_name)::text || ' '::text) || (m.last_name)::text) AS manager,
+    sum(p.amount) AS total_sales
+   FROM (((((((public.payment p
+     JOIN public.rental r ON ((p.rental_id = r.rental_id)))
+     JOIN public.inventory i ON ((r.inventory_id = i.inventory_id)))
+     JOIN public.store s ON ((i.store_id = s.store_id)))
+     JOIN public.address a ON ((s.address_id = a.address_id)))
+     JOIN public.city c ON ((a.city_id = c.city_id)))
+     JOIN public.country cy ON ((c.country_id = cy.country_id)))
+     JOIN public.staff m ON ((s.manager_staff_id = m.staff_id)))
+  GROUP BY cy.country, c.city, s.store_id, m.first_name, m.last_name
+  ORDER BY cy.country, c.city;
+
+2022-11-01 02:35:47 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE VIEW public.staff_list AS
+ SELECT s.staff_id AS id,
+    (((s.first_name)::text || ' '::text) || (s.last_name)::text) AS name,
+    a.address,
+    a.postal_code AS "zip code",
+    a.phone,
+    city.city,
+    country.country,
+    s.store_id AS sid
+   FROM (((public.staff s
+     JOIN public.address a ON ((s.address_id = a.address_id)))
+     JOIN public.city ON ((a.city_id = city.city_id)))
+     JOIN public.country ON ((city.country_id = country.country_id)));
+
+2022-11-01 02:35:47 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql" on target "127.0.0.1"
+2022-11-01 02:35:48 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+COMMENT ON SCHEMA public IS 'standard public schema';
+
+2022-11-01 02:35:48 INFO importSchemaYugabyteDB.go:41 Schema import is complete.
+2022-11-01 02:35:48 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql" on target "127.0.0.1"
+2022-11-01 02:35:48 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:35:48 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:35:48 INFO importSchemaYugabyteDB.go:41 Schema import is complete.
+2022-11-01 02:35:48 INFO logging.go:65 Logging initialised.
+2022-11-01 02:35:48 INFO logging.go:67 Args: [yb-voyager import data --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --target-db-host 127.0.0.1 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name dvdrental --disable-pb --send-diagnostics=false]
+2022-11-01 02:35:48 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:35:48 INFO importSchemaYugabyteDB.go:45 Extracting the metainfo about the source database.
+2022-11-01 02:35:48 INFO logging.go:33 import of data in "dvdrental" database started
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO importData.go:236 Target.Host=127.0.0.1 matched with one of ips in [10.9.127.115 127.0.0.1]
+
+2022-11-01 02:35:48 INFO importData.go:194 Target DB nodes: ip-10-9-127-115.us-west-2.compute.internal:5433
+2022-11-01 02:35:48 INFO importData.go:215 testing server: (*tgtdb.Target)(0xc000249400)({
+ Host: (string) (len=42) "ip-10-9-127-115.us-west-2.compute.internal",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=9) "dvdrental",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=101) "postgresql://ybvoyager:xxxxx@ip-10-9-127-115.us-west-2.compute.internal:5433/dvdrental?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) "",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) true,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.0-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-11-01 02:35:48 INFO importData.go:222 all target servers are accessible
+2022-11-01 02:35:48 INFO importData.go:279 targetUriList: [postgresql://ybvoyager:xxxxx@ip-10-9-127-115.us-west-2.compute.internal:5433/dvdrental?sslmode=prefer]
+2022-11-01 02:35:48 INFO importData.go:1237 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-11-01 02:35:48 INFO importData.go:322 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-11-01 02:35:48 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@ip-10-9-127-115.us-west-2.compute.internal:5433/dvdrental?sslmode=prefer"
+2022-11-01 02:35:48 INFO importData.go:322 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.batches (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-11-01 02:35:48 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@ip-10-9-127-115.us-west-2.compute.internal:5433/dvdrental?sslmode=prefer"
+2022-11-01 02:35:48 INFO importData.go:291 parallelism=1
+2022-11-01 02:35:48 INFO importData.go:370 doneTables: []
+2022-11-01 02:35:48 INFO importData.go:371 interruptedTables: []
+2022-11-01 02:35:48 INFO importData.go:372 remainingTables: [actor address category city country customer film_actor film_category film inventory language payment rental staff store]
+2022-11-01 02:35:48 INFO importData.go:406 allTables: [actor address category city country customer film film_actor film_category inventory language payment rental staff store]
+2022-11-01 02:35:48 INFO importData.go:407 importTables: [actor address category city country customer film film_actor film_category inventory language payment rental staff store]
+2022-11-01 02:35:48 INFO importDataStatus.go:116 Initializing import data status
+2022-11-01 02:35:48 INFO importDataStatus.go:166 importedRowCount: map[actor:-1 address:-1 category:-1 city:-1 country:-1 customer:-1 film:-1 film_actor:-1 film_category:-1 inventory:-1 language:-1 payment:-1 rental:-1 staff:-1 store:-1]
+2022-11-01 02:35:48 INFO importData.go:483 Started goroutine: splitDataFiles
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "actor"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "actor" is "COPY public.actor (actor_id, first_name, last_name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "actor": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql": tableName="actor", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=5) "actor",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=99) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 200,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/actor_data.sql" for table "actor"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "address"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "address" is "COPY public.address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "address": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql": tableName="address", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=7) "address",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=102) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 603,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/address_data.sql" for table "address"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "category"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "category" is "COPY public.category (category_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "category": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql": tableName="category", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=8) "category",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=99) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 16,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/category_data.sql" for table "category"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "city"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "city" is "COPY public.city (city_id, city, country_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "city": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql": tableName="city", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=4) "city",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=99) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 600,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/city_data.sql" for table "city"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "country"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "country" is "COPY public.country (country_id, country, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "country": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql": tableName="country", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=7) "country",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=101) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 109,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/country_data.sql" for table "country"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "customer"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "customer" is "COPY public.customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "customer": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql": tableName="customer", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=8) "customer",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=103) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 599,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/customer_data.sql" for table "customer"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "film"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "film" is "COPY public.film (film_id, title, description, release_year, language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "film": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql": tableName="film", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=4) "film",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=102) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 1000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_data.sql" for table "film"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "film_actor"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "film_actor" is "COPY public.film_actor (actor_id, film_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "film_actor": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql": tableName="film_actor", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=10) "film_actor",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=108) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 5462,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_actor_data.sql" for table "film_actor"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "film_category"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "film_category" is "COPY public.film_category (film_id, category_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "film_category": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql": tableName="film_category", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=13) "film_category",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=110) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 1000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/film_category_data.sql" for table "film_category"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "inventory"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "inventory" is "COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "inventory": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql": tableName="inventory", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "inventory",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=107) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 4581,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/inventory_data.sql" for table "inventory"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "language"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "language" is "COPY public.language (language_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "language": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql": tableName="language", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=8) "language",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=97) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 6,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/language_data.sql" for table "language"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "payment"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "payment" is "COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "payment": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql": tableName="payment", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=7) "payment",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=107) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 14596,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/payment_data.sql" for table "payment"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "rental"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "rental" is "COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "rental": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql": tableName="rental", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=6) "rental",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=107) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 16044,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/rental_data.sql" for table "rental"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "staff"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "staff" is "COPY public.staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "staff": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql": tableName="staff", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=5) "staff",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=94) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 2,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/staff_data.sql" for table "staff"
+2022-11-01 02:35:48 INFO importData.go:1163 No COPY command for table "store"
+2022-11-01 02:35:48 INFO importData.go:1153 copyTableFromCommand for table "store" is "COPY public.store (store_id, manager_staff_id, address_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION %v)"
+2022-11-01 02:35:48 INFO importData.go:487 Start splitting table "store": data-file: "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql"
+2022-11-01 02:35:48 INFO importData.go:489 Collect all interrupted/remaining splits.
+2022-11-01 02:35:48 INFO importData.go:538 Split data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql": tableName="store", largestSplit=0, largestOffset=0
+2022-11-01 02:35:48 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-01 02:35:48 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[actor:0 address:0 category:0 city:0 country:0 customer:0 film:0 film_actor:0 film_category:0 inventory:0 language:0 payment:0 rental:0 staff:0 store:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 02:35:48 INFO csvdatafile.go:111 created csv data file struct for file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql
+2022-11-01 02:35:48 INFO importData.go:552 current temp file: /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.1.tmp
+2022-11-01 02:35:48 INFO importData.go:558 Skipping 0 lines from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql"
+2022-11-01 02:35:48 INFO importData.go:610 Preparing last split of "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql"
+2022-11-01 02:35:48 INFO importData.go:619 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.1.tmp" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.C"
+2022-11-01 02:35:48 INFO importData.go:658 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=5) "store",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=93) "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 2,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-11-01 02:35:48 INFO importData.go:644 splitFilesForTable: done splitting data file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/store_data.sql" for table "store"
+2022-11-01 02:35:48 INFO importData.go:533 All table data files are split.
+2022-11-01 02:35:50 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.C"
+2022-11-01 02:35:50 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.P"
+2022-11-01 02:35:50 INFO importData.go:806 COPY command: COPY public.actor (actor_id, first_name, last_name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 200)
+2022-11-01 02:35:50 INFO importData.go:913 "actor.0.200.200.8004.P" is not imported yet
+2022-11-01 02:35:51 INFO importData.go:896 Inserted ("public", "actor.0.200.200.8004.P", 200) in ybvoyager_metadata.batches
+2022-11-01 02:35:51 INFO importData.go:830 "COPY public.actor (actor_id, first_name, last_name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 200)" => 200 rows affected
+2022-11-01 02:35:51 INFO importData.go:1113 Table "actor", total rows-copied/progress-made until now 200
+2022-11-01 02:35:51 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/actor.0.200.200.8004.D"
+2022-11-01 02:35:52 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.C"
+2022-11-01 02:35:52 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.P"
+2022-11-01 02:35:52 INFO importData.go:806 COPY command: COPY public.address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 603)
+2022-11-01 02:35:52 INFO importData.go:913 "address.0.603.603.46786.P" is not imported yet
+2022-11-01 02:35:52 INFO importData.go:896 Inserted ("public", "address.0.603.603.46786.P", 603) in ybvoyager_metadata.batches
+2022-11-01 02:35:52 INFO importData.go:830 "COPY public.address (address_id, address, address2, district, city_id, postal_code, phone, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 603)" => 603 rows affected
+2022-11-01 02:35:52 INFO importData.go:1113 Table "address", total rows-copied/progress-made until now 603
+2022-11-01 02:35:52 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/address.0.603.603.46786.D"
+2022-11-01 02:35:54 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.C"
+2022-11-01 02:35:54 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.P"
+2022-11-01 02:35:54 INFO importData.go:806 COPY command: COPY public.category (category_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 16)
+2022-11-01 02:35:54 INFO importData.go:913 "category.0.16.16.483.P" is not imported yet
+2022-11-01 02:35:54 INFO importData.go:896 Inserted ("public", "category.0.16.16.483.P", 16) in ybvoyager_metadata.batches
+2022-11-01 02:35:54 INFO importData.go:830 "COPY public.category (category_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 16)" => 16 rows affected
+2022-11-01 02:35:54 INFO importData.go:1113 Table "category", total rows-copied/progress-made until now 16
+2022-11-01 02:35:54 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/category.0.16.16.483.D"
+2022-11-01 02:35:56 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.C"
+2022-11-01 02:35:56 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.P"
+2022-11-01 02:35:56 INFO importData.go:806 COPY command: COPY public.city (city_id, city, country_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 600)
+2022-11-01 02:35:56 INFO importData.go:913 "city.0.600.600.21762.P" is not imported yet
+2022-11-01 02:35:56 INFO importData.go:896 Inserted ("public", "city.0.600.600.21762.P", 600) in ybvoyager_metadata.batches
+2022-11-01 02:35:56 INFO importData.go:830 "COPY public.city (city_id, city, country_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 600)" => 600 rows affected
+2022-11-01 02:35:56 INFO importData.go:1113 Table "city", total rows-copied/progress-made until now 600
+2022-11-01 02:35:56 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/city.0.600.600.21762.D"
+2022-11-01 02:35:58 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.C"
+2022-11-01 02:35:58 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.P"
+2022-11-01 02:35:58 INFO importData.go:806 COPY command: COPY public.country (country_id, country, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 109)
+2022-11-01 02:35:58 INFO importData.go:913 "country.0.109.109.3596.P" is not imported yet
+2022-11-01 02:35:58 INFO importData.go:896 Inserted ("public", "country.0.109.109.3596.P", 109) in ybvoyager_metadata.batches
+2022-11-01 02:35:58 INFO importData.go:830 "COPY public.country (country_id, country, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 109)" => 109 rows affected
+2022-11-01 02:35:58 INFO importData.go:1113 Table "country", total rows-copied/progress-made until now 109
+2022-11-01 02:35:58 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/country.0.109.109.3596.D"
+2022-11-01 02:36:00 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.C"
+2022-11-01 02:36:00 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.P"
+2022-11-01 02:36:00 INFO importData.go:806 COPY command: COPY public.customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin WITH (ROWS_PER_TRANSACTION 599)
+2022-11-01 02:36:00 INFO importData.go:913 "customer.0.599.599.57147.P" is not imported yet
+2022-11-01 02:36:00 INFO importData.go:896 Inserted ("public", "customer.0.599.599.57147.P", 599) in ybvoyager_metadata.batches
+2022-11-01 02:36:00 INFO importData.go:830 "COPY public.customer (customer_id, store_id, first_name, last_name, email, address_id, activebool, create_date, last_update, active) FROM stdin WITH (ROWS_PER_TRANSACTION 599)" => 599 rows affected
+2022-11-01 02:36:00 INFO importData.go:1113 Table "customer", total rows-copied/progress-made until now 599
+2022-11-01 02:36:00 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/customer.0.599.599.57147.D"
+2022-11-01 02:36:02 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.C"
+2022-11-01 02:36:02 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.P"
+2022-11-01 02:36:02 INFO importData.go:806 COPY command: COPY public.film (film_id, title, description, release_year, language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin WITH (ROWS_PER_TRANSACTION 1000)
+2022-11-01 02:36:02 INFO importData.go:913 "film.0.1000.1000.333094.P" is not imported yet
+2022-11-01 02:36:03 INFO importData.go:896 Inserted ("public", "film.0.1000.1000.333094.P", 1000) in ybvoyager_metadata.batches
+2022-11-01 02:36:03 INFO importData.go:830 "COPY public.film (film_id, title, description, release_year, language_id, rental_duration, rental_rate, length, replacement_cost, rating, last_update, special_features, fulltext) FROM stdin WITH (ROWS_PER_TRANSACTION 1000)" => 1000 rows affected
+2022-11-01 02:36:03 INFO importData.go:1113 Table "film", total rows-copied/progress-made until now 1000
+2022-11-01 02:36:03 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film.0.1000.1000.333094.D"
+2022-11-01 02:36:04 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.C"
+2022-11-01 02:36:04 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.P"
+2022-11-01 02:36:04 INFO importData.go:806 COPY command: COPY public.film_actor (actor_id, film_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 5462)
+2022-11-01 02:36:04 INFO importData.go:913 "film_actor.0.5462.5462.149469.P" is not imported yet
+2022-11-01 02:36:05 INFO importData.go:896 Inserted ("public", "film_actor.0.5462.5462.149469.P", 5462) in ybvoyager_metadata.batches
+2022-11-01 02:36:05 INFO importData.go:830 "COPY public.film_actor (actor_id, film_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 5462)" => 5462 rows affected
+2022-11-01 02:36:05 INFO importData.go:1113 Table "film_actor", total rows-copied/progress-made until now 5462
+2022-11-01 02:36:05 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_actor.0.5462.5462.149469.D"
+2022-11-01 02:36:06 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.C"
+2022-11-01 02:36:06 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.P"
+2022-11-01 02:36:06 INFO importData.go:806 COPY command: COPY public.film_category (film_id, category_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 1000)
+2022-11-01 02:36:06 INFO importData.go:913 "film_category.0.1000.1000.26321.P" is not imported yet
+2022-11-01 02:36:06 INFO importData.go:896 Inserted ("public", "film_category.0.1000.1000.26321.P", 1000) in ybvoyager_metadata.batches
+2022-11-01 02:36:06 INFO importData.go:830 "COPY public.film_category (film_id, category_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 1000)" => 1000 rows affected
+2022-11-01 02:36:06 INFO importData.go:1113 Table "film_category", total rows-copied/progress-made until now 1000
+2022-11-01 02:36:06 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/film_category.0.1000.1000.26321.D"
+2022-11-01 02:36:08 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.C"
+2022-11-01 02:36:08 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.P"
+2022-11-01 02:36:08 INFO importData.go:806 COPY command: COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 4581)
+2022-11-01 02:36:08 INFO importData.go:913 "inventory.0.4581.4581.140422.P" is not imported yet
+2022-11-01 02:36:09 INFO importData.go:896 Inserted ("public", "inventory.0.4581.4581.140422.P", 4581) in ybvoyager_metadata.batches
+2022-11-01 02:36:09 INFO importData.go:830 "COPY public.inventory (inventory_id, film_id, store_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 4581)" => 4581 rows affected
+2022-11-01 02:36:09 INFO importData.go:1113 Table "inventory", total rows-copied/progress-made until now 4581
+2022-11-01 02:36:09 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/inventory.0.4581.4581.140422.D"
+2022-11-01 02:36:10 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.C"
+2022-11-01 02:36:10 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.P"
+2022-11-01 02:36:10 INFO importData.go:806 COPY command: COPY public.language (language_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 6)
+2022-11-01 02:36:10 INFO importData.go:913 "language.0.6.6.263.P" is not imported yet
+2022-11-01 02:36:10 INFO importData.go:896 Inserted ("public", "language.0.6.6.263.P", 6) in ybvoyager_metadata.batches
+2022-11-01 02:36:10 INFO importData.go:830 "COPY public.language (language_id, name, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 6)" => 6 rows affected
+2022-11-01 02:36:10 INFO importData.go:1113 Table "language", total rows-copied/progress-made until now 6
+2022-11-01 02:36:10 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/language.0.6.6.263.D"
+2022-11-01 02:36:12 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.C"
+2022-11-01 02:36:12 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.P"
+2022-11-01 02:36:12 INFO importData.go:806 COPY command: COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin WITH (ROWS_PER_TRANSACTION 14596)
+2022-11-01 02:36:12 INFO importData.go:913 "payment.0.14596.14596.718644.P" is not imported yet
+2022-11-01 02:36:13 INFO importData.go:896 Inserted ("public", "payment.0.14596.14596.718644.P", 14596) in ybvoyager_metadata.batches
+2022-11-01 02:36:13 INFO importData.go:830 "COPY public.payment (payment_id, customer_id, staff_id, rental_id, amount, payment_date) FROM stdin WITH (ROWS_PER_TRANSACTION 14596)" => 14596 rows affected
+2022-11-01 02:36:13 INFO importData.go:1113 Table "payment", total rows-copied/progress-made until now 14596
+2022-11-01 02:36:13 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/payment.0.14596.14596.718644.D"
+2022-11-01 02:36:14 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.C"
+2022-11-01 02:36:14 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.P"
+2022-11-01 02:36:14 INFO importData.go:806 COPY command: COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 16044)
+2022-11-01 02:36:14 INFO importData.go:913 "rental.0.16044.16044.1214420.P" is not imported yet
+2022-11-01 02:36:15 INFO importData.go:896 Inserted ("public", "rental.0.16044.16044.1214420.P", 16044) in ybvoyager_metadata.batches
+2022-11-01 02:36:15 INFO importData.go:830 "COPY public.rental (rental_id, rental_date, inventory_id, customer_id, return_date, staff_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 16044)" => 16044 rows affected
+2022-11-01 02:36:15 INFO importData.go:1113 Table "rental", total rows-copied/progress-made until now 16044
+2022-11-01 02:36:15 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/rental.0.16044.16044.1214420.D"
+2022-11-01 02:36:16 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.C"
+2022-11-01 02:36:16 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.P"
+2022-11-01 02:36:16 INFO importData.go:806 COPY command: COPY public.staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin WITH (ROWS_PER_TRANSACTION 2)
+2022-11-01 02:36:16 INFO importData.go:913 "staff.0.2.2.271.P" is not imported yet
+2022-11-01 02:36:16 INFO importData.go:896 Inserted ("public", "staff.0.2.2.271.P", 2) in ybvoyager_metadata.batches
+2022-11-01 02:36:16 INFO importData.go:830 "COPY public.staff (staff_id, first_name, last_name, address_id, email, store_id, active, username, password, last_update, picture) FROM stdin WITH (ROWS_PER_TRANSACTION 2)" => 2 rows affected
+2022-11-01 02:36:16 INFO importData.go:1113 Table "staff", total rows-copied/progress-made until now 2
+2022-11-01 02:36:16 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/staff.0.2.2.271.D"
+2022-11-01 02:36:18 INFO importData.go:782 Importing "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.C"
+2022-11-01 02:36:18 INFO importData.go:789 Renaming file from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.C" to "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.P"
+2022-11-01 02:36:18 INFO importData.go:806 COPY command: COPY public.store (store_id, manager_staff_id, address_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 2)
+2022-11-01 02:36:18 INFO importData.go:913 "store.0.2.2.57.P" is not imported yet
+2022-11-01 02:36:18 INFO importData.go:896 Inserted ("public", "store.0.2.2.57.P", 2) in ybvoyager_metadata.batches
+2022-11-01 02:36:18 INFO importData.go:830 "COPY public.store (store_id, manager_staff_id, address_id, last_update) FROM stdin WITH (ROWS_PER_TRANSACTION 2)" => 2 rows affected
+2022-11-01 02:36:18 INFO importData.go:1113 Table "store", total rows-copied/progress-made until now 2
+2022-11-01 02:36:18 INFO importData.go:922 Renaming "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.P" => "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/data/store.0.2.2.57.D"
+2022-11-01 02:36:19 INFO importData.go:358 No in-progress or newly-created splits. Import Done.
+2022-11-01 02:36:21 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/postdata.sql" on target "127.0.0.1"
+2022-11-01 02:36:21 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data/postdata.sql
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.address_address_id_seq', 605, true);
+
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.category_category_id_seq', 16, true);
+
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.city_city_id_seq', 600, true);
+
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.country_country_id_seq', 109, true);
+
+2022-11-01 02:36:21 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.customer_customer_id_seq', 599, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.film_film_id_seq', 1000, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.inventory_inventory_id_seq', 4581, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.language_language_id_seq', 6, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.payment_payment_id_seq', 32098, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.rental_rental_id_seq', 16049, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.staff_staff_id_seq', 2, true);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.setval('public.store_store_id_seq', 2, true);
+
+2022-11-01 02:36:22 INFO logging.go:65 Logging initialised.
+2022-11-01 02:36:22 INFO logging.go:67 Args: [yb-voyager import schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --target-db-host 127.0.0.1 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name dvdrental --yes --send-diagnostics=false --post-import-data]
+2022-11-01 02:36:22 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 02:36:22 INFO importSchemaYugabyteDB.go:45 Extracting the metainfo about the source database.
+2022-11-01 02:36:22 INFO logging.go:33 YugabyteDB version: 11.2-YB-2.15.2.0-b0
+
+2022-11-01 02:36:22 INFO importSchema.go:85 List of schema objects to import: [INDEX FTS_INDEX TRIGGER]
+2022-11-01 02:36:22 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql" on target "127.0.0.1"
+2022-11-01 02:36:22 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:36:22 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_actor_last_name ON public.actor USING btree (last_name);
+
+2022-11-01 02:36:24 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_address_id ON public.customer USING btree (address_id);
+
+2022-11-01 02:36:27 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_city_id ON public.address USING btree (city_id);
+
+2022-11-01 02:36:29 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_country_id ON public.city USING btree (country_id);
+
+2022-11-01 02:36:31 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_customer_id ON public.payment USING btree (customer_id);
+
+2022-11-01 02:36:34 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_film_id ON public.film_actor USING btree (film_id);
+
+2022-11-01 02:36:37 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_inventory_id ON public.rental USING btree (inventory_id);
+
+2022-11-01 02:36:40 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_language_id ON public.film USING btree (language_id);
+
+2022-11-01 02:36:42 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_rental_id ON public.payment USING btree (rental_id);
+
+2022-11-01 02:36:45 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_staff_id ON public.payment USING btree (staff_id);
+
+2022-11-01 02:36:48 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_fk_store_id ON public.customer USING btree (store_id);
+
+2022-11-01 02:36:51 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_last_name ON public.customer USING btree (last_name);
+
+2022-11-01 02:36:53 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_store_id_film_id ON public.inventory USING btree (store_id, film_id);
+
+2022-11-01 02:36:56 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE INDEX idx_title ON public.film USING btree (title);
+
+2022-11-01 02:36:59 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE UNIQUE INDEX idx_unq_manager_staff_id ON public.store USING btree (manager_staff_id);
+
+2022-11-01 02:37:01 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental USING btree (rental_date, inventory_id, customer_id);
+
+2022-11-01 02:37:04 INFO importData.go:978 Execute SQL file "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql" on target "127.0.0.1"
+2022-11-01 02:37:05 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET statement_timeout = 0;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET lock_timeout = 0;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET idle_in_transaction_session_timeout = 0;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_encoding = 'UTF8';
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET standard_conforming_strings = on;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SELECT pg_catalog.set_config('search_path', '', false);
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET check_function_bodies = false;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET xmloption = content;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET client_min_messages = warning;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+SET row_security = off;
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER film_fulltext_trigger BEFORE INSERT OR UPDATE ON public.film FOR EACH ROW EXECUTE FUNCTION tsvector_update_trigger('fulltext', 'pg_catalog.english', 'title', 'description');
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.actor FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.address FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.category FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.city FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.country FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.customer FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.film FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.film_actor FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.film_category FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.inventory FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.language FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.rental FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.staff FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importData.go:1040 On 127.0.0.1 run query:
+CREATE TRIGGER last_updated BEFORE UPDATE ON public.store FOR EACH ROW EXECUTE FUNCTION public.last_updated();
+
+2022-11-01 02:37:05 INFO importSchemaYugabyteDB.go:41 Schema import is complete.
+2022-11-01 03:03:38 INFO logging.go:65 Logging initialised.
+2022-11-01 03:03:38 INFO logging.go:67 Args: [yb-voyager export schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name dvdrental --send-diagnostics=false --source-db-schema public]
+2022-11-01 03:03:38 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 03:03:38 INFO logging.go:65 Logging initialised.
+2022-11-01 03:03:38 INFO logging.go:67 Args: [yb-voyager analyze-schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --output-format txt --send-diagnostics=false]
+2022-11-01 03:03:38 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 03:03:38 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 03:03:38 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 03:03:38 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 03:03:38 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 03:03:38 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 03:03:39 INFO logging.go:65 Logging initialised.
+2022-11-01 03:03:39 INFO logging.go:67 Args: [yb-voyager analyze-schema --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --output-format txt --send-diagnostics=false]
+2022-11-01 03:03:39 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 03:03:39 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 03:03:39 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading SCHEMA in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/schemas/schema.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading TYPE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/types/type.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading DOMAIN in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/domains/domain.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading SEQUENCE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/sequences/sequence.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading TABLE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/table.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading INDEX in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/tables/INDEXES_table.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading FUNCTION in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/functions/function.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading AGGREGATE in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/aggregates/aggregate.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading VIEW in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/views/view.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading TRIGGER in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/triggers/trigger.sql
+2022-11-01 03:03:39 INFO analyzeSchema.go:547 Reading COMMENT in dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/schema/comments/comment.sql
+2022-11-01 03:03:39 INFO miginfo.go:45 loading db meta info from "/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/metainfo/miginfo.json"
+2022-11-01 03:03:39 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:postgresql SourceDBName:dvdrental SourceDBSchema:public SourceDBVersion:14.5 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir}
+2022-11-01 03:03:39 INFO logging.go:65 Logging initialised.
+2022-11-01 03:03:39 INFO logging.go:67 Args: [yb-voyager export data --export-dir /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir --source-db-type postgresql --source-db-host 127.0.0.1 --source-db-port 5432 --source-db-user ybvoyager --source-db-password XXX --source-db-name dvdrental --disable-pb --send-diagnostics=false --source-db-schema public]
+2022-11-01 03:03:39 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=bfd0fae3edfafdbbd1a33bc58d6d250abda0a9c7
+LAST_COMMIT_DATE=2022-10-20T08:36:28Z
+
+2022-11-01 03:03:39 ERROR logging.go:28 /home/centos/yb-voyager/migtests/tests/pg-dvdrental/export-dir/data directory is not empty, use --start-clean flag to clean the directories and start
+
