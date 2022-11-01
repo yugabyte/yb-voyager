@@ -1,0 +1,8 @@
+{
+ "SourceDBType": "postgresql",
+ "SourceDBName": "dvdrental",
+ "SourceDBSchema": "public",
+ "SourceDBVersion": "14.5",
+ "SourceDBSid": "",
+ "SourceTNSAlias": ""
+}
