@@ -36,9 +36,9 @@ run_psql() {
 grant_user_permission_postgresql() {
 	db_name=$1
 
-	echo "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	echo "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	echo "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ybvoyager;' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	echo "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	echo "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	echo "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
 }
 
 run_pg_restore() {
