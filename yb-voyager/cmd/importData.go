@@ -361,12 +361,15 @@ func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 
 	conn := newTargetConn()
 	defer conn.Close(context.Background())
-	for _, cmd := range cmds {
+	for index, cmd := range cmds {
 		log.Infof("Executing on target: [%s]", cmd)
 		_, err := conn.Exec(context.Background(), cmd)
 
 		if err != nil {
 			return fmt.Errorf("create ybvoyager schema on target: %w", err)
+		}
+		if index != (len(cmds) - 1) {
+			time.Sleep(time.Second * 5)
 		}
 	}
 
