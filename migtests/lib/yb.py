@@ -102,8 +102,8 @@ class PostgresDB:
 		try:
 			cur.execute(f"{query}")
 		except psycopg2.errors.lookup("{error_code}"):
-			return "true"
-		return "false"
+			return True
+		return False
 
 
 
