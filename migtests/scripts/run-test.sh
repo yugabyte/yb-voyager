@@ -17,7 +17,7 @@ export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 # export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
-export EXPORT_DIR="${TEST_DIR}/export-dir"}
+export EXPORT_DIR="${TEST_DIR}/export-dir"
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
