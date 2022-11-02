@@ -22,6 +22,7 @@ GO="$GOROOT/bin/go"
 LOG_FILE=/tmp/install-yb-voyager.log
 
 # commit hash in main branch after release 23.2
+# issues #489 #492 #247 in ora2pg were fixed after this change
 ORA2PG_VERSION="3e27abba5939d5796419a1d835d6d4d0b2d5e01d"
 
 # separate file for bashrc related settings
