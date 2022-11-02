@@ -35,15 +35,15 @@ def migration_completed_checks(tgt, tag):
 	print("index_list:", view_list)
 	assert len(view_list) == 1
 
-    trigger_list = tgt.get_objects_of_type("TRIGGER")
+    trigger_list = tgt.get_objects_of_type_trigger("public")
 	print("index_list:", trigger_list)
-	assert len(trigger_list) == 2
+	assert len(trigger_list) == 1
 
     sequence_list = tgt.get_objects_of_type("SEQUENCE")
 	print("index_list:", trigger_list)
 	assert len(sequence_list) == 3
 
-    procedure_list = tgt.get_objects_of_type("public")
+    procedure_list = tgt.get_objects_of_type_procedure("public")
 	print("procedure_list:", procedure_list)
 	assert len(procedure_list) == 2
 
