@@ -14,7 +14,7 @@ import (
 
 func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
-	go utils.Wait("done\n", "error\n")
+	go utils.Wait("done\n", "")
 
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
@@ -42,15 +42,18 @@ func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir stri
 	}
 
 	//Parsing the single file to generate multiple database object files
-	parseSchemaFile(exportDir)
+	returnCode := parseSchemaFile(exportDir)
 
 	log.Info("Export of schema completed.")
-	utils.WaitChannel <- 0
+	utils.WaitChannel <- returnCode
 	<-utils.WaitChannel
 }
 
+// For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+var sqlTypeInfoCommentPattern = regexp.MustCompile("--.*Type:.*")
+
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(exportDir string) {
+func parseSchemaFile(exportDir string) int {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 	schemaDirPath := filepath.Join(exportDir, "schema")
@@ -63,9 +66,6 @@ func parseSchemaFile(exportDir string) {
 	numLines := len(schemaFileLines)
 
 	sessionVariableStartPattern := regexp.MustCompile("-- Dumped by pg_dump.*")
-
-	// For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
-	sqlTypeInfoCommentPattern := regexp.MustCompile("--.*Type:.*")
 
 	// map to store the sql statements for each db object type
 	// map's key are based on the elements of 'utils.postgresSchemaObjectList' array
@@ -80,13 +80,11 @@ func parseSchemaFile(exportDir string) {
 	var uncategorizedSqls, setSessionVariables strings.Builder
 
 	var isPossibleFlag bool = true
-	for i := 0; i < numLines; i++ {
+	for i := 0; i < numLines; {
 		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
 			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
-
 			i += 2 // jumping to start of sql statement
 			sqlStatement := extractSqlStatements(schemaFileLines, &i)
-
 			// TODO: TABLESPACE
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
@@ -103,12 +101,12 @@ func parseSchemaFile(exportDir string) {
 			}
 		} else if isPossibleFlag && sessionVariableStartPattern.MatchString(schemaFileLines[i]) {
 			i++
-
 			setSessionVariables.WriteString("-- setting variables for current session")
 			sqlStatement := extractSqlStatements(schemaFileLines, &i)
 			setSessionVariables.WriteString(sqlStatement)
-
 			isPossibleFlag = false
+		} else {
+			i++ // extractSqlStatements() takes care for other if conditions
 		}
 	}
 
@@ -128,9 +126,11 @@ func parseSchemaFile(exportDir string) {
 	if uncategorizedSqls.Len() > 0 {
 		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
 		// TODO: add it to the analyze-schema report in case of postgresql
-		utils.PrintAndLog("Some uncategorized sql statements are present in %q, Needs to review and import them manually!!", filePath)
+		utils.PrintAndLog("\nSome uncategorized sql statements are present in %q, Needs to review and import them manually!!", filePath)
 		ioutil.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		return 1
 	}
+	return 0
 }
 
 func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
@@ -153,7 +153,7 @@ func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
 func extractSqlStatements(schemaFileLines []string, index *int) string {
 	var sqlStatement strings.Builder
 	for (*index) < len(schemaFileLines) {
-		if isSqlComment(schemaFileLines[(*index)]) {
+		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[(*index)]) {
 			break
 		} else if shouldSkipLine(schemaFileLines[(*index)]) {
 			(*index)++
@@ -166,10 +166,7 @@ func extractSqlStatements(schemaFileLines []string, index *int) string {
 	return sqlStatement.String()
 }
 
-func isSqlComment(line string) bool {
-	return len(line) >= 2 && line[:2] == "--"
-}
-
 func shouldSkipLine(line string) bool {
-	return strings.HasPrefix(line, "SET default_table_access_method")
+	// ignore "--" before and after sqlTypeInfoComment
+	return strings.HasPrefix(line, "SET default_table_access_method") || strings.Compare(line, "--") == 0
 }
