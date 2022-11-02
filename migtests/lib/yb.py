@@ -72,8 +72,7 @@ class PostgresDB:
 			"TABLE": "r",
 			"VIEW": "v",
 			"INDEX": "i",
-			"SEQUENCE": "S",
-			"MVIEW": "m",
+			"SEQUENCE": "S"
 		}[object_type]
 		cur = self.conn.cursor()
 		cur.execute(f"select relname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid"+
@@ -115,4 +114,19 @@ class PostgresDB:
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
+	def get_objects_of_type_trigger(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"select trigger_name from information_schema.triggers where trigger_schema = '{schema_name}'")
+		return [obj[0] for obj in cur.fetchall()]
 
+	def get_objects_of_type_procedure(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"select proname from pg_proc join pg_namespace on pg_proc.pronamespace = pg_namespace.oid"+
+			f" where nspname = '{schema_name}'")
+		return [obj[0] for obj in cur.fetchall()]
+
+	def get_objects_of_type_materialized_views(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"select matviewname from pg_matviews join pg_namespace on pg_matviews.schemaname = pg_namespace.nspname"+
+			f" where nspname = '{schema_name}'")
+		return [obj[0] for obj in cur.fetchall()]
