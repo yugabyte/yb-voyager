@@ -16,7 +16,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-# export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export EXPORT_DIR="${TEST_DIR}/export-dir"
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
@@ -29,12 +28,12 @@ source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 main() {
-	echo "Deleting the parent export-dir present in the test directory"
-	rm -rf ${EXPORT_DIR}
+	# echo "Deleting the parent export-dir present in the test directory"
+	# rm -rf ${EXPORT_DIR}
 	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
-	echo "Assigning permissions to the export-dir"
-	chmod +x ${TEST_DIR}/init-db
+	# echo "Assigning permissions to the export-dir"
+	# chmod +x ${TEST_DIR}/init-db
 
 	step "START: ${TEST_NAME}"
 	print_env
