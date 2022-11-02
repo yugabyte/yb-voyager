@@ -47,11 +47,11 @@ create view v1 as select first_name,last_name from view_table1 where gender="Fem
 
 select * from v1;
 
-drop view if exists v2;
+-- drop view if exists v2;
 
-create view v2 as select a.first_name,b.last_name from view_table1 a,view_table2 b where a.id=b.id;
+-- create view v2 as select a.first_name,b.last_name from view_table1 a,view_table2 b where a.id=b.id;
 
-select * from v2;
+-- select * from v2;
 
 drop view if exists v3;
 
@@ -60,6 +60,6 @@ create view v3 as select a.first_name,b.last_name from view_table1 a inner join 
 select * from v3;
 
 desc v1;
-desc v2;
+-- desc v2;
 desc v3;
 
