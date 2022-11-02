@@ -359,18 +359,29 @@ func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 		);`,
 	}
 
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
-	for index, cmd := range cmds {
-		log.Infof("Executing on target: [%s]", cmd)
-		_, err := conn.Exec(context.Background(), cmd)
+	maxAttempts := 12
+	currAttempt := 0
+	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		var err error
+		for _, cmd := range cmds {
+			log.Infof("Executing on target: [%s]", cmd)
+			_, err = conn.Exec(context.Background(), cmd)
 
-		if err != nil {
-			return fmt.Errorf("create ybvoyager schema on target: %w", err)
-		}
-		if index != (len(cmds) - 1) {
+			if err != nil {
+				if currAttempt < maxAttempts {
+					currAttempt++
+					log.Infof("Failed to create ybvoyager_metadata schema. Retrying.")
+					return true, err
+				} else {
+					return false, err
+				}
+			}
 			time.Sleep(time.Second * 5)
 		}
+		return false, err
+	})
+	if err != nil {
+		return fmt.Errorf("create ybvoyager schema on target: %w", err)
 	}
 
 	return nil
