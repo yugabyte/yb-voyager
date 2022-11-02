@@ -4,11 +4,11 @@ set -e
 set -x
 
 source ${SCRIPTS}/functions.sh
-source ${TESTS_DIR}/oracle-tests/utils/delete_full_schema.sql
+# source ${TESTS_DIR}/oracle-tests/utils/delete_full_schema.sql
 
 echo "Deleting existing data in target database"
-# run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/utils/oracle-tests/delete_full_schema
-run_sqlplus ${SOURCE_DB_NAME} delete_full_schema
+run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle-tests//utils/delete_full_schema
+# run_sqlplus ${SOURCE_DB_NAME} delete_full_schema
 
 echo "Initialising source database & creating schema"
 run_sqlplus ${SOURCE_DB_NAME} ddl/schema
