@@ -14,7 +14,7 @@ def migration_completed_checks(tgt):
 
 	index_list = tgt.get_objects_of_type("INDEX")
 	print("index_list:", index_list)
-	assert len(index_list) == 3
+	assert len(index_list) == 4
 
 	returned_row_count = tgt.get_row_count("public")
 	assert returned_row_count == 998
