@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-	http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -43,7 +43,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
+	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces`,
 		tableListPatterns, dataDirPath, source.NumConnections)
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
