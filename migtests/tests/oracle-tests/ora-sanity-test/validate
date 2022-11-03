@@ -3,9 +3,7 @@
 import yb
 
 def main():
-	yb.run_checks({
-		"MIGRATION_COMPLETED": migration_completed_checks,
-	})
+	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
 	'COUNTRIES': 25,
