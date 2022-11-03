@@ -282,7 +282,7 @@ func processImportDirectives(fileName string) error {
 				return fmt.Errorf("invalid number of tokens in line: %s", line)
 			}
 			// Check if the file exists.
-			importFileName := tokens[1]
+			importFileName := strings.Trim(tokens[1], "'")
 			log.Infof("Processing %s for DDL statements", importFileName)
 			if _, err = os.Stat(importFileName); err != nil {
 				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
