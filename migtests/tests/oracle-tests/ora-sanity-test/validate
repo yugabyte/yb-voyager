@@ -17,7 +17,7 @@ EXPECTED_ROW_COUNT = {
 	'REGIONS': 4
 }
 
-def migration_completed_checks(tgt, tag):
+def migration_completed_checks(tgt):
     table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
 	assert len(table_list) == 7
