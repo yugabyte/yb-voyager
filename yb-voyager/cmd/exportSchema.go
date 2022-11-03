@@ -24,6 +24,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/spf13/cobra"
 )
@@ -80,8 +81,9 @@ func exportSchema() {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir)
-	for _, objectType := range utils.GetSchemaObjectList(source.DBType) {
-		if objectType == "INDEX" { // Indexes do not have a separate directory.
+	schemaList := utils.GetSchemaObjectList(source.DBType)
+	for _, objectType := range schemaList {
+		if !slices.Contains([]string{"VIEW", "MVIEW"}, objectType) {
 			continue
 		}
 		if err = processImportDirectives(filepath.Join(exportDir, "schema", strings.ToLower(objectType)+"s", strings.ToLower(objectType)+".sql")); err != nil {
