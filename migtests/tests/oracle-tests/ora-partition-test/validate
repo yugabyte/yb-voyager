@@ -3,32 +3,30 @@
 import yb
 
 def main():
-	yb.run_checks({
-		"MIGRATION_COMPLETED": migration_completed_checks,
-	})
+	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'ACCOUNTS_LIST_PARTITIONED': 0,
-	'ACCOUNTS_LIST_PARTITIONED_P_NORTHCENTRAL': 153926,
-	'ACCOUNTS_LIST_PARTITIONED_P_NORTHEAST': 230330,
-	'ACCOUNTS_LIST_PARTITIONED_P_NORTHWEST': 115509,
-	'ACCOUNTS_LIST_PARTITIONED_P_SOUTHCENTRAL': 115687,
-	'ACCOUNTS_LIST_PARTITIONED_P_SOUTHEAST': 153907,
-	'ACCOUNTS_LIST_PARTITIONED_P_SOUTHWEST': 230641,
-	'ORDERS_INTERVAL_PARTITION': 0,
-	'ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2015': 1,
-	'ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2016': 13,
-    'ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2015': 79,
-	'ORDERS_INTERVAL_PARTITION_INTERVAL_PARTITION_LESS_THAN_2016': 12,
-    'ORDER_ITEMS_RANGE_PARTITIONED': 0,
-	'ORDER_ITEMS_RANGE_PARTITIONED_P1': 49,
-	'ORDER_ITEMS_RANGE_PARTITIONED_P2': 20,
-    'ORDER_ITEMS_RANGE_PARTITIONED_P3': 10,
+	'accounts_list_partitioned': 0,
+	'accounts_list_partitioned_p_northcentral': 153926,
+	'accounts_list_partitioned_p_northeast': 230330,
+	'accounts_list_partitioned_p_northwest': 115509,
+	'accounts_list_partitioned_p_southcentral': 115687,
+	'accounts_list_partitioned_p_southeast': 153907,
+	'accounts_list_partitioned_p_southwest': 230641,
+	'orders_interval_partition': 0,
+	'orders_interval_partition_interval_partition_less_than_2015': 1,
+	'orders_interval_partition_interval_partition_less_than_2016': 13,
+    'orders_interval_partition_interval_partition_less_than_2015': 79,
+	'orders_interval_partition_interval_partition_less_than_2016': 12,
+    'order_items_range_partitioned': 0,
+	'order_items_range_partitioned_p1': 49,
+	'order_items_range_partitioned_p2': 20,
+    'order_items_range_partitioned_p3': 10,
 	'SALES_HASH': 0,
-    'SALES_HASH_P1': 315607,
-    'SALES_HASH_P2': 526679,
-    'SALES_HASH_P3': 473453,
-    'SALES_HASH_P4': 684261
+    'sales_hash_p1': 315607,
+    'sales_hash_p2': 526679,
+    'sales_hash_p3': 473453,
+    'sales_hash_p4': 684261
 }
 
 def migration_completed_checks(tgt, tag):

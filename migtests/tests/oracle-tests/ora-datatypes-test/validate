@@ -3,9 +3,7 @@
 import yb
 
 def main():
-	yb.run_checks({
-		"MIGRATION_COMPLETED": migration_completed_checks,
-	})
+	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
 	'numeric_types_number': 4,
@@ -15,9 +13,9 @@ EXPECTED_ROW_COUNT = {
 	'numeric_types': 8,
 	'date_time_types': 10,
 	'interval_types': 4,
-	'CHAR_TYPES': 6,
-	'LONG_TYPE': 3,
-	'RAW_TYPE': 6
+	'char_types': 6,
+	'long_type': 3,
+	'raw_type': 6
 }
 
 def migration_completed_checks(tgt):

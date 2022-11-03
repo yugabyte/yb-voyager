@@ -6,13 +6,13 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'COUNTRIES': 25,
-	'DEPARTMENTS': 27,
-	'EMPLOYEES': 107,
-	'JOBS': 19,
-	'JOB_HISTORY': 10,
-	'LOCATIONS': 23,
-	'REGIONS': 4
+	'countries': 25,
+	'departments': 27,
+	'employees': 107,
+	'jobs': 19,
+	'job_history': 10,
+	'locations': 23,
+	'regions': 4
 }
 
 def migration_completed_checks(tgt):
