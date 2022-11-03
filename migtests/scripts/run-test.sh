@@ -34,6 +34,8 @@ main() {
 	mkdir -p ${EXPORT_DIR}
 	echo "Assigning permissions to the export-dir"
 	chmod +x ${TEST_DIR}/init-db
+	echo "Assigning permissions to the validate filess"
+	chmod +x ${TEST_DIR}/validate
 
 	step "START: ${TEST_NAME}"
 	print_env
