@@ -1,0 +1,268 @@
+2022-11-02 13:25:49 INFO logging.go:65 Logging initialised.
+2022-11-02 13:25:49 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager export schema --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --source-db-type mysql --source-db-host ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com --source-db-port 3306 --source-db-user admin --source-db-password XXX --source-db-name mysql_functions --send-diagnostics=false]
+2022-11-02 13:25:49 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:25:49 INFO logging.go:33 export of schema for source type as 'mysql'
+
+2022-11-02 13:25:49 INFO exportData.go:257 Source database charset: "utf8mb4"
+2022-11-02 13:25:49 INFO utils.go:21 Found "/usr/local/bin/ora2pg"
+2022-11-02 13:25:49 INFO logging.go:33 mysql version: 8.0.28
+
+2022-11-02 13:25:49 INFO source.go:230 Source DSN used for export: dbi:mysql:host=ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com;database=mysql_functions;port=3306;mysql_ssl_optional=1
+2022-11-02 13:25:49 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t TABLE -o table.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:49 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t PARTITION -o partition.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/partitions -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:49 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t VIEW -o view.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/views -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:50 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t TRIGGER -o trigger.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/triggers -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:50 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t FUNCTION -o function.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/functions -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:50 INFO ora2pg_extract_schema.go:42 Executing command: /usr/local/bin/ora2pg -p -m -q -t PROCEDURE -o procedure.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/procedures -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:50 INFO logging.go:33 
+Exported schema files created under directory: /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema
+
+2022-11-02 13:25:50 INFO logging.go:65 Logging initialised.
+2022-11-02 13:25:50 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager analyze-schema --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --output-format txt --send-diagnostics=false]
+2022-11-02 13:25:50 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:25:50 INFO miginfo.go:45 loading db meta info from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/miginfo.json"
+2022-11-02 13:25:50 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:mysql SourceDBName:mysql_functions SourceDBSchema: SourceDBVersion:8.0.28 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading TABLE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/table.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading PARTITION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/partitions/partition.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading INDEX in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/INDEXES_table.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading VIEW in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/views/view.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading TRIGGER in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/triggers/trigger.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading FUNCTION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/functions/function.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading PROCEDURE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/procedures/procedure.sql
+2022-11-02 13:25:50 INFO miginfo.go:45 loading db meta info from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/miginfo.json"
+2022-11-02 13:25:50 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:mysql SourceDBName:mysql_functions SourceDBSchema: SourceDBVersion:8.0.28 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:25:50 INFO logging.go:65 Logging initialised.
+2022-11-02 13:25:50 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager analyze-schema --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --output-format txt --send-diagnostics=false]
+2022-11-02 13:25:50 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:25:50 INFO miginfo.go:45 loading db meta info from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/miginfo.json"
+2022-11-02 13:25:50 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:mysql SourceDBName:mysql_functions SourceDBSchema: SourceDBVersion:8.0.28 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading TABLE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/table.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading PARTITION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/partitions/partition.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading INDEX in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/INDEXES_table.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading VIEW in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/views/view.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading TRIGGER in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/triggers/trigger.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading FUNCTION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/functions/function.sql
+2022-11-02 13:25:50 INFO analyzeSchema.go:577 Reading PROCEDURE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/procedures/procedure.sql
+2022-11-02 13:25:50 INFO miginfo.go:45 loading db meta info from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/miginfo.json"
+2022-11-02 13:25:50 INFO miginfo.go:58 parsed source db meta info: &{SourceDBType:mysql SourceDBName:mysql_functions SourceDBSchema: SourceDBVersion:8.0.28 SourceDBSid: SourceTNSAlias: exportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:25:50 INFO logging.go:65 Logging initialised.
+2022-11-02 13:25:50 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager export data --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --source-db-type mysql --source-db-host ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com --source-db-port 3306 --source-db-user admin --source-db-password XXX --source-db-name mysql_functions --disable-pb --send-diagnostics=false]
+2022-11-02 13:25:50 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:25:50 INFO logging.go:33 export of data for source type as 'mysql'
+2022-11-02 13:25:50 INFO exportData.go:257 Source database charset: "utf8mb4"
+2022-11-02 13:25:50 INFO utils.go:21 Found "/usr/local/bin/ora2pg"
+2022-11-02 13:25:50 INFO mysql.go:83 query used to GetAllTableNames(): "SELECT table_name FROM information_schema.tables WHERE table_schema = 'mysql_functions' && table_type = 'BASE TABLE'"
+2022-11-02 13:25:50 INFO mysql.go:98 GetAllTableNames(): [auto_gen]
+2022-11-02 13:25:50 INFO logging.go:33 table list for data export: [auto_gen]
+2022-11-02 13:25:50 INFO mysql.go:124 Partition Names for parent table "auto_gen": []
+2022-11-02 13:25:50 INFO exportData.go:130 Export table metadata: (map[string]*utils.TableProgressMetadata) (len=1) {
+ (string) (len=8) "auto_gen": (*utils.TableProgressMetadata)(0xc00016e090)({
+  TableSchema: (string) (len=15) "mysql_functions",
+  TableName: (string) (len=8) "auto_gen",
+  FullTableName: (string) (len=24) "mysql_functions.auto_gen",
+  InProgressFilePath: (string) "",
+  FinalFilePath: (string) "",
+  Status: (int) 0,
+  CountLiveRows: (int64) 0,
+  CountTotalRows: (int64) 0,
+  FileOffsetToContinue: (int64) 0,
+  IsPartition: (bool) false,
+  ParentTable: (string) ""
+ })
+}
+
+2022-11-02 13:25:50 INFO logging.go:33 calculating approx num of rows to export for each table...
+2022-11-02 13:25:50 INFO mysql.go:59 Querying 'SELECT table_rows from information_schema.tables where table_name = 'auto_gen'' approx row count of table "auto_gen"
+2022-11-02 13:25:50 INFO mysql.go:65 Table "auto_gen" has approx {7 true} rows.
+2022-11-02 13:25:50 INFO source.go:230 Source DSN used for export: dbi:mysql:host=ssinghal-dms-mysql.cbtcvpszcgdq.us-west-2.rds.amazonaws.com;database=mysql_functions;port=3306;mysql_ssl_optional=1
+2022-11-02 13:25:50 INFO ora2pg_export_data.go:76 Executing command: ora2pg -q -t COPY -P 4 -o data.sql -b /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/data -c /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/temp/.ora2pg.conf --no_header
+2022-11-02 13:25:50 INFO common.go:79 After updating data file paths, TablesProgressMetadata:&{TableSchema:mysql_functions TableName:auto_gen FullTableName:mysql_functions.auto_gen InProgressFilePath:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/data/tmp_auto_gen_data.sql FinalFilePath:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/data/auto_gen_data.sql Status:0 CountLiveRows:0 CountTotalRows:7 FileOffsetToContinue:0 IsPartition:false ParentTable:}
+
+2022-11-02 13:25:51 INFO ora2pg_export_data.go:92 ora2pg STDOUT: ""
+2022-11-02 13:25:51 ERROR ora2pg_export_data.go:93 ora2pg STDERR: ""
+2022-11-02 13:25:51 INFO descriptor.go:47 storing DataFileDescriptor at "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-02 13:25:51 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-02 13:25:51 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:sql TableRowCount:map[auto_gen:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:25:51 INFO exportData.go:78 Export of data completed.
+2022-11-02 13:26:00 INFO logging.go:65 Logging initialised.
+2022-11-02 13:26:00 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager import schema --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --target-db-host 172.151.41.221 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name mysql_functions --yes --send-diagnostics=false]
+2022-11-02 13:26:00 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:26:00 INFO importSchemaYugabyteDB.go:45 Extracting the metainfo about the source database.
+2022-11-02 13:26:00 INFO logging.go:33 YugabyteDB version: 11.2-YB-2.15.3.0-b0
+
+2022-11-02 13:26:00 INFO logging.go:33 schemas to be present in target database "mysql_functions": [public]
+
+2022-11-02 13:26:00 INFO importSchema.go:176 check if schema "public" exists: fetchedSchema: "public", err: %!s(<nil>)
+2022-11-02 13:26:00 INFO logging.go:33 schema 'public' already present in target database, continuing with it..
+
+2022-11-02 13:26:00 INFO importSchema.go:176 check if schema "public" exists: fetchedSchema: "public", err: %!s(<nil>)
+2022-11-02 13:26:00 INFO importSchema.go:86 List of schema objects to import: [TABLE PARTITION VIEW FUNCTION PROCEDURE]
+2022-11-02 13:26:00 INFO importData.go:1018 Execute SQL file "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/table.sql" on target "172.151.41.221"
+2022-11-02 13:26:00 INFO analyzeSchema.go:577 Reading TABLE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/tables/table.sql
+2022-11-02 13:26:00 INFO importData.go:1074 On 172.151.41.221 run query:
+CREATE TABLE auto_gen (
+	id numeric(10) NOT NULL,
+	first_name varchar(50),
+	last_name varchar(50),
+	email varchar(50),
+	gender varchar(50),
+	ip_address varchar(20),
+	PRIMARY KEY (id)
+) ;
+
+2022-11-02 13:26:00 INFO importData.go:1018 Execute SQL file "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/partitions/partition.sql" on target "172.151.41.221"
+2022-11-02 13:26:00 INFO analyzeSchema.go:577 Reading PARTITION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/partitions/partition.sql
+2022-11-02 13:26:00 INFO importData.go:1018 Execute SQL file "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/views/view.sql" on target "172.151.41.221"
+2022-11-02 13:26:00 INFO analyzeSchema.go:577 Reading VIEW in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/views/view.sql
+2022-11-02 13:26:00 INFO importData.go:1018 Execute SQL file "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/functions/function.sql" on target "172.151.41.221"
+2022-11-02 13:26:00 INFO analyzeSchema.go:577 Reading FUNCTION in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/functions/function.sql
+2022-11-02 13:26:00 INFO importData.go:1074 On 172.151.41.221 run query:
+CREATE OR REPLACE FUNCTION add_two (num1 integer,num2 integer) RETURNS integer AS $body$
+BEGIN
+    return num1+num2;
+END;
+$body$
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+ IMMUTABLE;
+
+2022-11-02 13:26:00 INFO importData.go:1074 On 172.151.41.221 run query:
+CREATE OR REPLACE FUNCTION f_name (first_n varchar(50),last_n varchar(50)) RETURNS varchar AS $body$
+BEGIN
+    return concat(first_n,' ',last_n);
+END;
+$body$
+LANGUAGE PLPGSQL
+SECURITY DEFINER
+ IMMUTABLE;
+
+2022-11-02 13:26:00 INFO importData.go:1018 Execute SQL file "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/procedures/procedure.sql" on target "172.151.41.221"
+2022-11-02 13:26:01 INFO analyzeSchema.go:577 Reading PROCEDURE in dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/schema/procedures/procedure.sql
+2022-11-02 13:26:01 INFO importSchemaYugabyteDB.go:41 Schema import is complete.
+2022-11-02 13:26:01 INFO logging.go:65 Logging initialised.
+2022-11-02 13:26:01 INFO logging.go:67 Args: [/home/centos/main_build/yb-voyager import data --export-dir /home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir --target-db-host 172.151.41.221 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name mysql_functions --disable-pb --send-diagnostics=false]
+2022-11-02 13:26:01 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=92fdab9895ef8e31eef7d00516b0b4e3e44b948d
+LAST_COMMIT_DATE=2022-10-28T14:10:03Z
+
+2022-11-02 13:26:01 INFO importSchemaYugabyteDB.go:45 Extracting the metainfo about the source database.
+2022-11-02 13:26:01 INFO logging.go:33 import of data in "mysql_functions" database started
+2022-11-02 13:26:01 INFO descriptor.go:31 loading DataFileDescriptor from "/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir/metainfo/dataFileDescriptor.json"
+2022-11-02 13:26:01 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:sql TableRowCount:map[auto_gen:0] TableFileSize:map[] Delimiter:	 HasHeader:false ExportDir:/home/centos/code/new_code/yb-voyager/migtests/tests/mysql-tests/mysql-functions/export-dir}
+2022-11-02 13:26:01 INFO importData.go:270 Target.Host=172.151.41.221 matched with one of ips in [172.151.41.221]
+
+2022-11-02 13:26:01 INFO importData.go:194 Target DB nodes: 172.151.41.221:5433,172.151.57.89:5433,172.151.23.27:5433
+2022-11-02 13:26:01 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002fc280)({
+ Host: (string) (len=14) "172.151.41.221",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=15) "mysql_functions",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=79) "postgresql://ybvoyager:xxxxx@172.151.41.221:5433/mysql_functions?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) "",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) true,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.3.0-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-11-02 13:26:01 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002fc8c0)({
+ Host: (string) (len=13) "172.151.57.89",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=15) "mysql_functions",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=78) "postgresql://ybvoyager:xxxxx@172.151.57.89:5433/mysql_functions?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) "",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) true,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.3.0-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-11-02 13:26:01 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002fcf00)({
+ Host: (string) (len=13) "172.151.23.27",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=15) "mysql_functions",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=78) "postgresql://ybvoyager:xxxxx@172.151.23.27:5433/mysql_functions?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) "",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) true,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.3.0-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-11-02 13:26:02 INFO importData.go:256 all target servers are accessible
+2022-11-02 13:26:02 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@172.151.41.221:5433/mysql_functions?sslmode=prefer postgresql://ybvoyager:xxxxx@172.151.57.89:5433/mysql_functions?sslmode=prefer postgresql://ybvoyager:xxxxx@172.151.23.27:5433/mysql_functions?sslmode=prefer]
+2022-11-02 13:26:02 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@172.151.41.221:5433/mysql_functions?sslmode=prefer
+2022-11-02 13:26:02 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@172.151.57.89:5433/mysql_functions?sslmode=prefer
+2022-11-02 13:26:02 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@172.151.23.27:5433/mysql_functions?sslmode=prefer
+2022-11-02 13:26:03 INFO logging.go:33 Using 3 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-11-02 13:26:03 INFO importData.go:1271 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-11-02 13:26:03 INFO importData.go:362 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-11-02 13:26:03 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@172.151.57.89:5433/mysql_functions?sslmode=prefer"
+2022-11-02 13:26:03 ERROR logging.go:28 Failed to create voyager metadata schema on target DB: create ybvoyager schema on target: ERROR: Query error: Restart read required at: { read: { physical: 1667395563500629 logical: 4095 } local_limit: { physical: 1667395563500629 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+

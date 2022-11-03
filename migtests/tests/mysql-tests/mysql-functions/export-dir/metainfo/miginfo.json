@@ -1,0 +1,8 @@
+{
+ "SourceDBType": "mysql",
+ "SourceDBName": "mysql_functions",
+ "SourceDBSchema": "",
+ "SourceDBVersion": "8.0.28",
+ "SourceDBSid": "",
+ "SourceTNSAlias": ""
+}

@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'view_table1': 10,
+	'view_table2': 9,
+	'v1': 6,
+	'v2': 9,
+	'v3': 9
+}
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 2
+
+	view_list = tgt.get_objects_of_type("VIEW")
+	print("view_list:", view_list)
+	assert len(view_list) == 3
+
+	
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		cnt = tgt.get_row_count(table_name, "public")
+		print(f"table_name: {table_name}, row_count: {cnt}")
+		assert row_count == cnt
+
+
+if __name__ == "__main__":
+	main()
