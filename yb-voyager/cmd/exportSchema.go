@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -79,6 +80,14 @@ func exportSchema() {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	source.DB().ExportSchema(exportDir)
+	for _, objectType := range utils.GetSchemaObjectList(source.DBType) {
+		if objectType == "INDEX" { // Indexes do not have a separate directory.
+			continue
+		}
+		if err = processImportDirectives(filepath.Join(exportDir, "schema", strings.ToLower(objectType)+"s", strings.ToLower(objectType)+".sql")); err != nil {
+			utils.ErrExit(err.Error())
+		}
+	}
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir)
