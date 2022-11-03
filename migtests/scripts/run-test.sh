@@ -29,7 +29,7 @@ source ${SCRIPTS}/functions.sh
 
 main() {
 	# echo "Deleting the parent export-dir present in the test directory"
-	# rm -rf ${EXPORT_DIR}
+	rm -rf ${EXPORT_DIR}
 	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
 	echo "Assigning permissions to the export-dir"
