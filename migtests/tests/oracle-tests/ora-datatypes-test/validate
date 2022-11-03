@@ -20,8 +20,8 @@ EXPECTED_ROW_COUNT = {
 	'RAW_TYPE': 6
 }
 
-def migration_completed_checks(tgt, tag):
-    got_row_count = tgt.row_count_of_all_tables("public")
+def migration_completed_checks(tgt):
+	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]

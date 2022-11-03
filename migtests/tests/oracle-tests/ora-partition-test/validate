@@ -32,11 +32,11 @@ EXPECTED_ROW_COUNT = {
 }
 
 def migration_completed_checks(tgt, tag):
-    table_list = tgt.get_table_names("public")
+	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
 	assert len(table_list) == 21
     
-    returned_row_count = tgt.row_count_of_all_tables("public")
+	returned_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {returned_row_count[table_name]}")
 		assert row_count == returned_row_count[table_name]
