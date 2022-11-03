@@ -253,6 +253,9 @@ func nameContainsCapitalLetter(name string) bool {
 
 // This function is invoked at the end of export schema to process files containing statments of the type `\i <filename>.sql`, merging them together.
 func processImportDirectives(fileName string) error {
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		return nil
+	}
 	// Create a temporary file after appending .tmp extension to the fileName.
 	tmpFileName := fileName + ".tmp"
 	tmpFile, err := os.Create(tmpFileName)
@@ -281,7 +284,7 @@ func processImportDirectives(fileName string) error {
 			// Check if the file exists.
 			importFileName := tokens[1]
 			log.Infof("Processing %s for DDL statements", importFileName)
-			if _, err = os.Stat(fileName); err != nil {
+			if _, err = os.Stat(importFileName); err != nil {
 				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
 			}
 			// Read the file and append its contents to the temporary file.
