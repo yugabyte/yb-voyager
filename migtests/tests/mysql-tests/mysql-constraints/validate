@@ -18,15 +18,15 @@ EXPECTED_ROW_COUNT = {
 }
 QUERIES_CHECK = {
 	'NULL_CHECK': {
-		'query': "insert into not_null_check (first_name, last_name, email, gender, ip_address) values (, 'Rohlfing', 'mrohlfing5@java.com', 'Female', '230.101.87.42');",
+		'query': "insert into not_null_check(id, first_name, last_name, email, gender, ip_address) values (7, NULL, 'something', 'msomething@java.com', 'Female', '230.188.87.42');",
 		'code': 23502
 	}, 
 	'UNIQUE_CHECK': {
-		'query': "insert into unique_test (first_name, last_name, email, gender, ip_address) values ('Milzie', 'something', 'msomething@java.com', 'Female', '230.188.87.42');",
+		'query': "insert into unique_test(id, first_name, last_name, email, gender, ip_address) values (8, 'Milzie', 'something', 'msomething@java.com', 'Female', '230.188.87.42');",
 		'code': 23505
 	},
 	'CHECK_CONDITION': {
-		'query': "insert into check_test (first_name, last_name, age) values ('Tom', 'Stewan', 15);",
+		'query': "insert into check_test (id, first_name, last_name, age) values (7, 'Tom', 'Stewan', 15);",
 		'code': 23514
 	},
 	'FORIEGN_CHECK': {
@@ -48,8 +48,8 @@ def migration_completed_checks(tgt):
 		
 	for type_check, query_and_code in QUERIES_CHECK.items():
 		query, code = query_and_code['query'], query_and_code['code']
-		print(f"Checking {type_check} ..")
-		assert tgt.run_query_and_chk_error(query, code)
+		print(f"Checking {type_check} ..", code, tgt.run_query_and_chk_error(query, code))
+		assert tgt.run_query_and_chk_error(query, code) == True
 
 
 if __name__ == "__main__":

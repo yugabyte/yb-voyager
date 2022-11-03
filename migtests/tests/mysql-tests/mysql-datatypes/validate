@@ -23,35 +23,34 @@ EXPECTED_ROW_COUNT = {
 
 EXPECTED_SUM_OF_COLUMN = {
 	'fixed_point_types': {
-		'dec_type': 0.44566,
-		'numeric_type': 37192.93689,
-		'fixed_type': 26554.36,
-		'd_us': 1277234.27
+		'dec_type': '0.44566',
+		'numeric_type': '37192.93689',
+		'fixed_type': '26554.360',
+		'd_us': '1277234.27'
 	},
 	'floating_point_types': {
-		'double_type': 0.3477833,
-		'id': 10,
-		'real_type': 4.7999,
-		'float_type': 123582.612
+		'double_type': '0.3477833',
+		'id': '10',
+		'real_type': '4.7999',
+		'float_type': '123582.612'
 	},
 	'int_types': {
-		'mint_u': 25165822,
-		'iint_u': 4294967294,
-		'sint_s': 65532,
-		'iinteger_s': -2,
-		'iint_s': -2,
-		'sint_u': 65534,
-		'tint_s': -2,
-		'bint_s': -2,
-		'iinteger_u': 4294967294,
-		'bint_u': 18446744073709551614,
-		'tint_u': 510,
-		'mint_s': -2
+		'mint_u': '25165822',
+		'iint_u': '4294967294',
+		'sint_s': '65532',
+		'iinteger_s': '-2',
+		'iint_s': '-2',
+		'sint_u': '65534',
+		'tint_s': '-2',
+		'bint_s': '-2',
+		'iinteger_u':'4294967294',
+		'bint_u': '18446744073709551614',
+		'tint_u': '510',
+		'mint_s': '-2'
 	},
 }
 
 EXPECTED_ENUM_VALUES = ['low', 'high', 'med']
-EXPECTED_UUIDs_VALUES = ['x5c9876dd589611eda0fa06954a74ceb5', 'x5c987888589611eda0fa06954a74ceb5', 'x5c98795f589611eda0fa06954a74ceb5']
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
@@ -68,7 +67,7 @@ def migration_completed_checks(tgt):
 		for column, sum in column_names_with_sum.items():
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
 			print(f"column_name: {column}, sum: {col_sum}")
-			assert str(sum) == str(col_sum)
+			assert sum == str(col_sum)
 
 	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("enum_types", "priority", "public")
 	print(f"distinct_enum_values:")
@@ -82,12 +81,6 @@ def migration_completed_checks(tgt):
 		print(f"{distinct_value}")
 		assert distinct_value == 0 or distinct_value == 1
 		
-	id_values_of_uuid_try = tgt.get_distinct_values__of_column_of_table("uuid_try", "id", "public")
-	print(f"id_values_of_uuid_try:")
-	for id_value in id_values_of_uuid_try:
-		print(f"{id_value}")
-		assert id_value in EXPECTED_UUIDs_VALUES
-
 
 if __name__ == "__main__":
 	main()

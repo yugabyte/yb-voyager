@@ -1,4 +1,3 @@
-from contextlib import nullcontext
 import os
 import sys
 from typing import Any, Dict, List
@@ -101,9 +100,19 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		try:
 			cur.execute(f"{query}")
-		except psycopg2.errors.lookup("{error_code}"):
-			return True
+		except Exception as error:
+			self.conn.rollback()
+			return error_code == int(error.pgcode)
 		return False
 
+	def get_functions_count(self, schema_name="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}';")
+		return cur.fetchone()[0]
+
+	def execute_function_query(self, query) -> Any:
+		cur=self.conn.cursor()
+		cur.execute(f"{query}")
+		return cur.fetchone()[0]
 
 
