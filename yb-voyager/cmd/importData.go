@@ -358,15 +358,32 @@ func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 			PRIMARY KEY (schema_name, file_name)
 		);`,
 	}
+
+	maxAttempts := 12
+	var conn *pgx.Conn
+	var err error
+outer:
 	for _, cmd := range cmds {
-		log.Infof("Executing on target: [%s]", cmd)
-		err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			_, err := conn.Exec(context.Background(), cmd)
-			return false, err
-		})
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			log.Infof("Executing on target: [%s]", cmd)
+			if conn == nil {
+				conn = newTargetConn()
+			}
+			_, err = conn.Exec(context.Background(), cmd)
+			if err == nil {
+				continue outer
+			}
+			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
+			time.Sleep(5 * time.Second)
+			conn.Close(context.Background())
+			conn = nil
+		}
 		if err != nil {
 			return fmt.Errorf("create ybvoyager schema on target: %w", err)
 		}
+	}
+	if conn != nil {
+		conn.Close(context.Background())
 	}
 	return nil
 }
