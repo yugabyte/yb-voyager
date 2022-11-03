@@ -18,32 +18,32 @@ EXPECTED_ROW_COUNT = {
 }
 
 def migration_completed_checks(tgt):
-    table_list = tgt.get_table_names("public")
-	print("table_list:", table_list)
+	table_list = tgt.get_table_names("public")
+	print("table_list:",table_list)
 	assert len(table_list) == 7
     
-    returned_row_count = tgt.row_count_of_all_tables("public")
+	returned_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		print(f"table_name: {table_name}, row_count: {returned_row_count[table_name]}")
+		print("table_name: {table_name}, row_count: {returned_row_count[table_name]}")
 		assert row_count == returned_row_count[table_name]
 
-    index_list = tgt.get_objects_of_type("INDEX")
+	index_list = tgt.get_objects_of_type("INDEX")
 	print("index_list:", index_list)
 	assert len(index_list) == 11   
 
-    view_list = tgt.get_objects_of_type("VIEW")
+	view_list = tgt.get_objects_of_type("VIEW")
 	print("index_list:", view_list)
 	assert len(view_list) == 1
 
-    trigger_list = tgt.get_objects_of_type_trigger("public")
+	trigger_list = tgt.get_objects_of_type_trigger("public")
 	print("index_list:", trigger_list)
 	assert len(trigger_list) == 1
 
-    sequence_list = tgt.get_objects_of_type("SEQUENCE")
+	sequence_list = tgt.get_objects_of_type("SEQUENCE")
 	print("index_list:", trigger_list)
 	assert len(sequence_list) == 3
 
-    procedure_list = tgt.get_objects_of_type_procedure("public")
+	procedure_list = tgt.get_objects_of_type_procedure("public")
 	print("procedure_list:", procedure_list)
 	assert len(procedure_list) == 2
 
