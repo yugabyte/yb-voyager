@@ -1,9 +1,0 @@
-{
-	"FileFormat": "sql",
-	"TableRowCount": {
-		"auto_gen": 0
-	},
-	"TableFileSize": null,
-	"Delimiter": "\t",
-	"HasHeader": false
-}
