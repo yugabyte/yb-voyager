@@ -109,6 +109,9 @@ func init() {
 	registerCommonExportFlags(exportSchemaCmd)
 	exportSchemaCmd.Flags().BoolVar(&source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")
+
+	exportSchemaCmd.Flags().BoolVar(&source.CommentsOnObjects, "comments-on-objects", false,
+		"enable to export comments on any object in export schema (default false)")
 }
 
 func schemaIsExported(exportDir string) bool {
