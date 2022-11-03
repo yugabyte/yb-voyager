@@ -1,8 +1,10 @@
 package srcdb
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -49,28 +51,47 @@ func pgdumpExtractSchema(schemaList string, connectionUri string, exportDir stri
 	<-utils.WaitChannel
 }
 
+func readSchemaFile(path string) []string {
+	file, err := os.Open(path)
+	if err != nil {
+		utils.ErrExit("error in opening schema file %s: %v", path, err)
+	}
+	defer file.Close()
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !shouldSkipLine(line) {
+			lines = append(lines, line)
+		}
+	}
+
+	if scanner.Err() != nil {
+		utils.ErrExit("error in reading schema file %s: %v", path, scanner.Err())
+	}
+
+	return lines
+}
+
 // For example: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
-var sqlTypeInfoCommentPattern = regexp.MustCompile("--.*Type:.*")
+var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
 func parseSchemaFile(exportDir string) int {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
-	schemaDirPath := filepath.Join(exportDir, "schema")
-	schemaFileData, err := ioutil.ReadFile(schemaFilePath)
-	if err != nil {
-		utils.ErrExit("Failed to read file %q: %v", schemaFilePath, err)
+
+	lines := readSchemaFile(schemaFilePath)
+	var delimiterIndexes []int
+	for i, line := range lines {
+		if isDelimiterLine(line) {
+			delimiterIndexes = append(delimiterIndexes, i)
+		}
 	}
-
-	schemaFileLines := strings.Split(string(schemaFileData), "\n")
-	numLines := len(schemaFileLines)
-
-	sessionVariableStartPattern := regexp.MustCompile("-- Dumped by pg_dump.*")
 
 	// map to store the sql statements for each db object type
 	// map's key are based on the elements of 'utils.postgresSchemaObjectList' array
 	objSqlStmts := make(map[string]*strings.Builder)
-
 	// initialize the map
 	pgObjList := utils.GetSchemaObjectList("postgresql")
 	for _, objType := range pgObjList {
@@ -78,38 +99,32 @@ func parseSchemaFile(exportDir string) int {
 	}
 
 	var uncategorizedSqls, setSessionVariables strings.Builder
-
-	var isPossibleFlag bool = true
-	for i := 0; i < numLines; {
-		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[i]) {
-			sqlType := extractSqlTypeFromSqlInfoComment(schemaFileLines[i])
-			i += 2 // jumping to start of sql statement
-			sqlStatement := extractSqlStatements(schemaFileLines, &i)
-			// TODO: TABLESPACE
+	for i := 0; i < len(delimiterIndexes)-1; i++ {
+		stmts := strings.Join(lines[delimiterIndexes[i]+1:delimiterIndexes[i+1]], "\n") + "\n\n\n"
+		if i == 0 {
+			// Deal with SET statments
+			setSessionVariables.WriteString("-- setting variables for current session\n")
+			setSessionVariables.WriteString(stmts)
+		} else {
+			delimiterLine := lines[delimiterIndexes[i]]
+			sqlType := extractSqlTypeFromComment(delimiterLine)
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
-				objSqlStmts[sqlType].WriteString(sqlStatement)
+				objSqlStmts[sqlType].WriteString(stmts)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "TABLE ATTACH":
-				objSqlStmts["TABLE"].WriteString(sqlStatement)
+				objSqlStmts["TABLE"].WriteString(stmts)
 			case "MATERIALIZED VIEW":
-				objSqlStmts["MVIEW"].WriteString(sqlStatement)
+				objSqlStmts["MVIEW"].WriteString(stmts)
 			case "COLLATION":
-				objSqlStmts["COLLATION"].WriteString(sqlStatement)
+				objSqlStmts["COLLATION"].WriteString(stmts)
 			default:
-				uncategorizedSqls.WriteString(sqlStatement)
+				uncategorizedSqls.WriteString(stmts)
 			}
-		} else if isPossibleFlag && sessionVariableStartPattern.MatchString(schemaFileLines[i]) {
-			i++
-			setSessionVariables.WriteString("-- setting variables for current session")
-			sqlStatement := extractSqlStatements(schemaFileLines, &i)
-			setSessionVariables.WriteString(sqlStatement)
-			isPossibleFlag = false
-		} else {
-			i++ // extractSqlStatements() takes care for other if conditions
 		}
 	}
 
+	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {
 		if sqlStmts.Len() == 0 { // create .sql file only if there are DDLs
 			continue
@@ -119,7 +134,7 @@ func parseSchemaFile(exportDir string) int {
 
 		err := ioutil.WriteFile(filePath, dataBytes, 0644)
 		if err != nil {
-			utils.ErrExit("Failed to create sql file for for %q: %v", objType, err)
+			utils.ErrExit("Failed to create sql file for %q: %v", objType, err)
 		}
 	}
 
@@ -133,40 +148,28 @@ func parseSchemaFile(exportDir string) int {
 	return 0
 }
 
-func extractSqlTypeFromSqlInfoComment(sqlInfoComment string) string {
-	sqlInfoCommentSlice := strings.Split(sqlInfoComment, "; ")
-	var sqlType strings.Builder
+// Example sqlInfoComment: -- Name: address address_city_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+func extractSqlTypeFromComment(comment string) string {
+	sqlInfoCommentSlice := strings.Split(comment, ";")
 	for _, info := range sqlInfoCommentSlice {
+		info = strings.Trim(info, " ")
 		if info[:4] == "Type" {
-			typeInfo := strings.Split(info, ": ")
-			typeInfoValue := typeInfo[1]
-
-			for i := 0; i < len(typeInfoValue) && typeInfoValue[i] != ';'; i++ {
-				sqlType.WriteByte(typeInfoValue[i])
-			}
+			return strings.Trim(strings.Split(info, ":")[1], " ")
 		}
 	}
 
-	return sqlType.String()
-}
-
-func extractSqlStatements(schemaFileLines []string, index *int) string {
-	var sqlStatement strings.Builder
-	for (*index) < len(schemaFileLines) {
-		if sqlTypeInfoCommentPattern.MatchString(schemaFileLines[(*index)]) {
-			break
-		} else if shouldSkipLine(schemaFileLines[(*index)]) {
-			(*index)++
-			continue
-		} else {
-			sqlStatement.WriteString(schemaFileLines[(*index)] + "\n")
-			(*index)++
-		}
-	}
-	return sqlStatement.String()
+	utils.ErrExit("Unable to extract sqlType from comment: %s", comment)
+	return "" // unreachable
 }
 
 func shouldSkipLine(line string) bool {
-	// ignore "--" before and after sqlTypeInfoComment
-	return strings.HasPrefix(line, "SET default_table_access_method") || strings.Compare(line, "--") == 0
+	return strings.HasPrefix(line, "SET default_table_access_method") ||
+		strings.Compare(line, "--") == 0 || len(line) == 0 ||
+		strings.EqualFold(line, "-- PostgreSQL database dump complete") ||
+		strings.EqualFold(line, "-- PostgreSQL database dump") ||
+		strings.HasPrefix(line, "-- Dumped from database version")
+}
+
+func isDelimiterLine(line string) bool {
+	return strings.HasPrefix(line, "-- Dumped by pg_dump version") || sqlInfoCommentRegex.MatchString(line)
 }
