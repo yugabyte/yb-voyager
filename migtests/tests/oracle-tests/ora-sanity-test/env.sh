@@ -2,4 +2,4 @@ export SOURCE_DB_TYPE="oracle"
 export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"ORCL"}
 export TARGET_DB_HOST=${TARGET_DB_HOST:-"10.9.118.29"}
 export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD:-"password"}
-export TARGET_DB_NAME=${TARGET_DB_NAME:-"views_test"}
+export TARGET_DB_NAME=${TARGET_DB_NAME:-"ora_sample_hr_test"}
