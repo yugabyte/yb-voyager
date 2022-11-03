@@ -382,7 +382,9 @@ outer:
 			return fmt.Errorf("create ybvoyager schema on target: %w", err)
 		}
 	}
-
+	if conn != nil {
+		conn.Close(context.Background())
+	}
 	return nil
 }
 
