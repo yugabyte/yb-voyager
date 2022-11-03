@@ -27,11 +27,7 @@ def migration_completed_checks(tgt):
 
 	index_list = tgt.get_objects_of_type("INDEX")
 	print("index_list:", index_list)
-	assert len(index_list) == 19   
-
-	view_list = tgt.get_objects_of_type("VIEW")
-	print("index_list:", view_list)
-	assert len(view_list) == 1
+	assert len(index_list) == 19
 
 	trigger_list = tgt.get_objects_of_type_trigger("public")
 	print("index_list:", trigger_list)
@@ -44,6 +40,10 @@ def migration_completed_checks(tgt):
 	procedure_list = tgt.get_objects_of_type_procedure("public")
 	print("procedure_list:", procedure_list)
 	assert len(procedure_list) == 2
+
+	view_list = tgt.get_objects_of_type("VIEW")
+	print("index_list:", view_list)
+	assert len(view_list) == 1
 
 if __name__ == "__main__":
 	main()
