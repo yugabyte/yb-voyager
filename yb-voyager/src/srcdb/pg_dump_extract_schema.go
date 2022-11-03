@@ -12,7 +12,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExtractSchema(source *Source, schemaList string, connectionUri string, exportDir string) {
+func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "error\n")
 
@@ -22,7 +22,7 @@ func pgdumpExtractSchema(source *Source, schemaList string, connectionUri string
 	}
 
 	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --load-via-partition-root --extension "*"`,
-		schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
+		source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
 	if !source.CommentsOnObjects {
 		pgDumpArgs = fmt.Sprintf(`%s --no-comments`, pgDumpArgs)
 	}
