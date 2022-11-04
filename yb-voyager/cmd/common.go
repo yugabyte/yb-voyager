@@ -16,11 +16,8 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"io/ioutil"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -249,70 +246,4 @@ func nameContainsCapitalLetter(name string) bool {
 		}
 	}
 	return false
-}
-
-// This function is invoked at the end of export schema to process files containing statments of the type `\i <filename>.sql`, merging them together.
-func processImportDirectives(fileName string) error {
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
-		return nil
-	}
-	// Create a temporary file after appending .tmp extension to the fileName.
-	tmpFileName := fileName + ".tmp"
-	tmpFile, err := os.Create(tmpFileName)
-	if err != nil {
-		return fmt.Errorf("error while creating temp file %s to store processed DDLs: %v", tmpFileName, err)
-	}
-	defer tmpFile.Close()
-	// Open the original file for reading.
-	file, err := os.Open(fileName)
-	if err != nil {
-		return fmt.Errorf("could not open file %s while processing import directives: %v", fileName, err)
-	}
-	defer file.Close()
-	// Create a new scanner and read the file line by line.
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.Trim(scanner.Text(), " ")
-		// Check if the line contains the import directive.
-		if strings.HasPrefix(line, "\\i ") {
-			// Split the line into tokens.
-			tokens := strings.Split(line, " ")
-			// Check if the line contains the correct number of tokens.
-			if len(tokens) != 2 {
-				return fmt.Errorf("invalid number of tokens in line: %s", line)
-			}
-			// Check if the file exists.
-			importFileName := strings.Trim(tokens[1], "'")
-			log.Infof("Processing %s for DDL statements", importFileName)
-			if _, err = os.Stat(importFileName); err != nil {
-				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
-			}
-			// Read the file and append its contents to the temporary file.
-			importFile, err := os.Open(importFileName)
-			if err != nil {
-				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
-			}
-			defer importFile.Close()
-			_, err = io.Copy(tmpFile, importFile)
-			if err != nil {
-				return fmt.Errorf("error while copying contents of file %s: %v", importFileName, err)
-			}
-		} else {
-			// Write the line to the temporary file.
-			_, err = tmpFile.WriteString(line + "\n")
-			if err != nil {
-				return fmt.Errorf("could not write processed DDL to tmp file %s: %v", tmpFileName, err)
-			}
-		}
-	}
-	// Check if there were any errors during the scan.
-	if err = scanner.Err(); err != nil {
-		return fmt.Errorf("error while scanning contents of %s: %v", fileName, err)
-	}
-	// Rename tmpFile to fileName.
-	err = os.Rename(tmpFileName, fileName)
-	if err != nil {
-		return fmt.Errorf("could not overwrite %s with processed DDL. Rename %s to %s and try again", fileName, tmpFileName, fileName)
-	}
-	return nil
 }
