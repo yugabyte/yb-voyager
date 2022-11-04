@@ -94,7 +94,7 @@ analyze_schema() {
 		--output-format txt
 		--send-diagnostics=false
 	"
-        yb-voyager analyze-schema ${args} $*
+    yb-voyager analyze-schema ${args} $*
 }
 
 import_schema() {

@@ -1,0 +1,86 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+ 	'bit_types': 4,   
+	'bool_types': 6,  
+	'date_time_types': 10, 
+	'enum_types': 3,   
+	'fixed_point_types': 3,
+	'floating_point_types': 4, 
+  	'int_types': 4,     
+ 	'json_types': 5,          
+ 	'string_types': 1,        
+	'uuid_try': 3 
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'fixed_point_types': {
+		'dec_type': '0.44566',
+		'numeric_type': '37192.93689',
+		'fixed_type': '26554.360',
+		'd_us': '1277234.27'
+	},
+	'floating_point_types': {
+		'double_type': '0.3477833',
+		'id': '10',
+		'real_type': '4.7999',
+		'float_type': '123582.612'
+	},
+	'int_types': {
+		'mint_u': '25165822',
+		'iint_u': '4294967294',
+		'sint_s': '65532',
+		'iinteger_s': '-2',
+		'iint_s': '-2',
+		'sint_u': '65534',
+		'tint_s': '-2',
+		'bint_s': '-2',
+		'iinteger_u':'4294967294',
+		'bint_u': '18446744073709551614',
+		'tint_u': '510',
+		'mint_s': '-2'
+	},
+}
+
+EXPECTED_ENUM_VALUES = ['low', 'high', 'med']
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 10
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("enum_types", "priority", "public")
+	print(f"distinct_enum_values:")
+	for distinct_value in distinct_values_enum_types:
+		print(f"{distinct_value}")
+		assert distinct_value.lower() in EXPECTED_ENUM_VALUES
+
+	distinct_values_bool_types = tgt.get_distinct_values__of_column_of_table("bool_types", "val", "public")
+	print(f"distinct_bool_values:")
+	for distinct_value in distinct_values_bool_types:
+		print(f"{distinct_value}")
+		assert distinct_value == 0 or distinct_value == 1
+		
+
+if __name__ == "__main__":
+	main()

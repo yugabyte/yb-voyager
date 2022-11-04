@@ -1,6 +1,7 @@
 import os
 import sys
-from typing import Dict, List
+from typing import Any, Dict, List
+from xmlrpc.client import boolean
 
 import psycopg2
 
@@ -78,3 +79,40 @@ class PostgresDB:
 		cur.execute(f"select relname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid"+
 			f" where nspname = '{schema_name}' AND relkind = '{object_type}'")
 		return [obj[0] for obj in cur.fetchall()]
+	
+	def get_sum_of_column_of_table(self, table_name, column_name, schema_name="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute(f"select sum({column_name}) from {schema_name}.{table_name}")
+		return cur.fetchone()[0]
+		
+	def get_count_index_on_table(self, schema_name="public") -> Dict[str,int]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT tablename, count(indexname) FROM pg_indexes WHERE schemaname = '{schema_name}' GROUP  BY tablename;")
+		return {tablename: cnt for tablename,cnt in cur.fetchall()}
+
+	def get_distinct_values__of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
+		cur = self.conn.cursor()
+		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
+		return [value[0] for value in cur.fetchall()]
+
+	# takes query and error_code and return true id the error_code you believe that query should throw matches
+	def run_query_and_chk_error(self, query, error_code) -> boolean:
+		cur = self.conn.cursor()
+		try:
+			cur.execute(f"{query}")
+		except Exception as error:
+			self.conn.rollback()
+			return error_code == int(error.pgcode)
+		return False
+
+	def get_functions_count(self, schema_name="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}';")
+		return cur.fetchone()[0]
+
+	def execute_function_query(self, query) -> Any:
+		cur=self.conn.cursor()
+		cur.execute(f"{query}")
+		return cur.fetchone()[0]
+
+

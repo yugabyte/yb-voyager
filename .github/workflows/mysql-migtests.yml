@@ -60,11 +60,11 @@ jobs:
     - name: "TEST: mysql-constraints"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-constraints
 
-    - name: "TEST: mysql-case-sensitive"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-case-sensitive
-
     - name: "TEST: mysql-case-indexes"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-indexes
+
+    - name: "TEST: mysql-functions"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-functions
 
     - name: "TEST: mysql-case-sequences"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-sequences    
