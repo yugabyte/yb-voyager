@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'auto_gen': 7
+}
+CHECK_FUNCTIONS_QUERIES = [{'query' : "SELECT f_name('John','Smith');", 'res': 'John Smith'}, {'query': "select add_two(13,133);", 'res': 146 }]
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 1
+
+	
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		cnt = tgt.get_row_count(table_name, "public")
+		print(f"table_name: {table_name}, row_count: {cnt}")
+		assert row_count == cnt
+
+	cnt_functions = tgt.get_functions_count("public")
+	print(f"Number of Functions: {cnt_functions}")
+	assert cnt_functions == 2
+
+	for query_with_res in CHECK_FUNCTIONS_QUERIES:
+		query = query_with_res['query']
+		expected_ret_val = query_with_res['res']
+		return_val = tgt.execute_function_query(query)
+		print(f"Value of execution of function - {query} is {return_val}")
+		assert expected_ret_val == return_val
+
+
+
+if __name__ == "__main__":
+	main()
