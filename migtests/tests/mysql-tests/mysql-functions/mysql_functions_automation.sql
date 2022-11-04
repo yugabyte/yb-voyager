@@ -17,7 +17,7 @@ insert into auto_gen (first_name, last_name, email, gender, ip_address) values (
 insert into auto_gen (first_name, last_name, email, gender, ip_address) values ('Milzie', 'Rohlfing', 'mrohlfing5@java.com', 'Female', '230.101.87.42');
 insert into auto_gen (first_name, last_name, email, gender, ip_address) values ('Gena', 'Varga', 'gvarga6@mapquest.com', 'Female', '170.240.242.112');
 
-drop function f_name;
+drop function if exists f_name;
 
 create function f_name(first_n varchar(50),last_n varchar(50))
 returns varchar(100) deterministic
