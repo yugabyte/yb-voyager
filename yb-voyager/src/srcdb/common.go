@@ -44,7 +44,7 @@ func processImportDirectives(fileName string) error {
 	// Create a new scanner and read the file line by line.
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := strings.Trim(scanner.Text(), " ")
+		line:=scanner.Text()
 		// Check if the line contains the import directive.
 		if strings.HasPrefix(line, "\\i ") {
 			// Split the line into tokens.
@@ -71,7 +71,7 @@ func processImportDirectives(fileName string) error {
 			}
 		} else {
 			// Write the line to the temporary file.
-			_, err = tmpFile.WriteString(line)
+			_, err = tmpFile.WriteString(line+"\n")
 			if err != nil {
 				return fmt.Errorf("write a line to %q: %w", tmpFileName, err)
 			}
