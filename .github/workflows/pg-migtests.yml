@@ -10,7 +10,7 @@ jobs:
   run-pg-migration-tests:
     strategy:
       matrix:
-        version: [2.14.2.0-b25, 2.15.2.0-b87]
+        version: [2.14.2.0-b25, 2.14.4.0-b26]
     runs-on: ubuntu-latest
     services:
       postgres:
