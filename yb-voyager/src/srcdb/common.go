@@ -25,7 +25,7 @@ func getExportedRowCount(tablesMetadata map[string]*utils.TableProgressMetadata)
 
 // Invoked at the end of export schema for Oracle and MySQL to process files containing statments of the type `\i <filename>.sql`, merging them together.
 func processImportDirectives(fileName string) error {
-	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+	if !utils.FileOrFolderExists(fileName) {
 		return nil
 	}
 	// Create a temporary file after appending .tmp extension to the fileName.
@@ -51,7 +51,7 @@ func processImportDirectives(fileName string) error {
 			tokens := strings.Split(line, " ")
 			// Check if the line contains the correct number of tokens.
 			if len(tokens) != 2 {
-				return fmt.Errorf("invalid number of tokens in line: %s", line)
+				return fmt.Errorf("invalid token count in %q: %s", fileName, line)
 			}
 			// Check if the file exists.
 			importFileName := strings.Trim(tokens[1], "'")
