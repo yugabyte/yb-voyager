@@ -318,8 +318,7 @@ EOT
 install_ora2pg() {
 	if which ora2pg > /dev/null 2>&1
 	then
-		output "ora2pg is already installed. Skipping."
-		return
+		output "ora2pg is already installed. Updating to the latest version required to run yb-voyager."
 	fi
 
 	ora2pg_license_acknowledgement
