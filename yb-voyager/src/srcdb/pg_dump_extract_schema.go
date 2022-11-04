@@ -102,8 +102,14 @@ func parseSchemaFile(exportDir string) int {
 	}
 
 	var uncategorizedSqls, setSessionVariables strings.Builder
-	for i := 0; i < len(delimiterIndexes)-1; i++ {
-		stmts := strings.Join(lines[delimiterIndexes[i]+1:delimiterIndexes[i+1]], "\n") + "\n\n\n"
+	for i := 0; i < len(delimiterIndexes); i++ {
+		var stmts string
+		if i == len(delimiterIndexes)-1 {
+			stmts = strings.Join(lines[delimiterIndexes[i]+1:], "\n") + "\n\n\n"
+		} else {
+			stmts = strings.Join(lines[delimiterIndexes[i]+1:delimiterIndexes[i+1]], "\n") + "\n\n\n"
+		}
+
 		if i == 0 {
 			// Deal with SET statments
 			setSessionVariables.WriteString("-- setting variables for current session\n")
