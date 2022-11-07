@@ -9,6 +9,10 @@ ARGS_MACOS=$*
 ARGS_LINUX=$@
 
 VERSION="latest"
+
+# the hash corresponds to the yb-voyager/v0.80 tag
+YB_VOYAGER_GIT_HASH="f9782237626acd0e2dc0feb0a40608978262764d"
+
 ONLY_PG="false"
 
 trap on_exit EXIT
@@ -226,7 +230,7 @@ install_yb_voyager() {
 	output "Installing yb-voyager:${VERSION}."
 	if [ "${VERSION}" == "latest" ]
 	then
-		$GO install github.com/yugabyte/yb-voyager/yb-voyager@latest
+		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
 	fi
