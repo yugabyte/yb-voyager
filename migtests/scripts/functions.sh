@@ -57,7 +57,7 @@ run_mysql() {
 run_sqlplus() {
 	db_name=$1
 	sql=$2
-	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = ${SOURCE_DB_HOST}) (PORT = ${SOURCE_DB_PORT}))(CONNECT_DATA = (SID = ${db_name})))"
 	echo exit | sqlplus ${conn_string} @${sql}
 }
 
@@ -86,6 +86,7 @@ export_data() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
+		--disable-pb
 		--send-diagnostics=false
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
@@ -122,6 +123,7 @@ import_data() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--disable-pb \
 		--send-diagnostics=false \
 		$*
 }
