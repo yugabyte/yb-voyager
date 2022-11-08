@@ -34,9 +34,9 @@ type Source struct {
 	Uri               string
 	NumConnections    int
 	VerboseMode       bool
-	TableList        string
-	ExcludeTableList string
-	UseOrafce        bool
+	TableList         string
+	ExcludeTableList  string
+	UseOrafce         bool
 	CommentsOnObjects bool
 
 	sourceDB SourceDB
@@ -201,6 +201,10 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 			lines[i] = "DATA_TYPE      VARCHAR2:varchar,NVARCHAR2:varchar,DATE:timestamp,LONG:text,LONG RAW:bytea,CLOB:text,NCLOB:text,BLOB:bytea,BFILE:bytea,RAW(16):uuid,RAW(32):uuid,RAW:bytea,UROWID:oid,ROWID:oid,FLOAT:double precision,DEC:decimal,DECIMAL:decimal,DOUBLE PRECISION:double precision,INT:integer,INTEGER:integer,REAL:real,SMALLINT:smallint,BINARY_FLOAT:double precision,BINARY_DOUBLE:double precision,TIMESTAMP:timestamp,XMLTYPE:xml,BINARY_INTEGER:integer,PLS_INTEGER:integer,TIMESTAMP WITH TIME ZONE:timestamp with time zone,TIMESTAMP WITH LOCAL TIME ZONE:timestamp with time zone"
 		} else if strings.HasPrefix(line, "DISABLE_COMMENT") && !source.CommentsOnObjects {
 			lines[i] = "DISABLE_COMMENT 1"
+		} else if strings.HasPrefix(line, "PG_INTEGER_TYPE") {
+			lines[i] = "PG_INTEGER_TYPE 1" // Required otherwise MySQL autoincrement sequences don't export
+		} else if strings.HasPrefix(line, "DEFAULT_NUMERIC") {
+			lines[i] = "DEFAULT_NUMERIC numeric"
 		}
 	}
 

@@ -59,7 +59,7 @@ insert into date_time_types values (current_date(),
                                     current_timestamp(),
                                     year(current_date()));
 insert into date_time_types values (current_date(), 
-									current_time() +1, 
+									current_time(), 
                                     curdate(),
                                     convert_tz(STR_TO_DATE(DATE_FORMAT(current_date(),'%m-%d-%Y %H:%i:%s'),'%m-%d-%Y %H:%i:%s'),'+00:00','-02:30'),
                                     88);
@@ -74,17 +74,17 @@ insert into date_time_types values (current_date(),
                                     convert_tz(STR_TO_DATE(DATE_FORMAT(current_date(),'%m-%d-%Y %H:%i:%s'),'%m-%d-%Y %H:%i:%s'),'+00:00','-02:30'),
                                     88);
 insert into date_time_types values (current_date(), 
-									current_time() +1, 
+									current_time(), 
                                     NULL,
                                     convert_tz(STR_TO_DATE(DATE_FORMAT(current_date(),'%m-%d-%Y %H:%i:%s'),'%m-%d-%Y %H:%i:%s'),'+00:00','-02:30'),
                                     88);
 insert into date_time_types values (current_date(), 
-									current_time() +1, 
+									current_time(), 
                                     curdate(),
                                     NULL,
                                     88);
 insert into date_time_types values (current_date(), 
-									current_time() +1, 
+									current_time(), 
                                     curdate(),
                                     convert_tz(STR_TO_DATE(DATE_FORMAT(current_date(),'%m-%d-%Y %H:%i:%s'),'%m-%d-%Y %H:%i:%s'),'+00:00','-02:30'),
                                     NULL);
