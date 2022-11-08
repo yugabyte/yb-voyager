@@ -5,31 +5,15 @@ export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
 set -e
-
-OPTS=$(getopt -o "", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- "$@")
-
-
-eval set -- "$OPTS"
+ARGS_MACOS=$*
+ARGS_LINUX=$@
 
 VERSION="latest"
+
+# the hash corresponds to the yb-voyager/v0.80 tag
+YB_VOYAGER_GIT_HASH="f9782237626acd0e2dc0feb0a40608978262764d"
+
 ONLY_PG="false"
-
-while true; do
-	case "$1" in
-		--install-from-local-source ) 
-			VERSION="local"
-			shift
-			;;
-		--only-pg-support ) 
-			ONLY_PG="true"; 
-			shift 
-			;;
-		* ) 
-			break 
-			;;
-	esac
-done
-
 
 trap on_exit EXIT
 
@@ -41,8 +25,9 @@ GO="$GOROOT/bin/go"
 
 LOG_FILE=/tmp/install-yb-voyager.log
 
-# the commit-hash is from main branch after the release 23.1
-ORA2PG_VERSION="e0de314698c5052d93373f2c45586a9a0c5fea8c"
+# commit hash in main branch after release 23.2
+# issues #489 #492 #247 in ora2pg were fixed after this change
+ORA2PG_VERSION="3e27abba5939d5796419a1d835d6d4d0b2d5e01d"
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
@@ -76,10 +61,12 @@ main() {
 	os=$(uname -s)
 	case ${os} in
 		"Darwin")
+			get_passed_options darwin
 			macos_main
 			exit $?
 			;;
 		"Linux")
+			get_passed_options linux
 			# Proceed to distribution check.
 			;;
 		*)
@@ -186,6 +173,33 @@ macos_main() {
 # COMMON
 #=============================================================================
 
+get_passed_options() {
+	if [ "$1" == "linux" ]
+	then
+		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- $ARGS_LINUX)
+	else
+		OPTS=$(getopt  lp  $ARGS_MACOS)
+	fi
+
+	eval set -- "$OPTS"
+
+	while true; do
+		case "$1" in
+			-l | --install-from-local-source ) 
+				VERSION="local"
+				shift
+				;;
+			-p | --only-pg-support ) 
+				ONLY_PG="true"; 
+				shift 
+				;;
+			* ) 
+				break 
+				;;
+		esac
+	done
+}
+
 check_binutils_version() {
 	output "Checking binutils version."
 	min_required_version='2.25'
@@ -216,7 +230,7 @@ install_yb_voyager() {
 	output "Installing yb-voyager:${VERSION}."
 	if [ "${VERSION}" == "latest" ]
 	then
-		$GO install github.com/yugabyte/yb-voyager/yb-voyager@latest
+		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
 		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
 	fi
@@ -265,7 +279,7 @@ install_golang() {
 	file_name="${GO_VERSION}.${os}-${arch}.tar.gz"
 	output "Installing golang os=${os} arch=${arch}."
 
-	wget --no-verbose https://golang.org/dl/${file_name} 1>&2
+	wget -nv https://golang.org/dl/${file_name} 1>&2
 	rm -rf $GOROOT
 	tar -C /tmp -xzf ${file_name} 1>&2
 	rm ${file_name}
@@ -308,8 +322,7 @@ EOT
 install_ora2pg() {
 	if which ora2pg > /dev/null 2>&1
 	then
-		output "ora2pg is already installed. Skipping."
-		return
+		output "ora2pg is already installed. Updating to the latest version required to run yb-voyager."
 	fi
 
 	ora2pg_license_acknowledgement
@@ -318,7 +331,7 @@ install_ora2pg() {
 	sudo cpanm DBD::mysql Test::NoWarnings DBD::Oracle 1>&2
 
 	output "Installing ora2pg."
-	wget --no-verbose https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
+	wget -nv https://github.com/darold/ora2pg/archive/${ORA2PG_VERSION}.tar.gz 1>&2
 	tar -xf ${ORA2PG_VERSION}.tar.gz 1>&2
 	cd ora2pg-${ORA2PG_VERSION}/
 	perl Makefile.PL 1>&2
@@ -376,7 +389,7 @@ create_base_ora2pg_conf_file() {
 		output "Overwriting ${conf_file_name}. Existing contents are backed up in ${backup_file_name}"
 	fi
 	output "Installing the latest base-ora2pg.conf"
-	sudo wget -qO $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
+	sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 }
 
 
@@ -414,7 +427,7 @@ ubuntu_install_postgres() {
 	output "Installing postgres."
 	line="deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main"
 	sudo grep -qxF "$line" /etc/apt/sources.list.d/pgdg.list || echo "$line" | sudo tee /etc/apt/sources.list.d/pgdg.list 1>&2
-	wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+	wget -nv -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 	sudo apt-get update 1>&2
 	sudo apt-get -y install postgresql-14 1>&2
 	output "Postgres Installed."
@@ -436,7 +449,7 @@ ubuntu_install_oic() {
 		echo "$1 is already installed."
 	else
 		rpm_name="$1-21.5.0.0.0-1.x86_64.rpm"
-		wget https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
+		wget -nv https://download.oracle.com/otn_software/linux/instantclient/215000/${rpm_name} 1>&2
 		sudo alien -i ${rpm_name} 1>&2
 		rm ${rpm_name}
 	fi

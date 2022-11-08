@@ -63,22 +63,14 @@ func init() {
 	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")
 
-	exportDataCmd.Flags().StringVar(&migrationMode, "migration-mode", "offline",
-		"mode can be offline | online")
-
-	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
+	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 }
 
 func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 
-	var success bool
-	if migrationMode == "offline" {
-		success = exportDataOffline()
-	} else {
-		success = exportDataOnline()
-	}
+	success := exportDataOffline()
 
 	if success {
 		createExportDataDoneFlag()
@@ -95,7 +87,7 @@ func exportDataOffline() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
-
+	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
@@ -170,13 +162,6 @@ func exportDataOffline() bool {
 	return true
 }
 
-func exportDataOnline() bool {
-	errMsg := "online migration not supported yet\n"
-	utils.ErrExit(errMsg)
-
-	return false
-}
-
 //flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
@@ -229,8 +214,8 @@ func extractTableListFromString(flagTableList string) []string {
 			tableName = parts[1]
 		}
 		if utils.IsQuotedString(tableName) {
-			if  source.DBType == ORACLE {
-				tableName = strings.Trim(tableName,`"`)
+			if source.DBType == ORACLE {
+				tableName = strings.Trim(tableName, `"`)
 			}
 		} else {
 			switch source.DBType {
@@ -258,5 +243,23 @@ func createExportDataDoneFlag() {
 	_, err := os.Create(exportDoneFlagPath)
 	if err != nil {
 		utils.ErrExit("creating exportDataDone flag: %v", err)
+	}
+}
+
+func checkSourceDBCharset() {
+	// If source db does not use unicode character set, ask for confirmation before
+	// proceeding for export.
+	charset, err := source.DB().GetCharset()
+	if err != nil {
+		utils.PrintAndLog("[WARNING] Failed to find character set of the source db: %s", err)
+		return
+	}
+	log.Infof("Source database charset: %q", charset)
+	if !strings.Contains(strings.ToLower(charset), "utf") {
+		utils.PrintAndLog("voyager supports only unicode character set for source database. "+
+			"But the source database is using '%s' character set. ", charset)
+		if !utils.AskPrompt("Are you sure you want to proceed with export? ") {
+			utils.ErrExit("Export aborted.")
+		}
 	}
 }

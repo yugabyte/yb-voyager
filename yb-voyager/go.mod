@@ -9,7 +9,9 @@ require (
 	github.com/godror/godror v0.30.2
 	github.com/google/uuid v1.1.2
 	github.com/gosuri/uitable v0.0.4
+	github.com/jackc/pgconn v1.10.1
 	github.com/jackc/pgx/v4 v4.14.1
+	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/nightlyone/lockfile v1.0.0
 	github.com/sirupsen/logrus v1.8.1
 	github.com/spf13/cobra v1.3.0
@@ -31,7 +33,6 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
-	github.com/jackc/pgconn v1.10.1 // indirect
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgproto3/v2 v2.2.0 // indirect

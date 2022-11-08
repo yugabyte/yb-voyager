@@ -72,7 +72,7 @@ func initializeExportTableMetadata(tableList []string) {
 
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
-		if source.DBType == ORACLE {
+		if source.DBType == ORACLE || source.DBType == MYSQL {
 			partitionList := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionList) > 0 {
 				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionList), partitionList)
@@ -81,7 +81,11 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
 					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
-					tablesProgressMetadata[key].TableSchema = source.Schema
+					if source.DBType == MYSQL { // for a table in MySQL: database and schema is same
+						tablesProgressMetadata[key].TableSchema = source.DBName
+					} else {
+						tablesProgressMetadata[key].TableSchema = source.Schema
+					}
 					tablesProgressMetadata[key].TableName = partitionName
 
 					// partition are unique under a table in oracle
@@ -195,7 +199,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	}
 	tableDataFile, err := os.Open(tableDataFileName)
 	if err != nil {
-		fmt.Println(err)
+		utils.PrintAndLog("failed to open the data file %s for progress reporting: %q", tableDataFileName, err)
 		quitChan <- true
 		runtime.Goexit()
 	}

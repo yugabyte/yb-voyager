@@ -91,5 +91,9 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 			utils.WaitChannel <- 0 //stop waiting with exit code 0
 			<-utils.WaitChannel
 		}
+		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
+			utils.ErrExit(err.Error())
+		}
 	}
+
 }

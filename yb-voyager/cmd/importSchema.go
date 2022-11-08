@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 )
@@ -69,19 +70,38 @@ func importSchema() {
 		createTargetSchemas(conn)
 	}
 	var objectList []string
+
+	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
 	if !flagPostImportData { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
-		objectList = utils.SetDifference(objectList, []string{"TRIGGER", "INDEX"})
+		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
 		if len(objectList) == 0 {
 			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 	} else { // Post data load.
-		objectList = []string{"INDEX", "TRIGGER"}
+		objectList = objectsToImportAfterData
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
-	importSchemaInternal(&target, exportDir, objectList, nil)
+
+	// Import ALTER TABLE statements from sequence.sql only after importing everything else
+	isAlterStatement := func(objType, stmt string) bool {
+		stmt = strings.ToUpper(strings.TrimSpace(stmt))
+		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+
+	skipFn := isAlterStatement
+	importSchemaInternal(&target, exportDir, objectList, skipFn)
+
+	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	if slices.Contains(objectList, "SEQUENCE") {
+		skipFn = func(objType, stmt string) bool {
+			return !isAlterStatement(objType, stmt)
+		}
+		importSchemaInternal(&target, exportDir, []string{"SEQUENCE"}, skipFn)
+	}
+
 	callhome.PackAndSendPayload(exportDir)
 }
 
@@ -103,7 +123,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	}
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
-	utils.PrintAndLog("schemas to be present in target database: %v\n", targetSchemas)
+	utils.PrintAndLog("schemas to be present in target database %q: %v\n", target.DBName, targetSchemas)
 
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
@@ -161,4 +181,16 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	}
 
 	return fetchedSchema == targetSchema
+}
+
+func isAlreadyExists(errString string) bool {
+	alreadyExistsErrors := []string{"already exists",
+		"multiple primary keys",
+		"already a partition"}
+	for _, subStr := range alreadyExistsErrors {
+		if strings.Contains(errString, subStr) {
+			return true
+		}
+	}
+	return false
 }

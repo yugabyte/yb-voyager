@@ -47,7 +47,7 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	var query string
 	if !tableProgressMetadata.IsPartition {
-		query = fmt.Sprintf("SELECT NUM_ROWS FROM USER_TABLES "+
+		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
 			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
 	} else {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
@@ -175,4 +175,14 @@ func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMeta
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+}
+
+func (ora *Oracle) GetCharset() (string, error) {
+	var charset string
+	query := "SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET'"
+	err := ora.db.QueryRow(query).Scan(&charset)
+	if err != nil {
+		return "", fmt.Errorf("failed to query %q for database encoding: %s", query, err)
+	}
+	return charset, nil
 }

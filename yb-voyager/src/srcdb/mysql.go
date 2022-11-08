@@ -46,8 +46,15 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 
 func (ms *MySQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
-	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
-		"where table_name = '%s'", tableProgressMetadata.TableName) // TODO: approx row count query might be different for table partitions
+	var query string
+	if !tableProgressMetadata.IsPartition {
+		query = fmt.Sprintf("SELECT table_rows from information_schema.tables "+
+			"where table_name = '%s'", tableProgressMetadata.TableName)
+	} else {
+		query = fmt.Sprintf("SELECT table_rows from information_schema.partitions "+
+			"where table_name='%s' and partition_name='%s' and table_schema='%s'",
+			tableProgressMetadata.ParentTable, tableProgressMetadata.TableName, tableProgressMetadata.TableSchema)
+	}
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
@@ -88,11 +95,34 @@ func (ms *MySQL) GetAllTableNames() []string {
 		}
 		tableNames = append(tableNames, tableName)
 	}
+	log.Infof("GetAllTableNames(): %s", tableNames)
 	return tableNames
 }
 
 func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
-	panic("Not Implemented")
+	query := fmt.Sprintf(`SELECT partition_name  from information_schema.partitions
+	WHERE table_name='%s' and table_schema='%s' ORDER BY partition_name ASC`,
+		tableName, ms.source.DBName)
+
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to list partitions of table %q: %v", tableName, err)
+	}
+	defer rows.Close()
+
+	var partitionNames []string
+	for rows.Next() {
+		var partitionName sql.NullString
+		err = rows.Scan(&partitionName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows: %v", err)
+		}
+		if partitionName.Valid {
+			partitionNames = append(partitionNames, partitionName.String)
+		}
+	}
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
+	return partitionNames
 }
 
 func (ms *MySQL) getConnectionUri() string {
@@ -145,4 +175,14 @@ func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetada
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+}
+
+func (ms MySQL) GetCharset() (string, error) {
+	var charset string
+	query := "SELECT @@character_set_database"
+	err := ms.db.QueryRow(query).Scan(&charset)
+	if err != nil {
+		return "", fmt.Errorf("run query %q on source: %w", query, err)
+	}
+	return charset, nil
 }

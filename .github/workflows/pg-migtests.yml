@@ -10,7 +10,7 @@ jobs:
   run-pg-migration-tests:
     strategy:
       matrix:
-        version: [2.14.2.0-b25, 2.15.2.0-b87]
+        version: [2.14.4.0-b26,2.17.1.0-b128]
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -30,10 +30,16 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Install python3 and psycopg2
+      run: |
+        sudo apt install -y python3
+        sudo apt install -y libpq-dev
+        sudo pip3 install psycopg2
+
     - name: Run installer script
       run: |
         cd installer_scripts
-        yes | ./install-yb-voyager --install-from-local-source
+        yes | ./install-yb-voyager --install-from-local-source --only-pg-support
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 

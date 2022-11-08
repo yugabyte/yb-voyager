@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,12 +48,12 @@ var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", 
 	"MVIEW" /*"DBLINK",*/, "SYNONYM" /*, "DIRECTORY"*/}
 
 // In PG, PARTITION are exported along with TABLE
-var postgresSchemaObjectList = []string{"SCHEMA", "TYPE", "DOMAIN", "SEQUENCE",
+var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYPE", "DOMAIN", "SEQUENCE",
 	"TABLE", "INDEX", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
-	"MVIEW", "EXTENSION", "COMMENT" /* GRANT, ROLE*/}
+	"MVIEW", "COMMENT" /* GRANT, ROLE*/}
 
 // In MYSQL, TYPE and SEQUENCE are not supported
-var mysqlSchemaObjectList = []string{"TABLE" /*, "PARTITION"*/, "INDEX", "VIEW", /*"GRANT*/
+var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE"}
 
 type ExportMetaInfo struct {
@@ -64,7 +64,7 @@ type ExportMetaInfo struct {
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 
-//report.json format
+// report.json format
 type Report struct {
 	Summary Summary `json:"summary"`
 	Issues  []Issue `json:"issues"`
