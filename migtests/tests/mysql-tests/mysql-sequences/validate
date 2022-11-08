@@ -20,6 +20,12 @@ EXPECTED_TABLE_SUM = {
 	'sequence_check_3': 1963
 }
 
+EXPECTED_TABLE_ID_AFTER_INSERT = {
+	'sequence_check_1': 8,
+	'sequence_check_2': 57,
+	'sequence_check_3': 403
+}
+
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
@@ -34,6 +40,23 @@ def migration_completed_checks(tgt):
 		sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id")
 		print(f"table_name: {table_name}, sum_column_values: {sum_column_values}")
 		assert sum_column_values == EXPECTED_TABLE_SUM[table_name]
+		
+	num_sequences = tgt.count_sequences("public")
+	print(f"Number of Sequences {num_sequences}")
+	assert num_sequences == 3
+    
+	for table_name, _ in EXPECTED_ROW_COUNT.items():
+		INSERT_SEQUENCE_QUERY = f"insert into public.{table_name} (first_name, last_name, email, gender, ip_address) values ('Yugabyte', 'Meecher', 'nmeecher9@quantcast.com', 'Male', '152.239.228.215');"
+		insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
+		print(f"insert query returned for {table_name} - {insert_query_chk_error}")
+		assert insert_query_chk_error == False
+	
+	for table_name, expected_id in EXPECTED_TABLE_ID_AFTER_INSERT.items():
+		SELECT_ID_QUERY = f"select id from public.{table_name} where first_name = 'Yugabyte'";
+		id_returned = tgt.execute_query(SELECT_ID_QUERY)
+		print(f"for {table_name}, Id returned- {id_returned} and expected id - {expected_id}")
+		assert id_returned == expected_id
+
 
 
 if __name__ == "__main__":
