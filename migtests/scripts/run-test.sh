@@ -77,11 +77,11 @@ main() {
 
 	step "Import data."
 	import_data
-	
+
 	step "Import remaining schema (FK, index, and trigger)."
-	import_schema --import-indexes-after-data
+	import_schema --post-import-data
 	run_ysql ${TARGET_DB_NAME} "\di"
-	run_ysql ${TARGET_DB_NAME} "\dft" 
+	run_ysql ${TARGET_DB_NAME} "\dft"
 
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]
