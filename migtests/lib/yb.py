@@ -114,19 +114,27 @@ class PostgresDB:
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
+	# Method to get a list of all the triggers in the database
 	def get_objects_of_type_trigger(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"select trigger_name from information_schema.triggers where trigger_schema = '{schema_name}'")
 		return [obj[0] for obj in cur.fetchall()]
 
+	# Method to get a list of all the stored procedures in the database
 	def get_objects_of_type_procedure(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"select proname from pg_proc join pg_namespace on pg_proc.pronamespace = pg_namespace.oid"+
 			f" where nspname = '{schema_name}'")
 		return [obj[0] for obj in cur.fetchall()]
 
+	# Method to get a list of all materialized views in a databse
 	def get_objects_of_type_materialized_views(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"select matviewname from pg_matviews join pg_namespace on pg_matviews.schemaname = pg_namespace.nspname"+
 			f" where nspname = '{schema_name}'")
 		return [obj[0] for obj in cur.fetchall()]
+
+	# Method to get the datatypes of the columns in the table
+	def get_datatypes_all_tables(self, schema_name="public") -> Dict[str, List[str]]:
+		tables = self.get_table_names(schema_name)
+		return {table: self.get_column_datatypes_of_table(table, schema_name) for table in tables}
