@@ -20,12 +20,6 @@ EXPECTED_TABLE_SUM = {
 	'sequence_check3': 6
 }
 
-EXPECTED_TABLE_ID_AFTER_INSERT = {
-	'sequence_check1': 8,
-	'sequence_check2': 57,
-	'sequence_check3': 403
-}
-
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
