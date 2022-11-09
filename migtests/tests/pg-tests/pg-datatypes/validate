@@ -1,0 +1,62 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+ 	'num_types': 3,   
+	'datatypes1': 3,  
+	'datetime_type': 3, 
+	'datatypes2': 3,
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'num_types': {
+		'v1': '32621',
+		'v2': '-3380617',
+		'v3': '564312385451',
+		'v4': '993.999',
+		'v5': '9992334.5429',
+		'v6': '-$12,000,369.60'
+	}
+}
+
+EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 4
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("datatypes1", "enum_type", "public")
+	print(f"distinct_enum_values:")
+	for distinct_value in distinct_values_enum_types:
+		print(f"{distinct_value}")
+		assert distinct_value.lower() in EXPECTED_ENUM_VALUES
+
+	distinct_values_bool_types = tgt.get_distinct_values__of_column_of_table("datatypes1", "bool_type", "public")
+	print(f"distinct_bool_values:")
+	for distinct_value in distinct_values_bool_types:
+		print(f"{distinct_value}")
+		assert distinct_value == 0 or distinct_value == 1
+		
+
+if __name__ == "__main__":
+	main()
