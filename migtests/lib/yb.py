@@ -60,7 +60,7 @@ class PostgresDB:
 
 	def get_row_count(self, table_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT COUNT(*) FROM {schema_name}.{table_name}")
+		cur.execute(f'SELECT COUNT(*) FROM {schema_name}."{table_name}"')
 		return cur.fetchone()[0]
 
 	def row_count_of_all_tables(self, schema_name="public") -> Dict[str, int]:
