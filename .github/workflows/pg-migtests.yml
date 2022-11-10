@@ -80,7 +80,7 @@ jobs:
     - name: "TEST: pg-views"
       run: migtests/scripts/run-test.sh pg-tests/pg-views
     
-    - name: "TEST: pg-misc-objects-1 (Enum, case-sensitive-table-name, Domain)"
+    - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
     - name: "TEST: import-data-file"
