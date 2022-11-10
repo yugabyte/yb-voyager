@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'view_table1' : 6
+}
+EXPECTED_ID_VALUES_AFTER_PROC_CALL = [1,2,3,4,5,7,8]
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 1
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	COUNT_PROC_QUERY = "select count(p.proname) as procedure from pg_proc p join pg_namespace n on p.pronamespace = n.oid where n.nspname = 'public' and p.prokind = 'p'"
+	count_procs = tgt.execute_query(COUNT_PROC_QUERY)
+	print(f"Returned count of procedures - {count_procs} and expected procs count is 1")
+	assert count_procs == 1 
+	
+	COUNT_TRIGGER_QUERY = "select count(trigger_name) from information_schema.triggers;"
+	count_triggers = tgt.execute_query(COUNT_TRIGGER_QUERY)
+	print(f"Returned count of triggers - {count_triggers} and expected triggers count is 1")
+	assert count_triggers == 1 
+
+	chk_err_call_proc = tgt.run_query_and_chk_error("CALL insert_data();", None)
+	print(f"Calling the proc chk error returned - {chk_err_call_proc}")
+	assert chk_err_call_proc == False
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert (row_count + 1) == got_row_count[table_name]
+
+	id_values = tgt.get_distinct_values__of_column_of_table("view_table1", "id", "public")
+	print(f"Returned id_values - {id_values} and expected id values - {EXPECTED_ID_VALUES_AFTER_PROC_CALL}")
+	id_values.sort()
+	assert  id_values == EXPECTED_ID_VALUES_AFTER_PROC_CALL
+
+
+
+if __name__ == "__main__":
+	main()

@@ -76,6 +76,12 @@ jobs:
 
     - name: "TEST: pg-sequences"
       run: migtests/scripts/run-test.sh pg-tests/pg-sequences
+    
+    - name: "TEST: pg-views"
+      run: migtests/scripts/run-test.sh pg-tests/pg-views
+    
+    - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
+      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test

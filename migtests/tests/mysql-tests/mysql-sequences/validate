@@ -52,7 +52,7 @@ def migration_completed_checks(tgt):
 		assert insert_query_chk_error == False
 	
 	for table_name, expected_id in EXPECTED_TABLE_ID_AFTER_INSERT.items():
-		SELECT_ID_QUERY = f"select id from public.{table_name} where first_name = 'Yugabyte'";
+		SELECT_ID_QUERY = f"select id from public.{table_name} where first_name = 'Yugabyte'"
 		id_returned = tgt.execute_query(SELECT_ID_QUERY)
 		print(f"for {table_name}, Id returned- {id_returned} and expected id - {expected_id}")
 		assert id_returned == expected_id

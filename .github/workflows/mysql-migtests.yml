@@ -69,5 +69,8 @@ jobs:
     - name: "TEST: mysql-case-sequences"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-sequences    
 
+    - name: "TEST: mysql-triggers-procedures"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-triggers-procedures   
+
     - name: "TEST: mysql-case-views"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-views
