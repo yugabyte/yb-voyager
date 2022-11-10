@@ -2,13 +2,10 @@
 
 # Sections
 - [Introduction](#introduction)
+- [Salient Features](#salient-features)
 - [Machine Requirements](#machine-requirements)
 - [Installation](#installation)
 - [Migration Steps](#migration-steps)
-    - [Source DB Setup](#source-db-setup)
-    - [Target DB Setup](#target-db-setup)
-    - [Source DB Export](#source-db-export)
-    - [Target DB Import](#target-db-import)
 - [Features and Enhancements To Follow Soon](#features-and-enhancements-in-the-pipeline)
 
 # Introduction
