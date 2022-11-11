@@ -28,7 +28,14 @@ source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 main() {
+	echo "Deleting the parent export-dir present in the test directory"
+	rm -rf ${EXPORT_DIR}	
+	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
+	echo "Assigning permissions to the export-dir"
+	chmod +x ${TEST_DIR}/init-db
+	echo "Assigning permissions to the validate filess"
+	chmod +x ${TEST_DIR}/validate
 
 	step "START: ${TEST_NAME}"
 	print_env
