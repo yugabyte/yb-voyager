@@ -280,6 +280,7 @@ func checkFileOpts() {
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
 	registerCommonImportFlags(importDataFileCmd)
+	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
 		fmt.Sprintf("supported data file types: %s", supportedFileFormats))
@@ -307,7 +308,4 @@ func init() {
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\" or --file-opts 'escape_char=",quote_char="'`)
-
-	importDataFileCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data import (default false)")
 }
