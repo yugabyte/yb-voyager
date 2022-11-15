@@ -23,12 +23,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-<<<<<<< HEAD
-	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces`, schemaList, filepath.Join(exportDir, "temp", "schema.sql"))
-	cmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, connectionUri, pgDumpArgs)
-	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
-	redactedCmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, redactedUri, pgDumpArgs)
-=======
 	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --extension "*"`,
 		source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
 	if !source.CommentsOnObjects {
@@ -37,7 +31,6 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
 	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)
->>>>>>> 0faaa9d1d5f27c3f5f66533f90c90627ad016c86
 	log.Infof("Running command: %s", redactedCmd)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)

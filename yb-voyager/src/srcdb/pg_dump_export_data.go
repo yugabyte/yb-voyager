@@ -45,15 +45,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 
 	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces`,
 		tableListPatterns, dataDirPath, source.NumConnections)
-<<<<<<< HEAD
-	cmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, connectionUri, pgDumpArgs)
-	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
-	redactedCmd := fmt.Sprintf(`%s "%s" %s`, pgDumpPath, redactedUri, pgDumpArgs)
-=======
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
 	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)
->>>>>>> 0faaa9d1d5f27c3f5f66533f90c90627ad016c86
 	log.Infof("Running command: %s", redactedCmd)
 
 	var outbuf bytes.Buffer

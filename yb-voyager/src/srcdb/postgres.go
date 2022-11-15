@@ -218,8 +218,6 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
 	return "", err
 }
-<<<<<<< HEAD
-=======
 
 func (pg *PostgreSQL) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
@@ -230,4 +228,3 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	}
 	return encoding, nil
 }
->>>>>>> 0faaa9d1d5f27c3f5f66533f90c90627ad016c86
