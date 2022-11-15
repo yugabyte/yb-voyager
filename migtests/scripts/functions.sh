@@ -30,7 +30,7 @@ print_env() {
 run_psql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
+	psql "postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
 }
 
 grant_user_permission_postgresql() {
@@ -44,22 +44,22 @@ grant_user_permission_postgresql() {
 run_pg_restore() {
 	db_name=$1
 	file_name=$2
-	export PGPASSWORD="secret"
+	export PGPASSWORD=${SOURCE_DB_ADMIN_PASSWORD}
 	pg_restore --no-password -h ${SOURCE_DB_HOST} -p ${SOURCE_DB_PORT} \
-		-U postgres -d ${db_name} ${file_name}
+		-U ${SOURCE_DB_ADMIN_USER} -d ${db_name} ${file_name}
 	unset PGPASSWORD
 }
 
 run_ysql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://yugabyte:""@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
+	psql "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
 run_mysql() {
 	db_name=$1
 	sql=$2
-	mysql -u root -proot -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
+	mysql -u ${SOURCE_DB_ADMIN_USER} -p${SOURCE_DB_ADMIN_PASSWORD} -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -D ${db_name} -e "${sql}"
 }
 
 grant_user_permission_mysql() {
