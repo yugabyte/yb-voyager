@@ -60,7 +60,7 @@ class PostgresDB:
 
 	def get_row_count(self, table_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT COUNT(*) FROM {schema_name}.{table_name}")
+		cur.execute(f'SELECT COUNT(*) FROM {schema_name}."{table_name}"')
 		return cur.fetchone()[0]
 
 	def row_count_of_all_tables(self, schema_name="public") -> Dict[str, int]:
@@ -80,11 +80,13 @@ class PostgresDB:
 			f" where nspname = '{schema_name}' AND relkind = '{object_type}'")
 		return [obj[0] for obj in cur.fetchall()]
 	
+
 	def get_sum_of_column_of_table(self, table_name, column_name, schema_name="public") -> int:
 		cur = self.conn.cursor()
 		cur.execute(f"select sum({column_name}) from {schema_name}.{table_name}")
 		return cur.fetchone()[0]
 		
+
 	def get_count_index_on_table(self, schema_name="public") -> Dict[str,int]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT tablename, count(indexname) FROM pg_indexes WHERE schemaname = '{schema_name}' GROUP  BY tablename;")
@@ -110,9 +112,12 @@ class PostgresDB:
 		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}';")
 		return cur.fetchone()[0]
 
-	def execute_function_query(self, query) -> Any:
+	def execute_query(self, query) -> Any:
 		cur=self.conn.cursor()
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
-
+	def count_sequences(self,schema_name="public") -> int :
+		cur = self.conn.cursor()
+		cur.execute(f"select count(sequence_name) from information_schema.sequences where sequence_schema='{schema_name}';")
+		return cur.fetchone()[0]

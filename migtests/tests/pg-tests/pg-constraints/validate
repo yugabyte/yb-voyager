@@ -14,7 +14,7 @@ EXPECTED_ROW_COUNT = {
 	'foreign_test': 4,         
 	'not_null_check': 6,
 	'primary_test': 6,  
-	'unique_test': 6
+	'unique_test': 5
 }
 QUERIES_CHECK = {
 	'NULL_CHECK': {
@@ -45,7 +45,7 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-		
+
 	for type_check, query_and_code in QUERIES_CHECK.items():
 		query, code = query_and_code['query'], query_and_code['code']
 		chk_err_returned = tgt.run_query_and_chk_error(query, code)
@@ -60,6 +60,7 @@ def migration_completed_checks(tgt):
 	age_returned = tgt.execute_query(SELECT__DEFAULT_ID_QUERY)
 	print(f"for {table_name}, Age returned- {age_returned} and expected age - {18}")
 	assert age_returned == 18
+
 
 if __name__ == "__main__":
 	main()

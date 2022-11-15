@@ -68,5 +68,20 @@ jobs:
     - name: "TEST: pg-partitions"
       run: migtests/scripts/run-test.sh pg-partitions
 
+    - name: "TEST: pg-constraints"
+      run: migtests/scripts/run-test.sh pg-tests/pg-constraints
+
+    - name: "TEST: pg-datatypes"
+      run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
+
+    - name: "TEST: pg-sequences"
+      run: migtests/scripts/run-test.sh pg-tests/pg-sequences
+    
+    - name: "TEST: pg-views"
+      run: migtests/scripts/run-test.sh pg-tests/pg-views
+    
+    - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
+      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
+
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
