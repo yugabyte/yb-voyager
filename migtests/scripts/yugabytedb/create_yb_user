@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
+source migtests/scripts/yugabytedb/env.sh
+source migtests/scripts/functions.sh
 
-psql "postgresql://yugabyte:@${TARGET_DB_HOST}:${TARGET_DB_PORT}" -c "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+run_ysql "" "CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD ${TARGET_DB_PASSWORD};"
+# psql "postgresql://yugabyte:@${TARGET_DB_HOST}:${TARGET_DB_PORT}" -c "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"

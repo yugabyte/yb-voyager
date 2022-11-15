@@ -38,7 +38,6 @@ jobs:
     
     - name: Create MySQL user
       run: |
-        source migtests/scripts/mysql/env.sh
         ./migtests/scripts/mysql/create_mysql_user
 
     - name: Start YugabyteDB cluster
@@ -53,7 +52,6 @@ jobs:
 
     - name: Create YugabyteDB user
       run: |
-        source migtests/scripts/yugabytedb/env.sh
         ./migtests/scripts/yugabytedb/create_yb_user
 
     - name: Enable yb-tserver-n1 name resolution

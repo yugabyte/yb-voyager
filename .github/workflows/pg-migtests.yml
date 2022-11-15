@@ -49,7 +49,6 @@ jobs:
 
     - name: Create PostgreSQL user
       run: |
-        source migtests/scripts/postgresql/env.sh
         ./migtests/scripts/postgresql/create_pg_user
 
     - name: Start YugabyteDB cluster
@@ -64,7 +63,6 @@ jobs:
     
     - name: Create YugabyteDB user
       run: |
-        source migtests/scripts/yugabytedb/env.sh
         ./migtests/scripts/yugabytedb/create_yb_user
 
     - name: Enable yb-tserver-n1 name resolution

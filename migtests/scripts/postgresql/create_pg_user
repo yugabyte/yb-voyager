@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+source migtests/scripts/postgresql/env.sh
+source migtests/scripts/functions.sh
 
-psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}" -c "CREATE USER ybvoyager PASSWORD 'password';"
+run_psql "" "CREATE USER ${SOURCE_DB_USER} PASSWORD ${SOURCE_DB_PASSWORD};"
+# psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}" -c 
 	
