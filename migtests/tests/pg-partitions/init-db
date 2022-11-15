@@ -10,7 +10,7 @@ run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
 run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
-psql "postgresql://${SOURCE_DB_USER}:'${SOURCE_DB_PASSWORD}'@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}" -f partitionTables.sql
+psql "postgresql://${SOURCE_DB_ADMIN_USER}:'${SOURCE_DB_ADMIN_PASSWORD}'@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}" -f partitionTables.sql
 
 echo "Check source database."
 run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM sales_region"
