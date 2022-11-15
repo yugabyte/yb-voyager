@@ -2,6 +2,6 @@
 source migtests/scripts/postgresql/env.sh
 source migtests/scripts/functions.sh
 
-run_psql "" "CREATE USER ${SOURCE_DB_USER} PASSWORD ${SOURCE_DB_PASSWORD};"
+run_psql "postgres" "CREATE USER ${SOURCE_DB_USER} PASSWORD ${SOURCE_DB_PASSWORD};"
 # psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}" -c 
 	
