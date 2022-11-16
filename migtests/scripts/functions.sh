@@ -140,8 +140,9 @@ import_data_file() {
 		$*
 }
 
-create target_schema() {
-	if[${TARGET_DB_SCHEMA} != "public"] {
+create_target_schema() {
+	if [ ${TARGET_DB_SCHEMA} != "public" ]
+	then
 		run_ysql ${TARGET_DB_NAME} "CREATE SCHEMA IF NOT EXISTS ${TARGET_DB_SCHEMA}"
-	}
+	fi
 } 
