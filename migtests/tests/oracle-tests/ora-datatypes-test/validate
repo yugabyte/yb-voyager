@@ -42,8 +42,9 @@ def migration_completed_checks(tgt):
 		assert row_count == got_row_count[table_name]
 
 	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
-	for table_name, row_count in fetched_datatypes_schema.items():
+	for table_name in fetched_datatypes_schema.items():
 		print(f"table_name: {table_name}, row_count: {fetched_datatypes_schema[table_name]}")
+		assert collections.Counter(EXPECTED_DATA_TYPES[table_name]) == collections.Counter(fetched_datatypes_schema[table_name])	
 
 if __name__ == "__main__":
 	main()
