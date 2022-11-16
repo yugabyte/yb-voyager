@@ -72,7 +72,7 @@ main() {
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Create target schema."
-	run_ysql yugabyte target_schema
+	run_ysql yugabyte create_target_schema
 
 	step "Import schema."
 	import_schema
