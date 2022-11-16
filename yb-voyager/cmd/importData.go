@@ -1168,14 +1168,31 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		return
 	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
-	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
+	var copyCommandRegex *regexp.Regexp
 	if sourceDBType == "postgresql" {
 		// find the line from toc.txt file
 		fileToSearchIn = exportDir + "/data/toc.txt"
 
-		// if no schema then add public in tableName as it is there in postgres' toc file
-		if len(strings.Split(table, ".")) == 1 {
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
+		conn := newTargetConn()
+		defer conn.Close(context.Background())
+
+		parentTable := getParentTable(table, conn)
+		if parentTable != "" { // this is partitioned table
+			// add schema name to parentTable
+			splits := strings.Split(table, ".")
+			if len(splits) > 1 {
+				parentTable = splits[0] + "." + parentTable
+			} else {
+				parentTable = "public." + parentTable
+			}
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, parentTable))
+		} else {
+			// if no schema then add public in tableName as it is there in postgres' toc file
+			if len(strings.Split(table, ".")) == 1 {
+				copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
+			} else {
+				copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
+			}
 		}
 	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
 		// For oracle, there is only unique COPY per datafile
@@ -1204,6 +1221,33 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 			return
 		}
 	}
+}
+
+// get the parent table if its a partitioned table in yugabytedb
+// also covers the case when the partitions are further subpartitioned to multiple levels
+func getParentTable(table string, conn *pgx.Conn) string {
+	var parentTable string
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits i ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table)
+
+	var currentParentTable string
+	err := conn.QueryRow(context.Background(), query).Scan(&currentParentTable)
+	if err != pgx.ErrNoRows && err != nil {
+		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
+	}
+
+	if len(currentParentTable) == 0 {
+		return ""
+	} else {
+		parentTable = getParentTable(currentParentTable, conn)
+		if len(parentTable) == 0 {
+			parentTable = currentParentTable
+		}
+	}
+
+	log.Infof("parentTable=%s for table=%s", parentTable, table)
+	return parentTable
 }
 
 func getCopyCommand(table string) string {
