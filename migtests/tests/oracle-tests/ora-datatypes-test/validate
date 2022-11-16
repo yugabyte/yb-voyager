@@ -40,11 +40,13 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-
+#=============================================================================
 	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
 	for table_name, data_types in fetched_datatypes_schema.items():
-		print(f"table_name: {table_name}, row_count: {fetched_datatypes_schema[table_name]}")
-		assert fetched_datatypes_schema[table_name].sort() == fetched_datatypes_schema[table_name].sort()	
+		print(f"table_name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
+	for table_name, data_types in EXPECTED_DATA_TYPES.items():
+		print(f"table_name: {table_name}, data_types: {EXPECTED_DATA_TYPES[table_name]}")
+	# assert fetched_datatypes_schema[table_name].sort() == fetched_datatypes_schema[table_name].sort()	
 
 if __name__ == "__main__":
 	main()
