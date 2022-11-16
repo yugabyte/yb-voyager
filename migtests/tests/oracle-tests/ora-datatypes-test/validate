@@ -23,6 +23,7 @@ EXPECTED_DATA_TYPES = {
 	'numeric_types_float': 'double precision',
 	'numeric_types_binary_float': 'double precision',
 	'numeric_types_binary_double': 'double precision',
+
 	'date_time_types': {'timestamp','timestamp','timestamp with time zone','timestamp with time zone'},
 	'interval_types': {'INTERVAL YEAR TO MONTH','INTERVAL DAY TO SECOND(6)'},
 	'char_types': {'varchar','varchar','char','char'},
@@ -36,11 +37,6 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-	# Validations to check for datatypes of each column in the table
-	fetched_datatypes_all_tables = tgt.get_datatypes_of_all_tables("datatypes_schema")
-	for table_name, datatypes in fetched_datatypes_all_tables.items():
-		print(f"table_name: {table_name}, datatypes: {datatypes}")
-		assert EXPECTED_DATA_TYPES[table_name] == datatypes
 
 if __name__ == "__main__":
 	main()
