@@ -115,7 +115,12 @@ class PostgresDB:
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
-	def fetch_datatypes_schema(self, schema_name="public") -> Dict[str, List[str]]:
+	def fetch_datatypes_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, List[str]]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}';")
-		return {table: {column: datatype for table, column, datatype in cur.fetchall()}}
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
+		tables = {}
+		for table_name, column_name, data_type in cur.fetchall():
+			if table_name not in tables:
+				tables[table_name] = []
+			tables[table_name].append(data_type)
+		return tables
