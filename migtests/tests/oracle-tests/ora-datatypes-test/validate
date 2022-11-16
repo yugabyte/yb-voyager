@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import yb
+import collections
 
 def main():
 	yb.run_checks(migration_completed_checks)
@@ -20,17 +21,17 @@ EXPECTED_ROW_COUNT = {
 }
 
 EXPECTED_DATA_TYPES = {
-	'numeric_types_number': 'numeric',
-	'numeric_types_float': 'double precision',
-	'numeric_types_binary_float': 'double precision',
-	'numeric_types_binary_double': 'double precision',
+	'numeric_types_number': {'numeric'},
+	'numeric_types_float': {'double precision'},
+	'numeric_types_binary_float': {'double precision'},
+	'numeric_types_binary_double': {'double precision'},
 	'numeric_types': {'numeric','double precision','double precision','double precision'},
 	'date_time_types': {'timestamp','timestamp','timestamp with time zone','timestamp with time zone'},
 	'interval_types': {'INTERVAL YEAR TO MONTH','INTERVAL DAY TO SECOND(6)'},
 	'char_types': {'varchar','varchar','char','char'},
-	'long_type': 'text',
+	'long_type': {'text'},
 	'raw_type': {'bytea','bytea'},
-	'number_ps': {}
+	'number_ps': {'numeric','smallint','real','numeric','real'}
 }
 
 def migration_completed_checks(tgt):
@@ -39,6 +40,9 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
+
+	fetched_datatypes_schema = tgt.fetch_datatypes_schema("public")
+	assert all(EXPECTED_DATA_TYPES.get(k) == v for k,v in fetched_datatypes_schema.items())
 
 if __name__ == "__main__":
 	main()
