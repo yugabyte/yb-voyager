@@ -31,7 +31,7 @@ def migration_completed_checks(tgt):
 	for query_with_res in CHECK_FUNCTIONS_QUERIES:
 		query = query_with_res['query']
 		expected_ret_val = query_with_res['res']
-		return_val = tgt.execute_query(query)
+		return_val = tgt.execute_function_query(query)
 		print(f"Value of execution of function - {query} is {return_val}")
 		assert expected_ret_val == return_val
 
