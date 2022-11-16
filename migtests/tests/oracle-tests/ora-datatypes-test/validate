@@ -15,7 +15,8 @@ EXPECTED_ROW_COUNT = {
 	'interval_types': 4,
 	'char_types': 6,
 	'long_type': 3,
-	'raw_type': 6
+	'raw_type': 6,
+	'number_ps': 1
 }
 
 EXPECTED_DATA_TYPES = {
@@ -23,12 +24,13 @@ EXPECTED_DATA_TYPES = {
 	'numeric_types_float': 'double precision',
 	'numeric_types_binary_float': 'double precision',
 	'numeric_types_binary_double': 'double precision',
-
+	'numeric_types': {'numeric','double precision','double precision','double precision'},
 	'date_time_types': {'timestamp','timestamp','timestamp with time zone','timestamp with time zone'},
 	'interval_types': {'INTERVAL YEAR TO MONTH','INTERVAL DAY TO SECOND(6)'},
 	'char_types': {'varchar','varchar','char','char'},
 	'long_type': 'text',
-	'raw_type': {'bytea','bytea'}
+	'raw_type': {'bytea','bytea'},
+	'number_ps': {}
 }
 
 def migration_completed_checks(tgt):
