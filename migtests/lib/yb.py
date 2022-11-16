@@ -115,3 +115,6 @@ class PostgresDB:
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
+	def get_datatypes_of_all_tables(self, schema_name="public") -> Dict[str, List[str]]:
+		tables = self.get_table_names(schema_name)
+		return {table: self.get_datatypes_of_table(table, schema_name) for table in tables}
