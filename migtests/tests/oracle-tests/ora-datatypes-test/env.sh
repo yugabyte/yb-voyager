@@ -2,3 +2,4 @@ export SOURCE_DB_TYPE="oracle"
 export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"ORCL"}
 export TARGET_DB_HOST=${TARGET_DB_HOST:-"10.9.203.12"}
 export TARGET_DB_SCHEMA=${TARGET_DB_SCHEMA:-"datatypes_schema"}
+export TARGET_DB_NAME=${TARGET_DB_NAME:-"datatypes_test"}
