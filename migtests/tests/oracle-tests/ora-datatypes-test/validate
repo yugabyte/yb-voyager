@@ -44,7 +44,7 @@ def migration_completed_checks(tgt):
 	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
 	for table_name, data_types in fetched_datatypes_schema.items():
 		print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
-		assert set(fetched_datatypes_schema[table_name]) == set(fetched_datatypes_schema[table_name])
+		assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
 
 if __name__ == "__main__":
 	main()
