@@ -139,3 +139,9 @@ import_data_file() {
 		--send-diagnostics=false \
 		$*
 }
+
+create target_schema() {
+	if(${TARGET_DB_SCHEMA} != "public") {
+		run_ysql ${TARGET_DB_NAME} "CREATE SCHEMA IF NOT EXISTS ${TARGET_DB_SCHEMA}"
+	}
+} 
