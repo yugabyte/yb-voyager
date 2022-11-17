@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+
+# import os
+# import sys
+
+# if os.geteuid != 0:
+#     os.execvp('sudo',['sudo','python3']+sys.argv)
+print("Testing")

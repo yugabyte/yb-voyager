@@ -17,6 +17,7 @@ print_env() {
 	echo "SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}"
 	echo "SOURCE_DB_NAME=${SOURCE_DB_NAME}"
 	echo "SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA}"
+	echo "SOURCE_SSL_MODE=${SOURCE_SSL_MODE}"
 	echo ""
 	echo "TARGET_DB_HOST=${TARGET_DB_HOST}"
 	echo "TARGET_DB_PORT=${TARGET_DB_PORT}"
@@ -68,6 +69,10 @@ export_schema() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
+	if [ "${SOURCE_SSL_MODE}" != "" ]
+	then
+		args="${args} --source-ssl-mode ${SOURCE_SSL_MODE}"
+	fi
 	yb-voyager export schema ${args} $*
 }
 
@@ -85,6 +90,10 @@ export_data() {
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+	fi
+	if [ "${SOURCE_SSL_MODE}" != "" ]
+	then
+		args="${args} --source-ssl-mode ${SOURCE_SSL_MODE}"
 	fi
 	yb-voyager export data ${args} $*
 }
