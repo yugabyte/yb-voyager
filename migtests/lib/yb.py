@@ -110,7 +110,7 @@ class PostgresDB:
 		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}';")
 		return cur.fetchone()[0]
 
-	def execute_function_query(self, query) -> Any:
+	def execute_query(self, query) -> Any:
 		cur=self.conn.cursor()
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
