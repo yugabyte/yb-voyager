@@ -5,7 +5,9 @@ import sys
 import fileinput
 
 with open("pgdatadir") as f:
-    datadir=f.readline()
+    datadir=f.readline().strip(" \n")
+    
+    
 
 os.remove("pgdatadir")
 
