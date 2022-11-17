@@ -148,6 +148,8 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"List of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
 		"List of schema object types to exclude while importing schema (no-op if --object-list is used)")
+	cmd.Flags().BoolVar(&importObjectsInStraightOrder, "straight-order", false,
+		"If set, objects will be imported in the order specified while listing them")
 	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
 	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,
