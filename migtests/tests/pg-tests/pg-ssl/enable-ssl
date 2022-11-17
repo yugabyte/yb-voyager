@@ -3,15 +3,18 @@
 import os
 import sys
 import fileinput
-
+config_files=[]
 with open("pgconfig") as f:
-    config_file=f.readline().strip(" \n")
+    for line in f:
+        config_file=line.strip(" \n")
+        config_files.append(config_file)
 os.remove("pgconfig")
 
-with open(config_file, 'r') as file:
-  content = file.read()
+for config_file in config_files:
+    with open(config_file, 'r') as file:
+        content = file.read()
 
-content = content.replace('#ssl = off', 'ssl = on')
+    content = content.replace('#ssl = off', 'ssl = on')
 
-with open(config_file, 'w') as file:
-  file.write(content)
+    with open(config_file, 'w') as file:
+        file.write(content)
