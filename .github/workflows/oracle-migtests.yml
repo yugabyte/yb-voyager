@@ -1,4 +1,4 @@
-name: "MySQL: Migration Tests"
+name: "Oracle: Migration Tests"
 
 on:
   push:
@@ -29,7 +29,7 @@ jobs:
 
     - name: Test Oracle Connection
       run: |
-        psql "sqlplus ADMIN/Password1@ssinghal-dms-oracle.cbtcvpszcgdq.us-west-2.rds.amazonaws.com:1521/DMS"
+        sqlplus -f ADMIN/Password1@cnaidu-oracle-database.cbtcvpszcgdq.us-west-2.rds.amazonaws.com:1521/ORCL
 
     - name: Test YugabyteDB connection
       run: |
@@ -40,8 +40,5 @@ jobs:
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: oracle-partitions migration"
-      run: migtests/scripts/run-test.sh ora-partition-tests
-
-    - name: "TEST: oracle-foreign-key-migration "
-      run: migtests/scripts/run-test.sh ora-foreign-key-tests
+    - name: "TEST: oracle-data-types migration"
+      run: migtests/scripts/run-test.sh oracle-tests/ora-datatypes-test
