@@ -1177,6 +1177,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		defer conn.Close(context.Background())
 
 		parentTable := getParentTable(table, conn)
+		log.Infof("parentTable=%s for table=%s", parentTable, table)
 		if parentTable != "" { // this is partitioned table
 			// add schema name to parentTable
 			splits := strings.Split(table, ".")
@@ -1187,7 +1188,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 			}
 			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, parentTable))
 		} else {
-			// if no schema then add public in tableName as it is there in postgres' toc file
+			// if no schema is provided use public with tableName as it is there in postgres' toc file
 			if len(strings.Split(table, ".")) == 1 {
 				copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
 			} else {
@@ -1228,7 +1229,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 func getParentTable(table string, conn *pgx.Conn) string {
 	var parentTable string
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits i ON c.oid = inhrelid
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
 	WHERE c.oid = '%s'::regclass::oid`, table)
 
 	var currentParentTable string
@@ -1246,7 +1247,6 @@ func getParentTable(table string, conn *pgx.Conn) string {
 		}
 	}
 
-	log.Infof("parentTable=%s for table=%s", parentTable, table)
 	return parentTable
 }
 
