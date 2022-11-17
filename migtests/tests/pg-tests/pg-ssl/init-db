@@ -19,4 +19,6 @@ echo "Check source database."
 run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM ssl_table1;"
 
 echo "Enabling SSL connectivity."
+run_psql ${SOURCE_DB_NAME} "show data_directory;" | head -n 3 | tail -n 1 > pgdatadir
 sudo python3 enable-ssl
+sudo systemctl list-units | grep postgres
