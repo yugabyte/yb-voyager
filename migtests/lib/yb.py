@@ -115,6 +115,11 @@ class PostgresDB:
 		cur.execute(f"{query}")
 		return cur.fetchone()[0]
 
+	def count_sequences(self,schema_name="public") -> int :	
+		cur = self.conn.cursor()	
+		cur.execute(f"select count(sequence_name) from information_schema.sequences where sequence_schema='{schema_name}';")	
+		return cur.fetchone()[0]
+
 	def fetch_datatypes_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, List[str]]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
