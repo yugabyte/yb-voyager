@@ -4,14 +4,11 @@ import os
 import sys
 import fileinput
 
-with open("pgdatadir") as f:
-    datadir=f.readline().strip(" \n")
-    
-    
+with open("pgconfig") as f:
+    config_file=f.readline().strip(" \n")
+os.remove("pgconfig")
 
-os.remove("pgdatadir")
-
-with fileinput.input(datadir+"/postgresql.conf", inplace=True) as f:
+with fileinput.input(config_file, inplace=True) as f:
     for line in f:
         new_line = line.replace("#ssl = off", "ssl = on")
         print(new_line, end='')
