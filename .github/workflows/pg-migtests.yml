@@ -47,6 +47,9 @@ jobs:
       run: |
         psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
 
+    - name: "TEST: pg-ssl"
+      run: migtests/scripts/run-test.sh pg-tests/pg-ssl
+
     - name: Start YugabyteDB cluster
       run: |
         docker pull yugabytedb/yugabyte:${{ matrix.version }}
@@ -62,9 +65,6 @@ jobs:
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: pg-ssl"
-      run: migtests/scripts/run-test.sh pg-tests/pg-ssl
-    
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental
 
