@@ -20,5 +20,6 @@ run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM ssl_table1;"
 
 echo "Enabling SSL connectivity."
 sudo find / -name postgresql.conf > pgconfig
-sudo python3 enable-ssl
 sudo systemctl list-units | grep postgres
+sudo python3 enable-ssl
+
