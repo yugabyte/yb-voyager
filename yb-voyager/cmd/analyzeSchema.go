@@ -89,6 +89,7 @@ var (
 	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
 	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
 	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
+	createTableRegex 	 = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([^,]+(?:,[^,]+){0,}, PRIMARY KEY ([^,]+(?:,[^,]+){0,})) PARTITION BY RANGE([^,]+(?:,[^,]+){0,});`)
 	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
 	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
 	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
@@ -452,6 +453,16 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
+		} else if regMatch := createTableRegex.FindStringSubmatch(sqlInfo.stmt); regMatch !=nil {
+			primaryKeyColumns := strings.Trim(regMatch[3], `()`)
+			partitionColumns := strings.Trim(regMatch[4], `()`)
+			partitionColumnsList := strings.Split(partitionColumns, ",")
+			for _, each := range partitionColumnsList {
+				if !strings.Contains(primaryKeyColumns, each) {
+					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[1], sqlInfo.formattedStmt)
+				}
+			}
 		}
 	}
 }
