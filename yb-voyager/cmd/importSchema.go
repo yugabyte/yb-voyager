@@ -53,6 +53,7 @@ func init() {
 }
 
 var flagPostImportData bool
+var importObjectsInStraightOrder bool
 
 func importSchema() {
 	err := target.DB().Connect()
