@@ -11,10 +11,15 @@ with open("pgconfig") as f:
 os.remove("pgconfig")
 
 for config_file in config_files:
-    with open(config_file, 'r') as file:
-        content = file.read()
+    print(f"Changing conf file {config_file}.")
+    try:
+        with open(config_file, 'r') as file:
+            content = file.read()
+    
 
-    content = content.replace('#ssl = off', 'ssl = on')
+        content = content.replace('#ssl = off', 'ssl = on')
 
-    with open(config_file, 'w') as file:
-        file.write(content)
+        with open(config_file, 'w') as file:
+            file.write(content)
+    except:
+        continue
