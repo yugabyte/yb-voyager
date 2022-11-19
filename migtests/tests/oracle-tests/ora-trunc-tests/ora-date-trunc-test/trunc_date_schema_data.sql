@@ -1,4 +1,3 @@
-drop table TRUNC_TEST_1;
 CREATE TABLE TRUNC_TEST_1 (id integer primary key, 
                            d1 DATE,
                            d2 DATE,
