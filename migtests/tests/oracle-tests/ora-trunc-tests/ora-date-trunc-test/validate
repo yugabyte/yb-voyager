@@ -7,7 +7,7 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'TRUNC_TEST_1': 1,
+	'trunc_test_1': 1,
 }
 
 def migration_completed_checks(tgt):
