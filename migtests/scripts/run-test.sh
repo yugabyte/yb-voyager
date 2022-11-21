@@ -62,7 +62,10 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Export data."
-	export_data
+	if [ "${NO_DATA_SCHEMA}" ]
+	then
+		export_data
+	fi
 	ls -l ${EXPORT_DIR}/data
 
 	step "Create target database."
@@ -74,7 +77,10 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	step "Import data."
-	import_data
+	if [ "${NO_DATA_SCHEMA}" ]
+	then
+		import_data
+	fi
 	
 	step "Import remaining schema (FK, index, and trigger)."
 	import_schema --post-import-data

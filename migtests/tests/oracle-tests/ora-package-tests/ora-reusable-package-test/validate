@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+
+import yb
+import collections
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_PACKAGES = ["pkg","sr_pkg"]
+
+def migration_completed_checks(tgt):
+    # Check that all packages were migrated
+    actual_packages = tgt.fetch_schemas_from_db()
+    for package in EXPECTED_PACKAGES
+        assert package in actual_packages
+
+if __name__ == "__main__":
+	main()

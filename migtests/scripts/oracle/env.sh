@@ -5,3 +5,4 @@ export SOURCE_DB_PORT=${SOURCE_DB_PORT:-1521}
 export SOURCE_DB_USER=${SOURCE_DB_USER:-"sakila_demo"}
 export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD:-"password"}
 export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"sakila_demo"}
+export NO_DATA_SCHEMA=${NO_DATA_SCHEMA:-false}

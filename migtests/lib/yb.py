@@ -129,3 +129,8 @@ class PostgresDB:
 				tables[table_name] = []
 			tables[table_name].append(data_type)
 		return tables
+
+	def fetch_schemas_from_db(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute("SELECT schema_name FROM information_schema.schemata where schema_owner='yugabyte'")
+		return [schema[0] for schema in cur.fetchall()]
