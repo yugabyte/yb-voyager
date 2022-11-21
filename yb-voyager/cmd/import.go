@@ -66,6 +66,7 @@ func validateImportFlags() {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(numLinesInASplit)
+	validateTargetPassword()
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
