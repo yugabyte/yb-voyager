@@ -16,4 +16,4 @@ run_psql ${SOURCE_DB_NAME} "\i pg_views_automation.sql;"
 
 
 echo "Check source database."
-run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM view_table1;"
+run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM test_case.view_table1;"

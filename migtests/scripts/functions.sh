@@ -111,6 +111,7 @@ import_schema() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--target-db-schema ${TARGET_DB_SCHEMA} \
 		--yes \
 		--send-diagnostics=false \
 		$*
@@ -123,6 +124,7 @@ import_data() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--target-db-schema ${TARGET_DB_SCHEMA} \
 		--disable-pb \
 		--send-diagnostics=false \
 		$*
