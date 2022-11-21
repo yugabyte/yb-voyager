@@ -143,7 +143,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags() {
+func validateExportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -156,7 +156,7 @@ func validateExportFlags() {
 	}
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
-	validateSourcePassword()
+	validateSourcePassword(cmd)
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
@@ -241,8 +241,8 @@ func validateOracleParams() {
 
 }
 
-func validateSourcePassword() {
-	if source.Password != "" {
+func validateSourcePassword(cmd *cobra.Command) {
+	if cmd.Flags().Changed("source-db-password") {
 		return
 	}
 	fmt.Print("Password to connect to source:")

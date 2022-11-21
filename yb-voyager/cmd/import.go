@@ -46,7 +46,7 @@ func init() {
 	registerImportDataFlags(importCmd)
 }
 
-func validateImportFlags() {
+func validateImportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
@@ -66,7 +66,7 @@ func validateImportFlags() {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(numLinesInASplit)
-	validateTargetPassword()
+	validateTargetPassword(cmd)
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -174,8 +174,8 @@ func validateTargetSchemaFlag() {
 	}
 }
 
-func validateTargetPassword() {
-	if target.Password != "" {
+func validateTargetPassword(cmd *cobra.Command) {
+	if cmd.Flags().Changed("target-db-password") {
 		return
 	}
 	fmt.Print("Password to connect to target:")
