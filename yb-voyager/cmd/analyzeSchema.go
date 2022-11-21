@@ -453,7 +453,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
-		} else if regMatch := createTableRegex.FindStringSubmatch(sqlInfo.stmt); regMatch !=nil {
+		} else if regMatch := createTableRegex.FindStringSubmatch(strings.Join(strings.Fields(sqlInfo.stmt), " ")); regMatch !=nil {
 			primaryKeyColumns := strings.Trim(regMatch[3], `()`)
 			partitionColumns := strings.Trim(regMatch[4], `()`)
 			partitionColumnsList := strings.Split(partitionColumns, ",")
