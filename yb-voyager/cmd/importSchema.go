@@ -101,9 +101,11 @@ func importSchema() {
 		skipFn = func(objType, stmt string) bool {
 			return !isAlterStatement(objType, stmt)
 		}
-		importObjectFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", importObjectFilePath)
-		executeSqlFile(importObjectFilePath, "SEQUENCE", skipFn)
+		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
+			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+		}
 	}
 
 	log.Info("Schema import is complete.")
