@@ -351,7 +351,7 @@ func importData() {
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
-		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.batches (
+		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
 			schema_name VARCHAR(250),
 			file_name VARCHAR(250),
 			rows_imported BIGINT,
@@ -479,10 +479,10 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
 
-			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.batches WHERE file_name LIKE '%s.%%'`, table)
+			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
 			res, err := conn.Exec(context.Background(), cmd)
 			if err != nil {
-				utils.ErrExit("remove %q related entries from ybvoyager_metadata.batches: %s", table, err)
+				utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
 			}
 			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 		}
@@ -939,18 +939,18 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 		return res.RowsAffected(), err
 	}
 
-	// Record an entry in ybvoyager_metadata.batches, that the split is imported.
+	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
 	rowsAffected = res.RowsAffected()
 	fileName := filepath.Base(getInProgressFilePath(task))
 	schemaName := getTargetSchemaName(task.TableName)
 	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.batches (schema_name, file_name, rows_imported)
+		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
 		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
 	_, err = tx.Exec(ctx, cmd)
 	if err != nil {
-		return 0, fmt.Errorf("insert into ybvoyager_metadata.batches: %w", err)
+		return 0, fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
 	}
-	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.batches", schemaName, fileName, rowsAffected)
+	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
 	return rowsAffected, nil
 }
 
@@ -959,7 +959,7 @@ func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, 
 	fileName := filepath.Base(getInProgressFilePath(task))
 	schemaName := getTargetSchemaName(task.TableName)
 	query := fmt.Sprintf(
-		"SELECT rows_imported FROM ybvoyager_metadata.batches WHERE schema_name = '%s' AND file_name = '%s';",
+		"SELECT rows_imported FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE schema_name = '%s' AND file_name = '%s';",
 		schemaName, fileName)
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
