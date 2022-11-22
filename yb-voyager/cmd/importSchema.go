@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -93,16 +94,21 @@ func importSchema() {
 	}
 
 	skipFn := isAlterStatement
-	importSchemaInternal(&target, exportDir, objectList, skipFn)
+	importSchemaInternal(exportDir, objectList, skipFn)
 
 	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
 	if slices.Contains(objectList, "SEQUENCE") {
 		skipFn = func(objType, stmt string) bool {
 			return !isAlterStatement(objType, stmt)
 		}
-		importSchemaInternal(&target, exportDir, []string{"SEQUENCE"}, skipFn)
+		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
+			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+		}
 	}
 
+	log.Info("Schema import is complete.")
 	callhome.PackAndSendPayload(exportDir)
 }
 

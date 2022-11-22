@@ -22,12 +22,11 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 )
 
-func importSchemaInternal(target *tgtdb.Target, exportDir string, importObjectList []string,
+func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) {
 	schemaDir := filepath.Join(exportDir, "schema")
 	for _, importObjectType := range importObjectList {
@@ -38,7 +37,6 @@ func importSchemaInternal(target *tgtdb.Target, exportDir string, importObjectLi
 		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
 		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
-	log.Info("Schema import is complete.")
 }
 
 func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
