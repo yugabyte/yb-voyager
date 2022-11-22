@@ -49,13 +49,17 @@ def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("p2")
 	print("table_list:", table_list)
 	assert len(table_list) == 3
- 
+
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		schema = table_name.split(".")[0]
 		table = table_name.split(".")[1]
 		got_row_count = tgt.get_row_count(table, schema)
 		print(f"table_name: {table_name}, row_count: {got_row_count}")
-		assert row_count == got_row_count	
+		assert row_count == got_row_count
+  		
+    	# check whether all the indexes on a table are valid
+		print("checking all indexes valid on table: {table_name} are valid")
+		assert tgt.invalid_index_present(table, schema) == False
 
 if __name__ == "__main__":
 	main()
