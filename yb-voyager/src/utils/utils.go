@@ -227,7 +227,7 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
-	if objType == "INDEX" {
+	if objType == "INDEX" || objType == "UNIQUE INDEX"{
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else if objType == "FTS_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")

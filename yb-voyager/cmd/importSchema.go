@@ -90,14 +90,14 @@ func importSchema() {
 	// Import ALTER TABLE statements from sequence.sql only after importing everything else
 	isAlterStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+		return (objType == "SEQUENCE" || objType == "TABLE") && strings.HasPrefix(stmt, "ALTER TABLE")
 	}
 
 	skipFn := isAlterStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
 
 	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
-	if slices.Contains(objectList, "SEQUENCE") {
+	if slices.Contains(objectList, "SEQUENCE") || slices.Contains(objectList, "TABLE") {
 		skipFn = func(objType, stmt string) bool {
 			return !isAlterStatement(objType, stmt)
 		}
@@ -105,6 +105,11 @@ func importSchema() {
 		if utils.FileOrFolderExists(sequenceFilePath) {
 			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
 			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+		}
+		tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
+		if utils.FileOrFolderExists(tableFilePath) {
+			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", tableFilePath)
+			executeSqlFile(tableFilePath, "TABLE", skipFn)
 		}
 	}
 

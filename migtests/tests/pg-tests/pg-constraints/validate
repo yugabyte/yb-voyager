@@ -14,7 +14,9 @@ EXPECTED_ROW_COUNT = {
 	'foreign_test': 4,         
 	'not_null_check': 6,
 	'primary_test': 6,  
-	'unique_test': 5
+	'unique_test': 5,
+	'xyz':3,
+	'abc':3
 }
 QUERIES_CHECK = {
 	'NULL_CHECK': {
@@ -32,13 +34,22 @@ QUERIES_CHECK = {
 	'FORIEGN_CHECK': {
 		'query': "insert into foreign_test values (5,1,7);",
 		'code': 23503
-	}
+	},
+	'UNIQUE_INDEX': {
+		'query': "insert into xyz values(3);",
+		'code': 23505
+	},
+	'FORIEGN_CHECK_WITH_UNIQUE_INDEX': {
+		'query': "insert into abc values ('dsfs', 4);",
+		'code': 23503
+	},
+
 }	
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 6
+	assert len(table_list) == 8
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")
