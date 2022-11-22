@@ -96,20 +96,24 @@ func importSchema() {
 	skipFn := isAlterStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
 
-	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	if slices.Contains(objectList, "SEQUENCE") || slices.Contains(objectList, "TABLE") {
 		skipFn = func(objType, stmt string) bool {
 			return !isAlterStatement(objType, stmt)
 		}
-		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
-			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+		if slices.Contains(objectList, "SEQUENCE") {
+			sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
+			if utils.FileOrFolderExists(sequenceFilePath) {
+				fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
+				executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+			}
 		}
-		tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
-		if utils.FileOrFolderExists(tableFilePath) {
-			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", tableFilePath)
-			executeSqlFile(tableFilePath, "TABLE", skipFn)
+		if slices.Contains(objectList, "TABLE") {
+			tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
+			if utils.FileOrFolderExists(tableFilePath) {
+				fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", tableFilePath)
+				executeSqlFile(tableFilePath, "TABLE", skipFn)
+			}
 		}
 	}
 

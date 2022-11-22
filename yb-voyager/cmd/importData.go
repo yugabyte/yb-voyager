@@ -1047,9 +1047,9 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 
 		stmt := strings.ToUpper(strings.TrimSpace(sqlInfo.stmt))
-        if objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType) {
-            continue
-        } else if objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX") {
+		if objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType) {
+			continue
+		} else if objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX") {
 			continue
 		}
 
