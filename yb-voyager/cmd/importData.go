@@ -1177,24 +1177,17 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		defer conn.Close(context.Background())
 
 		parentTable := getParentTable(table, conn)
-		log.Infof("parentTable=%s for table=%s", parentTable, table)
-		if parentTable != "" { // this is partitioned table
-			// add schema name to parentTable
-			splits := strings.Split(table, ".")
-			if len(splits) > 1 {
-				parentTable = splits[0] + "." + parentTable
-			} else {
-				parentTable = "public." + parentTable
-			}
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, parentTable))
-		} else {
-			// if no schema is provided use public with tableName as it is there in postgres' toc file
-			if len(strings.Split(table, ".")) == 1 {
-				copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
-			} else {
-				copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
-			}
+		tableInCopyRegex := table
+		if parentTable != "" { // needed to find COPY command for table partitions
+			tableInCopyRegex = parentTable
 		}
+		if len(strings.Split(tableInCopyRegex, ".")) == 1 {
+			// happens only when table is in public schema, use public schema with table name for regexp
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
+		} else {
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
+		}
+		log.Infof("parentTable=%s for table=%s", parentTable, table)
 	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
 		// For oracle, there is only unique COPY per datafile
 		// In case of table partitions, parent table name is used in COPY
