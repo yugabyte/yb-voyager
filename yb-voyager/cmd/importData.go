@@ -1005,26 +1005,18 @@ func setTargetSchema(conn *pgx.Conn) {
 		// No need to set schema if importing in the default schema.
 		return
 	}
-	target.Schema = strings.ToLower(target.Schema)
 	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
-	rows, err := conn.Query(context.Background(), checkSchemaExistsQuery)
-	if err != nil {
+	var cntSchemaName int
+	
+	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
-	} 
-	for rows.Next() {
-		var cntSchemaName int
-		err = rows.Scan(&cntSchemaName)
-		if err != nil {
-			utils.ErrExit("error while scanning count returned from the query %q: %s", checkSchemaExistsQuery, err)
-		} else if cntSchemaName == 0 {
-			utils.ErrExit("schema '%s' does not exist in target", target.Schema)
-		}
+	} else if cntSchemaName == 0 {
+		utils.ErrExit("schema '%s' does not exist in target", target.Schema)
 	}
-	defer rows.Close()
 	
 
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
-	_, err = conn.Exec(context.Background(), setSchemaQuery)
+	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 	}
@@ -1365,4 +1357,5 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
+	target.Schema = strings.ToLower(target.Schema)
 }

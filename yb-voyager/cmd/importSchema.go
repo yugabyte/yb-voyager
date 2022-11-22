@@ -51,6 +51,7 @@ func init() {
 	importCmd.AddCommand(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
+	target.Schema = strings.ToLower(target.Schema)
 }
 
 var flagPostImportData bool
