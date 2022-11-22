@@ -18,6 +18,28 @@ WITH region_list AS (
                 region[1 + mod(n, array_length(region, 1))] 
                     FROM amount_list, region_list, generate_series(1,1000) as n;
 
+-- Partition by list with parent table in p1 schema and partitions in p2
+CREATE SCHEMA p1;
+CREATE SCHEMA p2;
+
+CREATE TABLE p1.sales_region (id int, amount int, branch text, region text) PARTITION BY LIST (region);
+CREATE TABLE p2.London PARTITION OF p1.sales_region FOR VALUES IN ('London');
+CREATE TABLE p2.Sydney PARTITION OF p1.sales_region FOR VALUES IN ('Sydney');
+CREATE TABLE p2.Boston PARTITION OF p1.sales_region FOR VALUES IN ('Boston');
+
+WITH region_list AS (
+     SELECT '{"London", "Boston", "Sydney"}'::TEXT[] region
+     ), amount_list AS (
+        SELECT '{1000, 2000, 5000}'::INT[] amount
+        ) 
+        INSERT INTO p1.sales_region  
+        (id, amount, branch, region) 
+            SELECT 
+                n, 
+                amount[1 + mod(n, array_length(amount, 1))], 
+                'Branch ' || n as branch, 
+                region[1 + mod(n, array_length(region, 1))] 
+                    FROM amount_list, region_list, generate_series(1,1000) as n;
 
 -- Partition by range
 
