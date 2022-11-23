@@ -41,8 +41,6 @@ WITH region_list AS (
                 region[1 + mod(n, array_length(region, 1))] 
                     FROM amount_list, region_list, generate_series(1,1000) as n;
 
-CREATE INDEX on p1.sales_region(region);
-
 -- Partition by range
 
 CREATE TABLE sales 
