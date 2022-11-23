@@ -1046,13 +1046,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			conn = newTargetConn()
 		}
 
-		stmt := strings.ToUpper(strings.TrimSpace(sqlInfo.stmt))
-		if objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType) {
-			continue
-		} else if objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX") {
-			continue
-		}
-
 		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
 			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
 		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {

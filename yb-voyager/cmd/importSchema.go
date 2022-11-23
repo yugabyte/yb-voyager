@@ -90,30 +90,38 @@ func importSchema() {
 	// Import ALTER TABLE statements from sequence.sql only after importing everything else
 	isAlterStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		return (objType == "SEQUENCE" || objType == "TABLE") && strings.HasPrefix(stmt, "ALTER TABLE")
+		if objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE"){
+			return true
+		} else if objType == "TABLE" && strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY"){
+			return true
+		} else if objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType){
+			return true
+		} else if objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX") {
+			return true
+		} else {
+			return false
+		}
 	}
 
 	skipFn := isAlterStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
 
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
-	if slices.Contains(objectList, "SEQUENCE") || slices.Contains(objectList, "TABLE") {
-		skipFn = func(objType, stmt string) bool {
-			return !isAlterStatement(objType, stmt)
+	skipFn = func(objType, stmt string) bool {
+		return !isAlterStatement(objType, stmt)
+	}
+	if slices.Contains(objectList, "SEQUENCE") {
+		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
+			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
 		}
-		if slices.Contains(objectList, "SEQUENCE") {
-			sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-			if utils.FileOrFolderExists(sequenceFilePath) {
-				fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
-				executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
-			}
-		}
-		if slices.Contains(objectList, "TABLE") {
-			tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
-			if utils.FileOrFolderExists(tableFilePath) {
-				fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", tableFilePath)
-				executeSqlFile(tableFilePath, "TABLE", skipFn)
-			}
+	}
+	if slices.Contains(objectList, "TABLE") {
+		tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
+		if utils.FileOrFolderExists(tableFilePath) {
+			fmt.Printf("\nImporting FOREIGN KEY DDLs from %q\n\n", tableFilePath)
+			executeSqlFile(tableFilePath, "TABLE", skipFn)
 		}
 	}
 
