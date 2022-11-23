@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_M_VIEW = ["employee_mv_immediate"]
+
+#=============================================================================
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_objects_of_type("MVIEW")
+	assert len(table_list) == len(EXPECTED_M_VIEW)
+	assert set(table_list) == set(EXPECTED_M_VIEW)
+
+	# REFRESH MATERIALIZED VIEW employee_mv_immediate;
+	tgt.refresh_materialized_view("employee_mv_immediate")
+	
+if __name__ == "__main__":
+	main()
