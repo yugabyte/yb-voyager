@@ -38,10 +38,12 @@ var importCmd = &cobra.Command{
 }
 
 func init() {
+	importCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
+		utils.MarkGlobalFlagsHiddenExcept(rootCmd, "help")
+		command.Parent().HelpFunc()(command, strings)
+	})
+
 	rootCmd.AddCommand(importCmd)
-	registerCommonImportFlags(importCmd)
-	registerImportSchemaFlags(importCmd)
-	registerImportDataFlags(importCmd)
 }
 
 func validateImportFlags() {
