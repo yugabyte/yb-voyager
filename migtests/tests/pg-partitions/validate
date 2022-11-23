@@ -54,11 +54,11 @@ def migration_completed_checks(tgt):
 		schema = table_name.split(".")[0]
 		table = table_name.split(".")[1]
 		got_row_count = tgt.get_row_count(table, schema)
-		print(f"table_name: {table_name}, row_count: {got_row_count}")
+		print(f"table_name: {table_name}, target row_count: {got_row_count}")
 		assert row_count == got_row_count
   		
     	# check whether all the indexes on a table are valid
-		print("checking all indexes valid on table: {table_name} are valid")
+		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 
 if __name__ == "__main__":
