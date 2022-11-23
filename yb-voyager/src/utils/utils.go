@@ -29,8 +29,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/yosssi/gohtml"
 	"golang.org/x/exp/slices"
 )
@@ -330,23 +328,4 @@ func GetRedactedURLs(urlList []string) []string {
 		result = append(result, obj.Redacted())
 	}
 	return result
-}
-
-// Contains returns true if the string is in the slice
-func contains(b []string, i string) bool {
-	for _, s := range b {
-		if s == i {
-			return true
-		}
-	}
-	return false
-}
-
-func MarkGlobalFlagsHiddenExcept(command *cobra.Command, unhidden ...string) {
-	command.PersistentFlags().VisitAll(func(flag *pflag.Flag) {
-		name := flag.Name
-		if !contains(unhidden, name) {
-			flag.Hidden = true
-		}
-	})
 }

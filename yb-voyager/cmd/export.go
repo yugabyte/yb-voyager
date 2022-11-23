@@ -40,11 +40,6 @@ var exportCmd = &cobra.Command{
 }
 
 func init() {
-	exportCmd.SetHelpFunc(func(command *cobra.Command, strings []string) {
-		utils.MarkGlobalFlagsHiddenExcept(rootCmd, "help")
-		command.Parent().HelpFunc()(command, strings)
-	})
-
 	rootCmd.AddCommand(exportCmd)
 }
 
