@@ -52,6 +52,19 @@ EXPECTED_SUM_OF_COLUMN = {
 
 EXPECTED_ENUM_VALUES = ['low', 'high', 'med']
 
+EXPECTED_DATA_TYPES = {
+	'bit_types': ['numeric'],
+	'bool_types': ['double precision'],
+	'date_time_types': ['timestamp','timestamp','timestamp with time zone','timestamp with time zone'],
+	'enum_types': [],   
+	'fixed_point_types': [],
+	'floating_point_types': [], 
+  	'int_types': [],     
+ 	'json_types': [],          
+ 	'string_types': [],        
+	'uuid_try': [] 
+}
+
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
@@ -80,6 +93,11 @@ def migration_completed_checks(tgt):
 	for distinct_value in distinct_values_bool_types:
 		print(f"{distinct_value}")
 		assert distinct_value == 0 or distinct_value == 1
+	
+	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
+	for table_name, data_types in fetched_datatypes_schema.items():
+		print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
+		assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
 		
 
 if __name__ == "__main__":
