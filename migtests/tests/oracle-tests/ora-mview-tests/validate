@@ -16,9 +16,9 @@ def migration_completed_checks(tgt):
 
 	# REFRESH MATERIALIZED VIEW employee_mv_immediate;
 	tgt.refresh_materialized_view("employee_mv_immediate")
-    mv_row_count = tgt.get_row_count("employee_mv_immediate")
-    print("MVIEW row count: {}".format(mv_row_count))
-    assert mv_row_count == 12
+	mv_row_count = tgt.get_row_count("employee_mv_immediate")
+	print("MVIEW row count: {}".format(mv_row_count))
+	assert mv_row_count == 12
 	
 if __name__ == "__main__":
 	main()
