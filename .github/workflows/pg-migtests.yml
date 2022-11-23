@@ -67,6 +67,10 @@ jobs:
 
     - name: "TEST: pg-partitions"
       run: migtests/scripts/run-test.sh pg-partitions
+    
+    - name: "TEST: pg-partitions-with-index"
+      run: migtests/scripts/run-test.sh pg-partitions-with-indexes
+      if: matrix.version != '2.15.3.2-b1'
 
     - name: "TEST: pg-constraints"
       run: migtests/scripts/run-test.sh pg-tests/pg-constraints
