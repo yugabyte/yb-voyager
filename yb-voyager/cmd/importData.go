@@ -1005,6 +1005,15 @@ func setTargetSchema(conn *pgx.Conn) {
 		// No need to set schema if importing in the default schema.
 		return
 	}
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
+	var cntSchemaName int
+	
+	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
+	} else if cntSchemaName == 0 {
+		utils.ErrExit("schema '%s' does not exist in target", target.Schema)
+	}
+	
 
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
@@ -1348,4 +1357,5 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
+	target.Schema = strings.ToLower(target.Schema)
 }
