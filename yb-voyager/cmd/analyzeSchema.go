@@ -90,7 +90,7 @@ var (
 	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
 	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
 	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([A-Za-z0-9]+) ([^,]+(?:,[^,]+){0,} \([^,]+(?:,[^,]+){0,}\)) PARTITION BY RANGE ([^,]+(?:,[^,]+){0,}) ;`)
+	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([A-Za-z0-9]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY RANGE ([^,]+(?:,[^,]+){0,}) ;`)
 	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
 	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
 	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
