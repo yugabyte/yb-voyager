@@ -88,27 +88,30 @@ func importSchema() {
 	log.Infof("List of schema objects to import: %v", objectList)
 
 	// Import ALTER TABLE statements from sequence.sql only after importing everything else
-	isAlterStatement := func(objType, stmt string) bool {
+	isAlterTableInSequence := func(objType, stmt string) bool{
+		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+	}
+	isAlterTableFKInTable := func(objType, stmt string) bool{
+		return objType == "TABLE" && strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+	}
+	isNotUniqueIndexInUniqueIndex := func(objType, stmt string) bool{
+		return objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType)
+	}
+	isUniqueIndexInIndex := func(objType, stmt string) bool{
+		return objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX")
+	}
+	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		if objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE"){
-			return true
-		} else if objType == "TABLE" && strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY"){
-			return true
-		} else if objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType){
-			return true
-		} else if objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX") {
-			return true
-		} else {
-			return false
-		}
+		return isAlterTableInSequence(objType, stmt) || isAlterTableFKInTable(objType, stmt) || 
+			isNotUniqueIndexInUniqueIndex(objType, stmt) || isUniqueIndexInIndex(objType, stmt) 
 	}
 
-	skipFn := isAlterStatement
+	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
 
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
-		return !isAlterStatement(objType, stmt)
+		return !isSkipStatement(objType, stmt)
 	}
 	if slices.Contains(objectList, "SEQUENCE") {
 		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")

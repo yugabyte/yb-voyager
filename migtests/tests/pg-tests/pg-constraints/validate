@@ -31,7 +31,7 @@ QUERIES_CHECK = {
 		'query': "insert into check_test (id, first_name, last_name, age) values (7, 'Tom', 'Stewan', 15);",
 		'code': 23514
 	},
-	'FORIEGN_CHECK': {
+	'FOREIGN_CHECK': {
 		'query': "insert into foreign_test values (5,1,7);",
 		'code': 23503
 	},
@@ -39,7 +39,7 @@ QUERIES_CHECK = {
 		'query': "insert into xyz values(3);",
 		'code': 23505
 	},
-	'FORIEGN_CHECK_WITH_UNIQUE_INDEX': {
+	'FOREIGN_CHECK_WITH_UNIQUE_INDEX': {
 		'query': "insert into abc values ('dsfs', 4);",
 		'code': 23503
 	},
