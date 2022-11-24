@@ -465,9 +465,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
-			for _, eachPrimaryColumn := range primaryKeyColumnsList {
-				eachPrimaryColumn = strings.Trim(eachPrimaryColumn, " ")
-			}
 			for _, eachPartitionColumn := range partitionColumnsList {
 				eachPartitionColumn = strings.Trim(eachPartitionColumn, " ")
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
