@@ -1,87 +1,87 @@
-name: "PG: Migration Tests"
+# name: "PG: Migration Tests"
 
-on:
-  push:
-    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
-  pull_request:
-    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+# on:
+#   push:
+#     branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+#   pull_request:
+#     branches: [ main, v1.0.0-xbeta, 0.81-dev ]
 
-jobs:
-  run-pg-migration-tests:
-    strategy:
-      matrix:
-        version: [2.14.4.0-b26,2.15.3.2-b1]
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:13
-        env:
-          POSTGRES_PASSWORD: secret
-        # Set health checks to wait until postgres has started
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          # Maps tcp port 5432 on service container to the host
-          - 5432:5432
+# jobs:
+#   run-pg-migration-tests:
+#     strategy:
+#       matrix:
+#         version: [2.14.4.0-b26,2.15.3.2-b1]
+#     runs-on: ubuntu-latest
+#     services:
+#       postgres:
+#         image: postgres:13
+#         env:
+#           POSTGRES_PASSWORD: secret
+#         # Set health checks to wait until postgres has started
+#         options: >-
+#           --health-cmd pg_isready
+#           --health-interval 10s
+#           --health-timeout 5s
+#           --health-retries 5
+#         ports:
+#           # Maps tcp port 5432 on service container to the host
+#           - 5432:5432
 
-    steps:
-    - uses: actions/checkout@v3
+#     steps:
+#     - uses: actions/checkout@v3
 
-    - name: Install python3 and psycopg2
-      run: |
-        sudo apt install -y python3
-        sudo apt install -y libpq-dev
-        sudo pip3 install psycopg2
+#     - name: Install python3 and psycopg2
+#       run: |
+#         sudo apt install -y python3
+#         sudo apt install -y libpq-dev
+#         sudo pip3 install psycopg2
 
-    - name: Run installer script
-      run: |
-        cd installer_scripts
-        yes | ./install-yb-voyager --install-from-local-source --only-pg-support
-      env:
-        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+#     - name: Run installer script
+#       run: |
+#         cd installer_scripts
+#         yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+#       env:
+#         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
-    - name: Test PostgreSQL Connection
-      run: |
-        psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+#     - name: Test PostgreSQL Connection
+#       run: |
+#         psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
 
-    - name: Start YugabyteDB cluster
-      run: |
-        docker pull yugabytedb/yugabyte:${{ matrix.version }}
-        VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
-        sleep 20
+#     - name: Start YugabyteDB cluster
+#       run: |
+#         docker pull yugabytedb/yugabyte:${{ matrix.version }}
+#         VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+#         sleep 20
 
-    - name: Test YugabyteDB connection
-      run: |
-        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+#     - name: Test YugabyteDB connection
+#       run: |
+#         psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
-    - name: Enable yb-tserver-n1 name resolution
-      run: |
-        echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
-        psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+#     - name: Enable yb-tserver-n1 name resolution
+#       run: |
+#         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+#         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: pg-dvdrental"
-      run: migtests/scripts/run-test.sh pg-dvdrental
+#     - name: "TEST: pg-dvdrental"
+#       run: migtests/scripts/run-test.sh pg-dvdrental
 
-    - name: "TEST: pg-partitions"
-      run: migtests/scripts/run-test.sh pg-partitions
+#     - name: "TEST: pg-partitions"
+#       run: migtests/scripts/run-test.sh pg-partitions
 
-    - name: "TEST: pg-constraints"
-      run: migtests/scripts/run-test.sh pg-tests/pg-constraints
+#     - name: "TEST: pg-constraints"
+#       run: migtests/scripts/run-test.sh pg-tests/pg-constraints
 
-    - name: "TEST: pg-datatypes"
-      run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
+#     - name: "TEST: pg-datatypes"
+#       run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
 
-    - name: "TEST: pg-sequences"
-      run: migtests/scripts/run-test.sh pg-tests/pg-sequences
+#     - name: "TEST: pg-sequences"
+#       run: migtests/scripts/run-test.sh pg-tests/pg-sequences
     
-    - name: "TEST: pg-views"
-      run: migtests/scripts/run-test.sh pg-tests/pg-views
+#     - name: "TEST: pg-views"
+#       run: migtests/scripts/run-test.sh pg-tests/pg-views
     
-    - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
-      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
+#     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
+#       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
-    - name: "TEST: import-data-file"
-      run: migtests/tests/import-file/run-import-file-test
+#     - name: "TEST: import-data-file"
+#       run: migtests/tests/import-file/run-import-file-test
