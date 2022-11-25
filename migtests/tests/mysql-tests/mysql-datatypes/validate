@@ -94,7 +94,7 @@ def migration_completed_checks(tgt):
 		print(f"{distinct_value}")
 		assert distinct_value == 0 or distinct_value == 1
 	
-	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
+	fetched_datatypes_schema = tgt.fetch_datatypes_and_columns_of_all_tables_in_schema("public")
  
 	print(fetched_datatypes_schema)
 	# for table_name, data_types in fetched_datatypes_schema.items():

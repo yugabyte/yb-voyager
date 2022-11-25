@@ -123,13 +123,22 @@ class PostgresDB:
 	def fetch_datatypes_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, List[str]]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
-		# tables = {}
-		# for table_name, column_name, data_type in cur.fetchall():
-		# 	if table_name not in tables:
-		# 		tables[table_name] = []
-		# 	tables[table_name].append(data_type)
-		# return tables
-		return cur.fetchall()
+		tables = {}
+		for table_name, column_name, data_type in cur.fetchall():
+			if table_name not in tables:
+				tables[table_name] = []
+			tables[table_name].append(data_type)
+		return tables
+
+	def fetch_datatypes_and_columns_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, Dict[str,str]]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
+		tables = {}
+		for table_name, column_name, data_type in cur.fetchall():
+			if table_name not in tables:
+				tables[table_name] = {}
+			tables[table_name][column_name].append(data_type)
+		return tables
 
 	def invalid_index_present(self, table_name, schema_name):
 		cur = self.conn.cursor()
