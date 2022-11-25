@@ -137,7 +137,7 @@ class PostgresDB:
 		for table_name, column_name, data_type in cur.fetchall():
 			if table_name not in tables:
 				tables[table_name] = {}
-			tables[table_name][column_name].append(data_type)
+			tables[table_name][column_name] = data_type
 		return tables
 
 	def invalid_index_present(self, table_name, schema_name):

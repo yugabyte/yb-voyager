@@ -53,16 +53,16 @@ EXPECTED_SUM_OF_COLUMN = {
 EXPECTED_ENUM_VALUES = ['low', 'high', 'med']
 
 EXPECTED_DATA_TYPES = {
-	'bit_types': ['numeric'],
-	'bool_types': ['double precision'],
-	'date_time_types': ['timestamp','timestamp','timestamp with time zone','timestamp with time zone'],
-	'enum_types': [],   
-	'fixed_point_types': [],
-	'floating_point_types': [], 
-  	'int_types': [''],     
- 	'json_types': [],          
- 	'string_types': [],        
-	'uuid_try': [] 
+	'floating_point_types': {'double_type': 'double precision', 'real_type': 'double precision', 'id': 'bigint', 'float_type': 'double precision'},
+ 	'fixed_point_types': {'d_us': 'numeric', 'fixed_type': 'numeric', 'numeric_type': 'numeric', 'dec_type': 'numeric'}, 
+  	'string_types': {'text_item': 'text', 'varchar_item': 'character varying', 'char_item': 'character', 'varbinary_item': 'bytea', 'longtext_item': 'text', 'binary_item': 'bytea', 'mediumtext_item': 'text'}, 
+   	'date_time_types': {'date_time_type': 'timestamp without time zone', 'time_stamp_type': 'timestamp without time zone', 'date_type': 'timestamp without time zone', 'year_type': 'smallint', 'time_type': 'time without time zone'}, 
+    'json_types': {'json_val': 'json'}, 
+    'int_types': {'iint_u': 'bigint', 'mint_u': 'integer', 'tint_s': 'smallint', 'sint_u': 'integer', 'iint_s': 'bigint', 'iinteger_s': 'bigint', 'sint_s': 'integer', 'tint_u': 'smallint', 'bint_u': 'numeric', 'iinteger_u': 'bigint', 'bint_s': 'bigint', 'mint_s': 'integer'}, 
+    'bool_types': {'val': 'smallint', 'id': 'bigint'}, 
+    'enum_types': {'title': 'character varying', 'priority': 'USER-DEFINED', 'id': 'bigint'}, 
+    'uuid_try': {'name': 'character varying', 'id': 'bytea'}, 
+    'bit_types': {'bit_type': 'bit varying'} 
 }
 
 def migration_completed_checks(tgt):
@@ -97,10 +97,11 @@ def migration_completed_checks(tgt):
 	fetched_datatypes_schema = tgt.fetch_datatypes_and_columns_of_all_tables_in_schema("public")
  
 	print(fetched_datatypes_schema)
-	# for table_name, data_types in fetched_datatypes_schema.items():
-	# 	print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
-	# 	# assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
-		
+	for table_name, columns in fetched_datatypes_schema.items():
+		print(f"table_name: {table_name} ---- ")
+		for column_name, datatype in columns.items():
+			print(f"column_name: {column_name}, datatype: {datatype}")
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
 if __name__ == "__main__":
 	main() 
