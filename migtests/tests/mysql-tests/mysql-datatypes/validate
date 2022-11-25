@@ -59,7 +59,7 @@ EXPECTED_DATA_TYPES = {
 	'enum_types': [],   
 	'fixed_point_types': [],
 	'floating_point_types': [], 
-  	'int_types': [],     
+  	'int_types': [''],     
  	'json_types': [],          
  	'string_types': [],        
 	'uuid_try': [] 
@@ -95,9 +95,11 @@ def migration_completed_checks(tgt):
 		assert distinct_value == 0 or distinct_value == 1
 	
 	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
-	for table_name, data_types in fetched_datatypes_schema.items():
-		print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
-		# assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
+ 
+	print(fetched_datatypes_schema)
+	# for table_name, data_types in fetched_datatypes_schema.items():
+	# 	print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
+	# 	# assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
 		
 
 if __name__ == "__main__":
