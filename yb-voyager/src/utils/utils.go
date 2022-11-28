@@ -329,3 +329,11 @@ func GetRedactedURLs(urlList []string) []string {
 	}
 	return result
 }
+
+func GetSqlStmtToPrint(stmt string) string {
+	if len(stmt) < 80 {
+		return stmt
+	} else {
+		return fmt.Sprintf("%s ...", stmt[:80])
+	}
+}

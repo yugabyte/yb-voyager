@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,6 +26,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 )
+
+var defferedSqlStmts []sqlInfo
+var failedSqlStmts []sqlInfo
 
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) {
@@ -37,6 +41,46 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		fmt.Printf("\nImporting %s DDLs from %q\n\n", importObjectType, importObjectFilePath)
 		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
+
+}
+
+/*
+Try re-executing each DDL from deffered list.
+If fails, silently avoid the error.
+Else remove from defferedSQLStmts list
+At the end, add the unsuccessful ones to a failedSqlStmts list and report to the user
+*/
+func importDefferedStatements() {
+	if len(defferedSqlStmts) == 0 {
+		return
+	}
+	log.Infof("Number of statements in defferedSQLStmts list: %d\n", len(defferedSqlStmts))
+
+	utils.PrintAndLog("Executing the remaining SQL statements...\n")
+	maxIterations := len(defferedSqlStmts)
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
+
+	var err error
+	// max loop iterations to remove all errors
+	for i := 1; i <= maxIterations && len(defferedSqlStmts) > 0; i++ {
+		for j := 0; j < len(defferedSqlStmts); j++ {
+			_, err = conn.Exec(context.Background(), defferedSqlStmts[j].formattedStmt)
+			if err == nil {
+				utils.PrintAndLog("%s\n\n", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt))
+				// removing successfully executed SQL
+				defferedSqlStmts = append(defferedSqlStmts[:j], defferedSqlStmts[j+1:]...)
+				break
+			} else {
+				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
+				conn.Close(context.Background())
+				conn = newTargetConn()
+			}
+		}
+	}
+
+	// adding failed deffered statements to failed list
+	failedSqlStmts = append(failedSqlStmts, defferedSqlStmts...)
 }
 
 func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {

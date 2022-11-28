@@ -1061,11 +1061,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 		if !setOrSelectStmt {
-			if len(sqlInfo.stmt) < 80 {
-				fmt.Printf("%s\n", sqlInfo.stmt)
-			} else {
-				fmt.Printf("%s ...\n", sqlInfo.stmt[:80])
-			}
+			fmt.Printf("%s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 		}
 
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
@@ -1129,6 +1125,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// DROP INDEX in case INVALID index got created
 			dropIdx(*conn, fullyQualifiedObjName)
 			continue
+		} else if deferDoesNotExist(err.Error()) {
+			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
+			defferedSqlStmts = append(defferedSqlStmts, sqlInfo)
 		} else if isAlreadyExists(err.Error()) {
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
@@ -1144,6 +1143,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
 		if !target.ContinueOnError { //default case
 			os.Exit(1)
+		} else if !deferDoesNotExist(err.Error()) {
+			log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
+			failedSqlStmts = append(failedSqlStmts, sqlInfo)
 		}
 	}
 	return err
