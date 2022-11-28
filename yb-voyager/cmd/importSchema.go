@@ -37,7 +37,7 @@ var importSchemaCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags()
+		validateImportFlags(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

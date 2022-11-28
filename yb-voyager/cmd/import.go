@@ -18,10 +18,12 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"syscall"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+	"golang.org/x/term"
 
 	"github.com/spf13/cobra"
 )
@@ -44,7 +46,7 @@ func init() {
 	registerImportDataFlags(importCmd)
 }
 
-func validateImportFlags() {
+func validateImportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
@@ -64,6 +66,7 @@ func validateImportFlags() {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(numLinesInASplit)
+	validateTargetPassword(cmd)
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -79,7 +82,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&target.Password, "target-db-password", "",
 		"Password with which to connect to the target YugabyteDB server")
-	cmd.MarkFlagRequired("target-db-password")
 
 	cmd.Flags().StringVar(&target.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
 		"Name of the database on the target YugabyteDB server on which import needs to be done")
@@ -170,6 +172,20 @@ func validateTargetSchemaFlag() {
 	if target.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
 		utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
 	}
+}
+
+func validateTargetPassword(cmd *cobra.Command) {
+	if cmd.Flags().Changed("target-db-password") {
+		return
+	}
+	fmt.Print("Password to connect to target:")
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("read password: %v", err)
+		return
+	}
+	fmt.Print("\n")
+	target.Password = string(bytePassword)
 }
 
 func validateImportObjectsFlag(importObjectsString string, flagName string) {
