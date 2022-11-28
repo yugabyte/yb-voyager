@@ -80,8 +80,7 @@ func (pg *PostgreSQL) GetVersion() string {
 	}
 	return version
 }
-
-func (pg *PostgreSQL) GetAllTableNames() []string {
+func checkSchemasExists(pg *PostgreSQL) []string{
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
 	for _, schema := range list {
@@ -113,12 +112,18 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	if len(schemaNotPresent) > 0 {
 		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
 	}
+	return trimmedList
+}
+
+func (pg *PostgreSQL) GetAllTableNames() []string {
+	schemaList := checkSchemasExists(pg)
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
 
-	rows, err = pg.db.Query(context.Background(), query)
+	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
@@ -165,6 +170,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
+	checkSchemasExists(pg)
 	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
 }
 
