@@ -41,9 +41,6 @@ var importCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(importCmd)
-	registerCommonImportFlags(importCmd)
-	registerImportSchemaFlags(importCmd)
-	registerImportDataFlags(importCmd)
 }
 
 func validateImportFlags(cmd *cobra.Command) {

@@ -874,7 +874,7 @@ var analyzeSchemaCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
-
+	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
 		"allowed report formats: html | txt | json | xml")
 }

@@ -43,20 +43,6 @@ var exportCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
-
-	registerCommonExportFlags(exportCmd)
-
-	exportCmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"list of the tables to export data(Note: works only for export data command)")
-
-	exportCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
-		"number of Parallel Jobs to extract data from source database")
-
-	exportCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data export (default false)")
-
-	exportCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while exporting data (no-op if --table-list is used) (Note: works only for export data command)")
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {

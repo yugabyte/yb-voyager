@@ -79,21 +79,24 @@ func init() {
 	// will be global for your application.
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
-	rootCmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
+	callhome.ReadEnvSendDiagnostics()
+}
+
+func registerCommonGlobalFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
 		"Logging levels: TRACE, DEBUG, INFO, WARN")
 
-	rootCmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
+	cmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
 
-	rootCmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
+	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory to keep all the dump files and metainfo")
 
-	rootCmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
+	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
-	rootCmd.PersistentFlags().BoolVar(&callhome.SendDiagnostics, "send-diagnostics", true,
+	cmd.PersistentFlags().BoolVar(&callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to Yugabyte.")
-	callhome.ReadEnvSendDiagnostics()
 }
 
 // initConfig reads in config file and ENV variables if set.
