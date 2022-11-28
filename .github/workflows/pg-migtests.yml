@@ -76,7 +76,10 @@ jobs:
 
     - name: "TEST: pg-sequences"
       run: migtests/scripts/run-test.sh pg-tests/pg-sequences
-    
+
+    - name: "TEST: pg-indexes"
+      run: migtests/scripts/run-test.sh pg-tests/pg-indexes
+
     - name: "TEST: pg-views"
       run: migtests/scripts/run-test.sh pg-tests/pg-views
     
