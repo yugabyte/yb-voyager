@@ -455,18 +455,17 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch !=nil {
-			allColumns := strings.Trim(regMatch[3], `()`)
-			allColumns = strings.Trim(allColumns, " ")
+			allColumns := strings.Trim(regMatch[3], "() ")
 			allColumnsList := strings.Split(allColumns, "(")
 
 			primaryKeyColumns := allColumnsList[len(allColumnsList)-1]
-			primaryKeyColumns = strings.Trim(primaryKeyColumns, `()`)
 			partitionColumns := strings.Trim(regMatch[4], `()`)
 
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
+
+			sort.Strings(primaryKeyColumnsList)
 			for _, eachPartitionColumn := range partitionColumnsList {
-				eachPartitionColumn = strings.Trim(eachPartitionColumn, " ")
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
 				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn {
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
