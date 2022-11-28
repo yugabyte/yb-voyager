@@ -101,7 +101,7 @@ func parseSchemaFile(exportDir string) int {
 		objSqlStmts[objType] = &strings.Builder{}
 	}
 
-	var uncategorizedSqls, setSessionVariables strings.Builder
+	var alterAttachPartition, uncategorizedSqls, setSessionVariables strings.Builder
 	for i := 0; i < len(delimiterIndexes); i++ {
 		var stmts string
 		if i == len(delimiterIndexes)-1 {
@@ -123,8 +123,10 @@ func parseSchemaFile(exportDir string) int {
 				objSqlStmts[sqlType].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
-			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "TABLE ATTACH":
+			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				objSqlStmts["TABLE"].WriteString(stmts)
+			case "TABLE ATTACH":
+				alterAttachPartition.WriteString(stmts)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(stmts)
 			case "COLLATION":
@@ -134,6 +136,9 @@ func parseSchemaFile(exportDir string) int {
 			}
 		}
 	}
+
+	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
+	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {
