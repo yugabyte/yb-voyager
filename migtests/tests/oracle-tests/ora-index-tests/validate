@@ -2,6 +2,7 @@
 
 import yb
 
+
 def main():
 	yb.run_checks(migration_completed_checks)
 
