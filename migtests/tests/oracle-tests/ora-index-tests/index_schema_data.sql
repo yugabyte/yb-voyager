@@ -17,7 +17,6 @@ CREATE INDEX members_last_name_fi ON members(UPPER(last_name));
 
 -- Multi-column, Unique & Function Index data
 
-BEGIN
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (1, 'Pepi', 'Elce', 'F', 'pelce0@trellian.com', DATE '1984-03-04');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (2, 'Barr', 'Wabersich', 'M', 'bwabersich1@china.com.cn', DATE '1976-08-04');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (3, 'Gretal', 'Grassick', 'F', 'ggrassick2@deliciousdays.com', DATE '1984-08-15');
@@ -1018,7 +1017,5 @@ INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUE
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (998, 'Saxe', 'Tressler', 'M', 'stresslerrp@google.co.jp', DATE '1982-01-19');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (999, 'Leanor', 'Surtees', 'F', 'lsurteesrq@upenn.edu', DATE '1984-10-15');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (1000, 'Marijn', 'Shafto', 'M', 'mshaftorr@free.fr', DATE '1995-09-23');
-END;
-/
 
 COMMIT;

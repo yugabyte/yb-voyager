@@ -13,7 +13,7 @@ EXPECTED_ROW_COUNT = {
 }
 
 EXPECTED_INDEX_COUNT = {
-	'members': 3
+	'members': 4
 }
 
 def migration_completed_checks(tgt):
