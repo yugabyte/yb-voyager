@@ -124,10 +124,10 @@ func refreshMViewsPostImportData(conn *pgx.Conn) {
 	fmt.Printf("\nRefreshing Materialised Views..\n\n")
 	fetchMViewsQuery := "select relname,nspname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid where relkind = 'm';"
 	rows, err := conn.Query(context.Background(),fetchMViewsQuery)
-	defer rows.Close()
 	if err != nil {
 		utils.ErrExit("Failed to run query to fetch mviews %q: %s", fetchMViewsQuery, err)
 	}
+	defer rows.Close()
 	var mview_name, schema_name string
 	var listOfMViews []string
 	for rows.Next(){
