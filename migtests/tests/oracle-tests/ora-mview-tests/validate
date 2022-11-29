@@ -15,7 +15,8 @@ def migration_completed_checks(tgt):
 	assert set(table_list) == set(EXPECTED_M_VIEW)
 
 	# REFRESH MATERIALIZED VIEW employee_mv_immediate;
-	tgt.refresh_materialized_view("employee_mv_immediate")
+	REFRESH_M_VIEW_QUERY = "REFRESH MATERIALIZED VIEW public.employee_mv_immediate;"
+	tgt.run_query_and_chk_error(REFRESH_M_VIEW_QUERY, None)
 	mv_row_count = tgt.get_row_count("employee_mv_immediate")
 	print("MVIEW row count: {}".format(mv_row_count))
 	assert mv_row_count == 12
