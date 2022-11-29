@@ -139,8 +139,3 @@ class PostgresDB:
 				return True
 
 		return False
-	
-	def refresh_materialized_view(self, view_name, schema_name="public") -> None:
-		cur = self.conn.cursor()
-		cur.execute(f"REFRESH MATERIALIZED VIEW {schema_name}.{view_name}")
-		self.conn.commit()
