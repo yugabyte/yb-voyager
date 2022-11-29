@@ -56,6 +56,7 @@ func init() {
 
 var flagPostImportData bool
 var importObjectsInStraightOrder bool
+var flagRefreshMViews bool
 
 func importSchema() {
 	err := target.DB().Connect()
@@ -110,7 +111,43 @@ func importSchema() {
 	}
 
 	log.Info("Schema import is complete.")
+	if isMViewsPresent {
+		utils.PrintAndLog("Materialised Views are present in the imported schema, use --refresh-mviews flag with --post-import-data to refresh mviews after importing data.\n\n")
+	}
+	if flagPostImportData && flagRefreshMViews  {
+		refreshMViewsPostImportData(conn)
+	}
 	callhome.PackAndSendPayload(exportDir)
+}
+
+func refreshMViewsPostImportData(conn *pgx.Conn) {
+	fmt.Printf("\nRefreshing Materialised Views..\n\n")
+	fetchMViewsQuery := "select relname,nspname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid where relkind = 'm';"
+	rows, err := conn.Query(context.Background(),fetchMViewsQuery)
+	defer rows.Close()
+	if err != nil {
+		utils.ErrExit("Failed to run query to fetch mviews %q: %s", fetchMViewsQuery, err)
+	}
+	var mview_name, schema_name string
+	var listOfMViews []string
+	for rows.Next(){
+		err = rows.Scan(&mview_name, &schema_name)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for mviews and schema names: %v\n", err)
+		}
+		fullMviewName := fmt.Sprintf("%s.%s",schema_name, mview_name)
+		listOfMViews = append(listOfMViews, fullMviewName)
+	}
+	log.Infof("List of Mviews to refresh - %v", listOfMViews)
+	
+	for _, eachMView := range listOfMViews{
+		queryRefreshMViews := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", eachMView)
+		_, err := conn.Exec(context.Background(), queryRefreshMViews)
+		if err != nil {
+			utils.ErrExit("error in refreshing the materialised view %s: %v\n",eachMView, err)
+		}
+	}
+	
 }
 
 func createTargetSchemas(conn *pgx.Conn) {
