@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'countries': 25,
+	'departments': 27,
+	'employees': 107,
+	'jobs': 19,
+	'job_history': 10,
+	'locations': 23,
+	'regions': 4
+}
+QUERIES_CHECK = {
+	'NULL_CHECK': {
+		'query': "insert into not_null_check(id, first_name, last_name, email, gender, ip_address) values (7, NULL, 'something', 'msomething@java.com', 'Female', '230.188.87.42');",
+		'code': 23502
+	}, 
+	'UNIQUE_CHECK': {
+		'query': "insert into unique_test(id, first_name, last_name, email, gender, ip_address) values (8, 'Milzie', 'something', 'msomething@java.com', 'Female', '230.188.87.42');",
+		'code': 23505
+	},
+	'CHECK_CONDITION': {
+		'query': "insert into check_test (id, first_name, last_name, age) values (7, 'Tom', 'Stewan', 15);",
+		'code': 23514
+	},
+	'FORIEGN_CHECK': {
+		'query': "insert into foreign_test values (5,1,7);",
+		'code': 23503
+	}
+}	
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 7
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+  
+	fetched_triggers = tgt.fetch_all_triggers("public")
+	print(f"Returned count of triggers is - {fetched_triggers}")
+	assert len(fetched_triggers) == 2
+ 
+	fetched_procedures = tgt.fetch_all_procedures("public")
+	print(f"Returned count of procedures is - {fetched_procedures}")
+	assert len(fetched_procedures) == 2
+		
+	# for type_check, query_and_code in QUERIES_CHECK.items():
+	# 	query, code = query_and_code['query'], query_and_code['code']
+	# 	chk_err_returned = tgt.run_query_and_chk_error(query, code)
+	# 	print(f"Checking {type_check} ..", code, {chk_err_returned} )
+	# 	assert chk_err_returned == True
+		
+	# DEFAULT_CHECK_QUERY = "insert into default_test (first_name, last_name) values ('Yugabyte', 'Rohlfing');"
+	# chk_err_default_constraint = tgt.run_query_and_chk_error(DEFAULT_CHECK_QUERY, None)
+	# assert chk_err_default_constraint == False
+
+	# SELECT__DEFAULT_ID_QUERY = f"select age from public.default_test where first_name = 'Yugabyte';"
+	# age_returned = tgt.execute_query(SELECT__DEFAULT_ID_QUERY)
+	# print(f"for {table_name}, Age returned- {age_returned} and expected age - {18}")
+	# assert age_returned == 18
+
+if __name__ == "__main__":
+	main()
