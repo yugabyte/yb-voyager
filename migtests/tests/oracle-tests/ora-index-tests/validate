@@ -2,11 +2,12 @@
 
 import yb
 
+
 def main():
 	yb.run_checks(migration_completed_checks)
 
 
-#=============================================================================
+# =============================================================================
 
 EXPECTED_ROW_COUNT = {
 	'members': 998
@@ -15,6 +16,7 @@ EXPECTED_ROW_COUNT = {
 EXPECTED_INDEX_COUNT = {
 	'members': 4
 }
+
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
@@ -31,6 +33,9 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, index_count: {get_index_cnt[table_name]}")
 		assert index_count == get_index_cnt[table_name]
 
+    UNIQUE_INDEX_CHECK = "INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (1001, 'Pepi', 'Elce', 'F', 'pelce0@trellian.com', DATE '1984-03-04');"
+    chk_err_default_constraint = tgt.run_query_and_chk_error(UNIQUE_INDEX_CHECK, 23505)
+    assert chk_err_default_constraint == True
 
 if __name__ == "__main__":
 	main()
