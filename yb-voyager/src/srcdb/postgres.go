@@ -80,7 +80,8 @@ func (pg *PostgreSQL) GetVersion() string {
 	}
 	return version
 }
-func checkSchemasExists(pg *PostgreSQL) []string{
+
+func (pg *PostgreSQL) checkSchemasExists() []string{
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
 	for _, schema := range list {
@@ -116,7 +117,7 @@ func checkSchemasExists(pg *PostgreSQL) []string{
 }
 
 func (pg *PostgreSQL) GetAllTableNames() []string {
-	schemaList := checkSchemasExists(pg)
+	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
@@ -170,7 +171,7 @@ func (pg *PostgreSQL) getConnectionUri() string {
 }
 
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	checkSchemasExists(pg)
+	pg.checkSchemasExists()
 	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
 }
 
