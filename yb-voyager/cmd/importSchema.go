@@ -58,6 +58,11 @@ func init() {
 var flagPostImportData bool
 var importObjectsInStraightOrder bool
 
+var isAlterStatement = func(objType, stmt string) bool {
+	stmt = strings.ToUpper(strings.TrimSpace(stmt))
+	return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+}
+
 func importSchema() {
 	err := target.DB().Connect()
 	if err != nil {
@@ -90,26 +95,10 @@ func importSchema() {
 	log.Infof("List of schema objects to import: %v", objectList)
 
 	// Import ALTER TABLE statements from sequence.sql only after importing everything else
-	isAlterStatement := func(objType, stmt string) bool {
-		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
-	}
-
 	skipFn := isAlterStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-
-	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
-	if slices.Contains(objectList, "SEQUENCE") {
-		skipFn = func(objType, stmt string) bool {
-			return !isAlterStatement(objType, stmt)
-		}
-		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
-			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
-		}
-	}
-
+	fmt.Printf("\nImporting statements deferred in previous pass.\n\n")
+	importDeferredStatements(objectList)
 	log.Info("Schema import is complete.")
 	callhome.PackAndSendPayload(exportDir)
 }
@@ -202,4 +191,17 @@ func isAlreadyExists(errString string) bool {
 		}
 	}
 	return false
+}
+
+func importDeferredStatements(objectList []string) {
+	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	if slices.Contains(objectList, "SEQUENCE") {
+		skipFn := func(objType, stmt string) bool {
+			return !isAlterStatement(objType, stmt)
+		}
+		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
+		if utils.FileOrFolderExists(sequenceFilePath) {
+			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
+		}
+	}
 }
