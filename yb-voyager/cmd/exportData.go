@@ -137,6 +137,7 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
+	ora2pgQuitChan := make(chan bool) //Test to see if we can reuse quitChan; result- we need a separate chan to explicitly exit
 	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart)
 	// Wait for the export data to start.
 	<-exportDataStart
@@ -144,7 +145,7 @@ func exportDataOffline() bool {
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	if !disablePb {
 		utils.WaitGroup.Add(1)
-		exportDataStatus(ctx, tablesProgressMetadata, quitChan)
+		exportDataStatus(ctx, tablesProgressMetadata, quitChan, ora2pgQuitChan) //remove ora2pgQuitChan, it was added explicitly
 	}
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete

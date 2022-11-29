@@ -142,7 +142,7 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
+func (pg *PostgreSQL) GetAllPartitionNames(tableName string) ([]string, []string) {
 	panic("Not Implemented")
 }
 

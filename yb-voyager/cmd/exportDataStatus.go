@@ -73,11 +73,19 @@ func initializeExportTableMetadata(tableList []string) {
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
 		if source.DBType == ORACLE || source.DBType == MYSQL {
-			partitionList := source.DB().GetAllPartitionNames(parentTable)
-			if len(partitionList) > 0 {
-				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionList), partitionList)
+			partitionList, subpartitionList := source.DB().GetAllPartitionNames(parentTable)
+			// Maintain a map amongst partitions if subpartition or not.
+			totalPartitions := make(map[string]bool)
+			for _, partition := range partitionList {
+				totalPartitions[partition] = false
+			}
+			for _, subpartition := range subpartitionList {
+				totalPartitions[subpartition] = true
+			}
+			if len(totalPartitions) > 0 {
+				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(totalPartitions), append(partitionList, subpartitionList...))
 
-				for _, partitionName := range partitionList {
+				for partitionName, isSubPartition := range totalPartitions {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
 					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
@@ -92,6 +100,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 					tablesProgressMetadata[key].FullTableName = fullTableName
 					tablesProgressMetadata[key].ParentTable = tablesProgressMetadata[parentTable].TableName
 					tablesProgressMetadata[key].IsPartition = true
+					tablesProgressMetadata[key].IsSubPartition = isSubPartition
 
 					tablesProgressMetadata[key].InProgressFilePath = ""
 					tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
@@ -105,7 +114,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 	}
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool) {
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool, ora2pgQuitChan chan bool) {
 	defer utils.WaitGroup.Done()
 	quitChan2 := make(chan bool)
 	quit := false
@@ -115,8 +124,13 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			quitChan <- true
 		}
 	}()
+	go func() {
+		quit = <-ora2pgQuitChan
+		fmt.Printf("Force Quit? %t\n", quit)
+	}()
 
 	numTables := len(tablesProgressMetadata)
+	//fmt.Println(numTables)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
@@ -140,23 +154,19 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 					break
 				}
 			}
-
 			//for failure/error handling. TODO: test it more
 			if ctx.Err() != nil {
 				fmt.Println(ctx.Err())
 				break
 			}
 		}
-
 		if ctx.Err() != nil {
 			fmt.Println(ctx.Err())
 			break
 		}
 		time.Sleep(1 * time.Second)
 	}
-
 	progressContainer.Wait() //shouldn't be needed as the previous loop is doing the same
-
 	printExportedTables(exportedTables)
 
 	//TODO: print remaining/unable-to-export tables

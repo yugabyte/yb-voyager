@@ -111,7 +111,7 @@ func (ora *Oracle) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (ora *Oracle) GetAllPartitionNames(tableName string) []string {
+func (ora *Oracle) GetAllPartitionNames(tableName string) ([]string, []string) {
 	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
 		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
 		tableName, ora.source.Schema)
@@ -132,7 +132,7 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) []string {
 		// TODO: Support subpartition(find subparititions for each partition)
 	}
 	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
+	return partitionNames, partitionNames //Get subpartition names list
 }
 
 func (ora *Oracle) getConnectionUri() string {

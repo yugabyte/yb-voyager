@@ -51,9 +51,13 @@ func (ms *MySQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgre
 		query = fmt.Sprintf("SELECT table_rows from information_schema.tables "+
 			"where table_name = '%s'", tableProgressMetadata.TableName)
 	} else {
+		subpartitionPrefix := ""
+		if tableProgressMetadata.IsSubPartition {
+			subpartitionPrefix = "sub"
+		}
 		query = fmt.Sprintf("SELECT table_rows from information_schema.partitions "+
-			"where table_name='%s' and partition_name='%s' and table_schema='%s'",
-			tableProgressMetadata.ParentTable, tableProgressMetadata.TableName, tableProgressMetadata.TableSchema)
+			"where table_name='%s' and %spartition_name='%s' and table_schema='%s'",
+			tableProgressMetadata.ParentTable, subpartitionPrefix, tableProgressMetadata.TableName, tableProgressMetadata.TableSchema)
 	}
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
@@ -99,8 +103,8 @@ func (ms *MySQL) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
-	query := fmt.Sprintf(`SELECT partition_name  from information_schema.partitions
+func (ms *MySQL) GetAllPartitionNames(tableName string) ([]string, []string) {
+	query := fmt.Sprintf(`SELECT subpartition_name, partition_name  from information_schema.partitions
 	WHERE table_name='%s' and table_schema='%s' ORDER BY partition_name ASC`,
 		tableName, ms.source.DBName)
 
@@ -111,18 +115,22 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
 	defer rows.Close()
 
 	var partitionNames []string
+	var subpartitionNames []string
 	for rows.Next() {
 		var partitionName sql.NullString
-		err = rows.Scan(&partitionName)
+		var subpartitionName sql.NullString
+		err = rows.Scan(&subpartitionName, &partitionName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}
-		if partitionName.Valid {
+		if subpartitionName.Valid {
+			subpartitionNames = append(subpartitionNames, subpartitionName.String)
+		} else if partitionName.Valid {
 			partitionNames = append(partitionNames, partitionName.String)
 		}
 	}
 	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
+	return partitionNames, subpartitionNames
 }
 
 func (ms *MySQL) getConnectionUri() string {

@@ -14,7 +14,7 @@ type SourceDB interface {
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []string
-	GetAllPartitionNames(tableName string) []string
+	GetAllPartitionNames(tableName string) ([]string, []string)
 	ExportSchema(exportDir string)
 	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)

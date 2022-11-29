@@ -97,6 +97,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
 	extractAlterSequenceStatements(exportDir)
+	//quitChan <- true	THIS CHANGE WAS MADE AS A PART OF TESTING ora2pgQuitChan, REMOVE ONCE DONE
 }
 
 func extractAlterSequenceStatements(exportDir string) {

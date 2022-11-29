@@ -37,6 +37,7 @@ type TableProgressMetadata struct {
 	CountTotalRows       int64
 	FileOffsetToContinue int64 // This might be removed later
 	IsPartition          bool
+	IsSubPartition       bool
 	ParentTable          string
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
