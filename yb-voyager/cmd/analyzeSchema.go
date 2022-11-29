@@ -457,13 +457,10 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch !=nil {
 			allColumns := strings.Trim(regMatch[3], "() ")
 			allColumnsList := strings.Split(allColumns, "(")
-
 			primaryKeyColumns := allColumnsList[len(allColumnsList)-1]
 			partitionColumns := strings.Trim(regMatch[4], `()`)
-
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
-
 			sort.Strings(primaryKeyColumnsList)
 			for _, eachPartitionColumn := range partitionColumnsList {
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
