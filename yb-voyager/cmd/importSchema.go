@@ -87,23 +87,24 @@ func importSchema() {
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
 
-	// Import ALTER TABLE statements from sequence.sql only after importing everything else
-	isAlterTableInSequence := func(objType, stmt string) bool{
-		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
-	}
-	isAlterTableFKInTable := func(objType, stmt string) bool{
-		return objType == "TABLE" && strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
-	}
-	isNotUniqueIndexInUniqueIndex := func(objType, stmt string) bool{
-		return objType == "UNIQUE INDEX" && !strings.Contains(stmt, objType)
-	}
-	isUniqueIndexInIndex := func(objType, stmt string) bool{
-		return objType == "INDEX" && strings.Contains(stmt, "UNIQUE INDEX")
-	}
+	// Import some statements only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		return isAlterTableInSequence(objType, stmt) || isAlterTableFKInTable(objType, stmt) || 
-			isNotUniqueIndexInUniqueIndex(objType, stmt) || isUniqueIndexInIndex(objType, stmt) 
+		switch(objType) {
+			case "SEQUENCE": 
+				// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name'); 
+				return strings.HasPrefix(stmt, "ALTER TABLE")
+			case "TABLE":
+				// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
+				return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+			case "UNIQUE INDEX":
+				// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return !strings.Contains(stmt, objType)
+			case "INDEX":
+				// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
+				return strings.Contains(stmt, "UNIQUE INDEX")
+		}
+		return false
 	}
 
 	skipFn := isSkipStatement
