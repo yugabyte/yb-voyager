@@ -45,8 +45,8 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
 	commands=(
-		"SELECT 'GRANT USAGE ON SCHEMA '", 
-		"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '", 
+		"SELECT 'GRANT USAGE ON SCHEMA '"
+		"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '" 
 		"SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA '"
 		)
 	for command in "${commands[@]}"; do
@@ -79,9 +79,9 @@ grant_user_permission_mysql() {
 	db_name=$1
 	
 	commands=(
-		"GRANT PROCESS ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
-		"GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
-		"GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
+		"GRANT PROCESS ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+		"GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+		"GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 	)
 
