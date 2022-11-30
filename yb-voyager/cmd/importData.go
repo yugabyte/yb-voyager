@@ -97,7 +97,7 @@ var importDataCmd = &cobra.Command{
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags()
+		validateImportFlags(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -351,7 +351,7 @@ func importData() {
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
-		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.batches (
+		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
 			schema_name VARCHAR(250),
 			file_name VARCHAR(250),
 			rows_imported BIGINT,
@@ -479,10 +479,10 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
 
-			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.batches WHERE file_name LIKE '%s.%%'`, table)
+			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
 			res, err := conn.Exec(context.Background(), cmd)
 			if err != nil {
-				utils.ErrExit("remove %q related entries from ybvoyager_metadata.batches: %s", table, err)
+				utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
 			}
 			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 		}
@@ -939,18 +939,18 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 		return res.RowsAffected(), err
 	}
 
-	// Record an entry in ybvoyager_metadata.batches, that the split is imported.
+	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
 	rowsAffected = res.RowsAffected()
 	fileName := filepath.Base(getInProgressFilePath(task))
 	schemaName := getTargetSchemaName(task.TableName)
 	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.batches (schema_name, file_name, rows_imported)
+		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
 		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
 	_, err = tx.Exec(ctx, cmd)
 	if err != nil {
-		return 0, fmt.Errorf("insert into ybvoyager_metadata.batches: %w", err)
+		return 0, fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
 	}
-	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.batches", schemaName, fileName, rowsAffected)
+	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
 	return rowsAffected, nil
 }
 
@@ -959,7 +959,7 @@ func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, 
 	fileName := filepath.Base(getInProgressFilePath(task))
 	schemaName := getTargetSchemaName(task.TableName)
 	query := fmt.Sprintf(
-		"SELECT rows_imported FROM ybvoyager_metadata.batches WHERE schema_name = '%s' AND file_name = '%s';",
+		"SELECT rows_imported FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE schema_name = '%s' AND file_name = '%s';",
 		schemaName, fileName)
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
@@ -1004,6 +1004,14 @@ func setTargetSchema(conn *pgx.Conn) {
 		// For PG, schema name is already included in the object name.
 		// No need to set schema if importing in the default schema.
 		return
+	}
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
+	var cntSchemaName int
+
+	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
+	} else if cntSchemaName == 0 {
+		utils.ErrExit("schema '%s' does not exist in target", target.Schema)
 	}
 
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
@@ -1168,15 +1176,26 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		return
 	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
-	copyCommandRegex := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, table))
+	var copyCommandRegex *regexp.Regexp
 	if sourceDBType == "postgresql" {
 		// find the line from toc.txt file
 		fileToSearchIn = exportDir + "/data/toc.txt"
 
-		// if no schema then add public in tableName as it is there in postgres' toc file
-		if len(strings.Split(table, ".")) == 1 {
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, table))
+		conn := newTargetConn()
+		defer conn.Close(context.Background())
+
+		parentTable := getParentTable(table, conn)
+		tableInCopyRegex := table
+		if parentTable != "" { // needed to find COPY command for table partitions
+			tableInCopyRegex = parentTable
 		}
+		if len(strings.Split(tableInCopyRegex, ".")) == 1 {
+			// happens only when table is in public schema, use public schema with table name for regexp
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
+		} else {
+			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
+		}
+		log.Infof("parentTable=%s for table=%s", parentTable, table)
 	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
 		// For oracle, there is only unique COPY per datafile
 		// In case of table partitions, parent table name is used in COPY
@@ -1204,6 +1223,32 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 			return
 		}
 	}
+}
+
+// get the parent table if its a partitioned table in yugabytedb
+// also covers the case when the partitions are further subpartitioned to multiple levels
+func getParentTable(table string, conn *pgx.Conn) string {
+	var parentTable string
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table)
+
+	var currentParentTable string
+	err := conn.QueryRow(context.Background(), query).Scan(&currentParentTable)
+	if err != pgx.ErrNoRows && err != nil {
+		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
+	}
+
+	if len(currentParentTable) == 0 {
+		return ""
+	} else {
+		parentTable = getParentTable(currentParentTable, conn)
+		if len(parentTable) == 0 {
+			parentTable = currentParentTable
+		}
+	}
+
+	return parentTable
 }
 
 func getCopyCommand(table string) string {
@@ -1309,6 +1354,8 @@ func checkSessionVariableSupport(sqlStmt string) bool {
 
 func init() {
 	importCmd.AddCommand(importDataCmd)
+	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
+	target.Schema = strings.ToLower(target.Schema)
 }

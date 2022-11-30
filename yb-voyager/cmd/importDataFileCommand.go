@@ -281,6 +281,7 @@ func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
 	registerCommonImportFlags(importDataFileCmd)
 	registerImportDataFlags(importDataFileCmd)
+	target.Schema = strings.ToLower(target.Schema)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
 		fmt.Sprintf("supported data file types: %s", supportedFileFormats))

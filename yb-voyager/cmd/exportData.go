@@ -42,7 +42,7 @@ var exportDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags()
+		validateExportFlags(cmd)
 		markFlagsRequired(cmd)
 	},
 
@@ -54,6 +54,7 @@ var exportDataCmd = &cobra.Command{
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
 	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export(default false)")

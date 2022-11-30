@@ -16,17 +16,17 @@ EXPECTED_ROW_COUNT = {
 }
 
 def migration_completed_checks(tgt):
-	table_list = tgt.get_table_names("public")
+	table_list = tgt.get_table_names("test_mysql_views")
 	print("table_list:", table_list)
 	assert len(table_list) == 2
 
-	view_list = tgt.get_objects_of_type("VIEW")
+	view_list = tgt.get_objects_of_type("VIEW", "test_mysql_views")
 	print("view_list:", view_list)
 	assert len(view_list) == 2
 
 	
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		cnt = tgt.get_row_count(table_name, "public")
+		cnt = tgt.get_row_count(table_name, "test_mysql_views")
 		print(f"table_name: {table_name}, row_count: {cnt}")
 		assert row_count == cnt
 

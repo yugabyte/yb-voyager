@@ -121,6 +121,13 @@ grant_permissions() {
 	esac
 }
 
+run_sqlplus() {
+	db_name=$1
+	sql=$2
+	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	echo exit | sqlplus -f ${conn_string} @${sql}
+}
+
 export_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
@@ -171,6 +178,7 @@ import_schema() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--target-db-schema ${TARGET_DB_SCHEMA} \
 		--yes \
 		--send-diagnostics=false \
 		$*
@@ -183,6 +191,7 @@ import_data() {
 		--target-db-user ${TARGET_DB_USER} \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--target-db-schema ${TARGET_DB_SCHEMA} \
 		--disable-pb \
 		--send-diagnostics=false \
 		$*
