@@ -34,7 +34,7 @@ var exportSchemaCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags()
+		validateExportFlags(cmd)
 		markFlagsRequired(cmd)
 	},
 
@@ -105,7 +105,7 @@ func exportSchema() {
 
 func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
-
+	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
 	exportSchemaCmd.Flags().BoolVar(&source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")

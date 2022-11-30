@@ -18,10 +18,12 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"syscall"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+	"golang.org/x/term"
 
 	"github.com/spf13/cobra"
 )
@@ -41,20 +43,6 @@ var exportCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(exportCmd)
-
-	registerCommonExportFlags(exportCmd)
-
-	exportCmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"list of the tables to export data(Note: works only for export data command)")
-
-	exportCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 1,
-		"number of Parallel Jobs to extract data from source database")
-
-	exportCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data export (default false)")
-
-	exportCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while exporting data (no-op if --table-list is used) (Note: works only for export data command)")
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {
@@ -141,7 +129,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags() {
+func validateExportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -154,6 +142,7 @@ func validateExportFlags() {
 	}
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
+	validateSourcePassword(cmd)
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
@@ -238,11 +227,24 @@ func validateOracleParams() {
 
 }
 
+func validateSourcePassword(cmd *cobra.Command) {
+	if cmd.Flags().Changed("source-db-password") {
+		return
+	}
+	fmt.Print("Password to connect to source:")
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("read password: %v", err)
+		return
+	}
+	fmt.Print("\n")
+	source.Password = string(bytePassword)
+}
+
 func markFlagsRequired(cmd *cobra.Command) {
 	// mandatory for all
 	cmd.MarkFlagRequired("source-db-type")
 	cmd.MarkFlagRequired("source-db-user")
-	cmd.MarkFlagRequired("source-db-password")
 
 	switch source.DBType {
 	case POSTGRESQL, ORACLE: // schema and database names are mandatory

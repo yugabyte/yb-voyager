@@ -21,6 +21,7 @@ require (
 	github.com/vbauerster/mpb/v7 v7.3.0
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
 	golang.org/x/exp v0.0.0-20220613132600-b0d781184e0d
+	golang.org/x/term v0.2.0
 )
 
 require (
@@ -54,7 +55,7 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	golang.org/x/crypto v0.0.0-20220112180741-5e0467b6c7ce // indirect
 	golang.org/x/net v0.0.0-20220111093109-d55c255bac03 // indirect
-	golang.org/x/sys v0.0.0-20220408201424-a24fb2fb8a0f // indirect
+	golang.org/x/sys v0.2.0 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/ini.v1 v1.66.2 // indirect

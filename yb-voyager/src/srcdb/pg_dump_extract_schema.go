@@ -23,7 +23,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --extension "*"`,
+	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --extension "*" --load-via-partition-root`,
 		source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
 	if !source.CommentsOnObjects {
 		pgDumpArgs = fmt.Sprintf(`%s --no-comments`, pgDumpArgs)
@@ -101,7 +101,7 @@ func parseSchemaFile(exportDir string) int {
 		objSqlStmts[objType] = &strings.Builder{}
 	}
 
-	var uncategorizedSqls, setSessionVariables strings.Builder
+	var alterAttachPartition, uncategorizedSqls, setSessionVariables strings.Builder
 	for i := 0; i < len(delimiterIndexes); i++ {
 		var stmts string
 		if i == len(delimiterIndexes)-1 {
@@ -118,11 +118,15 @@ func parseSchemaFile(exportDir string) int {
 			delimiterLine := lines[delimiterIndexes[i]]
 			sqlType := extractSqlTypeFromComment(delimiterLine)
 			switch sqlType {
-			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE", "FUNCTION",
+			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
 				objSqlStmts[sqlType].WriteString(stmts)
-			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT", "TABLE ATTACH":
+			case "INDEX", "INDEX ATTACH":
+				objSqlStmts["INDEX"].WriteString(stmts)
+			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
 				objSqlStmts["TABLE"].WriteString(stmts)
+			case "TABLE ATTACH":
+				alterAttachPartition.WriteString(stmts)
 			case "MATERIALIZED VIEW":
 				objSqlStmts["MVIEW"].WriteString(stmts)
 			case "COLLATION":
@@ -132,6 +136,9 @@ func parseSchemaFile(exportDir string) int {
 			}
 		}
 	}
+
+	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
+	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {
