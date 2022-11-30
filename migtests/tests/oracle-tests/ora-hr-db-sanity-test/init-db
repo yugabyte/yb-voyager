@@ -5,8 +5,8 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
-# echo "Assigning permissions to the validate filess"
-# chmod +x ${TEST_DIR}/validate
+echo "Assigning permissions to the validate filess"
+chmod +x ${TEST_DIR}/validate
 
 echo "Deleting existing data in target database"
 run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle-tests/utils/delete_full_schema
