@@ -43,6 +43,9 @@ main() {
 	step "Initialise source database."
 	./init-db
 
+	step "Grant source database user permissions"
+	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE}
+
 	step "Export schema."
 	export_schema
 	find ${EXPORT_DIR}/schema -name '*.sql' | xargs grep -wh CREATE
