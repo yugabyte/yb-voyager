@@ -15,6 +15,21 @@ EXPECTED_ROW_COUNT = {
 	'regions': 4
 }
 
+QUERIES_CHECK = {
+	'FAULTY_QUERY_LESSER_END_DATE': {
+		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2003-01-01', '2002-01-01', 'AD_PRES', 90);",
+		'code': 23514
+	}, 
+	'VIOLATE_INDEX_jhist_emp_id_st_date_pk': {
+		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2001-01-13', '2006-07-24', 'AD_PRES', 90);",
+		'code': 23505
+	},
+	'VIOLATE_CHECK_CONSTRAINT_emp_salary_min': {
+		'query': "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);",
+		'code': 23514
+	}
+}
+
 #=============================================================================
 
 def migration_completed_checks(tgt):
@@ -35,26 +50,20 @@ def migration_completed_checks(tgt):
 	print(f"Returned row count is - {fetched_row_count}")
 	assert fetched_row_count == 106
  
-	# Job history table checks
+	# The following constraint checks are handled below
 	# Checking the constraint : jhist_date_interval CHECK (end_date > start_date)
-	FAULTY_QUERY_LESSER_END_DATE = "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2003-01-01', '2002-01-01', 'AD_PRES', 90);"
-	fetched_error_code = tgt.run_query_and_chk_error(FAULTY_QUERY_LESSER_END_DATE, 23514)
-	assert fetched_error_code == True
-	
 	# Unique index checks on job history table
-	VIOLATE_INDEX_jhist_emp_id_st_date_pk = "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2001-01-13', '2006-07-24', 'AD_PRES', 90);"
-	fetched_error_code_violating_jhist_emp_id_st_date_pk = tgt.run_query_and_chk_error(VIOLATE_INDEX_jhist_emp_id_st_date_pk, 23505)
-	assert fetched_error_code_violating_jhist_emp_id_st_date_pk == True
+ 	# Logic to validate the check constraint on employees table
+	for type_check, query_and_code in QUERIES_CHECK.items():
+		query, code = query_and_code['query'], query_and_code['code']
+		chk_err_returned = tgt.run_query_and_chk_error(query, code)
+		print(f"Checking {type_check} ..", code, {chk_err_returned} )
+		assert chk_err_returned == True
  
 	# Logic to check the sequences migrated
 	fetched_sequences = tgt.get_objects_of_type("SEQUENCE", "public")
 	print(f"Returned sequences are - {fetched_sequences}")
 	assert len(fetched_sequences) == 3
- 
-	# Logic to validate the check constraint on employees table
-	VIOLATE_CHECK_CONSTRAINT_emp_salary_min = "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);"
-	fetched_error_code_violating_emp_salary_min = tgt.run_query_and_chk_error(VIOLATE_CHECK_CONSTRAINT_emp_salary_min, 23514)
-	assert fetched_error_code_violating_emp_salary_min == True
 	
 	# Logic to check for the number of indexes present in the schema
 	fetched_indexes = tgt.get_objects_of_type("INDEX", "public")
@@ -63,7 +72,7 @@ def migration_completed_checks(tgt):
  
 	# Logic to check if invalid indexes are present
 	for tablename, row_count in EXPECTED_ROW_COUNT.items():
-		invalid_index = tgt.invalid_index_present(tablename)
+		invalid_index = tgt.invalid_index_present(tablename, "public")
 		assert invalid_index == False
  
 	# Logic to check the number of procedures migrated
