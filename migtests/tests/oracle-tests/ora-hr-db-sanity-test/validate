@@ -70,12 +70,12 @@ def migration_completed_checks(tgt):
 	# Logic to check the number of procedures migrated
 	fetched_procedures = tgt.fetch_all_procedures("public")
 	print(f"Returned procedures are - {fetched_procedures}")
-	assert len(fetched_procedures) == 2
+	assert len(fetched_procedures) == 4
  
 	# Logic to check the number of triggers migrated
 	fetched_triggers = tgt.fetch_all_triggers("public")
 	print(f"Returned triggers are - {fetched_triggers}")
-	assert len(fetched_triggers) == 2
+	assert len(fetched_triggers) == 4
  
 if __name__ == "__main__":
 	main()

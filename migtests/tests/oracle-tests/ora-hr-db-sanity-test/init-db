@@ -14,5 +14,5 @@ run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle-tests/utils/delete_full_schema
 echo "Initialising source database & inserting data"
 run_sqlplus ${SOURCE_DB_NAME} schema_and_data/hr_create
 run_sqlplus ${SOURCE_DB_NAME} schema_and_data/hr_indexes
-run_sqlplus ${SOURCE_DB_NAME} schema_and_data/hr_trigger_procedure
 run_sqlplus ${SOURCE_DB_NAME} schema_and_data/hr_populate
+run_sqlplus ${SOURCE_DB_NAME} schema_and_data/hr_trigger_procedure
