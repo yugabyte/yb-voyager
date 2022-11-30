@@ -130,7 +130,7 @@ class PostgresDB:
 			tables[table_name].append(data_type)
 		return tables
 
-	def fetch_datatypes_and_columns_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, Dict[str,str]]:
+	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
 		tables = {}
