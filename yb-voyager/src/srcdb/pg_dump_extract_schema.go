@@ -118,9 +118,11 @@ func parseSchemaFile(exportDir string) int {
 			delimiterLine := lines[delimiterIndexes[i]]
 			sqlType := extractSqlTypeFromComment(delimiterLine)
 			switch sqlType {
-			case "SCHEMA", "TYPE", "DOMAIN", "SEQUENCE", "RULE", "FUNCTION",
+			case "SCHEMA", "TYPE", "DOMAIN", "RULE", "FUNCTION",
 				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
 				objSqlStmts[sqlType].WriteString(stmts)
+			case "SEQUENCE", "SEQUENCE OWNED BY":
+				objSqlStmts["SEQUENCE"].WriteString(stmts)
 			case "INDEX", "INDEX ATTACH":
 				objSqlStmts["INDEX"].WriteString(stmts)
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
