@@ -130,6 +130,16 @@ class PostgresDB:
 			tables[table_name].append(data_type)
 		return tables
 
+	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
+		tables = {}
+		for table_name, column_name, data_type in cur.fetchall():
+			if table_name not in tables:
+				tables[table_name] = {}
+			tables[table_name][column_name] = data_type
+		return tables
+
 	def invalid_index_present(self, table_name, schema_name):
 		cur = self.conn.cursor()
 		cur.execute(f"select indisvalid from pg_index where indrelid = '{schema_name}.{table_name}'::regclass::oid")
