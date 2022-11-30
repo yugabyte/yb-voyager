@@ -49,4 +49,23 @@ BEGIN
 END;
 /
 
+CREATE OR REPLACE PROCEDURE create_dept (
+  deptid IN OUT NUMBER,
+  dname  IN     VARCHAR2,
+  mgrid  IN     NUMBER,
+  locid  IN     NUMBER
+) AUTHID DEFINER AS
+BEGIN
+  deptid := departments_seq.NEXTVAL;
+
+  INSERT INTO departments (
+    department_id,
+    department_name,
+    manager_id,
+    location_id
+  )
+  VALUES (deptid, dname, mgrid, locid);
+END;
+/
+
 COMMIT;

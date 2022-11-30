@@ -53,8 +53,7 @@ def migration_completed_checks(tgt):
  
 	# Logic to validate the check constraint on employees table
 	VIOLATE_CHECK_CONSTRAINT_emp_salary_min = "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);"
-	fetched_error_code_violating_emp_salary_min = tgt.run_query_and_chk_error(VIOLATE_CHECK_CONSTRAINT_emp_salary_min, 45205)
-	# fetched_error_code_violating_emp_salary_min = tgt.run_query_and_chk_error(VIOLATE_CHECK_CONSTRAINT_emp_salary_min, 23513)
+	fetched_error_code_violating_emp_salary_min = tgt.run_query_and_chk_error(VIOLATE_CHECK_CONSTRAINT_emp_salary_min, 23514)
 	assert fetched_error_code_violating_emp_salary_min == True
 	
 	# Logic to check for the number of indexes present in the schema
@@ -70,12 +69,20 @@ def migration_completed_checks(tgt):
 	# Logic to check the number of procedures migrated
 	fetched_procedures = tgt.fetch_all_procedures("public")
 	print(f"Returned procedures are - {fetched_procedures}")
-	assert len(fetched_procedures) == 4
+	assert len(fetched_procedures) == 5
  
 	# Logic to check the number of triggers migrated
 	fetched_triggers = tgt.fetch_all_triggers("public")
 	print(f"Returned triggers are - {fetched_triggers}")
 	assert len(fetched_triggers) == 4
  
+	# Logic to check if the stored procedure can be executed on the target
+	INSERT_DATA_INTO_DEPARTMENT_PROCEDURE = "call create_dept(199, 'Administration_199', 200, 1700);"
+	tgt.execute_query(INSERT_DATA_INTO_DEPARTMENT_PROCEDURE);
+	FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA = "select count(*) from departments WHERE department_name = 'Administration_199';"
+	returned_row_count = tgt.execute_query(FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA);
+	print(f"Returned row count is - {returned_row_count}")
+	assert returned_row_count == 1
+	
 if __name__ == "__main__":
 	main()
