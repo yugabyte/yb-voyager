@@ -35,6 +35,11 @@ def migration_completed_checks(tgt):
 	INSERT_MEMBERS_QUERY = "insert into public.members (first_name, last_name, gender, email, dob) VALUES ('Pepi', 'Elce', 'F', 'pelce0@trellian.com', '1984-03-04');"
 	violate_unique_index_check_error = tgt.run_query_and_chk_error(INSERT_MEMBERS_QUERY, 23505)
 	assert violate_unique_index_check_error == True
+ 
+	# Logic to check if invalid indexes are present
+	for tablename, row_count in EXPECTED_ROW_COUNT.items():
+		invalid_index = tgt.invalid_index_present(tablename)
+		assert invalid_index == False
 
 if __name__ == "__main__":
 	main()
