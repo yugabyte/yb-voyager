@@ -2,5 +2,5 @@
 source migtests/scripts/yugabytedb/env.sh
 source migtests/scripts/functions.sh
 
-run_ysql "yugabyte" "CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD '${TARGET_DB_PASSWORD}';"
-# psql "postgresql://yugabyte:@${TARGET_DB_HOST}:${TARGET_DB_PORT}" -c "CREATE USER ybvoyager SUPERUSER PASSWORD 'password';"
+cmd="CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD '${TARGET_DB_PASSWORD}';"
+run_ysql "yugabyte" "${cmd}"

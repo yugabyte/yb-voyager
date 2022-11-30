@@ -39,7 +39,7 @@ main() {
 	./init-db
 
 	step "Grant source database user permissions"
-	grant_user_permission_${SOURCE_DB_TYPE} ${SOURCE_DB_NAME}
+	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE}
 
 	step "Export schema."
 	export_schema

@@ -2,5 +2,5 @@
 source migtests/scripts/mysql/env.sh
 source migtests/scripts/functions.sh
 
-run_mysql "information_schema" "CREATE USER ${SOURCE_DB_USER}@${SOURCE_DB_HOST} IDENTIFIED WITH  mysql_native_password BY '${SOURCE_DB_PASSWORD}';"
-# mysql -u root -proot -h ${SOURCE_DB_HOST} -P ${SOURCE_DB_PORT} -e 
+cmd="CREATE USER ${SOURCE_DB_USER}@${SOURCE_DB_HOST} IDENTIFIED WITH  mysql_native_password BY '${SOURCE_DB_PASSWORD}';"
+run_mysql "information_schema" "${cmd}"

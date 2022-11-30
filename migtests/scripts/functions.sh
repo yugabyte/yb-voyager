@@ -30,15 +30,28 @@ print_env() {
 run_psql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" -c "${sql}"
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	psql "${conn_string}" -c "${sql}"
+}
+
+psql_import_file() {
+	db_name=$1
+	file=$2
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+	psql "${conn_string}" -f "${file}"
 }
 
 grant_user_permission_postgresql() {
 	db_name=$1
-
-	echo "SELECT 'GRANT USAGE ON SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	echo "SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
-	echo "SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "postgresql://postgres:secret@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+	commands=(
+		"SELECT 'GRANT USAGE ON SCHEMA '", 
+		"SELECT 'GRANT SELECT ON ALL TABLES IN SCHEMA '", 
+		"SELECT 'GRANT SELECT ON ALL SEQUENCES IN SCHEMA '"
+		)
+	for command in "${commands[@]}"; do
+		echo "${command} || schema_name || ' TO ${SOURCE_DB_USER};' FROM information_schema.schemata; \gexec" | psql "${conn_string}" 
+	done
 }
 
 run_pg_restore() {
@@ -65,10 +78,16 @@ run_mysql() {
 grant_user_permission_mysql() {
 	db_name=$1
 	
-	run_mysql ${db_name} "GRANT PROCESS ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
-	run_mysql ${db_name} "GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
-	run_mysql ${db_name} "GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
-	run_mysql ${db_name} "GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+	commands=(
+		"GRANT PROCESS ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
+		"GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
+		"GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';",
+		"GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+	)
+
+	for command in "${commands[@]}"; do
+		run_mysql ${db_name} "${command}"
+	done
 
 	# For MySQL >= 8.0.20
 	# run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
@@ -76,6 +95,30 @@ grant_user_permission_mysql() {
 	# For older versions
 	run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 
+}
+
+grant_user_permission_oracle(){
+	db_name=$1
+}
+
+grant_permissions() {
+	db_name=$1
+	db_type=$2
+	case ${db_type} in
+		postgresql)
+			grant_user_permission_postgresql ${db_name}
+			;;
+		mysql)
+			grant_user_permission_mysql ${db_name}
+			;;
+		oracle)
+			grant_user_permission_oracle ${db_name}
+			;;
+		*)
+			echo "ERROR: grant_permissions not implemented for ${SOURCE_DB_TYPE}"
+			exit 1
+			;;
+	esac
 }
 
 export_schema() {
@@ -156,3 +199,6 @@ import_data_file() {
 		--send-diagnostics=false \
 		$*
 }
+
+
+
