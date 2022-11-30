@@ -29,7 +29,6 @@ import (
 )
 
 var sourceDBType string
-var isMViewsPresent bool
 
 // target struct will be populated by CLI arguments parsing
 var target tgtdb.Target
@@ -159,7 +158,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
 	cmd.Flags().BoolVar(&flagRefreshMViews, "refresh-mviews", false,
-		"If set, refreshes the materialised views on target after importing data (default false)")
+		"If set, refreshes the materialised views on target during post import data phase (default false")
 }
 
 func validateTargetPortRange() {

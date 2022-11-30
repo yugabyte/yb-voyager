@@ -1050,9 +1050,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}()
 
 	sqlInfoArr := createSqlStrInfoArray(file, objType)
-	if objType == "MVIEW" && len(sqlInfoArr) > 0 {
-		isMViewsPresent = true
-	} 
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
