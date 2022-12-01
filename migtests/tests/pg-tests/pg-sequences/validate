@@ -50,7 +50,23 @@ def migration_completed_checks(tgt):
 	print(f"for sequence_check2, Id returned- {id_returned} and expected id - 8")
 	assert id_returned == 8
 
+	# this validation check has been as added for issue - https://github.com/yugabyte/yb-voyager/issues/632
+	SEQUENCE_NAMES = ["sequence_check1_id_seq", "sequence_check2_id_seq", "sequence_check3_id_seq"]
+	SEQUENCE_OWNER_COLUMNS = ["sequence_check1.id", "sequence_check2.id", "sequence_check3.id"]
+	
+	for i in range(len(SEQUENCE_NAMES)):
+		FETCH_SEQUENCE_OWNER_QUERY = f"""SELECT CONCAT(d.refobjid::regclass, '.', a.attname)
+FROM   pg_depend    d
+JOIN   pg_attribute a ON a.attrelid = d.refobjid
+AND a.attnum   = d.refobjsubid
+WHERE  d.objid = '{SEQUENCE_NAMES[i]}'::regclass
+AND    d.refobjsubid > 0
+AND    d.classid = 'pg_class'::regclass"""
+		FETCHED_SEQUENCE_OWNER_COLUMN = tgt.execute_query(FETCH_SEQUENCE_OWNER_QUERY)
 
+		print(f"fetched owner column of sequence {SEQUENCE_NAMES[i]} is: {SEQUENCE_OWNER_COLUMNS[i]}, expected owner: {FETCHED_SEQUENCE_OWNER_COLUMN}")
+		assert FETCHED_SEQUENCE_OWNER_COLUMN == SEQUENCE_OWNER_COLUMNS[i]
+ 
 
 if __name__ == "__main__":
 	main()
