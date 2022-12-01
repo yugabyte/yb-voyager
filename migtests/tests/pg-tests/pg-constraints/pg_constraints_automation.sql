@@ -97,3 +97,15 @@ insert into foreign_test values (1,3,4);
 insert into foreign_test values (2,2,3);
 insert into foreign_test values (3,2,1);
 insert into foreign_test values (4,1,2);
+
+--test case for foreign key and unique index dependency
+
+create table xyz(id int);
+insert into xyz values(1),(2),(3);
+
+create table abc(name text, xyz_id int);
+
+create unique index idx on xyz using btree(id);
+
+alter table abc add constraint fk FOREIGN KEY (xyz_id) REFERENCES xyz(id);
+insert into abc values('fsdfs', 1),('sfdfds',2),('svss', 3); 
