@@ -98,5 +98,8 @@ jobs:
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
+    - name: "TEST: pg-dependent-ddls"
+      run: migtests/scripts/run-test.sh pg-dependent-ddls
+
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test

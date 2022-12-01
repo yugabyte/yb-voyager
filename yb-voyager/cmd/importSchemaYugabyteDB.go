@@ -56,7 +56,7 @@ func importDefferedStatements() {
 	}
 	log.Infof("Number of statements in defferedSQLStmts list: %d\n", len(defferedSqlStmts))
 
-	utils.PrintAndLog("Executing the remaining SQL statements...\n")
+	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(defferedSqlStmts)
 	conn := newTargetConn()
 	defer conn.Close(context.Background())
