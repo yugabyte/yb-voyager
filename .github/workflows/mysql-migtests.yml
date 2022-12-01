@@ -35,6 +35,10 @@ jobs:
     - name: Test MySQL connection
       run: |
         mysql -uroot -proot -e 'select version();'
+    
+    - name: Create MySQL user
+      run: |
+        ./migtests/scripts/mysql/create_mysql_user
 
     - name: Start YugabyteDB cluster
       run: |
@@ -45,6 +49,10 @@ jobs:
     - name: Test YugabyteDB connection
       run: |
         psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+
+    - name: Create YugabyteDB user
+      run: |
+        ./migtests/scripts/yugabytedb/create_yb_user
 
     - name: Enable yb-tserver-n1 name resolution
       run: |

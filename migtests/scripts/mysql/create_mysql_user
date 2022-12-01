@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+source migtests/scripts/mysql/env.sh
+source migtests/scripts/functions.sh
+
+cmd="CREATE USER ${SOURCE_DB_USER}@${SOURCE_DB_HOST} IDENTIFIED WITH  mysql_native_password BY '${SOURCE_DB_PASSWORD}';"
+run_mysql "information_schema" "${cmd}"
