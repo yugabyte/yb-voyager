@@ -14,9 +14,9 @@ type SourceDB interface {
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []string
-	GetAllPartitionNames(tableName string) ([]string, []string)
+	GetAllPartitionNames(tableName string) map[string][]string
 	ExportSchema(exportDir string)
-	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool)
+	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 }

@@ -73,73 +73,86 @@ func initializeExportTableMetadata(tableList []string) {
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
 		if source.DBType == ORACLE || source.DBType == MYSQL {
-			partitionList, subpartitionList := source.DB().GetAllPartitionNames(parentTable)
-			// Maintain a map amongst partitions if subpartition or not.
-			totalPartitions := make(map[string]bool)
-			for _, partition := range partitionList {
-				totalPartitions[partition] = false
-			}
-			for _, subpartition := range subpartitionList {
-				totalPartitions[subpartition] = true
-			}
-			if len(totalPartitions) > 0 {
-				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(totalPartitions), append(partitionList, subpartitionList...))
-
-				for partitionName, isSubPartition := range totalPartitions {
+			partitionMap := source.DB().GetAllPartitionNames(parentTable)
+			if len(partitionMap) > 0 {
+				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionMap), partitionMap)
+				for partitionName, subpartitionNames := range partitionMap {
 					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
 					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
-					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
-					if source.DBType == MYSQL { // for a table in MySQL: database and schema is same
-						tablesProgressMetadata[key].TableSchema = source.DBName
-					} else {
-						tablesProgressMetadata[key].TableSchema = source.Schema
+					if len(subpartitionNames) != 0 {
+						for _, subpartitionName := range subpartitionNames {
+							key = fmt.Sprintf("%s SUBPARTITION(%s)", key, subpartitionName)
+							fullTableName = fmt.Sprintf("%s SUBPARTITION(%s)", fullTableName, subpartitionName)
+							initializeSinglePartitionMetadata(key, parentTable, fullTableName, partitionName, true, subpartitionName)
+						}
+						continue
 					}
-					tablesProgressMetadata[key].TableName = partitionName
-
-					// partition are unique under a table in oracle
-					tablesProgressMetadata[key].FullTableName = fullTableName
-					tablesProgressMetadata[key].ParentTable = tablesProgressMetadata[parentTable].TableName
-					tablesProgressMetadata[key].IsPartition = true
-					tablesProgressMetadata[key].IsSubPartition = isSubPartition
-
-					tablesProgressMetadata[key].InProgressFilePath = ""
-					tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
-					tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
-					tablesProgressMetadata[key].CountLiveRows = int64(0)
-					tablesProgressMetadata[key].Status = 0
-					tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
+					initializeSinglePartitionMetadata(key, parentTable, fullTableName, partitionName, false, "")
 				}
 			}
 		}
 	}
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool, ora2pgQuitChan chan bool) {
+// Can be utilized to set metadata for either partitions or subpartitions in MySQL and Oracle.
+func initializeSinglePartitionMetadata(key string, parentTable string, fullTableName string, partitionName string, isSubPartition bool, subpartitionName string) {
+	tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
+	if source.DBType == MYSQL { // for a table in MySQL: database and schema is same
+		tablesProgressMetadata[key].TableSchema = source.DBName
+	} else {
+		tablesProgressMetadata[key].TableSchema = source.Schema
+	}
+	tablesProgressMetadata[key].TableName = partitionName
+
+	// partition are unique under a table in oracle
+	tablesProgressMetadata[key].FullTableName = fullTableName
+	tablesProgressMetadata[key].ParentTable = tablesProgressMetadata[parentTable].TableName
+	tablesProgressMetadata[key].IsPartition = true
+	tablesProgressMetadata[key].IsSubPartition = isSubPartition
+	if isSubPartition {
+		tablesProgressMetadata[key].ParentPartition = partitionName
+		tablesProgressMetadata[key].TableName = subpartitionName
+	}
+
+	tablesProgressMetadata[key].InProgressFilePath = ""
+	tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
+	tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
+	tablesProgressMetadata[key].CountLiveRows = int64(0)
+	tablesProgressMetadata[key].Status = 0
+	tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
+}
+
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 	quitChan2 := make(chan bool)
 	quit := false
+	updateMetadataAndExit := false
+	safeExit := false
+	// TODO: Clean up this go routine; check if quitChan2 is really needed.
 	go func() {
 		quit = <-quitChan2
 		if quit {
 			quitChan <- true
 		}
 	}()
+	// If ora2pg has successfully exited, update tableProgressMetadata and exit (Fix for partitions and subpartitions in MySQL, Oracle)
 	go func() {
-		quit = <-ora2pgQuitChan
-		fmt.Printf("Force Quit? %t\n", quit)
+		updateMetadataAndExit = <-exportSuccessChan
 	}()
 
 	numTables := len(tablesProgressMetadata)
-	//fmt.Println(numTables)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
 	var exportedTables []string
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	for doneCount < numTables && !quit { //TODO: wait for export data to start
+	for doneCount < numTables && !quit && !safeExit { //TODO: wait for export data to start
 		for _, key := range sortedKeys {
 			if quit {
 				break
+			}
+			if !tablesProgressMetadata[key].IsSubPartition {
+				fmt.Println(tablesProgressMetadata[key].InProgressFilePath, tablesProgressMetadata[key].FinalFilePath)
 			}
 			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
 				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
@@ -163,6 +176,16 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 		if ctx.Err() != nil {
 			fmt.Println(ctx.Err())
 			break
+		}
+		// Wait for metadata to update and then exit (fix for partition and subparitions in MySQL, Oracle)
+		if updateMetadataAndExit && (source.DBType == MYSQL || source.DBType == ORACLE) {
+			safeExit = true
+			for _, key := range sortedKeys {
+				if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_IN_PROGRESS || tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
+					safeExit = false
+					break
+				}
+			}
 		}
 		time.Sleep(1 * time.Second)
 	}

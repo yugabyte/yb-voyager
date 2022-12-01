@@ -142,7 +142,7 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (pg *PostgreSQL) GetAllPartitionNames(tableName string) ([]string, []string) {
+func (pg *PostgreSQL) GetAllPartitionNames(tableName string) map[string][]string {
 	panic("Not Implemented")
 }
 
@@ -168,7 +168,8 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+	// exportSuccessChan not needed for PG, it is to only exit explicitly when using ora2pg, to support (sub)partitions.
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart)
 }
 

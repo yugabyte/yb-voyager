@@ -103,7 +103,7 @@ func (ms *MySQL) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (ms *MySQL) GetAllPartitionNames(tableName string) ([]string, []string) {
+func (ms *MySQL) GetAllPartitionNames(tableName string) map[string][]string {
 	query := fmt.Sprintf(`SELECT subpartition_name, partition_name  from information_schema.partitions
 	WHERE table_name='%s' and table_schema='%s' ORDER BY partition_name ASC`,
 		tableName, ms.source.DBName)
@@ -114,8 +114,7 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) ([]string, []string) {
 	}
 	defer rows.Close()
 
-	var partitionNames []string
-	var subpartitionNames []string
+	var partitionNames = make(map[string][]string)
 	for rows.Next() {
 		var partitionName sql.NullString
 		var subpartitionName sql.NullString
@@ -123,14 +122,17 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) ([]string, []string) {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}
+		if partitionName.Valid {
+			if _, ok := partitionNames[partitionName.String]; !ok {
+				partitionNames[partitionName.String] = make([]string, 0)
+			}
+		}
 		if subpartitionName.Valid {
-			subpartitionNames = append(subpartitionNames, subpartitionName.String)
-		} else if partitionName.Valid {
-			partitionNames = append(partitionNames, partitionName.String)
+			partitionNames[partitionName.String] = append(partitionNames[partitionName.String], subpartitionName.String)
 		}
 	}
 	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames, subpartitionNames
+	return partitionNames
 }
 
 func (ms *MySQL) getConnectionUri() string {
@@ -169,8 +171,8 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart)
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

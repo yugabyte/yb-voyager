@@ -111,7 +111,7 @@ func (ora *Oracle) GetAllTableNames() []string {
 	return tableNames
 }
 
-func (ora *Oracle) GetAllPartitionNames(tableName string) ([]string, []string) {
+func (ora *Oracle) GetAllPartitionNames(tableName string) map[string][]string {
 	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
 		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
 		tableName, ora.source.Schema)
@@ -132,7 +132,7 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) ([]string, []string) {
 		// TODO: Support subpartition(find subparititions for each partition)
 	}
 	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames, partitionNames //Get subpartition names list
+	return make(map[string][]string) //Get subpartition names list
 }
 
 func (ora *Oracle) getConnectionUri() string {
@@ -161,8 +161,8 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart)
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

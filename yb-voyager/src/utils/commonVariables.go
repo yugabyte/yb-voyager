@@ -39,6 +39,7 @@ type TableProgressMetadata struct {
 	IsPartition          bool
 	IsSubPartition       bool
 	ParentTable          string
+	ParentPartition      string
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
