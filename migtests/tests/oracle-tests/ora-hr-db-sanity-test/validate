@@ -1,0 +1,97 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_ROW_COUNT = {
+	'countries': 25,
+	'departments': 27,
+	'employees': 107,
+	'jobs': 19,
+	'job_history': 10,
+	'locations': 23,
+	'regions': 4
+}
+
+QUERIES_CHECK = {
+	'FAULTY_QUERY_LESSER_END_DATE': {
+		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2003-01-01', '2002-01-01', 'AD_PRES', 90);",
+		'code': 23514
+	}, 
+	'VIOLATE_INDEX_jhist_emp_id_st_date_pk': {
+		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2001-01-13', '2006-07-24', 'AD_PRES', 90);",
+		'code': 23505
+	},
+	'VIOLATE_CHECK_CONSTRAINT_emp_salary_min': {
+		'query': "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);",
+		'code': 23514
+	}
+}
+
+#=============================================================================
+
+def migration_completed_checks(tgt):
+    # Logic to check for the total number of tables migrated
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 7
+
+	# Logic to check for the total number of rows migrated
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+ 
+	# Logic to check the number of rows migrated as part of the view
+	VIEW_ROW_COUNT_QUERY = "SELECT COUNT(*) FROM emp_details_view;"
+	fetched_row_count = tgt.execute_query(VIEW_ROW_COUNT_QUERY)
+	print(f"Returned row count is - {fetched_row_count}")
+	assert fetched_row_count == 106
+ 
+	# The following constraint checks are handled below
+	# Checking the constraint : jhist_date_interval CHECK (end_date > start_date)
+	# Unique index checks on job history table
+ 	# Logic to validate the check constraint on employees table
+	for type_check, query_and_code in QUERIES_CHECK.items():
+		query, code = query_and_code['query'], query_and_code['code']
+		chk_err_returned = tgt.run_query_and_chk_error(query, code)
+		print(f"Checking {type_check} ..", code, {chk_err_returned} )
+		assert chk_err_returned == True
+ 
+	# Logic to check the sequences migrated
+	fetched_sequences = tgt.get_objects_of_type("SEQUENCE", "public")
+	print(f"Returned sequences are - {fetched_sequences}")
+	assert len(fetched_sequences) == 3
+	
+	# Logic to check for the number of indexes present in the schema
+	fetched_indexes = tgt.get_objects_of_type("INDEX", "public")
+	print(f"Returned indexes are - {fetched_indexes} & there are {len(fetched_indexes)} of them")
+	assert len(fetched_indexes) == 19
+ 
+	# Logic to check if invalid indexes are present
+	for tablename, row_count in EXPECTED_ROW_COUNT.items():
+		invalid_index = tgt.invalid_index_present(tablename, "public")
+		assert invalid_index == False
+ 
+	# Logic to check the number of procedures migrated
+	fetched_procedures = tgt.fetch_all_procedures("public")
+	print(f"Returned procedures are - {fetched_procedures}")
+	assert len(fetched_procedures) == 5
+ 
+	# Logic to check the number of triggers migrated
+	fetched_triggers = tgt.fetch_all_triggers("public")
+	print(f"Returned triggers are - {fetched_triggers}")
+	assert len(fetched_triggers) == 4
+ 
+	# Logic to check if the stored procedure can be executed on the target
+	INSERT_DATA_INTO_DEPARTMENT_PROCEDURE = "call create_dept(199, 'Administration_199', 200, 1700);"
+	tgt.execute_query(INSERT_DATA_INTO_DEPARTMENT_PROCEDURE);
+	FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA = "select count(*) from departments WHERE department_name = 'Administration_199';"
+	returned_row_count = tgt.execute_query(FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA);
+	print(f"Returned row count is - {returned_row_count}")
+	assert returned_row_count == 1
+	
+if __name__ == "__main__":
+	main()

@@ -149,3 +149,14 @@ class PostgresDB:
 				return True
 
 		return False
+
+
+	def fetch_all_triggers(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
+		return [trigger[0] for trigger in cur.fetchall()]
+
+	def fetch_all_procedures(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
+		return [procedure[0] for procedure in cur.fetchall()]
