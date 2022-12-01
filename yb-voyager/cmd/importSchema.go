@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -58,11 +57,6 @@ func init() {
 var flagPostImportData bool
 var importObjectsInStraightOrder bool
 
-var isAlterStatement = func(objType, stmt string) bool {
-	stmt = strings.ToUpper(strings.TrimSpace(stmt))
-	return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
-}
-
 func importSchema() {
 	err := target.DB().Connect()
 	if err != nil {
@@ -94,11 +88,18 @@ func importSchema() {
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
 
+	var isAlterStatement = func(objType, stmt string) bool {
+		stmt = strings.ToUpper(strings.TrimSpace(stmt))
+		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+	}
 	// Import ALTER TABLE statements from sequence.sql only after importing everything else
 	skipFn := isAlterStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
 	fmt.Printf("\nImporting statements deferred in previous pass.\n\n")
-	importDeferredStatements(objectList)
+	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	if slices.Contains(objectList, "SEQUENCE") {
+		importSchemaInternal(exportDir, []string{"SEQUENCE"}, func(objType, stmt string) bool { return !isAlterStatement(objType, stmt) })
+	}
 	log.Info("Schema import is complete.")
 	callhome.PackAndSendPayload(exportDir)
 }
@@ -191,17 +192,4 @@ func isAlreadyExists(errString string) bool {
 		}
 	}
 	return false
-}
-
-func importDeferredStatements(objectList []string) {
-	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
-	if slices.Contains(objectList, "SEQUENCE") {
-		skipFn := func(objType, stmt string) bool {
-			return !isAlterStatement(objType, stmt)
-		}
-		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
-		}
-	}
 }
