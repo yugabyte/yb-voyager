@@ -34,7 +34,7 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
+		fmt.Printf("\nImporting %s DDLs from %q\n\n", importObjectType, importObjectFilePath)
 		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
 }
@@ -101,6 +101,9 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	}
 	if sourceDBType == "postgresql" && !slices.Contains(finalImportObjectList, "SCHEMA") && !flagPostImportData { // Schema should be migrated by default.
 		finalImportObjectList = append([]string{"SCHEMA"}, finalImportObjectList...)
+	}
+	if !flagPostImportData {
+		finalImportObjectList = append(finalImportObjectList, []string{"UNIQUE INDEX"}...)
 	}
 	return finalImportObjectList
 }
