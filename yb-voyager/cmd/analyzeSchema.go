@@ -90,7 +90,7 @@ var (
 	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
 	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
 	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([A-Za-z0-9]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY RANGE ([^,]+(?:,[^,]+){0,}) ;`)
+	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
 	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
 	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
 	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
@@ -454,11 +454,11 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
-		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch !=nil {
+		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			allColumns := strings.Trim(regMatch[3], "() ")
 			allColumnsList := strings.Split(allColumns, "(")
 			primaryKeyColumns := allColumnsList[len(allColumnsList)-1]
-			partitionColumns := strings.Trim(regMatch[4], `()`)
+			partitionColumns := strings.Trim(regMatch[5], `()`)
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
 			sort.Strings(primaryKeyColumnsList)
