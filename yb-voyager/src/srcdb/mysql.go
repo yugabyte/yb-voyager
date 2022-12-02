@@ -114,7 +114,7 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) map[string][]string {
 	}
 	defer rows.Close()
 
-	var partitionNames = make(map[string][]string)
+	var partitionMap = make(map[string][]string)
 	for rows.Next() {
 		var partitionName sql.NullString
 		var subpartitionName sql.NullString
@@ -123,16 +123,16 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) map[string][]string {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}
 		if partitionName.Valid {
-			if _, ok := partitionNames[partitionName.String]; !ok {
-				partitionNames[partitionName.String] = make([]string, 0)
+			if _, ok := partitionMap[partitionName.String]; !ok {
+				partitionMap[partitionName.String] = make([]string, 0)
 			}
 		}
 		if subpartitionName.Valid {
-			partitionNames[partitionName.String] = append(partitionNames[partitionName.String], subpartitionName.String)
+			partitionMap[partitionName.String] = append(partitionMap[partitionName.String], subpartitionName.String)
 		}
 	}
-	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionMap)
+	return partitionMap
 }
 
 func (ms *MySQL) getConnectionUri() string {

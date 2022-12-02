@@ -112,7 +112,7 @@ func (ora *Oracle) GetAllTableNames() []string {
 }
 
 func (ora *Oracle) GetAllPartitionNames(tableName string) map[string][]string {
-	query := fmt.Sprintf("SELECT partition_name FROM all_tab_partitions "+
+	query := fmt.Sprintf("SELECT partition_name, subpartition_name FROM all_tab_subpartitions "+
 		"WHERE table_name = '%s' AND table_owner = '%s' ORDER BY partition_name ASC",
 		tableName, ora.source.Schema)
 	rows, err := ora.db.Query(query)
@@ -121,18 +121,25 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) map[string][]string {
 	}
 	defer rows.Close()
 
-	var partitionNames []string
+	var partitionMap = make(map[string][]string)
 	for rows.Next() {
-		var partitionName string
-		err = rows.Scan(&partitionName)
+		var partitionName sql.NullString
+		var subpartitionName sql.NullString
+		err = rows.Scan(&subpartitionName, &partitionName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}
-		partitionNames = append(partitionNames, partitionName)
-		// TODO: Support subpartition(find subparititions for each partition)
+		if partitionName.Valid {
+			if _, ok := partitionMap[partitionName.String]; !ok {
+				partitionMap[partitionName.String] = make([]string, 0)
+			}
+		}
+		if subpartitionName.Valid {
+			partitionMap[partitionName.String] = append(partitionMap[partitionName.String], subpartitionName.String)
+		}
 	}
-	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return make(map[string][]string) //Get subpartition names list
+	log.Infof("Partition Names for parent table %q: %q", tableName, partitionMap)
+	return partitionMap
 }
 
 func (ora *Oracle) getConnectionUri() string {
