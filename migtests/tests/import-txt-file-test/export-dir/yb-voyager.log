@@ -1,0 +1,628 @@
+2022-12-02 10:45:57 INFO logging.go:65 Logging initialised.
+2022-12-02 10:45:57 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_txt --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test --format text --delimiter \t --file-table-map SMSA.txt:txt_table]
+2022-12-02 10:45:57 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=fba74ffe3554e7023c2b68123719093eec43f1e0
+LAST_COMMIT_DATE=2022-12-02T06:03:41Z
+
+2022-12-02 10:45:57 INFO importDataFileCommand.go:235 resolved delimiter value: "\t"
+2022-12-02 10:45:57 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:45:57 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" for table "txt_table": 5080
+2022-12-02 10:45:57 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:45:57 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:45:57 INFO importDataFileCommand.go:86 absolute filepath for "txt_table": "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt"
+2022-12-02 10:45:57 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" is "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 10:45:57 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:45:57 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:45:57 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 10:45:57 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[txt_table:COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:45:57 INFO logging.go:33 import of data in "migrate_txt" database started
+2022-12-02 10:45:57 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:45:57 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 10:45:57 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:45:57 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:45:57 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:45:58 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:45:58 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000325180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:45:58 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:45:58 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer]
+2022-12-02 10:45:58 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:45:58 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:45:58 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:45:58 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:45:58 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:45:58 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:45:59 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669977959062403 logical: 4095 } local_limit: { physical: 1669977959062403 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:46:04 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:46:04 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 10:46:08 INFO importData.go:331 parallelism=6
+2022-12-02 10:46:08 INFO importData.go:427 doneTables: []
+2022-12-02 10:46:08 INFO importData.go:428 interruptedTables: []
+2022-12-02 10:46:08 INFO importData.go:429 remainingTables: [txt_table]
+2022-12-02 10:46:08 INFO importData.go:463 allTables: [txt_table]
+2022-12-02 10:46:08 INFO importData.go:464 importTables: [txt_table]
+2022-12-02 10:46:08 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 10:46:08 INFO importDataStatus.go:166 importedRowCount: map[txt_table:-1]
+2022-12-02 10:46:08 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 10:46:08 INFO importData.go:544 Start splitting table "txt_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 10:46:08 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 10:46:08 INFO importData.go:595 Split data file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql": tableName="txt_table", largestSplit=0, largestOffset=0
+2022-12-02 10:46:08 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:46:08 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 10:46:08 INFO csvdatafile.go:111 created csv data file struct for file: /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql
+2022-12-02 10:46:08 INFO importData.go:609 current temp file: /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.1.tmp
+2022-12-02 10:46:08 INFO importData.go:615 Skipping 0 lines from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 10:46:08 INFO importData.go:667 Preparing last split of "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 10:46:08 INFO importData.go:676 Renaming "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.1.tmp" to "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.C"
+2022-12-02 10:46:08 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "txt_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=109) "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 61,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-12-02 10:46:08 INFO importData.go:701 splitFilesForTable: done splitting data file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql" for table "txt_table"
+2022-12-02 10:46:08 INFO importData.go:590 All table data files are split.
+2022-12-02 10:46:10 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.C"
+2022-12-02 10:46:10 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.C" to "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 10:46:10 INFO importData.go:863 COPY command: COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION 61)
+2022-12-02 10:46:10 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer"
+2022-12-02 10:46:10 INFO importData.go:970 "txt_table.0.61.61.5080.P" is not imported yet
+2022-12-02 10:46:10 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"JanTemp\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 10:46:10 INFO importData.go:887 "COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '\t',  ROWS_PER_TRANSACTION 61)" => 0 rows affected
+2022-12-02 10:46:10 ERROR logging.go:28 COPY "txt_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P": ERROR: invalid input syntax for integer: "JanTemp" (SQLSTATE 22P02)
+
+2022-12-02 10:59:52 INFO logging.go:65 Logging initialised.
+2022-12-02 10:59:52 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_txt --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test --format text --delimiter \t --file-table-map SMSA.txt:txt_table]
+2022-12-02 10:59:52 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=7def395662704fafa7000e16030d682e8e1aaa38
+LAST_COMMIT_DATE=2022-12-02T10:55:35Z
+
+2022-12-02 10:59:52 INFO importDataFileCommand.go:235 resolved delimiter value: "\t"
+2022-12-02 10:59:52 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:59:52 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" for table "txt_table": 5080
+2022-12-02 10:59:52 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:59:52 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:59:52 INFO importDataFileCommand.go:86 absolute filepath for "txt_table": "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt"
+2022-12-02 10:59:52 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" is "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 10:59:52 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql" to create fresh link
+2022-12-02 10:59:52 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:59:52 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:59:52 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 10:59:52 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[txt_table:COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:59:52 INFO logging.go:33 import of data in "migrate_txt" database started
+2022-12-02 10:59:53 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:59:53 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 10:59:53 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:59:53 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:59:53 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:59:53 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:59:53 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b9180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:59:53 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:59:53 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer]
+2022-12-02 10:59:53 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:59:53 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:59:53 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer
+2022-12-02 10:59:54 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:59:54 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:59:54 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:59:54 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669978794186119 logical: 4095 } local_limit: { physical: 1669978794186119 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:59:59 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:59:59 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 11:00:03 INFO importData.go:331 parallelism=6
+2022-12-02 11:00:03 INFO importData.go:427 doneTables: []
+2022-12-02 11:00:03 INFO importData.go:428 interruptedTables: [txt_table]
+2022-12-02 11:00:03 INFO importData.go:429 remainingTables: []
+2022-12-02 11:00:03 INFO importData.go:463 allTables: [txt_table]
+2022-12-02 11:00:03 INFO importData.go:464 importTables: [txt_table]
+2022-12-02 11:00:03 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 11:00:03 INFO importDataStatus.go:166 importedRowCount: map[txt_table:-1]
+2022-12-02 11:00:03 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 11:00:03 INFO importData.go:544 Start splitting table "txt_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 11:00:03 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 11:00:03 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "txt_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=109) "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 61,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:00:03 INFO importData.go:590 All table data files are split.
+2022-12-02 11:00:05 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:00:05 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:00:05 INFO importData.go:863 COPY command: COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION 61)
+2022-12-02 11:00:06 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer"
+2022-12-02 11:00:06 INFO importData.go:970 "txt_table.0.61.61.5080.P" is not imported yet
+2022-12-02 11:00:06 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"JanTemp\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 11:00:06 INFO importData.go:887 "COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '\t',  ROWS_PER_TRANSACTION 61)" => 0 rows affected
+2022-12-02 11:00:06 ERROR logging.go:28 COPY "txt_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P": ERROR: invalid input syntax for integer: "JanTemp" (SQLSTATE 22P02)
+
+2022-12-02 11:27:58 INFO logging.go:65 Logging initialised.
+2022-12-02 11:27:58 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_txt --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test --format text --delimiter \t --file-table-map SMSA.txt:txt_table]
+2022-12-02 11:27:58 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=7def395662704fafa7000e16030d682e8e1aaa38
+LAST_COMMIT_DATE=2022-12-02T10:55:35Z
+
+2022-12-02 11:27:58 INFO importDataFileCommand.go:235 resolved delimiter value: "\t"
+2022-12-02 11:27:58 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 11:27:58 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" for table "txt_table": 5080
+2022-12-02 11:27:58 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:27:58 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 11:27:58 INFO importDataFileCommand.go:86 absolute filepath for "txt_table": "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt"
+2022-12-02 11:27:58 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" is "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 11:27:58 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql" to create fresh link
+2022-12-02 11:27:58 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 11:27:58 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:27:58 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 11:27:58 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[txt_table:COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 11:27:58 INFO logging.go:33 import of data in "migrate_txt" database started
+2022-12-02 11:27:58 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:27:58 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5080] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 11:27:58 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 11:27:58 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 11:27:58 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:27:58 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:27:58 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b9180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:27:58 INFO importData.go:256 all target servers are accessible
+2022-12-02 11:27:58 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer]
+2022-12-02 11:27:58 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:27:59 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:27:59 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:27:59 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 11:27:59 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 11:27:59 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:27:59 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669980479615791 logical: 4095 } local_limit: { physical: 1669980479615791 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 11:28:04 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:28:04 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 11:28:05 INFO importData.go:331 parallelism=6
+2022-12-02 11:28:05 INFO importData.go:427 doneTables: []
+2022-12-02 11:28:05 INFO importData.go:428 interruptedTables: [txt_table]
+2022-12-02 11:28:05 INFO importData.go:429 remainingTables: []
+2022-12-02 11:28:05 INFO importData.go:463 allTables: [txt_table]
+2022-12-02 11:28:05 INFO importData.go:464 importTables: [txt_table]
+2022-12-02 11:28:05 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 11:28:05 INFO importDataStatus.go:166 importedRowCount: map[txt_table:-1]
+2022-12-02 11:28:05 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 11:28:05 INFO importData.go:544 Start splitting table "txt_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 11:28:05 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 11:28:05 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "txt_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=109) "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 61,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:28:05 INFO importData.go:590 All table data files are split.
+2022-12-02 11:28:07 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:28:07 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:28:07 INFO importData.go:863 COPY command: COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION 61)
+2022-12-02 11:28:07 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer"
+2022-12-02 11:28:07 INFO importData.go:970 "txt_table.0.61.61.5080.P" is not imported yet
+2022-12-02 11:28:07 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"JanTemp\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 11:28:07 INFO importData.go:887 "COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '\t',  ROWS_PER_TRANSACTION 61)" => 0 rows affected
+2022-12-02 11:28:07 ERROR logging.go:28 COPY "txt_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P": ERROR: invalid input syntax for integer: "JanTemp" (SQLSTATE 22P02)
+
+2022-12-02 11:36:33 INFO logging.go:65 Logging initialised.
+2022-12-02 11:36:33 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_txt --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test --format text --delimiter \t --file-table-map SMSA.txt:txt_table]
+2022-12-02 11:36:33 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=7def395662704fafa7000e16030d682e8e1aaa38
+LAST_COMMIT_DATE=2022-12-02T10:55:35Z
+
+2022-12-02 11:36:33 INFO importDataFileCommand.go:235 resolved delimiter value: "\t"
+2022-12-02 11:36:33 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 11:36:33 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" for table "txt_table": 5058
+2022-12-02 11:36:33 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:36:33 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 11:36:33 INFO importDataFileCommand.go:86 absolute filepath for "txt_table": "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt"
+2022-12-02 11:36:33 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt" is "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 11:36:33 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql" to create fresh link
+2022-12-02 11:36:33 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 11:36:33 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:36:33 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5058] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 11:36:33 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[txt_table:COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 11:36:33 INFO logging.go:33 import of data in "migrate_txt" database started
+2022-12-02 11:36:33 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:36:33 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[txt_table:5058] Delimiter:	 HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir}
+2022-12-02 11:36:33 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 11:36:33 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 11:36:33 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:36:33 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:36:33 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b9180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_txt",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "txt_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:36:33 INFO importData.go:256 all target servers are accessible
+2022-12-02 11:36:33 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer]
+2022-12-02 11:36:33 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:36:33 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:36:34 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_txt?sslmode=prefer
+2022-12-02 11:36:34 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 11:36:34 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 11:36:34 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:36:34 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669980994400608 logical: 4095 } local_limit: { physical: 1669980994400608 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 11:36:39 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:36:39 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 11:36:39 INFO importData.go:331 parallelism=6
+2022-12-02 11:36:39 INFO importData.go:427 doneTables: []
+2022-12-02 11:36:39 INFO importData.go:428 interruptedTables: [txt_table]
+2022-12-02 11:36:39 INFO importData.go:429 remainingTables: []
+2022-12-02 11:36:39 INFO importData.go:463 allTables: [txt_table]
+2022-12-02 11:36:39 INFO importData.go:464 importTables: [txt_table]
+2022-12-02 11:36:39 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 11:36:39 INFO importDataStatus.go:166 importedRowCount: map[txt_table:-1]
+2022-12-02 11:36:39 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 11:36:39 INFO importData.go:544 Start splitting table "txt_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/data/txt_table_data.sql"
+2022-12-02 11:36:39 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 11:36:39 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "txt_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=109) "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 61,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:36:39 INFO importData.go:590 All table data files are split.
+2022-12-02 11:36:41 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:36:41 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P"
+2022-12-02 11:36:41 INFO importData.go:863 COPY command: COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '	',  ROWS_PER_TRANSACTION 61)
+2022-12-02 11:36:42 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_txt?sslmode=prefer"
+2022-12-02 11:36:42 INFO importData.go:970 "txt_table.0.61.61.5080.P" is not imported yet
+2022-12-02 11:36:42 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"JanTemp\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 11:36:42 INFO importData.go:887 "COPY txt_table FROM STDIN WITH (FORMAT text, DELIMITER '\t',  ROWS_PER_TRANSACTION 61)" => 0 rows affected
+2022-12-02 11:36:42 ERROR logging.go:28 COPY "txt_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/export-dir/metainfo/data/txt_table.0.61.61.5080.P": ERROR: invalid input syntax for integer: "JanTemp" (SQLSTATE 22P02)
+

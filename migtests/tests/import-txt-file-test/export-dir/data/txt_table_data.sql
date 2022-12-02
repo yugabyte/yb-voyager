@@ -1,0 +1,1 @@
+/home/ubuntu/yb-voyager/migtests/tests/import-txt-file-test/SMSA.txt

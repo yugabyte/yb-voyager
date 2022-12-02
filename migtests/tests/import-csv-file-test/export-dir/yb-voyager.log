@@ -1,0 +1,966 @@
+2022-12-02 10:40:10 INFO logging.go:65 Logging initialised.
+2022-12-02 10:40:10 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_csv --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test --format text --delimiter , --file-table-map FY2021_Survey.csv:csv_table]
+2022-12-02 10:40:10 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=fba74ffe3554e7023c2b68123719093eec43f1e0
+LAST_COMMIT_DATE=2022-12-02T06:03:41Z
+
+2022-12-02 10:40:10 INFO importDataFileCommand.go:235 resolved delimiter value: ","
+2022-12-02 10:40:10 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:40:10 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" for table "csv_table": 6575476
+2022-12-02 10:40:10 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:40:10 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:40:10 INFO importDataFileCommand.go:86 absolute filepath for "csv_table": "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv"
+2022-12-02 10:40:10 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" is "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:40:10 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:40:10 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:40:10 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:40:10 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[csv_table:COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:40:10 INFO logging.go:33 import of data in "migrate_csv" database started
+2022-12-02 10:40:10 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:40:10 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:40:11 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:40:11 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:40:11 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:40:11 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:40:11 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000325180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:40:11 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:40:11 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer]
+2022-12-02 10:40:11 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:40:11 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:40:11 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:40:12 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:40:12 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:40:12 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:40:12 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669977612143918 } local_limit: { physical: 1669977612143918 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:40:17 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:40:17 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 10:40:17 INFO importData.go:331 parallelism=6
+2022-12-02 10:40:17 INFO importData.go:427 doneTables: []
+2022-12-02 10:40:17 INFO importData.go:428 interruptedTables: []
+2022-12-02 10:40:17 INFO importData.go:429 remainingTables: [csv_table]
+2022-12-02 10:40:17 INFO importData.go:463 allTables: [csv_table]
+2022-12-02 10:40:17 INFO importData.go:464 importTables: [csv_table]
+2022-12-02 10:40:17 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 10:40:17 INFO importDataStatus.go:166 importedRowCount: map[csv_table:-1]
+2022-12-02 10:40:17 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 10:40:17 INFO importData.go:544 Start splitting table "csv_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:40:17 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 10:40:17 INFO importData.go:595 Split data file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql": tableName="csv_table", largestSplit=0, largestOffset=0
+2022-12-02 10:40:17 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:40:17 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:40:17 INFO csvdatafile.go:111 created csv data file struct for file: /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql
+2022-12-02 10:40:17 INFO importData.go:609 current temp file: /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.tmp
+2022-12-02 10:40:17 INFO importData.go:615 Skipping 0 lines from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:40:17 INFO importData.go:676 Renaming "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.tmp" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.C"
+2022-12-02 10:40:17 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.C",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 20000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) false
+}
+
+2022-12-02 10:40:17 INFO importData.go:689 create next temp file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.tmp"
+2022-12-02 10:40:17 INFO importData.go:676 Renaming "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.tmp" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.C"
+2022-12-02 10:40:17 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.C",
+ OffsetStart: (int64) 20000,
+ OffsetEnd: (int64) 40000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 2,
+ Interrupted: (bool) false
+}
+
+2022-12-02 10:40:17 INFO importData.go:689 create next temp file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.3.tmp"
+2022-12-02 10:40:17 INFO importData.go:667 Preparing last split of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:40:17 INFO importData.go:676 Renaming "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.3.tmp" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.C"
+2022-12-02 10:40:17 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=116) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.C",
+ OffsetStart: (int64) 40000,
+ OffsetEnd: (int64) 41716,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 3,
+ Interrupted: (bool) false
+}
+
+2022-12-02 10:40:17 INFO importData.go:701 splitFilesForTable: done splitting data file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql" for table "csv_table"
+2022-12-02 10:40:17 INFO importData.go:590 All table data files are split.
+2022-12-02 10:40:19 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.C"
+2022-12-02 10:40:19 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.C" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:40:19 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 1716)
+2022-12-02 10:40:19 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.C"
+2022-12-02 10:40:19 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.C" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:40:19 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:40:19 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.C"
+2022-12-02 10:40:19 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.C" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:40:19 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:40:19 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:40:19 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:40:19 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:40:19 INFO importData.go:970 "csv_table.0.41716.1716.268578.P" is not imported yet
+2022-12-02 10:40:19 INFO importData.go:970 "csv_table.1.20000.20000.3157716.P" is not imported yet
+2022-12-02 10:40:19 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:40:19 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:40:19 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P (attempt 1)
+2022-12-02 10:40:19 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"Industry_Year\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 10:40:19 INFO importData.go:887 "COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)" => 0 rows affected
+2022-12-02 10:40:19 ERROR logging.go:28 COPY "csv_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P": ERROR: invalid input syntax for integer: "Industry_Year" (SQLSTATE 22P02)
+
+2022-12-02 10:48:22 INFO logging.go:65 Logging initialised.
+2022-12-02 10:48:22 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_csv --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test --format text --delimiter , --file-table-map FY2021_Survey.csv:csv_table]
+2022-12-02 10:48:22 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=fba74ffe3554e7023c2b68123719093eec43f1e0
+LAST_COMMIT_DATE=2022-12-02T06:03:41Z
+
+2022-12-02 10:48:22 INFO importDataFileCommand.go:235 resolved delimiter value: ","
+2022-12-02 10:48:22 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:48:22 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" for table "csv_table": 6575476
+2022-12-02 10:48:22 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:48:22 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:48:22 INFO importDataFileCommand.go:86 absolute filepath for "csv_table": "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv"
+2022-12-02 10:48:22 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" is "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:48:22 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql" to create fresh link
+2022-12-02 10:48:22 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:48:22 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:48:22 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:48:22 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[csv_table:COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:48:22 INFO logging.go:33 import of data in "migrate_csv" database started
+2022-12-02 10:48:23 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:48:23 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:48:23 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:48:23 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:48:23 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:48:23 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:48:23 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000325180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:48:23 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:48:23 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer]
+2022-12-02 10:48:23 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:48:23 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:48:23 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:48:24 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:48:24 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:48:24 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:48:24 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669978104251029 } local_limit: { physical: 1669978104248727 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:48:29 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:48:29 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 10:48:29 INFO importData.go:331 parallelism=6
+2022-12-02 10:48:29 INFO importData.go:427 doneTables: []
+2022-12-02 10:48:29 INFO importData.go:428 interruptedTables: [csv_table]
+2022-12-02 10:48:29 INFO importData.go:429 remainingTables: []
+2022-12-02 10:48:29 INFO importData.go:463 allTables: [csv_table]
+2022-12-02 10:48:29 INFO importData.go:464 importTables: [csv_table]
+2022-12-02 10:48:29 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 10:48:29 INFO importDataStatus.go:166 importedRowCount: map[csv_table:-1]
+2022-12-02 10:48:29 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 10:48:29 INFO importData.go:544 Start splitting table "csv_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:48:29 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 10:48:29 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=116) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P",
+ OffsetStart: (int64) 40000,
+ OffsetEnd: (int64) 41716,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:48:29 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 20000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:48:29 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P",
+ OffsetStart: (int64) 20000,
+ OffsetEnd: (int64) 40000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 2,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:48:29 INFO importData.go:590 All table data files are split.
+2022-12-02 10:48:31 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:48:31 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:48:31 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:48:31 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:48:31 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:48:31 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 1716)
+2022-12-02 10:48:31 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:48:31 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:48:31 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:48:31 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:48:31 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:48:32 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:48:32 INFO importData.go:970 "csv_table.2.40000.20000.3149182.P" is not imported yet
+2022-12-02 10:48:32 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:48:32 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:48:32 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P (attempt 1)
+2022-12-02 10:48:32 INFO importData.go:970 "csv_table.0.41716.1716.268578.P" is not imported yet
+2022-12-02 10:48:32 INFO importData.go:970 "csv_table.1.20000.20000.3157716.P" is not imported yet
+2022-12-02 10:48:32 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:48:32 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:48:32 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P (attempt 1)
+2022-12-02 10:48:32 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"Industry_Year\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 10:48:32 INFO importData.go:887 "COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)" => 0 rows affected
+2022-12-02 10:48:32 ERROR logging.go:28 COPY "csv_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P": ERROR: invalid input syntax for integer: "Industry_Year" (SQLSTATE 22P02)
+
+2022-12-02 10:52:46 INFO logging.go:65 Logging initialised.
+2022-12-02 10:52:46 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_csv --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test --format text --delimiter , --file-table-map FY2021_Survey.csv:csv_table]
+2022-12-02 10:52:46 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=fba74ffe3554e7023c2b68123719093eec43f1e0
+LAST_COMMIT_DATE=2022-12-02T06:03:41Z
+
+2022-12-02 10:52:46 INFO importDataFileCommand.go:235 resolved delimiter value: ","
+2022-12-02 10:52:46 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:52:46 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" for table "csv_table": 6575476
+2022-12-02 10:52:46 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:52:46 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:52:46 INFO importDataFileCommand.go:86 absolute filepath for "csv_table": "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv"
+2022-12-02 10:52:46 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" is "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:52:46 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql" to create fresh link
+2022-12-02 10:52:46 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:52:46 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:52:46 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:52:46 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[csv_table:COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:52:46 INFO logging.go:33 import of data in "migrate_csv" database started
+2022-12-02 10:52:46 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:52:46 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:52:46 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:52:46 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:52:46 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:52:46 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000324b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:52:46 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc000325180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:52:46 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:52:46 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer]
+2022-12-02 10:52:46 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:52:46 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:52:47 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:52:47 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:52:47 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:52:47 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:52:47 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669978367417164 logical: 4095 } local_limit: { physical: 1669978367417164 logical: 4095 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:52:52 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:52:52 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 10:52:57 INFO importData.go:331 parallelism=6
+2022-12-02 10:52:57 INFO importData.go:427 doneTables: []
+2022-12-02 10:52:57 INFO importData.go:428 interruptedTables: [csv_table]
+2022-12-02 10:52:57 INFO importData.go:429 remainingTables: []
+2022-12-02 10:52:57 INFO importData.go:463 allTables: [csv_table]
+2022-12-02 10:52:57 INFO importData.go:464 importTables: [csv_table]
+2022-12-02 10:52:57 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 10:52:57 INFO importDataStatus.go:166 importedRowCount: map[csv_table:-1]
+2022-12-02 10:52:57 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 10:52:57 INFO importData.go:544 Start splitting table "csv_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:52:57 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 10:52:57 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=116) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P",
+ OffsetStart: (int64) 40000,
+ OffsetEnd: (int64) 41716,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:52:57 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 20000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:52:57 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P",
+ OffsetStart: (int64) 20000,
+ OffsetEnd: (int64) 40000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 2,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:52:57 INFO importData.go:590 All table data files are split.
+2022-12-02 10:52:59 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:52:59 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:52:59 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 1716)
+2022-12-02 10:52:59 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:52:59 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:52:59 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:52:59 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:52:59 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:52:59 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:52:59 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:52:59 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:52:59 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:52:59 INFO importData.go:970 "csv_table.2.40000.20000.3149182.P" is not imported yet
+2022-12-02 10:52:59 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:52:59 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:52:59 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P (attempt 1)
+2022-12-02 10:52:59 INFO importData.go:970 "csv_table.0.41716.1716.268578.P" is not imported yet
+2022-12-02 10:52:59 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:52:59 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:52:59 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P (attempt 1)
+2022-12-02 10:52:59 INFO importData.go:970 "csv_table.1.20000.20000.3157716.P" is not imported yet
+2022-12-02 10:52:59 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"Industry_Year\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 10:52:59 INFO importData.go:887 "COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)" => 0 rows affected
+2022-12-02 10:52:59 ERROR logging.go:28 COPY "csv_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P": ERROR: invalid input syntax for integer: "Industry_Year" (SQLSTATE 22P02)
+
+2022-12-02 10:58:35 INFO logging.go:65 Logging initialised.
+2022-12-02 10:58:35 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_csv --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test --format text --delimiter , --file-table-map FY2021_Survey.csv:csv_table]
+2022-12-02 10:58:35 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=7def395662704fafa7000e16030d682e8e1aaa38
+LAST_COMMIT_DATE=2022-12-02T10:55:35Z
+
+2022-12-02 10:58:35 INFO importDataFileCommand.go:235 resolved delimiter value: ","
+2022-12-02 10:58:35 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 10:58:35 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" for table "csv_table": 6575476
+2022-12-02 10:58:35 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:58:35 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 10:58:35 INFO importDataFileCommand.go:86 absolute filepath for "csv_table": "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv"
+2022-12-02 10:58:35 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" is "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:58:35 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql" to create fresh link
+2022-12-02 10:58:35 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 10:58:35 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:58:35 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:58:35 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[csv_table:COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 10:58:35 INFO logging.go:33 import of data in "migrate_csv" database started
+2022-12-02 10:58:35 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 10:58:35 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 10:58:36 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 10:58:36 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 10:58:36 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:58:36 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:58:36 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b9180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 10:58:36 INFO importData.go:256 all target servers are accessible
+2022-12-02 10:58:36 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer]
+2022-12-02 10:58:36 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:58:36 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:58:36 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer
+2022-12-02 10:58:37 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 10:58:37 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 10:58:37 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:58:37 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669978717302717 } local_limit: { physical: 1669978717302717 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 10:58:42 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 10:58:42 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 10:58:46 INFO importData.go:331 parallelism=6
+2022-12-02 10:58:46 INFO importData.go:427 doneTables: []
+2022-12-02 10:58:46 INFO importData.go:428 interruptedTables: [csv_table]
+2022-12-02 10:58:46 INFO importData.go:429 remainingTables: []
+2022-12-02 10:58:46 INFO importData.go:463 allTables: [csv_table]
+2022-12-02 10:58:46 INFO importData.go:464 importTables: [csv_table]
+2022-12-02 10:58:46 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 10:58:46 INFO importDataStatus.go:166 importedRowCount: map[csv_table:-1]
+2022-12-02 10:58:46 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 10:58:46 INFO importData.go:544 Start splitting table "csv_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 10:58:46 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 10:58:46 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=116) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P",
+ OffsetStart: (int64) 40000,
+ OffsetEnd: (int64) 41716,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:58:46 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 20000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:58:46 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P",
+ OffsetStart: (int64) 20000,
+ OffsetEnd: (int64) 40000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 2,
+ Interrupted: (bool) true
+}
+
+2022-12-02 10:58:46 INFO importData.go:590 All table data files are split.
+2022-12-02 10:58:48 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:58:48 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 10:58:48 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:58:48 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:58:48 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 10:58:48 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 1716)
+2022-12-02 10:58:48 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:58:48 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 10:58:48 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 10:58:49 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:58:49 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:58:49 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer"
+2022-12-02 10:58:49 INFO importData.go:970 "csv_table.0.41716.1716.268578.P" is not imported yet
+2022-12-02 10:58:49 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 10:58:49 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 10:58:49 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P (attempt 1)
+2022-12-02 10:58:49 INFO importData.go:970 "csv_table.1.20000.20000.3157716.P" is not imported yet
+2022-12-02 10:58:49 INFO importData.go:970 "csv_table.2.40000.20000.3149182.P" is not imported yet
+2022-12-02 10:58:49 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"Industry_Year\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 10:58:49 INFO importData.go:887 "COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)" => 0 rows affected
+2022-12-02 10:58:49 ERROR logging.go:28 COPY "csv_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P": ERROR: invalid input syntax for integer: "Industry_Year" (SQLSTATE 22P02)
+
+2022-12-02 11:01:24 INFO logging.go:65 Logging initialised.
+2022-12-02 11:01:24 INFO logging.go:67 Args: [yb-voyager import data file --export-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir --target-db-host 10.9.118.29 --target-db-port 5433 --target-db-user ybvoyager --target-db-password XXX --target-db-name migrate_csv --disable-pb --send-diagnostics=false --data-dir /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test --format text --delimiter , --file-table-map FY2021_Survey.csv:csv_table]
+2022-12-02 11:01:24 INFO logging.go:68 
+VERSION=main
+GIT_COMMIT_HASH=7def395662704fafa7000e16030d682e8e1aaa38
+LAST_COMMIT_DATE=2022-12-02T10:55:35Z
+
+2022-12-02 11:01:24 INFO importDataFileCommand.go:235 resolved delimiter value: ","
+2022-12-02 11:01:24 INFO importDataFileCommand.go:277 fileOptsMap: map[]
+2022-12-02 11:01:24 INFO importDataFileCommand.go:71 File size of "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" for table "csv_table": 6575476
+2022-12-02 11:01:24 INFO descriptor.go:47 storing DataFileDescriptor at "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:01:24 INFO importDataFileCommand.go:78 creating symlinks to original data files
+2022-12-02 11:01:24 INFO importDataFileCommand.go:86 absolute filepath for "csv_table": "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv"
+2022-12-02 11:01:24 INFO importDataFileCommand.go:87 symlink path for file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/FY2021_Survey.csv" is "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 11:01:24 INFO importDataFileCommand.go:89 removing symlink: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql" to create fresh link
+2022-12-02 11:01:24 INFO importDataFileCommand.go:104 preparing copy commands for the tables to import
+2022-12-02 11:01:24 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:01:24 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 11:01:24 INFO importDataFileCommand.go:127 copyTableFromCommands map: map[csv_table:COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION %v)]
+2022-12-02 11:01:24 INFO logging.go:33 import of data in "migrate_csv" database started
+2022-12-02 11:01:24 INFO descriptor.go:31 loading DataFileDescriptor from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/dataFileDescriptor.json"
+2022-12-02 11:01:24 INFO descriptor.go:41 Parsed DataFileDescriptor: &{FileFormat:text TableRowCount:map[] TableFileSize:map[csv_table:6575476] Delimiter:, HasHeader:false ExportDir:/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir}
+2022-12-02 11:01:24 INFO importData.go:270 Target.Host=10.9.118.29 matched with one of ips in [10.9.118.29]
+
+2022-12-02 11:01:24 INFO importData.go:194 Target DB nodes: 10.9.133.96:5433,10.9.118.29:5433,10.9.197.94:5433
+2022-12-02 11:01:24 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8500)({
+ Host: (string) (len=11) "10.9.133.96",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:01:24 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b8b40)({
+ Host: (string) (len=11) "10.9.118.29",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:01:24 INFO importData.go:249 testing server: (*tgtdb.Target)(0xc0002b9180)({
+ Host: (string) (len=11) "10.9.197.94",
+ Port: (int) 5433,
+ User: (string) (len=9) "ybvoyager",
+ Password: (string) (len=3) "XXX",
+ DBName: (string) (len=11) "migrate_csv",
+ Schema: (string) (len=6) "public",
+ SSLMode: (string) (len=6) "prefer",
+ SSLCertPath: (string) "",
+ SSLKey: (string) "",
+ SSLRootCert: (string) "",
+ SSLCRL: (string) "",
+ SSLQueryString: (string) "",
+ Uri: (string) (len=72) "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer",
+ ContinueOnError: (bool) false,
+ IgnoreIfExists: (bool) false,
+ VerboseMode: (bool) false,
+ TableList: (string) (len=9) "csv_table",
+ ExcludeTableList: (string) "",
+ ImportMode: (bool) false,
+ ImportObjects: (string) "",
+ ExcludeImportObjects: (string) "",
+ dbVersion: (string) (len=19) "11.2-YB-2.15.2.1-b0",
+ db: (*tgtdb.TargetDB)(<nil>)
+})
+
+
+2022-12-02 11:01:24 INFO importData.go:256 all target servers are accessible
+2022-12-02 11:01:24 INFO importData.go:313 targetUriList: [postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer]
+2022-12-02 11:01:24 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer
+2022-12-02 11:01:24 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer
+2022-12-02 11:01:25 INFO importData.go:212 Determining CPU core count on: postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer
+2022-12-02 11:01:25 INFO logging.go:33 Using 6 parallel jobs by default. Use --parallel-jobs to specify a custom value
+2022-12-02 11:01:25 INFO importData.go:1332 YBSessionInitScript: [SET client_encoding TO 'UTF8' SET session_replication_role TO replica SET yb_enable_upsert_mode to true]
+
+2022-12-02 11:01:25 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:01:25 WARN importData.go:376 Error while running [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata] attempt 1: ERROR: Query error: Restart read required at: { read: { physical: 1669978885575378 } local_limit: { physical: 1669978885575378 } global_limit: <min> in_txn_limit: <max> serial_no: 0 } (SQLSTATE 40001)
+2022-12-02 11:01:30 INFO importData.go:368 Executing on target: [CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata]
+2022-12-02 11:01:30 INFO importData.go:368 Executing on target: [CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			schema_name VARCHAR(250),
+			file_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (schema_name, file_name)
+		);]
+2022-12-02 11:01:31 INFO importData.go:331 parallelism=6
+2022-12-02 11:01:31 INFO importData.go:427 doneTables: []
+2022-12-02 11:01:31 INFO importData.go:428 interruptedTables: [csv_table]
+2022-12-02 11:01:31 INFO importData.go:429 remainingTables: []
+2022-12-02 11:01:31 INFO importData.go:463 allTables: [csv_table]
+2022-12-02 11:01:31 INFO importData.go:464 importTables: [csv_table]
+2022-12-02 11:01:31 INFO importDataStatus.go:116 Initializing import data status
+2022-12-02 11:01:31 INFO importDataStatus.go:166 importedRowCount: map[csv_table:-1]
+2022-12-02 11:01:31 INFO importData.go:540 Started goroutine: splitDataFiles
+2022-12-02 11:01:31 INFO importData.go:544 Start splitting table "csv_table": data-file: "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/data/csv_table_data.sql"
+2022-12-02 11:01:31 INFO importData.go:546 Collect all interrupted/remaining splits.
+2022-12-02 11:01:31 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=116) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P",
+ OffsetStart: (int64) 40000,
+ OffsetEnd: (int64) 41716,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 0,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:01:31 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P",
+ OffsetStart: (int64) 0,
+ OffsetEnd: (int64) 20000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 1,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:01:31 INFO importData.go:715 Queued an import task: (cmd.SplitFileImportTask) {
+ TableName: (string) (len=9) "csv_table",
+ SchemaName: (string) "",
+ SplitFilePath: (string) (len=118) "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P",
+ OffsetStart: (int64) 20000,
+ OffsetEnd: (int64) 40000,
+ TmpConnectionString: (string) "",
+ SplitNumber: (int64) 2,
+ Interrupted: (bool) true
+}
+
+2022-12-02 11:01:31 INFO importData.go:590 All table data files are split.
+2022-12-02 11:01:33 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 11:01:33 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P"
+2022-12-02 11:01:33 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 1716)
+2022-12-02 11:01:33 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 11:01:33 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P"
+2022-12-02 11:01:33 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 11:01:33 INFO importData.go:839 Importing "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 11:01:33 INFO importData.go:846 Renaming file from "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P" to "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.2.40000.20000.3149182.P"
+2022-12-02 11:01:33 INFO importData.go:863 COPY command: COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)
+2022-12-02 11:01:33 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.118.29:5433/migrate_csv?sslmode=prefer"
+2022-12-02 11:01:33 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.197.94:5433/migrate_csv?sslmode=prefer"
+2022-12-02 11:01:33 INFO conn_pool.go:93 Connected to "postgresql://ybvoyager:xxxxx@10.9.133.96:5433/migrate_csv?sslmode=prefer"
+2022-12-02 11:01:33 INFO importData.go:970 "csv_table.0.41716.1716.268578.P" is not imported yet
+2022-12-02 11:01:33 INFO utils.go:309 string s="ERROR: extra data after last expected column (SQLSTATE 22P04)" did not match with any string in [Sending too long RPC message invalid input syntax violates unique constraint]
+2022-12-02 11:01:33 WARN importData.go:876 COPY FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P": ERROR: extra data after last expected column (SQLSTATE 22P04)
+2022-12-02 11:01:33 INFO importData.go:881 sleep for 10 seconds before retrying the file /home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.0.41716.1716.268578.P (attempt 1)
+2022-12-02 11:01:33 INFO importData.go:970 "csv_table.1.20000.20000.3157716.P" is not imported yet
+2022-12-02 11:01:33 INFO utils.go:305 string s="ERROR: invalid input syntax for integer: \"Industry_Year\" (SQLSTATE 22P02)" contains slice[i]="invalid input syntax"
+2022-12-02 11:01:33 INFO importData.go:887 "COPY csv_table FROM STDIN WITH (FORMAT text, DELIMITER ',',  ROWS_PER_TRANSACTION 20000)" => 0 rows affected
+2022-12-02 11:01:33 ERROR logging.go:28 COPY "csv_table" FROM file "/home/ubuntu/yb-voyager/migtests/tests/import-csv-file-test/export-dir/metainfo/data/csv_table.1.20000.20000.3157716.P": ERROR: invalid input syntax for integer: "Industry_Year" (SQLSTATE 22P02)
+
