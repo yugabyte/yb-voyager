@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -92,43 +91,34 @@ func importSchema() {
 	// Import some statements only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		switch(objType) {
-			case "SEQUENCE": 
-				// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name'); 
-				return strings.HasPrefix(stmt, "ALTER TABLE")
-			case "TABLE":
-				// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
-				return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
-			case "UNIQUE INDEX":
-				// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
-				return !strings.Contains(stmt, objType)
-			case "INDEX":
-				// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
-				return strings.Contains(stmt, "UNIQUE INDEX")
+		switch objType {
+		case "SEQUENCE":
+			// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
+			return strings.HasPrefix(stmt, "ALTER TABLE")
+		case "TABLE":
+			// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
+			return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+		case "UNIQUE INDEX":
+			// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
+			return !strings.Contains(stmt, objType)
+		case "INDEX":
+			// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
+			return strings.Contains(stmt, "UNIQUE INDEX")
 		}
 		return false
 	}
-
 	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-
+	fmt.Printf("\nImporting deferred DDL statements.\n\n")
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
 		return !isSkipStatement(objType, stmt)
 	}
 	if slices.Contains(objectList, "SEQUENCE") {
-		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
-			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
-		}
+		importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 	}
 	if slices.Contains(objectList, "TABLE") {
-		tableFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
-		if utils.FileOrFolderExists(tableFilePath) {
-			fmt.Printf("\nImporting FOREIGN KEY DDLs from %q\n\n", tableFilePath)
-			executeSqlFile(tableFilePath, "TABLE", skipFn)
-		}
+		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
 	log.Info("Schema import is complete.")
