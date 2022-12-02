@@ -297,6 +297,7 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
+	target.Schema = strings.ToLower(target.Schema)
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
@@ -1357,5 +1358,4 @@ func init() {
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
-	target.Schema = strings.ToLower(target.Schema)
 }
