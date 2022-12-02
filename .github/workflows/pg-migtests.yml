@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main, 0.82-dev ]
   pull_request:
-    branches: [ main,0.82-dev ]
+    branches: [ main, 0.82-dev ]
 
 jobs:
   run-pg-migration-tests:
