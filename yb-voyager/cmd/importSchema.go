@@ -95,7 +95,8 @@ func importSchema() {
 		switch objType {
 		case "SEQUENCE":
 			// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
-			return strings.HasPrefix(stmt, "ALTER TABLE")
+			// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
+			return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
 		case "TABLE":
 			// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
 			return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
