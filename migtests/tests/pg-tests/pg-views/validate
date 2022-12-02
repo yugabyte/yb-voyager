@@ -27,12 +27,8 @@ def migration_completed_checks(tgt):
 	assert len(view_list) == 3
 
 	materialized_view_list = tgt.get_objects_of_type("MVIEW", "test_views")
-	print("materialized_view_list:", view_list)
+	print("materialized_view_list:", materialized_view_list)
 	assert len(materialized_view_list) == 1
-	
-	chk_err_while_refresh_mview = tgt.run_query_and_chk_error("REFRESH MATERIALIZED VIEW test_views.mv1;", None)
-	print(f"Refreshing materialised views error chk returned - {chk_err_while_refresh_mview}")
-	assert chk_err_while_refresh_mview == False
 
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		cnt = tgt.get_row_count(table_name, "test_views")

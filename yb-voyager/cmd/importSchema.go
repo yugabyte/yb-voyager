@@ -57,6 +57,7 @@ func init() {
 
 var flagPostImportData bool
 var importObjectsInStraightOrder bool
+var flagRefreshMViews bool
 
 func importSchema() {
 	err := target.DB().Connect()
@@ -132,7 +133,43 @@ func importSchema() {
 	}
 
 	log.Info("Schema import is complete.")
+	if flagPostImportData {
+		if flagRefreshMViews {
+			refreshMViews(conn)
+		}
+	} else {
+		utils.PrintAndLog("NOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+	}
 	callhome.PackAndSendPayload(exportDir)
+}
+
+func refreshMViews(conn *pgx.Conn) {
+	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
+	var mViewNames []string
+	mViewsSqlInfoArr := getDDLStmts("MVIEW")
+	for _, eachMviewSql := range mViewsSqlInfoArr {
+		if strings.Contains(strings.ToUpper(eachMviewSql.stmt), "CREATE MATERIALIZED VIEW") {
+			mViewNames = append(mViewNames, eachMviewSql.objName)
+		}
+	}
+	log.Infof("List of Mviews Imported to refresh - %v", mViewNames)
+	for _, mViewName := range mViewNames {
+		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
+		_, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
+		}
+	}
+}
+
+func getDDLStmts(objType string) []sqlInfo {
+	var sqlInfoArr []sqlInfo
+	schemaDir := filepath.Join(exportDir, "schema")
+	importMViewFilePath := utils.GetObjectFilePath(schemaDir, objType)
+	if utils.FileOrFolderExists(importMViewFilePath) {
+		sqlInfoArr = createSqlStrInfoArray(importMViewFilePath, objType)
+	}
+	return sqlInfoArr
 }
 
 func createTargetSchemas(conn *pgx.Conn) {
