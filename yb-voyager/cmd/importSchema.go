@@ -113,7 +113,7 @@ func importSchema() {
 
 	log.Info("Schema import is complete.")
 	if flagPostImportData {
-		if flagRefreshMViews {
+		if flagRefreshMViews { //refresh MViews flag is set
 			refreshMViews(conn)
 		}
 	} else {
