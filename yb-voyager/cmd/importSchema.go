@@ -52,7 +52,6 @@ func init() {
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
-	target.Schema = strings.ToLower(target.Schema)
 }
 
 var flagPostImportData bool
@@ -64,6 +63,7 @@ func importSchema() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
+	target.Schema = strings.ToLower(target.Schema)
 	conn := target.DB().Conn()
 	targetDBVersion := target.DB().GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
