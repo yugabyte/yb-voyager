@@ -89,7 +89,7 @@ func importSchema() {
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
 
-	// Import some statements only after importing everything else
+	// Skipped statements, import only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
 		switch(objType) {
