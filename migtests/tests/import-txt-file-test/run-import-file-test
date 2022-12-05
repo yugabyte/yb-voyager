@@ -34,10 +34,10 @@ CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
     Mortality NUMERIC,
     Education REAL,
     Pop_density DOUBLE PRECISION,
-    PNonWhite SMALLINT,
+    PNonWhite REAL,
     Pwc NUMERIC,
     Pop TEXT,
-    Pop_house INTEGER,
+    Pop_house NUMERIC,
     Income TEXT,
     HcPot NUMERIC,
     NOxpot REAL,
@@ -46,6 +46,9 @@ CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
 );"
 
 main() {
+    echo "Deleting the parent export-dir present in the test directory"
+	rm -rf ${EXPORT_DIR}
+
 	mkdir -p ${EXPORT_DIR}
 
 	pushd ${TEST_DIR}
@@ -62,7 +65,7 @@ main() {
 		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
 
 	step "Run validations."
-	 "${TEST_DIR}/validate" FILE_IMPORT_DONE
+	 "${TEST_DIR}/validate"
 }
 
 main

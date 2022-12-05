@@ -1,4 +1,3 @@
-city	state	JanTemp	JulyTemp	RelHum	Rain	Mortality	Education	PopDensity	pNonWhite	pWC	pop	pophouse	income	HCPot	NOxPot	S02Pot	NOx
 Akron	OH	27	71	59	36	921.87	11.4	3243	8.8	42.6	660328	3.34	29560	21	15	59	15
 Albany-Schenectady-Troy	NY	23	72	57	35	997.87	11	4281	3.5	50.7	835880	3.14	31458	8	10	39	10
 Allentown-Bethlehem	PA-NJ	29	74	54	44	962.35	9.8	4260	0.8	39.4	635481	3.21	31856	6	6	33	6
