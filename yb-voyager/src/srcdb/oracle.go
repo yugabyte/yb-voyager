@@ -50,8 +50,12 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
 			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
 	} else {
-		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
-			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName)
+		subpartitionPrefix := ""
+		if tableProgressMetadata.IsSubPartition {
+			subpartitionPrefix = "SUB"
+		}
+		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_%sPARTITIONS "+
+			"WHERE TABLE_NAME='%s' AND %sPARTITION_NAME='%s'", subpartitionPrefix, tableProgressMetadata.ParentTable, subpartitionPrefix, tableProgressMetadata.TableName)
 	}
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
@@ -125,7 +129,7 @@ func (ora *Oracle) GetAllPartitionNames(tableName string) map[string][]string {
 	for rows.Next() {
 		var partitionName sql.NullString
 		var subpartitionName sql.NullString
-		err = rows.Scan(&subpartitionName, &partitionName)
+		err = rows.Scan(&partitionName, &subpartitionName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows: %v", err)
 		}

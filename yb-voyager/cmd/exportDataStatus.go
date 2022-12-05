@@ -81,9 +81,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					if len(subpartitionNames) != 0 {
 						for _, subpartitionName := range subpartitionNames {
-							key = fmt.Sprintf("%s SUBPARTITION(%s)", key, subpartitionName)
-							fullTableName = fmt.Sprintf("%s SUBPARTITION(%s)", fullTableName, subpartitionName)
-							initializeSinglePartitionMetadata(key, parentTable, fullTableName, partitionName, true, subpartitionName)
+							initializeSinglePartitionMetadata(fmt.Sprintf("%s SUBPARTITION(%s)", key, subpartitionName), parentTable, fmt.Sprintf("%s SUBPARTITION(%s)", fullTableName, subpartitionName), partitionName, true, subpartitionName)
 						}
 						continue
 					}
@@ -151,9 +149,9 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			if quit {
 				break
 			}
-			if !tablesProgressMetadata[key].IsSubPartition {
-				fmt.Println(tablesProgressMetadata[key].InProgressFilePath, tablesProgressMetadata[key].FinalFilePath)
-			}
+			// if !tablesProgressMetadata[key].IsSubPartition {
+			// 	fmt.Println(tablesProgressMetadata[key].InProgressFilePath, tablesProgressMetadata[key].FinalFilePath)
+			// }
 			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
 				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
