@@ -59,27 +59,27 @@ func importDefferedStatements() {
 	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
 	maxIterations := len(defferedSqlStmts)
 	conn := newTargetConn()
-	defer conn.Close(context.Background())
+	defer func() { conn.Close(context.Background()) }()
 
 	var err error
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(defferedSqlStmts) > 0; i++ {
-		for j := 0; j < len(defferedSqlStmts); j++ {
+		for j := 0; j < len(defferedSqlStmts); {
 			_, err = conn.Exec(context.Background(), defferedSqlStmts[j].formattedStmt)
 			if err == nil {
-				utils.PrintAndLog("%s\n\n", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt))
+				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt))
 				// removing successfully executed SQL
 				defferedSqlStmts = append(defferedSqlStmts[:j], defferedSqlStmts[j+1:]...)
-				break
+				break // no increment in j
 			} else {
 				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
 				conn.Close(context.Background())
 				conn = newTargetConn()
+				j++
 			}
 		}
 	}
 
-	// adding failed deffered statements to failed list
 	failedSqlStmts = append(failedSqlStmts, defferedSqlStmts...)
 }
 

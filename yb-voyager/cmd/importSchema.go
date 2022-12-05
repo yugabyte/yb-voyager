@@ -141,7 +141,7 @@ func importSchema() {
 	callhome.PackAndSendPayload(exportDir)
 }
 
-func dumpStatements(stmts []string, filePath string) {
+func dumpStatements(stmts []sqlInfo, filePath string) {
 	if len(stmts) == 0 {
 		return
 	}
@@ -267,8 +267,8 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	return fetchedSchema == targetSchema
 }
 
-func deferDoesNotExist(errString string) bool {
-	return strings.Contains(errString, "does not exist")
+func missingRequiredSchemaObject(err error) bool {
+	return strings.Contains(err.Error(), "does not exist")
 }
 
 func isAlreadyExists(errString string) bool {

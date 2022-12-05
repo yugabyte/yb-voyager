@@ -1125,7 +1125,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// DROP INDEX in case INVALID index got created
 			dropIdx(*conn, fullyQualifiedObjName)
 			continue
-		} else if deferDoesNotExist(err.Error()) {
+		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
 			defferedSqlStmts = append(defferedSqlStmts, sqlInfo)
 		} else if isAlreadyExists(err.Error()) {
@@ -1143,7 +1143,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
 		if !target.ContinueOnError { //default case
 			os.Exit(1)
-		} else if !deferDoesNotExist(err.Error()) {
+		} else if !missingRequiredSchemaObject(err) {
 			log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 			failedSqlStmts = append(failedSqlStmts, sqlInfo)
 		}
