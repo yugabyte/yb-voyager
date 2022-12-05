@@ -11,12 +11,14 @@ def main():
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 2 
+	assert len(table_list) == 2
+	assert set(table_list) == set(["table1", "table2"])
  
 	function_list = tgt.get_functions_count("public")
 	print("function_list: ", function_list)
 	assert len(function_list) == 2
- 
+	assert set(function_list) == set(["lower", "array_sort"])
+  
 
 if __name__ == "__main__":
 	main()

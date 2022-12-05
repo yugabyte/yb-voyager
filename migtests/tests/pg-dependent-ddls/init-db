@@ -10,4 +10,4 @@ run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
 run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
-psql "postgresql://${SOURCE_DB_USER}:"${SOURCE_DB_PASSWORD}"@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}" -f schema.sql
+psql_import_file ${SOURCE_DB_NAME} schema.sql
