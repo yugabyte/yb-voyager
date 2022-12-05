@@ -1008,7 +1008,6 @@ func setTargetSchema(conn *pgx.Conn) {
 	}
 	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
 	var cntSchemaName int
-
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
 	} else if cntSchemaName == 0 {
