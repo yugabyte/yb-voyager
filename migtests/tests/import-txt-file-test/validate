@@ -4,11 +4,20 @@ import yb
 
 def main():
 	yb.run_checks(file_import_done_checks)
+ 
+EXPECTED_DATA_TYPES = {
+	'txt_table': ['character varying', 'character', 'smallint', 'integer', 'bigint', 'integer', 'numeric', 'real', 'double precision', 'real', 'numeric', 'text', 'numeric', 'text', 'numeric', 'real', 'double precision', 'numeric'],
+}
 
 def file_import_done_checks(tgt):
 	row_count = tgt.get_row_count("txt_table")
 	print(f"row_count: {row_count}")
 	assert row_count == 60
+ 
+	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
+	for table_name, data_types in fetched_datatypes_schema.items():
+		print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
+		assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
 
 if __name__ == "__main__":
 	main()
