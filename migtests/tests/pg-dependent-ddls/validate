@@ -16,8 +16,7 @@ def migration_completed_checks(tgt):
  
 	function_list = tgt.get_functions_count("public")
 	print("function_list: ", function_list)
-	assert len(function_list) == 2
-	assert set(function_list) == set(["lower", "array_sort"])
+	assert function_list == 2
   
 
 if __name__ == "__main__":

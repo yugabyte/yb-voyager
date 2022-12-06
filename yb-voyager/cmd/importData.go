@@ -1139,13 +1139,17 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		break // no more iteration in case of non retriable error
 	}
 	if err != nil {
-		fmt.Printf("\b \n    %s\n", err.Error())
-		fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
-		if !target.ContinueOnError { //default case
-			os.Exit(1)
-		} else if !missingRequiredSchemaObject(err) {
-			log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
-			failedSqlStmts = append(failedSqlStmts, sqlInfo)
+		if missingRequiredSchemaObject(err) {
+			// Do nothing
+		} else {
+			fmt.Printf("\b \n    %s\n", err.Error())
+			fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
+			if target.ContinueOnError {
+				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
+				failedSqlStmts = append(failedSqlStmts, sqlInfo)
+			} else {
+				os.Exit(1)
+			}
 		}
 	}
 	return err
