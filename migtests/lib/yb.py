@@ -140,7 +140,7 @@ class PostgresDB:
 			tables[table_name][column_name] = data_type
 		return tables
 
-	def invalid_index_present(self, table_name, schema_name):
+	def invalid_index_present(self, table_name, schema_name="public"):
 		cur = self.conn.cursor()
 		cur.execute(f"select indisvalid from pg_index where indrelid = '{schema_name}.{table_name}'::regclass::oid")
 
