@@ -49,6 +49,9 @@ main() {
     echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}
 
+    echo "Assigning permissions to the validate files"
+	chmod +x ${TEST_DIR}/validate
+
 	mkdir -p ${EXPORT_DIR}
 
 	pushd ${TEST_DIR}

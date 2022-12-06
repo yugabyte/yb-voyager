@@ -40,6 +40,9 @@ CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}
+
+	echo "Assigning permissions to the validate files"
+	chmod +x ${TEST_DIR}/validate
 	
 	mkdir -p ${EXPORT_DIR}
 
@@ -53,8 +56,8 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "${CMD}"
 
 	step "Import data file"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter ',' \
-		--file-table-map --has-header "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}" --has-header
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"
