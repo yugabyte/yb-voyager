@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -124,7 +125,11 @@ func importSchema() {
 		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
+	importDefferedStatements()
 	log.Info("Schema import is complete.")
+
+	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+
 	if flagPostImportData {
 		if flagRefreshMViews {
 			refreshMViews(conn)
@@ -132,7 +137,27 @@ func importSchema() {
 	} else {
 		utils.PrintAndLog("NOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
 	}
+
 	callhome.PackAndSendPayload(exportDir)
+}
+
+func dumpStatements(stmts []sqlInfo, filePath string) {
+	if len(stmts) == 0 {
+		return
+	}
+
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		utils.ErrExit("open file: %v", err)
+	}
+
+	for i := 0; i < len(stmts); i++ {
+		_, err = file.WriteString(stmts[i].formattedStmt + "\n\n")
+		if err != nil {
+			utils.ErrExit("failed writing in file %s: %v", filePath, err)
+		}
+	}
+	utils.PrintAndLog("failed SQL statements during migration are present in %q file\n", filePath)
 }
 
 func refreshMViews(conn *pgx.Conn) {
@@ -240,6 +265,10 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	}
 
 	return fetchedSchema == targetSchema
+}
+
+func missingRequiredSchemaObject(err error) bool {
+	return strings.Contains(err.Error(), "does not exist")
 }
 
 func isAlreadyExists(errString string) bool {

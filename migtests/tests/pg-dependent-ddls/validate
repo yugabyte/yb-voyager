@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+def migration_completed_checks(tgt):    
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 2
+	assert set(table_list) == set(["table1", "table2"])
+ 
+	function_list = tgt.get_functions_count("public")
+	print("function_list: ", function_list)
+	assert function_list == 2
+  
+
+if __name__ == "__main__":
+	main()
