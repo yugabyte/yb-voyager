@@ -20,3 +20,6 @@ yb-voyager/yb-voyager
 
 # vim temp files.
 *.swp
+
+migtests/tests/*/export-dir/
+migtests/tests/oracle-tests/*/export-dir/
