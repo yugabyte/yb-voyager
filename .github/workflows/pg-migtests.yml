@@ -100,3 +100,9 @@ jobs:
 
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
+
+    - name: "TEST: import-csv-file-test"
+      run: migtests/tests/import-csv-file-test/run-import-file-test
+
+    - name: "TEST: import-txt-file-test"
+      run: migtests/tests/import-txt-file-test/run-import-file-test
