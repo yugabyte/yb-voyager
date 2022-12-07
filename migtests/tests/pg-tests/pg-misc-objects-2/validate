@@ -51,10 +51,28 @@ def migration_completed_checks(tgt):
 	print(f"error in executing query - {chk_executed_query}")
 	assert chk_executed_query == False
 
+	#after calling tt_insert_data() functions inserts happen on tt and audit table
 	cnt_tt = tgt.get_row_count("tt")
-	print(f"after running the procedure to insert int tt table, row count - {cnt_tt}")
+	print(f"after running the procedure to insert into tt table, row count - {cnt_tt}")
 	assert cnt_tt == 5
 
+	cnt_tt = tgt.get_row_count("audit")
+	print(f"after running the procedure to insert into tt table, row count of audit- {cnt_tt}")
+	assert cnt_tt == 5
+
+	#checking the total again with changed value
+	res_total_proc = tgt.execute_query("select total();")
+	print(f"result of total() - {res_total_proc}")
+	assert res_total_proc == 25
+
+	INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"
+	chk_insert_error_ext_test = tgt.run_query_and_chk_error(INSERT_QUERY_EXT_TEST, None)
+	print(f"error in inserting in ext_test - {chk_insert_error_ext_test}")
+	assert chk_insert_error_ext_test == False
+
+	cnt_tt = tgt.get_row_count("ext_test")
+	print(f"after running the procedure to insert into ext_test table, row count- {cnt_tt}")
+	assert cnt_tt == 2
 
 if __name__ == "__main__":
 	main()
