@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'ext_test': 1,    
+	'tt': 4,
+	'audit': 4
+}
+
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 3 
+
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	fetched_triggers = tgt.fetch_all_triggers("public")
+	print(f"fetched triggers list - {fetched_triggers}")
+	assert fetched_triggers == ["audit_trigger"]
+
+	fetched_procedures_functions = tgt.fetch_all_procedures("public")
+	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	assert len(fetched_procedures_functions) == 40
+
+
+	res_total_proc = tgt.execute_query("select total();")
+	print(f"result of total() - {res_total_proc}")
+	assert res_total_proc == 20
+
+	res_aggregate_inc_sum = tgt.execute_query("select inc_sum(110);")
+	print(f"result of aggregate of inc_sum(110) - {res_aggregate_inc_sum}")
+	assert res_aggregate_inc_sum == 120
+
+	fetched_extension = tgt.execute_query("SELECT extname FROM pg_extension where extname='pgcrypto';")
+	print(f"fetched extension for extname - {fetched_extension}")
+	assert fetched_extension == 'pgcrypto'
+
+	chk_executed_query = tgt.run_query_and_chk_error("call tt_insert_data(5);", None)
+	print(f"error in executing query - {chk_executed_query}")
+	assert chk_executed_query == False
+
+	#after calling tt_insert_data() functions inserts happen on tt and audit table
+	cnt_tt = tgt.get_row_count("tt")
+	print(f"after running the procedure to insert into tt table, row count - {cnt_tt}")
+	assert cnt_tt == 5
+
+	cnt_audit = tgt.get_row_count("audit")
+	print(f"after running the procedure to insert into tt table, row count of audit- {cnt_audit}")
+	assert cnt_audit == 5
+
+	#checking the total again with changed value
+	res_total_proc = tgt.execute_query("select total();")
+	print(f"result of total() - {res_total_proc}")
+	assert res_total_proc == 25
+
+	INSERT_QUERY_EXT_TEST = "insert into ext_test(password) values (crypt('tomspassword', gen_salt('bf')));"
+	chk_insert_error_ext_test = tgt.run_query_and_chk_error(INSERT_QUERY_EXT_TEST, None)
+	print(f"error in inserting in ext_test - {chk_insert_error_ext_test}")
+	assert chk_insert_error_ext_test == False
+
+	cnt_ext_test = tgt.get_row_count("ext_test")
+	print(f"after running the procedure to insert into ext_test table, row count- {cnt_ext_test}")
+	assert cnt_ext_test == 2
+
+	QUERY_TO_CHECK_PASSWORD_OF_ID = "select id from ext_test where password = crypt('johnspassword', password);"
+	id_returned_ext_test = tgt.execute_query(QUERY_TO_CHECK_PASSWORD_OF_ID)
+	print(f"id returned for password(johnspassword) - {id_returned_ext_test}")
+	assert id_returned_ext_test == 1
+
+if __name__ == "__main__":
+	main()
