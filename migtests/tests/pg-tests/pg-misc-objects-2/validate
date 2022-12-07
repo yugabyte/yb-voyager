@@ -74,5 +74,10 @@ def migration_completed_checks(tgt):
 	print(f"after running the procedure to insert into ext_test table, row count- {cnt_ext_test}")
 	assert cnt_ext_test == 2
 
+	QUERY_TO_CHECK_PASSWORD_OF_ID = "select id from ext_test where password = crypt('johnspassword', password);"
+	id_returned_ext_test = tgt.execute_query(QUERY_TO_CHECK_PASSWORD_OF_ID)
+	print(f"id returned for password(johnspassword) - {id_returned_ext_test}")
+	assert id_returned_ext_test == 1
+
 if __name__ == "__main__":
 	main()
