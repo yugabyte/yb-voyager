@@ -101,5 +101,8 @@ jobs:
     - name: "TEST: pg-dependent-ddls"
       run: migtests/scripts/run-test.sh pg-dependent-ddls
 
+    - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
+      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-2
+
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
