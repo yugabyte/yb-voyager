@@ -2,6 +2,8 @@ yb-voyager/yb-voyager
 
 diagnostics.json
 yb-voyager.log
+OneMRows.text
+export-dir/
 
 # Binaries for programs and plugins
 *.exe

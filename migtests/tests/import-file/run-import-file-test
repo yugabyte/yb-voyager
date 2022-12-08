@@ -13,29 +13,13 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-export DATA_FILE_NAME="OneMRows.text"
-export COMPRESSED_DATA_FILE_NAME="${DATA_FILE_NAME}.gz"
-
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
 export TARGET_DB_NAME="testdb"
-export TARGET_TABLE_NAME="target_table"
-
-CMD="CREATE TABLE ${TARGET_TABLE_NAME} (
-    userid_fill uuid,
-    idtype_fill text,
-    userid uuid,
-    idtype text,
-    level int,
-    locationgroupid uuid,
-    locationid uuid,
-    parentid uuid,
-    attrs jsonb,
-    PRIMARY KEY (userid, level, locationgroupid, parentid, locationid)
-);"
 
 main() {
+	rm -rf ${EXPORT_DIR}
 	mkdir -p ${EXPORT_DIR}
 
 	pushd ${TEST_DIR}
@@ -45,14 +29,22 @@ main() {
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Unzip the data file."
-	gunzip ${COMPRESSED_DATA_FILE_NAME}
+	[ -f OneMRows.text ] || gunzip -c OneMRows.text.gz > OneMRows.text
 
 	step "Create target table."
-	run_ysql ${TARGET_DB_NAME} "${CMD}"
+	ysql_import_file ${TARGET_DB_NAME} schema.sql
 
-	step "Import data file"
+	step "Import data file: OneMRows.text -> one_m_rows"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
-		--file-table-map "${DATA_FILE_NAME}:${TARGET_TABLE_NAME}"
+		--file-table-map "OneMRows.text:one_m_rows"
+
+	step "Import data file: FY2021_Survey.csv -> survey"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "FY2021_Survey.csv:survey" --has-header
+
+	step "Import data file: SMSA.txt -> smsa"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+			--file-table-map "SMSA.txt:smsa"
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"
