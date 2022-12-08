@@ -92,8 +92,8 @@ jobs:
     - name: "TEST: pg-indexes"
       run: migtests/scripts/run-test.sh pg-tests/pg-indexes
 
-    - name: "TEST: pg-views"
-      run: migtests/scripts/run-test.sh pg-tests/pg-views
+    - name: "TEST: pg-views-and-rules"
+      run: migtests/scripts/run-test.sh pg-tests/pg-views-and-rules
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
