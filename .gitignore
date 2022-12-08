@@ -1,5 +1,8 @@
 yb-voyager/yb-voyager
 
+diagnostics.json
+yb-voyager.log
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
