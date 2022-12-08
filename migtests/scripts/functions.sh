@@ -69,6 +69,13 @@ run_ysql() {
 	psql "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
+ysql_import_file() {
+	db_name=$1
+	file=$2
+	conn_string="postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}"
+	psql "${conn_string}" -f "${file}"
+}
+
 run_mysql() {
 	db_name=$1
 	sql=$2
@@ -206,6 +213,7 @@ import_data_file() {
 		--target-db-name ${TARGET_DB_NAME} \
 		--disable-pb \
 		--send-diagnostics=false \
+		--parallel-jobs 3 \
 		$*
 }
 
