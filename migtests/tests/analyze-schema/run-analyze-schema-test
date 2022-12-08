@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+export TEST_NAME="analyze-schema"
+
+export REPO_ROOT="${PWD}"
+export SCRIPTS="${REPO_ROOT}/migtests/scripts"
+export TESTS_DIR="${REPO_ROOT}/migtests/tests"
+export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
+export EXPORT_DIR="${TEST_DIR}/dummy-export-dir"
+
+export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+
+source ${SCRIPTS}/functions.sh
+
+main() {
+	pushd ${TEST_DIR}
+	[ -d ${EXPORT_DIR}/reports ] || mkdir ${EXPORT_DIR}/reports
+
+	step "Run analyze schema"
+	analyze_schema --output-format json
+
+	step "Run validations."
+	 "${TEST_DIR}/validate"
+}
+
+main
