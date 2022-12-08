@@ -17,7 +17,7 @@ source ${SCRIPTS}/functions.sh
 
 main() {
 	pushd ${TEST_DIR}
-	mkdir ${EXPORT_DIR}/reports
+	[ -d ${EXPORT_DIR}/reports ] || mkdir ${EXPORT_DIR}/reports
 
 	step "Run analyze schema"
 	analyze_schema --output-format json
