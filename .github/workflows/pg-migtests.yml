@@ -109,3 +109,6 @@ jobs:
 
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
+
+    - name: "TEST: analyze-schema"
+      run: migtests/tests/analyze-schema/run-analyze-schema-test
