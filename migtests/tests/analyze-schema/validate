@@ -15,6 +15,10 @@ def main():
 
 
 def validate_report(report, expected_issues):
+	# filePath reported in the report can be different depending on the machine
+	# where the test is running. Hence, do not considere it for result matching.
+	for issue in report["issues"]:
+		del issue["filePath"]
 	print("Ensure that all the expected issues are reported.")
 	for expected_issue in expected_issues:
 		assert expected_issue in report["issues"], f"expected issue is not reported: {expected_issue}"
