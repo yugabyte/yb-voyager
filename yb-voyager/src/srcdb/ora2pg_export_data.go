@@ -59,7 +59,7 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 	}
 }
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
@@ -97,6 +97,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
 	extractAlterSequenceStatements(exportDir)
+	exportSuccessChan <- true
 }
 
 func extractAlterSequenceStatements(exportDir string) {

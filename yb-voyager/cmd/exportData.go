@@ -113,7 +113,8 @@ func exportDataOffline() bool {
 	}
 
 	exportDataStart := make(chan bool)
-	quitChan := make(chan bool) //for checking failure/errors of the parallel goroutines
+	quitChan := make(chan bool)          //for checking failure/errors of the parallel goroutines
+	exportSuccessChan := make(chan bool) //Check if underlying tool has exited successfully.
 	go func() {
 		q := <-quitChan
 		if q {
@@ -138,14 +139,14 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart)
+	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan)
 	// Wait for the export data to start.
 	<-exportDataStart
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	if !disablePb {
 		utils.WaitGroup.Add(1)
-		exportDataStatus(ctx, tablesProgressMetadata, quitChan)
+		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan)
 	}
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete

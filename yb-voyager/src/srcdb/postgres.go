@@ -81,7 +81,7 @@ func (pg *PostgreSQL) GetVersion() string {
 	return version
 }
 
-func (pg *PostgreSQL) checkSchemasExists() []string{
+func (pg *PostgreSQL) checkSchemasExists() []string {
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
 	for _, schema := range list {
@@ -175,8 +175,8 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart)
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart) // No need to use exportSuccessChan
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

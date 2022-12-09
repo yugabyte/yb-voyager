@@ -105,15 +105,22 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 	}
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool) {
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
+	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
 	quit := false
+	updateMetadataAndExit := false
+	safeExit := false
 	go func() {
 		quit = <-quitChan2
 		if quit {
 			quitChan <- true
 		}
+	}()
+
+	go func() {
+		updateMetadataAndExit = <-exportSuccessChan
 	}()
 
 	numTables := len(tablesProgressMetadata)
@@ -122,7 +129,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	doneCount := 0
 	var exportedTables []string
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	for doneCount < numTables && !quit { //TODO: wait for export data to start
+	for doneCount < numTables && !quit && !safeExit { //TODO: wait for export data to start
 		for _, key := range sortedKeys {
 			if quit {
 				break
@@ -152,13 +159,20 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			fmt.Println(ctx.Err())
 			break
 		}
+		// Wait for metadata to update and then exit (fix for empty partitions in MySQL, Oracle)
+		if updateMetadataAndExit && (source.DBType == MYSQL || source.DBType == ORACLE) {
+			safeExit = true
+			for _, key := range sortedKeys {
+				if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_IN_PROGRESS || tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
+					safeExit = false
+					break
+				}
+			}
+		}
 		time.Sleep(1 * time.Second)
 	}
-
 	progressContainer.Wait() //shouldn't be needed as the previous loop is doing the same
-
 	printExportedTables(exportedTables)
-
 	//TODO: print remaining/unable-to-export tables
 }
 
