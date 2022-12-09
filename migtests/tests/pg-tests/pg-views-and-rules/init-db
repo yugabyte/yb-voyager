@@ -12,7 +12,7 @@ run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
 
-run_psql ${SOURCE_DB_NAME} "\i pg_views_automation.sql;"
+run_psql ${SOURCE_DB_NAME} "\i pg_views_and_rules_automation.sql;"
 
 
 echo "Check source database."

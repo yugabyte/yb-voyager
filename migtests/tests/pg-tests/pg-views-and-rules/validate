@@ -35,6 +35,11 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {cnt}")
 		assert row_count == cnt
 
+	rules_list = tgt.fetch_all_rules("test_views")
+	print(f"list of rules {rules_list} in 'test_views' schema")
+	assert len(rules_list) == 4
+	assert set(rules_list) == set(["protect_test_views_view_table1", "protect_test_views_v1", "protect_test_views_v2", "protect_test_views_v3"])
+
 
 if __name__ == "__main__":
 	main()
