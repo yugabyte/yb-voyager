@@ -10,15 +10,14 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	"public.boston":       		334,
-	# check only for parent table in case of HASH partitioning
- 	# "public.cust_active":		750, 
-  	# "public.cust_arr_small":	371,
-	# "public.cust_arr_large":	354,
- 	# "public.cust_other":   	250,
-	# "public.cust_part11":  	192,
-	# "public.cust_part12":  	179,
-	# "public.cust_part21":  	205,
-	# "public.cust_part22":  	174,
+ 	"public.cust_active":		750, 
+  	"public.cust_arr_small":	500,
+	"public.cust_arr_large":	250,
+ 	"public.cust_other":   		250,
+	"public.cust_part11":  		272,
+	"public.cust_part12":  		228,
+	"public.cust_part21":  		125,
+	"public.cust_part22":  		125,
 	"public.customers": 		1000,
 	"public.emp":        		1000,
  	"public.emp_0":        		324,
@@ -35,12 +34,66 @@ EXPECTED_ROW_COUNT = {
 	"p2.boston":    			334,
 	"p2.london":    			333,
 	"p2.sydney":    			333,
+	"public.range_columns_partition_test": 6,
+	"public.range_columns_partition_test_p0": 3,
+	"public.range_columns_partition_test_p1": 3
 }
+
+PARENT_TABLE_LIST_WITH_CNT_PARTITIONS = {
+	"sales_region": 3,
+	"p1.sales_region": 3,
+	"sales": 3,
+	"range_columns_partition_test": 2,
+	"emp": 3,
+	"customers": 5
+}
+INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
+	"List" : {
+		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"partiton_table_name": "sydney",
+		"schema_name": "public"
+	},
+	"List_partitons_in_different_schema" : {
+		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
+		"partiton_table_name": "sydney",
+		"schema_name": "p2"
+	},
+	"Range" : {
+		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1001, 'Person 1001', 5000, '2020-01-04 00:00:00')",
+		"partiton_table_name": "sales_2020_q1",
+		"schema_name": "public"
+	},
+	"Range_Column" : {
+		"query": "INSERT INTO range_columns_partition_test VALUES (5,3)",
+		"partiton_table_name": "range_columns_partition_test_p0",
+		"schema_name": "public"
+	},
+	"Hash" : {
+		"query": "INSERT INTO emp VALUES(1001, 'user_1001', 49)",
+		"partiton_table_name": "emp_1",
+		"schema_name": "public"
+	},
+	"Multilevel" : {
+		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1001, 'RECURRING', 282)",
+		"partiton_table_name": "cust_part21",
+		"schema_name": "public"
+	}
+}
+
+def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name):
+	chk_error_returned = tgt.run_query_and_chk_error(query, None)
+	print(f"error returned while insert ({query}) query - {chk_error_returned}")
+	assert chk_error_returned == False
+
+	cnt_partition_table = tgt.get_row_count(partition_table_name, schema_name)
+	print(f"count returned for partition ({partition_table_name}) - {cnt_partition_table} ")
+	full_partition_name_with_schema_name = f"{schema_name}.{partition_table_name}"
+	assert cnt_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
 
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 21
+	assert len(table_list) == 24
  
 	table_list = tgt.get_table_names("p1")
 	print("table_list:", table_list)
@@ -60,6 +113,21 @@ def migration_completed_checks(tgt):
     	# check whether all the indexes on a table are valid
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
+		
+	for parent_table, cnt_partitons in PARENT_TABLE_LIST_WITH_CNT_PARTITIONS.items():
+		QUERY_FOR_CNT_PARTITIONS = f"SELECT count(DISTINCT tableoid::regclass) FROM {parent_table};"
+		cnt_partitions_returned = tgt.execute_query(QUERY_FOR_CNT_PARTITIONS)
+		print(f"count of partitons on list_part - {cnt_partitions_returned}")
+		assert cnt_partitions_returned == cnt_partitons
+
+	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
+		print(f"Running the check for Partition type - {type}")
+		query = query_and_partition_name['query']
+		partition_table_name = query_and_partition_name['partiton_table_name']
+		schema_name = query_and_partition_name['schema_name']
+		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
+
+	
 
 if __name__ == "__main__":
 	main()

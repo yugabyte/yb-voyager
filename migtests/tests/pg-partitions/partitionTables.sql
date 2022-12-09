@@ -67,6 +67,25 @@ WITH amount_list AS (
                         date_list,
                         generate_series(1,1000) as n;
 
+-- range columns partiitons
+
+drop table if exists range_columns_partition_test;
+
+CREATE TABLE range_columns_partition_test (
+        a bigint,
+        b bigint
+) PARTITION BY RANGE (a, b) ;
+
+CREATE TABLE range_columns_partition_test_p0 PARTITION OF range_columns_partition_test FOR VALUES FROM (MINVALUE,MINVALUE) TO (5,5);
+
+CREATE TABLE range_columns_partition_test_p1 PARTITION OF range_columns_partition_test DEFAULT;
+
+INSERT INTO range_columns_partition_test VALUES (5,5),(3,4), (5,11), (5,12),(4,3),(3,1);
+
+\d+ range_columns_partition_test
+
+SELECT tableoid::regclass,* FROM range_columns_partition_test;
+
 -- Partition by hash
 
 CREATE TABLE emp (emp_id int, emp_name text, dep_code int) PARTITION BY HASH (emp_id);
@@ -96,11 +115,13 @@ CREATE TABLE cust_part22 PARTITION OF cust_arr_large FOR VALUES WITH (modulus 2,
 
 WITH status_list AS (
         SELECT '{"ACTIVE", "RECURRING", "REACTIVATED", "EXPIRED"}'::TEXT[] statuses
+        ), arr_list AS (
+            SELECT '{100, 200, 50, 250}'::INT[] arr
         )
         INSERT INTO customers 
         (id, statuses, arr)
             SELECT  n,
                     statuses[1 + mod(n, array_length(statuses, 1))],
-                    (RANDOM()*200)::INTEGER
-                        FROM generate_series(1,1000) AS n, status_list;
+                    arr[1 + mod(n, array_length(arr, 1))]
+                        FROM arr_list, generate_series(1,1000) AS n, status_list;
 
