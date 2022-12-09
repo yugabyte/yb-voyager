@@ -307,5 +307,5 @@ func init() {
 		`comma separated options for csv file format:
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
-		for eg: --file-opts "escape_char=\",quote_char=\" or --file-opts 'escape_char=",quote_char="'`)
+		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
 }
