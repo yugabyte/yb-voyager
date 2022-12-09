@@ -28,6 +28,10 @@ CREATE TABLE survey (
     Industry_Class TEXT
 );
 
+CREATE TABLE survey2 AS Select * from survey;
+
+CREATE TABLE survey3 AS Select * from survey;
+
 CREATE TABLE smsa (
     City VARCHAR(50),
     city_state CHAR(8),

@@ -46,6 +46,12 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "SMSA.txt:smsa"
 
+	# Test for multiple table files import
+	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
+		--has-header --batch-size 1000
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }
