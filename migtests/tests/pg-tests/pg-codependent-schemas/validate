@@ -3,91 +3,101 @@
 import yb
 
 def main():
-	yb.run_checks(migration_completed_checks)
+    yb.run_checks(migration_completed_checks)
 
 
 #=============================================================================
 
-EXPECTED_ROW_COUNT_PUBLIC = {
-	'audit2': 4,              
-	'foreign_test': 2,
- 	'list_active': 2,  
- 	'list_archived': 1,  
- 	'list_part': 5,   
-	'primary_test': 3,
-	'tt':4,
-	'v1':2,
-	'mv1':2,
+EXPECTED_ROW_COUNTS = {
+  "public": {
+    'audit2': 4,              
+    'foreign_test': 2,
+    'list_active': 2,  
+    'list_archived': 1,  
+    'list_part': 5,   
+    'primary_test': 3,
+    'tt': 4,
+    'v1': 2,
+    'mv1': 2,
+  },
+  "schema2": {
+    'audit': 4,
+    'foreign_test': 3,
+    'list_others': 2, 
+    'primary_test': 2,
+    'v1': 2,
+  },
 }
-EXPECTED_ROW_COUNT_SCHEMA2 = {
-	'audit': 4,
-	'foreign_test': 3,
-	'list_others': 2, 
-	'primary_test': 2,
-	'v1': 2,
+EXPECTED_COUNTS = {
+  "public": {
+    "table_count": 7,
+    "mview_count": 1,
+    "procedures_count": 1
+  },
+  "schema2": {
+    "table_count": 4,
+    "mview_count": 0,
+    "procedures_count": 2
+  }
 }
 
-def check_validations_per_schema(tgt,schema_name):
+def check_validations_per_schema(tgt, schema_name) -> None:
 
-	EXPECTED_ROW_COUNT = EXPECTED_ROW_COUNT_PUBLIC if schema_name == 'public' else EXPECTED_ROW_COUNT_SCHEMA2
+    table_list = tgt.get_table_names(schema_name)
+    print("table_list:", table_list)
+    assert len(table_list) == EXPECTED_COUNTS[schema_name]["table_count"]
 
-	table_list = tgt.get_table_names(schema_name)
-	print("table_list:", table_list)
-	assert (len(table_list) == 7 and schema_name == 'public') or (len(table_list) == 4 and schema_name == 'schema2')
+    view_list = tgt.get_objects_of_type("VIEW", schema_name)
+    print("view_list:", view_list)
+    assert len(view_list) == 1
 
-	view_list = tgt.get_objects_of_type("VIEW", schema_name)
-	print("view_list:", view_list)
-	assert len(view_list) == 1
+    mview_list = tgt.get_objects_of_type("MVIEW", schema_name)
+    print("mview_list:", mview_list)
+    assert len(mview_list) == EXPECTED_COUNTS[schema_name]["mview_count"]
 
-	mview_list = tgt.get_objects_of_type("MVIEW", schema_name)
-	print("mview_list:", mview_list)
-	assert (len(mview_list) == 1 and schema_name == 'public') or (len(mview_list) == 0 and schema_name == 'schema2')
+    for table_name, row_count in EXPECTED_ROW_COUNTS[schema_name].items():
+        count = tgt.get_row_count(table_name, schema_name)
+        print(f"table_name: {schema_name}.{table_name}, row_count: {count}")
+        assert row_count == count
+    
+    triggers = tgt.fetch_all_triggers(schema_name)
+    print(f"fetched triggers list - {triggers}")
+    assert triggers == ["audit_trigger"]
 
-	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		cnt = tgt.get_row_count(table_name,schema_name)
-		print(f"table_name: {schema_name}.{table_name}, row_count: {cnt}")
-		assert row_count == cnt
-	
-	fetched_triggers = tgt.fetch_all_triggers(schema_name)
-	print(f"fetched triggers list - {fetched_triggers}")
-	assert fetched_triggers == ["audit_trigger"]
+    procedures_or_functions = tgt.fetch_all_procedures(schema_name)
+    print(f"count of fetched procedures/functions - {len(procedures_or_functions)}")
+    assert len(procedures_or_functions) == EXPECTED_COUNTS[schema_name]["procedures_count"]
 
-	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
-	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
-	chk_conditions = (len(fetched_procedures_functions) == 2 and schema_name == 'schema2') or (len(fetched_procedures_functions) == 1 and schema_name == 'public')
-	assert chk_conditions == True
-
-	QUERY_FOREIGN_KEY_TEST = f"insert into {schema_name}.foreign_test values (5,1,7);"
-	chk_err_returned = tgt.run_query_and_chk_error(QUERY_FOREIGN_KEY_TEST, 23503)
-	print(f"Checking Foreign key test on schema {schema_name} - {chk_err_returned}")
-	assert chk_err_returned == True
+    QUERY_FOREIGN_KEY_TEST = f"insert into {schema_name}.foreign_test values (5,1,7);"
+    chk_err_returned = tgt.run_query_and_chk_error(QUERY_FOREIGN_KEY_TEST, 23503)
+    print(f"Checking Foreign key test on schema {schema_name} - {chk_err_returned}")
+    assert chk_err_returned == True
 
 
-def migration_completed_checks(tgt):
+def migration_completed_checks(tgt) -> None:
 
-	check_validations_per_schema(tgt, "public")
-	check_validations_per_schema(tgt, "schema2")
-	
-	cnt_partitions = tgt.execute_query("SELECT count(DISTINCT tableoid::regclass) FROM list_part;")
-	print(f"count of partitons on list_part - {cnt_partitions}")
-	assert cnt_partitions == 3
+    check_validations_per_schema(tgt, "public")
+    check_validations_per_schema(tgt, "schema2")
 
-	chk_executed_query = tgt.run_query_and_chk_error("call schema2.tt_insert_data(5);", None)
-	print(f"error in executing query - {chk_executed_query}")
-	assert chk_executed_query == False
+    partitions = tgt.fetch_partitions("list_part", "public")
+    print(f"count of partitons on list_part - {len(partitions)}")
+    assert len(partitions) == 3
 
-	cnt_tt = tgt.get_row_count("tt", "public")
-	print(f"after running the procedure to insert into tt table, row count - {cnt_tt}")
-	assert cnt_tt == 5
+    chk_executed_query = tgt.run_query_and_chk_error("call schema2.tt_insert_data(5);", None)
+    print(f"error in executing query - {chk_executed_query}")
+    assert chk_executed_query == False
 
-	cnt_audit = tgt.get_row_count("audit", "schema2")
-	print(f"after running the procedure to insert into audit table, row count of audit- {cnt_audit}")
-	assert cnt_audit == 5
+    count_tt = tgt.get_row_count("tt", "public")
+    print(f"after running the procedure to insert into tt table, row count - {count_tt}")
+    assert count_tt == 5
 
-	cnt_audit2 = tgt.get_row_count("audit2", "public")
-	print(f"after running the procedure to insert into audit2 table, row count of audit2- {cnt_audit2}")
-	assert cnt_audit2 == 5
+    count_audit = tgt.get_row_count("audit", "schema2")
+    print(f"after running the procedure to insert into audit table, row count of audit- {count_audit}")
+    assert count_audit == 5
 
-	
+    count_audit2 = tgt.get_row_count("audit2", "public")
+    print(f"after running the procedure to insert into audit2 table, row count of audit2- {count_audit2}")
+    assert count_audit2 == 5
+
 if __name__ == "__main__":
-	main()
+    main()

@@ -71,20 +71,31 @@ WITH amount_list AS (
 
 drop table if exists range_columns_partition_test;
 
-CREATE TABLE range_columns_partition_test (
-        a bigint,
-        b bigint
-) PARTITION BY RANGE (a, b) ;
+CREATE TABLE range_columns_partition_test (a bigint, b bigint) PARTITION BY RANGE (a, b);
 
-CREATE TABLE range_columns_partition_test_p0 PARTITION OF range_columns_partition_test FOR VALUES FROM (MINVALUE,MINVALUE) TO (5,5);
+CREATE TABLE range_columns_partition_test_p0 PARTITION OF range_columns_partition_test FOR
+VALUES
+FROM
+    (MINVALUE, MINVALUE) TO (5, 5);
 
 CREATE TABLE range_columns_partition_test_p1 PARTITION OF range_columns_partition_test DEFAULT;
 
-INSERT INTO range_columns_partition_test VALUES (5,5),(3,4), (5,11), (5,12),(4,3),(3,1);
+INSERT INTO
+    range_columns_partition_test
+VALUES
+    (5, 5),
+    (3, 4),
+    (5, 11),
+    (5, 12),
+    (4, 3),
+    (3, 1);
 
-\d+ range_columns_partition_test
-
-SELECT tableoid::regclass,* FROM range_columns_partition_test;
+\ d + range_columns_partition_test
+SELECT
+    tableoid :: regclass,
+    *
+FROM
+    range_columns_partition_test;
 
 -- Partition by hash
 

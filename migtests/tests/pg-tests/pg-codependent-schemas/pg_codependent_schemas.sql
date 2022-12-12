@@ -67,23 +67,56 @@ insert into foreign_test values (2,2,2);
 
 drop view if exists v1 cascade;
 
-create view v1 as select a.id, a.first_name as a_first_name,b.first_name as b_first_name from primary_test a inner join schema2.primary_test b using(id);
+create view v1 as
+select
+    a.id,
+    a.first_name as a_first_name,
+    b.first_name as b_first_name
+from
+    primary_test a
+    inner join schema2.primary_test b using(id);
 
-select * from v1;
-
+select
+    *
+from
+    v1;
 
 drop view if exists schema2.v1;
 
-create view schema2.v1 as select v1.id, a.last_name as a_last_name,b.last_name as b_last_name from primary_test a,schema2.primary_test b,v1 where v1.id=b.id and v1.id=a.id;
+create view schema2.v1 as
+select
+    v1.id,
+    a.last_name as a_last_name,
+    b.last_name as b_last_name
+from
+    primary_test a,
+    schema2.primary_test b,
+    v1
+where
+    v1.id = b.id
+    and v1.id = a.id;
 
-select * from schema2.v1;
-
+select
+    *
+from
+    schema2.v1;
 
 drop materialized view if exists mv1;
 
-create materialized view mv1 as select a.id as aid,b.id as bid from schema2.foreign_test a,foreign_test b where a.pid=b.pid with data;
+create materialized view mv1 as
+select
+    a.id as aid,
+    b.id as bid
+from
+    schema2.foreign_test a,
+    foreign_test b
+where
+    a.pid = b.pid with data;
 
-select * from mv1;
+select
+    *
+from
+    mv1;
 
 
 -- creating partitions in different schemas
@@ -92,18 +125,31 @@ drop table if exists list_part;
 
 CREATE TABLE list_part (id INTEGER, status TEXT, arr NUMERIC) PARTITION BY LIST(status);
 
-CREATE TABLE list_active PARTITION OF list_part FOR VALUES IN ('ACTIVE');
+CREATE TABLE list_active PARTITION OF list_part FOR
+VALUES
+    IN ('ACTIVE');
 
-CREATE TABLE list_archived PARTITION OF list_part FOR VALUES IN ('EXPIRED');
+CREATE TABLE list_archived PARTITION OF list_part FOR
+VALUES
+    IN ('EXPIRED');
 
 CREATE TABLE schema2.list_others PARTITION OF list_part DEFAULT;
 
-INSERT INTO list_part VALUES (1,'ACTIVE',100), (2,'RECURRING',20), (3,'EXPIRED',38), (4,'REACTIVATED',144), (5,'ACTIVE',50);
+INSERT INTO
+    list_part
+VALUES
+    (1, 'ACTIVE', 100),
+    (2, 'RECURRING', 20),
+    (3, 'EXPIRED', 38),
+    (4, 'REACTIVATED', 144),
+    (5, 'ACTIVE', 50);
 
-\d+ list_part
-
-SELECT tableoid::regclass,* FROM list_part;
-
+\ d + list_part
+SELECT
+    tableoid :: regclass,
+    *
+FROM
+    list_part;
 
 
 /*
@@ -125,13 +171,11 @@ drop table if exists tt;
 CREATE TABLE tt (i int);
 
 -- creating audit table in schema2
-
 drop table if exists schema2.audit;
 
 create table schema2.audit(id text);
 
 -- creating audit2 table in public
-
 drop table if exists audit2;
 
 create table audit2(id text);

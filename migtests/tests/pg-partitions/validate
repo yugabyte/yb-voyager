@@ -40,12 +40,12 @@ EXPECTED_ROW_COUNT = {
 }
 
 PARENT_TABLE_LIST_WITH_CNT_PARTITIONS = {
-	"sales_region": 3,
+	"public.sales_region": 3,
 	"p1.sales_region": 3,
-	"sales": 3,
-	"range_columns_partition_test": 2,
-	"emp": 3,
-	"customers": 5
+	"public.sales": 3,
+	"public.range_columns_partition_test": 2,
+	"public.emp": 3,
+	"public.customers": 5
 }
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
@@ -85,10 +85,10 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_t
 	print(f"error returned while insert ({query}) query - {chk_error_returned}")
 	assert chk_error_returned == False
 
-	cnt_partition_table = tgt.get_row_count(partition_table_name, schema_name)
-	print(f"count returned for partition ({partition_table_name}) - {cnt_partition_table} ")
+	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
+	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
 	full_partition_name_with_schema_name = f"{schema_name}.{partition_table_name}"
-	assert cnt_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
+	assert count_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
 
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
@@ -114,11 +114,12 @@ def migration_completed_checks(tgt):
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 		
-	for parent_table, cnt_partitons in PARENT_TABLE_LIST_WITH_CNT_PARTITIONS.items():
-		QUERY_FOR_CNT_PARTITIONS = f"SELECT count(DISTINCT tableoid::regclass) FROM {parent_table};"
-		cnt_partitions_returned = tgt.execute_query(QUERY_FOR_CNT_PARTITIONS)
-		print(f"count of partitons on list_part - {cnt_partitions_returned}")
-		assert cnt_partitions_returned == cnt_partitons
+	for parent_table, count_partitons in PARENT_TABLE_LIST_WITH_CNT_PARTITIONS.items():
+		schema = parent_table.split(".")[0]
+		table = parent_table.split(".")[1]
+		partitions_returned = tgt.fetch_partitions(table, schema)
+		print(f"count of partitons on list_part - {len(partitions_returned)}")
+		assert len(partitions_returned) == count_partitons
 
 	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		print(f"Running the check for Partition type - {type}")
