@@ -50,16 +50,6 @@ def migration_completed_checks(tgt):
 	print(f"Returned row count is - {fetched_row_count}")
 	assert fetched_row_count == 106
  
-	# The following constraint checks are handled below
-	# Checking the constraint : jhist_date_interval CHECK (end_date > start_date)
-	# Unique index checks on job history table
- 	# Logic to validate the check constraint on employees table
-	for type_check, query_and_code in QUERIES_CHECK.items():
-		query, code = query_and_code['query'], query_and_code['code']
-		chk_err_returned = tgt.run_query_and_chk_error(query, code)
-		print(f"Checking {type_check} ..", code, {chk_err_returned} )
-		assert chk_err_returned == True
- 
 	# Logic to check the sequences migrated
 	fetched_sequences = tgt.get_objects_of_type("SEQUENCE", "public")
 	print(f"Returned sequences are - {fetched_sequences}")
@@ -92,6 +82,16 @@ def migration_completed_checks(tgt):
 	returned_row_count = tgt.execute_query(FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA);
 	print(f"Returned row count is - {returned_row_count}")
 	assert returned_row_count == 1
+ 
+	# The following constraint checks are handled below
+	# Checking the constraint : jhist_date_interval CHECK (end_date > start_date)
+	# Unique index checks on job history table
+ 	# Logic to validate the check constraint on employees table
+	for type_check, query_and_code in QUERIES_CHECK.items():
+		query, code = query_and_code['query'], query_and_code['code']
+		chk_err_returned = tgt.run_query_and_chk_error(query, code)
+		print(f"Checking {type_check} ..", code, {chk_err_returned} )
+		assert chk_err_returned == True
 	
 if __name__ == "__main__":
 	main()
