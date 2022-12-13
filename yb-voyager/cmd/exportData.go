@@ -147,6 +147,9 @@ func exportDataOffline() bool {
 	if !disablePb {
 		utils.WaitGroup.Add(1)
 		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan)
+	} else {
+		// TODO: Update tables metadata when PB are disabled.
+		<-exportSuccessChan
 	}
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
