@@ -23,10 +23,10 @@ EXPECTED_ROW_COUNT = {
 	'orders_interval_partition_interval_partition_less_than_2017': 79,
 	'orders_interval_partition_interval_partition_less_than_2018': 12,
 	'sales_hash': 100,
-	'sales_hash_p1': 0,
-	'sales_hash_p2': 31,
-	'sales_hash_p3': 21,
-	'sales_hash_p4': 48
+	'sales_hash_p1': 43,
+	'sales_hash_p2': 26,
+	'sales_hash_p3': 10,
+	'sales_hash_p4': 21
 }
 
 #=============================================================================

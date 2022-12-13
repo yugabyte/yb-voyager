@@ -322,7 +322,6 @@ BEGIN
     Insert into sales_hash values (18, '05-08-17 00:00:00', 189, 3089.83);
     Insert into sales_hash values (20, '31-03-17 00:00:00', 191, 8576.58);
     Insert into sales_hash values (16, '20-07-07 00:00:00', 104, 2129.55); 
-    Insert into sales_hash values (7, '01-08-17 00:00:00', 105, 8665.95); 
     Insert into sales_hash values (4, '21-02-02 00:00:00', 113, 6571.19); 
     Insert into sales_hash values (4, '27-06-18 00:00:00', 114, 2292.42); 
     Insert into sales_hash values (3, '18-01-22 00:00:00', 116, 9884.33); 
