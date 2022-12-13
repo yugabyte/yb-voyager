@@ -82,3 +82,6 @@ jobs:
 
     - name: "TEST: mysql-case-views"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-views
+
+    - name: "TEST: mysql-sample-chinook"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-chinook
