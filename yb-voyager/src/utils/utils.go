@@ -290,7 +290,8 @@ func LookupIP(name string) []string {
 
 	ips, err := net.LookupIP(name)
 	if err != nil {
-		ErrExit("Error Resolving name=%s: %v", name, err)
+		log.Infof("Error Resolving name=%s: %v", name, err)
+		return []string{name}
 	}
 
 	for _, ip := range ips {
