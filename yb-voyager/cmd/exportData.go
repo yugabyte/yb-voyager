@@ -147,7 +147,7 @@ func exportDataOffline() bool {
 	if !disablePb {
 		utils.WaitGroup.Add(1)
 		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan)
-	} else {
+	} else if source.DBType == MYSQL || source.DBType == ORACLE {
 		// TODO: Update tables metadata when PB are disabled.
 		<-exportSuccessChan
 	}
