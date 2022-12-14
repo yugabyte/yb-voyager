@@ -129,7 +129,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	doneCount := 0
 	var exportedTables []string
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	for doneCount < numTables && !quit && !safeExit { //TODO: wait for export data to start
+	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for _, key := range sortedKeys {
 			if quit {
 				break
@@ -139,7 +139,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
 				go startExportPB(progressContainer, key, quitChan2)
 
-			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
+			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE || (tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && safeExit) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
 				doneCount++
@@ -160,7 +160,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			break
 		}
 		// Wait for metadata to update and then exit (fix for empty partitions in MySQL, Oracle)
-		if updateMetadataAndExit && (source.DBType == MYSQL || source.DBType == ORACLE) {
+		if updateMetadataAndExit {
 			safeExit = true
 			for _, key := range sortedKeys {
 				if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_IN_PROGRESS || tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {

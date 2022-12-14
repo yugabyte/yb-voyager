@@ -176,7 +176,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart) // No need to use exportSuccessChan
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

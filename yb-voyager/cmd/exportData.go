@@ -113,8 +113,8 @@ func exportDataOffline() bool {
 	}
 
 	exportDataStart := make(chan bool)
-	quitChan := make(chan bool)          //for checking failure/errors of the parallel goroutines
-	exportSuccessChan := make(chan bool) //Check if underlying tool has exited successfully.
+	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
+	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
 	go func() {
 		q := <-quitChan
 		if q {
@@ -147,9 +147,6 @@ func exportDataOffline() bool {
 	if !disablePb {
 		utils.WaitGroup.Add(1)
 		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan)
-	} else if source.DBType == MYSQL || source.DBType == ORACLE {
-		// TODO: Update tables metadata when PB are disabled.
-		<-exportSuccessChan
 	}
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
