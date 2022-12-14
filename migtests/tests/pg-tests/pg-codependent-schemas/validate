@@ -28,6 +28,8 @@ EXPECTED_ROW_COUNTS = {
     'v1': 2,
   },
 }
+
+
 EXPECTED_COUNTS = {
   "public": {
     "table_count": 7,

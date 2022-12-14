@@ -39,7 +39,8 @@ EXPECTED_ROW_COUNT = {
 	"public.range_columns_partition_test_p1": 3
 }
 
-PARENT_TABLE_LIST_WITH_CNT_PARTITIONS = {
+
+TABLE_NAME_TO_PARTITION_COUNT = {
 	"public.sales_region": 3,
 	"p1.sales_region": 3,
 	"public.sales": 3,
@@ -47,6 +48,8 @@ PARENT_TABLE_LIST_WITH_CNT_PARTITIONS = {
 	"public.emp": 3,
 	"public.customers": 5
 }
+
+
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
@@ -114,7 +117,7 @@ def migration_completed_checks(tgt):
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 		
-	for parent_table, count_partitons in PARENT_TABLE_LIST_WITH_CNT_PARTITIONS.items():
+	for parent_table, count_partitons in TABLE_NAME_TO_PARTITION_COUNT.items():
 		schema = parent_table.split(".")[0]
 		table = parent_table.split(".")[1]
 		partitions_returned = tgt.fetch_partitions(table, schema)
