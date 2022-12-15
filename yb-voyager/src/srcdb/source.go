@@ -192,7 +192,7 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 		} else if strings.HasPrefix(line, "INDEXES_RENAMING") && source.DBType == "mysql" {
 			lines[i] = "INDEXES_RENAMING 1"
 		} else if strings.HasPrefix(line, "PREFIX_PARTITION") {
-			lines[i] = "PREFIX_PARTITION 0"
+			lines[i] = "PREFIX_PARTITION 1"
 		} else if strings.HasPrefix(line, "USE_ORAFCE") {
 			if source.UseOrafce && strings.EqualFold(source.DBType, "oracle") {
 				lines[i] = "USE_ORAFCE 1"
