@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool) {
+func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	dataDirPath := exportDir + "/data"
@@ -79,6 +79,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		quitChan <- true
 		runtime.Goexit()
 	}
+	exportSuccessChan <- true
 }
 
 func parseAndCreateTocTextFile(dataDirPath string) {

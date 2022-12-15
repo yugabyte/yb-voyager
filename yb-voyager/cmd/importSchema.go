@@ -18,6 +18,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -37,7 +38,7 @@ var importSchemaCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		validateImportFlags()
+		validateImportFlags(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -49,19 +50,21 @@ var importSchemaCmd = &cobra.Command{
 
 func init() {
 	importCmd.AddCommand(importSchemaCmd)
+	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
-	target.Schema = strings.ToLower(target.Schema)
 }
 
 var flagPostImportData bool
 var importObjectsInStraightOrder bool
+var flagRefreshMViews bool
 
 func importSchema() {
 	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
+	target.Schema = strings.ToLower(target.Schema)
 	conn := target.DB().Conn()
 	targetDBVersion := target.DB().GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
@@ -88,29 +91,102 @@ func importSchema() {
 	objectList = applySchemaObjectFilterFlags(objectList)
 	log.Infof("List of schema objects to import: %v", objectList)
 
-	// Import ALTER TABLE statements from sequence.sql only after importing everything else
-	isAlterStatement := func(objType, stmt string) bool {
+	// Import some statements only after importing everything else
+	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
-		return objType == "SEQUENCE" && strings.HasPrefix(stmt, "ALTER TABLE")
+		switch objType {
+		case "SEQUENCE":
+			// ALTER TABLE table_name ALTER COLUMN column_name ... ('sequence_name');
+			// ALTER SEQUENCE sequence_name OWNED BY table_name.column_name;
+			return strings.HasPrefix(stmt, "ALTER TABLE") || strings.HasPrefix(stmt, "ALTER SEQUENCE")
+		case "TABLE":
+			// skips the ALTER TABLE table_name ADD CONSTRAINT constraint_name FOREIGN KEY (column_name) REFERENCES another_table_name(another_column_name);
+			return strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "FOREIGN KEY")
+		case "UNIQUE INDEX":
+			// skips all the INDEX DDLs, Except CREATE UNIQUE INDEX index_name ON table ... (column_name);
+			return !strings.Contains(stmt, objType)
+		case "INDEX":
+			// skips all the CREATE UNIQUE INDEX index_name ON table ... (column_name);
+			return strings.Contains(stmt, "UNIQUE INDEX")
+		}
+		return false
 	}
-
-	skipFn := isAlterStatement
+	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-
-	// Import the skipped ALTER TABLE statements from sequence.sql if it exists
+	fmt.Printf("\nImporting deferred DDL statements.\n\n")
+	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
+	skipFn = func(objType, stmt string) bool {
+		return !isSkipStatement(objType, stmt)
+	}
 	if slices.Contains(objectList, "SEQUENCE") {
-		skipFn = func(objType, stmt string) bool {
-			return !isAlterStatement(objType, stmt)
-		}
-		sequenceFilePath := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "SEQUENCE")
-		if utils.FileOrFolderExists(sequenceFilePath) {
-			fmt.Printf("\nImporting ALTER TABLE DDLs from %q\n\n", sequenceFilePath)
-			executeSqlFile(sequenceFilePath, "SEQUENCE", skipFn)
-		}
+		importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
+	}
+	if slices.Contains(objectList, "TABLE") {
+		importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 	}
 
+	importDefferedStatements()
 	log.Info("Schema import is complete.")
+
+	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+
+	if flagPostImportData {
+		if flagRefreshMViews {
+			refreshMViews(conn)
+		}
+	} else {
+		utils.PrintAndLog("NOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+	}
+
 	callhome.PackAndSendPayload(exportDir)
+}
+
+func dumpStatements(stmts []sqlInfo, filePath string) {
+	if len(stmts) == 0 {
+		return
+	}
+
+	file, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		utils.ErrExit("open file: %v", err)
+	}
+
+	for i := 0; i < len(stmts); i++ {
+		_, err = file.WriteString(stmts[i].formattedStmt + "\n\n")
+		if err != nil {
+			utils.ErrExit("failed writing in file %s: %v", filePath, err)
+		}
+	}
+	utils.PrintAndLog("failed SQL statements during migration are present in %q file\n", filePath)
+}
+
+func refreshMViews(conn *pgx.Conn) {
+	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
+	var mViewNames []string
+	mViewsSqlInfoArr := getDDLStmts("MVIEW")
+	for _, eachMviewSql := range mViewsSqlInfoArr {
+		if strings.Contains(strings.ToUpper(eachMviewSql.stmt), "CREATE MATERIALIZED VIEW") {
+			mViewNames = append(mViewNames, eachMviewSql.objName)
+		}
+	}
+	log.Infof("List of Mviews Imported to refresh - %v", mViewNames)
+	for _, mViewName := range mViewNames {
+		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
+		_, err := conn.Exec(context.Background(), query)
+		if err != nil {
+			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
+		}
+	}
+}
+
+func getDDLStmts(objType string) []sqlInfo {
+	var sqlInfoArr []sqlInfo
+	schemaDir := filepath.Join(exportDir, "schema")
+	importMViewFilePath := utils.GetObjectFilePath(schemaDir, objType)
+	if utils.FileOrFolderExists(importMViewFilePath) {
+		sqlInfoArr = createSqlStrInfoArray(importMViewFilePath, objType)
+	}
+	return sqlInfoArr
 }
 
 func createTargetSchemas(conn *pgx.Conn) {
@@ -189,6 +265,10 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	}
 
 	return fetchedSchema == targetSchema
+}
+
+func missingRequiredSchemaObject(err error) bool {
+	return strings.Contains(err.Error(), "does not exist")
 }
 
 func isAlreadyExists(errString string) bool {

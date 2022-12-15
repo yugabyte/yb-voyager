@@ -120,13 +120,13 @@ func initializeSinglePartitionMetadata(key string, parentTable string, fullTable
 	tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool, exportSuccessChan chan bool) {
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
+	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
 	quit := false
 	updateMetadataAndExit := false
 	safeExit := false
-	// TODO: Clean up this go routine; check if quitChan2 is really needed.
 	go func() {
 		quit = <-quitChan2
 		if quit {
@@ -138,13 +138,17 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 		updateMetadataAndExit = <-exportSuccessChan
 	}()
 
+	go func() {
+		updateMetadataAndExit = <-exportSuccessChan
+	}()
+
 	numTables := len(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 
 	doneCount := 0
 	var exportedTables []string
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	for doneCount < numTables && !quit && !safeExit { //TODO: wait for export data to start
+	for doneCount < numTables && !quit { //TODO: wait for export data to start
 		for _, key := range sortedKeys {
 			if quit {
 				break
@@ -157,7 +161,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
 				go startExportPB(progressContainer, key, quitChan2)
 
-			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
+			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE || (tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && safeExit) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
 				doneCount++
@@ -175,8 +179,8 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			fmt.Println(ctx.Err())
 			break
 		}
-		// Wait for metadata to update and then exit (fix for partition and subparitions in MySQL, Oracle)
-		if updateMetadataAndExit && (source.DBType == MYSQL || source.DBType == ORACLE) {
+		// Wait for metadata to update and then exit (fix for empty partitions in MySQL, Oracle)
+		if updateMetadataAndExit {
 			safeExit = true
 			for _, key := range sortedKeys {
 				if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_IN_PROGRESS || tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE {
@@ -189,7 +193,6 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	}
 	progressContainer.Wait() //shouldn't be needed as the previous loop is doing the same
 	printExportedTables(exportedTables)
-
 	//TODO: print remaining/unable-to-export tables
 }
 

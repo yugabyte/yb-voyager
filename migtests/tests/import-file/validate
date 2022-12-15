@@ -6,11 +6,16 @@ def main():
 	yb.run_checks(file_import_done_checks)
 
 
-def file_import_done_checks(tgt):
-	row_count = tgt.get_row_count("target_table")
-	print(f"row_count: {row_count}")
-	assert row_count == 1000000
+EXPECTED = {
+	"one_m_rows": 1000000,
+	"survey": 41715,
+	"smsa": 60,
+}
 
+def file_import_done_checks(tgt):
+	got = tgt.row_count_of_all_tables()
+	print(f"Row counts after import data file: {got}")
+	assert got == EXPECTED
 
 if __name__ == "__main__":
 	main()

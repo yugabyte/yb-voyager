@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,9 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+var defferedSqlStmts []sqlInfo
+var failedSqlStmts []sqlInfo
+
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) {
 	schemaDir := filepath.Join(exportDir, "schema")
@@ -34,9 +38,49 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-		fmt.Printf("\nImporting %q\n\n", importObjectFilePath)
+		fmt.Printf("\nImporting %s DDLs from %q\n\n", importObjectType, importObjectFilePath)
 		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
+
+}
+
+/*
+Try re-executing each DDL from deffered list.
+If fails, silently avoid the error.
+Else remove from defferedSQLStmts list
+At the end, add the unsuccessful ones to a failedSqlStmts list and report to the user
+*/
+func importDefferedStatements() {
+	if len(defferedSqlStmts) == 0 {
+		return
+	}
+	log.Infof("Number of statements in defferedSQLStmts list: %d\n", len(defferedSqlStmts))
+
+	utils.PrintAndLog("\nExecuting the remaining SQL statements...\n\n")
+	maxIterations := len(defferedSqlStmts)
+	conn := newTargetConn()
+	defer func() { conn.Close(context.Background()) }()
+
+	var err error
+	// max loop iterations to remove all errors
+	for i := 1; i <= maxIterations && len(defferedSqlStmts) > 0; i++ {
+		for j := 0; j < len(defferedSqlStmts); {
+			_, err = conn.Exec(context.Background(), defferedSqlStmts[j].formattedStmt)
+			if err == nil {
+				utils.PrintAndLog("%s\n", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt))
+				// removing successfully executed SQL
+				defferedSqlStmts = append(defferedSqlStmts[:j], defferedSqlStmts[j+1:]...)
+				break // no increment in j
+			} else {
+				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
+				conn.Close(context.Background())
+				conn = newTargetConn()
+				j++
+			}
+		}
+	}
+
+	failedSqlStmts = append(failedSqlStmts, defferedSqlStmts...)
 }
 
 func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
@@ -101,6 +145,9 @@ func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	}
 	if sourceDBType == "postgresql" && !slices.Contains(finalImportObjectList, "SCHEMA") && !flagPostImportData { // Schema should be migrated by default.
 		finalImportObjectList = append([]string{"SCHEMA"}, finalImportObjectList...)
+	}
+	if !flagPostImportData {
+		finalImportObjectList = append(finalImportObjectList, []string{"UNIQUE INDEX"}...)
 	}
 	return finalImportObjectList
 }

@@ -1,0 +1,10 @@
+[
+        {
+            "objectType": "INDEX",
+            "objectName": "film_fulltext_idx",
+            "reason": "Schema contains gist index which is not supported.",
+            "sqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        }
+]

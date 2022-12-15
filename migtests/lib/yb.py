@@ -130,7 +130,17 @@ class PostgresDB:
 			tables[table_name].append(data_type)
 		return tables
 
-	def invalid_index_present(self, table_name, schema_name):
+	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
+		tables = {}
+		for table_name, column_name, data_type in cur.fetchall():
+			if table_name not in tables:
+				tables[table_name] = {}
+			tables[table_name][column_name] = data_type
+		return tables
+
+	def invalid_index_present(self, table_name, schema_name="public"):
 		cur = self.conn.cursor()
 		cur.execute(f"select indisvalid from pg_index where indrelid = '{schema_name}.{table_name}'::regclass::oid")
 
@@ -139,3 +149,14 @@ class PostgresDB:
 				return True
 
 		return False
+
+
+	def fetch_all_triggers(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
+		return [trigger[0] for trigger in cur.fetchall()]
+
+	def fetch_all_procedures(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
+		return [procedure[0] for procedure in cur.fetchall()]

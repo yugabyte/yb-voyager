@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, v1.0.0-xbeta, 0.81-dev ]
+    branches: [ main ]
 
 jobs:
   run-pg-migration-tests:
@@ -47,6 +47,10 @@ jobs:
       run: |
         psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
 
+    - name: Create PostgreSQL user
+      run: |
+        ./migtests/scripts/postgresql/create_pg_user
+
     - name: Start YugabyteDB cluster
       run: |
         docker pull yugabytedb/yugabyte:${{ matrix.version }}
@@ -56,6 +60,10 @@ jobs:
     - name: Test YugabyteDB connection
       run: |
         psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+    
+    - name: Create YugabyteDB user
+      run: |
+        ./migtests/scripts/yugabytedb/create_yb_user
 
     - name: Enable yb-tserver-n1 name resolution
       run: |
@@ -80,12 +88,27 @@ jobs:
 
     - name: "TEST: pg-sequences"
       run: migtests/scripts/run-test.sh pg-tests/pg-sequences
-    
+
+    - name: "TEST: pg-indexes"
+      run: migtests/scripts/run-test.sh pg-tests/pg-indexes
+
     - name: "TEST: pg-views"
       run: migtests/scripts/run-test.sh pg-tests/pg-views
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
+    - name: "TEST: pg-dependent-ddls"
+      run: migtests/scripts/run-test.sh pg-dependent-ddls
+
+    - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
+      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-2
+
+    - name:  "TEST: pg-multiple-schemas"
+      run: migtests/scripts/run-test.sh pg-tests/pg-multiple-schemas
+
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
+
+    - name: "TEST: analyze-schema"
+      run: migtests/tests/analyze-schema/run-analyze-schema-test

@@ -42,7 +42,7 @@ var exportDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags()
+		validateExportFlags(cmd)
 		markFlagsRequired(cmd)
 	},
 
@@ -54,6 +54,7 @@ var exportDataCmd = &cobra.Command{
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
 	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export(default false)")
@@ -112,7 +113,8 @@ func exportDataOffline() bool {
 	}
 
 	exportDataStart := make(chan bool)
-	quitChan := make(chan bool) //for checking failure/errors of the parallel goroutines
+	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
+	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
 	go func() {
 		q := <-quitChan
 		if q {
@@ -137,7 +139,6 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	exportSuccessChan := make(chan bool)
 	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan)
 	// Wait for the export data to start.
 	<-exportDataStart

@@ -1,0 +1,6 @@
+{
+	"SourceDBType": "postgresql",
+	"SourceDBName": "dummy_db_name",
+	"SourceDBSchema":  "public",
+	"SourceDBVersion": "12.0"
+}

@@ -227,7 +227,7 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
-	if objType == "INDEX" {
+	if objType == "INDEX" || objType == "UNIQUE INDEX"{
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else if objType == "FTS_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
@@ -328,4 +328,12 @@ func GetRedactedURLs(urlList []string) []string {
 		result = append(result, obj.Redacted())
 	}
 	return result
+}
+
+func GetSqlStmtToPrint(stmt string) string {
+	if len(stmt) < 80 {
+		return stmt
+	} else {
+		return fmt.Sprintf("%s ...", stmt[:80])
+	}
 }

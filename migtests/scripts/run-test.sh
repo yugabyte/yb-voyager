@@ -43,6 +43,9 @@ main() {
 	step "Initialise source database."
 	./init-db
 
+	step "Grant source database user permissions"
+	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE}
+
 	step "Export schema."
 	export_schema
 	find ${EXPORT_DIR}/schema -name '*.sql' | xargs grep -wh CREATE
@@ -76,8 +79,8 @@ main() {
 	step "Import data."
 	import_data
 	
-	step "Import remaining schema (FK, index, and trigger)."
-	import_schema --post-import-data
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
