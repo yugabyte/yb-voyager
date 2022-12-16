@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'emps': 12,
+	'top_down_paths': 12,
+	'top_down_simple': 12
+}
+
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 1 
+
+	view_list = tgt.get_objects_of_type("VIEW", "public")
+	print("view_list:", view_list)
+	assert len(view_list) == 2
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+
+	fetched_procedures_functions = tgt.fetch_all_procedures("public")
+	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	assert len(fetched_procedures_functions) == 5
+
+
+	chk_executed_query = tgt.run_query_and_chk_error("select x, f from fibonacci_series(12) order by x;", None)
+	print(f"error in executing query - {chk_executed_query}")
+	assert chk_executed_query == False
+
+	chk_executed_query = tgt.run_query_and_chk_error("select bottom_up_path_display('joan');", None)
+	print(f"error in executing query - {chk_executed_query}")
+	assert chk_executed_query == False
+
+	chk_executed_query = tgt.run_query_and_chk_error("select c1, c2 from pure_sql_version(4) order by c1, c2;", None)
+	print(f"error in executing query - {chk_executed_query}")
+	assert chk_executed_query == False
+
+if __name__ == "__main__":
+	main()
