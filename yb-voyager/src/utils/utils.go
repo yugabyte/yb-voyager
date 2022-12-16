@@ -227,7 +227,7 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
-	if objType == "INDEX" || objType == "UNIQUE INDEX"{
+	if objType == "INDEX" || objType == "UNIQUE INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else if objType == "FTS_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
@@ -290,7 +290,8 @@ func LookupIP(name string) []string {
 
 	ips, err := net.LookupIP(name)
 	if err != nil {
-		ErrExit("Error Resolving name=%s: %v", name, err)
+		log.Infof("Error Resolving name=%s: %v", name, err)
+		return result
 	}
 
 	for _, ip := range ips {
