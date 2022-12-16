@@ -725,7 +725,7 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 func executePostImportDataSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s", "")
+		fmt.Printf("setting resume value for sequences %10s\n", "")
 		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
 	}
 }
@@ -1055,7 +1055,11 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 	}()
 
-	sqlInfoArr := createSqlStrInfoArray(file, objType)
+	sqlInfoArr := createSqlStrInfoArray(file, objType, skipFn)
+	if len(sqlInfoArr) == 0 {
+		fmt.Printf("- no more DDLs to execute from %s\n", file)
+		return
+	}
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
@@ -1063,9 +1067,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
 			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
-		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
-			continue
-		}
 		if !setOrSelectStmt {
 			fmt.Printf("%s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 		}

@@ -21,8 +21,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"sort"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -82,20 +82,20 @@ var (
 	dropSeqRegex       = regexp.MustCompile(`(?i)DROP SEQUENCE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
 	dropForeignRegex   = regexp.MustCompile(`(?i)DROP FOREIGN TABLE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
 	// dropMatViewRegex   = regexp.MustCompile("(?i)DROP MATERIALIZED VIEW")
-	createIdxConcurRegex = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
-	dropIdxConcurRegex   = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
-	trigRefRegex         = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
-	constrTrgRegex       = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
-	currentOfRegex       = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
-	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
-	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
-	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
-	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
-	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
-	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
-	withOidsRegex        = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
-	intvlRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
+	createIdxConcurRegex  = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
+	dropIdxConcurRegex    = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
+	trigRefRegex          = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
+	constrTrgRegex        = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
+	currentOfRegex        = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
+	amRegex               = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
+	idxConcRegex          = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
+	storedRegex           = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
+	partitionColumnsRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
+	likeAllRegex          = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
+	likeRegex             = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
+	inheritRegex          = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
+	withOidsRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
+	intvlRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
 	//super user role required, language c is errored as unsafe
 	cLangRegex = regexp.MustCompile(`(?i)CREATE (OR REPLACE )?FUNCTION ([a-zA-Z0-9_."]+).*language c`)
 
@@ -466,7 +466,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
 				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn {
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				}
 			}
 		}
@@ -559,7 +559,7 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	return createObjRegex, objNameIndex
 }
 
-func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objType string, sqlInfoArr *[]sqlInfo, reportNextSql *int) {
+func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objType string, sqlInfoArr *[]sqlInfo, reportNextSql *int, skipFn func(string, string) bool) {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
 
@@ -585,12 +585,15 @@ func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objT
 		stmt:          *stmt,
 		formattedStmt: *formattedStmt,
 	}
-	*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
+
+	if skipFn != nil && !skipFn(objType, sqlInfo.stmt) {
+		*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
+	}
 	(*stmt) = ""
 	(*formattedStmt) = ""
 }
 
-func createSqlStrInfoArray(path string, objType string) []sqlInfo {
+func createSqlStrInfoArray(path string, objType string, skipFn func(string, string) bool) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
 
 	var sqlInfoArr []sqlInfo
@@ -637,7 +640,7 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 				codeBlockDelimiter = matches[0]
 			} else if strings.Contains(currLine, ";") { // in case, there is no body part
 				//one liner sql string created, now will check for obj count and report cases
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql, skipFn)
 			}
 		} else if dollarQuoteFlag == 1 {
 			if strings.Contains(currLine, codeBlockDelimiter) {
@@ -646,7 +649,7 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 		}
 		if dollarQuoteFlag == 2 {
 			if strings.Contains(currLine, ";") {
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql, skipFn)
 				//reset for parsing other sqls
 				dollarQuoteFlag = 0
 				codeBlockDelimiter = ""
@@ -801,7 +804,7 @@ func analyzeSchemaInternal() utils.Report {
 			continue
 		}
 
-		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
+		sqlInfoArr := createSqlStrInfoArray(filePath, objType, nil)
 		// fmt.Printf("SqlStrArray for '%s' is: %v\n", objType, sqlInfoArr)
 		checker(sqlInfoArr, filePath)
 	}
