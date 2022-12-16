@@ -586,7 +586,7 @@ func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objT
 		formattedStmt: *formattedStmt,
 	}
 
-	if skipFn != nil && !skipFn(objType, sqlInfo.stmt) {
+	if skipFn == nil || (skipFn != nil && !skipFn(objType, sqlInfo.stmt)) {
 		*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
 	}
 	(*stmt) = ""
