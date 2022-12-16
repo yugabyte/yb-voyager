@@ -84,6 +84,9 @@ jobs:
     - name: "TEST: pg-constraints"
       run: migtests/scripts/run-test.sh pg-tests/pg-constraints
 
+    - name: "TEST: pg-sample-schema-emp"
+      run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
+
     - name: "TEST: pg-datatypes"
       run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
 
@@ -116,3 +119,4 @@ jobs:
       
     - name: "TEST: pg-codependent-schemas"
       run: migtests/scripts/run-test.sh pg-tests/pg-codependent-schemas
+
