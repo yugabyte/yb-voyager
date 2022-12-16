@@ -31,20 +31,20 @@ def migration_completed_checks(tgt):
 
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
-	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
+	print(f"Count of fetched procedures/functions: {len(fetched_procedures_functions)}")
 	assert len(fetched_procedures_functions) == 5
 
 
 	chk_executed_query = tgt.run_query_and_chk_error("select x, f from fibonacci_series(12) order by x;", None)
-	print(f"error in executing query - {chk_executed_query}")
+	print(f"Error in executing query - {chk_executed_query}")
 	assert chk_executed_query == False
 
 	chk_executed_query = tgt.run_query_and_chk_error("select bottom_up_path_display('joan');", None)
-	print(f"error in executing query - {chk_executed_query}")
+	print(f"Error in executing query - {chk_executed_query}")
 	assert chk_executed_query == False
 
 	chk_executed_query = tgt.run_query_and_chk_error("select c1, c2 from pure_sql_version(4) order by c1, c2;", None)
-	print(f"error in executing query - {chk_executed_query}")
+	print(f"Error in executing query - {chk_executed_query}")
 	assert chk_executed_query == False
 
 if __name__ == "__main__":
