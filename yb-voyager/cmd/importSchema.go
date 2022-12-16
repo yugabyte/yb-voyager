@@ -114,7 +114,7 @@ func importSchema() {
 	}
 	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-	fmt.Printf("\n\nImporting deferred DDL statements.\n")
+	
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
 		return !isSkipStatement(objType, stmt)

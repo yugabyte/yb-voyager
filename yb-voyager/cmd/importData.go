@@ -1057,10 +1057,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	}()
 
 	sqlInfoArr := createSqlStrInfoArray(file, objType, skipFn)
-	if len(sqlInfoArr) == 0 {
-		fmt.Printf("- no more DDLs to execute from %s\n", file)
-		return
-	}
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
@@ -1103,7 +1099,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt)
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			return nil
 		}
 
@@ -1145,7 +1141,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if missingRequiredSchemaObject(err) {
 			// Do nothing
 		} else {
-			utils.PrintSqlStmtIfDDL(sqlInfo.stmt)
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if target.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
