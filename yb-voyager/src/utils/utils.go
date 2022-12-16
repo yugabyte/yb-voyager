@@ -338,3 +338,11 @@ func GetSqlStmtToPrint(stmt string) string {
 		return fmt.Sprintf("%s ...", stmt[:80])
 	}
 }
+
+func PrintSqlStmtIfDDL(stmt string) {
+	setOrSelectStmt := strings.HasPrefix(strings.ToUpper(stmt), "SET ") ||
+		strings.HasPrefix(strings.ToUpper(stmt), "SELECT ")
+	if !setOrSelectStmt {
+		fmt.Printf("%s\n", GetSqlStmtToPrint(stmt))
+	}
+}

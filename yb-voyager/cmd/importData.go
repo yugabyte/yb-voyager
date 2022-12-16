@@ -33,6 +33,7 @@ import (
 	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -1065,12 +1066,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			conn = newTargetConn()
 		}
 
-		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
-			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
-		if !setOrSelectStmt {
-			fmt.Printf("%s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
-		}
-
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
@@ -1108,6 +1103,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt)
 			return nil
 		}
 
@@ -1149,8 +1145,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if missingRequiredSchemaObject(err) {
 			// Do nothing
 		} else {
-			fmt.Printf("\b \n    %s\n", err.Error())
-			fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt)
+			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if target.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 				failedSqlStmts = append(failedSqlStmts, sqlInfo)
