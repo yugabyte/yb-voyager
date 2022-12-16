@@ -24,10 +24,10 @@ def migration_completed_checks(tgt):
 	print("view_list:", view_list)
 	assert len(view_list) == 2
 
-	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
-		assert row_count == got_row_count[table_name]
+		count = tgt.get_row_count(table_name, "public")
+		print(f"table_name: {table_name}, row_count: {count}")
+		assert row_count == count
 
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
