@@ -672,7 +672,7 @@ func initializeSummaryMap() {
 		if objType == "PACKAGE" {
 			summaryMap[objType].details["Packages in oracle are exported as schema, please review and edit them(if needed) to match your requirements"] = true
 		} else if objType == "SYNONYM" {
-			summaryMap[objType].details["Synonyms in oracle are exported as view, please review and edit them(if needed) to match your requirements"] = true
+			summaryMap[objType].details["\nSynonyms in oracle are exported as view with full classified name of the object which may have source schema name with object name, which will not be present by default and required to be present in the target database. \nHere are two workarounds, modify the DDLs as per requirement using any of these: \n- Create the schema mentioned in object names and the objects required in that Schema used in those DDLs on the target database.\n- Remove the schema name from all the object names from the DDLs and then it will execute that DDL in the respective target-db-schema passed."] = true
 		}
 	}
 
