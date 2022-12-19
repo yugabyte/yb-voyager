@@ -241,7 +241,7 @@ END;
 
 -- HASH PARTITION DATA
 BEGIN
-    Insert into sales_hash values (4, '26-11-03 00:00:00', 104, 2129.55); 
+    Insert into SALES_HASH values (4, '26-11-03 00:00:00', 104, 2129.55); 
     Insert into sales_hash values (7, '26-02-16 00:00:00', 105, 8665.95); 
     Insert into sales_hash values (15, '14-10-16 00:00:00', 113, 6571.19); 
     Insert into sales_hash values (14, '03-11-10 00:00:00', 114, 2292.42); 
@@ -343,3 +343,5 @@ BEGIN
     Insert into sales_hash values (15, '26-04-01 00:00:00', 185, 7484.02);
 END;
 /
+
+COMMIT;
