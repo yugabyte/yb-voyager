@@ -73,18 +73,24 @@ func initializeExportTableMetadata(tableList []string) {
 func initializeExportTablePartitionMetadata(tableList []string) {
 	for _, parentTable := range tableList {
 		if source.DBType == ORACLE || source.DBType == MYSQL {
+			subpartititionPrefix := ""
+			if source.DBType == ORACLE { // Fully qualified table names for select queries in oracle require "subpartition" keyword.
+				subpartititionPrefix = "SUB"
+			}
 			partitionMap := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionMap) > 0 {
 				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionMap), partitionMap)
 				for partitionName, subpartitionNames := range partitionMap {
-					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
-					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					if len(subpartitionNames) != 0 {
 						for _, subpartitionName := range subpartitionNames {
-							initializeSinglePartitionMetadata(fmt.Sprintf("%s SUBPARTITION(%s)", key, subpartitionName), parentTable, fmt.Sprintf("%s SUBPARTITION(%s)", fullTableName, subpartitionName), partitionName, true, subpartitionName)
+							key := fmt.Sprintf("%s SUBPARTITION(%s)", tablesProgressMetadata[parentTable].TableName, subpartitionName)
+							fullTableName := fmt.Sprintf("%s %sPARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, subpartititionPrefix, subpartitionName)
+							initializeSinglePartitionMetadata(key, parentTable, fullTableName, partitionName, true, subpartitionName)
 						}
 						continue
 					}
+					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
+					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
 					initializeSinglePartitionMetadata(key, parentTable, fullTableName, partitionName, false, "")
 				}
 			}
@@ -137,11 +143,6 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	go func() {
 		updateMetadataAndExit = <-exportSuccessChan
 	}()
-
-	go func() {
-		updateMetadataAndExit = <-exportSuccessChan
-	}()
-
 	numTables := len(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 

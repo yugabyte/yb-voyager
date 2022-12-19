@@ -65,9 +65,6 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 			targetTableName := tablesProgressMetadata[key].TableName
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
-				if tablesProgressMetadata[key].IsSubPartition {
-					targetTableName = tablesProgressMetadata[key].ParentPartition + "_" + targetTableName
-				}
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
 			}
 			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
