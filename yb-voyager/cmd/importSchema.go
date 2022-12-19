@@ -143,6 +143,12 @@ func importSchema() {
 
 func dumpStatements(stmts []sqlInfo, filePath string) {
 	if len(stmts) == 0 {
+		if utils.FileOrFolderExists(filePath) {
+			err := os.Remove(filePath)
+			if err != nil {
+				utils.ErrExit("remove file: %v", err)
+			}
+		}
 		return
 	}
 
@@ -157,6 +163,7 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 			utils.ErrExit("failed writing in file %s: %v", filePath, err)
 		}
 	}
+
 	utils.PrintAndLog("failed SQL statements during migration are present in %q file\n", filePath)
 }
 
