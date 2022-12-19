@@ -81,6 +81,9 @@ jobs:
       run: migtests/scripts/run-test.sh pg-partitions-with-indexes
       if: matrix.version != '2.17.0.0-b24'
 
+    - name: "TEST: pg-sample-schema-emp"
+      run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
+
     - name: "TEST: pg-constraints"
       run: migtests/scripts/run-test.sh pg-tests/pg-constraints
 
@@ -116,3 +119,4 @@ jobs:
       
     - name: "TEST: pg-codependent-schemas"
       run: migtests/scripts/run-test.sh pg-tests/pg-codependent-schemas
+
