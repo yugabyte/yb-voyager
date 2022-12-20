@@ -59,7 +59,14 @@ create view v3 as select a.first_name,b.last_name from view_table1 a inner join 
 
 select * from v3;
 
+drop view if exists `whitespace view`;
+
+create view `whitespace view` as select * from view_table1;
+
+select * from `whitespace view`;
+
 desc v1;
 -- desc v2;
 desc v3;
+desc `whitespace view`;
 
