@@ -128,6 +128,9 @@ func (ms *MySQL) GetAllPartitionNames(tableName string) map[string][]string {
 			}
 		}
 		if subpartitionName.Valid {
+			if !ms.source.FlattenPartitions {
+				utils.ErrExit("subpartitions detected in table %q, use --flatten-partitions or --exclude-table-list and retry", tableName)
+			}
 			partitionMap[partitionName.String] = append(partitionMap[partitionName.String], subpartitionName.String)
 		}
 	}

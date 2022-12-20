@@ -227,7 +227,7 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
-	if objType == "INDEX" || objType == "UNIQUE INDEX"{
+	if objType == "INDEX" || objType == "UNIQUE INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "INDEXES_table.sql")
 	} else if objType == "FTS_INDEX" {
 		requiredPath = filepath.Join(schemaDirPath, "tables", "FTS_INDEXES_table.sql")
@@ -336,4 +336,17 @@ func GetSqlStmtToPrint(stmt string) string {
 	} else {
 		return fmt.Sprintf("%s ...", stmt[:80])
 	}
+}
+
+func GetPartitionString(partitionMap map[string][]string) string {
+	var partitionNames []string
+	for partitionName, subpartitionNames := range partitionMap {
+		if len(subpartitionNames) > 0 {
+			partitionString := fmt.Sprint(partitionMap)
+			return partitionString[3:]
+		}
+		partitionNames = append(partitionNames, partitionName)
+	}
+	sort.Strings(partitionNames)
+	return fmt.Sprint(partitionNames)
 }

@@ -49,6 +49,12 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 			lines[i] = "FILE_PER_TABLE " + "1"
 		} else if strings.HasPrefix(line, "#ALLOW") {
 			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		} else if strings.HasPrefix(line, "DISABLE_PARTITION") {
+			if source.FlattenPartitions {
+				lines[i] = "DISABLE_PARTITION " + "1"
+			} else {
+				lines[i] = "DISABLE_PARTITION " + "0"
+			}
 		}
 	}
 
@@ -59,7 +65,7 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 	}
 }
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan, exportDataStart, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")

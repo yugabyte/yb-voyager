@@ -79,7 +79,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 			}
 			partitionMap := source.DB().GetAllPartitionNames(parentTable)
 			if len(partitionMap) > 0 {
-				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionMap), partitionMap)
+				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionMap), utils.GetPartitionString(partitionMap))
 				for partitionName, subpartitionNames := range partitionMap {
 					if len(subpartitionNames) != 0 {
 						for _, subpartitionName := range subpartitionNames {

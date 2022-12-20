@@ -66,6 +66,10 @@ func init() {
 
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
+
+	// Experimental feature for subpartition support in MySQL, Oracle.
+	exportDataCmd.Flags().BoolVar(&source.FlattenPartitions, "flatten-partitions", false,
+		"flatten partition and subpartition data files into one file (no-op for postgresql source DB)")
 }
 
 func exportData() {
@@ -127,7 +131,9 @@ func exportDataOffline() bool {
 	}()
 
 	initializeExportTableMetadata(finalTableList)
-	initializeExportTablePartitionMetadata(finalTableList)
+	if !source.FlattenPartitions {
+		initializeExportTablePartitionMetadata(finalTableList)
+	}
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)

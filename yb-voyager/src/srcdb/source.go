@@ -38,6 +38,7 @@ type Source struct {
 	ExcludeTableList  string
 	UseOrafce         bool
 	CommentsOnObjects bool
+	FlattenPartitions bool
 
 	sourceDB SourceDB
 }
@@ -205,6 +206,8 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 			lines[i] = "PG_INTEGER_TYPE 1" // Required otherwise MySQL autoincrement sequences don't export
 		} else if strings.HasPrefix(line, "DEFAULT_NUMERIC") {
 			lines[i] = "DEFAULT_NUMERIC numeric"
+		} else if strings.HasPrefix(line, "DISABLE_PARTITION") {
+			lines[i] = "DISABLE_PARTITION 0"
 		}
 	}
 
