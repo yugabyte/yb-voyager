@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}/schema
+
+# Delete statement which is causing the import schema failure  from table.sql.
+# https://github.com/yugabyte/yb-db-migration/issues/136
+sed -i '/ALTER TABLE products ADD CONSTRAINT products_json_c CHECK ( (CASE WHEN product_details::json IS NULL THEN true ELSE true END));/d' tables/table.sql
+sed -i '16,34d' views/view.sql
+sed -i '/ON DELETE NO ACTION NOT DEFERRABLE INITIALLY IMMEDIATE/d' tables/table.sql
+

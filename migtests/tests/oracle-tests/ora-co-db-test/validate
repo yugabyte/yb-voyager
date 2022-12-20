@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+
+import yb
+import collections
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_ROW_COUNT = {
+	'stores': 23,
+	'customers': 392,
+	'inventory': 566,
+	'orders': 1950,
+	'order_items': 3914,
+	'products': 46,
+	'shipments': 1892
+}
+
+EXPECTED_INDEX_COUNT = {
+	'customers': 3,
+ 	'inventory': 3,
+  	'orders': 3,
+	'order_items': 3,
+	'products': 1,
+	'shipments': 3,
+	'stores': 2
+}
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+  	
+   # Logic to check for the number of indexes present in the schema
+	fetched_indexes = tgt.get_objects_of_type("INDEX", "public")
+	print(f"Returned indexes are - {fetched_indexes} & there are {len(fetched_indexes)} of them")
+	assert len(fetched_indexes) == 18
+ 
+	# Logic to check if invalid indexes are present
+	for tablename, row_count in EXPECTED_ROW_COUNT.items():
+		invalid_index = tgt.invalid_index_present(tablename, "public")
+		assert invalid_index == False
+  
+	# Logic to check the sequences migrated
+	fetched_sequences = tgt.get_objects_of_type("SEQUENCE", "public")
+	print(f"Returned sequences are - {fetched_sequences}")
+	assert len(fetched_sequences) == 3
+
+if __name__ == "__main__":
+	main()
