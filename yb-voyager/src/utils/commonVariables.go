@@ -51,8 +51,8 @@ var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", 
 
 // In PG, PARTITION are exported along with TABLE
 var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYPE", "DOMAIN", "SEQUENCE",
-	"TABLE", "INDEX", "RULE", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
-	"MVIEW", "COMMENT" /* GRANT, ROLE*/}
+	"TABLE", "INDEX", "FUNCTION", "AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER",
+	"MVIEW", "RULE", "COMMENT" /* GRANT, ROLE*/}
 
 // In MYSQL, TYPE and SEQUENCE are not supported
 var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/

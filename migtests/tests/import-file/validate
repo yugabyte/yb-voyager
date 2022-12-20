@@ -9,6 +9,8 @@ def main():
 EXPECTED = {
 	"one_m_rows": 1000000,
 	"survey": 41715,
+ 	"survey2": 41715,
+ 	"survey3": 41715,
 	"smsa": 60,
 }
 

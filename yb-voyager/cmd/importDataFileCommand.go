@@ -33,7 +33,7 @@ var importDataFileCmd = &cobra.Command{
 	Short: "This command imports data from given files into YugabyteDB database",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		checkImportDataFileFlags()
+		checkImportDataFileFlags(cmd)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importData()
@@ -177,7 +177,7 @@ func parseFileTableMapping() {
 	}
 }
 
-func checkImportDataFileFlags() {
+func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
 	fileFormat = strings.ToLower(fileFormat)
 	checkFileFormat()
@@ -185,6 +185,7 @@ func checkImportDataFileFlags() {
 	checkDelimiterFlag()
 	checkHasHeader()
 	checkFileOpts()
+	validateTargetPassword(cmd)
 }
 
 func checkFileFormat() {
@@ -307,5 +308,5 @@ func init() {
 		`comma separated options for csv file format:
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
-		for eg: --file-opts "escape_char=\",quote_char=\" or --file-opts 'escape_char=",quote_char="'`)
+		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
 }

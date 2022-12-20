@@ -1,3 +1,4 @@
+-- test for schema objects: VIEW, MVIEW, RULE in PostgreSQL
 
 drop schema if exists test_views;
 
@@ -45,21 +46,15 @@ insert into test_views.view_table2 (first_name, last_name, email, gender, ip_add
 insert into test_views.view_table2 (first_name, last_name, email, gender, ip_address) values ('Ranee', 'Hast', 'rhast17@webeden.co.uk', 'Female', '68.206.219.63');
 
 
-drop view if exists test_views.v1;
-
-create view test_views.v1 as select first_name,last_name from test_views.view_table1 where gender='Female';
+create or replace view test_views.v1 as select first_name,last_name from test_views.view_table1 where gender='Female';
 
 select * from test_views.v1;
 
-drop view if exists test_views.v2;
-
-create view test_views.v2 as select a.first_name,b.last_name from test_views.view_table1 a,test_views.view_table2 b where a.id=b.id;
+create or replace view test_views.v2 as select a.first_name,b.last_name from test_views.view_table1 a,test_views.view_table2 b where a.id=b.id;
 
 select * from test_views.v2;
 
-drop view if exists test_views.v3;
-
-create view test_views.v3 as select a.first_name,b.last_name from test_views.view_table1 a inner join test_views.view_table2 b using(id);
+create or replace view test_views.v3 as select a.first_name,b.last_name from test_views.view_table1 a inner join test_views.view_table2 b using(id);
 
 select * from test_views.v3;
 
@@ -82,3 +77,13 @@ select * from test_views.mv1;
 \d+ test_views.v3;
 \d+ test_views.mv1;
 
+
+CREATE OR REPLACE RULE protect_test_views_view_table1 AS ON UPDATE TO test_views.view_table1 DO INSTEAD NOTHING;
+
+CREATE OR REPLACE RULE protect_test_views_v1 AS ON UPDATE TO test_views.v1 DO INSTEAD NOTHING;
+
+CREATE OR REPLACE RULE protect_test_views_v2 AS ON UPDATE TO test_views.v2 DO INSTEAD NOTHING;
+
+CREATE OR REPLACE RULE protect_test_views_v3 AS ON UPDATE TO test_views.v3 DO INSTEAD NOTHING;
+
+-- RULEs are not supported on Materialized Views in PostgreSQL

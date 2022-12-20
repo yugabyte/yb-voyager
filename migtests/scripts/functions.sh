@@ -216,6 +216,3 @@ import_data_file() {
 		--parallel-jobs 3 \
 		$*
 }
-
-
-

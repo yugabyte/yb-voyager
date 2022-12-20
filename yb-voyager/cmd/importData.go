@@ -200,7 +200,7 @@ func getYBServers() []*tgtdb.Target {
 		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
 		targets = []*tgtdb.Target{&target}
 	} else {
-		testYbServers(targets)
+		targets = testAndFilterYbServers(targets)
 	}
 	return targets
 }
@@ -241,19 +241,25 @@ func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
 	return totalCores / 2
 }
 
-func testYbServers(targets []*tgtdb.Target) {
-	if len(targets) == 0 {
-		utils.ErrExit("no yb servers available/given for data import")
-	}
+// this function will check the reachability to each of the nodes and returns list of ones which are reachable
+func testAndFilterYbServers(targets []*tgtdb.Target) []*tgtdb.Target {
+	var availableTargets []*tgtdb.Target
+
 	for _, target := range targets {
 		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTarget(target)))
 		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 		if err != nil {
-			utils.ErrExit("error while testing yb servers: %v", err)
+			utils.PrintAndLog("unable to use yb-server %q: %v", target.Host, err)
+		} else {
+			availableTargets = append(availableTargets, target)
+			conn.Close(context.Background())
 		}
-		conn.Close(context.Background())
 	}
-	log.Infof("all target servers are accessible")
+
+	if len(availableTargets) == 0 {
+		utils.ErrExit("no yb servers available for data import")
+	}
+	return availableTargets
 }
 
 func isSeedTargetHost(names ...string) bool {

@@ -139,10 +139,12 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			quitChan <- true
 		}
 	}()
-	// If ora2pg has successfully exited, update tableProgressMetadata and exit (Fix for partitions and subpartitions in MySQL, Oracle)
+
+	// If ora2pg has successfully exited, update tableProgressMetadata and exit (Fix for empty partitions and subpartitions in MySQL, Oracle)
 	go func() {
 		updateMetadataAndExit = <-exportSuccessChan
 	}()
+
 	numTables := len(tablesProgressMetadata)
 	progressContainer := mpb.NewWithContext(ctx)
 

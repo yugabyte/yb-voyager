@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'album': 347,
+	'artist': 275,
+	'customer': 59,
+	'employee': 8,
+	'genre': 25,
+	'invoiceline': 2240,
+	'invoice': 412,
+	'mediatype': 5,
+	'playlisttrack': 8715,
+	'playlist': 18,
+	'track': 3503
+}
+
+EXPECTED_INDEX_COUNT = {
+	'album': 2,
+	'artist': 1,
+	'customer': 2,
+	'employee': 2,
+	'genre': 1,
+	'invoiceline': 3,
+	'invoice': 2,
+	'mediatype': 1,
+	'playlisttrack': 2,
+	'playlist': 1,
+	'track': 4
+}
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("test_sample_chinook")
+	print("table_list:", table_list)
+	assert len(table_list) == 11
+
+	got_row_count = tgt.row_count_of_all_tables("test_sample_chinook")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	get_index_count = tgt.get_count_index_on_table("test_sample_chinook")
+	for table_name, index_count in EXPECTED_INDEX_COUNT.items():
+		print(f"table_name: {table_name}, index_count: {get_index_count[table_name]}")
+		assert index_count == get_index_count[table_name]
+
+
+if __name__ == "__main__":
+	main()
