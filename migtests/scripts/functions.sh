@@ -143,7 +143,7 @@ export_schema() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
-		--send-diagnostics=false
+		--send-diagnostics=false --yes
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -162,6 +162,7 @@ export_data() {
 		--source-db-name ${SOURCE_DB_NAME}
 		--disable-pb
 		--send-diagnostics=false
+		--yes
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
