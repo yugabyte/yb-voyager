@@ -44,17 +44,11 @@ func processImportDirectives(fileName string) error {
 	// Create a new scanner and read the file line by line.
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line:=scanner.Text()
+		line := scanner.Text()
 		// Check if the line contains the import directive.
 		if strings.HasPrefix(line, "\\i ") {
-			// Split the line into tokens.
-			tokens := strings.Split(line, " ")
-			// Check if the line contains the correct number of tokens.
-			if len(tokens) != 2 {
-				return fmt.Errorf("invalid token count in %q: %s", fileName, line)
-			}
 			// Check if the file exists.
-			importFileName := strings.Trim(tokens[1], "'")
+			importFileName := strings.Trim(line[3:], "' ")
 			log.Infof("Inlining contents of %q in %q", importFileName, fileName)
 			if _, err = os.Stat(importFileName); err != nil {
 				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
@@ -71,7 +65,7 @@ func processImportDirectives(fileName string) error {
 			}
 		} else {
 			// Write the line to the temporary file.
-			_, err = tmpFile.WriteString(line+"\n")
+			_, err = tmpFile.WriteString(line + "\n")
 			if err != nil {
 				return fmt.Errorf("write a line to %q: %w", tmpFileName, err)
 			}
