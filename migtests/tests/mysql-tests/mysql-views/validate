@@ -13,7 +13,7 @@ EXPECTED_ROW_COUNT = {
 	'view_table2': 9,
 	'v1': 6,
 	'v3': 9,
-	'"whitespace view"':10
+	'whitespace view':10
 }
 
 def migration_completed_checks(tgt):
