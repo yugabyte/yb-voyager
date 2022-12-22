@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"regexp"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -69,6 +70,46 @@ func processImportDirectives(fileName string) error {
 			if err != nil {
 				return fmt.Errorf("write a line to %q: %w", tmpFileName, err)
 			}
+		}
+	}
+	// Check if there were any errors during the scan.
+	if err = scanner.Err(); err != nil {
+		return fmt.Errorf("scan %q: %w", fileName, err)
+	}
+	// Rename tmpFile to fileName.
+	err = os.Rename(tmpFileName, fileName)
+	if err != nil {
+		return fmt.Errorf("rename %q as %q: %w", tmpFileName, fileName, err)
+	}
+	return nil
+}
+//Invoked at the end of Export Schema for Oracle for SYNONYM Object type to strip the source schema name from the sqlStatements
+func processStmtsToStripSourceSchema(fileName string, sourceSchema string) error {
+	if !utils.FileOrFolderExists(fileName) {
+		return nil
+	}
+	// Create a temporary file after appending .tmp extension to the fileName.
+	tmpFileName := fileName + ".tmp"
+	tmpFile, err := os.Create(tmpFileName)
+	if err != nil {
+		return fmt.Errorf("create %q: %w", tmpFileName, err)
+	}
+	defer tmpFile.Close()
+	// Open the original file for reading.
+	file, err := os.Open(fileName)
+	if err != nil {
+		return fmt.Errorf("open %q: %w", fileName, err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		regex := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
+		regexForFullClassifiedObjName := regexp.MustCompile(regex)
+		transformedLine := regexForFullClassifiedObjName.ReplaceAllString(line, "$1$2")
+		_, err = tmpFile.WriteString(transformedLine + "\n")
+		if err != nil {
+			return fmt.Errorf("write a line to %q: %w", tmpFileName, err)
 		}
 	}
 	// Check if there were any errors during the scan.
