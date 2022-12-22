@@ -1,42 +1,21 @@
 #!/bin/sh
 
-n=$#
 argv=( "$@" )
 
-cmdName=$1
-
-# check if the command name starts with '-' i.e. a command like --help
-if [[ ${cmdName:0:1} == "-" ]]
-then
-    cmdName="yb-voyager"
-fi
-
-cmdToRun="yb-voyager"
-exportDirCmd=false
-exportDirHost=""
-
 i=0
-while [ $i -lt $n ]
+while [ $i -lt $# ]
 do
     if [[ ${argv[${i}]} == "--export-dir" ]]
     then
-        exportDirCmd=true
-        cmdToRun="${cmdToRun} --export-dir /export-dir"
-        i=$(( $i + 1 ))
-        exportDirHost=${argv[${i}]}
-        i=$(( $i + 1 ))
-    else
-        cmdToRun="${cmdToRun} ${argv[${i}]}"
-        i=$(( $i + 1 ))
+        j=$(( $i + 1))
+        vol="-v ${args[$j]}:/export-dir"
+        args[$j]='/export-dir'
     fi
+    i=$(( $i + 1))
 done
 
-if $exportDirCmd
-then
-    # if the command contains a '--export-dir' flag
-    dockerCmd="docker run -v ${exportDirHost}:/export-dir -it --network=host --rm --privileged --name ${cmdName} localhost/yb-voyager:0.82 ${cmdToRun}"
-else
-    dockerCmd="docker run -it --network=host --rm --privileged --name ${cmdName} localhost/yb-voyager:0.82 ${cmdToRun}"
-fi
+dockerCmd="docker run ${vol} -it --network=host --rm --privileged localhost/yb-voyager:0.82 yb-voyager ${cmdToRun}"
+
+echo $dockerCmd
 
 $dockerCmd
