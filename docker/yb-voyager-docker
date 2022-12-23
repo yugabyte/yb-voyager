@@ -8,14 +8,14 @@ do
     if [[ ${argv[${i}]} == "--export-dir" ]]
     then
         j=$(( $i + 1))
-        vol="-v ${args[$j]}:/export-dir"
-        args[$j]='/export-dir'
+        vol="-v ${argv[$j]}:/export-dir"
+        argv[$j]='/export-dir'
     fi
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged localhost/yb-voyager:0.82 yb-voyager ${cmdToRun}"
+dockerCmd="docker run ${vol} -it --network=host --rm --privileged localhost/yb-voyager:latest yb-voyager ${argv[*]}"
 
-echo $dockerCmd
+# echo $dockerCmd
 
 $dockerCmd
