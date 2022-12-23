@@ -95,7 +95,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 			utils.ErrExit(err.Error())
 		}
 		if exportObject == "SYNONYM" {
-			if err := stmtsToStripSourceSchemaNames(utils.GetObjectFilePath(schemaDirPath, exportObject), source.Schema); err != nil {
+			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDirPath, exportObject), source.Schema); err != nil {
 				utils.ErrExit(err.Error())
 			}
 		}

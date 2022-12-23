@@ -94,24 +94,18 @@ func processImportDirectives(fileName string) error {
 //
 // The following function goes through all the names from the file and replaces
 // all occurrences of `sourceSchemaName.objectName` with just `objectName`.
-func stmtsToStripSourceSchemaNames(fileName string, sourceSchema string) error {
+func stripSourceSchemaNames(fileName string, sourceSchema string) error {
 	if !utils.FileOrFolderExists(fileName) {
 		return nil
 	}
-	// Create a temporary file after appending .tmp extension to the fileName.
 	tmpFileName := fileName + ".tmp"
-	tmpFile, err := os.Create(tmpFileName)
-	if err != nil {
-		return fmt.Errorf("create %q: %w", tmpFileName, err)
-	}
-	defer tmpFile.Close()
 	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
 		return fmt.Errorf("reading %q: %w", fileName, err)
 	}
-	regex := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
-	regexForFullClassifiedObjName := regexp.MustCompile(regex)
-	transformedContent := regexForFullClassifiedObjName.ReplaceAllString(string(fileContent), "$1$2")
+	regStr := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
+	reg := regexp.MustCompile(regStr)
+	transformedContent := reg.ReplaceAllString(string(fileContent), "$1$2")
 	err = os.WriteFile(tmpFileName, []byte(transformedContent), 0644)
 	if err != nil {
 		return fmt.Errorf("writing to %q: %w", tmpFileName, err)
