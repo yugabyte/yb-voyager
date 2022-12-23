@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"regexp"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -74,6 +75,40 @@ func processImportDirectives(fileName string) error {
 	// Check if there were any errors during the scan.
 	if err = scanner.Err(); err != nil {
 		return fmt.Errorf("scan %q: %w", fileName, err)
+	}
+	// Rename tmpFile to fileName.
+	err = os.Rename(tmpFileName, fileName)
+	if err != nil {
+		return fmt.Errorf("rename %q as %q: %w", tmpFileName, fileName, err)
+	}
+	return nil
+}
+// Strip the schema name from the names qualified by the source schema.
+//
+// ora2pg exports SYNONYM objects as VIEWs. The associated CREATE VIEW DDL statements
+// appear in the EXPORT_DIR/schema/synonyms/synonym.sql.
+//
+// The problem is that the view names are qualified with the Oracle's schema name.
+// Unless, the user is importing the schema in an exactly similarly named schema
+// on the target, the DDL statement will fail to import.
+//
+// The following function goes through all the names from the file and replaces
+// all occurrences of `sourceSchemaName.objectName` with just `objectName`.
+func stripSourceSchemaNames(fileName string, sourceSchema string) error {
+	if !utils.FileOrFolderExists(fileName) {
+		return nil
+	}
+	tmpFileName := fileName + ".tmp"
+	fileContent, err := os.ReadFile(fileName)
+	if err != nil {
+		return fmt.Errorf("reading %q: %w", fileName, err)
+	}
+	regStr := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
+	reg := regexp.MustCompile(regStr)
+	transformedContent := reg.ReplaceAllString(string(fileContent), "$1$2")
+	err = os.WriteFile(tmpFileName, []byte(transformedContent), 0644)
+	if err != nil {
+		return fmt.Errorf("writing to %q: %w", tmpFileName, err)
 	}
 	// Rename tmpFile to fileName.
 	err = os.Rename(tmpFileName, fileName)

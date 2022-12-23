@@ -20,3 +20,5 @@ BEGIN
     INSERT INTO TRUNC_TEST_1 (d1,d2,d3,tz1,tz2) VALUES(d1_date,d2_date,d3_date,tz1_tz,tz2_ts);
 END;
 /
+
+CREATE OR REPLACE SYNONYM TEST_SYNONYM for TRUNC_TEST_1;

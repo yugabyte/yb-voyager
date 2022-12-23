@@ -16,6 +16,10 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
+	
+	view_list = tgt.get_objects_of_type("VIEW", "test_mysql_views")
+	print("view_list:", view_list)
+	assert len(view_list) == 1
 
 if __name__ == "__main__":
 	main()

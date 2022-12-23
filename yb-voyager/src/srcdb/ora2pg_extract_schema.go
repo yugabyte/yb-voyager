@@ -94,6 +94,11 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
 			utils.ErrExit(err.Error())
 		}
+		if exportObject == "SYNONYM" {
+			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDirPath, exportObject), source.Schema); err != nil {
+				utils.ErrExit(err.Error())
+			}
+		}
 	}
 
 }
