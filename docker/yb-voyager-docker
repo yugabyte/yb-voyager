@@ -14,7 +14,7 @@ do
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged localhost/yb-voyager:latest yb-voyager ${argv[*]}"
+dockerCmd="docker run ${vol} -it --network=host --rm --privileged yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
