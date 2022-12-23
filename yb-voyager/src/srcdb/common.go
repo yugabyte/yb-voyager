@@ -83,8 +83,18 @@ func processImportDirectives(fileName string) error {
 	}
 	return nil
 }
-//Invoked at the end of Export Schema for Oracle for SYNONYM Object type to strip the source schema name from the sqlStatements
-func processStmtsToStripSourceSchema(fileName string, sourceSchema string) error {
+// Strip the schema name from the names qualified by the source schema.
+//
+// ora2pg exports SYNONYM objects as VIEWs. The associated CREATE VIEW DDL statements
+// appear in the EXPORT_DIR/schema/synonyms/synonym.sql.
+//
+// The problem is that the view names are qualified with the Oracle's schema name.
+// Unless, the user is importing the schema in an exactly similarly named schema
+// on the target, the DDL statement will fail to import.
+//
+// The following function goes through all the names from the file and replaces
+// all occurrences of `sourceSchemaName.objectName` with just `objectName`.
+func stmtsToStripSourceSchemaNames(fileName string, sourceSchema string) error {
 	if !utils.FileOrFolderExists(fileName) {
 		return nil
 	}
@@ -95,26 +105,16 @@ func processStmtsToStripSourceSchema(fileName string, sourceSchema string) error
 		return fmt.Errorf("create %q: %w", tmpFileName, err)
 	}
 	defer tmpFile.Close()
-	// Open the original file for reading.
-	file, err := os.Open(fileName)
+	fileContent, err := os.ReadFile(fileName)
 	if err != nil {
-		return fmt.Errorf("open %q: %w", fileName, err)
+		return fmt.Errorf("reading %q: %w", fileName, err)
 	}
-	defer file.Close()
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		regex := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
-		regexForFullClassifiedObjName := regexp.MustCompile(regex)
-		transformedLine := regexForFullClassifiedObjName.ReplaceAllString(line, "$1$2")
-		_, err = tmpFile.WriteString(transformedLine + "\n")
-		if err != nil {
-			return fmt.Errorf("write a line to %q: %w", tmpFileName, err)
-		}
-	}
-	// Check if there were any errors during the scan.
-	if err = scanner.Err(); err != nil {
-		return fmt.Errorf("scan %q: %w", fileName, err)
+	regex := fmt.Sprintf(`(?i)("?)%s\.([a-zA-Z0-9_"]+?)`, sourceSchema)
+	regexForFullClassifiedObjName := regexp.MustCompile(regex)
+	transformedContent := regexForFullClassifiedObjName.ReplaceAllString(string(fileContent), "$1$2")
+	err = os.WriteFile(tmpFileName, []byte(transformedContent), 0644)
+	if err != nil {
+		return fmt.Errorf("writing to %q: %w", tmpFileName, err)
 	}
 	// Rename tmpFile to fileName.
 	err = os.Rename(tmpFileName, fileName)
