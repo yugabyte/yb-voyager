@@ -33,6 +33,7 @@ var source srcdb.Source
 
 // to disable progress bar during data export and import
 var disablePb bool
+var liveMigration bool
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
