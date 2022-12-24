@@ -6,6 +6,11 @@ import (
 	"os"
 )
 
+const (
+	MODE_SNAPSHOT_EXPORT = "snapshot_export"
+	MODE_STREAMING       = "streaming"
+)
+
 type TableExportStatus struct {
 	DatabaseName string `json:"database_name"`
 	SchemaName   string `json:"schema_name"`
@@ -17,7 +22,13 @@ type TableExportStatus struct {
 }
 
 type ExportStatus struct {
+	Mode   string              `json:"mode"`
 	Tables []TableExportStatus `json:"tables"`
+}
+
+func (status *ExportStatus) SnapshotExportIsComplete() bool {
+	// When streaming mode is active, we assume that the snapshot export is complete.
+	return status.Mode == MODE_STREAMING
 }
 
 func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {

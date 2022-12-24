@@ -122,6 +122,9 @@ func exportDataOffline() bool {
 
 	if liveMigration {
 		err := runLiveMigration(ctx, finalTableList)
+		if err != nil {
+			utils.PrintAndLog("Failed to run live migration: %s", err)
+		}
 		return err == nil
 	}
 	exportDataStart := make(chan bool)
@@ -194,10 +197,20 @@ func runLiveMigration(ctx context.Context, tableList []string) error {
 		return fmt.Errorf("failed to start debezium: %v", err)
 	}
 	var status *dbzm.ExportStatus
+	exportingSnapshot := true
 	for {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read toc: %v", err)
+		}
+		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
+			exportingSnapshot = false
+			utils.PrintAndLog("Snapshot export is complete.")
+			err = writeDataFileDescriptor(exportDir, status)
+			if err != nil {
+				return fmt.Errorf("failed to write data file descriptor: %v", err)
+			}
+			outputExportStatus(status)
 		}
 		if !debezium.IsRunning() {
 			break
@@ -207,7 +220,22 @@ func runLiveMigration(ctx context.Context, tableList []string) error {
 	if err := debezium.Error(); err != nil {
 		return fmt.Errorf("debezium failed: %v", err)
 	}
-	outputExportStatus(status)
+	return nil
+}
+
+func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
+	tableRowCount := make(map[string]int64)
+	for _, table := range status.Tables {
+		tableRowCount[table.TableName] = table.ExportedRowCount
+	}
+	dfd := datafile.Descriptor{
+		FileFormat:    datafile.CSV,
+		TableRowCount: tableRowCount,
+		Delimiter:     ",",
+		HasHeader:     false,
+		ExportDir:     exportDir,
+	}
+	dfd.Save()
 	return nil
 }
 
