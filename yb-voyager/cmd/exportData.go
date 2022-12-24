@@ -29,6 +29,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
@@ -68,6 +69,9 @@ func init() {
 
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
+
+	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
+		"true - to enable live migration(default false)")
 }
 
 func exportData() {
@@ -96,7 +100,7 @@ func exportDataOffline() bool {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	defer cancel()
 
 	var tableList []*sqlname.SourceName
 	var finalTableList []*sqlname.SourceName
@@ -116,6 +120,10 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
+	if liveMigration {
+		err := runLiveMigration(ctx, finalTableList)
+		return err == nil
+	}
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -168,7 +176,52 @@ func exportDataOffline() bool {
 	return true
 }
 
-// flagName can be "exclude-table-list" or "table-list"
+func runLiveMigration(ctx context.Context, tableList []string) error {
+	config := &dbzm.Config{
+		ExportDir: exportDir,
+		Host:      source.Host,
+		Port:      source.Port,
+		Username:  source.User,
+		Password:  source.Password,
+
+		DatabaseName: source.DBName,
+		SchemaNames:  source.Schema,
+		TableList:    tableList,
+	}
+	debezium := dbzm.NewDebezium(config)
+	err := debezium.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start debezium: %v", err)
+	}
+	var status *dbzm.ExportStatus
+	for {
+		status, err = debezium.GetExportStatus()
+		if err != nil {
+			return fmt.Errorf("failed to read toc: %v", err)
+		}
+		if !debezium.IsRunning() {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if err := debezium.Error(); err != nil {
+		return fmt.Errorf("debezium failed: %v", err)
+	}
+	outputExportStatus(status)
+	return nil
+}
+
+func outputExportStatus(status *dbzm.ExportStatus) {
+	for i, table := range status.Tables {
+		if i == 0 {
+			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
+			fmt.Println("====================================================================================================")
+		}
+		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+	}
+}
+
+//flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
 		return
@@ -193,7 +246,8 @@ func checkDataDirs() {
 		os.Remove(dfdFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+			//utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+			utils.PrintAndLog("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 		}
 	}
 }

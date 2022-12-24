@@ -37,6 +37,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -1202,8 +1203,38 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
+func extractCopyStmtFromExportStatusFile(tableName string) (string, error) {
+	filePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(filePath)
+	if err != nil {
+		return "", err
+	}
+	if status == nil {
+		// Offline migration case. The data is exported using pg_dump or ora2pg.
+		return "", nil
+	}
+	for _, table := range status.Tables {
+		// TODO: Take into account the schema name as well.
+		if table.TableName == tableName {
+			return table.CopyStmt, nil
+		}
+	}
+	utils.ErrExit("could not find copy statement for table %q in export_status.json", tableName)
+	return "", nil // unreachable
+}
+
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
 	if getCopyCommand(table) != "" {
+		return
+	}
+	stmt, err := extractCopyStmtFromExportStatusFile(table)
+	// If the export_status.json file is not present, the err will be nil and stmt will be empty.
+	if err != nil {
+		utils.ErrExit("could not extract copy statement for table %q from export_status.json: %v", table, err)
+	}
+	if stmt != "" {
+		copyTableFromCommands[table] = stmt
+		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
 		return
 	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
