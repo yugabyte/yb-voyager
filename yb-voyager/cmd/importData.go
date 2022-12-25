@@ -363,6 +363,14 @@ func importData() {
 	time.Sleep(time.Second * 2)
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
+
+	if liveMigration {
+		fmt.Println("Streaming changes from source DB...")
+		err = streamChanges()
+		if err != nil {
+			utils.ErrExit("Failed to stream changes from source DB: %s", err)
+		}
+	}
 	fmt.Printf("\nexiting...\n")
 }
 

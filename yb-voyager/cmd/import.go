@@ -149,6 +149,9 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"true - to truncate splits after importing\n"+
 			"false - to not truncate splits after importing (required for debugging)")
 	cmd.Flags().MarkHidden("truncate-splits")
+
+	cmd.Flags().BoolVar(&liveMigration, "live-migration", false,
+		"set this flag to true to enable streaming data from source to target database")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
