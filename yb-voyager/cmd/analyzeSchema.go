@@ -559,7 +559,7 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	return createObjRegex, objNameIndex
 }
 
-func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objType string, sqlInfoArr *[]sqlInfo, reportNextSql *int, skipFn func(string, string) bool) {
+func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objType string, sqlInfoArr *[]sqlInfo, reportNextSql *int) {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
 
@@ -585,15 +585,12 @@ func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objT
 		stmt:          *stmt,
 		formattedStmt: *formattedStmt,
 	}
-
-	if skipFn == nil || (skipFn != nil && !skipFn(objType, sqlInfo.stmt)) {
-		*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
-	}
+	*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
 	(*stmt) = ""
 	(*formattedStmt) = ""
 }
 
-func createSqlStrInfoArray(path string, objType string, skipFn func(string, string) bool) []sqlInfo {
+func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
 
 	var sqlInfoArr []sqlInfo
@@ -640,7 +637,7 @@ func createSqlStrInfoArray(path string, objType string, skipFn func(string, stri
 				codeBlockDelimiter = matches[0]
 			} else if strings.Contains(currLine, ";") { // in case, there is no body part
 				//one liner sql string created, now will check for obj count and report cases
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql, skipFn)
+				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
 			}
 		} else if dollarQuoteFlag == 1 {
 			if strings.Contains(currLine, codeBlockDelimiter) {
@@ -649,7 +646,7 @@ func createSqlStrInfoArray(path string, objType string, skipFn func(string, stri
 		}
 		if dollarQuoteFlag == 2 {
 			if strings.Contains(currLine, ";") {
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql, skipFn)
+				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
 				//reset for parsing other sqls
 				dollarQuoteFlag = 0
 				codeBlockDelimiter = ""
@@ -804,7 +801,7 @@ func analyzeSchemaInternal() utils.Report {
 			continue
 		}
 
-		sqlInfoArr := createSqlStrInfoArray(filePath, objType, nil)
+		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
 		// fmt.Printf("SqlStrArray for '%s' is: %v\n", objType, sqlInfoArr)
 		checker(sqlInfoArr, filePath)
 	}

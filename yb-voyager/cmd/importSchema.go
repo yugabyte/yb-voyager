@@ -114,7 +114,7 @@ func importSchema() {
 	}
 	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-	
+
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
 		return !isSkipStatement(objType, stmt)
@@ -165,6 +165,7 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 			utils.ErrExit("failed writing in file %s: %v", filePath, err)
 		}
 	}
+
 	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
 	color.Red(msg)
 	log.Info(msg)
@@ -194,7 +195,7 @@ func getDDLStmts(objType string) []sqlInfo {
 	schemaDir := filepath.Join(exportDir, "schema")
 	importMViewFilePath := utils.GetObjectFilePath(schemaDir, objType)
 	if utils.FileOrFolderExists(importMViewFilePath) {
-		sqlInfoArr = createSqlStrInfoArray(importMViewFilePath, objType, nil)
+		sqlInfoArr = createSqlStrInfoArray(importMViewFilePath, objType)
 	}
 	return sqlInfoArr
 }

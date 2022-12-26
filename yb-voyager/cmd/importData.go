@@ -1056,10 +1056,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 	}()
 
-	sqlInfoArr := createSqlStrInfoArray(file, objType, skipFn)
+	sqlInfoArr := createSqlStrInfoArray(file, objType)
 	for _, sqlInfo := range sqlInfoArr {
 		if conn == nil {
 			conn = newTargetConn()
+		}
+
+		setOrSelectStmt := strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SET ") ||
+			strings.HasPrefix(strings.ToUpper(sqlInfo.stmt), "SELECT ")
+		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
+			continue
 		}
 
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
