@@ -21,8 +21,8 @@ import (
 	"encoding/xml"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"sort"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -82,20 +82,20 @@ var (
 	dropSeqRegex       = regexp.MustCompile(`(?i)DROP SEQUENCE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
 	dropForeignRegex   = regexp.MustCompile(`(?i)DROP FOREIGN TABLE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
 	// dropMatViewRegex   = regexp.MustCompile("(?i)DROP MATERIALIZED VIEW")
-	createIdxConcurRegex = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
-	dropIdxConcurRegex   = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
-	trigRefRegex         = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
-	constrTrgRegex       = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
-	currentOfRegex       = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
-	amRegex              = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
-	idxConcRegex         = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
-	storedRegex          = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
-	likeAllRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
-	likeRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
-	inheritRegex         = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
-	withOidsRegex        = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
-	intvlRegex           = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
+	createIdxConcurRegex  = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
+	dropIdxConcurRegex    = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
+	trigRefRegex          = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
+	constrTrgRegex        = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
+	currentOfRegex        = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
+	amRegex               = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
+	idxConcRegex          = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
+	storedRegex           = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
+	partitionColumnsRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
+	likeAllRegex          = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
+	likeRegex             = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
+	inheritRegex          = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
+	withOidsRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
+	intvlRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
 	//super user role required, language c is errored as unsafe
 	cLangRegex = regexp.MustCompile(`(?i)CREATE (OR REPLACE )?FUNCTION ([a-zA-Z0-9_."]+).*language c`)
 
@@ -482,7 +482,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
 				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn {
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				}
 			}
 		}

@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,7 +37,6 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		if !utils.FileOrFolderExists(importObjectFilePath) {
 			continue
 		}
-		fmt.Printf("\nImporting %s DDLs from %q\n\n", importObjectType, importObjectFilePath)
 		executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 	}
 

@@ -33,6 +33,7 @@ import (
 	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -725,7 +726,7 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 func executePostImportDataSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s", "")
+		fmt.Printf("setting resume value for sequences %10s\n", "")
 		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
 	}
 }
@@ -1066,9 +1067,6 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		if !setOrSelectStmt && skipFn != nil && skipFn(objType, sqlInfo.stmt) {
 			continue
 		}
-		if !setOrSelectStmt {
-			fmt.Printf("%s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
-		}
 
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
@@ -1107,6 +1105,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			return nil
 		}
 
@@ -1148,8 +1147,8 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		if missingRequiredSchemaObject(err) {
 			// Do nothing
 		} else {
-			fmt.Printf("\b \n    %s\n", err.Error())
-			fmt.Printf("    STATEMENT: %s\n", sqlInfo.formattedStmt)
+			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
+			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if target.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 				failedSqlStmts = append(failedSqlStmts, sqlInfo)

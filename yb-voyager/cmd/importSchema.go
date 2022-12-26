@@ -119,7 +119,7 @@ func importSchema() {
 	}
 	skipFn := isSkipStatement
 	importSchemaInternal(exportDir, objectList, skipFn)
-	fmt.Printf("\nImporting deferred DDL statements.\n\n")
+
 	// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
 	skipFn = func(objType, stmt string) bool {
 		return !isSkipStatement(objType, stmt)
@@ -141,7 +141,7 @@ func importSchema() {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("NOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+		utils.PrintAndLog("\nNOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
 	}
 
 	callhome.PackAndSendPayload(exportDir)
@@ -155,6 +155,7 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 				utils.ErrExit("remove file: %v", err)
 			}
 		}
+		log.Infof("no failed sql statements to dump")
 		return
 	}
 
@@ -170,7 +171,9 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 		}
 	}
 
-	utils.PrintAndLog("failed SQL statements during migration are present in %q file\n", filePath)
+	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
+	color.Red(msg)
+	log.Info(msg)
 }
 
 func refreshMViews(conn *pgx.Conn) {
