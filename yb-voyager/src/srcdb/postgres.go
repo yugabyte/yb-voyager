@@ -235,3 +235,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	}
 	return encoding, nil
 }
+
+func (pg *PostgreSQL) FilterUnsupportedTables(tableList []string) []string {
+	return tableList
+}

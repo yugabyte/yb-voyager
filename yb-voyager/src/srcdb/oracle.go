@@ -5,9 +5,11 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 type Oracle struct {
@@ -81,7 +83,8 @@ func (ora *Oracle) GetAllTableNames() []string {
 	Index related tables(start with DR$) and materialized view */
 	query := fmt.Sprintf(`SELECT table_name
 		FROM all_tables
-		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%' AND
+		WHERE owner = '%s' AND TEMPORARY = 'N' AND table_name NOT LIKE 'DR$%%'
+		AND table_name NOT LIKE 'AQ$%%' AND
 		(owner, table_name) not in (
 			SELECT owner, mview_name
 			FROM all_mviews
@@ -185,4 +188,37 @@ func (ora *Oracle) GetCharset() (string, error) {
 		return "", fmt.Errorf("failed to query %q for database encoding: %s", query, err)
 	}
 	return charset, nil
+}
+
+func (ora *Oracle) FilterUnsupportedTables(tableList []string) []string {
+	var unsupportedTables []string
+
+	// query to find unsupported tables
+	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
+	log.Infof("query for queue tables: %q\n", query)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query %q for filtering unsupported queue tables: %v", query, err)
+	}
+	for rows.Next() {
+		var tableName string
+		err := rows.Scan(&tableName)
+		if err != nil {
+			utils.ErrExit("failed to scan tableName from output of query %q: %v", query, err)
+		}
+
+		if slices.Contains(tableList, tableName) {
+			unsupportedTables = append(unsupportedTables, tableName)
+		}
+	}
+
+	if len(unsupportedTables) > 0 {
+		msg := fmt.Sprintf("Ignorning unsupported queue tables: %s\n", unsupportedTables)
+		color.Yellow(msg)
+		log.Infof(msg)
+		tableList = utils.SetDifference(tableList, unsupportedTables)
+
+		fmt.Printf("final table list for data export: %s", tableList)
+	}
+	return tableList
 }

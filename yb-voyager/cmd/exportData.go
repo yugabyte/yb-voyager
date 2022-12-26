@@ -107,6 +107,8 @@ func exportDataOffline() bool {
 		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
+
+	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		os.Exit(0)
