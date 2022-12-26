@@ -16,8 +16,7 @@ type Event struct {
 	SchemaName string            `json:"schema_name"`
 	TableName  string            `json:"table_name"`
 	Key        map[string]string `json:"key"`
-	Columns    []string          `json:"columns"`
-	Values     []string          `json:"values"`
+	After      map[string]string `json:"after"`
 }
 
 func streamChanges() error {
@@ -32,6 +31,7 @@ func streamChanges() error {
 	r := utils.NewTailReader(file)
 	dec := json.NewDecoder(r)
 	log.Infof("Waiting for changes in %s", queueFilePath)
+	// TODO: Batch the changes.
 	for dec.More() {
 		var event Event
 		err := dec.Decode(&event)
@@ -64,8 +64,14 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
 
 func handleCreateEvent(event *Event) error {
 	tableName := event.SchemaName + "." + event.TableName
-	columns := strings.Join(event.Columns, ", ")
-	values := strings.Join(event.Values, ", ")
+	columnList := make([]string, 0, len(event.After))
+	valueList := make([]string, 0, len(event.After))
+	for column, value := range event.After {
+		columnList = append(columnList, column)
+		valueList = append(valueList, value)
+	}
+	columns := strings.Join(columnList, ", ")
+	values := strings.Join(valueList, ", ")
 	query := fmt.Sprintf(insertTemplate, tableName, columns, values)
 	fmt.Println(query)
 	return nil
@@ -76,8 +82,8 @@ const updateTemplate = "UPDATE %s SET %s WHERE %s;"
 func handleUpdateEvent(event *Event) error {
 	tableName := event.SchemaName + "." + event.TableName
 	var setClauses []string
-	for i, column := range event.Columns {
-		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, event.Values[i]))
+	for column, value := range event.After {
+		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	setClause := strings.Join(setClauses, ", ")
 	var whereClauses []string
