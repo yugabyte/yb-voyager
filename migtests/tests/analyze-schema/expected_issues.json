@@ -6,5 +6,29 @@
             "sqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        }, 
+        {
+            "objectType": "TABLE",
+            "objectName": "sales",
+            "reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+            "sqlStatement": "CREATE TABLE sales (\n\tcust_id bigint NOT NULL,\n\tname varchar(40),\n\tstore_id varchar(20) NOT NULL,\n\tbill_no bigint NOT NULL,\n\tbill_date timestamp NOT NULL,\n\tamount decimal(8,2) NOT NULL,\n\tPRIMARY KEY (bill_date)\n) PARTITION BY RANGE (extract(year from date(bill_date))) ;",
+            "suggestion": "Remove the Constriant from the table definition",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "salaries2",
+            "reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+            "sqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (((from_date)::date - '0001-01-01bc')::integer) ;",
+            "suggestion": "Remove the Constriant from the table definition",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+        }, 
+        {
+            "objectType": "TABLE",
+            "objectName": "t1",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE t1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         }
 ]
