@@ -18,7 +18,6 @@ type TableExportStatus struct {
 
 	FileName         string `json:"file_name"`
 	ExportedRowCount int64  `json:"exported_row_count"`
-	CopyStmt         string `json:"copy_stmt"`
 }
 
 type ExportStatus struct {
