@@ -6,6 +6,14 @@
             "sqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "PROCEDURE",
+            "objectName": "foo",
+            "reason": "temporary table is not a supported clause for drop",
+            "sqlStatement": "CREATE OR REPLACE PROCEDURE foo (p_id integer) AS $body$\nBEGIN\n    drop temporary table if exists temp;\n    create temporary table temp(id int, name text);\n    insert into temp(id,name) select id,p_name from bar where p_id=id;\n    select name from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "suggestion": "remove \"temporary\" and change it to \"drop table\"",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/705"
         }, 
         {
             "objectType": "TABLE",
