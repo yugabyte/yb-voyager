@@ -1,13 +1,16 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -19,7 +22,65 @@ type Event struct {
 	After      map[string]string `json:"after"`
 }
 
-func streamChanges() error {
+func (e *Event) GetSQLStmt() string {
+	switch e.Op {
+	case "c":
+		return e.getInsertStmt()
+	case "u":
+		return e.getUpdateStmt()
+	case "d":
+		return e.getDeleteStmt()
+	default:
+		return ""
+	}
+}
+
+const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
+const updateTemplate = "UPDATE %s SET %s WHERE %s;"
+const deleteTemplate = "DELETE FROM %s WHERE %s;"
+
+func (event *Event) getInsertStmt() string {
+	tableName := event.SchemaName + "." + event.TableName
+	columnList := make([]string, 0, len(event.After))
+	valueList := make([]string, 0, len(event.After))
+	for column, value := range event.After {
+		columnList = append(columnList, column)
+		valueList = append(valueList, value)
+	}
+	columns := strings.Join(columnList, ", ")
+	values := strings.Join(valueList, ", ")
+	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	return stmt
+}
+
+func (event *Event) getUpdateStmt() string {
+	tableName := event.SchemaName + "." + event.TableName
+	var setClauses []string
+	for column, value := range event.After {
+		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
+	}
+	setClause := strings.Join(setClauses, ", ")
+	var whereClauses []string
+	for column, value := range event.Key {
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
+}
+
+func (event *Event) getDeleteStmt() string {
+	tableName := event.SchemaName + "." + event.TableName
+	var whereClauses []string
+	for column, value := range event.Key {
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
+	}
+	whereClause := strings.Join(whereClauses, " AND ")
+	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
+}
+
+//==================================================================================
+
+func streamChanges(connPool *tgtdb.ConnectionPool) error {
 	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
 	log.Infof("Streaming changes from %s", queueFilePath)
 	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
@@ -38,7 +99,7 @@ func streamChanges() error {
 		if err != nil {
 			return fmt.Errorf("error decoding change: %v", err)
 		}
-		err = handleEvent(&event)
+		err = handleEvent(connPool, &event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -46,66 +107,23 @@ func streamChanges() error {
 	return nil
 }
 
-func handleEvent(event *Event) error {
+func handleEvent(connPool *tgtdb.ConnectionPool, event *Event) error {
 	log.Infof("Handling event: %v", event)
-	switch event.Op {
-	case "c":
-		return handleCreateEvent(event)
-	case "u":
-		return handleUpdateEvent(event)
-	case "d":
-		return handleDeleteEvent(event)
-	default:
-		return fmt.Errorf("unknown event op: %s", event.Op)
-	}
-}
+	stmt := event.GetSQLStmt()
+	utils.PrintAndLog(stmt)
+	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		tag, err := conn.Exec(context.Background(), stmt)
+		if err != nil {
+			log.Errorf("Error executing stmt: %v", err)
+		}
+		log.Infof("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+		return false, err
+	})
+	// Idempotency considerations:
+	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
+	// successful even if the row already exists.
+	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
+	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 
-const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
-
-func handleCreateEvent(event *Event) error {
-	tableName := event.SchemaName + "." + event.TableName
-	columnList := make([]string, 0, len(event.After))
-	valueList := make([]string, 0, len(event.After))
-	for column, value := range event.After {
-		columnList = append(columnList, column)
-		valueList = append(valueList, value)
-	}
-	columns := strings.Join(columnList, ", ")
-	values := strings.Join(valueList, ", ")
-	query := fmt.Sprintf(insertTemplate, tableName, columns, values)
-	fmt.Println(query)
-	return nil
-}
-
-const updateTemplate = "UPDATE %s SET %s WHERE %s;"
-
-func handleUpdateEvent(event *Event) error {
-	tableName := event.SchemaName + "." + event.TableName
-	var setClauses []string
-	for column, value := range event.After {
-		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
-	}
-	setClause := strings.Join(setClauses, ", ")
-	var whereClauses []string
-	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
-	}
-	whereClause := strings.Join(whereClauses, " AND ")
-	query := fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
-	fmt.Println(query)
-	return nil
-}
-
-const deleteTemplate = "DELETE FROM %s WHERE %s;"
-
-func handleDeleteEvent(event *Event) error {
-	tableName := event.SchemaName + "." + event.TableName
-	var whereClauses []string
-	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
-	}
-	whereClause := strings.Join(whereClauses, " AND ")
-	query := fmt.Sprintf(deleteTemplate, tableName, whereClause)
-	fmt.Println(query)
-	return nil
+	return err
 }
