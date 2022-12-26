@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -73,6 +74,11 @@ func importSchema() {
 	payload.TargetDBVersion = targetDBVersion
 
 	if !flagPostImportData {
+		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
+		if utils.FileOrFolderExists(filePath) {
+			color.Red("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
+		}
+
 		createTargetSchemas(conn)
 	}
 	var objectList []string
