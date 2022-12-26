@@ -17,9 +17,9 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 	
-	view_list = tgt.get_objects_of_type("VIEW", "test_mysql_views")
-	print("view_list:", view_list)
-	assert len(view_list) == 1
+	function_list = tgt.get_functions_count("public")
+	print("function_list:", function_list)
+	assert len(function_list) == 2
 
 if __name__ == "__main__":
 	main()
