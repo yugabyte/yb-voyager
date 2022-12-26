@@ -85,3 +85,6 @@ jobs:
 
     - name: "TEST: mysql-sample-chinook"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-chinook
+
+    - name: "TEST: mysql-partitions"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-partitions

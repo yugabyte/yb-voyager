@@ -70,41 +70,6 @@ func initializeExportTableMetadata(tableList []string) {
 	}
 }
 
-func initializeExportTablePartitionMetadata(tableList []string) {
-	for _, parentTable := range tableList {
-		if source.DBType == ORACLE || source.DBType == MYSQL {
-			partitionList := source.DB().GetAllPartitionNames(parentTable)
-			if len(partitionList) > 0 {
-				utils.PrintAndLog("Table %q has %d partitions: %v", parentTable, len(partitionList), partitionList)
-
-				for _, partitionName := range partitionList {
-					key := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].TableName, partitionName)
-					fullTableName := fmt.Sprintf("%s PARTITION(%s)", tablesProgressMetadata[parentTable].FullTableName, partitionName)
-					tablesProgressMetadata[key] = &utils.TableProgressMetadata{}
-					if source.DBType == MYSQL { // for a table in MySQL: database and schema is same
-						tablesProgressMetadata[key].TableSchema = source.DBName
-					} else {
-						tablesProgressMetadata[key].TableSchema = source.Schema
-					}
-					tablesProgressMetadata[key].TableName = partitionName
-
-					// partition are unique under a table in oracle
-					tablesProgressMetadata[key].FullTableName = fullTableName
-					tablesProgressMetadata[key].ParentTable = tablesProgressMetadata[parentTable].TableName
-					tablesProgressMetadata[key].IsPartition = true
-
-					tablesProgressMetadata[key].InProgressFilePath = ""
-					tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
-					tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
-					tablesProgressMetadata[key].CountLiveRows = int64(0)
-					tablesProgressMetadata[key].Status = 0
-					tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
-				}
-			}
-		}
-	}
-}
-
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
