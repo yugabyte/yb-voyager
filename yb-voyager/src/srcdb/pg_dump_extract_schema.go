@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -159,7 +160,9 @@ func parseSchemaFile(exportDir string) int {
 	if uncategorizedSqls.Len() > 0 {
 		filePath := filepath.Join(schemaDirPath, "uncategorized.sql")
 		// TODO: add it to the analyze-schema report in case of postgresql
-		utils.PrintAndLog("\nSome uncategorized sql statements are present in %q, Needs to review and import them manually!!", filePath)
+		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
+		color.Red(msg)
+		log.Infof(msg)
 		ioutil.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 		return 1
 	}
