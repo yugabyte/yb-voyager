@@ -206,6 +206,7 @@ func runLiveMigration(ctx context.Context, tableList []string) error {
 		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
 			exportingSnapshot = false
 			utils.PrintAndLog("Snapshot export is complete.")
+			createExportDataDoneFlag()
 			err = writeDataFileDescriptor(exportDir, status)
 			if err != nil {
 				return fmt.Errorf("failed to write data file descriptor: %v", err)
