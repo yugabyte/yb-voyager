@@ -485,7 +485,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				}
 			}
-		} else if strings.Contains(sqlInfo.stmt, "drop temporary table") {
+		} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "drop temporary table") {
 			filePath := strings.Split(fpath, "/")
 			fileName := filePath[len(filePath)-1]
 			objType := strings.ToUpper(strings.Split(fileName, ".")[0])
