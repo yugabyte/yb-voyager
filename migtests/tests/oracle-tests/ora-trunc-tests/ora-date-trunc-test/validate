@@ -7,7 +7,7 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'trunc_test_1': 1,
+	'trunc_test': 1,
 }
 
 def migration_completed_checks(tgt):
@@ -17,9 +17,8 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 	
-	function_list = tgt.get_functions_count("public")
-	print("function_list:", function_list)
-	assert len(function_list) == 2
+	function_count = tgt.get_functions_count("public")
+	assert function_count == 2
 
 if __name__ == "__main__":
 	main()
