@@ -485,6 +485,15 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				}
 			}
+		} else if strings.Contains(sqlInfo.stmt, "drop temporary table") {
+			var objType string
+			if strings.Contains(strings.ToLower(sqlInfo.stmt), "procedure"){
+				objType = "PROCEDURE"
+			} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "function"){
+				objType = "FUNCTION"
+			}
+			reportCase(fpath, `temporary table is not a supported clause for drop`,
+				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt)
 		}
 	}
 }
