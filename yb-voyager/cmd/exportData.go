@@ -127,7 +127,8 @@ func exportDataOffline() bool {
 	}()
 
 	initializeExportTableMetadata(finalTableList)
-	initializeExportTablePartitionMetadata(finalTableList)
+	// Disable partition-wise data export until subpartition support is added entirely with PB report.
+	//initializeExportTablePartitionMetadata(finalTableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
