@@ -1216,34 +1216,40 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
-func extractCopyStmtFromExportStatusFile(tableName string) (string, error) {
-	filePath := filepath.Join(exportDir, "data", "export_status.json")
-	status, err := dbzm.ReadExportStatus(filePath)
+func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
 		return "", err
 	}
 	if status == nil {
-		// Offline migration case. The data is exported using pg_dump or ora2pg.
+		// export_status.json is not present. This is the case of Offline migration.
+		// The data is exported using pg_dump or ora2pg.
 		return "", nil
 	}
-	for _, table := range status.Tables {
-		// TODO: Take into account the schema name as well.
-		if table.TableName == tableName {
-			return table.CopyStmt, nil
-		}
+
+	dfd := datafile.OpenDescriptor(exportDir)
+	df, err := datafile.OpenDataFile(dataFilePath, dfd)
+	if err != nil {
+		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 	}
-	utils.ErrExit("could not find copy statement for table %q in export_status.json", tableName)
-	return "", nil // unreachable
+	defer df.Close()
+	stmt := fmt.Sprintf(
+		`COPY %s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', HEADER, ROWS_PER_TRANSACTION %%v);`,
+		tableName, df.GetHeader())
+	return stmt, nil
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
 	if getCopyCommand(table) != "" {
 		return
 	}
-	stmt, err := extractCopyStmtFromExportStatusFile(table)
+	// When snapshot is exported by Debezium, the data files are in CSV format,
+	// irrespective of the source database type.
+	stmt, err := findCopyCommandForDebeziumExportedFiles(table, fileToSearchIn)
 	// If the export_status.json file is not present, the err will be nil and stmt will be empty.
 	if err != nil {
-		utils.ErrExit("could not extract copy statement for table %q from export_status.json: %v", table, err)
+		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
 	}
 	if stmt != "" {
 		copyTableFromCommands[table] = stmt
