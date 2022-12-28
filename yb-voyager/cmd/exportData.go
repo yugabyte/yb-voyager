@@ -212,6 +212,7 @@ func runLiveMigration(ctx context.Context, tableList []string) error {
 				return fmt.Errorf("failed to write data file descriptor: %v", err)
 			}
 			outputExportStatus(status)
+			color.Blue("Streaming changes to a local queue file...")
 		}
 		if !debezium.IsRunning() {
 			break

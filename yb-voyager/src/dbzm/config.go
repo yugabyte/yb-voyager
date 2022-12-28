@@ -37,8 +37,7 @@ ddebezium.source.database.server.name=voyager
 debezium.source.schema.include.list=%s
 debezium.source.table.include.list=%s
 debezium.source.plugin.name=pgoutput
-debezium.source.snapshot.mode=initial_only
-
+debezium.source.transforms.unwrap.type=io.debezium.transforms.ExtractNewRecordState
 debezium.source.topic.prefix=voyager
 quarkus.log.console.json=false
 `

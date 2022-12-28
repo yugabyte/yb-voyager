@@ -33,7 +33,7 @@ func (status *ExportStatus) SnapshotExportIsComplete() bool {
 func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 	file, err := os.Open(statusFilePath)
 	if err != nil {
-		if err == os.ErrNotExist {
+		if os.IsNotExist(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to open file %s: %v", statusFilePath, err)
