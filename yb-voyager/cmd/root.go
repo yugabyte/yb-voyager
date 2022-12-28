@@ -151,7 +151,7 @@ func lockExportDir() {
 		return
 	} else if err == lockfile.ErrBusy {
 		fmt.Fprintf(os.Stderr, "Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
-		os.Exit(1)
+		//os.Exit(1)  // TODO Fix this.
 	} else {
 		fmt.Fprintf(os.Stderr, "Unable to lock the export-dir: %v\n", err)
 		os.Exit(1)

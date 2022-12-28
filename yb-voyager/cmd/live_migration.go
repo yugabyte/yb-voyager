@@ -19,7 +19,7 @@ type Event struct {
 	SchemaName string            `json:"schema_name"`
 	TableName  string            `json:"table_name"`
 	Key        map[string]string `json:"key"`
-	After      map[string]string `json:"after"`
+	Fields     map[string]string `json:"fields"`
 }
 
 func (e *Event) GetSQLStmt() string {
@@ -41,9 +41,9 @@ const deleteTemplate = "DELETE FROM %s WHERE %s;"
 
 func (event *Event) getInsertStmt() string {
 	tableName := event.SchemaName + "." + event.TableName
-	columnList := make([]string, 0, len(event.After))
-	valueList := make([]string, 0, len(event.After))
-	for column, value := range event.After {
+	columnList := make([]string, 0, len(event.Fields))
+	valueList := make([]string, 0, len(event.Fields))
+	for column, value := range event.Fields {
 		columnList = append(columnList, column)
 		valueList = append(valueList, value)
 	}
@@ -56,7 +56,7 @@ func (event *Event) getInsertStmt() string {
 func (event *Event) getUpdateStmt() string {
 	tableName := event.SchemaName + "." + event.TableName
 	var setClauses []string
-	for column, value := range event.After {
+	for column, value := range event.Fields {
 		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	setClause := strings.Join(setClauses, ", ")
