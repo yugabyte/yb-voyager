@@ -144,10 +144,8 @@ func exportDataOffline() bool {
 	<-exportDataStart
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
-	if !disablePb {
-		utils.WaitGroup.Add(1)
-		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan)
-	}
+	utils.WaitGroup.Add(1)
+	exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, disablePb)
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 	if ctx.Err() != nil {

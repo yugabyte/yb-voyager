@@ -105,7 +105,7 @@ func initializeExportTablePartitionMetadata(tableList []string) {
 	}
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool) {
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
 	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
@@ -137,8 +137,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
 				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
-				go startExportPB(progressContainer, key, quitChan2)
-
+				go startExportPB(progressContainer, key, quitChan2, disablePb)
 			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE || (tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && safeExit) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
@@ -176,25 +175,30 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	//TODO: print remaining/unable-to-export tables
 }
 
-func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool) {
+func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
 	tableName := mapKey
 	tableMetadata := tablesProgressMetadata[mapKey]
 	total := int64(0) // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
-	bar := progressContainer.AddBar(total,
-		mpb.BarFillerClearOnComplete(),
-		mpb.BarRemoveOnComplete(),
-		mpb.PrependDecorators(
-			decor.Name(tableName),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
+	var bar *mpb.Bar
+	if !disablePb {
+		bar = progressContainer.AddBar(total,
+			mpb.BarFillerClearOnComplete(),
+			mpb.BarRemoveOnComplete(),
+			mpb.PrependDecorators(
+				decor.Name(tableName),
 			),
-			decor.OnComplete(
-				decor.AverageETA(decor.ET_STYLE_GO), "",
+			mpb.AppendDecorators(
+				decor.OnComplete(
+					decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
+				),
+				decor.OnComplete(
+					decor.AverageETA(decor.ET_STYLE_GO), "",
+				),
 			),
-		),
-	)
+		)
+	} else {
+		bar = &mpb.Bar{}
+	}
 
 	// initialize PB total with identified approx row count
 	bar.SetTotal(tableMetadata.CountTotalRows, false)
