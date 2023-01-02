@@ -19,12 +19,12 @@ EXPECTED_ROW_COUNT = {
 }
 
 def migration_completed_checks(tgt):
-	table_list = tgt.get_table_names("test_mysql_partitions")
+	table_list = tgt.get_table_names(schema="test_mysql_partitions")
 	print("table_list:", table_list)
 	assert len(table_list) == 19
 	
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		cnt = tgt.get_row_count(table_name, "test_mysql_partitions")
+		cnt = tgt.get_row_count(table_name, schema_name="test_mysql_partitions")
 		print(f"table_name: {table_name}, row_count: {cnt}")
 		assert row_count == cnt
 
