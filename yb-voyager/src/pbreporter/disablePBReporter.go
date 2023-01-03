@@ -10,7 +10,7 @@ type DisablePBReporter struct { // Each individual goroutine has the context of 
 }
 
 func newDisablePBReporter() *DisablePBReporter {
-	return &DisablePBReporter{TotalRows: int64(0), CurrentRows: int64(0), IsCompleted: false, TriggerComplete: false}
+	return &DisablePBReporter{}
 }
 
 func (pbr *DisablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComplete bool) {
@@ -26,6 +26,7 @@ func (pbr *DisablePBReporter) SetTotalRowCount(totalRowCount int64, triggerCompl
 	}
 
 }
+
 func (pbr *DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 	if exportedRowCount < 0 {
 		utils.ErrExit("cannot maintain negative exported row count in PB")
@@ -36,6 +37,7 @@ func (pbr *DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 		pbr.IsCompleted = true
 	}
 }
+
 func (pbr *DisablePBReporter) IsComplete() bool {
 	return pbr.IsCompleted
 }
