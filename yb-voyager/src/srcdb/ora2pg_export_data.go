@@ -49,6 +49,8 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 			lines[i] = "FILE_PER_TABLE " + "1"
 		} else if strings.HasPrefix(line, "#ALLOW") {
 			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		} else if strings.HasPrefix(line, "DISABLE_PARTITION") {
+			lines[i] = "DISABLE_PARTITION 1"
 		}
 	}
 
@@ -63,14 +65,13 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	defer utils.WaitGroup.Done()
 
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
+	tempDirPath := filepath.Join(exportDir, "temp", "ora2pg_temp_dir")
 	source.PopulateOra2pgConfigFile(configFilePath)
 
 	updateOra2pgConfigFileForExportData(configFilePath, source, tableList)
 
-	// TODO: ora2pg fails to export data from MySQL database when source.NumConnections is greater
-	// than 1.
-	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header",
-		source.NumConnections, exportDir, configFilePath)
+	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header -T %s",
+		source.NumConnections, exportDir, configFilePath, tempDirPath)
 
 	//Exporting all the tables in the schema
 	log.Infof("Executing command: %s", exportDataCommandString)

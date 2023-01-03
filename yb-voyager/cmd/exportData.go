@@ -127,7 +127,6 @@ func exportDataOffline() bool {
 	}()
 
 	initializeExportTableMetadata(finalTableList)
-	initializeExportTablePartitionMetadata(finalTableList)
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
