@@ -9,11 +9,11 @@ type DisablePBReporter struct { // Each individual goroutine has the context of 
 	TriggerComplete bool
 }
 
-func newDisablePBReporter() DisablePBReporter {
-	return DisablePBReporter{TotalRows: int64(0), CurrentRows: int64(0), IsCompleted: false, TriggerComplete: false}
+func newDisablePBReporter() *DisablePBReporter {
+	return &DisablePBReporter{TotalRows: int64(0), CurrentRows: int64(0), IsCompleted: false, TriggerComplete: false}
 }
 
-func (pbr DisablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComplete bool) {
+func (pbr *DisablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComplete bool) {
 	pbr.TriggerComplete = triggerComplete
 	if totalRowCount < 0 {
 		pbr.TotalRows = pbr.CurrentRows
@@ -26,9 +26,9 @@ func (pbr DisablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComple
 	}
 
 }
-func (pbr DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
+func (pbr *DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 	if exportedRowCount < 0 {
-		utils.ErrExit("cannot maintain negative export row count in PB")
+		utils.ErrExit("cannot maintain negative exported row count in PB")
 	}
 	pbr.CurrentRows = exportedRowCount
 	if pbr.TriggerComplete && pbr.CurrentRows >= pbr.TotalRows {
@@ -36,6 +36,6 @@ func (pbr DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 		pbr.IsCompleted = true
 	}
 }
-func (pbr DisablePBReporter) IsComplete() bool {
+func (pbr *DisablePBReporter) IsComplete() bool {
 	return pbr.IsCompleted
 }

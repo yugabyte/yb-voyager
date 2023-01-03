@@ -9,7 +9,7 @@ type EnablePBReporter struct {
 	bar *mpb.Bar
 }
 
-func newEnablePBReporter(progressContainer *mpb.Progress, tableName string) EnablePBReporter {
+func newEnablePBReporter(progressContainer *mpb.Progress, tableName string) *EnablePBReporter {
 	bar := progressContainer.AddBar(int64(0), // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
 		mpb.BarFillerClearOnComplete(),
 		mpb.BarRemoveOnComplete(),
@@ -25,17 +25,17 @@ func newEnablePBReporter(progressContainer *mpb.Progress, tableName string) Enab
 			),
 		),
 	)
-	return EnablePBReporter{bar: bar}
+	return &EnablePBReporter{bar: bar}
 }
 
-func (pbr EnablePBReporter) SetExportedRowCount(exportedRowCount int64) {
+func (pbr *EnablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 	pbr.bar.SetCurrent(exportedRowCount)
 }
 
-func (pbr EnablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComplete bool) {
+func (pbr *EnablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComplete bool) {
 	pbr.bar.SetTotal(totalRowCount, triggerComplete)
 }
 
-func (pbr EnablePBReporter) IsComplete() bool {
+func (pbr *EnablePBReporter) IsComplete() bool {
 	return pbr.bar.Completed()
 }
