@@ -201,7 +201,11 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 // setup a project having subdirs for various database objects IF NOT EXISTS
 func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
-	var projectSubdirs = []string{"schema", "data", "reports", "metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "temp"}
+	var projectSubdirs = []string{
+		"schema", "data", "reports",
+		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags",
+		"temp", "temp/ora2pg_temp_dir",
+	}
 
 	// log.Debugf("Creating a project directory...")
 	//Assuming export directory as a project directory
