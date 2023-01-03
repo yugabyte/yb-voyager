@@ -188,7 +188,8 @@ func shouldSkipLine(line string) bool {
 		strings.Compare(line, "--") == 0 || len(line) == 0 ||
 		strings.EqualFold(line, "-- PostgreSQL database dump complete") ||
 		strings.EqualFold(line, "-- PostgreSQL database dump") ||
-		strings.HasPrefix(line, "-- Dumped from database version")
+		strings.HasPrefix(line, "-- Dumped from database version") ||
+		strings.HasPrefix(line, "SET check_function_bodies = false")
 }
 
 func isDelimiterLine(line string) bool {
