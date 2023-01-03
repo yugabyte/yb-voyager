@@ -27,12 +27,12 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/pbreporter"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	"github.com/fatih/color"
 	"github.com/vbauerster/mpb/v7"
-	"github.com/vbauerster/mpb/v7/decor"
 )
 
 func initializeExportTableMetadata(tableList []string) {
@@ -178,37 +178,16 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
 	tableName := mapKey
 	tableMetadata := tablesProgressMetadata[mapKey]
-	total := int64(0) // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
-	var bar *mpb.Bar
-	if !disablePb {
-		bar = progressContainer.AddBar(total,
-			mpb.BarFillerClearOnComplete(),
-			mpb.BarRemoveOnComplete(),
-			mpb.PrependDecorators(
-				decor.Name(tableName),
-			),
-			mpb.AppendDecorators(
-				decor.OnComplete(
-					decor.NewPercentage("%.2f", decor.WCSyncSpaceR), "completed",
-				),
-				decor.OnComplete(
-					decor.AverageETA(decor.ET_STYLE_GO), "",
-				),
-			),
-		)
-	} else {
-		bar = &mpb.Bar{}
-	}
-
+	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
 	// initialize PB total with identified approx row count
-	bar.SetTotal(tableMetadata.CountTotalRows, false)
+	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
 		actualRowCount := source.DB().GetTableRowCount(tableMetadata.FullTableName)
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.FullTableName)
-		bar.SetTotal(actualRowCount, false)
+		pbr.SetTotalRowCount(actualRowCount, false)
 	}()
 
 	tableDataFileName := tableMetadata.InProgressFilePath
@@ -226,8 +205,8 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	reader := bufio.NewReader(tableDataFile)
 
 	go func() { //for continuously increasing PB percentage
-		for !bar.Completed() {
-			bar.SetCurrent(tableMetadata.CountLiveRows)
+		for !pbr.IsComplete() {
+			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 		}
 	}()
@@ -276,7 +255,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	readLines()
 
 	// PB will not change from "100%" -> "completed" until this function call is made
-	bar.SetTotal(-1, true) // Completing remaining progress bar by setting current equal to total
+	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 }
 

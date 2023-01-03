@@ -8,7 +8,7 @@ type ExportProgressReporter interface { // Bare minimum required to simulate mpb
 	IsComplete() bool
 }
 
-func newExportPB(progressContainer *mpb.Progress, tableName string, disablePb bool) ExportProgressReporter {
+func NewExportPB(progressContainer *mpb.Progress, tableName string, disablePb bool) ExportProgressReporter {
 	if disablePb {
 		return newDisablePBReporter()
 	} else {

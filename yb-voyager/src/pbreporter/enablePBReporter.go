@@ -10,7 +10,7 @@ type EnablePBReporter struct {
 }
 
 func newEnablePBReporter(progressContainer *mpb.Progress, tableName string) EnablePBReporter {
-	bar := progressContainer.AddBar(int64(0),
+	bar := progressContainer.AddBar(int64(0), // mandatory to set total with 0 while AddBar to achieve dynamic total behaviour
 		mpb.BarFillerClearOnComplete(),
 		mpb.BarRemoveOnComplete(),
 		mpb.PrependDecorators(
