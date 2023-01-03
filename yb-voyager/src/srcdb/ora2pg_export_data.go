@@ -49,6 +49,8 @@ func updateOra2pgConfigFileForExportData(configFilePath string, source *Source, 
 			lines[i] = "FILE_PER_TABLE " + "1"
 		} else if strings.HasPrefix(line, "#ALLOW") {
 			lines[i] = "ALLOW " + fmt.Sprintf("TABLE%v", tableList)
+		} else if strings.HasPrefix(line, "DISABLE_PARTITION") {
+			lines[i] = "DISABLE_PARTITION 1"
 		}
 	}
 
