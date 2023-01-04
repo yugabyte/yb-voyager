@@ -19,6 +19,7 @@ type SourceDB interface {
 	ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
+	FilterUnsupportedTables(tableList []string) []string
 }
 
 func newSourceDB(source *Source) SourceDB {
