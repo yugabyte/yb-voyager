@@ -2,10 +2,15 @@
 
 argv=( "$@" )
 
+if ! which docker > /dev/null; then
+   echo "Could not find docker! Please install docker before proceeeding."
+   exit 1
+fi
+
 i=0
 while [ $i -lt $# ]
 do
-    if [[ ${argv[${i}]} == "--export-dir" ]]
+    if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
     then
         j=$(( $i + 1))
         vol="-v ${argv[$j]}:/export-dir"
