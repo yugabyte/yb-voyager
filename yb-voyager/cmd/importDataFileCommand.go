@@ -34,6 +34,7 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags(cmd)
+		escapeFileOptsCharsIfRequired()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importData()
@@ -276,6 +277,17 @@ func checkFileOpts() {
 	}
 
 	log.Infof("fileOptsMap: %v", fileOptsMap)
+}
+
+// escaping single quote character
+func escapeFileOptsCharsIfRequired() {
+	if fileOptsMap["escape_char"] == "'" {
+		fileOptsMap["escape_char"] = "''"
+	}
+
+	if fileOptsMap["quote_char"] == "'" {
+		fileOptsMap["quote_char"] = "''"
+	}
 }
 
 func init() {
