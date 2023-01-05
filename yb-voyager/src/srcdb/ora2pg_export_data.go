@@ -154,7 +154,8 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 	lines := strings.Split(string(bytes), "\n")
 	for sourceSeq, targetSeq := range sourceTargetIdentitySequenceNames {
 		for i, line := range lines {
-			if strings.Contains(line, sourceSeq) {
+			// extra space to avoid matching iseq$$_81022 with iseq$$_810220
+			if strings.Contains(line, sourceSeq+" ") {
 				lines[i] = strings.ReplaceAll(line, sourceSeq, targetSeq)
 			}
 		}
@@ -163,7 +164,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 	var bytesToWrite []byte
 	for _, line := range lines {
 		// ignore the ALTER stmts having iseq$$_ and keep the rest
-		if !strings.Contains(line, "iseq$$_") { 
+		if !strings.Contains(line, "iseq$$_") {
 			bytesToWrite = append(bytesToWrite, []byte(line+"\n")...)
 		}
 	}
