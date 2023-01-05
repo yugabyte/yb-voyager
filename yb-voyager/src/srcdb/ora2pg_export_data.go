@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -119,4 +119,57 @@ func extractAlterSequenceStatements(exportDir string) {
 	}
 
 	ioutil.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
+}
+
+// extract all identity column names from ALTER SEQUENCE IF EXISTS statements in postdata.sql
+func getIdentityColumnSequences(exportDir string) []string {
+	var identityColumns []string
+	alterSequenceRegex := regexp.MustCompile(`ALTER SEQUENCE (IF EXISTS )?(.*)? RESTART WITH`)
+
+	filePath := filepath.Join(exportDir, "data", "postdata.sql")
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
+	}
+
+	lines := strings.Split(string(bytes), "\n")
+	for _, line := range lines {
+		if matches := alterSequenceRegex.FindStringSubmatch(line); matches != nil && strings.HasPrefix(matches[2], "iseq$$_") {
+			identityColumns = append(identityColumns, matches[2])
+		}
+	}
+
+	log.Infof("extracted identity columns list: %v", identityColumns)
+	return identityColumns
+}
+
+// replace all identity column names from ALTER SEQUENCE IF EXISTS statements in postdata.sql
+func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNames map[string]string) {
+	filePath := filepath.Join(exportDir, "data", "postdata.sql")
+	bytes, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
+	}
+
+	lines := strings.Split(string(bytes), "\n")
+	for sourceSeq, targetSeq := range sourceTargetIdentitySequenceNames {
+		for i, line := range lines {
+			if strings.Contains(line, sourceSeq) {
+				lines[i] = strings.ReplaceAll(line, sourceSeq, targetSeq)
+			}
+		}
+	}
+
+	var bytesToWrite []byte
+	for _, line := range lines {
+		// ignore the ALTER stmts having iseq$$_ and keep the rest
+		if !strings.Contains(line, "iseq$$_") { 
+			bytesToWrite = append(bytesToWrite, []byte(line+"\n")...)
+		}
+	}
+
+	err = ioutil.WriteFile(filePath, bytesToWrite, 0644)
+	if err != nil {
+		utils.ErrExit("unable to write file %q: %v\n", filePath, err)
+	}
 }
