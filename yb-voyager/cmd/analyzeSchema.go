@@ -226,9 +226,8 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 				}
 			}
 		}
-		if strings.Contains(strings.ToLower(sqlInfo.stmt), "extension btree_gin") {
-			reportCase(fpath, "Schema contains btree_gin extension which is not supported for YB",
-				"https://github.com/yugabyte/yugabyte-db/issues/9958", "", "EXTENSION", "btree_gin", sqlInfo.formattedStmt)
+		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
+			summaryMap["INDEX"].details["There are some gin indexes present in the schema, take a look and modify the gin indexes that are not supported with YugabyteDB (https://github.com/yugabyte/yugabyte-db/issues/7850)."] = true;
 		}
 	}
 }
