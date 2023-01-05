@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
@@ -178,6 +179,18 @@ func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMeta
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
+
+	identityColumns := getIdentityColumnSequences(exportDir)
+	sourceTargetSequenceNames := make(map[string]string)
+	for _, identityColumn := range identityColumns {
+		targetSequenceName := ora.GetTargetIdentityColumnSequenceName(identityColumn)
+		if targetSequenceName == "" {
+			continue
+		}
+		sourceTargetSequenceNames[identityColumn] = targetSequenceName
+	}
+
+	replaceAllIdentityColumns(exportDir, sourceTargetSequenceNames)
 }
 
 func (ora *Oracle) GetCharset() (string, error) {
@@ -221,4 +234,18 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []string) []string {
 		fmt.Printf("final table list for data export: %s", tableList)
 	}
 	return tableList
+}
+
+func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
+	var tableName, columnName string
+	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schema, strings.ToUpper(sequenceName))
+	err := ora.db.QueryRow(query).Scan(&tableName, &columnName)
+
+	if err == sql.ErrNoRows {
+		return ""
+	} else if err != nil {
+		utils.ErrExit("failed to query %q for finding identity sequence table and column: %v", query, err)
+	}
+
+	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
