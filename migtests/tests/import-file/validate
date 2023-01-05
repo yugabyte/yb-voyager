@@ -12,6 +12,9 @@ EXPECTED = {
  	"survey2": 41715,
  	"survey3": 41715,
 	"smsa": 60,
+	"t1_quote_char": 3,
+	"t1_quote_escape_char1": 3,
+ 	"t1_quote_escape_char2": 3,
 }
 
 def file_import_done_checks(tgt):

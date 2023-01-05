@@ -52,3 +52,9 @@ CREATE TABLE smsa (
     SO2pot DOUBLE PRECISION,
     NOx NUMERIC
 );
+
+create table t1_quote_char (i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_quote_escape_char1 (i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_quote_escape_char2 (i int, j timestamp, k bigint, l varchar(30));
