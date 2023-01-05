@@ -246,14 +246,14 @@ func checkHasHeader() {
 func checkFileOpts() {
 	switch fileFormat {
 	case datafile.CSV:
-		if fileOpts == "" { // set defaults
-			fileOptsMap = map[string]string{
-				"escape_char": "\"",
-				"quote_char":  "\"",
-			}
+		// setting default values for escape and quote, will be updated if provided in fileOpts flag
+		fileOptsMap = map[string]string{
+			"escape_char": "\"",
+			"quote_char":  "\"",
+		}
+		if strings.Trim(fileOpts, " ") == "" {
 			return
 		}
-
 		keyValuePairs := strings.Split(fileOpts, ",")
 		for _, keyValuePair := range keyValuePairs {
 			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
