@@ -170,4 +170,9 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT rulename from pg_rules where schemaname = '{schema_name}'")
 		return [rule[0] for rule in cur.fetchall()]
+
+	def fetch_all_function_names(self, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
+		return [function[0] for function in cur.fetchall()]
 		

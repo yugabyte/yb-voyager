@@ -41,3 +41,5 @@ BEGIN
    END LOOP;
 END;
 /
+
+COMMIT;
