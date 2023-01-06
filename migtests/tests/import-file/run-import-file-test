@@ -52,6 +52,22 @@ main() {
 		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
 		--has-header --batch-size 1000
 
+	# Test for fileOpts Flags having quote_char as single quote
+	step "Import data file: t1_quote_char.csv -> t1_quote_char"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_char.csv:t1_quote_char"
+
+	# Test for fileOpts Flags having quote_char as single quote and escape_char as single quote
+	step "Import data file: t1_quote_escape_char1.csv -> t1_quote_escape_char1"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1"
+
+	# Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
+	step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2"
+	
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }

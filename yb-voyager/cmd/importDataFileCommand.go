@@ -34,6 +34,7 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags(cmd)
+		escapeFileOptsCharsIfRequired()
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importData()
@@ -245,14 +246,14 @@ func checkHasHeader() {
 func checkFileOpts() {
 	switch fileFormat {
 	case datafile.CSV:
-		if fileOpts == "" { // set defaults
-			fileOptsMap = map[string]string{
-				"escape_char": "\"",
-				"quote_char":  "\"",
-			}
+		// setting default values for escape and quote, will be updated if provided in fileOpts flag
+		fileOptsMap = map[string]string{
+			"escape_char": "\"",
+			"quote_char":  "\"",
+		}
+		if strings.Trim(fileOpts, " ") == "" {
 			return
 		}
-
 		keyValuePairs := strings.Split(fileOpts, ",")
 		for _, keyValuePair := range keyValuePairs {
 			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
@@ -276,6 +277,17 @@ func checkFileOpts() {
 	}
 
 	log.Infof("fileOptsMap: %v", fileOptsMap)
+}
+
+// escaping single quote character
+func escapeFileOptsCharsIfRequired() {
+	if fileOptsMap["escape_char"] == "'" {
+		fileOptsMap["escape_char"] = "''"
+	}
+
+	if fileOptsMap["quote_char"] == "'" {
+		fileOptsMap["quote_char"] = "''"
+	}
 }
 
 func init() {
