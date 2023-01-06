@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}/schema
+
+#Deleting types due to a known issue 
+# Example
+# -Reason: Unsupported, please edit to match PostgreSQL syntax
+# -SQL Statement: CREATE OR REPLACE TYPE subcategory_ref_list_typ
+echo "Delete all types."
+echo "" > types/type.sql
+
+echo "Delete all views."
+echo "" > views/view.sql
+
