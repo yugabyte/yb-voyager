@@ -227,7 +227,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			}
 		}
 		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details["There are some gin indexes present in the schema, take a look and modify the gin indexes that are not supported with YugabyteDB (https://github.com/yugabyte/yugabyte-db/issues/7850)."] = true;
+			summaryMap["INDEX"].details["There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true;
 		}
 	}
 }
