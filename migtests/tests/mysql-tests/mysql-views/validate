@@ -12,6 +12,7 @@ EXPECTED_ROW_COUNT = {
 	'view_table1': 10,
 	'view_table2': 9,
 	'v1': 6,
+	'v2': 9,
 	'v3': 9,
 	'whitespace view':10
 }
@@ -23,7 +24,7 @@ def migration_completed_checks(tgt):
 
 	view_list = tgt.get_objects_of_type("VIEW", "test_mysql_views")
 	print("view_list:", view_list)
-	assert len(view_list) == 3
+	assert len(view_list) == 4
 
 	
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
