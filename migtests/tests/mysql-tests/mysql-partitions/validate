@@ -9,76 +9,54 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
-	"public.boston":       		334,
- 	"public.cust_active":		750, 
-  	"public.cust_arr_small":	500,
-	"public.cust_arr_large":	250,
- 	"public.cust_other":   		250,
-	"public.cust_part11":  		272,
-	"public.cust_part12":  		228,
-	"public.cust_part21":  		125,
-	"public.cust_part22":  		125,
-	"public.customers": 		1000,
-	"public.emp":        		1000,
- 	"public.emp_0":        		324,
-	"public.emp_1":        		333,
-	"public.emp_2":        		343,
-	"public.london":       		333,
- 	"public.sales":        		1000,	
-  	"public.sales_2019_q4":		333,
-	"public.sales_2020_q1":		334,
-	"public.sales_2020_q2":		333,
- 	"public.sales_region":		1000,
-  	"public.sydney": 			333,
-	"p1.sales_region":			1000,
-	"p2.boston":    			334,
-	"p2.london":    			333,
-	"p2.sydney":    			333,
-	"public.range_columns_partition_test": 6,
-	"public.range_columns_partition_test_p0": 3,
-	"public.range_columns_partition_test_p1": 3
+	"public.hash_partition_test":         	5,        
+	"public.key_partition_test":          	5,        
+	"public.list_partition_test":         	9,        
+	"public.range_columns_partition_test":	6,       
+	"public.range_partition_test":        	9,        
+	"public.subpartitioning_test":        	9    
 }
 
 
 TABLE_NAME_TO_PARTITION_COUNT = {
-	"public.sales_region": 3,
-	"p1.sales_region": 3,
-	"public.sales": 3,
-	"public.range_columns_partition_test": 2,
-	"public.emp": 3,
-	"public.customers": 5
+	"public.hash_partition_test":         	2,        
+	"public.key_partition_test":          	2,        
+	"public.list_partition_test":         	5,        
+	"public.range_columns_partition_test":	2,       
+	"public.range_partition_test":        	4,        
+	"public.subpartitioning_test":        	4    
 }
 
 
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
-		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
-		"partiton_table_name": "sydney",
+		"query": "INSERT INTO list_partition_test VALUES (6, '2013-01-02', 'C001', 125.56) ",
+		"partiton_table_name": "list_partition_test_pnorth",
 		"schema_name": "public"
 	},
-	"List_partitons_in_different_schema" : {
-		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
-		"partiton_table_name": "sydney",
-		"schema_name": "p2"
-	},
 	"Range" : {
-		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1001, 'Person 1001', 5000, '2020-01-04 00:00:00')",
-		"partiton_table_name": "sales_2020_q1",
+		"query": "INSERT INTO range_partition_test VALUES   (6, 'Nike', 'S001', 101, '2015-01-02', 125.56)",
+		"partiton_table_name": "range_partition_test_p2",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
-		"query": "INSERT INTO range_columns_partition_test VALUES (5,3)",
+		"query": "INSERT INTO range_columns_partition_test VALUES (2,2)",
 		"partiton_table_name": "range_columns_partition_test_p0",
 		"schema_name": "public"
 	},
+	"Key" : {
+		"query": "INSERT INTO key_partition_test VALUES (1,1,1)",
+		"partiton_table_name": "key_partition_test_p1",
+		"schema_name": "public"
+	},
 	"Hash" : {
-		"query": "INSERT INTO emp VALUES(1001, 'user_1001', 49)",
-		"partiton_table_name": "emp_1",
+		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
+		"partiton_table_name": "hash_partition_test_p0",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
-		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1001, 'RECURRING', 282)",
-		"partiton_table_name": "cust_part21",
+		"query": "INSERT INTO subpartitioning_test VALUES  (6, 'Stephen', 'S743', 100, '2017-05-31', 964.00)",
+		"partiton_table_name": "subpartitioning_test_p2_p2sp1",
 		"schema_name": "public"
 	}
 }
@@ -96,15 +74,8 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_t
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 24
- 
-	table_list = tgt.get_table_names("p1")
-	print("table_list:", table_list)
-	assert len(table_list) == 1
- 
-	table_list = tgt.get_table_names("p2")
-	print("table_list:", table_list)
-	assert len(table_list) == 3
+	assert len(table_list) == 37
+
 
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		schema = table_name.split(".")[0]

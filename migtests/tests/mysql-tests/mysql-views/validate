@@ -28,9 +28,9 @@ def migration_completed_checks(tgt):
 
 	
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		cnt = tgt.get_row_count(table_name, "test_mysql_views")
-		print(f"table_name: {table_name}, row_count: {cnt}")
-		assert row_count == cnt
+		count = tgt.get_row_count(table_name, "test_mysql_views")
+		print(f"table_name: {table_name}, row_count: {count}")
+		assert row_count == count
 
 
 if __name__ == "__main__":
