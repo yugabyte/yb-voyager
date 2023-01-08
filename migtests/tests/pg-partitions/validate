@@ -53,32 +53,32 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
-		"partiton_table_name": "sydney",
+		"partition_table_name": "sydney",
 		"schema_name": "public"
 	},
-	"List_partitons_in_different_schema" : {
+	"List_partitions_in_different_schema" : {
 		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
-		"partiton_table_name": "sydney",
+		"partition_table_name": "sydney",
 		"schema_name": "p2"
 	},
 	"Range" : {
 		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1001, 'Person 1001', 5000, '2020-01-04 00:00:00')",
-		"partiton_table_name": "sales_2020_q1",
+		"partition_table_name": "sales_2020_q1",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
 		"query": "INSERT INTO range_columns_partition_test VALUES (5,3)",
-		"partiton_table_name": "range_columns_partition_test_p0",
+		"partition_table_name": "range_columns_partition_test_p0",
 		"schema_name": "public"
 	},
 	"Hash" : {
 		"query": "INSERT INTO emp VALUES(1001, 'user_1001', 49)",
-		"partiton_table_name": "emp_1",
+		"partition_table_name": "emp_1",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
 		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1001, 'RECURRING', 282)",
-		"partiton_table_name": "cust_part21",
+		"partition_table_name": "cust_part21",
 		"schema_name": "public"
 	}
 }
@@ -117,17 +117,17 @@ def migration_completed_checks(tgt):
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 		
-	for parent_table, count_partitons in TABLE_NAME_TO_PARTITION_COUNT.items():
+	for parent_table, count_partitions in TABLE_NAME_TO_PARTITION_COUNT.items():
 		schema = parent_table.split(".")[0]
 		table = parent_table.split(".")[1]
 		partitions_returned = tgt.fetch_partitions(table, schema)
 		print(f"count of partitions on list_part - {len(partitions_returned)}")
-		assert len(partitions_returned) == count_partitons
+		assert len(partitions_returned) == count_partitions
 
 	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		print(f"Running the check for Partition type - {type}")
 		query = query_and_partition_name['query']
-		partition_table_name = query_and_partition_name['partiton_table_name']
+		partition_table_name = query_and_partition_name['partition_table_name']
 		schema_name = query_and_partition_name['schema_name']
 		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
 

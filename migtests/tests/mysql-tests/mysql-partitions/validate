@@ -31,32 +31,32 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO list_partition_test VALUES (6, '2013-01-02', 'C001', 125.56) ",
-		"partiton_table_name": "list_partition_test_pnorth",
+		"partition_table_name": "list_partition_test_pnorth",
 		"schema_name": "public"
 	},
 	"Range" : {
 		"query": "INSERT INTO range_partition_test VALUES   (6, 'Nike', 'S001', 101, '2015-01-02', 125.56)",
-		"partiton_table_name": "range_partition_test_p2",
+		"partition_table_name": "range_partition_test_p2",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
 		"query": "INSERT INTO range_columns_partition_test VALUES (2,2)",
-		"partiton_table_name": "range_columns_partition_test_p0",
+		"partition_table_name": "range_columns_partition_test_p0",
 		"schema_name": "public"
 	},
 	"Key" : {
 		"query": "INSERT INTO key_partition_test VALUES (1,1,1)",
-		"partiton_table_name": "key_partition_test_p1",
+		"partition_table_name": "key_partition_test_p1",
 		"schema_name": "public"
 	},
 	"Hash" : {
 		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
-		"partiton_table_name": "hash_partition_test_p0",
+		"partition_table_name": "hash_partition_test_p0",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
 		"query": "INSERT INTO subpartitioning_test VALUES  (6, 'Stephen', 'S743', 100, '2017-05-31', 964.00)",
-		"partiton_table_name": "subpartitioning_test_p2_p2sp1",
+		"partition_table_name": "subpartitioning_test_p2_p2sp1",
 		"schema_name": "public"
 	}
 }
@@ -76,7 +76,6 @@ def migration_completed_checks(tgt):
 	print("table_list:", table_list)
 	assert len(table_list) == 37
 
-
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		schema = table_name.split(".")[0]
 		table = table_name.split(".")[1]
@@ -88,17 +87,17 @@ def migration_completed_checks(tgt):
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 		
-	for parent_table, count_partitons in TABLE_NAME_TO_PARTITION_COUNT.items():
+	for parent_table, count_partitions in TABLE_NAME_TO_PARTITION_COUNT.items():
 		schema = parent_table.split(".")[0]
 		table = parent_table.split(".")[1]
 		partitions_returned = tgt.fetch_partitions(table, schema)
 		print(f"count of partitions on list_part - {len(partitions_returned)}")
-		assert len(partitions_returned) == count_partitons
+		assert len(partitions_returned) == count_partitions
 
 	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		print(f"Running the check for Partition type - {type}")
 		query = query_and_partition_name['query']
-		partition_table_name = query_and_partition_name['partiton_table_name']
+		partition_table_name = query_and_partition_name['partition_table_name']
 		schema_name = query_and_partition_name['schema_name']
 		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
 
