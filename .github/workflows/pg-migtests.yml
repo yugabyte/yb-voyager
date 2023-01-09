@@ -73,22 +73,11 @@ jobs:
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg-dvdrental
 
-    - name: "TEST: pg-partitions"
-      run: migtests/scripts/run-test.sh pg-partitions
-    
-    # Broken for v2.15 and up: https://github.com/yugabyte/yugabyte-db/issues/14529
-    - name: "TEST: pg-partitions-with-index"
-      run: migtests/scripts/run-test.sh pg-partitions-with-indexes
-      if: matrix.version != '2.17.0.0-b24'
-
-    - name: "TEST: pg-sample-schema-emp"
-      run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
+    - name: "TEST: pg-datatypes"
+      run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
 
     - name: "TEST: pg-constraints"
       run: migtests/scripts/run-test.sh pg-tests/pg-constraints
-
-    - name: "TEST: pg-datatypes"
-      run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
 
     - name: "TEST: pg-sequences"
       run: migtests/scripts/run-test.sh pg-tests/pg-sequences
@@ -96,17 +85,25 @@ jobs:
     - name: "TEST: pg-indexes"
       run: migtests/scripts/run-test.sh pg-tests/pg-indexes
 
+    - name: "TEST: pg-partitions"
+      run: migtests/scripts/run-test.sh pg-partitions
+      
+    # Broken for v2.15 and up: https://github.com/yugabyte/yugabyte-db/issues/14529
+    - name: "TEST: pg-partitions-with-index"
+      run: migtests/scripts/run-test.sh pg-partitions-with-indexes
+      if: matrix.version != '2.17.0.0-b24'
+
     - name: "TEST: pg-views-and-rules"
       run: migtests/scripts/run-test.sh pg-tests/pg-views-and-rules
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
 
-    - name: "TEST: pg-dependent-ddls"
-      run: migtests/scripts/run-test.sh pg-dependent-ddls
-
     - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
       run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-2
+
+    - name: "TEST: pg-dependent-ddls"
+      run: migtests/scripts/run-test.sh pg-dependent-ddls
 
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg-tests/pg-multiple-schemas
@@ -119,4 +116,7 @@ jobs:
       
     - name: "TEST: pg-codependent-schemas"
       run: migtests/scripts/run-test.sh pg-tests/pg-codependent-schemas
+
+    - name: "TEST: pg-sample-schema-emp"
+      run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
 
