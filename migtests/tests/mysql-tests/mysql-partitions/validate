@@ -14,7 +14,13 @@ EXPECTED_ROW_COUNT = {
 	"public.list_partition_test":         	9,        
 	"public.range_columns_partition_test":	6,       
 	"public.range_partition_test":        	9,        
-	"public.subpartitioning_test":        	9    
+	"public.subpartitioning_test":        	9,
+	"public.list_partition_test_pnorth":    2,
+	"public.range_partition_test_p2":       2,
+	"public.range_columns_partition_test_p0": 3,
+	"public.key_partition_test_p1":         3,
+	"public.hash_partition_test_p0":        1,
+	"public.subpartitioning_test_p2_p2sp1": 1
 }
 
 
@@ -24,7 +30,7 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 	"public.list_partition_test":         	5,        
 	"public.range_columns_partition_test":	2,       
 	"public.range_partition_test":        	4,        
-	"public.subpartitioning_test":        	4    
+	"public.subpartitioning_test":        	4   
 }
 
 
