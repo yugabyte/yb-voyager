@@ -91,8 +91,8 @@ def migration_completed_checks(tgt):
 		schema = parent_table.split(".")[0]
 		table = parent_table.split(".")[1]
 		partitions_returned = tgt.fetch_partitions(table, schema)
-		print(f"count of partitions on list_part - {len(partitions_returned)}")
-		assert len(partitions_returned) == count_partitions
+		print(f"count of partitions on {parent_table} : {partitions_returned}")
+		assert partitions_returned == count_partitions
 
 	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		print(f"Running the check for Partition type - {type}")
