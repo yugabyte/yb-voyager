@@ -7,6 +7,10 @@ if ! which docker > /dev/null; then
    exit 1
 fi
 
+if [[ $OSTYPE == 'darwin'* ]]; then
+  platform="--platform=linux/amd64"
+fi
+
 i=0
 while [ $i -lt $# ]
 do
@@ -19,7 +23,7 @@ do
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
