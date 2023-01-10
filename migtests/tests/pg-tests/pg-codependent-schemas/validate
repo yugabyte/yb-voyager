@@ -82,8 +82,8 @@ def migration_completed_checks(tgt) -> None:
     check_validations_per_schema(tgt, "schema2")
 
     partitions = tgt.fetch_partitions("list_part", "public")
-    print(f"count of partitons on list_part - {len(partitions)}")
-    assert len(partitions) == 3
+    print(f"count of partitons on list_part - {partitions}")
+    assert partitions == 3
 
     chk_executed_query = tgt.run_query_and_chk_error("call schema2.tt_insert_data(5);", None)
     print(f"error in executing query - {chk_executed_query}")

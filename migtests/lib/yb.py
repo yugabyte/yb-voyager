@@ -161,10 +161,10 @@ class PostgresDB:
 		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
 		return [procedure[0] for procedure in cur.fetchall()]
 
-	def fetch_partitions(self, table_name, schema_name) -> List[str]:
+	def fetch_partitions(self, table_name, schema_name) -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT DISTINCT(tableoid::regclass) FROM {schema_name}.{table_name};")
-		return [partitions[0] for partitions in cur.fetchall()]
+		cur.execute(f"SELECT count(*) AS partitions FROM pg_catalog.pg_inherits WHERE inhparent = '{schema_name}.{table_name}'::regclass;")
+		return cur.fetchone()[0]
 
 	def fetch_all_rules(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()

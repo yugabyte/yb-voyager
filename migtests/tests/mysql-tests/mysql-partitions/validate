@@ -9,25 +9,105 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
-	'subpartitioning_test': 11,
-	'subpartitioning_test_p0': 3,
-	'subpartitioning_test_p1': 2,
-	'subpartitioning_test_p2': 3,
-	'subpartitioning_test_p3': 2,
-	'subpartitioning_test_p4': 1,
-	'subpartitioning_test_p5': 0,
+	"public.hash_partition_test":         	5,        
+	"public.key_partition_test":          	5,        
+	"public.list_partition_test":         	9,        
+	"public.range_columns_partition_test":	6,       
+	"public.range_partition_test":        	9,        
+	"public.subpartitioning_test":        	9,
+	"public.list_partition_test_pnorth":    2,
+	"public.range_partition_test_p2":       2,
+	"public.range_columns_partition_test_p0": 3,
+	"public.key_partition_test_p1":         3,
+	"public.hash_partition_test_p0":        1,
+	"public.subpartitioning_test_p2_p2sp1": 1
 }
 
-def migration_completed_checks(tgt):
-	table_list = tgt.get_table_names(schema="test_mysql_partitions")
-	print("table_list:", table_list)
-	assert len(table_list) == 19
-	
-	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		cnt = tgt.get_row_count(table_name, schema_name="test_mysql_partitions")
-		print(f"table_name: {table_name}, row_count: {cnt}")
-		assert row_count == cnt
 
+TABLE_NAME_TO_PARTITION_COUNT = {
+	"public.hash_partition_test":         	2,        
+	"public.key_partition_test":          	2,        
+	"public.list_partition_test":         	5,        
+	"public.range_columns_partition_test":	2,       
+	"public.range_partition_test":        	4,        
+	"public.subpartitioning_test":        	4   
+}
+
+
+INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
+	"List" : {
+		"query": "INSERT INTO list_partition_test VALUES (6, '2013-01-02', 'C001', 125.56) ",
+		"partition_table_name": "list_partition_test_pnorth",
+		"schema_name": "public"
+	},
+	"Range" : {
+		"query": "INSERT INTO range_partition_test VALUES   (6, 'Nike', 'S001', 101, '2015-01-02', 125.56)",
+		"partition_table_name": "range_partition_test_p2",
+		"schema_name": "public"
+	},
+	"Range_Column" : {
+		"query": "INSERT INTO range_columns_partition_test VALUES (2,2)",
+		"partition_table_name": "range_columns_partition_test_p0",
+		"schema_name": "public"
+	},
+	"Key" : {
+		"query": "INSERT INTO key_partition_test VALUES (1,1,1)",
+		"partition_table_name": "key_partition_test_p1",
+		"schema_name": "public"
+	},
+	"Hash" : {
+		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
+		"partition_table_name": "hash_partition_test_p0",
+		"schema_name": "public"
+	},
+	"Multilevel" : {
+		"query": "INSERT INTO subpartitioning_test VALUES  (6, 'Stephen', 'S743', 100, '2017-05-31', 964.00)",
+		"partition_table_name": "subpartitioning_test_p2_p2sp1",
+		"schema_name": "public"
+	}
+}
+
+def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name):
+	chk_error_returned = tgt.run_query_and_chk_error(query, None)
+	print(f"error returned while insert ({query}) query - {chk_error_returned}")
+	assert chk_error_returned == False
+
+	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
+	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
+	full_partition_name_with_schema_name = f"{schema_name}.{partition_table_name}"
+	assert count_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
+
+def migration_completed_checks(tgt):    
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 37
+
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		schema = table_name.split(".")[0]
+		table = table_name.split(".")[1]
+		got_row_count = tgt.get_row_count(table, schema)
+		print(f"table_name: {table_name}, target row_count: {got_row_count}")
+		assert row_count == got_row_count
+  		
+    	# check whether all the indexes on a table are valid
+		print(f"checking all indexes valid on table: {table_name} are valid")
+		assert tgt.invalid_index_present(table, schema) == False
+		
+	for parent_table, count_partitions in TABLE_NAME_TO_PARTITION_COUNT.items():
+		schema = parent_table.split(".")[0]
+		table = parent_table.split(".")[1]
+		partitions_returned = tgt.fetch_partitions(table, schema)
+		print(f"count of partitions on {parent_table} : {partitions_returned}")
+		assert partitions_returned == count_partitions
+
+	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
+		print(f"Running the check for Partition type - {type}")
+		query = query_and_partition_name['query']
+		partition_table_name = query_and_partition_name['partition_table_name']
+		schema_name = query_and_partition_name['schema_name']
+		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
+
+	
 
 if __name__ == "__main__":
 	main()
