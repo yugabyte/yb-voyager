@@ -19,7 +19,7 @@ do
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${vol} -it --network=host --rm --privileged --platform=linux/amd64 yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
