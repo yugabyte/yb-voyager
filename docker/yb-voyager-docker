@@ -3,24 +3,48 @@
 argv=( "$@" )
 
 if ! which docker > /dev/null; then
-   echo "Could not find docker! Please install docker before proceeeding."
-   exit 1
+   	echo "Could not find docker! Please install docker before proceeeding."
+   	exit 1
 fi
 
-if [[ $OSTYPE == 'darwin'* ]]; then
-  platform="--platform=linux/amd64"
+if [[ $OSTYPE == 'darwin'* ]]
+then
+	platform="--platform=linux/amd64"
 fi
 
 i=0
 while [ $i -lt $# ]
 do
-    if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
-    then
-        j=$(( $i + 1))
-        vol="-v ${argv[$j]}:/export-dir"
-        argv[$j]='/export-dir'
-    fi
-    i=$(( $i + 1))
+    	if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
+    	then
+        	j=$(( $i + 1))
+		
+			# If the OS is macOS
+			if [[ $OSTYPE == 'darwin'* ]]; then
+
+				# Check if a volume voyager-export-dir binded to the export dir does not exist			
+				bindedExportDir=$(docker inspect voyager-export-dir | grep "device" | sed -n 's/"device": *"\([^"]*\).*/\1/p' | tr -d " ")
+				if [ -z "$bindedExportDir" ]   
+				then 
+					# Create docker volume voyager-export-dir that is binded to the user's export dir
+                    docker volume create --driver local --opt type=none --opt device=${argv[$j]} --opt o=bind voyager-export-dir  
+				else 
+					# If a volume with the name voyager-export-dir exists but it is not binded to the user's export-dir
+					if [ "$bindedExportDir" != "${argv[${j}]}" ] 
+					then 
+						# Remove the old volume and create a new one
+						docker volume rm voyager-export-dir
+						docker volume create --driver local --opt type=none --opt device=${argv[$j]} --opt o=bind voyager-export-dir 
+					fi 
+				fi	
+			
+				vol="-v voyager-export-dir:/export-dir"
+			else
+				vol="-v ${argv[$j]}:/export-dir"
+			fi
+        	argv[$j]='/export-dir'
+    	fi
+    	i=$(( $i + 1))
 done
 
 dockerCmd="docker run ${vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
