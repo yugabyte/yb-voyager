@@ -239,6 +239,9 @@ func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
 		}
 		totalCores += targetCores
 	}
+	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
+		return 3
+	}
 	return totalCores / 2
 }
 
