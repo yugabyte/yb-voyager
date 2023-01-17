@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -69,20 +69,20 @@ func validateImportFlags(cmd *cobra.Command) {
 
 func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
-		"Host on which the YugabyteDB server is running")
+		"host on which the YugabyteDB server is running")
 
 	cmd.Flags().IntVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
-		"Port on which the YugabyteDB database is running")
+		"port on which the YugabyteDB database is running")
 
 	cmd.Flags().StringVar(&target.User, "target-db-user", "",
-		"Username with which to connect to the target YugabyteDB server")
+		"username with which to connect to the target YugabyteDB server")
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&target.Password, "target-db-password", "",
-		"Password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server")
 
 	cmd.Flags().StringVar(&target.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
-		"Name of the database on the target YugabyteDB server on which import needs to be done")
+		"name of the database on the target YugabyteDB server on which import needs to be done")
 
 	cmd.Flags().StringVar(&target.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
@@ -95,16 +95,16 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&target.SSLKey, "target-ssl-key", "",
-		"provide SSL Key Path")
+		"provide target SSL Key Path")
 
 	cmd.Flags().StringVar(&target.SSLRootCert, "target-ssl-root-cert", "",
-		"provide SSL Root Certificate Path")
+		"provide target SSL Root Certificate Path")
 
 	cmd.Flags().StringVar(&target.SSLCRL, "target-ssl-crl", "",
-		"provide SSL Root Certificate Revocation List (CRL)")
+		"provide target SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"delete all existing database-objects/table-rows to start from zero")
+		"delete all existing database-objects/table-rows on target database to start from zero")
 
 	cmd.Flags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
@@ -118,15 +118,17 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
 	cmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while importing data (no-op if --table-list is used)")
+		"list of tables to exclude while importing data (no-op if --table-list is used)")
 	cmd.Flags().StringVar(&target.TableList, "table-list", "",
-		"List of tables to include while importing data")
+		"list of tables to include while importing data")
 	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
-		"Maximum size of each batch import ")
+		"maximum size(in number of rows) of each batch to generate for import")
 	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
-		"Number of parallel copy command jobs. default: -1 means number of servers in the Yugabyte cluster")
+		"number of parallel copy command jobs to target database. "+
+			"By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
+			"Otherwise, it will use twice the number of nodes in the cluster")
 	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
-		"true - to enable upsert for insert in target tables")
+		"true - to enable UPSERT mode instead of INSERT in target tables")
 	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
 		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
@@ -145,9 +147,9 @@ func registerImportDataFlags(cmd *cobra.Command) {
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.ImportObjects, "object-list", "",
-		"List of schema object types to include while importing schema")
+		"list of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
-		"List of schema object types to exclude while importing schema (no-op if --object-list is used)")
+		"list of schema object types to exclude while importing schema (no-op if --object-list is used)")
 	cmd.Flags().BoolVar(&importObjectsInStraightOrder, "straight-order", false,
 		"If set, objects will be imported in the order specified while listing them")
 	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,

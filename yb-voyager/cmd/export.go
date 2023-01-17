@@ -53,14 +53,14 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"source database server host")
 
 	cmd.Flags().IntVar(&source.Port, "source-db-port", -1,
-		"source database server port number")
+		"source database server port number.\nDefault: Oracle(1521), MySQL(3306), PostgreSQL(5432)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
 		"connect to source database as specified user")
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
-		"connect to source as specified user")
+		"source password to connect to the specified user")
 
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
@@ -77,7 +77,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	//out of schema and db-name one should be mandatory(oracle vs others)
 
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
-		"source schema name which needs to be migrated to YugabyteDB (valid for Oracle, PostgreSQL)\n"+
+		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
 
 	// TODO SSL related more args will come. Explore them later.
@@ -97,7 +97,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"provide SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
+		"cleans up the project directory for schema or data files depending on the export command")
 }
 
 func setExportFlagsDefaults() {
