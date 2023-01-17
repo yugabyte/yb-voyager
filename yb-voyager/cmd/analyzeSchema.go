@@ -461,6 +461,12 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
 			sort.Strings(primaryKeyColumnsList)
+			if len(primaryKeyColumnsList) == 0 || len(allColumnsList) == 1 {
+				continue
+			}
+			if len(allColumnsList) > 1 && !strings.Contains(strings.ToLower(allColumnsList[len(allColumnsList)-2]), "primary key") {
+				continue
+			}
 			if len(partitionColumnsList) == 1 {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
@@ -468,7 +474,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					continue
 				}
-
 			} 
 			if strings.ToLower(regMatch[4]) == "list" {
 				if len(partitionColumnsList) > 1 {

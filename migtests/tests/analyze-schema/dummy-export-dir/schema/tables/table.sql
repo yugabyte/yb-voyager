@@ -24,3 +24,21 @@ CREATE TABLE t1 (
 	descriptions varchar(50),
 	PRIMARY KEY (id)
 ) PARTITION BY LIST (country_code, record_type) ;
+
+CREATE TABLE test_1 (
+	id numeric NOT NULL,
+	country_code varchar(3),
+	record_type varchar(5)
+) PARTITION BY RANGE (id) ;
+
+CREATE TABLE test_2 (
+	id numeric,
+	country_code varchar,
+	record_type varchar(2)
+) PARTITION BY RANGE (id) ;
+
+CREATE TABLE test_3 (
+	id numeric,
+	country_code varchar,
+	record_type varchar
+) PARTITION BY LIST (id) ;
