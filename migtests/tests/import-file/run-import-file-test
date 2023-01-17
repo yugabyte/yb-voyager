@@ -55,17 +55,17 @@ main() {
 	# Test for fileOpts Flags having quote_char as single quote
 	step "Import data file: t1_quote_char.csv -> t1_quote_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_quote_char.csv:t1_quote_char"
+			--file-table-map "t1_quote_char.csv:t1_quote_char" --file-opts "quote_char='"
 
 	# Test for fileOpts Flags having quote_char as single quote and escape_char as single quote
 	step "Import data file: t1_quote_escape_char1.csv -> t1_quote_escape_char1"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1"
+			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1" --file-opts "quote_char=',escape_char='"
 
 	# Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
 	step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2"
+			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --file-opts "quote_char=',escape_char=\\"
 	
 
 	step "Run validations."

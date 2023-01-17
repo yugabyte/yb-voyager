@@ -175,4 +175,8 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
 		return [function[0] for function in cur.fetchall()]
-		
+
+	def fetch_all_table_rows(self, table_name, schema_name="public") -> set[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT * FROM {schema_name}.{table_name}")
+		return set(cur.fetchall())
