@@ -455,16 +455,26 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			summaryMap["FUNCTION"].invalidCount++
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			allColumns := strings.Trim(regMatch[3], "() ")
-			allColumnsList := strings.Split(allColumns, "(")
-			primaryKeyColumns := allColumnsList[len(allColumnsList)-1]
+			allColumnsList := utils.CsvStringToSlice(allColumns)// List of all columns with PK declaration at the last position
+			primaryKey := allColumnsList[len(allColumnsList)-1]
+			var primaryKeyColumnsList []string
+			if !strings.Contains(strings.ToLower(primaryKey), "primary key") { // PRIMARY KEY (col1,col2) is not there, then check for each column definition if PK is mentioned
+				for _, columnDefinition := range allColumnsList {
+					if strings.Contains(strings.ToLower(columnDefinition), "primary key") {
+						partsOfColumnDefinition := strings.Split(columnDefinition, " ")
+						columnName := partsOfColumnDefinition[0]
+						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName)
+					}
+				}
+			} else {
+				primaryKeySplit := strings.Split(primaryKey, "(")
+				primaryKeyColumns := primaryKeySplit[1] // primary key columns at second position, first will be PRIMARY KEY keyword
+				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
+			}
 			partitionColumns := strings.Trim(regMatch[5], `()`)
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
-			primaryKeyColumnsList := utils.CsvStringToSlice(primaryKeyColumns)
 			sort.Strings(primaryKeyColumnsList)
-			if len(primaryKeyColumnsList) == 0 || len(allColumnsList) == 1 {
-				continue
-			}
-			if len(allColumnsList) > 1 && !strings.Contains(strings.ToLower(allColumnsList[len(allColumnsList)-2]), "primary key") {
+			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no issue
 				continue
 			}
 			if len(partitionColumnsList) == 1 {
@@ -482,12 +492,16 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 					continue
 				} 
 			}
+			countPartitionColumnNotInPK := 0 
 			for _, eachPartitionColumn := range partitionColumnsList {
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
 				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn {
-					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+					countPartitionColumnNotInPK++
 				}
+			}
+			if countPartitionColumnNotInPK > 0 {
+				reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 			}
 		} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "drop temporary table") {
 			filePath := strings.Split(fpath, "/")

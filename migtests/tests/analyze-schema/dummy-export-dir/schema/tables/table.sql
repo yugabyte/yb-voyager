@@ -16,8 +16,8 @@ CREATE TABLE sales (
 	PRIMARY KEY (bill_date)
 ) PARTITION BY RANGE (extract(year from date(bill_date))) ;
 
-
-CREATE TABLE t1 (
+-- this table has PK but not include all partition keys as PK, hence reported in analyze-schema
+CREATE TABLE test_1 (
 	id numeric NOT NULL,
 	country_code varchar(3),
 	record_type varchar(5),
@@ -25,18 +25,14 @@ CREATE TABLE t1 (
 	PRIMARY KEY (id)
 ) PARTITION BY LIST (country_code, record_type) ;
 
-CREATE TABLE test_1 (
-	id numeric NOT NULL,
-	country_code varchar(3),
-	record_type varchar(5)
-) PARTITION BY RANGE (id) ;
-
+-- this table has Partition but not has any PK which is supported, hence not reported in analyze-report
 CREATE TABLE test_2 (
 	id numeric,
 	country_code varchar,
 	record_type varchar(2)
 ) PARTITION BY RANGE (id) ;
 
+-- this table has Partition by list but not has any PK which is supported, hence not reported in analyze-report
 CREATE TABLE test_3 (
 	id numeric,
 	country_code varchar,
