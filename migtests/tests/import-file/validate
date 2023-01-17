@@ -17,10 +17,16 @@ EXPECTED = {
  	"t1_quote_escape_char2": 3,
 }
 
+T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
+
 def file_import_done_checks(tgt):
 	got = tgt.row_count_of_all_tables()
 	print(f"Row counts after import data file: {got}")
 	assert got == EXPECTED
+ 
+	assert tgt.fetch_all_table_rows("t1_quote_char") == T1_TABLE_DATA
+	assert tgt.fetch_all_table_rows("t1_quote_escape_char1") == T1_TABLE_DATA
+	assert tgt.fetch_all_table_rows("t1_quote_escape_char2") == T1_TABLE_DATA
 
 if __name__ == "__main__":
 	main()
