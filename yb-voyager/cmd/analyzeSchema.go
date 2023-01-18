@@ -21,12 +21,12 @@ import (
 	"encoding/xml"
 	"fmt"
 	"path/filepath"
-	"sort"
 	"strconv"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 
 	"os"
 	"regexp"
@@ -456,35 +456,33 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id) ) PARTITION BY RANGE (country_code, record_type) ; 
 			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ; 
-			allColumns := strings.Trim(regMatch[3], "() ")
-			allColumnsList := utils.CsvStringToSlice(allColumns) 
+			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], "() ")) 
 			// example1 - allColumnsList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id]
 			// example2 - allColumnsList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
-			primaryKey := allColumnsList[len(allColumnsList)-1] 
+			primaryKey := columnList[len(columnList)-1] 
 			// example1 - primaryKey: PRIMARY KEY (id
 			// example2 - primaryKey: record_type varchar(5
 			var primaryKeyColumnsList []string
-			if !strings.Contains(strings.ToLower(primaryKey), "primary key") { //true for example2 
+			if strings.Contains(strings.ToLower(primaryKey), "primary key") { //false for example2 
+				primaryKeySplit := strings.Split(primaryKey, "(")
+				primaryKeyColumns := primaryKeySplit[1] 
+				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
+			} else {
 				//this case can come by manual intervention
-				for _, columnDefinition := range allColumnsList {
+				for _, columnDefinition := range columnList {
 					if strings.Contains(strings.ToLower(columnDefinition), "primary key") {
 						partsOfColumnDefinition := strings.Split(columnDefinition, " ")
 						columnName := partsOfColumnDefinition[0]
-						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName) // example2 - primaryKey: [id]
+						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName)
 						break
 					}
 				}
-			} else {
-				primaryKeySplit := strings.Split(primaryKey, "(")// [PRIMARY KEY  id]
-				primaryKeyColumns := primaryKeySplit[1] 
-				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns) // [id]
 			}
-			partitionColumns := strings.Trim(regMatch[5], `()`)
-			partitionColumnsList := utils.CsvStringToSlice(partitionColumns) // [country_code record_type]
-			sort.Strings(primaryKeyColumnsList)
 			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
 				continue
 			}
+			partitionColumns := strings.Trim(regMatch[5], `()`)
+			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			if len(partitionColumnsList) == 1 {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
@@ -493,18 +491,16 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 					continue
 				}
 			} 
-			if strings.ToLower(regMatch[4]) == "list" {
-				if len(partitionColumnsList) > 1 {
-					reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
-					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
-					continue
-				} 
+			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1{
+				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
+				"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+				continue
 			}
 			countPartitionColumnNotInPK := 0 
-			for _, eachPartitionColumn := range partitionColumnsList {
-				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
-				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn { //partition key not in PK 
+			for _, partitionColumn := range partitionColumnsList {
+				if slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK 
 					countPartitionColumnNotInPK++
+					break
 				}
 			}
 			if countPartitionColumnNotInPK > 0 {

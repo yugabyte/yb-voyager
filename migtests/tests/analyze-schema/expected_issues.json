@@ -38,5 +38,13 @@
             "sqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
             "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_2",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
         }
 ]
