@@ -38,7 +38,8 @@ var (
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
 	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
-	Long:  `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.`,
+	Long: `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.
+Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 
