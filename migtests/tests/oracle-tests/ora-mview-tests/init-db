@@ -13,3 +13,12 @@ run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle-tests/utils/delete_full_schema
 
 echo "Initialising source database & inserting data"
 run_sqlplus ${SOURCE_DB_NAME} mv_schema_data
+
+echo "Initialising source database & inserting data"
+run_sqlplus ${SOURCE_DB_NAME} mv_fast_refreshable_schema_data
+
+echo "Initialising source database & inserting data"
+run_sqlplus ${SOURCE_DB_NAME} nested_mv_schema_data
+
+echo "Initialising source database & inserting data"
+run_sqlplus ${SOURCE_DB_NAME} auto_refresh_mv_schema_data
