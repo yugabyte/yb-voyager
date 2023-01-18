@@ -35,8 +35,8 @@ var target tgtdb.Target
 
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "import schema and data from compatible source database(Oracle, Mysql, Postgres)",
-	Long:  ``,
+	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
+	Long:  `Import has various sub-commands i.e. import schema and import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
 }
 
 func init() {
@@ -71,8 +71,8 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&target.Port, "target-db-port", YUGABYTEDB_DEFAULT_PORT,
-		"port on which the YugabyteDB database is running")
+	cmd.Flags().IntVar(&target.Port, "target-db-port", YUGABYTEDB_YSQL_DEFAULT_PORT,
+		"port on which the YugabyteDB YSQL API is running")
 
 	cmd.Flags().StringVar(&target.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
@@ -95,40 +95,40 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&target.SSLKey, "target-ssl-key", "",
-		"provide target SSL Key Path")
+		"target SSL Key Path")
 
 	cmd.Flags().StringVar(&target.SSLRootCert, "target-ssl-root-cert", "",
-		"provide target SSL Root Certificate Path")
+		"target SSL Root Certificate Path")
 
 	cmd.Flags().StringVar(&target.SSLCRL, "target-ssl-crl", "",
-		"provide target SSL Root Certificate Revocation List (CRL)")
+		"target SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"delete all existing database-objects/table-rows on target database to start from zero")
+		"delete all existing schema objects before importing schema. Delete all existing data before importing the data")
 
 	cmd.Flags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
 
 	cmd.Flags().BoolVar(&target.ContinueOnError, "continue-on-error", false,
-		"false - stop the execution in case of errors(default false)\n"+
-			"true - to ignore errors and continue")
+		"If set, this flag will ignore errors and continue with the import")
 }
 
 func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import (default false)")
 	cmd.Flags().StringVar(&target.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while importing data (no-op if --table-list is used)")
+		"list of tables to exclude while importing data (ignored if --table-list is used)")
 	cmd.Flags().StringVar(&target.TableList, "table-list", "",
-		"list of tables to include while importing data")
+		"list of tables to import data")
 	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
-		"maximum size(in number of rows) of each batch to generate for import")
+		"maximum number of rows in each batch generated during import.")
 	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
-			"Otherwise, it will use twice the number of nodes in the cluster")
+			"Otherwise, it fall back to using twice the number of nodes in the cluster")
 	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
-		"true - to enable UPSERT mode instead of INSERT in target tables")
+		"true - to enable UPSERT mode on target tables\n"+
+			"false - to disable UPSERT mode on target tables")
 	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
 		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
@@ -149,9 +149,9 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&target.ImportObjects, "object-list", "",
 		"list of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&target.ExcludeImportObjects, "exclude-object-list", "",
-		"list of schema object types to exclude while importing schema (no-op if --object-list is used)")
+		"list of schema object types to exclude while importing schema (ignored if --object-list is used)")
 	cmd.Flags().BoolVar(&importObjectsInStraightOrder, "straight-order", false,
-		"If set, objects will be imported in the order specified while listing them")
+		"If set, objects will be imported in the order specified with the --object-list flag (default false)")
 	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
 	cmd.Flags().BoolVar(&target.IgnoreIfExists, "ignore-exist", false,

@@ -37,8 +37,8 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
-	Short: "A tool to migrate a database to YugabyteDB",
-	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
+	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
+	Long:  `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 
@@ -86,7 +86,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"enable verbose mode for the console output")
 
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, migration state and logs")
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")

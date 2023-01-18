@@ -309,8 +309,8 @@ func init() {
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in 'data-dir' to a table in database.\n"+
-			"Note: default will be to import all the files in --data-dir with given format, for eg: table1.csv to import into table1 in database.")
+		"comma separated list of mapping between file name in '--data-dir' to a table in database.\n"+
+			"Note: default will be to import all the files in --data-dir with given format, for eg: table1.csv to import into table1 on target database.")
 
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
