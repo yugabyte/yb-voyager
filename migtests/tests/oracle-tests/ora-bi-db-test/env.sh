@@ -1,4 +1,5 @@
 export SOURCE_DB_TYPE="oracle"
+export SOURCE_DB_TYPE="oracle"
 export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"DMS"}
 export SOURCE_DB_HOST=${SOURCE_DB_HOST:-"10.9.15.224"}
 export SOURCE_DB_USER=${SOURCE_DB_USER:-"BI"}
