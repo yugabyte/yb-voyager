@@ -454,27 +454,35 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id) ) PARTITION BY RANGE (country_code, record_type) ; 
+			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ; 
 			allColumns := strings.Trim(regMatch[3], "() ")
-			allColumnsList := utils.CsvStringToSlice(allColumns)// List of all columns with PK declaration at the last position
-			primaryKey := allColumnsList[len(allColumnsList)-1]
+			allColumnsList := utils.CsvStringToSlice(allColumns) 
+			// example1 - allColumnsList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id]
+			// example2 - allColumnsList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
+			primaryKey := allColumnsList[len(allColumnsList)-1] 
+			// example1 - primaryKey: PRIMARY KEY (id
+			// example2 - primaryKey: record_type varchar(5
 			var primaryKeyColumnsList []string
-			if !strings.Contains(strings.ToLower(primaryKey), "primary key") { // PRIMARY KEY (col1,col2) is not there, then check for each column definition if PK is mentioned
+			if !strings.Contains(strings.ToLower(primaryKey), "primary key") { //true for example2 
+				//this case can come by manual intervention
 				for _, columnDefinition := range allColumnsList {
 					if strings.Contains(strings.ToLower(columnDefinition), "primary key") {
 						partsOfColumnDefinition := strings.Split(columnDefinition, " ")
 						columnName := partsOfColumnDefinition[0]
-						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName)
+						primaryKeyColumnsList = append(primaryKeyColumnsList, columnName) // example2 - primaryKey: [id]
+						break
 					}
 				}
 			} else {
-				primaryKeySplit := strings.Split(primaryKey, "(")
-				primaryKeyColumns := primaryKeySplit[1] // primary key columns at second position, first will be PRIMARY KEY keyword
-				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
+				primaryKeySplit := strings.Split(primaryKey, "(")// [PRIMARY KEY  id]
+				primaryKeyColumns := primaryKeySplit[1] 
+				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns) // [id]
 			}
 			partitionColumns := strings.Trim(regMatch[5], `()`)
-			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
+			partitionColumnsList := utils.CsvStringToSlice(partitionColumns) // [country_code record_type]
 			sort.Strings(primaryKeyColumnsList)
-			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no issue
+			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
 				continue
 			}
 			if len(partitionColumnsList) == 1 {
@@ -495,7 +503,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			countPartitionColumnNotInPK := 0 
 			for _, eachPartitionColumn := range partitionColumnsList {
 				idxInPrimaryKeyColumns := sort.SearchStrings(primaryKeyColumnsList, eachPartitionColumn)
-				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn {
+				if idxInPrimaryKeyColumns == len(primaryKeyColumnsList) || primaryKeyColumnsList[idxInPrimaryKeyColumns] != eachPartitionColumn { //partition key not in PK 
 					countPartitionColumnNotInPK++
 				}
 			}
