@@ -90,7 +90,7 @@ var (
 	amRegex               = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
 	idxConcRegex          = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
 	storedRegex           = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) ([^,]+(?:,[^,]+){0,}) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
+	partitionColumnsRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) \(([^,]+(?:,[^,]+){0,})\) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
 	likeAllRegex          = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
 	likeRegex             = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
 	inheritRegex          = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
@@ -456,7 +456,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id) ) PARTITION BY RANGE (country_code, record_type) ; 
 			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ; 
-			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], "() ")) 
+			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], " ")) 
 			// example1 - allColumnsList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id]
 			// example2 - allColumnsList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
 			primaryKey := columnList[len(columnList)-1] 
@@ -496,16 +496,12 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				continue
 			}
-			countPartitionColumnNotInPK := 0 
 			for _, partitionColumn := range partitionColumnsList {
 				if slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK 
-					countPartitionColumnNotInPK++
+					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					break
 				}
-			}
-			if countPartitionColumnNotInPK > 0 {
-				reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 			}
 		} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "drop temporary table") {
 			filePath := strings.Split(fpath, "/")
