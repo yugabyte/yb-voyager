@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,14 +32,14 @@ var (
 	cfgFile    string
 	exportDir  string
 	startClean bool
-	logLevel   string
 	lockFile   lockfile.Lockfile
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
-	Short: "A tool to migrate a database to YugabyteDB",
-	Long:  `Currently supports PostgreSQL, Oracle, MySQL. Soon support for DB2 and MSSQL will come`,
+	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
+	Long: `A CLI based migration engine for complete database migration from a source database to YugabyteDB. Currently supported source databases are Oracle, MySQL, PostgreSQL.
+Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 
@@ -83,14 +83,11 @@ func init() {
 }
 
 func registerCommonGlobalFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().StringVarP(&logLevel, "log-level", "", "INFO",
-		"Logging levels: TRACE, DEBUG, INFO, WARN")
-
 	cmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
 
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory to keep all the dump files and metainfo")
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")

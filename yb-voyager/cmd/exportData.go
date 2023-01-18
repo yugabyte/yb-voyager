@@ -57,9 +57,10 @@ func init() {
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
 	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data export(default false)")
+		"true - disable progress bar during data export(default false)")
+
 	exportDataCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"List of tables to exclude while exporting data(no-op if --table-list is used)")
+		"list of tables to exclude while exporting data (ignored if --table-list is used)")
 
 	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")

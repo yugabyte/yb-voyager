@@ -35,8 +35,7 @@ import (
 
 var importSchemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "This command imports schema into the destination YugabyteDB database",
-	Long:  ``,
+	Short: "This command imports schema into the target YugabyteDB database",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)

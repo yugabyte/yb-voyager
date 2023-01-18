@@ -36,9 +36,8 @@ var disablePb bool
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "export schema and data from compatible source database(Oracle, Mysql, Postgres)",
-	Long: `Export has various sub-commands to extract schema, data and generate migration report.
-`,
+	Short: "export schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
+	Long:  `Export has various sub-commands i.e. export schema and export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
 }
 
 func init() {
@@ -53,14 +52,14 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"source database server host")
 
 	cmd.Flags().IntVar(&source.Port, "source-db-port", -1,
-		"source database server port number")
+		"source database server port number. Default: Oracle(1521), MySQL(3306), PostgreSQL(5432)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
-		"connect to source database as specified user")
+		"connect to source database as the specified user")
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
-		"connect to source as specified user")
+		"source password to connect as the specified user")
 
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
@@ -74,30 +73,28 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	//out of schema and db-name one should be mandatory(oracle vs others)
-
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
-		"source schema name which needs to be migrated to YugabyteDB (valid for Oracle, PostgreSQL)\n"+
+		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
-		"provide Source SSL Certificate Path")
+		"source SSL Certificate Path")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
 		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
-		"provide SSL Key Path")
+		"source SSL Key Path")
 
 	cmd.Flags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
-		"provide SSL Root Certificate Path")
+		"source SSL Root Certificate Path")
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
-		"provide SSL Root Certificate Revocation List (CRL)")
+		"source SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"clean the project's data directory for already existing files before start(Note: works only for export data command)")
+		"cleans up the project directory for schema or data files depending on the export command")
 }
 
 func setExportFlagsDefaults() {
