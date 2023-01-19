@@ -188,9 +188,25 @@ func refreshMViews(conn *pgx.Conn) {
 	for _, mViewName := range mViewNames {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
-		if err != nil {
+		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated"){
 			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
 		}
+	}
+	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
+	var mviewsNotRefreshed []string
+	for _,mViewName := range mViewNames {
+		query := fmt.Sprintf("SELECT * from %s LIMIT 1;", mViewName)
+		rows, err := conn.Query(context.Background(), query)
+		if err != nil {
+			utils.ErrExit("error in checking whether mview %s is refreshed or not: %v", mViewName, err)
+		}
+		if !rows.Next() {
+			mviewsNotRefreshed = append(mviewsNotRefreshed, mViewName)
+		}
+		rows.Close()
+	}
+	if len(mviewsNotRefreshed) > 0 {
+		utils.PrintAndLog("\nNOTE: Following MViews are not refreshed - %v, Please refresh them manually!", mviewsNotRefreshed)
 	}
 }
 
