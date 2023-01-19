@@ -69,7 +69,7 @@ Refer the [Machine Requirements](#machine-requirements) section for supported OS
 Run the `installer_scripts/install-yb-voyager` script on a machine to prepare it
 for running migrations using yb-voyager.
 
-To correctly set environment variables required for the migration process run:
+To correctly set environment variables required for the migration process run the following command:
 
 ```
 source $HOME/.yb-voyager.rc
