@@ -3,8 +3,8 @@
 argv=( "$@" )
 
 if ! which docker > /dev/null; then
-   	echo "Could not find docker! Please install docker before proceeeding."
-   	exit 1
+	echo "Could not find docker! Please install docker before proceeeding."
+	exit 1
 fi
 
 if [[ $OSTYPE == 'darwin'* ]]
@@ -15,25 +15,25 @@ fi
 i=0
 while [ $i -lt $# ]
 do
-    	if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
-    	then
-        	j=$(( $i + 1))
-			export_dir=${argv[${j}]}
+    if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
+	then
+        j=$(( $i + 1))
+		export_dir=${argv[${j}]}
 
-			# If the OS is macOS
-			if [[ $OSTYPE == 'darwin'* ]]; then
+		# If the OS is macOS
+		if [[ $OSTYPE == 'darwin'* ]]; then
 
-				# Delete the old volume and create a new one it its place attached to the user's export-dir
-				docker volume rm voyager-export-dir
-				docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
+			# Delete the old volume and create a new one it its place attached to the user's export-dir
+			docker volume rm voyager-export-dir
+			docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
 		
-				vol="-v voyager-export-dir:/export-dir"
-			else
-				vol="-v ${export_dir}:/export-dir"
-			fi
-        	argv[$j]='/export-dir'
-    	fi
-    	i=$(( $i + 1))
+			vol="-v voyager-export-dir:/export-dir"
+		else
+			vol="-v ${export_dir}:/export-dir"
+		fi
+		argv[$j]='/export-dir'
+    fi
+    i=$(( $i + 1))
 done
 
 dockerCmd="docker run ${vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
