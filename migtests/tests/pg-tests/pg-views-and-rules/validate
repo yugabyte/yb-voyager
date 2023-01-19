@@ -15,6 +15,8 @@ EXPECTED_ROW_COUNT = {
 	'v2': 9,
 	'v3': 9,
 	'mv1': 4,
+	'xyz_mview': 4,
+	'abc_mview': 4
 }
 
 def migration_completed_checks(tgt):
@@ -28,7 +30,7 @@ def migration_completed_checks(tgt):
 
 	materialized_view_list = tgt.get_objects_of_type("MVIEW", "test_views")
 	print("materialized_view_list:", materialized_view_list)
-	assert len(materialized_view_list) == 1
+	assert len(materialized_view_list) == 3
 
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		cnt = tgt.get_row_count(table_name, "test_views")
