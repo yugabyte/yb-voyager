@@ -1,3 +1,4 @@
+-- partition by expression cannot contain PK/Unique Key to be reported in analyze-schema 
 CREATE TABLE salaries2 (
 	emp_no bigint NOT NULL,
 	salary bigint NOT NULL,
@@ -6,6 +7,7 @@ CREATE TABLE salaries2 (
 	PRIMARY KEY (emp_no,from_date)
 ) PARTITION BY RANGE (((from_date)::date - '0001-01-01bc')::integer) ;
 
+-- partition by expression cannot contain PK/Unique Key to be reported in analyze-schema 
 CREATE TABLE sales (
 	cust_id bigint NOT NULL,
 	name varchar(40),
@@ -16,7 +18,7 @@ CREATE TABLE sales (
 	PRIMARY KEY (bill_date)
 ) PARTITION BY RANGE (extract(year from date(bill_date))) ;
 
--- all partition keys are not included in the PK constraint, to be reported during analyze-schema
+-- multi column list partition, to be reported during analyze-schema
 CREATE TABLE test_1 (
 	id numeric NOT NULL,
 	country_code varchar(3),
@@ -25,7 +27,7 @@ CREATE TABLE test_1 (
 	PRIMARY KEY (id)
 ) PARTITION BY LIST (country_code, record_type) ;
 
--- all partition keys are not included in the PK constraint, to be reported during analyze-schema
+-- multi column list partition, to be reported during analyze-schema
 CREATE TABLE test_2 (
 	id numeric NOT NULL PRIMARY KEY,
 	country_code varchar(3),
@@ -46,3 +48,21 @@ CREATE TABLE test_4 (
 	country_code varchar,
 	record_type varchar
 ) PARTITION BY LIST (id) ;
+
+-- all partition keys are not included in the PK constraint, to be reported during analyze-schema
+CREATE TABLE test_5 (
+	id numeric NOT NULL PRIMARY KEY,
+	country_code varchar(3),
+	record_type varchar(5),
+	descriptions varchar(50),
+	PRIMARY KEY (id)
+) PARTITION BY RANGE (country_code, record_type) ;
+
+-- all partition keys are not included in the PK constraint, to be reported during analyze-schema
+CREATE TABLE test_6 (
+	id numeric NOT NULL PRIMARY KEY,
+	country_code varchar(3),
+	record_type varchar(5),
+	descriptions varchar(50),
+	PRIMARY KEY (id,country_code)
+) PARTITION BY RANGE (country_code, record_type) ;

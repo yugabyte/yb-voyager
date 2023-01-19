@@ -465,7 +465,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			var primaryKeyColumnsList []string
 			if strings.Contains(strings.ToLower(primaryKey), "primary key") { //false for example2 
 				primaryKeySplit := strings.Split(primaryKey, "(")
-				primaryKeyColumns := primaryKeySplit[1] 
+				primaryKeyColumns := strings.Trim(primaryKeySplit[1], ") ")
 				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
 			} else {
 				//this case can come by manual intervention
@@ -497,7 +497,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				continue
 			}
 			for _, partitionColumn := range partitionColumnsList {
-				if slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK 
+				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK 
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
 						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					break
