@@ -51,7 +51,7 @@
             "objectType": "TABLE",
             "objectName": "test_5",
             "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-            "sqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "sqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
             "suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         },
@@ -59,7 +59,23 @@
             "objectType": "TABLE",
             "objectName": "test_6",
             "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-            "sqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "sqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_7",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_7 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (descriptions, record_type) ;",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_8",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
             "suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         }

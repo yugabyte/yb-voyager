@@ -227,7 +227,7 @@ func checkGin(sqlInfoArr []sqlInfo, fpath string) {
 			}
 		}
 		if strings.Contains(strings.ToLower(sqlInfo.stmt), "using gin") {
-			summaryMap["INDEX"].details["There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true;
+			summaryMap["INDEX"].details["There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."] = true
 		}
 	}
 }
@@ -454,18 +454,22 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
 			summaryMap["FUNCTION"].invalidCount++
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id) ) PARTITION BY RANGE (country_code, record_type) ; 
-			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ; 
-			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], " ")) 
-			// example1 - columnList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id]
+			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id,country_code) ) PARTITION BY RANGE (country_code, record_type) ;
+			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ;
+			columnList := utils.CsvStringToSlice(strings.Trim(regMatch[3], " "))
+			// example1 - columnList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id country_code)]
 			// example2 - columnList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
-			primaryKey := columnList[len(columnList)-1] 
-			// example1 - primaryKey: PRIMARY KEY (id
-			// example2 - primaryKey: record_type varchar(5
+			openBracketSplits := strings.Split(strings.Trim(regMatch[3], " "), "(")
+			// example1 -  openBracketSplits: [	id numeric NOT NULL PRIMARY KEY, 	country_code varchar 3), 	record_type varchar 5), 	descriptions varchar 50), 	PRIMARY KEY  id,country_code)]
+			stringbeforeLastOpenBracket := ""
+			if len(openBracketSplits) > 1 {
+				stringbeforeLastOpenBracket = strings.Join(strings.Fields(openBracketSplits[len(openBracketSplits)-2]), " ") //without extra spaces to easily check suffix
+			}
+			// example1 - stringbeforeLastBracket: 50), PRIMARY KEY
+			// example2 - stringbeforeLastBracket: 5), descriptions varchar
 			var primaryKeyColumnsList []string
-			if strings.Contains(strings.ToLower(primaryKey), "primary key") { //false for example2 
-				primaryKeySplit := strings.Split(primaryKey, "(")
-				primaryKeyColumns := strings.Trim(primaryKeySplit[1], ") ")
+			if strings.HasSuffix(strings.ToLower(stringbeforeLastOpenBracket), ", primary key") { //false for example2
+				primaryKeyColumns := strings.Trim(openBracketSplits[len(openBracketSplits)-1], ") ")
 				primaryKeyColumnsList = utils.CsvStringToSlice(primaryKeyColumns)
 			} else {
 				//this case can come by manual intervention
@@ -487,17 +491,17 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
 					reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-					"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+						"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					continue
 				}
-			} 
-			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1{
+			}
+			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
 				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
-				"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				continue
 			}
 			for _, partitionColumn := range partitionColumnsList {
-				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK 
+				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
 						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					break
