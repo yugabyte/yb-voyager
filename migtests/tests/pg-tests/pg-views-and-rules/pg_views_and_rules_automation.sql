@@ -64,19 +64,33 @@ drop materialized view if exists test_views.mv1;
 
 create materialized view test_views.mv1 as select first_name,last_name from test_views.view_table1 where gender='Male' with data;
 
+drop materialized view if exists test_views.xyz_mview;
+
+create materialized view test_views.xyz_mview as select first_name,last_name from test_views.view_table1 where gender='Male' with data;
+
+drop materialized view if exists test_views.abc_mview;
+create materialized view test_views.abc_mview as select * from test_views.xyz_mview;
+
 select * from test_views.mv1;
+select * from test_views.xyz_mview;
+select * from test_views.abc_mview;
 
 insert into test_views.view_table1 (first_name, last_name, email, gender, ip_address) values ('Kah', 'Loger', 'nmeecher9@quantcast.com', 'Male', '152.239.228.215');
 
 REFRESH MATERIALIZED VIEW test_views.mv1;
+REFRESH MATERIALIZED VIEW test_views.xyz_mview;
+REFRESH MATERIALIZED VIEW test_views.abc_mview;
 
 select * from test_views.mv1;
+select * from test_views.xyz_mview;
+select * from test_views.abc_mview;
 
 \d+ test_views.v1;
 \d+ test_views.v2;
 \d+ test_views.v3;
 \d+ test_views.mv1;
-
+\d+ test_views.xyz_mview;
+\d+ test_views.abc_mview;
 
 CREATE OR REPLACE RULE protect_test_views_view_table1 AS ON UPDATE TO test_views.view_table1 DO INSTEAD NOTHING;
 
