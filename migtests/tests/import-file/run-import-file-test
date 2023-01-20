@@ -68,6 +68,17 @@ main() {
 			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --file-opts "quote_char=',escape_char=\\"
 	
 
+	# Test in case delimiter is same as escape character
+	step "Import data file: t1_delimiter_escape_same.csv -> t1_delimiter_escape_same"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --file-opts "quote_char=',escape_char=|"
+
+	# Test for csv file containing actual newline in it
+	step "Import data file: t1_newline.csv -> t1_newline"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_newline.csv:t1_newline"
+
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }
