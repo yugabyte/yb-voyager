@@ -206,7 +206,7 @@ func refreshMViews(conn *pgx.Conn) {
 		rows.Close()
 	}
 	if len(mviewsNotRefreshed) > 0 {
-		utils.PrintAndLog("\nNOTE: Following Materialised Views are not refreshed - %v, Please refresh them manually!", mviewsNotRefreshed)
+		utils.PrintAndLog("\nNOTE: Following Materialised Views might not be refreshed - %v, Please verify and refresh them manually if required!", mviewsNotRefreshed)
 	}
 }
 
