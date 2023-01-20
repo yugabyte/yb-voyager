@@ -1,4 +1,4 @@
-# yb-voyager
+# YugabyteDB Voyager
 
 # Sections
 - [Introduction](#introduction)
