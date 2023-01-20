@@ -16,6 +16,7 @@ type CsvDataFile struct {
 	bytesRead int64
 	Delimiter string
 	Header    string
+	bytes     bytes.Buffer
 	DataFile
 }
 
@@ -31,8 +32,7 @@ func (df *CsvDataFile) SkipLines(numLines int64) error {
 }
 
 func (df *CsvDataFile) NextLine() (string, error) {
-	var bytes bytes.Buffer
-	w := csv.NewWriter(&bytes)
+	w := csv.NewWriter(&df.bytes)
 	w.Comma = []rune(df.Delimiter)[0]
 	var line string
 	var err error
@@ -49,8 +49,8 @@ func (df *CsvDataFile) NextLine() (string, error) {
 			return "", err
 		}
 		w.Flush()
-		line = bytes.String()
-		bytes.Reset()
+		line = df.bytes.String()
+		df.bytes.Reset()
 		df.bytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
