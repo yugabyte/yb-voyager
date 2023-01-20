@@ -10,6 +10,8 @@
 - [Machine Requirements](#machine-requirements)
 - [Installation](#installation)
 - [Migration Steps](#migration-steps)
+- [License](#license)
+
 - [Features and Enhancements To Follow Soon](#features-and-enhancements-in-the-pipeline)
 
 # Introduction
@@ -126,6 +128,16 @@ The workflow to carry out a migration using *yb-voyager* is as follows:
 ```
 More details regarding the entire migration workflow, starting from setting up your source and target databases, up until verifying the migration can be found in the [Migration Steps](https://docs.yugabyte.com/preview/migrate/migrate-steps/) on the YugabyteDB Voyager Docs.
 
+# License
+
+Source code in this repository is variously licensed under the Apache License 2.0 and the Polyform Free Trial License 1.0.0. A copy of each license can be found in the [licenses](licenses) directory.
+
+The build produces two sets of binaries:
+
+* The entire database with all its features (including the enterprise ones) are licensed under the Apache License 2.0
+* The  binaries that contain `-managed` in the artifact and help run a managed service are licensed under the Polyform Free Trial License 1.0.0.
+
+> By default, the build options generate only the Apache License 2.0 binaries.
 # Features and enhancements in the pipeline
 
 Some of the important features and enhancements to follow soon are:
