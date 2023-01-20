@@ -75,7 +75,7 @@ func (df *CsvDataFile) ResetBytesRead() {
 func (df *CsvDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
-	endOfCopy := (line == "\\." || line == "\\.\n")
+	endOfCopy := (line == "\\." || line == "\\.\n" || line == "\"\\.\"" || line == "\"\\.\"\n")
 
 	return !(emptyLine || newLineChar || endOfCopy)
 }
@@ -102,7 +102,7 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 
 	reader := csv.NewReader(file)
 	reader.Comma = []rune(descriptor.Delimiter)[0]
-	reader.FieldsPerRecord = -1 // last line can be '\.'
+	reader.FieldsPerRecord = -1 // fields not fixed for all rows, last line can be '\.'
 
 	csvDataFile := &CsvDataFile{
 		file:      file,

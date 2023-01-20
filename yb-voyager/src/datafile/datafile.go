@@ -25,8 +25,10 @@ var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
-	case CSV, TEXT:
+	case CSV:
 		return openCsvDataFile(filePath, descriptor)
+	case TEXT:
+		return openTextDataFile(filePath, descriptor)
 	case SQL:
 		return openSqlDataFile(filePath, descriptor)
 	default:
