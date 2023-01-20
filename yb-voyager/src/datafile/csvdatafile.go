@@ -103,6 +103,7 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 	reader := csv.NewReader(file)
 	reader.Comma = []rune(descriptor.Delimiter)[0]
 	reader.FieldsPerRecord = -1 // fields not fixed for all rows, last line can be '\.'
+	reader.LazyQuotes = true    // allow quotes in fields
 
 	csvDataFile := &CsvDataFile{
 		file:      file,

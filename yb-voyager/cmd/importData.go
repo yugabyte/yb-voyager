@@ -994,12 +994,11 @@ func markTaskDone(task *SplitFileImportTask) {
 		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
 	}
 
-	if !truncateSplits {
-		return
-	}
-	err = os.Truncate(doneFilePath, 0)
-	if err != nil {
-		log.Warnf("truncate file %q: %s", doneFilePath, err)
+	if truncateSplits {
+		err = os.Truncate(doneFilePath, 0)
+		if err != nil {
+			log.Warnf("truncate file %q: %s", doneFilePath, err)
+		}
 	}
 }
 
