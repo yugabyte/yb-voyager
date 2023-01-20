@@ -37,7 +37,7 @@ func (df *SqlDataFile) NextLine() (string, error) {
 			break
 		}
 	}
-	line = strings.Trim(line, "\n") //to current only the current line content
+	line = strings.Trim(line, "\n") // to get the raw row
 	return line, err
 }
 
