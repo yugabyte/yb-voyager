@@ -75,6 +75,7 @@ var copyTableFromCommands = make(map[string]string)
 var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
 var enableUpsert bool               // upsert instead of insert for import data
 var disableTransactionalWrites bool // to disable transactional writes for copy command
+var truncateSplits bool             // to truncate *.D splits after import
 
 const (
 	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
@@ -991,6 +992,10 @@ func markTaskDone(task *SplitFileImportTask) {
 	err := os.Rename(inProgressFilePath, doneFilePath)
 	if err != nil {
 		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
+	}
+
+	if !truncateSplits {
+		return
 	}
 	err = os.Truncate(doneFilePath, 0)
 	if err != nil {

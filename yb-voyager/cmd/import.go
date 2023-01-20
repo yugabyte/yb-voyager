@@ -143,6 +143,11 @@ func registerImportDataFlags(cmd *cobra.Command) {
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
 	cmd.Flags().MarkHidden("disable-transactional-writes")
+
+	cmd.Flags().BoolVar(&truncateSplits, "truncate-splits", true,
+		"true - to truncate splits after importing\n"+
+			"false - to not truncate splits after importing (required for debugging)")
+	cmd.Flags().MarkHidden("truncate-splits")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
