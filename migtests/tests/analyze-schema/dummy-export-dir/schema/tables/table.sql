@@ -83,7 +83,7 @@ CREATE TABLE test_8 (
 	PRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)
 ) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;
 
-
+-- all partition key are in PK, no need to report during analyze-schema
 CREATE TABLE test_9 (
 	order_id bigint NOT NULL,
 	order_date timestamp,

@@ -460,7 +460,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			// example1 - columnList: [id numeric NOT NULL country_code varchar(3) record_type varchar(5) PRIMARY KEY (id country_code)]
 			// example2 - columnList: [id numeric NOT NULL PRIMARY KEY country_code varchar(3) record_type varchar(5]
 			openBracketSplits := strings.Split(strings.Trim(regMatch[3], " "), "(")
-			// example1 -  openBracketSplits: [	id numeric NOT NULL PRIMARY KEY, 	country_code varchar 3), 	record_type varchar 5), 	descriptions varchar 50), 	PRIMARY KEY  id,country_code)]
+			// example1 -  openBracketSplits: [	id numeric NOT NULL, 	country_code varchar 3), 	record_type varchar 5), 	descriptions varchar 50), 	PRIMARY KEY  id,country_code)]
 			stringbeforeLastOpenBracket := ""
 			if len(openBracketSplits) > 1 {
 				stringbeforeLastOpenBracket = strings.Join(strings.Fields(openBracketSplits[len(openBracketSplits)-2]), " ") //without extra spaces to easily check suffix
