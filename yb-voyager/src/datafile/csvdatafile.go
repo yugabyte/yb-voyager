@@ -1,8 +1,8 @@
 package datafile
 
 import (
-	"bytes"
-	"encoding/csv"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
+
 	"os"
 	"strings"
 
@@ -16,7 +16,6 @@ type CsvDataFile struct {
 	bytesRead int64
 	Delimiter string
 	Header    string
-	bytes     bytes.Buffer
 	DataFile
 }
 
@@ -32,25 +31,24 @@ func (df *CsvDataFile) SkipLines(numLines int64) error {
 }
 
 func (df *CsvDataFile) NextLine() (string, error) {
-	w := csv.NewWriter(&df.bytes)
-	w.Comma = []rune(df.Delimiter)[0]
 	var line string
 	var err error
 	for {
+		startOffset := df.reader.InputOffset()
 		// read a record from csv file
-		fields, err := df.reader.Read()
+		_, err := df.reader.Read()
 		if err != nil {
 			return "", err
 		}
+		endOffset := df.reader.InputOffset()
 
-		// write the record to buffer and convert it to string following csv format
-		err = w.Write(fields)
+		buf := make([]byte, endOffset-startOffset) // buffer size of the record/row in csv file
+		_, err = df.file.ReadAt(buf, startOffset)
 		if err != nil {
 			return "", err
 		}
-		w.Flush()
-		line = df.bytes.String()
-		df.bytes.Reset()
+		line = string(buf)
+
 		df.bytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
@@ -75,7 +73,7 @@ func (df *CsvDataFile) ResetBytesRead() {
 func (df *CsvDataFile) isDataLine(line string) bool {
 	emptyLine := (len(line) == 0)
 	newLineChar := (line == "\n")
-	endOfCopy := (line == "\\." || line == "\\.\n" || line == "\"\\.\"" || line == "\"\\.\"\n")
+	endOfCopy := (line == "\\." || line == "\\.\n")
 
 	return !(emptyLine || newLineChar || endOfCopy)
 }

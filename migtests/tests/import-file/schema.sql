@@ -53,12 +53,14 @@ CREATE TABLE smsa (
     NOx NUMERIC
 );
 
-create table t1_quote_char (i int, j timestamp, k bigint, l varchar(30));
+-- create table t1_quote_char (i int, j timestamp, k bigint, l varchar(30));
 
-create table t1_quote_escape_char1 (i int, j timestamp, k bigint, l varchar(30));
+-- create table t1_quote_escape_char1 (i int, j timestamp, k bigint, l varchar(30));
 
-create table t1_quote_escape_char2 (i int, j timestamp, k bigint, l varchar(30));
+-- create table t1_quote_escape_char2 (i int, j timestamp, k bigint, l varchar(30));
 
-create table t1_delimiter_escape_same (i int, j timestamp, k bigint, l varchar(30));
+-- create table t1_delimiter_escape_same (i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_newline (i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_quote_escape_dq (i int, j timestamp, k bigint, l varchar(30));
