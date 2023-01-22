@@ -22,7 +22,7 @@ var (
 	fileTableMapping     string
 	hasHeader            bool
 	tableNameVsFilePath  = make(map[string]string)
-	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
+	supportedFileFormats = []string{datafile.CSV, datafile.TEXT, datafile.CSV_NO_NEWLINE}
 	fileOpts             string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
@@ -105,7 +105,7 @@ func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
-		if fileFormat == datafile.CSV {
+		if fileFormat == datafile.CSV || fileFormat == datafile.CSV_NO_NEWLINE {
 			if hasHeader {
 				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 				if err != nil {
@@ -200,12 +200,19 @@ func checkFileFormat() {
 
 	if !supported {
 		utils.ErrExit("--format %q is not supported", fileFormat)
+	} else {
+	switch fileFormat {
+		case datafile.CSV:
+			fmt.Printf("Note: there are various csv file formats, currently we only support described in RFC 4180\n")
+		case datafile.CSV_NO_NEWLINE:
+			fileFormat = datafile.CSV // replacing it with csv to prepare correct COPY commands
+	}
 	}
 }
 
 func checkDataDirFlag() {
 	if dataDir == "" {
-		utils.ErrExit(`ERROR: required flag "data-dir" not set`)
+		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(dataDir) {
 		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
@@ -245,7 +252,7 @@ func checkHasHeader() {
 
 func checkFileOpts() {
 	switch fileFormat {
-	case datafile.CSV:
+	case datafile.CSV ,datafile.CSV_NO_NEWLINE:
 		// setting default values for escape and quote, will be updated if provided in fileOpts flag
 		fileOptsMap = map[string]string{
 			"escape_char": "\"",
@@ -272,7 +279,7 @@ func checkFileOpts() {
 		}
 	default:
 		if fileOpts != "" {
-			panic(fmt.Sprintf("ERROR: --file-opts not implemented for %q format\n", fileFormat))
+			panic(fmt.Sprintf("ERROR: --file-opts flag not implemented for %q format\n", fileFormat))
 		}
 	}
 
@@ -296,7 +303,7 @@ func init() {
 	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
-		fmt.Sprintf("supported data file types: %s", supportedFileFormats))
+		"supported data file types: text and csv")
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
 		"character used as delimiter in rows of the table(s)")
