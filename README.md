@@ -11,9 +11,10 @@ YugabyteDB Voyager manages the entire lifecycle of a database migration, includi
 
 <img src="docs/voyager_architecture.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
+You can migrate data to any one of the three YugabyteDB products (Stable versions 2.14.5.0 and later, and preview versions 2.17.0.0 and later). The following cluster types are supported:[Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/), [YugabyteDB Anywhere](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/), [YugabyteDB Managed](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
+
 * [Highlights](#highlights)
-* [Machine Requirements](#machine-requirements)
-* [Installation](#installation)
+* [Prerequisites and Install](#prerequisites-and-install)
 * [Migration Steps](#migration-steps)
 * [Current Product State and Roadmap](#current-product-state-and-roadmap)
 * [Need Help?](#need-help)
@@ -36,55 +37,10 @@ YugabyteDB Voyager manages the entire lifecycle of a database migration, includi
 - Safe defaults
 - Direct data import from CSV and text files
 
+# Prerequisites and Install
+For prerequisits like supported operating system, machine requirements,  please refer to the [Prerequisites section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#prerequisites)
 
-## Compatibility Matrix
-|Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|Packages|Synonyms|Tablespaces|
-|-|-|-|-|-|-|-|-|-|-|-|-|-|-|
-|MySQL/MariaDB|Y|Y|Y|Y|Y|Y|Y|N/A|Y|N/A|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
-|PostgreSQL|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N/A|N/A|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
-|Oracle|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|Y|N(https://github.com/yugabyte/yb-db-migration/issues/170)|
-
-# Machine Requirements
-yb-voyager currently supports the following OS versions:
-- CentOS7
-- CentOS8
-- RHEL 7
-- RHEL 8
-- AlmaLinux
-- Ubuntu 18.04 and 20.04
-- MacOS (Only if source is PostgreSQL)
-
-Disk space: It is recommended to have disk space 1.2 to 1.3 times the estimated size of the source DB.
-
-Number of cores: Minimum 2 recommended.
-
-## Supported Source Databases
-*Note that the following versions have been tested with yb-voyager:*
-- PostgreSQL 9.x - 11.x (On-prem, Amazon Aurora, Amazon RDS, CloudSQL, Azure)
-- MySQL 8.x (On-prem, MariaDB, Amazon Aurora, Amazon RDS, CloudSQL)
-- Oracle 11g - 19c (On-prem, Amazon RDS)
-
-## Supported Target Database Versions
-You can migrate data to any one of the three YugabyteDB products (Stable versions 2.14.5.0 and later, and preview versions 2.17.0.0 and later). The following cluster types are supported:
-- [Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/).
-- [YugabyteDB Anywhere universes](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/)
-- [YugabyteDB Managed universes](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
-
-# Installation
-Refer the [Machine Requirements](#machine-requirements) section for supported OS versions. 
-
-Run the `installer_scripts/install-yb-voyager` script on a machine to prepare it
-for running migrations using yb-voyager.
-
-To correctly set environment variables required for the migration process run:
-
-```
-source $HOME/.yb-voyager.rc
-``` 
-
-Optionally, the installation script sources the `.yb-voyager.rc` file from the `~/.bashrc`. In which case, restarting the bash session will be enough to set the environment variables.
-
-For additional information, refer to the [YugabyteDB Voyager Installation Docs](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/).
+Once the prerequisites are satisifed, you can install yb-voyager on a machine with operating systems like RHEL, Ubuntu, macOS, or even in Airgapped, or Docker enviornment or build using source. For detailed instructions, refer [Install section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#install-yb-voyager)
 
 # Migration Steps
 
