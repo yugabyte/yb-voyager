@@ -9,37 +9,30 @@ YugabyteDB Voyager is a powerful open-source data migration engine that accelera
 
 YugabyteDB Voyager manages the entire lifecycle of a database migration, including cluster preparation for data import, schema-migration, and data-migration, using the yb-voyager command line utility.
 
+<img src="docs/voyager_architecture.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
-- [Introduction](#introduction)
-- [Salient Features](#salient-features)
+- [Highlights](#highlights)
 - [Machine Requirements](#machine-requirements)
 - [Installation](#installation)
 - [Migration Steps](#migration-steps)
 - [License](#license)
 
-- [Features and Enhancements To Follow Soon](#features-and-enhancements-in-the-pipeline)
+# Highlights
+- Free and completely open source
+- Identical steps and unfied experience for all sources and destinations
+- Optimized for distributed databases 
+  - Chunks the source files
+  - Scales and auto tunes based on cluster size
+  - Number of connections based on target configuration
+  - Parallelism across tables and within tables
+- Idempotent
+- Data import is resumable in case of disruption
+- Visual progress for data export and import
+- Scales with nodes and cpu
+- Packaged for easy installation, one-click installer
+- Safe defaults
+- Direct data import from CSV and text files
 
-# Introduction
-
-Yugabyte provides an open-source migration engine powered by a command line utility called *yb-voyager*. *yb-voyager* is a simple utility to migrate schema objects and data from different source database types (currently MySQL, Oracle and PostgreSQL) onto YugabyteDB. Support for more database types will be added in near future.
-
-There are two modes of migration (offline and online):
-- Offline migration - This is the default mode of migration. In this mode there are two main steps of migration. First, export all the database objects and data in files. Second, run an import phase to transfer those schema objects and data in the destination YugabyteDB cluster. Please note, if the source database continues to receive data after the migration process has started then those cannot be transferred to the destination database.  
-- Online migration  - This mode addresses the shortcoming of the 'offline' mode of migration. In this mode, after the initial snapshot migration is done, the migration engine shifts into a CDC mode where it continuously transfers the delta changes from the source to the destination YugabyteDB database.
-
-NOTE: *yb-voyager* currently only supports **offline** migration. Online is under active development.
-The rest of the document is relevant for only offline migrations. 
-
-# Salient Features
-- Free and completely open source.
-- Supports widely used databases for migration and doesn't require changes to the source databases in most cases.
-- Supports all YugabyteDB products (YugabyteDB stable versions 2.14.5.0 and later, preview versions 2.17.0.0 and later) as the target database.
-- Provides a unified CLI experience for all different source databases.
-- Auto-tuneable based on workloads, by analyzing the target cluster capacity; runs parallel jobs by default.
-- Monitor the import status, and expected time for data export and import to complete using progress bars.
-- In case of failures, data import can be resumed.
-- Parallelism of data across tables.
-- Supports direct data import from CSV and text files.
 
 ## Compatibility Matrix
 |Source Database|Tables|Indexes|Constraints|Views|Procedures|Functions|Partition Tables|Sequences|Triggers|Types|Packages|Synonyms|Tablespaces|
