@@ -11,7 +11,7 @@ YugabyteDB Voyager manages the entire lifecycle of a database migration, includi
 
 <img src="docs/voyager_architecture.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
-You can migrate data to any one of the three YugabyteDB products (Stable versions 2.14.5.0 and later, and preview versions 2.17.0.0 and later). The following cluster types are supported:[Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/), [YugabyteDB Anywhere](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/), [YugabyteDB Managed](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
+You can migrate data to any one of the three YugabyteDB products (Stable versions 2.14.5.0 and later, and preview versions 2.17.0.0 and later). The following cluster types are supported: [Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/), [YugabyteDB Anywhere](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/), [YugabyteDB Managed](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
 
 * [Highlights](#highlights)
 * [Prerequisites and Install](#prerequisites-and-install)
