@@ -87,43 +87,8 @@ For additional information, refer to the [YugabyteDB Voyager Installation Docs](
 
 The workflow to carry out a migration using *yb-voyager* is as follows:
 
-```
+<img src="docs/voyager_phases.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
- ┌─────────┬─────────────────────────────────────────┐
- │ Prepare │                                         │
- ├─────────┘                                         │
- │  ┌──────────┐      ┌──────────┐     ┌─────────┐   │
- │  │ Install  │      │ Prepare  │     │ Prepare │   │
- │  │yb-voyager├──────►Source DB ├─────►Target DB│   │
- │  └──────────┘      └──────────┘     └─────────┘   │
- │                                                   │
- └─────────────────────────┬─────────────────────────┘
-                           │
-                           │
- ┌─────────┬───────────────▼─────────────────────────┐
- │ Export  │                                         │
- ├─────────┘           ┌───────┐                     │
- │   ┌───────┐         │Analyze│         ┌──────┐    │
- │   │Export ├─────────►Schema ├─────────►Export│    │
- │   │Schema │         └─┬───▲─┘         │ Data │    │
- │   └───────┘         ┌─▼───┴─┐         └──────┘    │
- │                     │Modify │                     │
- │                     │Schema │                     │
- │                     └───────┘                     │
- └─────────────────────────┬─────────────────────────┘
-                           │
-                           │
- ┌─────────┬───────────────▼─────────────────────────┐
- │  Import │                                         │
- ├─────────┘                                         │
- │                        ┌─────────┐                │
- │  ┌──────┐  ┌──────┐    │Import   │    ┌──────┐    │
- │  │Import├──►Import├────►Triggers/├────►Verify│    │
- │  │Schema│  │ Data │    │Indexes  │    └──────┘    │
- │  └──────┘  └──────┘    └─────────┘                │
- │                                                   │
- └───────────────────────────────────────────────────┘
-```
 More details regarding the entire migration workflow, starting from setting up your source and target databases, up until verifying the migration can be found in the [Migration Steps](https://docs.yugabyte.com/preview/migrate/migrate-steps/) on the YugabyteDB Voyager Docs.
 
 # License
