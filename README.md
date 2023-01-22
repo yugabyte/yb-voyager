@@ -11,11 +11,14 @@ YugabyteDB Voyager manages the entire lifecycle of a database migration, includi
 
 <img src="docs/voyager_architecture.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
-- [Highlights](#highlights)
-- [Machine Requirements](#machine-requirements)
-- [Installation](#installation)
-- [Migration Steps](#migration-steps)
-- [License](#license)
+* [Highlights](#highlights)
+* [Machine Requirements](#machine-requirements)
+* [Installation](#installation)
+* [Migration Steps](#migration-steps)
+* [Current Product State and Roadmap](#current-product-state-and-roadmap)
+* [Need Help?](#need-help)
+* [Contribute](#contribute)
+* [License](#license)
 
 # Highlights
 - Free and completely open source
@@ -91,6 +94,19 @@ The workflow to carry out a migration using *yb-voyager* is as follows:
 
 More details regarding the entire migration workflow, starting from setting up your source and target databases, up until verifying the migration can be found in the [Migration Steps](https://docs.yugabyte.com/preview/migrate/migrate-steps/) on the YugabyteDB Voyager Docs.
 
+# Current Product State and Roadmap
+
+<img src="docs/voyager_current_state_and_roadmap.png" align="center" alt="YugabyteDB Voyager Architecture"/>
+
+# Need Help?
+
+* You can ask questions, find answers, and help others on our Community [Slack](https://communityinviter.com/apps/yugabyte-db/register), [Forum](https://forum.yugabyte.com), [Stack Overflow](https://stackoverflow.com/questions/tagged/yugabyte-db), as well as Twitter [@Yugabyte](https://twitter.com/yugabyte)
+
+* Please use [GitHub issues](https://github.com/yugabyte/yb-voyager/issues) to report issues or request new features.
+
+# Contribute
+
+As an an open-source project with a strong focus on the user community, we welcome contributions as GitHub pull requests. See our [Contributor Guides](https://docs.yugabyte.com/preview/contribute/) to get going. Discussions and RFCs for features happen on the design discussions section of our [Forum](https://forum.yugabyte.com).
 # License
 
 Source code in this repository is variously licensed under the Apache License 2.0 and the Polyform Free Trial License 1.0.0. A copy of each license can be found in the [licenses](licenses) directory.
@@ -101,10 +117,4 @@ The build produces two sets of binaries:
 * The  binaries that contain `-managed` in the artifact and help run a managed service are licensed under the Polyform Free Trial License 1.0.0.
 
 > By default, the build options generate only the Apache License 2.0 binaries.
-# Features and enhancements in the pipeline
 
-Some of the important features and enhancements to follow soon are:
-
-- [Support for ONLINE migration from Oracle/PostgreSQL/MySQL](https://github.com/yugabyte/yb-db-migration/issues/50)
-
-You can look at all the open issues [here](https://github.com/yugabyte/yb-db-migration/issues).
