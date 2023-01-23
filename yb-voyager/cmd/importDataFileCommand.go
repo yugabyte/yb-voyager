@@ -201,9 +201,6 @@ func checkFileFormat() {
 	if !supported {
 		utils.ErrExit("--format %q is not supported", fileFormat)
 	}
-	if fileFormat == datafile.CSV {
-		fmt.Printf("Note: there are various csv file formats, currently we only support the format described in RFC 4180\n")
-	}
 }
 
 func checkDataDirFlag() {
@@ -257,10 +254,7 @@ func checkFileOpts() {
 		if strings.Trim(fileOpts, " ") == "" { // if fileOpts is empty, then return
 			return
 		}
-		// check if fileOpts is valid for csv format only if CSV_NO_NEWLINE is set
-		if val, present := os.LookupEnv("CSV_NO_NEWLINE"); !present || (val != "yes" && val != "true" && val != "1" && val != "y") {
-			utils.ErrExit("--file-opts flag is valid for csv format")
-		}
+
 		keyValuePairs := strings.Split(fileOpts, ",")
 		for _, keyValuePair := range keyValuePairs {
 			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
@@ -271,6 +265,16 @@ func checkFileOpts() {
 				utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
 			}
 			fileOptsMap[key] = value
+		}
+
+		if fileOptsMap["escape_char"] != "\"" || fileOptsMap["quote_char"] != "\"" {
+			// any random value for fileOpts is valid for csv format only if CSV_NO_NEWLINE is set
+			if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
+				break
+			} else {
+				utils.ErrExit("Note: Currently only double-quotes '\"' as escape_char && quote_char in --file-opts flag is supported for csv format.\n" +
+					"The progress for support has been tracked here - https://github.com/yugabyte/yb-voyager/issues/748\n")
+			}
 		}
 
 	case datafile.TEXT:
@@ -328,5 +332,4 @@ func init() {
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
-	importDataFileCmd.Flags().MarkHidden("file-opts")
 }
