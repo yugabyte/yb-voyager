@@ -648,10 +648,13 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			numLinesInThisSplit += 1
 		}
 
+		var length int
 		if linesWrittenToBuffer {
-			line = fmt.Sprintf("\n%s", line)
+			bufferedWriter.WriteString("\n")
+			length = len("\n")
 		}
-		length, err := bufferedWriter.WriteString(line)
+		bytesWritten, err := bufferedWriter.WriteString(line)
+		length += bytesWritten
 		linesWrittenToBuffer = true
 		if err != nil {
 			utils.ErrExit("Write line to %q: %s", outfile.Name(), err)
