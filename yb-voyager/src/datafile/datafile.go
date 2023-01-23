@@ -2,6 +2,7 @@ package datafile
 
 import (
 	"fmt"
+	"os"
 	"regexp"
 )
 
@@ -9,7 +10,6 @@ const (
 	CSV  = "csv"
 	SQL  = "sql"
 	TEXT = "text"
-	CSV_NO_NEWLINE = "csv_no_newline"
 )
 
 type DataFile interface {
@@ -27,8 +27,12 @@ var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
-		return openCsvDataFile(filePath, descriptor)
-	case TEXT, CSV_NO_NEWLINE:
+		if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
+			return openTextDataFile(filePath, descriptor)
+		} else {
+			return openCsvDataFile(filePath, descriptor)
+		}
+	case TEXT:
 		return openTextDataFile(filePath, descriptor)
 	case SQL:
 		return openSqlDataFile(filePath, descriptor)

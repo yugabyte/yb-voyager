@@ -1,6 +1,8 @@
 package datafile
 
 import (
+	"fmt"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
 
 	"os"
@@ -45,7 +47,7 @@ func (df *CsvDataFile) NextLine() (string, error) {
 		buf := make([]byte, endOffset-startOffset) // buffer size of the record/row in csv file
 		_, err = df.file.ReadAt(buf, startOffset)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("read file %q [%v:%v]: %w", df.file.Name(), startOffset, endOffset, err)
 		}
 		line = string(buf)
 
@@ -101,7 +103,6 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 	reader := csv.NewReader(file)
 	reader.Comma = []rune(descriptor.Delimiter)[0]
 	reader.FieldsPerRecord = -1 // fields not fixed for all rows, last line can be '\.'
-	reader.LazyQuotes = true    // allow quotes in fields
 
 	csvDataFile := &CsvDataFile{
 		file:      file,

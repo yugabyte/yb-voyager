@@ -22,7 +22,7 @@ var (
 	fileTableMapping     string
 	hasHeader            bool
 	tableNameVsFilePath  = make(map[string]string)
-	supportedFileFormats = []string{datafile.CSV, datafile.TEXT, datafile.CSV_NO_NEWLINE}
+	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
 	fileOpts             string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
@@ -105,7 +105,7 @@ func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
-		if fileFormat == datafile.CSV || fileFormat == datafile.CSV_NO_NEWLINE {
+		if fileFormat == datafile.CSV {
 			if hasHeader {
 				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
 				if err != nil {
@@ -200,13 +200,9 @@ func checkFileFormat() {
 
 	if !supported {
 		utils.ErrExit("--format %q is not supported", fileFormat)
-	} else {
-	switch fileFormat {
-		case datafile.CSV:
-			fmt.Printf("Note: there are various csv file formats, currently we only support described in RFC 4180\n")
-		case datafile.CSV_NO_NEWLINE:
-			fileFormat = datafile.CSV // replacing it with csv to prepare correct COPY commands
 	}
+	if fileFormat == datafile.CSV {
+		fmt.Printf("Note: there are various csv file formats, currently we only support the format described in RFC 4180\n")
 	}
 }
 
@@ -252,14 +248,18 @@ func checkHasHeader() {
 
 func checkFileOpts() {
 	switch fileFormat {
-	case datafile.CSV ,datafile.CSV_NO_NEWLINE:
+	case datafile.CSV:
 		// setting default values for escape and quote, will be updated if provided in fileOpts flag
 		fileOptsMap = map[string]string{
 			"escape_char": "\"",
 			"quote_char":  "\"",
 		}
-		if strings.Trim(fileOpts, " ") == "" {
+		if strings.Trim(fileOpts, " ") == "" { // if fileOpts is empty, then return
 			return
+		}
+		// check if fileOpts is valid for csv format only if CSV_NO_NEWLINE is set
+		if val, present := os.LookupEnv("CSV_NO_NEWLINE"); !present || (val != "yes" && val != "true" && val != "1" && val != "y") {
+			utils.ErrExit("--file-opts flag is valid for csv format")
 		}
 		keyValuePairs := strings.Split(fileOpts, ",")
 		for _, keyValuePair := range keyValuePairs {
@@ -303,7 +303,7 @@ func init() {
 	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
-		"supported data file types: text and csv")
+		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
 		"character used as delimiter in rows of the table(s)")
