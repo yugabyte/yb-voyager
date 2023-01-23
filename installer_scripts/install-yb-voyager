@@ -10,8 +10,8 @@ ARGS_LINUX=$@
 
 VERSION="latest"
 
-# the hash corresponds to the yb-voyager/v0.83.0 tag
-YB_VOYAGER_GIT_HASH="7dfb3e5d21bbd6f892553e74c424d274cd4ab540"
+# the hash corresponds to the yb-voyager/v1.0.0 tag
+YB_VOYAGER_GIT_HASH="8e8206d99a6fc398cb56ef83fa34e61fb153e3ff"
 
 ONLY_PG="false"
 
