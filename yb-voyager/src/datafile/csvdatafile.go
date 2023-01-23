@@ -1,7 +1,10 @@
 package datafile
 
 import (
-	"bufio"
+	"fmt"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
+
 	"os"
 	"strings"
 
@@ -11,7 +14,7 @@ import (
 
 type CsvDataFile struct {
 	file      *os.File
-	reader    *bufio.Reader
+	reader    *csv.Reader
 	bytesRead int64
 	Delimiter string
 	Header    string
@@ -30,29 +33,29 @@ func (df *CsvDataFile) SkipLines(numLines int64) error {
 }
 
 func (df *CsvDataFile) NextLine() (string, error) {
-	/*
-		// TODO: resolve the issue in counting bytes with csvreader
-		// here csv reader can be more useful in case filter table's columns
-		// currently using normal file reader will also work
-		fields, err := df.reader.Read()
-		if err != nil {
-			return "", err
-		}
-
-		line := strings.Join(fields, df.Delimiter)
-		df.bytesRead += int64(len(line + "\n")) // using the line in actual form to calculate bytes
-	*/
-
 	var line string
 	var err error
 	for {
-		line, err = df.reader.ReadString('\n')
+		startOffset := df.reader.InputOffset()
+		// read a record from csv file
+		_, err := df.reader.Read()
+		if err != nil {
+			return "", err
+		}
+		endOffset := df.reader.InputOffset()
+
+		buf := make([]byte, endOffset-startOffset) // buffer size of the record/row in csv file
+		_, err = df.file.ReadAt(buf, startOffset)
+		if err != nil {
+			return "", fmt.Errorf("read file %q [%v:%v]: %w", df.file.Name(), startOffset, endOffset, err)
+		}
+		line = string(buf)
+
 		df.bytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
 		}
 	}
-
 	line = strings.Trim(line, "\n") // to get the raw row
 	return line, err
 }
@@ -97,12 +100,10 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 		return nil, err
 	}
 
-	// TODO: resolve the issue in counting bytes with csvreader
-	// reader := csv.NewReader(file)
-	// reader.Comma = []rune(descriptor.Delimiter)[0]
-	// reader.FieldsPerRecord = -1 // last line can be '\.'
-	// reader.LazyQuotes = true    // to ignore quotes in fileds
-	reader := bufio.NewReader(file)
+	reader := csv.NewReader(file)
+	reader.Comma = []rune(descriptor.Delimiter)[0]
+	reader.FieldsPerRecord = -1 // fields not fixed for all rows, last line can be '\.'
+
 	csvDataFile := &CsvDataFile{
 		file:      file,
 		reader:    reader,

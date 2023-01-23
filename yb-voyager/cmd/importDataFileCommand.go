@@ -205,7 +205,7 @@ func checkFileFormat() {
 
 func checkDataDirFlag() {
 	if dataDir == "" {
-		utils.ErrExit(`ERROR: required flag "data-dir" not set`)
+		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(dataDir) {
 		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
@@ -251,9 +251,10 @@ func checkFileOpts() {
 			"escape_char": "\"",
 			"quote_char":  "\"",
 		}
-		if strings.Trim(fileOpts, " ") == "" {
+		if strings.Trim(fileOpts, " ") == "" { // if fileOpts is empty, then return
 			return
 		}
+
 		keyValuePairs := strings.Split(fileOpts, ",")
 		for _, keyValuePair := range keyValuePairs {
 			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
@@ -266,13 +267,22 @@ func checkFileOpts() {
 			fileOptsMap[key] = value
 		}
 
+		if fileOptsMap["escape_char"] != "\"" || fileOptsMap["quote_char"] != "\"" {
+			// any random value for fileOpts is valid for csv format only if CSV_NO_NEWLINE is set
+			if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
+				break
+			} else {
+				utils.ErrExit("Only double-quote is supported as escape_char and quote_char. Refer https://github.com/yugabyte/yb-voyager/issues/748")
+			}
+		}
+
 	case datafile.TEXT:
 		if fileOpts != "" {
 			utils.ErrExit("ERROR: --file-opts flag is invalid for %q format", fileFormat)
 		}
 	default:
 		if fileOpts != "" {
-			panic(fmt.Sprintf("ERROR: --file-opts not implemented for %q format\n", fileFormat))
+			panic(fmt.Sprintf("ERROR: --file-opts flag not implemented for %q format\n", fileFormat))
 		}
 	}
 
@@ -296,7 +306,7 @@ func init() {
 	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
-		fmt.Sprintf("supported data file types: %s", supportedFileFormats))
+		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
 		"character used as delimiter in rows of the table(s)")
