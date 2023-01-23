@@ -272,8 +272,7 @@ func checkFileOpts() {
 			if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
 				break
 			} else {
-				utils.ErrExit("Note: Currently only double-quotes '\"' as escape_char && quote_char in --file-opts flag is supported for csv format.\n" +
-					"The progress for support has been tracked here - https://github.com/yugabyte/yb-voyager/issues/748\n")
+				utils.ErrExit("Only double-quote is supported as escape_char and quote_char. Refer https://github.com/yugabyte/yb-voyager/issues/748")
 			}
 		}
 

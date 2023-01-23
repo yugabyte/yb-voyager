@@ -21,6 +21,7 @@ EXPECTED = {
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
+T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"Hello World\""), (3,None,None,"\"Hello World\"")])
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 
@@ -46,8 +47,8 @@ def file_import_done_checks(tgt):
 	assert t1_delimiter_escape_same_data == T1_TABLE_DATA
 	
 	t1_quote_escape_dq = tgt.fetch_all_table_rows("t1_quote_escape_dq")
-	print(f"t1_quote_escape_dq: {t1_quote_escape_dq}\nExpected data: {T1_TABLE_DATA}\n")
-	assert t1_quote_escape_dq == T1_TABLE_DATA
+	print(f"t1_quote_escape_dq: {t1_quote_escape_dq}\nExpected data: {T1_QUOTE_ESCAPE_DQ_DATA}\n")
+	assert t1_quote_escape_dq == T1_QUOTE_ESCAPE_DQ_DATA
  
 	t1_newline_data = tgt.fetch_all_table_rows("t1_newline")
 	print(f"t1_newline_data: {t1_newline_data}\nExpected data: {T1_NEWLINE_DATA}\n")
