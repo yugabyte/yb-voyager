@@ -1,6 +1,7 @@
 package srcdb
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -157,8 +159,51 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 //go:embed data/sample-ora2pg.conf
 var Ora2pgConfigFile string
 
-func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
-	sourceDSN := source.getSourceDSN()
+type Ora2pgConfig struct {
+	OracleDSN        string
+	OracleUser       string
+	OracleHome       string
+	OraclePWD        string
+	Schema           string
+	ParallelTables   string
+	UseOrafce        string
+	DisablePartition string
+	DisableComment   string
+	Allow            string
+}
+
+func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
+	conf := &Ora2pgConfig{}
+	conf.OracleDSN = source.getSourceDSN()
+	conf.OracleUser = source.User
+	conf.ParallelTables = strconv.Itoa(source.NumConnections)
+	conf.OraclePWD = source.Password
+	conf.DisablePartition = "0"
+
+	if source.OracleHome != "" {
+		conf.OracleHome = source.OracleHome
+	} else {
+		conf.OracleHome = "/usr/lib/oracle/21/client64"
+	}
+	if source.Schema != "" {
+		conf.Schema = source.Schema
+	} else {
+		conf.Schema = source.User
+	}
+	if source.UseOrafce {
+		conf.UseOrafce = "1"
+	} else {
+		conf.UseOrafce = "0"
+	}
+	if source.CommentsOnObjects {
+		conf.DisableComment = "0"
+	} else {
+		conf.DisableComment = "1"
+	}
+	return conf
+}
+
+func (source *Source) PopulateOra2pgConfigFile(configFilePath string, conf *Ora2pgConfig) {
 	baseConfigFilePath := filepath.Join("/", "etc", "yb-voyager", "base-ora2pg.conf")
 	if utils.FileOrFolderExists(baseConfigFilePath) {
 		BaseOra2pgConfigFile, err := ioutil.ReadFile(baseConfigFilePath)
@@ -168,50 +213,18 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string) {
 		Ora2pgConfigFile = string(BaseOra2pgConfigFile)
 	}
 
-	lines := strings.Split(Ora2pgConfigFile, "\n")
-
-	for i, line := range lines {
-		if strings.HasPrefix(line, "ORACLE_DSN") {
-			lines[i] = "ORACLE_DSN	" + sourceDSN
-		} else if strings.HasPrefix(line, "ORACLE_USER") {
-			lines[i] = "ORACLE_USER	" + source.User
-		} else if strings.HasPrefix(line, "ORACLE_HOME") && source.OracleHome != "" {
-			lines[i] = "ORACLE_HOME	" + source.OracleHome
-		} else if strings.HasPrefix(line, "ORACLE_PWD") {
-			lines[i] = "ORACLE_PWD	" + source.Password
-		} else if source.DBType == "oracle" && strings.HasPrefix(line, "SCHEMA") {
-			if source.Schema != "" { // in oracle USER and SCHEMA are essentially the same thing
-				lines[i] = "SCHEMA	" + source.Schema
-			} else if source.User != "" {
-				lines[i] = "SCHEMA	" + source.User
-			}
-		} else if strings.HasPrefix(line, "PARALLEL_TABLES") {
-			lines[i] = "PARALLEL_TABLES " + strconv.Itoa(source.NumConnections)
-		} else if strings.HasPrefix(line, "PG_VERSION") {
-			lines[i] = "PG_VERSION " + strconv.Itoa(11)
-		} else if strings.HasPrefix(line, "INDEXES_RENAMING") && source.DBType == "mysql" {
-			lines[i] = "INDEXES_RENAMING 1"
-		} else if strings.HasPrefix(line, "PREFIX_PARTITION") {
-			lines[i] = "PREFIX_PARTITION 1"
-		} else if strings.HasPrefix(line, "USE_ORAFCE") {
-			if source.UseOrafce && strings.EqualFold(source.DBType, "oracle") {
-				lines[i] = "USE_ORAFCE 1"
-			}
-		} else if strings.HasPrefix(line, "#DATA_TYPE") || strings.HasPrefix(line, "DATA_TYPE") {
-			lines[i] = "DATA_TYPE      VARCHAR2:varchar,NVARCHAR2:varchar,DATE:timestamp,LONG:text,LONG RAW:bytea,CLOB:text,NCLOB:text,BLOB:bytea,BFILE:bytea,RAW(16):uuid,RAW(32):uuid,RAW:bytea,UROWID:oid,ROWID:oid,FLOAT:double precision,DEC:decimal,DECIMAL:decimal,DOUBLE PRECISION:double precision,INT:integer,INTEGER:integer,REAL:real,SMALLINT:smallint,BINARY_FLOAT:double precision,BINARY_DOUBLE:double precision,TIMESTAMP:timestamp,XMLTYPE:xml,BINARY_INTEGER:integer,PLS_INTEGER:integer,TIMESTAMP WITH TIME ZONE:timestamp with time zone,TIMESTAMP WITH LOCAL TIME ZONE:timestamp with time zone"
-		} else if strings.HasPrefix(line, "DISABLE_COMMENT") && !source.CommentsOnObjects {
-			lines[i] = "DISABLE_COMMENT 1"
-		} else if strings.HasPrefix(line, "PG_INTEGER_TYPE") {
-			lines[i] = "PG_INTEGER_TYPE 1" // Required otherwise MySQL autoincrement sequences don't export
-		} else if strings.HasPrefix(line, "DEFAULT_NUMERIC") {
-			lines[i] = "DEFAULT_NUMERIC numeric"
-		} else if strings.HasPrefix(line, "DISABLE_PARTITION") {
-			lines[i] = "DISABLE_PARTITION 0"
-		}
+	tmpl, err := template.New("ora2pg").Parse(Ora2pgConfigFile)
+	if err != nil {
+		utils.ErrExit("Error while parsing ora2pg configuration file: %v", err)
 	}
 
-	output := strings.Join(lines, "\n")
-	err := ioutil.WriteFile(configFilePath, []byte(output), 0644)
+	var output bytes.Buffer
+	err = tmpl.Execute(&output, conf)
+	if err != nil {
+		utils.ErrExit("Error while preparing ora2pg configuration file: %v", err)
+	}
+
+	err = ioutil.WriteFile(configFilePath, output.Bytes(), 0644)
 	if err != nil {
 		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
 	}
