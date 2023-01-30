@@ -60,10 +60,11 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 }
 
 func minQuote(objectName, sourceDBType string) string {
+	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
 	case YUGABYTE, POSTGRESQL:
 		if isAllLowercase(objectName) {
-			return unquote(objectName, sourceDBType)
+			return objectName
 		} else {
 			return `"` + objectName + `"`
 		}
@@ -71,7 +72,7 @@ func minQuote(objectName, sourceDBType string) string {
 		return objectName
 	case ORACLE:
 		if isAllUppercase(objectName) {
-			return unquote(objectName, sourceDBType)
+			return objectName
 		} else {
 			return `"` + objectName + `"`
 		}

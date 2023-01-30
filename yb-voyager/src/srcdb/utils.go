@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path"
 	"strings"
-	"unicode"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -20,15 +19,6 @@ func checkTools(tools ...string) {
 		}
 		log.Infof("Found %q", execPath)
 	}
-}
-
-func nameContainsCapitalLetter(name string) bool {
-	for _, c := range name {
-		if unicode.IsUpper(c) {
-			return true
-		}
-	}
-	return false
 }
 
 func findAllExecutablesInPath(executableName string) ([]string, error) {
