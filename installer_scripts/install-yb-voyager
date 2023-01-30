@@ -397,7 +397,6 @@ create_base_ora2pg_conf_file() {
 		pushd `git rev-parse --show-toplevel` > /dev/null
         sudo cp ./yb-voyager/src/srcdb/data/sample-ora2pg.conf $conf_file_name
         popd > /dev/null
-		
 	fi 
 }
 
