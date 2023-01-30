@@ -59,46 +59,6 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 	}
 }
 
-func minQuote(objectName, sourceDBType string) string {
-	objectName = unquote(objectName, sourceDBType)
-	switch sourceDBType {
-	case YUGABYTE, POSTGRESQL:
-		if isAllLowercase(objectName) {
-			return objectName
-		} else {
-			return `"` + objectName + `"`
-		}
-	case MYSQL:
-		return objectName
-	case ORACLE:
-		if isAllUppercase(objectName) {
-			return objectName
-		} else {
-			return `"` + objectName + `"`
-		}
-	default:
-		panic("invalid source db type")
-	}
-}
-
-func isAllUppercase(s string) bool {
-	for _, c := range s {
-		if c >= 'a' && c <= 'z' {
-			return false
-		}
-	}
-	return true
-}
-
-func isAllLowercase(s string) bool {
-	for _, c := range s {
-		if c >= 'A' && c <= 'Z' {
-			return false
-		}
-	}
-	return true
-}
-
 func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 	parts := strings.Split(qualifiedName, ".")
 	if len(parts) != 2 {
@@ -227,4 +187,44 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 		}
 	}
 	return res
+}
+
+func minQuote(objectName, sourceDBType string) string {
+	objectName = unquote(objectName, sourceDBType)
+	switch sourceDBType {
+	case YUGABYTE, POSTGRESQL:
+		if isAllLowercase(objectName) {
+			return objectName
+		} else {
+			return `"` + objectName + `"`
+		}
+	case MYSQL:
+		return objectName
+	case ORACLE:
+		if isAllUppercase(objectName) {
+			return objectName
+		} else {
+			return `"` + objectName + `"`
+		}
+	default:
+		panic("invalid source db type")
+	}
+}
+
+func isAllUppercase(s string) bool {
+	for _, c := range s {
+		if c >= 'a' && c <= 'z' {
+			return false
+		}
+	}
+	return true
+}
+
+func isAllLowercase(s string) bool {
+	for _, c := range s {
+		if c >= 'A' && c <= 'Z' {
+			return false
+		}
+	}
+	return true
 }
