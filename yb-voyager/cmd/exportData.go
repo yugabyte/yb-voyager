@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
@@ -71,7 +72,7 @@ func init() {
 
 func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
-
+	sqlname.SourceDBType = source.DBType
 	success := exportDataOffline()
 
 	if success {
@@ -97,14 +98,14 @@ func exportDataOffline() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	// defer cancel()
 
-	var tableList []string
-	var finalTableList []string
+	var tableList []*sqlname.SourceName
+	var finalTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
 		finalTableList = extractTableListFromString(source.TableList)
 	} else {
 		tableList = source.DB().GetAllTableNames()
-		finalTableList = utils.SetDifference(tableList, excludeTableList)
+		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
@@ -137,7 +138,10 @@ func exportDataOffline() bool {
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
-		finalTableList = append(finalTableList, sequenceList...)
+		for _, seq := range sequenceList {
+			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
+			finalTableList = append(finalTableList, name)
+		}
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
@@ -194,50 +198,30 @@ func checkDataDirs() {
 	}
 }
 
-func extractTableListFromString(flagTableList string) []string {
-	var finalTableList []string
+func getDefaultSourceSchemaName() string {
+	switch source.DBType {
+	case MYSQL:
+		return source.DBName
+	case POSTGRESQL:
+		return "public"
+	case ORACLE:
+		return source.Schema
+	default:
+		panic("invalid db type")
+	}
+}
+
+func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
+	result := []*sqlname.SourceName{}
 	if flagTableList == "" {
-		return []string{}
+		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	if source.DBType == MYSQL {
-		return tableList
-	}
-	// in postgres format should be schema.table, public is default and other parts of code assume schema.table format
+	defaultSourceSchemaName := getDefaultSourceSchemaName()
 	for _, table := range tableList {
-		parts := strings.Split(table, ".")
-		if len(parts) > 2 {
-			utils.ErrExit("invalid table name: %q in the --table-list flag.", table)
-		}
-		var tableName string
-		if len(parts) == 1 {
-			tableName = parts[0]
-		} else {
-			tableName = parts[1]
-		}
-		if utils.IsQuotedString(tableName) {
-			if source.DBType == ORACLE {
-				tableName = strings.Trim(tableName, `"`)
-			}
-		} else {
-			switch source.DBType {
-			case ORACLE:
-				tableName = strings.ToUpper(tableName)
-			case POSTGRESQL:
-				tableName = strings.ToLower(tableName)
-			case MYSQL:
-				// No conversion needed for MySQL.
-			}
-		}
-
-		if len(parts) == 2 {
-			tableName = fmt.Sprintf("%s.%s", parts[0], tableName)
-		} else if source.DBType == POSTGRESQL {
-			tableName = fmt.Sprintf("public.%s", tableName)
-		}
-		finalTableList = append(finalTableList, tableName)
+		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSourceSchemaName))
 	}
-	return finalTableList
+	return result
 }
 
 func createExportDataDoneFlag() {

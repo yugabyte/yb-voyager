@@ -30,43 +30,32 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pbreporter"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
 	"github.com/vbauerster/mpb/v7"
 )
 
-func initializeExportTableMetadata(tableList []string) {
+func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
 
 	for i := 0; i < numTables; i++ {
-		tablesProgressMetadata[tableList[i]] = &utils.TableProgressMetadata{} //initialzing with struct
+		tableName := tableList[i]
+		key := tableName.Qualified.MinQuoted
+		tablesProgressMetadata[key] = &utils.TableProgressMetadata{} //initialzing with struct
 
 		// Initializing all the members of struct
-		tablesProgressMetadata[tableList[i]].IsPartition = false
-		tablesProgressMetadata[tableList[i]].InProgressFilePath = ""
-		tablesProgressMetadata[tableList[i]].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
-		tablesProgressMetadata[tableList[i]].CountTotalRows = int64(0) //will be updated by other func
-		tablesProgressMetadata[tableList[i]].CountLiveRows = int64(0)
-		tablesProgressMetadata[tableList[i]].Status = 0
-		tablesProgressMetadata[tableList[i]].FileOffsetToContinue = int64(0)
-
-		tableInfo := strings.Split(tableList[i], ".")
-		if source.DBType == POSTGRESQL { //format for every table: schema.tablename
-			tablesProgressMetadata[tableList[i]].TableSchema = tableInfo[0]
-			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[1]
-			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
-		} else if source.DBType == ORACLE {
-			// schema.tablename format is required, as user can have access to similar table in different schema
-			tablesProgressMetadata[tableList[i]].TableSchema = source.Schema
-			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
-			tablesProgressMetadata[tableList[i]].FullTableName = fmt.Sprintf(`%s."%s"`, tablesProgressMetadata[tableList[i]].TableSchema, tablesProgressMetadata[tableList[i]].TableName)
-		} else if source.DBType == MYSQL {
-			// schema and database are same in MySQL
-			tablesProgressMetadata[tableList[i]].TableSchema = source.DBName
-			tablesProgressMetadata[tableList[i]].TableName = tableInfo[len(tableInfo)-1] //tableInfo[0]
-			tablesProgressMetadata[tableList[i]].FullTableName = tablesProgressMetadata[tableList[i]].TableSchema + "." + tablesProgressMetadata[tableList[i]].TableName
-		}
+		tablesProgressMetadata[key].IsPartition = false
+		tablesProgressMetadata[key].InProgressFilePath = ""
+		tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
+		tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
+		tablesProgressMetadata[key].CountLiveRows = int64(0)
+		tablesProgressMetadata[key].Status = 0
+		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
+		tablesProgressMetadata[key].TableSchema = tableName.SchemaName.Unquoted
+		tablesProgressMetadata[key].TableName = tableName.MinQuoted
+		tablesProgressMetadata[key].FullTableName = tableName.Qualified.MinQuoted
 	}
 }
 

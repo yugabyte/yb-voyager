@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type MySQL struct {
@@ -76,8 +77,8 @@ func (ms *MySQL) GetVersion() string {
 	return version
 }
 
-func (ms *MySQL) GetAllTableNames() []string {
-	var tableNames []string
+func (ms *MySQL) GetAllTableNames() []*sqlname.SourceName {
+	var tableNames []*sqlname.SourceName
 	query := fmt.Sprintf("SELECT table_name FROM information_schema.tables "+
 		"WHERE table_schema = '%s' && table_type = 'BASE TABLE'", ms.source.DBName)
 	log.Infof(`query used to GetAllTableNames(): "%s"`, query)
@@ -93,7 +94,7 @@ func (ms *MySQL) GetAllTableNames() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
 		}
-		tableNames = append(tableNames, tableName)
+		tableNames = append(tableNames, sqlname.NewSourceName(ms.source.DBName, tableName))
 	}
 	log.Infof("GetAllTableNames(): %s", tableNames)
 	return tableNames
@@ -161,7 +162,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -187,6 +188,6 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(tableList []string) []string {
+func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	return tableList
 }

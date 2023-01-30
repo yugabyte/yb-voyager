@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const PG_COMMAND_VERSION string = "14.0"
@@ -116,7 +117,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	return trimmedList
 }
 
-func (pg *PostgreSQL) GetAllTableNames() []string {
+func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`SELECT table_schema, table_name
@@ -130,7 +131,7 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 	}
 	defer rows.Close()
 
-	var tableNames []string
+	var tableNames []*sqlname.SourceName
 	var tableName, tableSchema string
 
 	for rows.Next() {
@@ -138,11 +139,8 @@ func (pg *PostgreSQL) GetAllTableNames() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
 		}
-		if nameContainsCapitalLetter(tableName) {
-			// Surround the table name with double quotes.
-			tableName = fmt.Sprintf("\"%s\"", tableName)
-		}
-		tableNames = append(tableNames, fmt.Sprintf("%s.%s", tableSchema, tableName))
+		tableName = fmt.Sprintf("\"%s\"", tableName)
+		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
 	}
 	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
 	return tableNames
@@ -175,7 +173,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -236,6 +234,6 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(tableList []string) []string {
+func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	return tableList
 }

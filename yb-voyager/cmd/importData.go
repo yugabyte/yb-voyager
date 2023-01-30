@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 
 	log "github.com/sirupsen/logrus"
@@ -105,6 +106,7 @@ var importDataCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		target.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		sqlname.SourceDBType = sourceDBType
 		importData()
 	},
 }
