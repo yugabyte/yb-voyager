@@ -396,7 +396,6 @@ create_base_ora2pg_conf_file() {
 	else
 		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 	fi 
-	
 }
 
 
