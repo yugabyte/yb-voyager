@@ -395,8 +395,8 @@ create_base_ora2pg_conf_file() {
 		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 	else
 		pushd `git rev-parse --show-toplevel` > /dev/null
-        sudo cp ./yb-voyager/src/srcdb/data/sample-ora2pg.conf $conf_file_name
-        popd > /dev/null
+		sudo cp ./yb-voyager/src/srcdb/data/sample-ora2pg.conf $conf_file_name
+		popd > /dev/null
 	fi 
 }
 
