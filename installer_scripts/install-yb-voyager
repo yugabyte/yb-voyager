@@ -389,7 +389,14 @@ create_base_ora2pg_conf_file() {
 		output "Overwriting ${conf_file_name}. Existing contents are backed up in ${backup_file_name}"
 	fi
 	output "Installing the latest base-ora2pg.conf"
-	sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
+
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/sample-ora2pg.conf
+	else
+		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/main/yb-voyager/src/srcdb/data/sample-ora2pg.conf
+	fi 
+	
 }
 
 
