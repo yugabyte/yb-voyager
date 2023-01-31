@@ -17,22 +17,22 @@ var (
 	PreserveCase bool
 )
 
-type sqlName struct {
+type Identifier struct {
 	Quoted    string
 	Unquoted  string
 	MinQuoted string
 }
 
 type SourceName struct {
-	sqlName    // ObjectName
-	SchemaName sqlName
-	Qualified  sqlName
+	Identifier // ObjectName
+	SchemaName Identifier
+	Qualified  Identifier
 }
 
 type TargetName struct {
-	sqlName    // ObjectName
-	SchemaName sqlName
-	Qualified  sqlName
+	Identifier // ObjectName
+	SchemaName Identifier
+	Qualified  Identifier
 }
 
 func NewSourceName(schemaName, objectName string) *SourceName {
@@ -40,18 +40,18 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 		panic("schema name cannot be empty")
 	}
 	return &SourceName{
-		sqlName: sqlName{
+		Identifier: Identifier{
 			Quoted:    quote(objectName, SourceDBType),
 			Unquoted:  unquote(objectName, SourceDBType),
 			MinQuoted: minQuote(objectName, SourceDBType),
 		},
 		// We do not support quoted schema names yet.
-		SchemaName: sqlName{
+		SchemaName: Identifier{
 			Quoted:    `"` + schemaName + `"`,
 			Unquoted:  schemaName,
 			MinQuoted: schemaName,
 		},
-		Qualified: sqlName{
+		Qualified: Identifier{
 			Quoted:    schemaName + "." + quote(objectName, SourceDBType),
 			Unquoted:  schemaName + "." + unquote(objectName, SourceDBType),
 			MinQuoted: schemaName + "." + minQuote(objectName, SourceDBType),
@@ -94,17 +94,17 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 		panic("schema name cannot be empty")
 	}
 	return &TargetName{
-		sqlName: sqlName{
+		Identifier: Identifier{
 			Quoted:    quote(objectName, YUGABYTE),
 			Unquoted:  unquote(objectName, YUGABYTE),
 			MinQuoted: minQuote(objectName, YUGABYTE),
 		},
-		SchemaName: sqlName{
+		SchemaName: Identifier{
 			Quoted:    `"` + schemaName + `"`,
 			Unquoted:  schemaName,
 			MinQuoted: schemaName,
 		},
-		Qualified: sqlName{
+		Qualified: Identifier{
 			Quoted:    schemaName + "." + quote(objectName, YUGABYTE),
 			Unquoted:  schemaName + "." + unquote(objectName, YUGABYTE),
 			MinQuoted: schemaName + "." + minQuote(objectName, YUGABYTE),
