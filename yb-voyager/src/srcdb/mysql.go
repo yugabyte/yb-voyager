@@ -50,11 +50,11 @@ func (ms *MySQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgre
 	var query string
 	if !tableProgressMetadata.IsPartition {
 		query = fmt.Sprintf("SELECT table_rows from information_schema.tables "+
-			"where table_name = '%s'", tableProgressMetadata.TableName.Unquoted)
+			"where table_name = '%s'", tableProgressMetadata.TableName.ObjectName.Unquoted)
 	} else {
 		query = fmt.Sprintf("SELECT table_rows from information_schema.partitions "+
 			"where table_name='%s' and partition_name='%s' and table_schema='%s'",
-			tableProgressMetadata.ParentTable, tableProgressMetadata.TableName.Unquoted, tableProgressMetadata.TableName.SchemaName.Unquoted)
+			tableProgressMetadata.ParentTable, tableProgressMetadata.TableName.ObjectName.Unquoted, tableProgressMetadata.TableName.SchemaName.Unquoted)
 	}
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)

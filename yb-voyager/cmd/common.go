@@ -47,12 +47,12 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		log.Infof("requiredMap: %v", requiredMap)
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
-			fullTableName := tablesProgressMetadata[key].TableName.Qualified.MinQuoted
+			fullTableName := tableName.Qualified.MinQuoted
 
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
 				if tablesProgressMetadata[key].TableName.SchemaName.Unquoted == "public" {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName.MinQuoted+"_data.sql")
+					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName.ObjectName.MinQuoted+"_data.sql")
 				} else {
 					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", fullTableName+"_data.sql")
 				}
@@ -63,7 +63,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName.MinQuoted
+			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.MinQuoted
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName

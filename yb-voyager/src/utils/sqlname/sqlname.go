@@ -24,13 +24,13 @@ type Identifier struct {
 }
 
 type SourceName struct {
-	Identifier // ObjectName
+	ObjectName Identifier
 	SchemaName Identifier
 	Qualified  Identifier
 }
 
 type TargetName struct {
-	Identifier // ObjectName
+	ObjectName Identifier
 	SchemaName Identifier
 	Qualified  Identifier
 }
@@ -40,7 +40,7 @@ func NewSourceName(schemaName, objectName string) *SourceName {
 		panic("schema name cannot be empty")
 	}
 	return &SourceName{
-		Identifier: Identifier{
+		ObjectName: Identifier{
 			Quoted:    quote(objectName, SourceDBType),
 			Unquoted:  unquote(objectName, SourceDBType),
 			MinQuoted: minQuote(objectName, SourceDBType),
@@ -84,9 +84,9 @@ func (s *SourceName) String() string {
 
 func (s *SourceName) ToTargetName() *TargetName {
 	if PreserveCase {
-		return NewTargetName(s.SchemaName.Quoted, s.Quoted)
+		return NewTargetName(s.SchemaName.Quoted, s.ObjectName.Quoted)
 	}
-	return NewTargetName(s.SchemaName.Unquoted, s.Unquoted)
+	return NewTargetName(s.SchemaName.Unquoted, s.ObjectName.Unquoted)
 }
 
 func NewTargetName(schemaName, objectName string) *TargetName {
@@ -94,7 +94,7 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 		panic("schema name cannot be empty")
 	}
 	return &TargetName{
-		Identifier: Identifier{
+		ObjectName: Identifier{
 			Quoted:    quote(objectName, YUGABYTE),
 			Unquoted:  unquote(objectName, YUGABYTE),
 			MinQuoted: minQuote(objectName, YUGABYTE),
