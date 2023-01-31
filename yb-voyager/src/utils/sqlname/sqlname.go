@@ -79,7 +79,7 @@ func NewSourceNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName
 }
 
 func (s *SourceName) String() string {
-	return s.Qualified.Quoted
+	return s.Qualified.MinQuoted
 }
 
 func (s *SourceName) ToTargetName() *TargetName {

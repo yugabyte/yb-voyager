@@ -53,9 +53,7 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 		tablesProgressMetadata[key].CountLiveRows = int64(0)
 		tablesProgressMetadata[key].Status = 0
 		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
-		tablesProgressMetadata[key].TableSchema = tableName.SchemaName.Unquoted
-		tablesProgressMetadata[key].TableName = tableName.MinQuoted
-		tablesProgressMetadata[key].FullTableName = tableName.Qualified.MinQuoted
+		tablesProgressMetadata[key].TableName = tableName
 	}
 }
 
@@ -138,9 +136,9 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
-		actualRowCount := source.DB().GetTableRowCount(tableMetadata.FullTableName)
+		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.MinQuoted)
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
-			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.FullTableName)
+			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.MinQuoted)
 		pbr.SetTotalRowCount(actualRowCount, false)
 	}()
 

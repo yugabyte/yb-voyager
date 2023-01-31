@@ -60,15 +60,15 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableProgressMetadata.FullTableName)
+		"where oid = '%s'::regclass", tableProgressMetadata.TableName.Qualified.MinQuoted)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.FullTableName, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.MinQuoted, err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.FullTableName, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.Qualified.MinQuoted, approxRowCount)
 	return approxRowCount.Int64
 }
 
