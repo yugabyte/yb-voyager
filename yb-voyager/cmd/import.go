@@ -29,6 +29,7 @@ import (
 )
 
 var sourceDBType string
+var enableOrafce bool
 
 // target struct will be populated by CLI arguments parsing
 var target tgtdb.Target
@@ -164,6 +165,8 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 			"false - throw those errors to the standard output (default false)")
 	cmd.Flags().BoolVar(&flagRefreshMViews, "refresh-mviews", false,
 		"If set, refreshes the materialised views on target during post import data phase (default false")
+	cmd.Flags().BoolVar(&enableOrafce, "enable-orafce", true,
+		"true - to enable Orafce extension on target(if source db type is Oracle)")
 }
 
 func validateTargetPortRange() {
