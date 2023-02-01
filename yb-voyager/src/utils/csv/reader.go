@@ -22,11 +22,11 @@ func Open(fileName string) (*Reader, error) {
 	// Create a read-only mmap of the file.
 	f, err := os.Open(fileName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error opening file %s: %v", fileName, err)
 	}
 	mmap_, err := mmap.Map(f, mmap.RDONLY, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating mmap for file %s: %v", fileName, err)
 	}
 	r := &Reader{QuoteChar: '"', EscapeChar: '"', fileName: fileName, file: f, mmap: mmap_, buf: []byte(mmap_)}
 	return r, nil
@@ -36,7 +36,7 @@ func (r *Reader) Close() error {
 
 	err := r.mmap.Unmap()
 	if err != nil {
-		return err
+		return fmt.Errorf("error unmapping file %s: %v", r.fileName, err)
 	}
 	return r.file.Close()
 }
