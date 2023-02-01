@@ -109,7 +109,6 @@ var (
 	dropViewRegex      = re("DROP", "VIEW", ifExists, capture(commaSeperatedStringsMoreThan1))
 	dropSeqRegex       = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedStringsMoreThan1))
 	dropForeignRegex   = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedStringsMoreThan1))
-	createIdxConcurRegex  = re("CREATE", opt("UNIQUE"), "INDEX", "CONCURRENTLY", ifNotExists, capture(ident)) 
 	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
 	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
 	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
@@ -348,9 +347,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if dropForeignRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", sqlInfo.formattedStmt), "FOREIGN TABLE", "", sqlInfo.formattedStmt)
-		} else if idx := createIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "CREATE INDEX CONCURRENTLY not supported yet",
-				"https://github.com/yugabyte/yugabyte-db/issues/10799", "", "INDEX", idx[3], sqlInfo.formattedStmt)
 		} else if idx := dropIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
 				"", "", "INDEX", idx[2], sqlInfo.formattedStmt)
