@@ -1,23 +1,24 @@
 package datafile
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
 
 	"os"
-	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type CsvDataFile struct {
-	file      *os.File
-	reader    *csv.Reader
-	bytesRead int64
-	Delimiter string
-	Header    string
+	file       *os.File
+	reader     *csv.Reader
+	bytesRead  int64
+	Delimiter  string
+	Header     string
+	QuoteChar  string
+	EscapeChar string
 	DataFile
 }
 
@@ -36,23 +37,12 @@ func (df *CsvDataFile) NextLine() (string, error) {
 	var line string
 	var err error
 	for {
-		startOffset := df.reader.InputOffset()
-		// read a record from csv file
-		_, err := df.reader.Read()
+		line, err = df.reader.Read()
+		df.bytesRead += int64(len(line))
 		if err != nil {
 			return "", err
 		}
-		endOffset := df.reader.InputOffset()
-
-		buf := make([]byte, endOffset-startOffset) // buffer size of the record/row in csv file
-		_, err = df.file.ReadAt(buf, startOffset)
-		if err != nil {
-			return "", fmt.Errorf("read file %q [%v:%v]: %w", df.file.Name(), startOffset, endOffset, err)
-		}
-		line = string(buf)
-
-		df.bytesRead += int64(len(line))
-		if df.isDataLine(line) || err != nil {
+		if df.isDataLine(line) {
 			break
 		}
 	}
@@ -62,6 +52,7 @@ func (df *CsvDataFile) NextLine() (string, error) {
 
 func (df *CsvDataFile) Close() {
 	df.file.Close()
+	df.reader.Close()
 }
 
 func (df *CsvDataFile) GetBytesRead() int64 {
@@ -100,10 +91,17 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 		return nil, err
 	}
 
-	reader := csv.NewReader(file)
-	reader.Comma = []rune(descriptor.Delimiter)[0]
-	reader.FieldsPerRecord = -1 // fields not fixed for all rows, last line can be '\.'
-	reader.ReuseRecord = true   // reuse the same record for each row
+	reader, err := csv.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	if descriptor.QuoteChar != 0 {
+		reader.QuoteChar = descriptor.QuoteChar
+	}
+	if descriptor.EscapeChar != 0 {
+		reader.EscapeChar = descriptor.EscapeChar
+	}
 
 	csvDataFile := &CsvDataFile{
 		file:      file,

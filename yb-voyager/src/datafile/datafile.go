@@ -2,7 +2,6 @@ package datafile
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 )
 
@@ -27,11 +26,7 @@ var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
-		if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
-			return openTextDataFile(filePath, descriptor)
-		} else {
-			return openCsvDataFile(filePath, descriptor)
-		}
+		return openCsvDataFile(filePath, descriptor)
 	case TEXT:
 		return openTextDataFile(filePath, descriptor)
 	case SQL:

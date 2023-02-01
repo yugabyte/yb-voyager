@@ -20,6 +20,8 @@ type Descriptor struct {
 	Delimiter     string           `json:"Delimiter"`
 	HasHeader     bool             `json:"HasHeader"`
 	ExportDir     string           `json:"-"`
+	QuoteChar     byte             `json:"QuoteChar,omitempty"`
+	EscapeChar    byte             `json:"EscapeChar,omitempty"`
 }
 
 func OpenDescriptor(exportDir string) *Descriptor {
