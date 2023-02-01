@@ -98,12 +98,12 @@ var (
 	rtreeRegex         = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING rtree")
 	ginRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING GIN", capture(commaSeperatedStrings))
 	viewWithCheckRegex = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
-	rangeRegex         = re("PRECEDING", "and", anything, ":float") //`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`
-	fetchRegex         = re("FETCH", anything, "FROM")              //`(?i)FETCH .*FROM`
-	fetchRelativeRegex = re("FETCH", "RELATIVE")                    //`(?i)FETCH RELATIVE`
-	backwardRegex      = re("MOVE", "BACKWARD")                     //`(?i)MOVE BACKWARD`
-	fetchAbsRegex      = re("FETCH", "ABSOLUTE")                    //`(?i)FETCH ABSOLUTE`
-	alterAggRegex      = re("ALTER", "AGGREGATE", capture(ident))   //`(?i)ALTER AGGREGATE ([a-zA-Z0-9_."]+)`
+	rangeRegex         = re("PRECEDING", "and", anything, ":float") 
+	fetchRegex         = re("FETCH", anything, "FROM")             
+	fetchRelativeRegex = re("FETCH", "RELATIVE")                    
+	backwardRegex      = re("MOVE", "BACKWARD")                     
+	fetchAbsRegex      = re("FETCH", "ABSOLUTE")                   
+	alterAggRegex      = re("ALTER", "AGGREGATE", capture(ident))  
 	dropCollRegex      = re("DROP", "COLLATION", ifExists, capture(commaSeperatedStringsMoreThan1))
 	dropIdxRegex       = re("DROP", "INDEX", ifExists, capture(commaSeperatedStringsMoreThan1))
 	dropViewRegex      = re("DROP", "VIEW", ifExists, capture(commaSeperatedStringsMoreThan1))
@@ -112,9 +112,9 @@ var (
 	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
 	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
 	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
-	currentOfRegex        = re("WHERE", "CURRENT", "OF") //`(?i)WHERE CURRENT OF`
+	currentOfRegex        = re("WHERE", "CURRENT", "OF") 
 	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
-	idxConcRegex          = re("REINDEX", anything, "CONCURRENTLY", capture(ident)) //why concurrently? reindex itself not supported
+	idxConcRegex          = re("REINDEX", anything, "CONCURRENTLY", capture(ident))
 	storedRegex           = re(capture(normalIdent), capture(normalIdent), "GENERATED", "ALWAYS", anything, "STORED")
 	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), `\(`+capture(commaSeperatedStrings)+`\) PARTITION BY`, capture("[A-Za-z]+"), `\(`, capture(commaSeperatedStrings), `\)`)
 	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
@@ -123,14 +123,11 @@ var (
 	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
 	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "interval PRIMARY")
 	//super user role required, language c is errored as unsafe
-	//`(?i)CREATE (OR REPLACE )?FUNCTION ([a-zA-Z0-9_."]+).*language c`
 	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
-	//`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `
 	alterOfRegex      = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "OF")
 	alterSchemaRegex  = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET SCHEMA")
 	createSchemaRegex = re("CREATE", "SCHEMA", anything, "CREATE", "TABLE")
-	//`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* NOT OF `
 	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "NOT OF")
 	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STATISTICS")
 	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
@@ -143,7 +140,6 @@ var (
 	alterSetRegex                   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "SET")
 	alterIdxRegex                   = re("ALTER", "INDEX", capture(ident), "SET")
 	alterResetRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "RESET")
-	//`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) OPTIONS `
 	alterOptionsRegex = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
 	alterInhRegex     = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
 	valConstrRegex    = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
@@ -151,7 +147,6 @@ var (
 	alterViewRegex    = re("ALTER", "VIEW", capture(ident))
 	dropAttrRegex     = re("ALTER", "TYPE", capture(ident), "DROP ATTRIBUTE")
 	alterTypeRegex    = re("ALTER", "TYPE", capture(ident))
-	//`(?i)ALTER TABLESPACE ([a-zA-Z0-9_."]+) SET `
 	alterTblSpcRegex = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
 	// table partition. partitioned table is the key in tblParts map
@@ -285,7 +280,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		/*if dropMatViewRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",
+			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",a
 				"https://github.com/YugaByte/yugabyte-db/issues/10102", "")
 		} else if view := matViewRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			reportCase(fpath, "Schema contains materialized view which is not supported. The view is: "+view[1],
