@@ -202,10 +202,10 @@
         {
             "objectType": "TABLE",
             "objectName": "my_table",
-            "reason": "REINDEX CONCURRENTLY is not supported.",
-            "sqlStatement": "REINDEX TABLE CONCURRENTLY my_table;",
+            "reason": "REINDEX is not supported.",
+            "sqlStatement": "REINDEX TABLE my_table;",
             "suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10694"
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267"
         },
         {
             "objectType": "TABLE",

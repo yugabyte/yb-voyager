@@ -109,7 +109,7 @@ CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;
 ALTER CONVERSION myconv for  'UTF8' TO 'LATIN1' FROM myfunc1;
 
 --Reindexing not supported
-REINDEX TABLE CONCURRENTLY my_table;
+REINDEX TABLE my_table;
 
 --Generated stored 
 CREATE TABLE newtable (

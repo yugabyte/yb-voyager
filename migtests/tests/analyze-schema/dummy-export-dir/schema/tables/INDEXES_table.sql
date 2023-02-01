@@ -17,6 +17,5 @@ DROP INDEX CONCURRENTLY sales_quantity_index;
 --index access method not supported
 CREATE ACCESS METHOD heptree TYPE INDEX HANDLER heptree_handler;
 
-
 --alter index case
 ALTER INDEX abc set TABLESPACE new_tbl;
