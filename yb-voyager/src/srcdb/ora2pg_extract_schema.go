@@ -15,7 +15,7 @@ import (
 func ora2pgExtractSchema(source *Source, exportDir string) {
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
-	source.PopulateOra2pgConfigFile(configFilePath)
+	source.PopulateOra2pgConfigFile(configFilePath, source.getDefaultOra2pgConfig())
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
 
