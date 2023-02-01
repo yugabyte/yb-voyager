@@ -79,6 +79,11 @@ func importSchema() {
 		}
 
 		createTargetSchemas(conn)
+
+		if sourceDBType == ORACLE && enableOrafce {
+			// Install Orafce extension in target YugabyteDB.
+			installOrafce(conn)
+		}
 	}
 	var objectList []string
 
@@ -175,6 +180,14 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 	log.Info(msg)
 }
 
+func installOrafce(conn *pgx.Conn) {
+	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
+	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
+	if err != nil {
+		utils.ErrExit("failed to install Orafce extension: %v", err)
+	}
+}
+
 func refreshMViews(conn *pgx.Conn) {
 	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
 	var mViewNames []string
@@ -188,13 +201,13 @@ func refreshMViews(conn *pgx.Conn) {
 	for _, mViewName := range mViewNames {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
-		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated"){
+		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
 			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
 	var mviewsNotRefreshed []string
-	for _,mViewName := range mViewNames {
+	for _, mViewName := range mViewNames {
 		query := fmt.Sprintf("SELECT * from %s LIMIT 1;", mViewName)
 		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
