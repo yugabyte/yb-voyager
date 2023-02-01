@@ -1,3 +1,4 @@
+--drop temporary table clause
 CREATE OR REPLACE PROCEDURE foo (p_id integer) AS $body$
 BEGIN
     drop temporary table if exists temp;

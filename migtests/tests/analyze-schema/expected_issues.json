@@ -78,5 +78,350 @@
             "sqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
             "suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_non_pk_multi_column_list",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "objectType": "CONVERSION",
+            "objectName": "myconv",
+            "reason": "CREATE CONVERSION not supported yet",
+            "sqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+        },
+        {
+            "objectType": "CONVERSION",
+            "objectName": "myconv",
+            "reason": "ALTER CONVERSION not supported yet",
+            "sqlStatement": "ALTER CONVERSION myconv for  'UTF8' TO 'LATIN1' FROM myfunc1;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name1",
+            "reason": "index method 'spgist' not supported yet.",
+            "sqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist(col1);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name2",
+            "reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
+            "sqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree(col1);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name3",
+            "reason": "Schema contains gin index on multi column which is not supported.",
+            "sqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin(col1,col2,col3);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "v1",
+            "reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
+            "sqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "COLLATION",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP COLLATION IF EXISTS coll1,coll2,coll3;",
+            "suggestion": "DROP COLLATION coll1;DROP COLLATION coll2;DROP COLLATION coll3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP INDEX idx1,idx2,idx3;",
+            "suggestion": "DROP INDEX idx1;DROP INDEX idx2;DROP INDEX idx3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP VIEW IF EXISTS view1,view2,view3;",
+            "suggestion": "DROP VIEW view1;DROP VIEW view2;DROP VIEW view3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "SEQUENCE",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP SEQUENCE seq1_tbl,seq2_tbl,seq3_tbl;",
+            "suggestion": "DROP SEQUENCE seq1_tbl;DROP SEQUENCE seq2_tbl;DROP SEQUENCE seq3_tbl;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "sales_quantity_index",
+            "reason": "CREATE INDEX CONCURRENTLY not supported yet",
+            "sqlStatement": "CREATE INDEX CONCURRENTLY sales_quantity_index ON sales_table (quantity);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10799"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "sales_quantity_index",
+            "reason": "DROP INDEX CONCURRENTLY not supported yet",
+            "sqlStatement": "DROP INDEX CONCURRENTLY sales_quantity_index;",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "transfer_insert",
+            "reason": "REFERENCING clause (transition tables) not supported yet.",
+            "sqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "some_trig",
+            "reason": "CREATE CONSTRAINT TRIGGER not supported yet.",
+            "sqlStatement": "CREATE CONSTRAINT TRIGGER some_trig\n   AFTER DELETE ON xyz_schema.abc\n   DEFERRABLE INITIALLY DEFERRED\n   FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
+        },
+        {
+            "objectType": "ACCESS METHOD",
+            "objectName": "heptree",
+            "reason": "CREATE ACCESS METHOD is not supported.",
+            "sqlStatement": "CREATE ACCESS METHOD heptree TYPE INDEX HANDLER heptree_handler;",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10693"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "my_table",
+            "reason": "REINDEX CONCURRENTLY is not supported.",
+            "sqlStatement": "REINDEX TABLE CONCURRENTLY my_table;",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10694"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "Stored generated column is not supported. Column is: id",
+            "sqlStatement": "CREATE TABLE newtable (\n\tid UUID GENERATED ALWAYS AS gen_random_uuid() STORED,\n\torg uuid NOT NULL,\n\tname text,\n\tcreated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP UNIQUE(name, org)\n);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_xyz",
+            "reason": "LIKE clause not supported yet.",
+            "sqlStatement": "CREATE TABLE table_xyz\n  (LIKE xyz INCLUDING DEFAULTS INCLUDING CONSTRAINTS);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_abc",
+            "reason": "LIKE ALL is not supported yet.",
+            "sqlStatement": "CREATE TABLE table_abc\n  (LIKE abc INCLUDING ALL);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10697"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "INHERITS not supported yet.",
+            "sqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_test",
+            "reason": "OIDs are not supported for user tables.",
+            "sqlStatement": "Create table table_test (col1 text, col2 int) with (OIDS = TRUE);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10273"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_interval",
+            "reason": "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
+            "sqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1397"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE SET SCHEMA not supported yet.",
+            "sqlStatement": "ALTER TABLE oldschema.tbl_name SET SCHEMA newschema;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/3947"
+        },
+        {
+            "objectType": "SCHEMA",
+            "objectName": "",
+            "reason": "CREATE SCHEMA with elements not supported yet.",
+            "sqlStatement": "CREATE SCHEMA hollywood\n    CREATE TABLE films (title text, release date, awards text[])\n    CREATE VIEW winners AS\n        SELECT title, release FROM films WHERE awards IS NOT NULL;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10865"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_name",
+            "reason": "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
+            "sqlStatement": "alter table table_name alter column column_name set statistics 100;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test",
+            "reason": "ALTER TABLE ALTER column SET STORAGE not supported yet.",
+            "sqlStatement": "alter table test alter column col set STORAGE EXTERNAL;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_1",
+            "reason": "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
+            "sqlStatement": "alter table test_1 alter column col1 set (attribute_option=value);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE ALTER CONSTRAINT not supported yet.",
+            "sqlStatement": "ALTER TABLE address ALTER CONSTRAINT zipchk CHECK (char_length(zipcode) = 6);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "IF EXISTS ",
+            "reason": "ALTER TABLE SET WITH OIDS not supported yet.",
+            "sqlStatement": "ALTER TABLE IF EXISTS test_2 SET WITH OIDS;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE CLUSTER not supported yet.",
+            "sqlStatement": "alter table abc cluster on xyz;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
+            "sqlStatement": "alter table test SET WITHOUT CLUSTER;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "abc",
+            "reason": "ALTER INDEX SET not supported yet.",
+            "sqlStatement": "ALTER INDEX abc set TABLESPACE new_tbl;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE INHERIT not supported yet.",
+            "sqlStatement": "alter table test_3 INHERIT test_2;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
+            "sqlStatement": "ALTER TABLE distributors VALIDATE CONSTRAINT distfk;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "abc",
+            "reason": "DEFERRABLE unique constraints are not supported yet.",
+            "sqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "view_name",
+            "reason": "ALTER VIEW not supported yet.",
+            "sqlStatement": "ALTER VIEW view_name TO select * from test;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
+        },
+        {
+            "objectType": "",
+            "objectName": "",
+            "reason": "Adding primary key to a partitioned table is not yet implemented.",
+            "sqlStatement": "ALTER TABLE xyz add PRIMARY KEY pk(id);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "tbl_p",
+            "reason": "Primary key constraints are not supported on foreign tables.",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_p(id int PRIMARY KEY);",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "tbl_f",
+            "reason": "Foreign key constraints are not supported on foreign tables.",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(fid int, pid int FOREIGN KEY REFERENCES tbl_p(id));",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10699"
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "emp_trig",
+            "reason": "Compound Triggers are not supported in YugabyteDB.",
+            "sqlStatement": "CREATE TRIGGER emp_trig\n\tCOMPOUND INSERT ON emp FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_emp_trig();",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "TYPE",
+            "objectName": "colors",
+            "reason": "ALTER TYPE not supported yet.",
+            "sqlStatement": "ALTER TYPE colors ADD VALUE 'orange' AFTER 'red';",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+        },
+        {
+            "objectType": "TYPE",
+            "objectName": "compfoo",
+            "reason": "ALTER TYPE not supported yet.",
+            "sqlStatement": "ALTER TYPE compfoo ADD ATTRIBUTE f3 int;",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
         }
+
 ]

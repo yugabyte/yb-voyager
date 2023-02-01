@@ -33,6 +33,13 @@ CREATE TABLE test_2 (
 	descriptions varchar(50)
 ) PARTITION BY LIST (country_code, record_type) ;
 
+CREATE TABLE test_non_pk_multi_column_list (
+	id numeric NOT NULL PRIMARY KEY,
+	country_code varchar(3),
+	record_type varchar(5),
+	descriptions varchar(50)
+) PARTITION BY LIST (country_code, record_type) ;
+
 -- no PK constraint, no need to report during analyze-schema
 CREATE TABLE test_3 (
 	id numeric,
@@ -95,4 +102,72 @@ CREATE TABLE test_9 (
 	promotion_id integer,
 	PRIMARY KEY (order_id,order_mode,order_date,order_total,sales_rep_id)
 ) PARTITION BY RANGE (order_total, order_date, sales_rep_id) ;
+
+--conversion not supported
+CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;
+
+ALTER CONVERSION myconv for  'UTF8' TO 'LATIN1' FROM myfunc1;
+
+--Reindexing not supported
+REINDEX TABLE CONCURRENTLY my_table;
+
+--Generated stored 
+CREATE TABLE newtable (
+	id UUID GENERATED ALWAYS AS gen_random_uuid() STORED,
+	org uuid NOT NULL,
+	name text,
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP UNIQUE(name, org)
+);
+--like cases
+CREATE TABLE table_xyz
+  (LIKE xyz INCLUDING DEFAULTS INCLUDING CONSTRAINTS);
+
+CREATE TABLE table_abc
+  (LIKE abc INCLUDING ALL);
+
+--inherits cases
+CREATE TABLE table_1 () INHERITS (xyz);
+
+--oids case
+Create table table_test (col1 text, col2 int) with (OIDS = TRUE);
+
+--PK on interval column
+create table test_interval(
+    frequency interval primary key,
+	col1 int
+);
+
+--alter table cases
+ALTER TABLE oldschema.tbl_name SET SCHEMA newschema;
+
+alter table table_name alter column column_name set statistics 100;
+
+alter table test alter column col set STORAGE EXTERNAL;
+
+alter table test_1 alter column col1 set (attribute_option=value);
+
+ALTER TABLE address ALTER CONSTRAINT zipchk CHECK (char_length(zipcode) = 6);
+
+ALTER TABLE IF EXISTS test_2 SET WITH OIDS;
+
+alter table abc cluster on xyz;
+
+alter table test SET WITHOUT CLUSTER;
+
+alter table test_3 INHERIT test_2;
+
+ALTER TABLE distributors VALIDATE CONSTRAINT distfk;
+
+ALTER TABLE abc
+ADD CONSTRAINT cnstr_id
+ UNIQUE (id)
+DEFERRABLE;
+
+--adding pk to child table
+CREATE TABLE xyz PARTITION OF abc;
+ALTER TABLE xyz add PRIMARY KEY pk(id);
+
+--foreign table issues
+CREATE FOREIGN TABLE tbl_p(id int PRIMARY KEY);
+CREATE FOREIGN TABLE tbl_f(fid int, pid int FOREIGN KEY REFERENCES tbl_p(id));
 
