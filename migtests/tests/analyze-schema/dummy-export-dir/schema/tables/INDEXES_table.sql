@@ -11,9 +11,6 @@ CREATE INDEX idx_name3 ON schema_name.table_name USING gin(col1,col2,col3);
 --dropping multiple objects
 DROP INDEX idx1,idx2,idx3;
 
---creating index concurrently not supported
-CREATE INDEX CONCURRENTLY sales_quantity_index ON sales_table (quantity);
-
 --dropping index concurrentlynot support
 DROP INDEX CONCURRENTLY sales_quantity_index;
 

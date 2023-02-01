@@ -170,14 +170,6 @@
         {
             "objectType": "INDEX",
             "objectName": "sales_quantity_index",
-            "reason": "CREATE INDEX CONCURRENTLY not supported yet",
-            "sqlStatement": "CREATE INDEX CONCURRENTLY sales_quantity_index ON sales_table (quantity);",
-            "suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10799"
-        },
-        {
-            "objectType": "INDEX",
-            "objectName": "sales_quantity_index",
             "reason": "DROP INDEX CONCURRENTLY not supported yet",
             "sqlStatement": "DROP INDEX CONCURRENTLY sales_quantity_index;",
             "suggestion": "",
