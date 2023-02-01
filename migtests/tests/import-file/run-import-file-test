@@ -85,6 +85,10 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_dq.csv:t1_quote_escape_dq"
 
+	# Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
+	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"

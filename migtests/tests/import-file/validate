@@ -18,12 +18,14 @@ EXPECTED = {
   	"t1_delimiter_escape_same":3,
   	"t1_newline":5,
    	"t1_quote_escape_dq": 3,
+	"t1_escape_backslash": 3,
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
 T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"Hello World\""), (3,None,None,"\"Hello World\"")])
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
+T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
 
 def file_import_done_checks(tgt):
 	got = tgt.row_count_of_all_tables()
@@ -53,6 +55,10 @@ def file_import_done_checks(tgt):
 	t1_newline_data = tgt.fetch_all_table_rows("t1_newline")
 	print(f"t1_newline_data: {t1_newline_data}\nExpected data: {T1_NEWLINE_DATA}\n")
 	assert t1_newline_data == T1_NEWLINE_DATA
+	
+	t1_escape_backslash_data = tgt.fetch_all_table_rows("t1_escape_backslash")
+	print(f"t1_escape_backslash_data: {t1_escape_backslash_data}\nExpected data: {T1_ESCAPE_BACKSLASH_DATA}\n")
+	assert t1_escape_backslash_data == T1_ESCAPE_BACKSLASH_DATA
 
 
 if __name__ == "__main__":
