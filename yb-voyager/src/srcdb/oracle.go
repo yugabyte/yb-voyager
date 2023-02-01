@@ -51,19 +51,19 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 	var query string
 	if !tableProgressMetadata.IsPartition {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
-			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
+			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName.ObjectName.Unquoted)
 	} else {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
-			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName)
+			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName.ObjectName.Unquoted)
 	}
 
-	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName.ObjectName.Unquoted)
 	err := ora.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.ObjectName.Unquoted, err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.ObjectName.Unquoted, approxRowCount)
 	return approxRowCount.Int64
 }
 
@@ -228,7 +228,7 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*s
 
 	tableList = maps.Values(supportedTables)
 	if len(tableList) > 0 {
-		fmt.Printf("final table list for data export: %s", tableList)
+		fmt.Printf("final table list for data export: %s\n", tableList)
 	}
 	return tableList
 }

@@ -44,7 +44,6 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
-		log.Infof("requiredMap: %v", requiredMap)
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tableName.Qualified.MinQuoted
@@ -63,7 +62,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.MinQuoted
+			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.Unquoted
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName

@@ -65,7 +65,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableP
 	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.ObjectName.MinQuoted, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.Qualified.MinQuoted, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.Qualified.MinQuoted, approxRowCount)

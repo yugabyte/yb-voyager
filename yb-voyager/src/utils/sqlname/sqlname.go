@@ -151,7 +151,7 @@ func quote(s string, dbType string) string {
 	case POSTGRESQL, YUGABYTE:
 		return `"` + strings.ToLower(s) + `"`
 	case MYSQL:
-		return "`" + s + "`"
+		return s // TODO - learn the semantics of quoting in MySQL.
 	case ORACLE:
 		return `"` + strings.ToUpper(s) + `"`
 	default:

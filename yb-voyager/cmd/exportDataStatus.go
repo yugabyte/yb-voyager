@@ -130,15 +130,16 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
 	tableName := mapKey
 	tableMetadata := tablesProgressMetadata[mapKey]
+
 	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
 	// initialize PB total with identified approx row count
 	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
-		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.ObjectName.MinQuoted)
+		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.Qualified.MinQuoted)
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
-			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ObjectName.MinQuoted)
+			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.Qualified.MinQuoted)
 		pbr.SetTotalRowCount(actualRowCount, false)
 	}()
 
