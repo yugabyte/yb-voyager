@@ -64,3 +64,5 @@ create table t1_delimiter_escape_same (i int, j timestamp, k bigint, l varchar(3
 create table t1_newline (i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_quote_escape_dq (i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_escape_backslash (i int, j varchar, k int);
