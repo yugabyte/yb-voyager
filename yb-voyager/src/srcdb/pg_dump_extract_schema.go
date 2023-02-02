@@ -43,6 +43,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
+		os.Unsetenv("PGPASSWORD")
 		utils.ErrExit("data export unsuccessful: %v", err)
 	}
 
@@ -50,6 +51,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	returnCode := parseSchemaFile(exportDir)
 
 	log.Info("Export of schema completed.")
+	os.Unsetenv("PGPASSWORD")
 	utils.WaitChannel <- returnCode
 	<-utils.WaitChannel
 }

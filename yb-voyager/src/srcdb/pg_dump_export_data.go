@@ -62,6 +62,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
+		os.Unsetenv("PGPASSWORD")
 		runtime.Goexit()
 	}
 	utils.PrintAndLog("Data export started.")
@@ -76,9 +77,11 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		fmt.Printf("pg_dump failed to export data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
+		os.Unsetenv("PGPASSWORD")
 		runtime.Goexit()
 	}
 	exportSuccessChan <- true
+	os.Unsetenv("PGPASSWORD")
 }
 
 func parseAndCreateTocTextFile(dataDirPath string) {
