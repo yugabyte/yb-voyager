@@ -29,6 +29,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	if !source.CommentsOnObjects {
 		pgDumpArgs = fmt.Sprintf(`%s --no-comments`, pgDumpArgs)
 	}
+	os.Setenv("PGPASSWORD", source.Password)
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
 	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)

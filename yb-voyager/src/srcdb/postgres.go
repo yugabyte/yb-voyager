@@ -170,13 +170,26 @@ func (pg *PostgreSQL) getConnectionUri() string {
 	return source.Uri
 }
 
+func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
+	source := pg.source
+	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+	sourceUrl := &url.URL{
+		Scheme:   "postgresql",
+		User:     url.User(source.User),
+		Host:     hostAndPort,
+		Path:     source.DBName,
+		RawQuery: generateSSLQueryStringIfNotExists(source),
+	}
+	return sourceUrl.String()
+}
+
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.getConnectionUri(), exportDir)
+	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUri(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
