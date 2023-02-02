@@ -54,6 +54,12 @@ func prepareForImportDataCmd() {
 		HasHeader:     hasHeader,
 		ExportDir:     exportDir,
 	}
+	if fileOptsMap["quote_char"] != "" {
+		dfd.QuoteChar = byte(fileOptsMap["quote_char"][0])
+	}
+	if fileOptsMap["escape_char"] != "" {
+		dfd.EscapeChar = byte(fileOptsMap["escape_char"][0])
+	}
 	dfd.Save()
 
 	createDataFileSymLinks()
@@ -115,6 +121,7 @@ func prepareCopyCommands() {
 				}
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', HEADER,`,
 					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				df.Close()
 			} else {
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', `,
 					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
@@ -126,7 +133,6 @@ func prepareCopyCommands() {
 		}
 		copyTableFromCommands[table] += ` ROWS_PER_TRANSACTION %v)`
 	}
-
 	log.Infof("copyTableFromCommands map: %+v", copyTableFromCommands)
 }
 
@@ -187,7 +193,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	checkDataDirFlag()
 	checkDelimiterFlag()
 	checkHasHeader()
-	checkFileOpts()
+	checkAndParseFileOpts()
 	validateTargetPassword(cmd)
 }
 
@@ -245,7 +251,7 @@ func checkHasHeader() {
 	}
 }
 
-func checkFileOpts() {
+func checkAndParseFileOpts() {
 	switch fileFormat {
 	case datafile.CSV:
 		// setting default values for escape and quote, will be updated if provided in fileOpts flag
@@ -267,15 +273,6 @@ func checkFileOpts() {
 				utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
 			}
 			fileOptsMap[key] = value
-		}
-
-		if fileOptsMap["escape_char"] != "\"" || fileOptsMap["quote_char"] != "\"" {
-			// any random value for fileOpts is valid for csv format only if CSV_NO_NEWLINE is set
-			if val, present := os.LookupEnv("CSV_NO_NEWLINE"); present && (val == "yes" || val == "true" || val == "1" || val == "y") {
-				break
-			} else {
-				utils.ErrExit("Only double-quote is supported as escape_char and quote_char. Refer https://github.com/yugabyte/yb-voyager/issues/748")
-			}
 		}
 
 	case datafile.TEXT:

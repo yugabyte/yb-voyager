@@ -46,11 +46,10 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 
 	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
 		tableListPatterns, dataDirPath, source.NumConnections)
+	os.Setenv("PGPASSWORD", source.Password)
+	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
-	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
-	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)
-	log.Infof("Running command: %s", redactedCmd)
-
+	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)

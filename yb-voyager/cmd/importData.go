@@ -1042,7 +1042,7 @@ func setTargetSchema(conn *pgx.Conn) {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
 	}
 
-	if sourceDBType == ORACLE {
+	if sourceDBType == ORACLE && enableOrafce {
 		// append oracle schema in the search_path for orafce
 		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 		_, err := conn.Exec(context.Background(), updateSearchPath)

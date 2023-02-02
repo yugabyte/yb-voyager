@@ -55,7 +55,6 @@ main() {
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
 	#Test for fileOpts Flags having quote_char as single quote
-	export CSV_NO_NEWLINE="yes" # set for next 4 test cases
 	step "Import data file: t1_quote_char.csv -> t1_quote_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_char.csv:t1_quote_char" --file-opts "quote_char='"
@@ -76,7 +75,6 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --file-opts "quote_char=',escape_char=|"
 
-	export CSV_NO_NEWLINE=""
 	# Test for csv file containing actual newline in it
 	step "Import data file: t1_newline.csv -> t1_newline"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
@@ -87,6 +85,10 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_dq.csv:t1_quote_escape_dq"
 
+	# Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
+	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"
