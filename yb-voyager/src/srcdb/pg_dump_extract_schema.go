@@ -31,9 +31,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	}
 	os.Setenv("PGPASSWORD", source.Password)
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
-	redactedUri := utils.GetRedactedURLs([]string{connectionUri})[0]
-	redactedCmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, redactedUri, pgDumpArgs)
-	log.Infof("Running command: %s", redactedCmd)
+	log.Infof("Running command: %s", cmd)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
 
