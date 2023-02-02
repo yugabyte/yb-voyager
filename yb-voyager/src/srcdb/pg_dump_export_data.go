@@ -46,9 +46,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
 		tableListPatterns, dataDirPath, source.NumConnections)
 	os.Setenv("PGPASSWORD", source.Password)
+	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
 	log.Infof("Running command: %s", cmd)
-
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
@@ -62,7 +62,6 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
-		os.Unsetenv("PGPASSWORD")
 		runtime.Goexit()
 	}
 	utils.PrintAndLog("Data export started.")
@@ -77,11 +76,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		fmt.Printf("pg_dump failed to export data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
-		os.Unsetenv("PGPASSWORD")
 		runtime.Goexit()
 	}
 	exportSuccessChan <- true
-	os.Unsetenv("PGPASSWORD")
 }
 
 func parseAndCreateTocTextFile(dataDirPath string) {
