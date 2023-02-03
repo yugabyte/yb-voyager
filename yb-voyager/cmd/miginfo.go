@@ -3,7 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
@@ -28,7 +28,7 @@ func SaveMigInfo(miginfo *MigInfo) error {
 
 	migInfoFilePath := filepath.Join(miginfo.exportDir, META_INFO_DIR_NAME, "miginfo.json")
 
-	err = ioutil.WriteFile(migInfoFilePath, file, 0644)
+	err = os.WriteFile(migInfoFilePath, file, 0644)
 	if err != nil {
 		return fmt.Errorf("write to %q: %w", migInfoFilePath, err)
 	}
@@ -44,7 +44,7 @@ func LoadMigInfo(exportDir string) (*MigInfo, error) {
 
 	log.Infof("loading db meta info from %q", migInfoFilePath)
 
-	migInfoJson, err := ioutil.ReadFile(migInfoFilePath)
+	migInfoJson, err := os.ReadFile(migInfoFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("read %q: %w", migInfoFilePath, err)
 	}

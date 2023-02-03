@@ -3,7 +3,7 @@ package datafile
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -31,7 +31,7 @@ func OpenDescriptor(exportDir string) *Descriptor {
 
 	filePath := exportDir + DESCRIPTOR_PATH
 	log.Infof("loading DataFileDescriptor from %q", filePath)
-	dfdJson, err := ioutil.ReadFile(filePath)
+	dfdJson, err := os.ReadFile(filePath)
 	if err != nil {
 		utils.ErrExit("load data descriptor file: %v", err)
 	}
@@ -53,7 +53,7 @@ func (dfd *Descriptor) Save() {
 		utils.ErrExit("marshalling the dfd struct: %v", err)
 	}
 
-	err = ioutil.WriteFile(filePath, bytes, 0644)
+	err = os.WriteFile(filePath, bytes, 0644)
 	if err != nil {
 		fmt.Printf("%+v\n", dfd)
 		utils.ErrExit("writing DataFileDescriptor: %v", err)

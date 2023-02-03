@@ -20,7 +20,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -81,7 +81,7 @@ func extractAlterSequenceStatements(exportDir string) {
 	filePath := filepath.Join(exportDir, "data", "data.sql")
 	var requiredLines strings.Builder
 
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		panic(err)
 	}
@@ -93,7 +93,7 @@ func extractAlterSequenceStatements(exportDir string) {
 		}
 	}
 
-	ioutil.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
+	os.WriteFile(filepath.Join(exportDir, "data", "postdata.sql"), []byte(requiredLines.String()), 0644)
 }
 
 // extract all identity column names from ALTER SEQUENCE IF EXISTS statements in postdata.sql
@@ -102,7 +102,7 @@ func getIdentityColumnSequences(exportDir string) []string {
 	alterSequenceRegex := regexp.MustCompile(`ALTER SEQUENCE (IF EXISTS )?(.*)? RESTART WITH`)
 
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
 	}
@@ -121,7 +121,7 @@ func getIdentityColumnSequences(exportDir string) []string {
 // replace all identity column names from ALTER SEQUENCE IF EXISTS statements in postdata.sql
 func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNames map[string]string) {
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
-	bytes, err := ioutil.ReadFile(filePath)
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
 	}
@@ -144,7 +144,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 		}
 	}
 
-	err = ioutil.WriteFile(filePath, bytesToWrite, 0644)
+	err = os.WriteFile(filePath, bytesToWrite, 0644)
 	if err != nil {
 		utils.ErrExit("unable to write file %q: %v\n", filePath, err)
 	}
