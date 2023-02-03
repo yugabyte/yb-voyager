@@ -107,7 +107,7 @@
             "objectType": "INDEX",
             "objectName": "idx_name1",
             "reason": "index method 'spgist' not supported yet.",
-            "sqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist(col1);",
+            "sqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
         },
@@ -115,7 +115,7 @@
             "objectType": "INDEX",
             "objectName": "idx_name2",
             "reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
-            "sqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree(col1);",
+            "sqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree (col1);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
         },
@@ -123,7 +123,7 @@
             "objectType": "INDEX",
             "objectName": "idx_name3",
             "reason": "Schema contains gin index on multi column which is not supported.",
-            "sqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin(col1,col2,col3);",
+            "sqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin (col1,col2,col3);",
             "suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
         },
@@ -201,7 +201,7 @@
         },
         {
             "objectType": "TABLE",
-            "objectName": "my_table",
+            "objectName": "e",
             "reason": "REINDEX is not supported.",
             "sqlStatement": "REINDEX TABLE my_table;",
             "suggestion": "",
@@ -305,7 +305,7 @@
         },
         {
             "objectType": "TABLE",
-            "objectName": "IF EXISTS ",
+            "objectName": "test_2",
             "reason": "ALTER TABLE SET WITH OIDS not supported yet.",
             "sqlStatement": "ALTER TABLE IF EXISTS test_2 SET WITH OIDS;",
             "suggestion": "",
@@ -379,7 +379,7 @@
             "objectType": "TABLE",
             "objectName": "tbl_p",
             "reason": "Primary key constraints are not supported on foreign tables.",
-            "sqlStatement": "CREATE FOREIGN TABLE tbl_p(id int PRIMARY KEY);",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_p(\n\tid int PRIMARY KEY\n);",
             "suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
         },
@@ -387,7 +387,7 @@
             "objectType": "TABLE",
             "objectName": "tbl_f",
             "reason": "Foreign key constraints are not supported on foreign tables.",
-            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(fid int, pid int FOREIGN KEY REFERENCES tbl_p(id));",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(\n\tfid int, \n\tpid int FOREIGN KEY REFERENCES tbl_p(id)\n);",
             "suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10699"
         },

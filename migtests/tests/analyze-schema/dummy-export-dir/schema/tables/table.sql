@@ -168,6 +168,11 @@ CREATE TABLE xyz PARTITION OF abc;
 ALTER TABLE xyz add PRIMARY KEY pk(id);
 
 --foreign table issues
-CREATE FOREIGN TABLE tbl_p(id int PRIMARY KEY);
-CREATE FOREIGN TABLE tbl_f(fid int, pid int FOREIGN KEY REFERENCES tbl_p(id));
+CREATE FOREIGN TABLE tbl_p(
+	id int PRIMARY KEY
+);
+CREATE FOREIGN TABLE tbl_f(
+	fid int, 
+	pid int FOREIGN KEY REFERENCES tbl_p(id)
+);
 

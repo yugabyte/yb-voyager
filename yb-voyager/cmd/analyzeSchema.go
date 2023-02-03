@@ -52,21 +52,32 @@ type sqlInfo struct {
 
 var (
 	anything                       = `.*`
-	ws                             = `[\s\n\t]*`
+	ws                             = `[\s\n\t]+`
+	multiWs                        = `[\s\n\t]*`
 	ident                          = `[a-zA-Z0-9_."]+`
 	ifExists                       = opt("IF EXISTS")
 	ifNotExists                    = opt("IF NOT EXISTS")
 	commaSeperatedStrings          = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedStringsMoreThan1 = `[^,]+(?:,[^,]+){1,}`
-	normalIdent                    = `[a-zA-Z0-9_]+`
+	unqualifiedIdent               = `[a-zA-Z0-9_]+`
 )
 
 func cat(tokens ...string) string {
-	return strings.Join(tokens, ws)
+	str := ""
+	for idx, token := range tokens {
+		if idx == len(tokens)-1 {
+			str += token
+		} else if token == anything || token[len(token)-1] == '?' {
+			str += token + multiWs
+		} else {
+			str += token + ws
+		}
+	}
+	return str
 }
 
 func opt(tokens ...string) string {
-	return fmt.Sprintf("(%s%s)?", cat(tokens...), ws)
+	return fmt.Sprintf("(%s)?", strings.Join(tokens, ws))
 }
 
 func capture(str string) string {
@@ -77,6 +88,14 @@ func re(tokens ...string) *regexp.Regexp {
 	s := cat(tokens...)
 	s = "(?i)" + s
 	return regexp.MustCompile(s)
+}
+
+func parenth(s string) string {
+	return `\(` + s + `\)`
+}
+
+func addMultiWs(s string) string {
+	return multiWs + s
 }
 
 var (
@@ -92,11 +111,11 @@ var (
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	createConvRegex       = re("CREATE", opt("DEFAULT"), "CONVERSION", capture(ident))
 	alterConvRegex        = re("ALTER", "CONVERSION", capture(ident))
-	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING GIST")
-	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING brin")
-	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING spgist")
-	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING rtree")
-	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING GIN", capture(commaSeperatedStrings))
+	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
+	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
+	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
+	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
+	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(commaSeperatedStrings))
 	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
 	rangeRegex            = re("PRECEDING", "and", anything, ":float")
 	fetchRegex            = re("FETCH", anything, "FROM")
@@ -114,14 +133,14 @@ var (
 	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
 	currentOfRegex        = re("WHERE", "CURRENT", "OF")
 	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
-	idxConcRegex          = re("REINDEX ", anything, " ", capture(ident))
-	storedRegex           = re(capture(normalIdent), capture(normalIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), `\(`+capture(commaSeperatedStrings)+`\) PARTITION BY`, capture("[A-Za-z]+"), `\(`, capture(commaSeperatedStrings), `\)`)
+	idxConcRegex          = re("REINDEX", anything, capture(ident))
+	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(commaSeperatedStrings)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(commaSeperatedStrings)))
 	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
-	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(`, "LIKE")
-	inheritRegex          = re("CREATE", opt(capture(normalIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
+	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
+	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
 	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
-	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "interval PRIMARY")
+	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
 	//super user role required, language c is errored as unsafe
 	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
@@ -133,17 +152,17 @@ var (
 	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
 	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET", `\(`)
 	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET")
-	alterConstrRegex                = re("ALTER", opt(capture(normalIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
-	setOidsRegex                    = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
+	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
+	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
 	clusterRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "CLUSTER")
 	withoutClusterRegex             = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET WITHOUT CLUSTER")
 	alterSetRegex                   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "SET")
 	alterIdxRegex                   = re("ALTER", "INDEX", capture(ident), "SET")
 	alterResetRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "RESET")
-	alterOptionsRegex               = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
-	alterInhRegex                   = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
-	valConstrRegex                  = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
-	deferRegex                      = re("ALTER", opt(capture(normalIdent)), "TABLE", ifExists, capture(ident), anything, "UNIQUE", anything, "deferrable")
+	alterOptionsRegex               = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
+	alterInhRegex                   = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
+	valConstrRegex                  = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
+	deferRegex                      = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "UNIQUE", anything, "deferrable")
 	alterViewRegex                  = re("ALTER", "VIEW", capture(ident))
 	dropAttrRegex                   = re("ALTER", "TYPE", capture(ident), "DROP ATTRIBUTE")
 	alterTypeRegex                  = re("ALTER", "TYPE", capture(ident))
@@ -152,8 +171,8 @@ var (
 	// table partition. partitioned table is the key in tblParts map
 	tblPartitionRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "PARTITION", "OF", capture(ident))
 	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ADD PRIMARY KEY")
-	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident), anything, "PRIMARY KEY")
-	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident), anything, "REFERENCES")
+	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
+	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES")
 
 	// unsupported SQLs exported by ora2pg
 	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, "COMPOUND", anything)
@@ -367,7 +386,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], sqlInfo.formattedStmt)
 		} else if tbl := idxConcRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			fmt.Println(idxConcRegex, sqlInfo.stmt, len(tbl), tbl[1])
 			reportCase(fpath, "REINDEX is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
 		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
@@ -432,7 +450,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := setOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITH OIDS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if tbl := withoutClusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
