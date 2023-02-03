@@ -94,10 +94,6 @@ func parenth(s string) string {
 	return `\(` + s + `\)`
 }
 
-func addMultiWs(s string) string {
-	return multiWs + s
-}
-
 var (
 	outputFormat  string
 	sourceObjList []string
