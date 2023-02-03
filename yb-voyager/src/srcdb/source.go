@@ -6,7 +6,7 @@ import (
 	"crypto/x509"
 	_ "embed"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -82,7 +82,7 @@ func parseSSLString(source *Source) {
 func createTLSConf(source *Source) tls.Config {
 	rootCertPool := x509.NewCertPool()
 	if source.SSLRootCert != "" {
-		pem, err := ioutil.ReadFile(source.SSLRootCert)
+		pem, err := os.ReadFile(source.SSLRootCert)
 		if err != nil {
 			utils.ErrExit("error in reading SSL Root Certificate: %v", err)
 		}
@@ -206,7 +206,7 @@ func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
 func (source *Source) PopulateOra2pgConfigFile(configFilePath string, conf *Ora2pgConfig) {
 	baseConfigFilePath := filepath.Join("/", "etc", "yb-voyager", "base-ora2pg.conf")
 	if utils.FileOrFolderExists(baseConfigFilePath) {
-		BaseOra2pgConfigFile, err := ioutil.ReadFile(baseConfigFilePath)
+		BaseOra2pgConfigFile, err := os.ReadFile(baseConfigFilePath)
 		if err != nil {
 			utils.ErrExit("Error while reading base ora2pg configuration file: %v", err)
 		}
@@ -224,7 +224,7 @@ func (source *Source) PopulateOra2pgConfigFile(configFilePath string, conf *Ora2
 		utils.ErrExit("Error while preparing ora2pg configuration file: %v", err)
 	}
 
-	err = ioutil.WriteFile(configFilePath, output.Bytes(), 0644)
+	err = os.WriteFile(configFilePath, output.Bytes(), 0644)
 	if err != nil {
 		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
 	}

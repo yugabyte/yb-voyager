@@ -20,7 +20,7 @@ trap on_exit EXIT
 YUM="sudo yum install -y -q"
 
 export GOROOT="/tmp/go"
-GO_VERSION="go1.18"
+GO_VERSION="go1.20"
 GO="$GOROOT/bin/go"
 
 LOG_FILE=/tmp/install-yb-voyager.log
