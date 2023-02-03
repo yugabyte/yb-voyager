@@ -51,15 +51,15 @@ type sqlInfo struct {
 }
 
 var (
-	anything                       = `.*`
-	ws                             = `[\s\n\t]+`
-	multiWs                        = `[\s\n\t]*`
-	ident                          = `[a-zA-Z0-9_."]+`
-	ifExists                       = opt("IF EXISTS")
-	ifNotExists                    = opt("IF NOT EXISTS")
-	commaSeperatedStrings          = `[^,]+(?:,[^,]+){0,}`
-	commaSeperatedStringsMoreThan1 = `[^,]+(?:,[^,]+){1,}`
-	unqualifiedIdent               = `[a-zA-Z0-9_]+`
+	anything                      = `.*`
+	ws                            = `[\s\n\t]+`
+	multiWs                       = `[\s\n\t]*`
+	ident                         = `[a-zA-Z0-9_."]+`
+	ifExists                      = opt("IF EXISTS")
+	ifNotExists                   = opt("IF NOT EXISTS")
+	optionalCommaSeperatedStrings = `[^,]+(?:,[^,]+){0,}`
+	commaSeperatedStrings         = `[^,]+(?:,[^,]+){1,}`
+	unqualifiedIdent              = `[a-zA-Z0-9_]+`
 )
 
 func cat(tokens ...string) string {
@@ -115,7 +115,7 @@ var (
 	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
 	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
 	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(commaSeperatedStrings))
+	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedStrings))
 	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
 	rangeRegex            = re("PRECEDING", "and", anything, ":float")
 	fetchRegex            = re("FETCH", anything, "FROM")
@@ -123,11 +123,11 @@ var (
 	backwardRegex         = re("MOVE", "BACKWARD")
 	fetchAbsRegex         = re("FETCH", "ABSOLUTE")
 	alterAggRegex         = re("ALTER", "AGGREGATE", capture(ident))
-	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedStringsMoreThan1))
-	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedStringsMoreThan1))
-	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedStringsMoreThan1))
-	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedStringsMoreThan1))
-	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedStringsMoreThan1))
+	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedStrings))
+	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedStrings))
+	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedStrings))
+	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedStrings))
+	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedStrings))
 	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
 	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
 	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
@@ -135,7 +135,7 @@ var (
 	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
 	idxConcRegex          = re("REINDEX", anything, capture(ident))
 	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(commaSeperatedStrings)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(commaSeperatedStrings)))
+	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedStrings)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedStrings)))
 	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
 	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
 	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
