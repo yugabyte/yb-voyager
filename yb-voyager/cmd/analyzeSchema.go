@@ -676,12 +676,12 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 
 		// Assuming that both the dollar quote strings will not be in same line
 		if dollarQuoteFlag == 0 {
-			if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
-				dollarQuoteFlag = 1 //denotes start of the code/body part
-				codeBlockDelimiter = matches[0]
-			} else if strings.Contains(currLine, ";") { // in case, there is no body part
+			if strings.Contains(currLine, ";") { // in case, there is no body part or body part is in single line
 				//one liner sql string created, now will check for obj count and report cases
 				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
+				dollarQuoteFlag = 1 //denotes start of the code/body part
+				codeBlockDelimiter = matches[0]
 			}
 		} else if dollarQuoteFlag == 1 {
 			if strings.Contains(currLine, codeBlockDelimiter) {

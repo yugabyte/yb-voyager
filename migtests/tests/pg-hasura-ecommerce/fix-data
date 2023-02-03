@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+
+set -e
+
+if [ $# -ne 1 ]
+then
+	echo "Usage: $0 EXPORT_DIR"
+	exit 1
+fi
+
+
+export EXPORT_DIR=$1
+
+if [ -d $EXPORT_DIR ]; then
+    #files array of string order,user
+    export newOrder='"order"_data.sql'
+    export newUser='"user"_data.sql'
+    mv $EXPORT_DIR/data/order_data.sql $EXPORT_DIR/data/$newOrder
+    mv $EXPORT_DIR/data/user_data.sql $EXPORT_DIR/data/$newUser
+else
+    echo "Directory $EXPORT_DIR does not exist."
+    exit 1
+fi

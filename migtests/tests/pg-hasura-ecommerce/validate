@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	"address": 497,
+	"hdb_catalog.hdb_action_log": 0,
+	"hdb_catalog.hdb_cron_event_invocation_logs": 0,
+	"hdb_catalog.hdb_cron_events": 0,
+	"hdb_catalog.hdb_metadata": 1,
+	"hdb_catalog.hdb_scheduled_event_invocation_logs": 0,
+	"hdb_catalog.hdb_scheduled_events": 0,
+	"hdb_catalog.hdb_schema_notifications": 1,
+	"hdb_catalog.hdb_version": 1,
+	"order": 2400,
+	"order_product": 4636,
+	"order_status": 6,
+	"product": 25428,
+	"product_category_enum": 32,
+	"product_review": 0,
+	"site_admin": 1,
+	"user": 499	
+}
+
+
+def migration_completed_checks(tgt):    
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 17
+ 
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 9
+ 
+	table_list = tgt.get_table_names("hdb_catalog")
+	print("table_list:", table_list)
+	assert len(table_list) == 8
+
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		schema = table_name.split(".")[0]
+		table = table_name.split(".")[1]
+		got_row_count = tgt.get_row_count(table, schema)
+		print(f"table_name: {table_name}, target row_count: {got_row_count}")
+		assert row_count == got_row_count
+  		
+    	# check whether all the indexes on a table are valid
+		print(f"checking all indexes valid on table: {table_name} are valid")
+		assert tgt.invalid_index_present(table, schema) == False
+	
+
+if __name__ == "__main__":
+	main()
