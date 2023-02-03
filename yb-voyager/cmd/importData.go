@@ -956,8 +956,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s", err.Error(), pgerr.Where)
-			return res.RowsAffected(), err
+			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.SplitFilePath)
 		}
 		return res.RowsAffected(), err
 	}
