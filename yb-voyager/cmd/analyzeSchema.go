@@ -53,31 +53,38 @@ type sqlInfo struct {
 var (
 	anything                      = `.*`
 	ws                            = `[\s\n\t]+`
-	multiWs                       = `[\s\n\t]*`
+	optionalWhiteSpaces           = `[\s\n\t]*`
 	ident                         = `[a-zA-Z0-9_."]+`
-	ifExists                      = opt("IF EXISTS")
-	ifNotExists                   = opt("IF NOT EXISTS")
-	optionalCommaSeperatedStrings = `[^,]+(?:,[^,]+){0,}`
-	commaSeperatedStrings         = `[^,]+(?:,[^,]+){1,}`
+	ifExists                      = opt("IF", "EXISTS")
+	ifNotExists                   = opt("IF", "NOT", "EXISTS")
+	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
+	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent              = `[a-zA-Z0-9_]+`
 )
 
 func cat(tokens ...string) string {
 	str := ""
 	for idx, token := range tokens {
-		if idx == len(tokens)-1 {
-			str += token
-		} else if token == anything || token[len(token)-1] == '?' {
-			str += token + multiWs
+		str += token
+		nextToken := ""
+		if idx < len(tokens) - 1 {
+			nextToken = tokens[idx+1]
 		} else {
-			str += token + ws
+			break
+		}
+	
+		if strings.HasSuffix(token, optionalWhiteSpaces) ||
+			strings.HasPrefix(nextToken, optionalWhiteSpaces) {
+			// White space already part of tokens. Nothing to do.
+		} else {
+			str += ws
 		}
 	}
 	return str
 }
 
 func opt(tokens ...string) string {
-	return fmt.Sprintf("(%s)?", strings.Join(tokens, ws))
+	return fmt.Sprintf("(%s)?%s", cat(tokens...), optionalWhiteSpaces)
 }
 
 func capture(str string) string {
@@ -105,77 +112,77 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex       = re("CREATE", opt("DEFAULT"), "CONVERSION", capture(ident))
+	createConvRegex       = re("CREATE", opt("DEFAULT"), optionalWhiteSpaces, "CONVERSION", capture(ident))
 	alterConvRegex        = re("ALTER", "CONVERSION", capture(ident))
-	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
-	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
-	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
-	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
-	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedStrings))
-	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
-	rangeRegex            = re("PRECEDING", "and", anything, ":float")
-	fetchRegex            = re("FETCH", anything, "FROM")
+	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, optionalWhiteSpaces, "USING", "GIST")
+	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, optionalWhiteSpaces, "USING", "brin")
+	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, optionalWhiteSpaces, "USING", "spgist")
+	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, optionalWhiteSpaces, "USING", "rtree")
+	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, optionalWhiteSpaces, "USING", "GIN", capture(optionalCommaSeperatedTokens))
+	viewWithCheckRegex    = re("VIEW", capture(ident), anything, optionalWhiteSpaces, "WITH", "CHECK", "OPTION")
+	rangeRegex            = re("PRECEDING", "and", anything, optionalWhiteSpaces, ":float")
+	fetchRegex            = re("FETCH", anything, optionalWhiteSpaces, "FROM")
 	fetchRelativeRegex    = re("FETCH", "RELATIVE")
 	backwardRegex         = re("MOVE", "BACKWARD")
 	fetchAbsRegex         = re("FETCH", "ABSOLUTE")
 	alterAggRegex         = re("ALTER", "AGGREGATE", capture(ident))
-	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedStrings))
-	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedStrings))
-	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedStrings))
-	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedStrings))
-	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedStrings))
+	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
+	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
+	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
+	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
+	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
 	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
-	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
+	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, optionalWhiteSpaces, "REFERENCING")
 	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
 	currentOfRegex        = re("WHERE", "CURRENT", "OF")
 	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
-	idxConcRegex          = re("REINDEX", anything, capture(ident))
-	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
-	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedStrings)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedStrings)))
-	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
-	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
-	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
-	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
-	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
+	idxConcRegex          = re("REINDEX", anything, optionalWhiteSpaces, capture(ident))
+	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, optionalWhiteSpaces, "STORED")
+	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
+	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, optionalWhiteSpaces, "LIKE", anything, optionalWhiteSpaces, "INCLUDING ALL")
+	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, optionalWhiteSpaces, `\(LIKE`)
+	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, optionalWhiteSpaces, "INHERITS", "[ |(]")
+	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, optionalWhiteSpaces, "WITH", anything, optionalWhiteSpaces, "OIDS")
+	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, optionalWhiteSpaces, "interval", "PRIMARY")
 	//super user role required, language c is errored as unsafe
-	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
+	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, optionalWhiteSpaces, "language c")
 
-	alterOfRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "OF")
-	alterSchemaRegex                = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET SCHEMA")
-	createSchemaRegex               = re("CREATE", "SCHEMA", anything, "CREATE", "TABLE")
-	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "NOT OF")
-	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STATISTICS")
-	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
-	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET", `\(`)
-	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET")
-	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
-	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
-	clusterRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "CLUSTER")
-	withoutClusterRegex             = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET WITHOUT CLUSTER")
+	alterOfRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "OF")
+	alterSchemaRegex                = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "SET SCHEMA")
+	createSchemaRegex               = re("CREATE", "SCHEMA", anything, optionalWhiteSpaces, "CREATE", "TABLE")
+	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "NOT OF")
+	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "ALTER", "COLUMN", capture(ident), anything, optionalWhiteSpaces, "SET STATISTICS")
+	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "ALTER", "COLUMN", capture(ident), anything, optionalWhiteSpaces, "SET STORAGE")
+	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "ALTER", "COLUMN", capture(ident), anything, optionalWhiteSpaces, "SET", `\(`)
+	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "ALTER", "COLUMN", capture(ident), anything, optionalWhiteSpaces, "RESET")
+	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, optionalWhiteSpaces, "ALTER", "CONSTRAINT")
+	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, optionalWhiteSpaces, "SET WITH OIDS")
+	clusterRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "CLUSTER")
+	withoutClusterRegex             = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "SET WITHOUT CLUSTER")
 	alterSetRegex                   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "SET")
 	alterIdxRegex                   = re("ALTER", "INDEX", capture(ident), "SET")
 	alterResetRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "RESET")
 	alterOptionsRegex               = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
 	alterInhRegex                   = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
 	valConstrRegex                  = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
-	deferRegex                      = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "UNIQUE", anything, "deferrable")
+	deferRegex                      = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, optionalWhiteSpaces, "UNIQUE", anything, optionalWhiteSpaces, "deferrable")
 	alterViewRegex                  = re("ALTER", "VIEW", capture(ident))
 	dropAttrRegex                   = re("ALTER", "TYPE", capture(ident), "DROP ATTRIBUTE")
 	alterTypeRegex                  = re("ALTER", "TYPE", capture(ident))
 	alterTblSpcRegex                = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
 	// table partition. partitioned table is the key in tblParts map
-	tblPartitionRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "PARTITION", "OF", capture(ident))
-	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ADD PRIMARY KEY")
-	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
-	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES")
+	tblPartitionRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, optionalWhiteSpaces, "PARTITION", "OF", capture(ident))
+	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, optionalWhiteSpaces, "ADD PRIMARY KEY")
+	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, optionalWhiteSpaces, "PRIMARY KEY")
+	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, optionalWhiteSpaces, "REFERENCES")
 
 	// unsupported SQLs exported by ora2pg
-	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, "COMPOUND", anything)
-	unsupportedCommentRegex1   = re("--", anything, "(unsupported)")
-	packageSupportCommentRegex = re("--", anything, "Oracle package ", "'"+capture(ident)+"'", anything, "please edit to match PostgreSQL syntax")
-	unsupportedCommentRegex2   = re("--", anything, "please edit to match PostgreSQL syntax")
-	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
+	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, optionalWhiteSpaces, "COMPOUND", anything)
+	unsupportedCommentRegex1   = re("--", anything, optionalWhiteSpaces, "(unsupported)")
+	packageSupportCommentRegex = re("--", anything, optionalWhiteSpaces, "Oracle package ", "'"+capture(ident)+"'", anything, optionalWhiteSpaces, "please edit to match PostgreSQL syntax")
+	unsupportedCommentRegex2   = re("--", anything, optionalWhiteSpaces, "please edit to match PostgreSQL syntax")
+	typeUnsupportedRegex       = re("Inherited types are not supported", anything, optionalWhiteSpaces, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 )
 
