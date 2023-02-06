@@ -18,6 +18,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -953,6 +954,10 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	var res pgconn.CommandTag
 	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCmd)
 	if err != nil {
+		var pgerr *pgconn.PgError
+		if errors.As(err, &pgerr) {
+			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.SplitFilePath)
+		}
 		return res.RowsAffected(), err
 	}
 
