@@ -17,7 +17,7 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -122,7 +122,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 		}
 	}
 
-	tocTextFileDataBytes, err := ioutil.ReadFile(tocTextFilePath)
+	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
 	}
@@ -139,7 +139,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 	}
 
 	//extracted SQL for setval() and put it into a postexport.sql file
-	ioutil.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
+	os.WriteFile(filepath.Join(dataDirPath, "postdata.sql"), []byte(sequencesPostData.String()), 0644)
 	return tableNameVsFileNameMap
 }
 
@@ -158,7 +158,7 @@ func UpdateTableApproxRowCount(source *srcdb.Source, exportDir string, tablesPro
 func GetTableRowCount(filePath string) map[string]int64 {
 	tableRowCountMap := make(map[string]int64)
 
-	fileBytes, err := ioutil.ReadFile(filePath)
+	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		utils.ErrExit("read file %q: %s", filePath, err)
 	}

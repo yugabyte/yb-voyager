@@ -17,7 +17,7 @@ package cmd
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -50,7 +50,7 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 func InitLogging(logDir string, disableLogging bool) {
 	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
 	if disableLogging {
-		log.SetOutput(ioutil.Discard)
+		log.SetOutput(io.Discard)
 		return
 	}
 	logFileName := filepath.Join(logDir, "yb-voyager.log")

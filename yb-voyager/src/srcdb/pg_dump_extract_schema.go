@@ -3,7 +3,6 @@ package srcdb
 import (
 	"bufio"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -151,7 +150,7 @@ func parseSchemaFile(exportDir string) int {
 		filePath := utils.GetObjectFilePath(schemaDirPath, objType)
 		dataBytes := []byte(setSessionVariables.String() + sqlStmts.String())
 
-		err := ioutil.WriteFile(filePath, dataBytes, 0644)
+		err := os.WriteFile(filePath, dataBytes, 0644)
 		if err != nil {
 			utils.ErrExit("Failed to create sql file for %q: %v", objType, err)
 		}
@@ -163,7 +162,7 @@ func parseSchemaFile(exportDir string) int {
 		msg := fmt.Sprintf("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
 		color.Red(msg)
 		log.Infof(msg)
-		ioutil.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
+		os.WriteFile(filePath, []byte(setSessionVariables.String()+uncategorizedSqls.String()), 0644)
 		return 1
 	}
 	return 0
