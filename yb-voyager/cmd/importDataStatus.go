@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
@@ -134,8 +135,7 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 			table = parts[0]
 		}
 		tablesProgressMetadata[fullTableName] = &utils.TableProgressMetadata{
-			TableSchema:    schema,
-			TableName:      table,
+			TableName:      sqlname.NewSourceName(schema, table), // TODO: Use sqlname.TargetName instead.
 			Status:         0,
 			CountLiveRows:  importedRowCount[fullTableName],
 			CountTotalRows: totalRowCountMap[fullTableName],

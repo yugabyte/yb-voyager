@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"golang.org/x/exp/maps"
 )
 
 type Oracle struct {
@@ -51,19 +51,19 @@ func (ora *Oracle) GetTableApproxRowCount(tableProgressMetadata *utils.TableProg
 	var query string
 	if !tableProgressMetadata.IsPartition {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
-			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName)
+			"WHERE TABLE_NAME='%s'", tableProgressMetadata.TableName.ObjectName.Unquoted)
 	} else {
 		query = fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TAB_PARTITIONS "+
-			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName)
+			"WHERE TABLE_NAME='%s' AND PARTITION_NAME='%s'", tableProgressMetadata.ParentTable, tableProgressMetadata.TableName.ObjectName.Unquoted)
 	}
 
-	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName.ObjectName.Unquoted)
 	err := ora.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.ObjectName.Unquoted, err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.ObjectName.Unquoted, approxRowCount)
 	return approxRowCount.Int64
 }
 
@@ -78,8 +78,8 @@ func (ora *Oracle) GetVersion() string {
 	return version
 }
 
-func (ora *Oracle) GetAllTableNames() []string {
-	var tableNames []string
+func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
+	var tableNames []*sqlname.SourceName
 	/* below query will collect all tables under given schema except TEMPORARY tables,
 	Index related tables(start with DR$) and materialized view */
 	query := fmt.Sprintf(`SELECT table_name
@@ -106,8 +106,8 @@ func (ora *Oracle) GetAllTableNames() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for table names: %v", err)
 		}
-
-		tableNames = append(tableNames, tableName)
+		tableName = fmt.Sprintf(`"%s"`, tableName)
+		tableNames = append(tableNames, sqlname.NewSourceName(ora.source.Schema, tableName))
 	}
 
 	log.Infof("Table Name List: %q", tableNames)
@@ -165,7 +165,7 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []string, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -203,9 +203,11 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []string) []string {
-	var unsupportedTables []string
-
+func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	supportedTables := map[string]*sqlname.SourceName{}
+	for _, table := range tableList {
+		supportedTables[table.Qualified.Quoted] = table
+	}
 	// query to find unsupported tables
 	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
 	log.Infof("query for queue tables: %q\n", query)
@@ -219,19 +221,14 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []string) []string {
 		if err != nil {
 			utils.ErrExit("failed to scan tableName from output of query %q: %v", query, err)
 		}
-
-		if slices.Contains(tableList, tableName) {
-			unsupportedTables = append(unsupportedTables, tableName)
-		}
+		tableName = fmt.Sprintf(`"%s"`, tableName)
+		qualifiedName := sqlname.NewSourceName(ora.source.Schema, tableName).Qualified.Quoted
+		delete(supportedTables, qualifiedName)
 	}
 
-	if len(unsupportedTables) > 0 {
-		msg := fmt.Sprintf("Ignorning unsupported queue tables: %s\n", unsupportedTables)
-		color.Yellow(msg)
-		log.Infof(msg)
-		tableList = utils.SetDifference(tableList, unsupportedTables)
-
-		fmt.Printf("final table list for data export: %s", tableList)
+	tableList = maps.Values(supportedTables)
+	if len(tableList) > 0 {
+		fmt.Printf("final table list for data export: %s\n", tableList)
 	}
 	return tableList
 }

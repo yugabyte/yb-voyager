@@ -46,12 +46,12 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
-			fullTableName := tablesProgressMetadata[key].FullTableName
+			fullTableName := tableName.Qualified.MinQuoted
 
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
-				if tablesProgressMetadata[key].TableSchema == "public" {
-					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName+"_data.sql")
+				if tablesProgressMetadata[key].TableName.SchemaName.Unquoted == "public" {
+					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tableName.ObjectName.MinQuoted+"_data.sql")
 				} else {
 					tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", fullTableName+"_data.sql")
 				}
@@ -62,7 +62,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		}
 	} else if source.DBType == "oracle" || source.DBType == "mysql" {
 		for _, key := range sortedKeys {
-			targetTableName := tablesProgressMetadata[key].TableName
+			targetTableName := tablesProgressMetadata[key].TableName.ObjectName.Unquoted
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
