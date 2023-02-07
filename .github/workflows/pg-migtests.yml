@@ -120,3 +120,6 @@ jobs:
     - name: "TEST: pg-sample-schema-emp"
       run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
 
+    - name: "TEST: pg-hasura-ecommerce"
+      run: migtests/scripts/run-test.sh pg-hasura-ecommerce
+

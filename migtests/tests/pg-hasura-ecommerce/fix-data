@@ -17,6 +17,8 @@ if [ -d $EXPORT_DIR ]; then
     export newUser='"user"_data.sql'
     mv $EXPORT_DIR/data/order_data.sql $EXPORT_DIR/data/$newOrder
     mv $EXPORT_DIR/data/user_data.sql $EXPORT_DIR/data/$newUser
+
+    ls -l ${EXPORT_DIR}/data
 else
     echo "Directory $EXPORT_DIR does not exist."
     exit 1

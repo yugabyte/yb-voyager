@@ -71,7 +71,7 @@ main() {
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
 	then
-		 "${TEST_DIR}/fix-data" ${EXPORT_DIR}
+		"${TEST_DIR}/fix-data" ${EXPORT_DIR}
 	fi
 
 	step "Create target database."

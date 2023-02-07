@@ -151,10 +151,10 @@ class PostgresDB:
 		return False
 
 
-	def fetch_all_triggers(self, schema_name="public") -> List[str]:
+	def fetch_all_triggers(self, schema_name="public") -> set[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
-		return [trigger[0] for trigger in cur.fetchall()]
+		return set(cur.fetchall())
 
 	def fetch_all_procedures(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
@@ -179,4 +179,14 @@ class PostgresDB:
 	def fetch_all_table_rows(self, table_name, schema_name="public") -> set[str]:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT * FROM {schema_name}.{table_name}")
+		return set(cur.fetchall())
+
+	def fetch_all_pg_extension(self, schema_name = "public") -> set[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT extname FROM pg_extension")
+		return set(cur.fetchall())
+
+	def fetch_all_schemas(self) -> set[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema'")
 		return set(cur.fetchall())
