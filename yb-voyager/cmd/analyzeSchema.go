@@ -51,6 +51,57 @@ type sqlInfo struct {
 }
 
 var (
+	anything                     = `.*`
+	ws                           = `[\s\n\t]+`
+	optionalWS                   = `[\s\n\t]*` //optional white spaces
+	ident                        = `[a-zA-Z0-9_."]+`
+	ifExists                     = opt("IF", "EXISTS")
+	ifNotExists                  = opt("IF", "NOT", "EXISTS")
+	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
+	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
+	unqualifiedIdent             = `[a-zA-Z0-9_]+`
+)
+
+func cat(tokens ...string) string {
+	str := ""
+	for idx, token := range tokens {
+		str += token
+		nextToken := ""
+		if idx < len(tokens)-1 {
+			nextToken = tokens[idx+1]
+		} else {
+			break
+		}
+
+		if strings.HasSuffix(token, optionalWS) ||
+			strings.HasPrefix(nextToken, optionalWS) || strings.HasSuffix(token, anything) {
+			// White space already part of tokens. Nothing to do.
+		} else {
+			str += ws
+		}
+	}
+	return str
+}
+
+func opt(tokens ...string) string {
+	return fmt.Sprintf("(%s)?%s", cat(tokens...), optionalWS)
+}
+
+func capture(str string) string {
+	return "(" + str + ")"
+}
+
+func re(tokens ...string) *regexp.Regexp {
+	s := cat(tokens...)
+	s = "(?i)" + s
+	return regexp.MustCompile(s)
+}
+
+func parenth(s string) string {
+	return `\(` + s + `\)`
+}
+
+var (
 	outputFormat  string
 	sourceObjList []string
 	reportStruct  utils.Report
@@ -61,82 +112,78 @@ var (
 	multiRegex       = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex = regexp.MustCompile(`(\$.*\$)`)
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
-	createConvRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(DEFAULT[\s\n]+)?CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
-	alterConvRegex  = regexp.MustCompile(`(?i)ALTER[\s\n]+CONVERSION[\s\n]+([a-zA-Z0-9_."]+)`)
-	gistRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING GIST`)
-	brinRegex       = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING brin`)
-	spgistRegex     = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING spgist`)
-	rtreeRegex      = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING rtree`)
-	// matViewRegex       = regexp.MustCompile("(?i)MATERIALIZED[ \t\n]+VIEW ([a-zA-Z0-9_."]+)")
-	ginRegex           = regexp.MustCompile(`(?i)CREATE[\s\n]+INDEX[\s\n]+(IF NOT EXISTS[\s\n]+)?([a-zA-Z0-9_."]+)[\s\n]+on[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*USING GIN([^,]+(?:,[^,]+){0,})`)
-	viewWithCheckRegex = regexp.MustCompile(`(?i)VIEW[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+WITH CHECK OPTION`)
-	rangeRegex         = regexp.MustCompile(`(?i)PRECEDING[\s\n]+and[\s\n]+.*:float`)
-	fetchRegex         = regexp.MustCompile(`(?i)FETCH .*FROM`)
-	fetchRelativeRegex = regexp.MustCompile(`(?i)FETCH RELATIVE`)
-	backwardRegex      = regexp.MustCompile(`(?i)MOVE BACKWARD`)
-	fetchAbsRegex      = regexp.MustCompile(`(?i)FETCH ABSOLUTE`)
-	alterAggRegex      = regexp.MustCompile(`(?i)ALTER AGGREGATE ([a-zA-Z0-9_."]+)`)
-	dropCollRegex      = regexp.MustCompile(`(?i)DROP COLLATION (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
-	dropIdxRegex       = regexp.MustCompile(`(?i)DROP INDEX (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
-	dropViewRegex      = regexp.MustCompile(`(?i)DROP VIEW (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
-	dropSeqRegex       = regexp.MustCompile(`(?i)DROP SEQUENCE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
-	dropForeignRegex   = regexp.MustCompile(`(?i)DROP FOREIGN TABLE (IF EXISTS )?[a-zA-Z0-9_."]+[ ]*(,)([ ]*(,)?[ ]*[a-zA-Z0-9_."]+)+`)
-	// dropMatViewRegex   = regexp.MustCompile("(?i)DROP MATERIALIZED VIEW")
-	createIdxConcurRegex  = regexp.MustCompile(`(?i)CREATE (UNIQUE )?INDEX CONCURRENTLY (IF NOT EXISTS )?([a-zA-Z0-9_."]+)`)
-	dropIdxConcurRegex    = regexp.MustCompile(`(?i)DROP INDEX CONCURRENTLY (IF EXISTS )?([a-zA-Z0-9_."]+)`)
-	trigRefRegex          = regexp.MustCompile(`(?i)CREATE TRIGGER ([a-zA-Z0-9_."]+).*REFERENCING`)
-	constrTrgRegex        = regexp.MustCompile(`(?i)CREATE CONSTRAINT TRIGGER ([a-zA-Z0-9_."]+)`)
-	currentOfRegex        = regexp.MustCompile(`(?i)WHERE CURRENT OF`)
-	amRegex               = regexp.MustCompile(`(?i)CREATE ACCESS METHOD ([a-zA-Z0-9_."]+)`)
-	idxConcRegex          = regexp.MustCompile(`(?i)REINDEX .*CONCURRENTLY ([a-zA-Z0-9_."]+)`)
-	storedRegex           = regexp.MustCompile(`(?i)([a-zA-Z0-9_]+) [a-zA-Z0-9_]+ GENERATED ALWAYS .* STORED`)
-	partitionColumnsRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS)?([a-zA-Z0-9_."]+) \(([^,]+(?:,[^,]+){0,})\) PARTITION BY ([A-Za-z]+) ([^,]+(?:,[^,]+){0,}) ;`)
-	likeAllRegex          = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*LIKE .*INCLUDING ALL`)
-	likeRegex             = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*\(like`)
-	inheritRegex          = regexp.MustCompile(`(?i)CREATE ([a-zA-Z_]+ )?TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+).*INHERITS[ |(]`)
-	withOidsRegex         = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*WITH OIDS`)
-	intvlRegex            = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*interval PRIMARY`)
+	createConvRegex       = re("CREATE", opt("DEFAULT"), optionalWS, "CONVERSION", capture(ident))
+	alterConvRegex        = re("ALTER", "CONVERSION", capture(ident))
+	gistRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIST")
+	brinRegex             = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "brin")
+	spgistRegex           = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "spgist")
+	rtreeRegex            = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "rtree")
+	ginRegex              = re("CREATE", "INDEX", ifNotExists, capture(ident), "ON", capture(ident), anything, "USING", "GIN", capture(optionalCommaSeperatedTokens))
+	viewWithCheckRegex    = re("VIEW", capture(ident), anything, "WITH", "CHECK", "OPTION")
+	rangeRegex            = re("PRECEDING", "and", anything, ":float")
+	fetchRegex            = re("FETCH", anything, "FROM")
+	fetchRelativeRegex    = re("FETCH", "RELATIVE")
+	backwardRegex         = re("MOVE", "BACKWARD")
+	fetchAbsRegex         = re("FETCH", "ABSOLUTE")
+	alterAggRegex         = re("ALTER", "AGGREGATE", capture(ident))
+	dropCollRegex         = re("DROP", "COLLATION", ifExists, capture(commaSeperatedTokens))
+	dropIdxRegex          = re("DROP", "INDEX", ifExists, capture(commaSeperatedTokens))
+	dropViewRegex         = re("DROP", "VIEW", ifExists, capture(commaSeperatedTokens))
+	dropSeqRegex          = re("DROP", "SEQUENCE", ifExists, capture(commaSeperatedTokens))
+	dropForeignRegex      = re("DROP", "FOREIGN", "TABLE", ifExists, capture(commaSeperatedTokens))
+	dropIdxConcurRegex    = re("DROP", "INDEX", "CONCURRENTLY", ifExists, capture(ident))
+	trigRefRegex          = re("CREATE", "TRIGGER", capture(ident), anything, "REFERENCING")
+	constrTrgRegex        = re("CREATE", "CONSTRAINT", "TRIGGER", capture(ident))
+	currentOfRegex        = re("WHERE", "CURRENT", "OF")
+	amRegex               = re("CREATE", "ACCESS", "METHOD", capture(ident))
+	idxConcRegex          = re("REINDEX", anything, capture(ident))
+	storedRegex           = re(capture(unqualifiedIdent), capture(unqualifiedIdent), "GENERATED", "ALWAYS", anything, "STORED")
+	partitionColumnsRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), parenth(capture(optionalCommaSeperatedTokens)), "PARTITION BY", capture("[A-Za-z]+"), parenth(capture(optionalCommaSeperatedTokens)))
+	likeAllRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "LIKE", anything, "INCLUDING ALL")
+	likeRegex             = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, `\(LIKE`)
+	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
+	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
+	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
 	//super user role required, language c is errored as unsafe
-	cLangRegex = regexp.MustCompile(`(?i)CREATE (OR REPLACE )?FUNCTION ([a-zA-Z0-9_."]+).*language c`)
+	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
-	alterOfRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* OF `)
-	alterSchemaRegex                = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET SCHEMA `)
-	createSchemaRegex               = regexp.MustCompile(`(?i)CREATE SCHEMA .* CREATE TABLE`)
-	alterNotOfRegex                 = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* NOT OF `)
-	alterColumnStatsRegex           = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STATISTICS`)
-	alterColumnStorageRegex         = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET STORAGE`)
-	alterColumnSetAttributesRegex   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* SET \(`)
-	alterColumnResetAttributesRegex = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* ALTER COLUMN ([a-zA-Z0-9_."]+).* RESET `)
-	alterConstrRegex                = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?(IF EXISTS )?TABLE ([a-zA-Z0-9_."]+).* ALTER CONSTRAINT`)
-	setOidsRegex                    = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITH OIDS`)
-	clusterRegex                    = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* CLUSTER `)
-	withoutClusterRegex             = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+).* SET WITHOUT CLUSTER `)
-	alterSetRegex                   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) SET `)
-	alterIdxRegex                   = regexp.MustCompile(`(?i)ALTER INDEX ([a-zA-Z0-9_."]+) SET `)
-	alterResetRegex                 = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) RESET `)
-	alterOptionsRegex               = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) OPTIONS `)
-	alterInhRegex                   = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) INHERIT `)
-	valConstrRegex                  = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+) VALIDATE CONSTRAINT`)
-	deferRegex                      = regexp.MustCompile(`(?i)ALTER ([a-zA-Z_]+ )?TABLE (IF EXISTS )?([a-zA-Z0-9_."]+).* unique .*deferrable`)
-	alterViewRegex                  = regexp.MustCompile(`(?i)ALTER VIEW ([a-zA-Z0-9_."]+)`)
-
-	dropAttrRegex    = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+) DROP ATTRIBUTE`)
-	alterTypeRegex   = regexp.MustCompile(`(?i)ALTER TYPE ([a-zA-Z0-9_."]+)`)
-	alterTblSpcRegex = regexp.MustCompile(`(?i)ALTER TABLESPACE ([a-zA-Z0-9_."]+) SET `)
+	alterOfRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "OF")
+	alterSchemaRegex                = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET SCHEMA")
+	createSchemaRegex               = re("CREATE", "SCHEMA", anything, "CREATE", "TABLE")
+	alterNotOfRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "NOT OF")
+	alterColumnStatsRegex           = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STATISTICS")
+	alterColumnStorageRegex         = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET STORAGE")
+	alterColumnSetAttributesRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "SET", `\(`)
+	alterColumnResetAttributesRegex = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ALTER", "COLUMN", capture(ident), anything, "RESET")
+	alterConstrRegex                = re("ALTER", opt(capture(unqualifiedIdent)), ifExists, "TABLE", capture(ident), anything, "ALTER", "CONSTRAINT")
+	setOidsRegex                    = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "SET WITH OIDS")
+	clusterRegex                    = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "CLUSTER")
+	withoutClusterRegex             = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "SET WITHOUT CLUSTER")
+	alterSetRegex                   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "SET")
+	alterIdxRegex                   = re("ALTER", "INDEX", capture(ident), "SET")
+	alterResetRegex                 = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), "RESET")
+	alterOptionsRegex               = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "OPTIONS")
+	alterInhRegex                   = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "INHERIT")
+	valConstrRegex                  = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), "VALIDATE CONSTRAINT")
+	deferRegex                      = re("ALTER", opt(capture(unqualifiedIdent)), "TABLE", ifExists, capture(ident), anything, "UNIQUE", anything, "deferrable")
+	alterViewRegex                  = re("ALTER", "VIEW", capture(ident))
+	dropAttrRegex                   = re("ALTER", "TYPE", capture(ident), "DROP ATTRIBUTE")
+	alterTypeRegex                  = re("ALTER", "TYPE", capture(ident))
+	alterTblSpcRegex                = re("ALTER", "TABLESPACE", capture(ident), "SET")
 
 	// table partition. partitioned table is the key in tblParts map
-	tblPartitionRegex = regexp.MustCompile(`(?i)CREATE TABLE (IF NOT EXISTS )?([a-zA-Z0-9_."]+) .*PARTITION OF ([a-zA-Z0-9_."]+)`)
-	addPrimaryRegex   = regexp.MustCompile(`(?i)ALTER TABLE (ONLY )?(IF EXISTS )?([a-zA-Z0-9_."]+) .*ADD PRIMARY KEY`)
-	primRegex         = regexp.MustCompile(`(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_."]+).*PRIMARY KEY`)
-	foreignKeyRegex   = regexp.MustCompile(`(?i)CREATE FOREIGN TABLE ([a-zA-Z0-9_."]+).*REFERENCES `)
+	tblPartitionRegex = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "PARTITION", "OF", capture(ident))
+	addPrimaryRegex   = re("ALTER", "TABLE", opt("ONLY"), ifExists, capture(ident), anything, "ADD PRIMARY KEY")
+	primRegex         = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "PRIMARY KEY")
+	foreignKeyRegex   = re("CREATE", "FOREIGN", "TABLE", capture(ident)+`\(`, anything, "REFERENCES")
 
 	// unsupported SQLs exported by ora2pg
-	compoundTrigRegex          = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?TRIGGER[\s\n]+([a-zA-Z0-9_."]+)[\s\n]+.*[\s\n]+COMPOUND.*`)
-	unsupportedCommentRegex1   = regexp.MustCompile(`(?i)--.*(unsupported)`)
-	packageSupportCommentRegex = regexp.MustCompile(`(?i)--.*Oracle package '([a-zA-Z0-9_."]+)'.*please edit to match PostgreSQL syntax`)
-	unsupportedCommentRegex2   = regexp.MustCompile(`(?i)--.*please edit to match PostgreSQL syntax`)
-	typeUnsupportedRegex       = regexp.MustCompile(`(?i)Inherited types are not supported.*replacing with inherited table`)
-	bulkCollectRegex           = regexp.MustCompile(`BULK COLLECT`) // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
+	compoundTrigRegex          = re("CREATE", opt("OR REPLACE"), "TRIGGER", capture(ident), anything, "COMPOUND", anything)
+	unsupportedCommentRegex1   = re("--", anything, "(unsupported)")
+	packageSupportCommentRegex = re("--", anything, "Oracle package ", "'"+capture(ident)+"'", anything, "please edit to match PostgreSQL syntax")
+	unsupportedCommentRegex2   = re("--", anything, "please edit to match PostgreSQL syntax")
+	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
+	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
 )
 
 // Reports one case in JSON
@@ -240,13 +287,13 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := brinRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "index method 'brin' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := spgistRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "index method 'spgist' not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		} else if idx := rtreeRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "index method 'rtree' is superceded by 'gist' which is not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[1], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1337", "", "INDEX", idx[2], sqlInfo.formattedStmt)
 		}
 	}
 }
@@ -255,7 +302,7 @@ func checkGist(sqlInfoArr []sqlInfo, fpath string) {
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		/*if dropMatViewRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",
+			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",a
 				"https://github.com/YugaByte/yugabyte-db/issues/10102", "")
 		} else if view := matViewRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			reportCase(fpath, "Schema contains materialized view which is not supported. The view is: "+view[1],
@@ -289,7 +336,7 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt)
 		} else if stmt := createConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "CREATE CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[2], sqlInfo.formattedStmt)
-		} else if alterConvRegex.MatchString(sqlInfo.stmt) {
+		} else if stmt := alterConvRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			reportCase(fpath, "ALTER CONVERSION not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866", "", "CONVERSION", stmt[1], sqlInfo.formattedStmt)
 		} else if fetchAbsRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "FETCH ABSOLUTE not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514", "", "CURSOR", "", sqlInfo.formattedStmt)
@@ -317,9 +364,6 @@ func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 		} else if dropForeignRegex.MatchString(sqlInfo.stmt) {
 			reportCase(fpath, "DROP multiple objects not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", sqlInfo.formattedStmt), "FOREIGN TABLE", "", sqlInfo.formattedStmt)
-		} else if idx := createIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "CREATE INDEX CONCURRENTLY not supported yet",
-				"https://github.com/yugabyte/yugabyte-db/issues/10799", "", "INDEX", idx[3], sqlInfo.formattedStmt)
 		} else if idx := dropIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
 			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
 				"", "", "INDEX", idx[2], sqlInfo.formattedStmt)
@@ -345,8 +389,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], sqlInfo.formattedStmt)
 		} else if tbl := idxConcRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "REINDEX CONCURRENTLY is not supported.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10694", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
+			reportCase(fpath, "REINDEX is not supported.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
 		} else if col := storedRegex.FindStringSubmatch(sqlInfo.stmt); col != nil {
 			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
@@ -364,7 +408,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				reportAddingPrimaryKey(filename, tbl[2], sqlInfo.formattedStmt)
 			}
 		} else if tbl := addPrimaryRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			if _, ok := tblParts[tbl[2]]; ok {
+			if _, ok := tblParts[tbl[3]]; ok {
 				reportAddingPrimaryKey(fpath, tbl[2], sqlInfo.formattedStmt)
 			}
 			primaryCons[tbl[2]] = fpath
@@ -409,7 +453,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := setOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITH OIDS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if tbl := withoutClusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
@@ -420,8 +464,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "ALTER TABLE SET not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := alterIdxRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE SET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[1], sqlInfo.formattedStmt)
+			reportCase(fpath, "ALTER INDEX SET not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "INDEX", tbl[1], sqlInfo.formattedStmt)
 		} else if tbl := alterResetRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "ALTER TABLE RESET not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
@@ -442,7 +486,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := deferRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "DEFERRABLE unique constraints are not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[4], sqlInfo.formattedStmt)
 		} else if spc := alterTblSpcRegex.FindStringSubmatch(sqlInfo.stmt); spc != nil {
 			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], sqlInfo.formattedStmt)
@@ -482,9 +526,6 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 					}
 				}
 			}
-			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
-				continue
-			}
 			partitionColumns := strings.Trim(regMatch[5], `()`)
 			partitionColumnsList := utils.CsvStringToSlice(partitionColumns)
 			if len(partitionColumnsList) == 1 {
@@ -498,6 +539,9 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
 				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
 					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
+				continue
+			}
+			if len(primaryKeyColumnsList) == 0 { // if non-PK table, then no need to report
 				continue
 			}
 			for _, partitionColumn := range partitionColumnsList {
@@ -584,19 +628,19 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	var objNameIndex int
 	//replacing every possible space or new line char with [\s\n]+ in all regexs
 	if objType == "MVIEW" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?MATERIALIZED[\s\n]+VIEW[\s\n]+([a-zA-Z0-9_."]+)`)
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "MATERIALIZED", "VIEW", capture(ident))
 		objNameIndex = 2
 	} else if objType == "PACKAGE" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+SCHEMA[\s\n]+(IF NOT EXISTS[\s\n]*)?[\s\n]+([a-zA-Z0-9_."]+)`)
+		createObjRegex = re("CREATE", "SCHEMA", ifNotExists, capture(ident))
 		objNameIndex = 2
 	} else if objType == "SYNONYM" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?VIEW[\s\n]+([a-zA-Z0-9_."]+)`)
+		createObjRegex = re("CREATE", opt("OR REPLACE"), "VIEW", capture(ident))
 		objNameIndex = 2
 	} else if objType == "INDEX" || objType == "PARTITION_INDEX" || objType == "FTS_INDEX" {
-		createObjRegex = regexp.MustCompile(`(?i)CREATE[\s\n]+(UNIQUE[\s\n]*)?INDEX[\s\n]+(IF NOT EXISTS)?[\s\n]*([a-zA-Z0-9_."]+)`)
+		createObjRegex = re("CREATE", opt("UNIQUE"), "INDEX", ifNotExists, capture(ident))
 		objNameIndex = 3
 	} else { //TODO: check syntaxes for other objects and add more cases if required
-		createObjRegex = regexp.MustCompile(fmt.Sprintf(`(?i)CREATE[\s\n]+(OR REPLACE[\s\n]*)?%s[\s\n]+(IF NOT EXISTS[\s\n]*)?([a-zA-Z0-9_."]+)`, objType))
+		createObjRegex = re("CREATE", opt("OR REPLACE"), objType, ifNotExists, capture(ident))
 		objNameIndex = 3
 	}
 
