@@ -68,6 +68,12 @@ main() {
 	export_data
 	ls -l ${EXPORT_DIR}/data
 
+	step "Fix data."
+	if [ -x "${TEST_DIR}/fix-data" ]
+	then
+		"${TEST_DIR}/fix-data" ${EXPORT_DIR}
+	fi
+
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
