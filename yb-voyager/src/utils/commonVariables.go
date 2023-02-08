@@ -17,6 +17,8 @@ package utils
 
 import (
 	"sync"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const (
@@ -27,9 +29,7 @@ const (
 )
 
 type TableProgressMetadata struct {
-	TableSchema          string
-	TableName            string
-	FullTableName        string
+	TableName            *sqlname.SourceName
 	InProgressFilePath   string
 	FinalFilePath        string
 	Status               int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)

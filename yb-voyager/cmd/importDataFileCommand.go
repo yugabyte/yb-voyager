@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 )
 
@@ -42,7 +43,8 @@ var importDataFileCmd = &cobra.Command{
 }
 
 func prepareForImportDataCmd() {
-	sourceDBType = ORACLE // dummy value - this command is not affected by it
+	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
+	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	tableFileSize := getFileSizeInfo()
 	dfd := &datafile.Descriptor{

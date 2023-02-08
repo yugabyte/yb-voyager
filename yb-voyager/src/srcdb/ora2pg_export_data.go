@@ -28,15 +28,16 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableList []string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
-	for i := 0; i < len(tableList); i++ {
-		parts := strings.Split(tableList[i], ".")
-		tableList[i] = parts[len(parts)-1] // tableList[i] = 'xyz.abc' then take only 'abc'
+	tableList := []string{}
+	for _, tableName := range tableNameList {
+		tableList = append(tableList, tableName.ObjectName.Unquoted)
 	}
 	conf := source.getDefaultOra2pgConfig()
 	conf.DisablePartition = "1"
