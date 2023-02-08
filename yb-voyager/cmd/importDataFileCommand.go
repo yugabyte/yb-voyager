@@ -213,6 +213,17 @@ func checkDataDirFlag() {
 	if dataDir == "" {
 		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
+	// if strings.HasPrefix(dataDir, "s3://") {
+	// 	fmt.Println("identifying s3 resource...")
+	// 	a, _ := url.Parse(dataDir)
+	// 	bucket, err := utils.S3FromUrl(a)
+	// 	if err != nil {
+	// 		fmt.Println("oops")
+	// 	} else {
+	// 		fmt.Println(bucket)
+	// 	}
+	// 	return
+	// }
 	if !utils.FileOrFolderExists(dataDir) {
 		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
 	}
@@ -285,6 +296,28 @@ func checkAndParseFileOpts() {
 
 	log.Infof("fileOptsMap: %v", fileOptsMap)
 }
+
+// func verifyS3Resource(dataDir string) {
+// 	bucket := "rbarigidad-voyager-test"
+// 	item := "testfile"
+// 	destFileName := filepath.Join(exportDir, "testfile")
+// 	destfile, _ := os.Create(destFileName)
+// 	sess, err := session.NewSession(&aws.Config{
+// 		Region: aws.String("us-west-2")},
+// 	)
+// 	if err != nil {
+// 		utils.ErrExit("s3 err %v", err)
+// 	}
+// 	downloader := s3manager.NewDownloader(sess)
+// 	numBytes, err := downloader.Download(destfile, &s3.GetObjectInput{
+// 		Bucket: aws.String(bucket),
+// 		Key:    aws.String(item),
+// 	})
+// 	if err != nil {
+// 		utils.ErrExit("s3 err2 %v", err)
+// 	}
+// 	fmt.Println("Success download", numBytes)
+// }
 
 // escaping single quote character
 func escapeFileOptsCharsIfRequired() {
