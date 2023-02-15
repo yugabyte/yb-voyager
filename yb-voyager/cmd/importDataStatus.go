@@ -38,14 +38,14 @@ func importDataStatus() {
 
 	for Done.IsNotSet() {
 		for _, table := range importTables {
+			tableName := table.ObjectName.MinQuoted
+			if tablesProgressMetadata[tableName].Status == 0 && tablesProgressMetadata[tableName].CountLiveRows >= 0 {
+				tablesProgressMetadata[tableName].Status = 1
+				go startImportPB(tableName)
+			} else if tablesProgressMetadata[tableName].Status == 2 &&
+				tablesProgressMetadata[tableName].CountLiveRows >= tablesProgressMetadata[tableName].CountTotalRows {
 
-			if tablesProgressMetadata[table].Status == 0 && tablesProgressMetadata[table].CountLiveRows >= 0 {
-				tablesProgressMetadata[table].Status = 1
-				go startImportPB(table)
-			} else if tablesProgressMetadata[table].Status == 2 &&
-				tablesProgressMetadata[table].CountLiveRows >= tablesProgressMetadata[table].CountTotalRows {
-
-				tablesProgressMetadata[table].Status = 3
+				tablesProgressMetadata[tableName].Status = 3
 				// fmt.Fprintf(debugFile, "Completed: table:%s  LiveCount:%d, TotalCount:%d\n", tableProgressMetadata.TableName,
 				// 	tableProgressMetadata.CountLiveRows, tableProgressMetadata.CountTotalRows)
 
@@ -113,10 +113,14 @@ func startImportPB(table string) {
 	tablesProgressMetadata[table].Status = 2 //set Status=DONE, before return
 }
 
-func initializeImportDataStatus(exportDir string, tables []string) {
+func initializeImportDataStatus(exportDir string, tables []*sqlname.SourceName) {
 	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
-	importedRowCount := getImportedRowsCount(exportDir, tables)
+	var tableNames []string
+	for _, table := range tables {
+		tableNames = append(tableNames, table.ObjectName.MinQuoted)
+	}
+	importedRowCount := getImportedRowsCount(exportDir, tableNames)
 	var totalRowCountMap map[string]int64
 	if dataFileDescriptor.TableRowCount != nil {
 		totalRowCountMap = dataFileDescriptor.TableRowCount
@@ -124,7 +128,8 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 		totalRowCountMap = dataFileDescriptor.TableFileSize
 	}
 
-	for _, fullTableName := range tables {
+	for _, tableName := range tables {
+		fullTableName := tableName.ObjectName.MinQuoted
 		parts := strings.Split(fullTableName, ".")
 		var table, schema string
 		if len(parts) == 2 {
@@ -145,21 +150,21 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 }
 
 // TODO: rename it and corresponding refactoring so that RowCount & ByteCount both are signified
-func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
+func getImportedRowsCount(exportDir string, tableNames []string) map[string]int64 {
 	metaInfoDataDir := exportDir + "/metainfo/data"
 	importedRowCounts := make(map[string]int64)
 
-	for _, table := range tables {
-		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, table, SPLIT_INFO_PATTERN)
+	for _, tableName := range tableNames {
+		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, tableName, SPLIT_INFO_PATTERN)
 		matches, _ := filepath.Glob(pattern)
-		importedRowCounts[table] = 0
+		importedRowCounts[tableName] = 0
 
 		for _, filePath := range matches {
-			importedRowCounts[table] += getProgressAmount(filePath)
+			importedRowCounts[tableName] += getProgressAmount(filePath)
 		}
 
-		if importedRowCounts[table] == 0 { //if it zero, then its import not started yet
-			importedRowCounts[table] = -1
+		if importedRowCounts[tableName] == 0 { //if it zero, then its import not started yet
+			importedRowCounts[tableName] = -1
 		}
 		// fmt.Printf("Previous count %s = %d\n", table, importedRowCounts[table])
 	}

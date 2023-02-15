@@ -69,8 +69,8 @@ type ProgressContainer struct {
 }
 
 var importProgressContainer ProgressContainer
-var importTables []string
-var allTables []string
+var importTables []*sqlname.SourceName
+var allTables []*sqlname.SourceName
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = make(map[string]string)
@@ -449,8 +449,10 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		importTables = append(interruptedTables, remainingTables...)
 		allTables = append(importTables, doneTables...)
 	} else {
-		allTables = utils.CsvStringToSlice(target.TableList)
-
+		tableListtables := utils.CsvStringToSlice(target.TableList)
+		for _,table :=range tableListtables{
+			allTables = append(allTables, sqlname.NewSourceNameFromMaybeQualifiedName(table, target.Schema))
+		}
 		//filter allTables to remove tables in case not present in --table-list flag
 		for _, table := range allTables {
 			//TODO: 'table' can be schema_name.table_name, so split and proceed
@@ -471,11 +473,23 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		}
 	}
 
-	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
-	importTables = utils.SetDifference(importTables, excludeTableList)
-	allTables = utils.SetDifference(allTables, excludeTableList)
-	sort.Strings(allTables)
-	sort.Strings(importTables)
+	var excludeTables []*sqlname.SourceName
+	if target.ExcludeTableList != "" {
+		excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
+		fmt.Println("excludeTableList: ", excludeTableList, len(excludeTableList))
+		for _, table := range excludeTableList {
+			excludeTables = append(excludeTables, sqlname.NewSourceNameFromMaybeQualifiedName(table, target.Schema))
+		}
+	}
+	importTables = sqlname.SetDifference(importTables, excludeTables)
+	allTables = sqlname.SetDifference(allTables, excludeTables)
+	sort.Slice(allTables, func(i, j int) bool {
+		return allTables[i].ObjectName.MinQuoted < allTables[j].ObjectName.MinQuoted
+	})
+	sort.Slice(importTables, func(i, j int) bool {
+		return importTables[i].ObjectName.MinQuoted < importTables[j].ObjectName.MinQuoted
+	})
+	
 
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
@@ -491,7 +505,7 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 		}
 
 		for _, table := range allTables {
-			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
+			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table.ObjectName.MinQuoted, SPLIT_INFO_PATTERN)
 			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
 			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
 			utils.ClearMatchingFiles(filePattern)
@@ -533,29 +547,35 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	go splitDataFiles(importTables, taskQueue)
 }
 
-func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
+func getNonEmptyTables(conn *pgx.Conn, tables []*sqlname.SourceName) []string {
 	result := []string{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %q is empty.", table)
+		tableName := table.ObjectName.MinQuoted
+
+		log.Infof("Checking if table %q is empty.", tableName)
 		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", tableName)
 		err := conn.QueryRow(context.Background(), stmt).Scan(&tmp)
 		if err == pgx.ErrNoRows {
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("failed to check whether table %q empty: %s", tableName, err)
 		}
-		result = append(result, table)
+		result = append(result, tableName)
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
 }
 
-func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
+func splitDataFiles(importTables []*sqlname.SourceName, taskQueue chan *SplitFileImportTask) {
 	log.Infof("Started goroutine: splitDataFiles")
-	for _, t := range importTables {
+	fmt.Println(importTables)
+	for _, table := range importTables {
+		fmt.Println(table)
+		t := table.ObjectName.MinQuoted
+		fmt.Println(t)
 		origDataFile := exportDir + "/data/" + t + "_data.sql"
 		extractCopyStmtForTable(t, origDataFile)
 		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
@@ -743,7 +763,7 @@ func executePostImportDataSqls() {
 	}
 }
 
-func getTablesToImport() ([]string, []string, []string, error) {
+func getTablesToImport() ([]*sqlname.SourceName, []*sqlname.SourceName, []*sqlname.SourceName, error) {
 	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDir)
 
 	_, err := os.Stat(metaInfoDir)
@@ -775,17 +795,20 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	}
 
 	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	var tables []string
+	var tables []*sqlname.SourceName
 	for _, v := range datafiles {
 		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
 		for _, match := range tablenameMatches {
-			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
+			fmt.Println("mat- ", match)	
+			tables = append(tables, sqlname.NewSourceNameFromMaybeQualifiedName(match[1], target.Schema)) //ora2pg data files named like TABLE_data.sql
 		}
 	}
-
-	var doneTables []string
-	var interruptedTables []string
-	var remainingTables []string
+ /// how to differentiate tablename from data file with or without schema 
+ 
+	var doneTables []*sqlname.SourceName
+	var interruptedTables []*sqlname.SourceName
+	var remainingTables []*sqlname.SourceName
+	fmt.Println("tables- ", tables)
 	for _, t := range tables {
 
 		donePattern := fmt.Sprintf("%s/%s.%s.D", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
