@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
@@ -27,6 +28,7 @@ var (
 	fileOpts             string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
+	ds                   datastore.Datastore
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -88,7 +90,7 @@ func createDataFileSymLinks() {
 	for table, filePath := range tableNameVsFilePath {
 		symLinkPath := filepath.Join(exportDir, "data", table+"_data.sql")
 
-		filePath, err := filepath.Abs(filePath)
+		filePath, err := ds.AbsolutePath(filePath)
 		if err != nil {
 			utils.ErrExit("absolute original filepath for table %q: %v", table, err)
 		}
@@ -146,6 +148,7 @@ func setImportTableListFlag() {
 }
 
 func parseFileTableMapping() {
+	ds = datastore.NewDataStore(dataDir)
 	if fileTableMapping != "" {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
@@ -155,8 +158,10 @@ func parseFileTableMapping() {
 	} else {
 		// TODO: replace "link" with docs link
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
+
 		// get matching file in data-dir
-		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.csv"))
+		files, err := ds.Glob("*_data.csv")
+		//files, err := filepath.Glob(filepath.Join(dataDir, "*_data.csv"))
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}
@@ -215,17 +220,10 @@ func checkDataDirFlag() {
 	if dataDir == "" {
 		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
-	// if strings.HasPrefix(dataDir, "s3://") {
-	// 	fmt.Println("identifying s3 resource...")
-	// 	a, _ := url.Parse(dataDir)
-	// 	bucket, err := utils.S3FromUrl(a)
-	// 	if err != nil {
-	// 		fmt.Println("oops")
-	// 	} else {
-	// 		fmt.Println(bucket)
-	// 	}
-	// 	return
-	// }
+	if strings.HasPrefix(dataDir, "s3://") {
+		utils.VerifyS3FromDataDir(dataDir)
+		return
+	}
 	if !utils.FileOrFolderExists(dataDir) {
 		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
 	}

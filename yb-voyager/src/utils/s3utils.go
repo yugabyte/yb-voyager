@@ -16,16 +16,50 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
 	"net/url"
+
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-func S3FromUrl(u *url.URL) (string, error) {
-	bucket := u.Host
-
-	if bucket == "" {
-		return "", fmt.Errorf("missing bucket in s3 url")
+func VerifyS3FromDataDir(datadir string) error {
+	u, err := url.Parse(datadir)
+	if err != nil {
+		return err
 	}
+	bucket := u.Host
+	if bucket == "" {
+		return fmt.Errorf("missing bucket in s3 url")
+	}
+	return nil
+}
 
-	return bucket, nil
+func ListAllS3Objects(bucket string) ([]string, error) {
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	if err != nil {
+		ErrExit("load s3 config: %v", err)
+	}
+	client := s3.NewFromConfig(cfg)
+
+	// Use paginator, default list objects API has a fetch limit.
+	p := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
+		Bucket: &bucket,
+	})
+
+	var i int
+	var objectNames []string
+	for p.HasMorePages() {
+		i++
+		page, err := p.NextPage(context.TODO())
+		if err != nil {
+			ErrExit("failed to get page %v, %v", i, err)
+		}
+		// Log the objects found
+		for _, obj := range page.Contents {
+			objectNames = append(objectNames, *obj.Key)
+		}
+	}
+	return objectNames, nil
 }
