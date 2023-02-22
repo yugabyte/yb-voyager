@@ -1,17 +1,15 @@
 package datastore
 
-import "strings"
+import (
+	"strings"
+)
 
 type Datastore interface {
 	Glob(string) ([]string, error)
 	AbsolutePath(string) (string, error)
+	FileSize(string) (int64, error)
+	Join(...string) string
 }
-
-type TableToFileMap map[string]string
-
-// var (
-// 	TableToFileMap map[string]string
-// )
 
 func NewDataStore(dataDir string) Datastore {
 	if strings.HasPrefix(dataDir, "s3://") {

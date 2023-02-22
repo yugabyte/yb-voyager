@@ -73,11 +73,11 @@ func prepareForImportDataCmd() {
 func getFileSizeInfo() map[string]int64 {
 	tableFileSize := make(map[string]int64)
 	for table, filePath := range tableNameVsFilePath {
-		fileInfo, err := os.Stat(filePath)
+		fileBytes, err := ds.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
-		tableFileSize[table] = int64(fileInfo.Size())
+		tableFileSize[table] = fileBytes
 
 		log.Infof("File size of %q for table %q: %d", filePath, table, tableFileSize[table])
 	}
@@ -153,7 +153,7 @@ func parseFileTableMapping() {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
 			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			tableNameVsFilePath[table] = filepath.Join(dataDir, fileName)
+			tableNameVsFilePath[table] = ds.Join(dataDir, fileName)
 		}
 	} else {
 		// TODO: replace "link" with docs link
@@ -161,7 +161,6 @@ func parseFileTableMapping() {
 
 		// get matching file in data-dir
 		files, err := ds.Glob("*_data.csv")
-		//files, err := filepath.Glob(filepath.Join(dataDir, "*_data.csv"))
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}

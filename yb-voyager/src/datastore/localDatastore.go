@@ -1,7 +1,10 @@
 // Implementation of datastore for when the relevant data files are available on the same machine running yb-voyager.
 package datastore
 
-import "path/filepath"
+import (
+	"os"
+	"path/filepath"
+)
 
 type LocalDatastore struct {
 	dataDir string
@@ -18,4 +21,16 @@ func (ds *LocalDatastore) Glob(pattern string) ([]string, error) {
 
 func (ds *LocalDatastore) AbsolutePath(file string) (string, error) {
 	return filepath.Abs(file)
+}
+
+func (ds *LocalDatastore) FileSize(filePath string) (int64, error) {
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return 0, err
+	}
+	return fileInfo.Size(), nil
+}
+
+func (ds *LocalDatastore) Join(elem ...string) string {
+	return filepath.Join(elem...)
 }

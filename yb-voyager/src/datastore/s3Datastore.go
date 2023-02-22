@@ -4,14 +4,14 @@ package datastore
 import (
 	"net/url"
 	"regexp"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type S3Datastore struct {
-	url            *url.URL
-	bucketName     string
-	TableToFileMap map[string]string
+	url        *url.URL
+	bucketName string
 }
 
 func NewS3Datastore(resourceName string) *S3Datastore {
@@ -28,7 +28,7 @@ func (ds *S3Datastore) Glob(pattern string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	regexPattern := regexp.MustCompile(pattern)
+	regexPattern := regexp.MustCompile(strings.Replace(pattern, "*", ".*", -1))
 	var resultSet []string
 	for _, value := range allKeys {
 		if regexPattern.MatchString(value) {
@@ -39,6 +39,23 @@ func (ds *S3Datastore) Glob(pattern string) ([]string, error) {
 }
 
 // No-op for S3 URLs.
-func (ds *S3Datastore) AbsolutePath(file string) (string, error) {
-	return file, nil
+func (ds *S3Datastore) AbsolutePath(filePath string) (string, error) {
+	return filePath, nil
+}
+
+func (ds *S3Datastore) FileSize(filePath string) (int64, error) {
+	headObject, err := utils.GetS3HeadObject(filePath)
+	if err != nil {
+		return 0, err
+	}
+	return headObject.ContentLength, nil
+}
+
+// filepath.Join converts URL (s3://...) to directory-like string (s3:/...).
+func (ds *S3Datastore) Join(elem ...string) string {
+	finalPath := ""
+	for _, fragment := range elem {
+		finalPath += fragment + "/"
+	}
+	return finalPath[:len(finalPath)-1]
 }
