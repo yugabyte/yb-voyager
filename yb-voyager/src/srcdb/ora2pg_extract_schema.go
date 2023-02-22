@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -45,15 +44,13 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
 		stderr, _ := exportSchemaObjectCommand.StderrPipe()
 
+		var errMsgs []string
 		go func() { //command output scanner goroutine
 			outScanner := bufio.NewScanner(stdout)
 			for outScanner.Scan() {
 				line := strings.ToLower(outScanner.Text())
 				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in output scanner goroutine: \"%s\"", line)
-					runtime.Goexit()
+					errMsgs = append(errMsgs, outScanner.Text())
 				} else {
 					log.Infof("ora2pg STDOUT: \"%s\"", outScanner.Text())
 				}
@@ -63,15 +60,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 		go func() { //command error scanner goroutine
 			errScanner := bufio.NewScanner(stderr)
 			for errScanner.Scan() {
-				line := strings.ToLower(errScanner.Text())
-				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in error scanner goroutine: \"%s\"", line)
-					runtime.Goexit()
-				} else {
-					utils.PrintAndLog("ora2pg STDERR: \"%s\"", errScanner.Text())
-				}
+				errMsgs = append(errMsgs, errScanner.Text())
 			}
 		}()
 
@@ -88,9 +77,19 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		} else {
-			utils.WaitChannel <- 0 //stop waiting with exit code 0
-			<-utils.WaitChannel
+			if len(errMsgs) > 0 {
+				utils.WaitChannel <- 1 //stop waiting with exit code 1
+				<-utils.WaitChannel
+			} else {
+				utils.WaitChannel <- 0 //stop waiting with exit code 0
+				<-utils.WaitChannel
+			}
 		}
+
+		for _, err := range errMsgs {
+			utils.PrintAndLog("ora2pg STDERR: \"%s\"", err)
+		}
+
 		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
 			utils.ErrExit(err.Error())
 		}
