@@ -77,9 +77,17 @@ retry:
 	if len(r.remainingBuf) == 0 && r.eof {
 		return "", io.EOF
 	}
-	line, remainingBuf, err := r.read(r.remainingBuf)
-	if len(remainingBuf) == len(r.remainingBuf) { // No progress.
-		return "", fmt.Errorf("unterminated quoted field in file %s", r.fileName)
+	line, remainingBuf, insideQuotes, err := r.read(r.remainingBuf)
+	if len(remainingBuf) == len(r.remainingBuf) && r.eof {
+		// We have reached the end of the file and there is no newline in the buffer.
+		if insideQuotes {
+			return "", fmt.Errorf("unterminated quoted field in file %s", r.fileName)
+		} else {
+			// Return the last line in the file.
+			line = string(r.remainingBuf)
+			r.remainingBuf = r.remainingBuf[:0]
+			return line, nil
+		}
 	}
 	if err == errEndOfBuffer {
 		// We have a partial line in the buffer.
@@ -98,21 +106,21 @@ retry:
 
 var errEndOfBuffer = errors.New("end of buffer")
 
-func (r *Reader) read(buf []byte) (string, []byte, error) {
+func (r *Reader) read(buf []byte) (string, []byte, bool, error) {
 	i := 0
 	for {
 		if len(buf) == 0 { // Empty buffer.
-			return "", nil, errEndOfBuffer
+			return "", nil, false, errEndOfBuffer
 		}
 		if i == len(buf) {
 			// No newline found in the buffer.
-			return "", buf, errEndOfBuffer
+			return "", buf, false, errEndOfBuffer
 		}
 		if buf[i] == '\n' {
 			// Found a newline that is outside of a quoted field.
 			line := string(buf[:i+1]) // including the newline.
 			buf = buf[i+1:]           // reading after the newline.
-			return line, buf, nil
+			return line, buf, false, nil
 		}
 		if buf[i] != r.QuoteChar {
 			i++
@@ -142,7 +150,7 @@ func (r *Reader) read(buf []byte) (string, []byte, error) {
 			}
 		}
 		if i == len(buf) {
-			return "", buf, errEndOfBuffer
+			return "", buf, true, errEndOfBuffer
 		}
 		i++
 	}
