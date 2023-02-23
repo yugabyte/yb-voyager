@@ -5,7 +5,25 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
+
+// A single record in a CSV file cannot be larger than this.
+// If there is such a record, override this value with the environment variable CSV_READER_MAX_BUFFER_SIZE_MB.
+var CSV_READER_MAX_BUFFER_SIZE = 32 * 1024 * 1024
+
+func init() {
+	// Override the default max buffer size from value provided in the environment.
+	envMaxBufSize := os.Getenv("CSV_READER_MAX_BUFFER_SIZE_MB")
+	if envMaxBufSize != "" {
+		maxBufSize, err := strconv.Atoi(envMaxBufSize)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid value for CSV_READER_MAX_BUFFER_SIZE_BYTES: %q", envMaxBufSize))
+		}
+		CSV_READER_MAX_BUFFER_SIZE = maxBufSize
+		fmt.Printf("CSV_READER_MAX_BUFFER_SIZE: %d bytes\n", CSV_READER_MAX_BUFFER_SIZE)
+	}
+}
 
 type Reader struct {
 	QuoteChar  byte
@@ -20,12 +38,11 @@ type Reader struct {
 }
 
 func Open(fileName string) (*Reader, error) {
-	// Create a read-only mmap of the file.
 	f, err := os.Open(fileName)
 	if err != nil {
 		return nil, fmt.Errorf("error opening file %s: %v", fileName, err)
 	}
-	buf := make([]byte, 1024*1024)
+	buf := make([]byte, CSV_READER_MAX_BUFFER_SIZE)
 	r := &Reader{QuoteChar: '"', EscapeChar: '"', fileName: fileName, file: f, buf: buf}
 	return r, nil
 }
@@ -47,7 +64,7 @@ retry:
 		}
 		// Read the next chunk of the file.
 		n2, err := r.file.Read(r.buf[n1:])
-		n := n1 + n2
+		n := n1 + n2 // Total number of valid bytes in the buffer.
 		if err != nil {
 			if err == io.EOF {
 				r.eof = true
@@ -55,7 +72,7 @@ retry:
 				return "", fmt.Errorf("error reading file %s: %v", r.fileName, err)
 			}
 		}
-		r.remainingBuf = r.buf[:n]
+		r.remainingBuf = r.buf[:n] // Consume the valid bytes from the buffer.
 	}
 	if len(r.remainingBuf) == 0 && r.eof {
 		return "", io.EOF
@@ -72,7 +89,8 @@ retry:
 		goto retry
 	}
 	r.remainingBuf = remainingBuf
-	if len(r.remainingBuf) == 0 && line == "" {
+	if line == "\n" {
+		// Skip empty lines.
 		goto retry
 	}
 	return line, nil
@@ -94,10 +112,6 @@ func (r *Reader) read(buf []byte) (string, []byte, error) {
 			// Found a newline that is outside of a quoted field.
 			line := string(buf[:i+1]) // including the newline.
 			buf = buf[i+1:]           // reading after the newline.
-			if len(line) == 0 {       // Skip empty lines.
-				i = 0 // Reset the index to the beginning of the buffer.
-				continue
-			}
 			return line, buf, nil
 		}
 		if buf[i] != r.QuoteChar {
