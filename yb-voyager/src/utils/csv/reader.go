@@ -14,7 +14,7 @@ var CSV_READER_MAX_BUFFER_SIZE = 32 * 1024 * 1024
 
 func init() {
 	// Override the default max buffer size from value provided in the environment.
-	envMaxBufSize := os.Getenv("CSV_READER_MAX_BUFFER_SIZE_MB")
+	envMaxBufSize := os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES")
 	if envMaxBufSize != "" {
 		maxBufSize, err := strconv.Atoi(envMaxBufSize)
 		if err != nil {
@@ -35,6 +35,8 @@ type Reader struct {
 	remainingBuf []byte
 	pendingBytes []byte
 	eof          bool
+
+	lineCount int
 }
 
 func Open(fileName string) (*Reader, error) {
@@ -57,6 +59,13 @@ retry:
 	if len(r.remainingBuf) == 0 {
 		n1 := len(r.pendingBytes)
 		if n1 > 0 {
+			if n1 == len(r.buf) {
+				// The pending bytes are the entire buffer.
+				// This means that the record is larger than the buffer.
+				err := fmt.Errorf("record larger than %d bytes in file %s (line %d)",
+					len(r.buf), r.fileName, r.lineCount+1)
+				return "", err
+			}
 			// We have some pending bytes from the previous read.
 			// Copy them to the beginning of the buffer.
 			copy(r.buf, r.pendingBytes)
@@ -69,7 +78,7 @@ retry:
 			if err == io.EOF {
 				r.eof = true
 			} else {
-				return "", fmt.Errorf("error reading file %s: %v", r.fileName, err)
+				return "", fmt.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
 			}
 		}
 		r.remainingBuf = r.buf[:n] // Consume the valid bytes from the buffer.
@@ -81,7 +90,7 @@ retry:
 	if len(remainingBuf) == len(r.remainingBuf) && r.eof {
 		// We have reached the end of the file and there is no newline in the buffer.
 		if insideQuotes {
-			return "", fmt.Errorf("unterminated quoted field in file %s", r.fileName)
+			return "", fmt.Errorf("unterminated quoted field in file %s (line: %d)", r.fileName, r.lineCount)
 		} else {
 			// Return the last line in the file.
 			line = string(r.remainingBuf)
@@ -97,6 +106,7 @@ retry:
 		goto retry
 	}
 	r.remainingBuf = remainingBuf
+	r.lineCount++
 	if line == "\n" {
 		// Skip empty lines.
 		goto retry
