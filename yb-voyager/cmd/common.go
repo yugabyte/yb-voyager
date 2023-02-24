@@ -31,6 +31,7 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	_ "github.com/godror/godror"
 	log "github.com/sirupsen/logrus"
@@ -113,7 +114,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 			fileName := strings.Trim(parts[0], ";") + ".dat"
 			schemaName := parts[5]
 			tableName := parts[6]
-			if nameContainsCapitalLetter(tableName) {
+			if nameContainsCapitalLetter(tableName) || sqlname.IsReservedKeyword(tableName) {
 				// Surround the table name with double quotes.
 				tableName = fmt.Sprintf("\"%s\"", tableName)
 			}

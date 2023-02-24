@@ -150,3 +150,27 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 		utils.ErrExit("unable to write file %q: %v\n", filePath, err)
 	}
 }
+
+// renaming data files having pgReservedKeywords to include quotes
+func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	log.Infof("renaming data files for tables with reserved words in them")
+	for _, tableProgressMetadata := range tablesProgressMetadata {
+		tblNameUnquoted := tableProgressMetadata.TableName.ObjectName.Unquoted
+		if !sqlname.IsReservedKeyword(tblNameUnquoted) {
+			continue
+		}
+
+		tblNameQuoted := fmt.Sprintf(`"%s"`, tblNameUnquoted)
+		oldFilePath := tableProgressMetadata.FinalFilePath
+		newFilePath := filepath.Join(filepath.Dir(oldFilePath), tblNameQuoted+"_data.sql")
+		if utils.FileOrFolderExists(oldFilePath) {
+			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
+			err := os.Rename(oldFilePath, newFilePath)
+			if err != nil {
+				utils.ErrExit("renaming data file for table %q after data export: %v", tblNameQuoted, err)
+			}
+		} else {
+			utils.PrintAndLog("File %q to rename doesn't exists!", oldFilePath)
+		}
+	}
+}

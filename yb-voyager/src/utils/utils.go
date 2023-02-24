@@ -344,3 +344,4 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 	}
 }
+
