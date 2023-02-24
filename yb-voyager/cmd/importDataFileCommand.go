@@ -13,6 +13,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 )
@@ -114,10 +115,10 @@ func createDataFileSymLinks() {
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	for table, filePath := range tableNameVsFilePath {
+	for table := range tableNameVsFilePath { // Was earlier table, filePath
 		if fileFormat == datafile.CSV {
 			if hasHeader {
-				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+				df, err := datafile.NewDataFile(nil, dataFileDescriptor) //TODO
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 				}
@@ -220,7 +221,7 @@ func checkDataDirFlag() {
 		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
-		utils.VerifyS3FromDataDir(dataDir)
+		s3.VerifyS3FromDataDir(dataDir)
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {

@@ -71,7 +71,7 @@ func (df *SqlDataFile) isDataLine(line string) bool {
 	}
 }
 
-func openSqlDataFile(filePath string, descriptor *Descriptor) (*SqlDataFile, error) {
+func newSqlDataFile(filePath string, descriptor *Descriptor) (*SqlDataFile, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err

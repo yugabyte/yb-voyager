@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 )
 
 type S3Datastore struct {
@@ -24,7 +25,7 @@ func NewS3Datastore(resourceName string) *S3Datastore {
 
 // Search and return all keys within the bucket matching the giving pattern.
 func (ds *S3Datastore) Glob(pattern string) ([]string, error) {
-	allKeys, err := utils.ListAllS3Objects(ds.bucketName)
+	allKeys, err := s3.ListAllObjects(ds.bucketName)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +45,7 @@ func (ds *S3Datastore) AbsolutePath(filePath string) (string, error) {
 }
 
 func (ds *S3Datastore) FileSize(filePath string) (int64, error) {
-	headObject, err := utils.GetS3HeadObject(filePath)
+	headObject, err := s3.GetHeadObject(filePath)
 	if err != nil {
 		return 0, err
 	}

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package utils
+package s3
 
 import (
 	"context"
@@ -23,17 +23,18 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var client *s3.Client
 
-func createS3ClientIfNotExists() {
+func createClientIfNotExists() {
 	if client != nil {
 		return
 	}
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		ErrExit("load s3 config: %v", err)
+		utils.ErrExit("load s3 config: %v", err)
 	}
 	client = s3.NewFromConfig(cfg)
 }
@@ -50,8 +51,24 @@ func VerifyS3FromDataDir(datadir string) error {
 	return nil
 }
 
-func ListAllS3Objects(bucket string) ([]string, error) {
-	createS3ClientIfNotExists()
+func S3FromUrl(resourceName string) (string, string, error) {
+	u, err := url.Parse(resourceName)
+	if err != nil {
+		return "", "", err
+	}
+	bucket := u.Host
+	key := u.Path[1:] //remove initial "/", unable to find object with it
+	if bucket == "" {
+		return "", "", fmt.Errorf("missing bucket in s3 url")
+	}
+	if key == "" {
+		return "", "", fmt.Errorf("missing key in s3 url")
+	}
+	return bucket, key, nil
+}
+
+func ListAllObjects(bucket string) ([]string, error) {
+	createClientIfNotExists()
 	// Use paginator, default list objects API has a fetch limit.
 	p := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: &bucket,
@@ -63,7 +80,7 @@ func ListAllS3Objects(bucket string) ([]string, error) {
 		i++
 		page, err := p.NextPage(context.TODO())
 		if err != nil {
-			ErrExit("failed to get page %v, %v", i, err)
+			utils.ErrExit("failed to get page %v, %v", i, err)
 		}
 		// Log the objects found
 		for _, obj := range page.Contents {
@@ -73,15 +90,12 @@ func ListAllS3Objects(bucket string) ([]string, error) {
 	return objectNames, nil
 }
 
-func GetS3HeadObject(object string) (*s3.HeadObjectOutput, error) {
-	createS3ClientIfNotExists()
-	fmt.Println(object)
-	parsedObject, err := url.Parse(object)
+func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
+	createClientIfNotExists()
+	bucket, key, err := S3FromUrl(object)
 	if err != nil {
 		return nil, err
 	}
-	bucket := parsedObject.Host
-	key := parsedObject.Path[1:] //remove initial "/", unable to find object with it
 	headObj := s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),

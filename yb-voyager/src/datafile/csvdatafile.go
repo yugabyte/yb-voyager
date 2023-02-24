@@ -85,7 +85,7 @@ func (df *CsvDataFile) GetHeader() string {
 	return df.Header
 }
 
-func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, error) {
+func newCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err

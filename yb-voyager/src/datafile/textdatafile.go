@@ -2,10 +2,10 @@ package datafile
 
 import (
 	"bufio"
+	"io"
 	"os"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -78,19 +78,20 @@ func (df *TextDataFile) GetHeader() string {
 	return df.Header
 }
 
-func openTextDataFile(filePath string, descriptor *Descriptor) (*TextDataFile, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
+func newTextDataFile(reader io.Reader, descriptor *Descriptor) (*TextDataFile, error) {
+	// file, err := os.Open(filePath)
+	// file.Read
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	reader := bufio.NewReader(file)
-	textDataFile := &TextDataFile{
-		file:      file,
-		reader:    reader,
-		Delimiter: descriptor.Delimiter,
-	}
-	log.Infof("created text data file struct for file: %s", filePath)
+	// reader := bufio.NewReader(file)
+	// textDataFile := &TextDataFile{
+	// 	file:      file,
+	// 	reader:    reader,
+	// 	Delimiter: descriptor.Delimiter,
+	// }
+	// log.Infof("created text data file struct for file: %s", filePath)
 
-	return textDataFile, err
+	return nil, nil
 }

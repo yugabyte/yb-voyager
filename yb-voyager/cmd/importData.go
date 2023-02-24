@@ -616,7 +616,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	numLinesInThisSplit := int64(0)
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+	dataFile, err := datafile.NewDataFile(nil, dataFileDescriptor) //TODO
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}
