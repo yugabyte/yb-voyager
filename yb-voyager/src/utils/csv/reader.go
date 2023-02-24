@@ -9,7 +9,7 @@ import (
 )
 
 // A single record in a CSV file cannot be larger than this.
-// If there is such a record, override this value with the environment variable CSV_READER_MAX_BUFFER_SIZE_MB.
+// If there is such a record, override this value with the environment variable CSV_READER_MAX_BUFFER_SIZE_BYTES.
 var CSV_READER_MAX_BUFFER_SIZE = 32 * 1024 * 1024
 
 func init() {
