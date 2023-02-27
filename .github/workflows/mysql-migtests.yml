@@ -62,6 +62,9 @@ jobs:
     - name: "TEST: mysql-sakila"
       run: migtests/scripts/run-test.sh mysql-sakila
 
+    - name: "TEST: mysql-reserved-words"
+      run: migtests/scripts/run-test.sh mysql-tests/mysql-reserved-words
+
     - name: "TEST: mysql-datatypes"
       run: migtests/scripts/run-test.sh mysql-tests/mysql-datatypes
 
