@@ -248,6 +248,11 @@ func reportSummary() {
 		dbObject.Details = getMapKeys(summaryMap[objType].details)
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
+	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
+	if utils.FileOrFolderExists(filePath) {
+		note := fmt.Sprintf("Please, review and manually import the DDL statements from the file %s", filePath)
+		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+	}
 }
 
 // Checks Whether there is a GIN index
@@ -818,7 +823,16 @@ func generateHTMLReport(Report utils.Report) string {
 		}
 		htmlstring += "</ul>"
 	}
-	htmlstring += "</ul></body></html>"
+	htmlstring += "</ul>"
+	if len(Report.Summary.Notes) > 0 {
+		htmlstring += "<h3>Notes</h3>"
+		htmlstring += "<ul list-style-type='disc'>"
+		for i := 0; i < len(Report.Summary.Notes); i++ {
+			htmlstring += "<li>" + Report.Summary.Notes[i] + "</li>"
+		}
+		htmlstring += "</ul>"
+	}
+	htmlstring += "</body></html>"
 	return htmlstring
 
 }
@@ -861,6 +875,12 @@ func generateTxtReport(Report utils.Report) string {
 			txtstring += "-Github Issue Link: " + Report.Issues[i].GH + "\n"
 		}
 		txtstring += "\n"
+	}
+	if len(Report.Summary.Notes) > 0 {
+		txtstring += "Notes:\n\n"
+		for i := 0; i < len(Report.Summary.Notes); i++ {
+			txtstring += strconv.Itoa(i+1) + ". " + Report.Summary.Notes[i] + "\n"
+		}
 	}
 	return txtstring
 }
