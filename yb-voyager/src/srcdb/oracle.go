@@ -170,6 +170,7 @@ func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList [
 }
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+	renameDataFilesForReservedWords(tablesProgressMetadata)
 	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.SQL,
