@@ -947,7 +947,12 @@ func analyzeSchema() {
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
 	payload := callhome.GetPayload(exportDir)
-	issues, err := json.Marshal(reportStruct.Issues)
+	var callhomeIssues []utils.Issue
+	for _, issue := range reportStruct.Issues {
+		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
+		callhomeIssues = append(callhomeIssues, issue)
+	}
+	issues, err := json.Marshal(callhomeIssues)
 	if err != nil {
 		log.Errorf("Error while parsing 'issues' json: %v", err)
 	} else {
