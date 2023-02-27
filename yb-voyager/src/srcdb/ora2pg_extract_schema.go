@@ -54,36 +54,24 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 		}
 
 		err = exportSchemaObjectCommand.Wait()
-		var errMsgs []string
+		if outbuf.String() != "" {
+			log.Infof(`ora2pg STDOUT: "%s"`, outbuf.String())
+		}
+		if errbuf.String() != "" {
+			log.Errorf(`ora2pg STDERR in export of %s : "%s"`, exportObject, errbuf.String())
+		}
 		if err != nil {
 			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
 			exportSchemaObjectCommand.Process.Kill()
 			continue
 		} else {
-			for _, line := range strings.Split(outbuf.String(), "\n") {
-				if strings.Contains(strings.ToLower(line), "error") {
-					errMsgs = append(errMsgs, line)
-				}
-			}
-			for _, line := range strings.Split(errbuf.String(), "\n") {
-				if line != "" {
-					errMsgs = append(errMsgs, line)
-				}
-			}
-			if len(errMsgs) > 0 {
+			if strings.Contains(strings.ToLower(errbuf.String()),"error") ||  strings.Contains(strings.ToLower(outbuf.String()),"error"){
 				utils.WaitChannel <- 1 //stop waiting with exit code 1
 				<-utils.WaitChannel
 			} else {
 				utils.WaitChannel <- 0 //stop waiting with exit code 0
 				<-utils.WaitChannel
 			}
-		}
-		if outbuf.String() != "" {
-			log.Infof(`ora2pg STDOUT: "%s"`, outbuf.String())
-		}
-		for _, errMsg := range errMsgs {
-			log.Errorf(`ora2pg STDERR in export of %s : "%s"`, exportObject, errMsg)
-			fmt.Printf("ora2pg STDERR in export of %s : %s \n", exportObject, errMsg)
 		}
 		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
 			utils.ErrExit(err.Error())
