@@ -1,6 +1,7 @@
 package datastore
 
 import (
+	"io"
 	"strings"
 )
 
@@ -9,6 +10,7 @@ type Datastore interface {
 	AbsolutePath(string) (string, error)
 	FileSize(string) (int64, error)
 	Join(...string) string
+	Open() io.ReadCloser
 }
 
 func NewDataStore(dataDir string) Datastore {

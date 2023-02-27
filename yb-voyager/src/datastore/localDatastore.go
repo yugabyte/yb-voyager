@@ -2,6 +2,7 @@
 package datastore
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -33,4 +34,9 @@ func (ds *LocalDatastore) FileSize(filePath string) (int64, error) {
 
 func (ds *LocalDatastore) Join(elem ...string) string {
 	return filepath.Join(elem...)
+}
+
+func (ds *LocalDatastore) Open() io.ReadCloser {
+	//return *os.File
+	return nil
 }

@@ -2,6 +2,7 @@
 package datastore
 
 import (
+	"io"
 	"net/url"
 	"regexp"
 	"strings"
@@ -59,4 +60,9 @@ func (ds *S3Datastore) Join(elem ...string) string {
 		finalPath += fragment + "/"
 	}
 	return finalPath[:len(finalPath)-1]
+}
+
+func (ds *S3Datastore) Open() io.ReadCloser {
+	//return io.PipeReader
+	return nil
 }
