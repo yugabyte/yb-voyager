@@ -1,11 +1,10 @@
 package srcdb
 
 import (
-	"bufio"
+	"bytes"
 	"fmt"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -42,54 +41,39 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 			log.Infof("Executing command: %s", exportSchemaObjectCommand.String())
 		}
 
-		stdout, _ := exportSchemaObjectCommand.StdoutPipe()
-		stderr, _ := exportSchemaObjectCommand.StderrPipe()
-
-		go func() { //command output scanner goroutine
-			outScanner := bufio.NewScanner(stdout)
-			for outScanner.Scan() {
-				line := strings.ToLower(outScanner.Text())
-				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in output scanner goroutine: \"%s\"", line)
-					runtime.Goexit()
-				} else {
-					log.Infof("ora2pg STDOUT: \"%s\"", outScanner.Text())
-				}
-			}
-		}()
-
-		go func() { //command error scanner goroutine
-			errScanner := bufio.NewScanner(stderr)
-			for errScanner.Scan() {
-				line := strings.ToLower(errScanner.Text())
-				if strings.Contains(line, "error") {
-					utils.WaitChannel <- 1 //stop waiting with exit code 1
-					<-utils.WaitChannel
-					log.Infof("ERROR in error scanner goroutine: \"%s\"", line)
-					runtime.Goexit()
-				} else {
-					utils.PrintAndLog("ora2pg STDERR: \"%s\"", errScanner.Text())
-				}
-			}
-		}()
+		var outbuf bytes.Buffer
+		var errbuf bytes.Buffer
+		exportSchemaObjectCommand.Stdout = &outbuf
+		exportSchemaObjectCommand.Stderr = &errbuf
 
 		err := exportSchemaObjectCommand.Start()
 		if err != nil {
 			utils.PrintAndLog("Error while starting export: %v", err)
-			exportSchemaObjectCommand.Process.Kill()
+			utils.WaitChannel <- 1 //stop execution of command with exit code 1
+			<-utils.WaitChannel
 			continue
 		}
 
 		err = exportSchemaObjectCommand.Wait()
+		if outbuf.String() != "" {
+			log.Infof(`ora2pg STDOUT: "%s"`, outbuf.String())
+		}
+		if errbuf.String() != "" {
+			log.Errorf(`ora2pg STDERR in export of %s : "%s"`, exportObject, errbuf.String())
+		}
 		if err != nil {
 			utils.PrintAndLog("Error while waiting for export command exit: %v", err)
-			exportSchemaObjectCommand.Process.Kill()
+			utils.WaitChannel <- 1 //stop waiting with exit code 1
+			<-utils.WaitChannel
 			continue
 		} else {
-			utils.WaitChannel <- 0 //stop waiting with exit code 0
-			<-utils.WaitChannel
+			if strings.Contains(strings.ToLower(errbuf.String()), "error") || strings.Contains(strings.ToLower(outbuf.String()), "error") {
+				utils.WaitChannel <- 1 //stop waiting with exit code 1
+				<-utils.WaitChannel
+			} else {
+				utils.WaitChannel <- 0 //stop waiting with exit code 0
+				<-utils.WaitChannel
+			}
 		}
 		if err := processImportDirectives(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
 			utils.ErrExit(err.Error())
