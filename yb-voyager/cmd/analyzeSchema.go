@@ -250,7 +250,7 @@ func reportSummary() {
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
-		note := fmt.Sprintf("Please, review and manually import the DDL statements from the file %s", filePath)
+		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
 	}
 }
