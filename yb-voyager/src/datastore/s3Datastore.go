@@ -62,7 +62,7 @@ func (ds *S3Datastore) Join(elem ...string) string {
 	return finalPath[:len(finalPath)-1]
 }
 
-func (ds *S3Datastore) Open() io.ReadCloser {
+func (ds *S3Datastore) Open(resourceName string) (io.ReadCloser, error) {
 	//return io.PipeReader
-	return nil
+	return &io.PipeReader{}, nil
 }

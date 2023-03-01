@@ -37,6 +37,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -616,7 +617,14 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	numLinesInThisSplit := int64(0)
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	dataFile, err := datafile.NewDataFile(nil, dataFileDescriptor) //TODO
+	if ds == nil {
+		ds = datastore.NewDataStore(filePath)
+	}
+	reader, err := ds.Open(filePath)
+	if err != nil {
+		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
+	}
+	dataFile, err := datafile.NewDataFile(reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}

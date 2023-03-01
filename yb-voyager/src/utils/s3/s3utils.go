@@ -18,10 +18,12 @@ package s3
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -105,4 +107,31 @@ func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func DownloadS3Object(object string) (io.PipeReader, error) {
+	createClientIfNotExists()
+	bucket, key, err := S3FromUrl(object)
+	if err != nil {
+		return io.PipeReader{}, err
+	}
+
+	streamer := NewS3DownloadStream()
+	downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
+		d.Concurrency = 1
+		//d.PartSize=???
+	})
+
+	dlParams := &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	}
+
+	go func() {
+		_, err := downloader.Download(context.Background(), streamer, dlParams)
+		streamer.CloseWithError(err)
+	}()
+
+	return *streamer.reader, nil
+
 }

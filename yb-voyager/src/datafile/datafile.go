@@ -24,7 +24,7 @@ type DataFile interface {
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-func NewDataFile(reader io.Reader, descriptor *Descriptor) (DataFile, error) {
+func NewDataFile(reader io.ReadCloser, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
 		//return openCsvDataFile(reader, descriptor)

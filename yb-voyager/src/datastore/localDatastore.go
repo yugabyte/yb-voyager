@@ -36,7 +36,6 @@ func (ds *LocalDatastore) Join(elem ...string) string {
 	return filepath.Join(elem...)
 }
 
-func (ds *LocalDatastore) Open() io.ReadCloser {
-	//return *os.File
-	return nil
+func (ds *LocalDatastore) Open(filePath string) (io.ReadCloser, error) {
+	return os.Open(filePath)
 }

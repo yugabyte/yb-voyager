@@ -1,17 +1,14 @@
 package datafile
 
 import (
-	"bufio"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type TextDataFile struct {
-	file      *os.File
-	reader    *bufio.Reader
+	reader    io.ReadCloser
 	bytesRead int64
 	Delimiter string
 	Header    string
@@ -33,7 +30,7 @@ func (df *TextDataFile) NextLine() (string, error) {
 	var line string
 	var err error
 	for {
-		line, err = df.reader.ReadString('\n')
+		line, err = df.ReadString('\n')
 		df.bytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
@@ -45,7 +42,7 @@ func (df *TextDataFile) NextLine() (string, error) {
 }
 
 func (df *TextDataFile) Close() {
-	df.file.Close()
+	df.reader.Close()
 }
 
 func (df *TextDataFile) GetBytesRead() int64 {
@@ -78,20 +75,14 @@ func (df *TextDataFile) GetHeader() string {
 	return df.Header
 }
 
-func newTextDataFile(reader io.Reader, descriptor *Descriptor) (*TextDataFile, error) {
-	// file, err := os.Open(filePath)
-	// file.Read
-	// if err != nil {
-	// 	return nil, err
-	// }
+func (df *TextDataFile) ReadString(delim byte) (string, error) {
+	return "", nil
+}
+func newTextDataFile(reader io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
+	textDataFile := &TextDataFile{
+		reader:    reader,
+		Delimiter: descriptor.Delimiter,
+	}
 
-	// reader := bufio.NewReader(file)
-	// textDataFile := &TextDataFile{
-	// 	file:      file,
-	// 	reader:    reader,
-	// 	Delimiter: descriptor.Delimiter,
-	// }
-	// log.Infof("created text data file struct for file: %s", filePath)
-
-	return nil, nil
+	return textDataFile, nil
 }
