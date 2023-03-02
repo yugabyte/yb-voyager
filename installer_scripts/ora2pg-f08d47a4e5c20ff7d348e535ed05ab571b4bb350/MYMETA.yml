@@ -1,0 +1,24 @@
+---
+abstract: 'Oracle to PostgreSQL migration toolkit'
+author:
+  - 'Gilles Darold (gilles _AT_ darold _DOT_ net)'
+build_requires:
+  ExtUtils::MakeMaker: 0
+configure_requires:
+  ExtUtils::MakeMaker: 0
+dynamic_config: 0
+generated_by: 'ExtUtils::MakeMaker version 6.68, CPAN::Meta::Converter version 2.120921'
+license: unknown
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Ora2Pg
+no_index:
+  directory:
+    - t
+    - inc
+requires:
+  DBI: 0
+resources:
+  homepage: http://ora2pg.darold.net/
+version: 23.2
