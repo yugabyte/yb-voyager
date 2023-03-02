@@ -71,42 +71,42 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: pg-dvdrental"
-      run: migtests/scripts/run-test.sh pg-tests/pg-dvdrental
+      run: migtests/scripts/run-test.sh pg/dvdrental
 
     - name: "TEST: pg-datatypes"
-      run: migtests/scripts/run-test.sh pg-tests/pg-datatypes
+      run: migtests/scripts/run-test.sh pg/datatypes
 
     - name: "TEST: pg-constraints"
-      run: migtests/scripts/run-test.sh pg-tests/pg-constraints
+      run: migtests/scripts/run-test.sh pg/constraints
 
     - name: "TEST: pg-sequences"
-      run: migtests/scripts/run-test.sh pg-tests/pg-sequences
+      run: migtests/scripts/run-test.sh pg/sequences
 
     - name: "TEST: pg-indexes"
-      run: migtests/scripts/run-test.sh pg-tests/pg-indexes
+      run: migtests/scripts/run-test.sh pg/indexes
 
     - name: "TEST: pg-partitions"
-      run: migtests/scripts/run-test.sh pg-tests/pg-partitions
+      run: migtests/scripts/run-test.sh pg/partitions
       
     # Broken for v2.15 and up: https://github.com/yugabyte/yugabyte-db/issues/14529
     - name: "TEST: pg-partitions-with-index"
-      run: migtests/scripts/run-test.sh pg-tests/pg-partitions-with-indexes
+      run: migtests/scripts/run-test.sh pg/partitions-with-indexes
       if: matrix.version != '2.17.0.0-b24' && matrix.version != '2.16.0.1-b7'
 
     - name: "TEST: pg-views-and-rules"
-      run: migtests/scripts/run-test.sh pg-tests/pg-views-and-rules
+      run: migtests/scripts/run-test.sh pg/views-and-rules
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
-      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-1
+      run: migtests/scripts/run-test.sh pg/misc-objects-1
 
     - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
-      run: migtests/scripts/run-test.sh pg-tests/pg-misc-objects-2
+      run: migtests/scripts/run-test.sh pg/misc-objects-2
 
     - name: "TEST: pg-dependent-ddls"
-      run: migtests/scripts/run-test.sh pg-tests/pg-dependent-ddls
+      run: migtests/scripts/run-test.sh pg/dependent-ddls
 
     - name:  "TEST: pg-multiple-schemas"
-      run: migtests/scripts/run-test.sh pg-tests/pg-multiple-schemas
+      run: migtests/scripts/run-test.sh pg/multiple-schemas
 
     - name: "TEST: import-data-file"
       run: migtests/tests/import-file/run-import-file-test
@@ -115,11 +115,11 @@ jobs:
       run: migtests/tests/analyze-schema/run-analyze-schema-test
       
     - name: "TEST: pg-codependent-schemas"
-      run: migtests/scripts/run-test.sh pg-tests/pg-codependent-schemas
+      run: migtests/scripts/run-test.sh pg/codependent-schemas
 
     - name: "TEST: pg-sample-schema-emp"
-      run: migtests/scripts/run-test.sh pg-tests/pg-sample-employee
+      run: migtests/scripts/run-test.sh pg/sample-employee
 
     - name: "TEST: pg-hasura-ecommerce"
-      run: migtests/scripts/run-test.sh pg-tests/pg-hasura-ecommerce
+      run: migtests/scripts/run-test.sh pg/hasura-ecommerce
 

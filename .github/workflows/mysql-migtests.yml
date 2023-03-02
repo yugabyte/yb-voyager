@@ -60,34 +60,34 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: mysql-sakila"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-sakila
-
-    - name: "TEST: mysql-reserved-words"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-reserved-words
+      run: migtests/scripts/run-test.sh mysql/sakila
 
     - name: "TEST: mysql-datatypes"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-datatypes
+      run: migtests/scripts/run-test.sh mysql/datatypes
 
     - name: "TEST: mysql-constraints"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-constraints
+      run: migtests/scripts/run-test.sh mysql/constraints
 
     - name: "TEST: mysql-case-indexes"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-indexes
+      run: migtests/scripts/run-test.sh mysql/indexes
 
     - name: "TEST: mysql-functions"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-functions
+      run: migtests/scripts/run-test.sh mysql/functions
 
     - name: "TEST: mysql-case-sequences"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-sequences    
+      run: migtests/scripts/run-test.sh mysql/sequences    
 
     - name: "TEST: mysql-triggers-procedures"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-triggers-procedures   
+      run: migtests/scripts/run-test.sh mysql/triggers-procedures   
 
     - name: "TEST: mysql-case-views"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-views
+      run: migtests/scripts/run-test.sh mysql/views
 
     - name: "TEST: mysql-partitions"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-partitions
+      run: migtests/scripts/run-test.sh mysql/partitions
 
     - name: "TEST: mysql-sample-chinook"
-      run: migtests/scripts/run-test.sh mysql-tests/mysql-chinook
+      run: migtests/scripts/run-test.sh mysql/chinook
+
+    - name: "TEST: mysql-reserved-words"
+      run: migtests/scripts/run-test.sh mysql/reserved-words
