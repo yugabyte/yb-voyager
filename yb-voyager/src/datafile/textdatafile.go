@@ -1,6 +1,7 @@
 package datafile
 
 import (
+	"bufio"
 	"io"
 	"strings"
 
@@ -8,7 +9,8 @@ import (
 )
 
 type TextDataFile struct {
-	reader    io.ReadCloser
+	closer    io.Closer
+	reader    *bufio.Reader
 	bytesRead int64
 	Delimiter string
 	Header    string
@@ -30,7 +32,7 @@ func (df *TextDataFile) NextLine() (string, error) {
 	var line string
 	var err error
 	for {
-		line, err = df.ReadString('\n')
+		line, err = df.reader.ReadString('\n')
 		df.bytesRead += int64(len(line))
 		if df.isDataLine(line) || err != nil {
 			break
@@ -42,7 +44,7 @@ func (df *TextDataFile) NextLine() (string, error) {
 }
 
 func (df *TextDataFile) Close() {
-	df.reader.Close()
+	df.closer.Close()
 }
 
 func (df *TextDataFile) GetBytesRead() int64 {
@@ -75,12 +77,10 @@ func (df *TextDataFile) GetHeader() string {
 	return df.Header
 }
 
-func (df *TextDataFile) ReadString(delim byte) (string, error) {
-	return "", nil
-}
-func newTextDataFile(reader io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
+func newTextDataFile(readCloser io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
 	textDataFile := &TextDataFile{
-		reader:    reader,
+		closer:    readCloser,
+		reader:    bufio.NewReader(readCloser),
 		Delimiter: descriptor.Delimiter,
 	}
 

@@ -2,8 +2,10 @@
 package datastore
 
 import (
+	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
@@ -63,6 +65,12 @@ func (ds *S3Datastore) Join(elem ...string) string {
 }
 
 func (ds *S3Datastore) Open(resourceName string) (io.ReadCloser, error) {
-	//return io.PipeReader
-	return &io.PipeReader{}, nil
+	// For now, we know that the resourceName is hidden underneath a symlink.
+	s3Resource, err := os.Readlink(resourceName)
+	if err != nil {
+		utils.ErrExit("unable to resolve symlink %v to s3 resource: %v", resourceName, err)
+	}
+	fmt.Println(s3Resource)
+	reader, err := s3.DownloadS3Object(s3Resource)
+	return &reader, err
 }

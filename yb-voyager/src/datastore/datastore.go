@@ -2,7 +2,7 @@ package datastore
 
 import (
 	"io"
-	"path/filepath"
+	"os"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -17,9 +17,9 @@ type Datastore interface {
 }
 
 func NewDataStore(location string) Datastore {
-	trueLocation, err := filepath.EvalSymlinks(location)
+	trueLocation, err := os.Readlink(location)
 	if err != nil {
-		utils.ErrExit("unable to resolve location of datastore")
+		utils.ErrExit("unable to resolve location of datastore %v", err)
 	}
 	if strings.HasPrefix(trueLocation, "s3://") {
 		return NewS3Datastore(trueLocation)
