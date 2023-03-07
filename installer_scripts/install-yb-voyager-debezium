@@ -45,37 +45,12 @@ main() {
 	case ${os} in
 		"Darwin")
 			install_core_utils_macos
-			exit $?
 			;;
 		"Linux")
-			# Proceed to distribution check.
+			install_core_utils_linux
 			;;
 		*)
 			echo "ERROR: unsupported os ${os}"
-			exit 1
-			;;
-	esac
-
-	# Linux
-	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
-	case ${dist} in
-		"CentOS Linux")
-			install_core_utils_centos
-			;;
-		"AlmaLinux")
-			install_core_utils_centos
-			;;
-		"Red Hat Enterprise Linux")
-			install_core_utils_centos
-			;;
-		"Red Hat Enterprise Linux Server")
-			install_core_utils_centos
-			;;
-		"Ubuntu")
-			install_core_utils_ubuntu
-			;;
-		*)
-			echo "ERROR: unsupported linux distribution: ${dist}"
 			exit 1
 			;;
 	esac
@@ -116,6 +91,32 @@ centos_check_base_repo_enabled() {
 		echo "ERROR: base repo is not enabled. Enable the repo and retry."
 		exit 1
 	fi
+}
+
+install_core_utils_linux() {
+    # Linux
+	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
+	case ${dist} in
+		"CentOS Linux")
+			install_core_utils_centos
+			;;
+		"AlmaLinux")
+			install_core_utils_centos
+			;;
+		"Red Hat Enterprise Linux")
+			install_core_utils_centos
+			;;
+		"Red Hat Enterprise Linux Server")
+			install_core_utils_centos
+			;;
+		"Ubuntu")
+			install_core_utils_ubuntu
+			;;
+		*)
+			echo "ERROR: unsupported linux distribution: ${dist}"
+			exit 1
+			;;
+	esac
 }
 
 #=============================================================================
