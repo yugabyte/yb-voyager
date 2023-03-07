@@ -144,7 +144,7 @@ install_core_utils_ubuntu() {
 
 install_core_utils_macos() {
 	macos_install_brew
-	brew install wget
+	brew install wget 1>&2
 }
 
 macos_install_brew() {
