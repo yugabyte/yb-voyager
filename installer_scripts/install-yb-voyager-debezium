@@ -69,7 +69,7 @@ main() {
 vercomp () {
     if [[ $1 == $2 ]]
     then
-        return 0
+        echo 0
     fi
     local IFS=.
     local i ver1=($1) ver2=($2)
@@ -87,23 +87,23 @@ vercomp () {
         fi
         if ((10#${ver1[i]} > 10#${ver2[i]}))
         then
-            return 1
+            echo 1
         fi
         if ((10#${ver1[i]} < 10#${ver2[i]}))
         then
-            return 2
+            echo 2
         fi
     done
-    return 0
+    echo 0
 }
 
 # usage: version_satisfied <minimum_version_required> <actual_version>
 version_satisfied() {
-    vercomp $1 $2
-    case $? in
-        0) return 1;;
-        1) return 0;;
-        2) return 1;;
+    res=$(vercomp $1 $2)
+    case $res in
+        0) echo 1;;
+        1) echo 0;;
+        2) echo 1;;
     esac
 }
 
@@ -117,8 +117,8 @@ check_binutils_version() {
 	# GNU ld (GNU Binutils for Ubuntu) 2.38
 	version=$(ld -v | awk '{print $NF}' | awk -F '-' '{print $1}')
 
-	version_satisfied "$min_required_version" "$version"
-	if [[ $? -eq 0 ]]
+	version_ok=$(version_satisfied "$min_required_version" "$version")
+	if [[ $version_ok -eq 0 ]]
 	then
 		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version} ."
 		exit 1
