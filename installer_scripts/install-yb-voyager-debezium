@@ -69,7 +69,7 @@ main() {
 vercomp () {
     if [[ $1 == $2 ]]
     then
-        echo 0
+        echo 0; return;
     fi
     local IFS=.
     local i ver1=($1) ver2=($2)
@@ -87,23 +87,23 @@ vercomp () {
         fi
         if ((10#${ver1[i]} > 10#${ver2[i]}))
         then
-            echo 1
+            echo 1; return;
         fi
         if ((10#${ver1[i]} < 10#${ver2[i]}))
         then
-            echo 2
+            echo 2; return;
         fi
     done
-    echo 0
+    echo 0; return;
 }
 
 # usage: version_satisfied <minimum_version_required> <actual_version>
 version_satisfied() {
     res=$(vercomp $1 $2)
     case $res in
-        0) echo 1;;
-        1) echo 0;;
-        2) echo 1;;
+        0) echo 1; return;;
+        1) echo 0; return;;
+        2) echo 1; return;;
     esac
 }
 
@@ -229,8 +229,8 @@ check_java() {
 check_install_maven() {
 	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
 	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
-    version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER"
-	if [[ $? -eq 1 ]]
+    version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
+	if [[ $version_ok -eq 1 ]]
 	# if ([ -n "$MAVEN_VER" ] && (( 10#${MAVEN_VER} >= 10#${MIN_REQUIRED_MAVEN_VERSION} )) )
         then
                 output "Found sufficient maven version = ${MAVEN_VER}"
