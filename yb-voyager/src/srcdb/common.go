@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"regexp"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -83,6 +83,7 @@ func processImportDirectives(fileName string) error {
 	}
 	return nil
 }
+
 // Strip the schema name from the names qualified by the source schema.
 //
 // ora2pg exports SYNONYM objects as VIEWs. The associated CREATE VIEW DDL statements

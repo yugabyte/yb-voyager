@@ -74,6 +74,7 @@ type Summary struct {
 	DBName     string     `json:"dbName"`
 	SchemaName string     `json:"schemaName"`
 	DBVersion  string     `json:"dbVersion"`
+	Notes      []string   `json:"notes"`
 	DBObjects  []DBObject `json:"databaseObjects"`
 }
 

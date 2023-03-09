@@ -52,3 +52,9 @@ VALUES
   );
 END;
 /
+
+
+create table test_timezone(id integer primary key, dtts TIMESTAMP(9));
+alter table test_timezone add constraint test_cc1 check((dtts = trunc(dtts)));
+
+insert into test_timezone values (1,'2-NOV-92');

@@ -97,10 +97,13 @@ func createDataFileSymLinks() {
 		}
 		log.Infof("absolute filepath for %q: %q", table, filePath)
 		log.Infof("symlink path for file %q is %q", filePath, symLinkPath)
-		if utils.FileOrFolderExists(symLinkPath) {
-			log.Infof("removing symlink: %q to create fresh link", symLinkPath)
-			err = os.Remove(symLinkPath)
-			if err != nil {
+
+		log.Infof("removing symlink: %q to create fresh link", symLinkPath)
+		err = os.Remove(symLinkPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				log.Infof("symlink %q does not exist: %v", symLinkPath, err)
+			} else {
 				utils.ErrExit("removing symlink %q: %v", symLinkPath, err)
 			}
 		}

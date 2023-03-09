@@ -1,0 +1,230 @@
+#!/usr/bin/env bash
+
+export LC_CTYPE=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+
+set -e
+trap on_exit EXIT
+LOG_FILE=/tmp/install-yb-voyager-debezium.log
+YUM="sudo yum install -y -q"
+
+DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
+DEBEZIUM_COMMIT_HASH="7164f6280183d7d7c92088537792e9200defad09"
+
+on_exit() {
+	rc=$?
+	set +x
+	if [ $rc -eq 0 ]
+	then
+		echo "Done!"
+	else
+		echo "Script failed. Check log file ${LOG_FILE} ."
+		if [[ ${ON_INSTALLER_ERROR_OUTPUT_LOG:-N} = "Y" ]]
+		then
+			sudo cat ${LOG_FILE}
+		fi
+	fi
+}
+
+# Output a line to both STDOUT and STDERR. Use this function to output something to
+# user as well as in the log file.
+output() {
+	set +x
+	echo $1
+	>&2 echo $1
+	set -x
+}
+
+#=============================================================================
+# MAIN
+#=============================================================================
+main() {
+	set -x
+
+	os=$(uname -s)
+	case ${os} in
+		"Darwin")
+			install_core_utils_macos
+			;;
+		"Linux")
+			install_core_utils_linux
+			;;
+		*)
+			echo "ERROR: unsupported os ${os}"
+			exit 1
+			;;
+	esac
+
+	check_java
+	check_install_maven
+	install_debezium_server
+	output "Installation complete."
+}
+
+#=============================================================================
+# COMMON
+#=============================================================================
+
+check_binutils_version() {
+	output "Checking binutils version."
+	min_required_version='2.25'
+
+	# Example output of "ld -v" on CentOS/RHEL:
+	# GNU ld version 2.30-113.el8
+	# Example output of "ld -v" on Ubuntu:
+	# GNU ld (GNU Binutils for Ubuntu) 2.38
+	version=$(ld -v | awk '{print $NF}' | awk -F '-' '{print $1}')
+
+	if [[ ! "$version" > "$min_required_version" ]] 
+	then
+		echo "ERROR: unsupported binutils version ${version}. Update to binutils version > ${min_required_version} ."
+		exit 1
+	fi
+}
+
+centos_check_base_repo_enabled() {
+
+	output "Checking if base repo is enabled."
+
+	if [[ -z "$(yum repolist enabled | grep base)" ]]
+	then 
+		echo "ERROR: base repo is not enabled. Enable the repo and retry."
+		exit 1
+	fi
+}
+
+install_core_utils_linux() {
+    # Linux
+	dist=$(cat /etc/os-release | grep -w NAME | awk -F'=' '{print $2}' | tr -d '"')
+	case ${dist} in
+		"CentOS Linux")
+			install_core_utils_centos
+			;;
+		"AlmaLinux")
+			install_core_utils_centos
+			;;
+		"Red Hat Enterprise Linux")
+			install_core_utils_centos
+			;;
+		"Red Hat Enterprise Linux Server")
+			install_core_utils_centos
+			;;
+		"Ubuntu")
+			install_core_utils_ubuntu
+			;;
+		*)
+			echo "ERROR: unsupported linux distribution: ${dist}"
+			exit 1
+			;;
+	esac
+}
+
+#=============================================================================
+# CENTOS
+#=============================================================================
+
+install_core_utils_centos() {
+	check_binutils_version
+	centos_check_base_repo_enabled
+	$YUM which wget git gcc make 1>&2
+}
+
+#=============================================================================
+# UBUNTU
+#=============================================================================
+
+install_core_utils_ubuntu() {
+	check_binutils_version
+	sudo apt update 1>&2
+	sudo apt-get -y install wget make 1>&2
+}
+
+#=============================================================================
+# MacOS
+#=============================================================================
+
+install_core_utils_macos() {
+	macos_install_brew
+	brew install wget 1>&2
+}
+
+macos_install_brew() {
+	which brew > /dev/null 2>&1
+	if [ $? -eq 0 ]
+	then
+		output "brew is already installed."
+	else
+		output "Installing brew."
+		set +x  # Do not dump the brew install.sh into the log.
+		/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+		set -x
+	fi
+}
+
+#=============================================================================
+# Debezium
+#=============================================================================
+
+check_java() {
+		if [ -z "$JAVA_HOME" ]; then
+			JAVAC_BINARY="javac"
+		else
+			JAVAC_BINARY="$JAVA_HOME/bin/javac"
+		fi
+        MIN_REQUIRED_MAJOR_VERSION='11'
+		JDK_MAJOR_VER=$(${JAVAC_BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
+
+        if ([ -n "$JDK_MAJOR_VER" ] && (( 10#${JDK_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+        then
+        	output "Found sufficient JDK version = ${JDK_MAJOR_VER}"
+        else
+        	output "ERROR: JDK not found or insuffiencient version ${JDK_MAJOR_VER}. Please install JDK>=${MIN_REQUIRED_MAJOR_VERSION}"
+			exit 1;
+        fi
+}
+
+check_install_maven() {
+	MIN_REQUIRED_MAVEN_VERSION='384'
+	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}' | tr -d ".")
+	if ([ -n "$MAVEN_VER" ] && (( 10#${MAVEN_VER} >= 10#${MIN_REQUIRED_MAVEN_VERSION} )) )
+        then
+                output "Found sufficient maven version = ${MAVEN_VER}"
+        else
+                output "Maven not found or not sufficient. Installing..."
+                install_maven
+        fi
+}
+
+install_maven() {
+	# if dir already present, assuming it was installed in a previous run
+	if [ ! -d "/opt/yb-debezium-maven-3.8.4" ]
+	then
+		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
+		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
+		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
+		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
+		sudo mv yb-debezium-maven-3.8.4 /opt/
+		rm apache-maven-3.8.4-bin.tar.gz
+	fi
+	export PATH=/opt/yb-debezium-maven-3.8.4/bin:$PATH
+}
+
+install_debezium_server() {
+	output "Installing debezium"
+	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
+	# download
+	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_COMMIT_HASH}.tar.gz -O debezium.tar.gz 1>&2
+	tar -xzvf debezium.tar.gz 1>&2
+	# build
+	cd debezium-${DEBEZIUM_COMMIT_HASH}
+	sh buildDebeziumServer.sh 1>&2
+	# move to /opt/debezium-server
+	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/ 1>&2
+	# cleanup
+	cd ..
+	rm -r debezium-${DEBEZIUM_COMMIT_HASH}
+	rm debezium.tar.gz
+}
+
+main 2>> $LOG_FILE
+{ set +x; } 2> /dev/null
