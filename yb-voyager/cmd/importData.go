@@ -367,7 +367,7 @@ func importData() {
 	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {
-		fmt.Println("Streaming changes from source DB...")
+		fmt.Println("streaming changes to target DB...")
 		err = streamChanges(connPool)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)

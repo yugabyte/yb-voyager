@@ -2,6 +2,7 @@ package dbzm
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -9,9 +10,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-const DEBEZIUM_DIST_DIR = "/home/amit.jambure/debezium-server/"
-const DEBEZIUM_CONF_DIR = DEBEZIUM_DIST_DIR + "conf/"
-const DEBEZIUM_CONF_FILEPATH = DEBEZIUM_CONF_DIR + "application.properties"
+var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_DIR, DEBEZIUM_CONF_FILEPATH string
 
 type Debezium struct {
 	*Config
@@ -24,21 +23,38 @@ func NewDebezium(config *Config) *Debezium {
 	return &Debezium{Config: config}
 }
 
+func initVars() {
+	// take value of DEBEZIUM_DIST_DIR value from environment variables
+	if envVal := os.Getenv("DEBEZIUM_DIST_DIR"); envVal != "" {
+		DEBEZIUM_DIST_DIR = envVal
+	} else {
+		utils.ErrExit("DEBEZIUM_DIST_DIR environment variable is not set")
+	}
+
+	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")
+	DEBEZIUM_CONF_FILEPATH = filepath.Join(DEBEZIUM_CONF_DIR, "application.properties")
+}
+
 func (d *Debezium) Start() error {
+	initVars()
 	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
 	}
-	utils.PrintAndLog("Starting debezium...")
-	logFile := filepath.Join(d.ExportDir, "debezium.log")
+
+	utils.PrintAndLog("starting streaming changes from source DB...")
+	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "debezium.log"))
+	log.Infof("debezium logfile path: %s\n", logFile)
+
 	cmdStr := fmt.Sprintf("cd %q; %s > %s 2>&1", DEBEZIUM_DIST_DIR, filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), logFile)
-	log.Infof("Running command: %s\n", cmdStr)
+	log.Infof("running command: %s\n", cmdStr)
 	d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
 	err = d.cmd.Start()
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
 	}
-	utils.PrintAndLog("Debezium started successfully")
+
+	log.Infof("Debezium started successfully")
 	go func() {
 		d.err = d.cmd.Wait()
 		d.done = true

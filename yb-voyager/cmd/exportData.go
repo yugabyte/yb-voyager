@@ -179,20 +179,26 @@ func exportDataOffline() bool {
 	return true
 }
 
-func runLiveMigration(ctx context.Context, tableList []string) error {
+func runLiveMigration(ctx context.Context, tableList []*sqlname.SourceName) error {
+	absExportDir, err := filepath.Abs(exportDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
+	}
+
 	config := &dbzm.Config{
-		ExportDir: exportDir,
-		Host:      source.Host,
-		Port:      source.Port,
-		Username:  source.User,
-		Password:  source.Password,
+		SourceDBType: source.DBType,
+		ExportDir:    absExportDir,
+		Host:         source.Host,
+		Port:         source.Port,
+		Username:     source.User,
+		Password:     source.Password,
 
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
-		TableList:    tableList,
+		TableList:    sqlname.GetMinQuotedTargetTableList(tableList),
 	}
 	debezium := dbzm.NewDebezium(config)
-	err := debezium.Start()
+	err = debezium.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %v", err)
 	}
@@ -202,6 +208,10 @@ func runLiveMigration(ctx context.Context, tableList []string) error {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read toc: %v", err)
+		}
+		if status != nil {
+			log.Infof("Debezium status: %s", (status.Mode))
+		
 		}
 		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
 			exportingSnapshot = false
@@ -251,7 +261,7 @@ func outputExportStatus(status *dbzm.ExportStatus) {
 	}
 }
 
-//flagName can be "exclude-table-list" or "table-list"
+// flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
 		return

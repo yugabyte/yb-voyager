@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	MODE_SNAPSHOT_EXPORT = "snapshot_export"
-	MODE_STREAMING       = "streaming"
+	MODE_SNAPSHOT  = "SNAPSHOT"
+	MODE_STREAMING = "STREAMING"
 )
 
 type TableExportStatus struct {
