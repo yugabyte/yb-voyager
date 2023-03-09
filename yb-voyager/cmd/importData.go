@@ -53,7 +53,7 @@ import (
 )
 
 var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
-var metaInfoDir = META_INFO_DIR_NAME
+var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
@@ -110,6 +110,7 @@ var importDataCmd = &cobra.Command{
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		sqlname.SourceDBType = sourceDBType
 		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
+		checkExportDataDoneFlag()
 		importData()
 	},
 }
@@ -420,12 +421,12 @@ func checkForDone() {
 		if GenerateSplitsDone.IsSet() {
 			checkPassed := true
 			for _, table := range importTables {
-				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDir, table)
+				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
 				m1, err := filepath.Glob(inProgressPattern)
 				if err != nil {
 					utils.ErrExit("glob %q: %s", inProgressPattern, err)
 				}
-				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDir, table)
+				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
 				m2, err := filepath.Glob(inCreatedPattern)
 				if err != nil {
 					utils.ErrExit("glob %q: %s", inCreatedPattern, err)
@@ -574,7 +575,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		largestCreatedSplitSoFar := int64(0)
 		largestOffsetSoFar := int64(0)
 		fileFullySplit := false
-		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDir, t)
+		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
 		matches, _ := filepath.Glob(pattern)
 
 		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
@@ -621,7 +622,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
-	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
+	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
 
@@ -706,7 +707,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.%d.C",
-				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
+				exportDir, metaInfoDirName, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
 			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
@@ -719,7 +720,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 				splitNum += 1
 				numLinesInThisSplit = 0
 				linesWrittenToBuffer = false
-				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
+				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
 				log.Infof("create next temp file: %q", currTmpFileName)
 				outfile, err = os.Create(currTmpFileName)
 				if err != nil {
@@ -758,26 +759,9 @@ func executePostImportDataSqls() {
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {
-	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDir)
-
-	_, err := os.Stat(metaInfoDir)
-	if err != nil {
-		utils.ErrExit("metainfo dir is missing. Exiting.")
-	}
-	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
-	_, err = os.Stat(metaInfoDataDir)
-	if err != nil {
-		utils.ErrExit("metainfo data dir is missing. Exiting.")
-	}
-
-	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
-	_, err = os.Stat(exportDataDonePath)
-	if err != nil {
-		utils.ErrExit("Export is not done yet. Exiting.")
-	}
-
-	exportDataDir := fmt.Sprintf("%s/data", exportDir)
-	_, err = os.Stat(exportDataDir)
+	metaInfoDataDir := filepath.Join(exportDir, metaInfoDirName, "data")
+	exportDataDir := filepath.Join(exportDir, "data")
+	_, err := os.Stat(exportDataDir)
 	if err != nil {
 		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
 	}
@@ -1431,6 +1415,25 @@ func checkSessionVariableSupport(sqlStmt string) bool {
 	}
 
 	return err == nil
+}
+
+func checkExportDataDoneFlag() {
+	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDirName)
+	_, err := os.Stat(metaInfoDir)
+	if err != nil {
+		utils.ErrExit("metainfo dir is missing. Exiting.")
+	}
+	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
+	_, err = os.Stat(metaInfoDataDir)
+	if err != nil {
+		utils.ErrExit("metainfo data dir is missing. Exiting.")
+	}
+
+	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
+	_, err = os.Stat(exportDataDonePath)
+	if err != nil {
+		utils.ErrExit("Export Data is not complete yet. Exiting.")
+	}
 }
 
 func init() {
