@@ -27,13 +27,12 @@ var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 func NewDataFile(reader io.ReadCloser, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
-		//return openCsvDataFile(reader, descriptor)
+		//return newCsvDataFile(reader, descriptor)
 		return nil, fmt.Errorf("Broken for now :)")
 	case TEXT:
 		return newTextDataFile(reader, descriptor)
 	case SQL:
-		//return newSqlDataFile(reader, descriptor)
-		return nil, fmt.Errorf("Broken for now :)")
+		return newSqlDataFile(reader, descriptor)
 	default:
 		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileFormat))
 

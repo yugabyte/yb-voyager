@@ -118,7 +118,7 @@ func createDataFileSymLinks() {
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	for table, filePath := range tableNameVsFilePath { // Was earlier table, filePath
+	for table, filePath := range tableNameVsFilePath {
 		if fileFormat == datafile.CSV {
 			if hasHeader {
 				reader, err := ds.Open(filePath)

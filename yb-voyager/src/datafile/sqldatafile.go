@@ -2,14 +2,12 @@ package datafile
 
 import (
 	"bufio"
-	"os"
+	"io"
 	"strings"
-
-	log "github.com/sirupsen/logrus"
 )
 
 type SqlDataFile struct {
-	file           *os.File
+	closer         io.Closer
 	reader         *bufio.Reader
 	insideCopyStmt bool
 	bytesRead      int64
@@ -42,7 +40,7 @@ func (df *SqlDataFile) NextLine() (string, error) {
 }
 
 func (df *SqlDataFile) Close() {
-	df.file.Close()
+	df.closer.Close()
 }
 
 func (df *SqlDataFile) GetBytesRead() int64 {
@@ -71,19 +69,12 @@ func (df *SqlDataFile) isDataLine(line string) bool {
 	}
 }
 
-func newSqlDataFile(filePath string, descriptor *Descriptor) (*SqlDataFile, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := bufio.NewReader(file)
+func newSqlDataFile(readCloser io.ReadCloser, descriptor *Descriptor) (*SqlDataFile, error) {
+	reader := bufio.NewReader(readCloser)
 	sqlDataFile := &SqlDataFile{
-		file:           file,
+		closer:         readCloser,
 		reader:         reader,
 		insideCopyStmt: false,
 	}
-	log.Infof("created sql data file struct for file: %s", filePath)
-
-	return sqlDataFile, err
+	return sqlDataFile, nil
 }
