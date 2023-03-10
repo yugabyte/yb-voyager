@@ -115,13 +115,13 @@ grant_user_permission_oracle(){
 	grant select on sys.argument$ to ybvoyager;
 	BEGIN
     	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type = 'TYPE') LOOP
-       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'."'||R.object_name||'" to ybvoyager';
    		END LOOP;
 	END;
 	/
 	BEGIN
     	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','TABLE','SYNONYM','MATERIALIZED VIEW')) LOOP
-        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to ybvoyager';
   		END LOOP;
 	END;
 	/
