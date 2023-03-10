@@ -1,3 +1,5 @@
+SET ECHO ON
+
 BEGIN
    FOR cur_rec IN (SELECT object_name, object_type
                      FROM user_objects
@@ -41,5 +43,7 @@ BEGIN
    END LOOP;
 END;
 /
+
+PURGE RECYCLEBIN;
 
 COMMIT;
