@@ -17,21 +17,65 @@ EXPECTED_ROW_COUNT = {
 	'char_types': 6,
 	'long_type': 3,
 	'raw_type': 6,
-	'number_ps': 1
+	'number_ps': 1,
+	'lob_types': 2
 }
 
 EXPECTED_DATA_TYPES = {
-	'numeric_types_number': ['numeric'],
-	'numeric_types_float': ['double precision'],
-	'numeric_types_binary_float': ['double precision'],
-	'numeric_types_binary_double': ['double precision'],
-	'numeric_types': ['numeric','double precision','double precision','double precision'],
-	'date_time_types': ['timestamp without time zone','timestamp without time zone','timestamp with time zone','timestamp with time zone'],
-	'interval_types': ['interval','interval'],
-	'char_types': ['character varying','character varying','character','character'],
-	'long_type': ['text'],
-	'raw_type': ['bytea','bytea'],
-	'number_ps': ['numeric','smallint','real','numeric','real']
+	'numeric_types_number': {
+		'num_val': 'numeric'
+	},
+	'numeric_types_float': {
+		'num_val': 'double precision'
+	},
+	'numeric_types_binary_float': {
+		'num_val': 'double precision'
+	},
+	'numeric_types_binary_double': {
+		'num_val': 'double precision'
+	},
+	'numeric_types': {
+		'num_val': 'numeric',
+		'bin_float_val': 'double precision',
+		'bin_double_val': 'double precision',
+		'float_val': 'double precision'
+	},
+	'date_time_types': {
+		'ts_tz_value': 'timestamp with time zone',
+		'timestamp_val': 'timestamp without time zone',
+		'ts_tz_lt_value': 'timestamp with time zone',
+		'date_val': 'timestamp without time zone'
+	},
+	'interval_types': {
+		'int_y_m': 'interval',
+		'int_d_s': 'interval'
+	},
+	'char_types': {
+		'address_2': 'character',
+		'address_3': 'character',
+		'address': 'character varying',
+		'emp_name': 'character varying'
+	},
+	'long_type': {
+		'long_value': 'text'
+	},
+	'raw_type': {
+		'long_raw_value': 'bytea',
+		'raw_value': 'bytea'
+	},
+	'number_ps': {
+		'num_neg_s': 'numeric',
+		'num_p_s': 'numeric',
+		'num_val': 'numeric',
+		'num_s_p': 'numeric',
+		'num_3': 'smallint'
+	},
+	'lob_types': {
+		'b_type': 'bytea',
+		'ctype': 'text',
+		'n_type': 'text',
+		'id': 'numeric'
+	}
 }
 
 def migration_completed_checks(tgt):
@@ -41,10 +85,14 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 #=============================================================================
-	fetched_datatypes_schema = tgt.fetch_datatypes_of_all_tables_in_schema("public")
-	for table_name, data_types in fetched_datatypes_schema.items():
-		print(f"Table Name: {table_name}, data_types: {fetched_datatypes_schema[table_name]}")
-		# assert set(EXPECTED_DATA_TYPES[table_name]) == set(fetched_datatypes_schema[table_name])
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
+ 
+	print(fetched_datatypes_schema)
+	for table_name, columns in fetched_datatypes_schema.items():
+		print(f"table_name: {table_name} ---- ")
+		for column_name, datatype in columns.items():
+			print(f"column_name: {column_name}, datatype: {datatype}")
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
 if __name__ == "__main__":
 	main()

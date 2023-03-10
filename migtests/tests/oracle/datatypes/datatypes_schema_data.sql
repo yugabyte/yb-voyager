@@ -96,3 +96,7 @@ INSERT INTO RAW_TYPE VALUES('','');
 
 CREATE TABLE NUMBER_PS(num_val NUMBER,num_3 NUMBER(3), num_p_s NUMBER(3,2), num_s_p NUMBER(2,7), num_neg_s NUMBER);
 INSERT INTO NUMBER_PS values(123.89,401.78,5.79,.0000012,546.99);
+
+CREATE TABLE lob_types(id int, b_type blob, ctype clob, n_type nclob);
+INSERT INTO lob_types values(1,'abc','abc','abc');
+INSERT INTO lob_types values(2,utl_raw.cast_to_raw('Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.'),'Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.');
