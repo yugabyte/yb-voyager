@@ -106,11 +106,39 @@ grant_user_permission_mysql() {
 
 grant_user_permission_oracle(){
 	db_name=$1
+	db_schema=$2
+
+	commands=(
+		"grant connect to ybvoyager;"
+		"grant select_catalog_role to ybvoyager;"
+		"grant select any dictionary to ybvoyager;"
+		"grant select on sys.argument$ to ybvoyager;"
+		"BEGIN
+    		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type = 'TYPE') LOOP
+       			EXECUTE IMMEDIATE 'grant execute on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+   			END LOOP;
+		END;
+		/"
+		"BEGIN
+    		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','TABLE','SYNONYM','MATERIALIZED VIEW')) LOOP
+        		EXECUTE IMMEDIATE 'grant select on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+  			END LOOP;
+		END;
+		/"
+	)
+
+	file_name="oracle-inputs.sql"
+	for command in "${commands[@]}"; do
+		echo "${command}" >> "${file_name}"
+	done
+
+	run_sqlplus_grants ${db_name} "${file_name}"
 }
 
 grant_permissions() {
 	db_name=$1
 	db_type=$2
+	db_schema=$3
 	case ${db_type} in
 		postgresql)
 			grant_user_permission_postgresql ${db_name}
@@ -119,7 +147,7 @@ grant_permissions() {
 			grant_user_permission_mysql ${db_name}
 			;;
 		oracle)
-			grant_user_permission_oracle ${db_name}
+			grant_user_permission_oracle ${db_name} ${db_schema}
 			;;
 		*)
 			echo "ERROR: grant_permissions not implemented for ${SOURCE_DB_TYPE}"
@@ -132,7 +160,23 @@ run_sqlplus() {
 	db_name=$1
 	sql=$2
 	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo exit | sqlplus -f ${conn_string} @${sql}
+	echo exit | sqlplus -f "${conn_string}" @"${sql}"
+}
+
+
+run_sqlplus_grants() {
+	db_name=$1
+    local file_name=$2
+    conn_string="sys/password@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name} as SYSDBA"
+	echo exit | sqlplus -f "${conn_string}" @"${file_name}"
+}
+
+
+run_sqlplus_write() {
+    db_name=$1
+    sql=$2
+    conn_string="test_user/password@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
 export_schema() {

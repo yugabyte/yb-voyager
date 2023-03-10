@@ -9,7 +9,7 @@ echo "Assigning permissions to the validate filess"
 chmod +x ${TEST_DIR}/validate
 
 echo "Deleting existing data in target database"
-run_sqlplus ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
+run_sqlplus_write ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
 
 echo "Initialising source database & inserting data"
-run_sqlplus ${SOURCE_DB_NAME} trunc_date_schema_data
+run_sqlplus_write ${SOURCE_DB_NAME} trunc_date_schema_data
