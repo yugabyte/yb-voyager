@@ -108,31 +108,26 @@ grant_user_permission_oracle(){
 	db_name=$1
 	db_schema=$2
 
-	commands=(
-		"grant connect to ybvoyager;"
-		"grant select_catalog_role to ybvoyager;"
-		"grant select any dictionary to ybvoyager;"
-		"grant select on sys.argument$ to ybvoyager;"
-		"BEGIN
-    		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type = 'TYPE') LOOP
-       			EXECUTE IMMEDIATE 'grant execute on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
-   			END LOOP;
-		END;
-		/"
-		"BEGIN
-    		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','TABLE','SYNONYM','MATERIALIZED VIEW')) LOOP
-        		EXECUTE IMMEDIATE 'grant select on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
-  			END LOOP;
-		END;
-		/"
-	)
-
-	file_name="oracle-inputs.sql"
-	for command in "${commands[@]}"; do
-		echo "${command}" >> "${file_name}"
-	done
-
-	run_sqlplus_as_sys ${db_name} "${file_name}"
+	cat > oracle-inputs.sql << EOF
+	grant connect to ybvoyager;
+	grant select_catalog_role to ybvoyager;
+	grant select any dictionary to ybvoyager;
+	grant select on sys.argument$ to ybvoyager;
+	BEGIN
+    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type = 'TYPE') LOOP
+       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+   		END LOOP;
+	END;
+	/
+	BEGIN
+    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner='${db_schema}' and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','TABLE','SYNONYM','MATERIALIZED VIEW')) LOOP
+        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'.\"'||R.object_name||'\" to ybvoyager';
+  		END LOOP;
+	END;
+	/
+EOF
+	
+	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
 }
 
 grant_permissions() {
