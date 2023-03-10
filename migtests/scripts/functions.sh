@@ -132,7 +132,7 @@ grant_user_permission_oracle(){
 		echo "${command}" >> "${file_name}"
 	done
 
-	run_sqlplus_grants ${db_name} "${file_name}"
+	run_sqlplus_as_sys ${db_name} "${file_name}"
 }
 
 grant_permissions() {
@@ -156,26 +156,19 @@ grant_permissions() {
 	esac
 }
 
-run_sqlplus() {
-	db_name=$1
-	sql=$2
-	conn_string="${SOURCE_DB_USER}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	echo exit | sqlplus -f "${conn_string}" @"${sql}"
-}
 
-
-run_sqlplus_grants() {
+run_sqlplus_as_sys() {
 	db_name=$1
     local file_name=$2
-    conn_string="sys/password@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name} as SYSDBA"
+    conn_string="${SOURCE_DB_USER_SYS}/${SOURCE_DB_USER_SYS_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name} as SYSDBA"
 	echo exit | sqlplus -f "${conn_string}" @"${file_name}"
 }
 
 
-run_sqlplus_write() {
+run_sqlplus_as_schema_owner() {
     db_name=$1
     sql=$2
-    conn_string="test_user/password@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
     echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
