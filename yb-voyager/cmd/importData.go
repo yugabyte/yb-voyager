@@ -624,7 +624,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	if err != nil {
 		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
 	}
-	dataFile, err := datafile.NewDataFile(reader, dataFileDescriptor)
+	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}

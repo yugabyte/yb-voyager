@@ -70,5 +70,5 @@ func (ds *S3Datastore) Open(resourceName string) (io.ReadCloser, error) {
 		utils.ErrExit("unable to resolve symlink %v to s3 resource: %v", resourceName, err)
 	}
 	reader, err := s3.DownloadS3Object(s3Resource)
-	return &reader, err
+	return reader, err
 }

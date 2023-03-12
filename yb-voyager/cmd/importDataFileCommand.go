@@ -125,7 +125,7 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("preparing reader for copy commands on file %q: %v", filePath, err)
 				}
-				df, err := datafile.NewDataFile(reader, dataFileDescriptor)
+				df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
@@ -303,28 +303,6 @@ func checkAndParseFileOpts() {
 
 	log.Infof("fileOptsMap: %v", fileOptsMap)
 }
-
-// func verifyS3Resource(dataDir string) {
-// 	bucket := "rbarigidad-voyager-test"
-// 	item := "testfile"
-// 	destFileName := filepath.Join(exportDir, "testfile")
-// 	destfile, _ := os.Create(destFileName)
-// 	sess, err := session.NewSession(&aws.Config{
-// 		Region: aws.String("us-west-2")},
-// 	)
-// 	if err != nil {
-// 		utils.ErrExit("s3 err %v", err)
-// 	}
-// 	downloader := s3manager.NewDownloader(sess)
-// 	numBytes, err := downloader.Download(destfile, &s3.GetObjectInput{
-// 		Bucket: aws.String(bucket),
-// 		Key:    aws.String(item),
-// 	})
-// 	if err != nil {
-// 		utils.ErrExit("s3 err2 %v", err)
-// 	}
-// 	fmt.Println("Success download", numBytes)
-// }
 
 // escaping single quote character
 func escapeFileOptsCharsIfRequired() {

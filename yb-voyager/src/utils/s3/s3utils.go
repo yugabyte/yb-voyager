@@ -23,9 +23,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+
+	"gocloud.dev/blob/s3blob"
 )
 
 var client *s3.Client
@@ -109,29 +110,15 @@ func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 	return result, nil
 }
 
-func DownloadS3Object(object string) (io.PipeReader, error) {
+func DownloadS3Object(object string) (io.ReadCloser, error) {
 	createClientIfNotExists()
-	bucket, key, err := S3FromUrl(object)
+	bucketName, keyName, err := S3FromUrl(object)
 	if err != nil {
-		return io.PipeReader{}, err
+		return nil, err
 	}
-
-	streamer := NewS3DownloadStream()
-	downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
-		d.Concurrency = 1
-		//d.PartSize=???
-	})
-
-	dlParams := &s3.GetObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(key),
+	bucket, err := s3blob.OpenBucketV2(context.Background(), client, bucketName, nil)
+	if err != nil {
+		utils.ErrExit("open bucket: %v", err)
 	}
-
-	go func() {
-		_, err := downloader.Download(context.Background(), streamer, dlParams)
-		streamer.CloseWithError(err)
-	}()
-
-	return *streamer.reader, nil
-
+	return bucket.NewReader(context.Background(), keyName, nil)
 }

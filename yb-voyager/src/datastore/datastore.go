@@ -17,7 +17,10 @@ type Datastore interface {
 }
 
 func NewDataStore(location string) Datastore {
-	trueLocation, err := os.Readlink(location)
+	if strings.HasPrefix(location, "s3://") {
+		return NewS3Datastore(location)
+	}
+	trueLocation, err := os.Readlink(location) //need to differentiate between actual DNE case and symlink case somehow...
 	if err != nil {
 		utils.ErrExit("unable to resolve location of datastore %v", err)
 	}

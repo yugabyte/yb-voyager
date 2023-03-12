@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -77,12 +78,13 @@ func (df *TextDataFile) GetHeader() string {
 	return df.Header
 }
 
-func newTextDataFile(readCloser io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
+func newTextDataFile(filePath string, readCloser io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
 	textDataFile := &TextDataFile{
 		closer:    readCloser,
 		reader:    bufio.NewReader(readCloser),
 		Delimiter: descriptor.Delimiter,
 	}
+	log.Infof("created text data file struct for file: %s", filePath)
 
 	return textDataFile, nil
 }

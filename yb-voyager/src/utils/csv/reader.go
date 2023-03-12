@@ -30,7 +30,7 @@ type Reader struct {
 	EscapeChar byte
 
 	fileName     string
-	file         *os.File
+	file         io.ReadCloser
 	buf          []byte
 	remainingBuf []byte
 	pendingBytes []byte
@@ -39,13 +39,9 @@ type Reader struct {
 	lineCount int
 }
 
-func Open(fileName string) (*Reader, error) {
-	f, err := os.Open(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file %s: %v", fileName, err)
-	}
+func Open(fileName string, fileReadCloser io.ReadCloser) (*Reader, error) {
 	buf := make([]byte, CSV_READER_MAX_BUFFER_SIZE)
-	r := &Reader{QuoteChar: '"', EscapeChar: '"', fileName: fileName, file: f, buf: buf}
+	r := &Reader{QuoteChar: '"', EscapeChar: '"', fileName: fileName, file: fileReadCloser, buf: buf}
 	return r, nil
 }
 
