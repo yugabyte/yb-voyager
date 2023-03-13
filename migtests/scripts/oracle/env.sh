@@ -1,4 +1,4 @@
-# We use an already deployed RDS Oracle instance on docker for testing.
+# We use an already deployed Oracle instance on docker for testing.
 
 export SOURCE_DB_PORT=${SOURCE_DB_PORT:-1521}
 export SOURCE_DB_USER=${SOURCE_DB_USER:-"ybvoyager"}
