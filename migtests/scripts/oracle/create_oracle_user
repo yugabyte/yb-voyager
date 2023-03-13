@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-source migtests/scripts/postgresql/env.sh
+source migtests/scripts/oracle/env.sh
 source migtests/scripts/functions.sh
 
 cmd="CREATE USER ybvoyager IDENTIFIED BY password;"
