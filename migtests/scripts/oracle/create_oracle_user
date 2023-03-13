@@ -1,2 +1,6 @@
 #!/usr/bin/env bash
+source migtests/scripts/postgresql/env.sh
+source migtests/scripts/functions.sh
 
+cmd="CREATE USER ybvoyager identified by password;"
+run_sqlplus_as_sys ${SOURCE_DB_NAME} "${cmd}"
