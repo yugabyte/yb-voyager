@@ -2,5 +2,8 @@
 source migtests/scripts/oracle/env.sh
 source migtests/scripts/functions.sh
 
-cmd="CREATE USER ybvoyager IDENTIFIED BY password;"
-run_sqlplus_as_sys ${SOURCE_DB_NAME} "${cmd}"
+cat > oracle-create-user.sql << EOF
+CREATE USER ybvoyager IDENTIFIED BY password;
+EOF
+
+run_sqlplus_as_sys ${SOURCE_DB_NAME} "oracle-create-user.sql"
