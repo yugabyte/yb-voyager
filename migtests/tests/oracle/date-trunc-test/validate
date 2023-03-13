@@ -18,8 +18,12 @@ def migration_completed_checks(tgt):
 		assert row_count == got_row_count[table_name]
 	
 	function_count = tgt.get_functions_count("public")
-	assert function_count == 2
-	assert set(tgt.fetch_all_function_names("public")) == set(["trunc_date", "trunc_time_stamp"])
+	orafce_function_count = 88
+	assert function_count == 2 + orafce_function_count
+	print("checking function names")
+	function_names = tgt.fetch_all_function_names("public")
+	assert "trunc_date" in function_names
+	assert "trunc_time_stamp" in function_names
 
 if __name__ == "__main__":
 	main()

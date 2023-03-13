@@ -22,13 +22,40 @@ EXPECTED_ROW_COUNT = {
 	'orders_interval_partition_interval_partition_less_than_2016': 13,
 	'orders_interval_partition_interval_partition_less_than_2017': 79,
 	'orders_interval_partition_interval_partition_less_than_2018': 12,
-	'sales_hash': 100,
-	'sales_hash_p1': 43,
-	'sales_hash_p2': 26,
-	'sales_hash_p3': 10,
-	'sales_hash_p4': 21
+	'sales_hash': 30,
+	'sales_hash_p1': 17,
+	'sales_hash_p2': 7,
+	'sales_hash_p3': 6,
+	'sales_hash_p4': 0
 }
 
+INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
+	"List" : {
+		"query": "INSERT INTO ACCOUNTS_LIST_PARTITIONED values (600, 106, 16,210,'NJ','I');",
+		"partition_table_name": "accounts_list_partitioned_p_northeast",
+	},
+	"Range" : {
+		"query": "INSERT INTO ORDERS_INTERVAL_PARTITION(ORDER_ID,CUSTOMER_ID,STATUS,SALESMAN_ID,ORDER_DATE) values (1000,1,'Pending',54,to_date('17-NOV-17','DD-MON-YY'));",
+		"partition_table_name": "orders_interval_partition_interval_partition_less_than_2018",
+	},
+	"Range_Column" : {
+		"query": "INSERT INTO ORDER_ITEMS_RANGE_PARTITIONED (ORDER_ID,ORDER_DATETIME,CUSTOMER_ID,STORE_ID,ORDER_STATUS) values (65,to_timestamp('04-FEB-2018 13.20.22.245676861','DD-MON-YYYY HH24.MI.SS.FF'),9,1,'CANCELLED');",
+		"partition_table_name": "order_items_range_partitioned_p2",
+	},
+	"Hash" : {
+		"query": " Insert into SALES_HASH values (400, to_date('26-NOV-03','DD-MON-YY'), 104, 2129.55);",
+		"partition_table_name": "sales_hash_p4",
+	}
+}
+
+def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name):
+	chk_error_returned = tgt.run_query_and_chk_error(query, None)
+	print(f"error returned while insert ({query}) query - {chk_error_returned}")
+	assert chk_error_returned == False
+
+	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
+	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
+	assert count_partition_table == EXPECTED_ROW_COUNT[partition_table_name] + 1
 #=============================================================================
 
 def migration_completed_checks(tgt):
@@ -36,6 +63,9 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
+
+	for partition_type, query_and_table in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
+		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query_and_table["query"], query_and_table["partition_table_name"], "public")
 	
 if __name__ == "__main__":
 	main()
