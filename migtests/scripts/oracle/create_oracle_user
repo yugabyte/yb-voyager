@@ -2,5 +2,5 @@
 source migtests/scripts/postgresql/env.sh
 source migtests/scripts/functions.sh
 
-cmd="CREATE USER ybvoyager identified by password;"
+cmd="CREATE USER ybvoyager IDENTIFIED BY password;"
 run_sqlplus_as_sys ${SOURCE_DB_NAME} "${cmd}"
