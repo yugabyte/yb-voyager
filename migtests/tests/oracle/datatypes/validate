@@ -80,6 +80,8 @@ EXPECTED_DATA_TYPES = {
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts
+	tgt.drop_orafce()
+ 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")

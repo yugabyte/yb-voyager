@@ -180,3 +180,7 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema'")
 		return set(cur.fetchall())
+
+	def drop_orafce(self):
+		cur = self.conn.cursor()
+		cur.execute(f"DROP EXTENSION orafce CASCADE")
