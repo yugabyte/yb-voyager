@@ -68,8 +68,7 @@ def migration_completed_checks(tgt):
 	# Validate the number of procedures migrated
 	fetched_procedures = tgt.fetch_all_procedures("public")
 	print(f"Returned procedures are - {fetched_procedures}, and count - {len(fetched_procedures)}")
-	orafce_functions_count = 88
-	assert len(fetched_procedures) == 5 + orafce_functions_count
+	assert len(fetched_procedures) == 5
  
 	# Validate the number of triggers migrated
 	fetched_triggers = tgt.fetch_all_triggers("public")
