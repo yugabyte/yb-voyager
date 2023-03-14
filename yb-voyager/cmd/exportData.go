@@ -120,13 +120,14 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	if liveMigration {
-		err := runLiveMigration(ctx, finalTableList)
+	if liveMigration || useDebezium {
+		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
 			utils.PrintAndLog("Failed to run live migration: %s", err)
 		}
 		return err == nil
 	}
+
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -179,10 +180,17 @@ func exportDataOffline() bool {
 	return true
 }
 
-func runLiveMigration(ctx context.Context, tableList []*sqlname.SourceName) error {
+func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) error {
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
+	}
+
+	var snapshotMode string
+	if liveMigration {
+		snapshotMode = "initial"
+	} else if useDebezium {
+		snapshotMode = "initial_only"
 	}
 
 	config := &dbzm.Config{
@@ -196,6 +204,7 @@ func runLiveMigration(ctx context.Context, tableList []*sqlname.SourceName) erro
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
 		TableList:    sqlname.GetMinQuotedTargetTableList(tableList),
+		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)
 	err = debezium.Start()
@@ -204,14 +213,14 @@ func runLiveMigration(ctx context.Context, tableList []*sqlname.SourceName) erro
 	}
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
-	for {
+	for exportingSnapshot {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read toc: %v", err)
 		}
 		if status != nil {
 			log.Infof("Debezium status: %s", (status.Mode))
-		
+
 		}
 		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
 			exportingSnapshot = false
@@ -222,16 +231,26 @@ func runLiveMigration(ctx context.Context, tableList []*sqlname.SourceName) erro
 				return fmt.Errorf("failed to write data file descriptor: %v", err)
 			}
 			outputExportStatus(status)
-			color.Blue("Streaming changes to a local queue file...")
-		}
-		if !debezium.IsRunning() {
-			break
 		}
 		time.Sleep(time.Second)
 	}
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed: %v", err)
+		return fmt.Errorf("debezium failed during initial snapshot phase: %v", err)
 	}
+
+	if !liveMigration && useDebezium {
+		return debezium.Stop()
+	}
+
+	// live migration part
+	color.Blue("streaming changes to a local queue file...")
+	for debezium.IsRunning() {
+		time.Sleep(time.Second)
+	}
+	if err := debezium.Error(); err != nil {
+		return fmt.Errorf("debezium failed during live migration phase: %v", err)
+	}
+
 	return nil
 }
 

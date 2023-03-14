@@ -21,6 +21,7 @@ type Config struct {
 	DatabaseName string
 	SchemaNames  string
 	TableList    []string
+	SnapshotMode string
 }
 
 var postgresSrcConfigTemplate = `
@@ -32,6 +33,7 @@ debezium.sink.ybexporter.dataDir=%s
 
 debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
+debezium.source.snapshot.mode=%s
 
 debezium.source.offset.storage.file.filename=%s
 debezium.source.offset.flush.interval.ms=0
@@ -66,6 +68,8 @@ debezium.sink.ybexporter.dataDir=%s
 
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
+debezium.source.snapshot.mode=%s
+
 debezium.source.offset.storage.file.filename=%s
 debezium.source.offset.flush.interval.ms=0
 
@@ -105,6 +109,7 @@ debezium.sink.ybexporter.dataDir=%s
 
 debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
+debezium.source.snapshot.mode=%s
 
 debezium.source.offset.storage.file.filename=%s
 debezium.source.offset.flush.interval.ms=0
@@ -145,6 +150,7 @@ func (c *Config) getConfigTemplate() string {
 		}
 		return fmt.Sprintf(postgresSrcConfigTemplate,
 			dataDir,
+			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
@@ -159,6 +165,7 @@ func (c *Config) getConfigTemplate() string {
 		}
 		return fmt.Sprintf(oracleSrcConfigTemplate,
 			dataDir,
+			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
@@ -175,10 +182,10 @@ func (c *Config) getConfigTemplate() string {
 		}
 		return fmt.Sprintf(mysqlSrcConfigTemplate,
 			dataDir,
+			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
-			schemaNames,
 			strings.Join(c.TableList, ","),
 			filepath.Join(c.ExportDir, "temp", "schema_history"))
 	}

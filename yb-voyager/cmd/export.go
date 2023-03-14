@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"syscall"
 
@@ -34,6 +35,7 @@ var source srcdb.Source
 // to disable progress bar during data export and import
 var disablePb bool
 var liveMigration bool
+var useDebezium bool
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -101,6 +103,13 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 func setExportFlagsDefaults() {
 	setSourceDefaultPort() //will set only if required
 	setDefaultSSLMode()
+
+	val, ok := os.LookupEnv("USE_DEBEZIUM")
+	if ok {
+		useDebezium = (val == "true" || val == "1" || val == "yes")
+	} else {
+		useDebezium = false
+	}
 }
 
 func setSourceDefaultPort() {

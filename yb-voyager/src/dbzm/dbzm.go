@@ -24,6 +24,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func initVars() {
+	log.Infof("initializing debezium env variables like DEBEZIUM_DIST_DIR...")
 	// take value of DEBEZIUM_DIST_DIR value from environment variables
 	if envVal := os.Getenv("DEBEZIUM_DIST_DIR"); envVal != "" {
 		DEBEZIUM_DIST_DIR = envVal
@@ -42,7 +43,7 @@ func (d *Debezium) Start() error {
 		return err
 	}
 
-	utils.PrintAndLog("starting streaming changes from source DB...")
+	log.Infof("starting debezium...")
 	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "debezium.log"))
 	log.Infof("debezium logfile path: %s\n", logFile)
 
@@ -76,4 +77,16 @@ func (d *Debezium) Error() error {
 func (d *Debezium) GetExportStatus() (*ExportStatus, error) {
 	statusFilePath := filepath.Join(d.ExportDir, "data", "export_status.json")
 	return ReadExportStatus(statusFilePath)
+}
+
+// stops debezium process if it is running
+func (d *Debezium) Stop() error {
+	if d.IsRunning() {
+		log.Infof("Stopping debezium...")
+		err := d.cmd.Process.Kill()
+		if err != nil {
+			return fmt.Errorf("Error stopping debezium: %v", err)
+		}
+	}
+	return nil
 }
