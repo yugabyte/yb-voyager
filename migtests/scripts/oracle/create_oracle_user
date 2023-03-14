@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# This script enables the yb-voyager-testing jenkins pipeline to create a user in the source oracle database running on docker 
+# Link to the pipeline: https://github.com/yugabyte/jenkins-helpers/blob/yb-voyager/pipelines/yb-voyager/yb-voyager-testing.groovy
+
 source migtests/scripts/oracle/env.sh
 source migtests/scripts/functions.sh
 
