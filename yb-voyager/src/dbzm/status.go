@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -48,6 +51,12 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 	return &status, nil
 }
 
-func (status *ExportStatus) IsSnapshotMode() bool {
-	return status.Mode == MODE_SNAPSHOT
+func IsLiveMigrationInSnapshotMode(exportDir string) bool {
+	statusFilePath := filepath.Join(exportDir, "export_status.json")
+	status, err := ReadExportStatus(statusFilePath)
+	if err != nil {
+		log.Errorf("Failed to read export status file %s: %v", statusFilePath, err)
+		return false
+	}
+	return status != nil && status.Mode == MODE_SNAPSHOT
 }

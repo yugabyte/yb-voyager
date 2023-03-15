@@ -305,12 +305,8 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 	} else {
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			utils.ErrExit("failed to read export status: %v", err)
-		}
-		if !liveMigration || (status != nil && status.IsSnapshotMode()) {
-			if !utils.IsDirectoryEmpty(exportDataDir) {
+		if !utils.IsDirectoryEmpty(exportDataDir) {
+			if !liveMigration || dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
 				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 			}
 		} else {

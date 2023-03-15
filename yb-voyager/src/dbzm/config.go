@@ -29,9 +29,12 @@ debezium.format.key=connect
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 
+debezium.source.table.include.list=%s
+
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
 debezium.source.offset.flush.interval.ms=0
 debezium.source.topic.prefix=yb-voyager
+debezium.source.database.server.name=yb-voyager
 
 debezium.source.decimal.handling.mode=string
 debezium.source.interval.handling.mode=string
@@ -55,10 +58,8 @@ debezium.source.database.port=%d
 debezium.source.database.user=%s
 debezium.source.database.password=%s
 debezium.source.database.dbname=%s
-debezium.source.database.server.name=yb-voyager
 
 debezium.source.schema.include.list=%s
-debezium.source.table.include.list=%s
 debezium.source.plugin.name=pgoutput
 
 debezium.source.hstore.handling.mode=map`
@@ -77,7 +78,6 @@ debezium.source.database.dbname=%s
 #debezium.source.database.pdb.name=ORCLPDB1
 
 debezium.source.schema.include.list=%s
-debezium.source.table.include.list=%s
 
 debezium.source.hstore.handling.mode=map
 
@@ -99,9 +99,8 @@ debezium.source.database.port=%d
 debezium.source.database.user=%s
 debezium.source.database.password=%s
 debezium.source.database.include.list=%s
-debezium.source.database.server.id=101
+debezium.source.database.server.id=ybvoyager-dbzm
 
-debezium.source.table.include.list=%s
 
 
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
@@ -117,40 +116,35 @@ func (c *Config) String() string {
 
 	switch c.SourceDBType {
 	case "postgresql":
-		for i, table := range c.TableList {
-			if !strings.Contains(table, ".") {
-				c.TableList[i] = fmt.Sprintf("public.%s", table)
-			}
-		}
 		return fmt.Sprintf(postgresSrcConfigTemplate,
 			dataDir,
+			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
-			schemaNames,
-			strings.Join(c.TableList, ","))
+			schemaNames)
 
 	case "oracle":
 		return fmt.Sprintf(oracleSrcConfigTemplate,
 			dataDir,
+			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
 			schemaNames,
-			strings.Join(c.TableList, ","),
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 
 	case "mysql":
 		return fmt.Sprintf(mysqlSrcConfigTemplate,
 			dataDir,
+			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			c.DatabaseName,
-			strings.Join(c.TableList, ","),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))

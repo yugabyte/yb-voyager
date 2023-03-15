@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_DIR, DEBEZIUM_CONF_FILEPATH string
@@ -23,14 +22,11 @@ func NewDebezium(config *Config) *Debezium {
 	return &Debezium{Config: config}
 }
 
-func initVars() {
-	log.Infof("initializing debezium env variables like DEBEZIUM_DIST_DIR...")
+func init() {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
 		DEBEZIUM_DIST_DIR = "/etc/yb-voyager/debezium"
-		utils.PrintAndLog(fmt.Sprintf("DEBEZIUM_DIST_DIR environment variable is not set. "+
-			"Assuming debezium is installed at %s", DEBEZIUM_DIST_DIR))
 	}
 
 	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")
@@ -38,7 +34,6 @@ func initVars() {
 }
 
 func (d *Debezium) Start() error {
-	initVars()
 	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
