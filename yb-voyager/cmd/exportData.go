@@ -264,7 +264,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		FileFormat:    datafile.CSV,
 		TableRowCount: tableRowCount,
 		Delimiter:     ",",
-		HasHeader:     false,
+		HasHeader:     true,
 		ExportDir:     exportDir,
 	}
 	dfd.Save()
