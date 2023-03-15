@@ -25,11 +25,12 @@ func NewDebezium(config *Config) *Debezium {
 
 func initVars() {
 	log.Infof("initializing debezium env variables like DEBEZIUM_DIST_DIR...")
-	// take value of DEBEZIUM_DIST_DIR value from environment variables
-	if envVal := os.Getenv("DEBEZIUM_DIST_DIR"); envVal != "" {
-		DEBEZIUM_DIST_DIR = envVal
+	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
+		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		utils.ErrExit("DEBEZIUM_DIST_DIR environment variable is not set")
+		DEBEZIUM_DIST_DIR = "/etc/yb-voyager/debezium"
+		utils.PrintAndLog(fmt.Sprintf("DEBEZIUM_DIST_DIR environment variable is not set. "+
+			"Assuming debezium is installed at %s", DEBEZIUM_DIST_DIR))
 	}
 
 	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")

@@ -186,11 +186,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
 	}
 
-	var snapshotMode string
+	snapshotMode := "initial_only" // useDebezium is true
 	if liveMigration {
 		snapshotMode = "initial"
-	} else if useDebezium {
-		snapshotMode = "initial_only"
+	}
+
+	var dbzmTableList []string
+	for _, table := range tableList {
+		dbzmTableList = append(dbzmTableList, table.Qualified.MinQuoted)
 	}
 
 	config := &dbzm.Config{
@@ -203,42 +206,40 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
-		TableList:    sqlname.GetMinQuotedTargetTableList(tableList),
+		TableList:    dbzmTableList,
 		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)
 	err = debezium.Start()
 	if err != nil {
-		return fmt.Errorf("failed to start debezium: %v", err)
+		return fmt.Errorf("failed to start debezium: %w", err)
 	}
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
 	for exportingSnapshot {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
-			return fmt.Errorf("failed to read toc: %v", err)
+			return fmt.Errorf("failed to read export status: %w", err)
 		}
-		if status != nil {
-			log.Infof("Debezium status: %s", (status.Mode))
 
-		}
 		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
 			exportingSnapshot = false
 			utils.PrintAndLog("Snapshot export is complete.")
 			createExportDataDoneFlag()
 			err = writeDataFileDescriptor(exportDir, status)
 			if err != nil {
-				return fmt.Errorf("failed to write data file descriptor: %v", err)
+				return fmt.Errorf("failed to write data file descriptor: %w", err)
 			}
 			outputExportStatus(status)
 		}
 		time.Sleep(time.Second)
 	}
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during initial snapshot phase: %v", err)
+		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
 	}
 
 	if !liveMigration && useDebezium {
+		log.Infof("snapshot export is complete, stopping debezium...")
 		return debezium.Stop()
 	}
 

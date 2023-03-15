@@ -107,8 +107,6 @@ func setExportFlagsDefaults() {
 	val, ok := os.LookupEnv("USE_DEBEZIUM")
 	if ok {
 		useDebezium = (val == "true" || val == "1" || val == "yes")
-	} else {
-		useDebezium = false
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -32,7 +31,7 @@ func (e *Event) GetSQLStmt() string {
 	case "d":
 		return e.getDeleteStmt()
 	default:
-		return ""
+		panic("unknown op: " + e.Op)
 	}
 }
 
@@ -72,10 +71,7 @@ func (event *Event) getUpdateStmt() string {
 func (event *Event) getDeleteStmt() string {
 	tableName := event.SchemaName + "." + event.TableName
 	var whereClauses []string
-	fmt.Printf("event: %v\n", spew.Sdump(event))
-	fmt.Printf("event key; %v, len=%d\n", event.Key, len(event.Key))
 	for column, value := range event.Key {
-		fmt.Printf("column: %v, value: %v\n", column, value)
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
@@ -112,15 +108,15 @@ func streamChanges(connPool *tgtdb.ConnectionPool) error {
 }
 
 func handleEvent(connPool *tgtdb.ConnectionPool, event *Event) error {
-	log.Infof("Handling event: %v", event)
+	log.Debugf("Handling event: %v", event)
 	stmt := event.GetSQLStmt()
-	utils.PrintAndLog(stmt)
+	log.Debug(stmt)
 	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		tag, err := conn.Exec(context.Background(), stmt)
 		if err != nil {
 			log.Errorf("Error executing stmt: %v", err)
 		}
-		log.Infof("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
 		return false, err
 	})
 	// Idempotency considerations:

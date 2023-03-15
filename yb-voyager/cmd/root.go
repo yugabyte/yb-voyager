@@ -134,22 +134,17 @@ func validateExportDirFlag() {
 }
 
 func lockExportDir(cmd *cobra.Command) {
+	lockFileName := ".lockfile.lck"
 	// using different lockfile as import data can be run in parallel with export data(for live migration)
 	if cmd.Use == "data" && cmd.Parent().Use == "import" {
-		lockFileName, err := filepath.Abs(filepath.Join(exportDir, ".importDataLockfile.lck"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
-			os.Exit(1)
-		}
-		createLock(lockFileName)
-	} else {
-		lockFileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
-			os.Exit(1)
-		}
-		createLock(lockFileName)
+		lockFileName = ".importDataLockfile.lck"
 	}
+
+	lockFilePath, err := filepath.Abs(filepath.Join(exportDir, lockFileName))
+	if err != nil {
+		utils.ErrExit("Failed to get absolute path for lockfile %q: %v\n", lockFileName, err)
+	}
+	createLock(lockFilePath)
 }
 
 func createLock(lockFileName string) {

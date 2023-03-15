@@ -245,12 +245,3 @@ var PgReservedKeywords = []string{"all", "analyse", "analyze", "and", "any", "ar
 func IsReservedKeyword(word string) bool {
 	return slices.Contains(PgReservedKeywords, word)
 }
-
-// get min-quoted table list from the source name struct slice
-func GetMinQuotedTargetTableList(sourceNameList []*SourceName) []string {
-	var tableList []string
-	for _, sourceName := range sourceNameList {
-		tableList = append(tableList, sourceName.ObjectName.MinQuoted)
-	}
-	return tableList
-}
