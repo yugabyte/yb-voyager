@@ -47,3 +47,7 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 	}
 	return &status, nil
 }
+
+func (status *ExportStatus) IsSnapshotMode() bool {
+	return status.Mode == MODE_SNAPSHOT
+}
