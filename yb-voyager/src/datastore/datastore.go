@@ -2,13 +2,10 @@ package datastore
 
 import (
 	"io"
-	"os"
 	"strings"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type Datastore interface {
+type DataStore interface {
 	Glob(string) ([]string, error)
 	AbsolutePath(string) (string, error)
 	FileSize(string) (int64, error)
@@ -16,22 +13,10 @@ type Datastore interface {
 	Open(string) (io.ReadCloser, error)
 }
 
-func NewDataStore(location string) Datastore {
-	// If locally located...
-	if utils.FileOrFolderExists(location) {
-		return NewLocalDatastore(location)
-	}
-	// If directly given an S3 URL... (import data from file)
+func NewDataStore(location string) DataStore {
 	if strings.HasPrefix(location, "s3://") {
-		return NewS3Datastore(location)
+		return NewS3DataStore(location)
 	}
-	// Either the given location is invalid, or is stored as a symlink
-	trueLocation, err := os.Readlink(location)
-	if err != nil {
-		utils.ErrExit("unable to resolve location of datastore %v", err)
-	}
-	if strings.HasPrefix(trueLocation, "s3://") {
-		return NewS3Datastore(trueLocation)
-	}
-	return NewLocalDatastore(trueLocation)
+	return NewLocalDataStore(location)
+
 }

@@ -12,21 +12,21 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 )
 
-type S3Datastore struct {
+type S3DataStore struct {
 	url        *url.URL
 	bucketName string
 }
 
-func NewS3Datastore(resourceName string) *S3Datastore {
+func NewS3DataStore(resourceName string) *S3DataStore {
 	url, err := url.Parse(resourceName)
 	if err != nil {
 		utils.ErrExit("invalid s3 resource URL")
 	}
-	return &S3Datastore{url: url, bucketName: url.Host}
+	return &S3DataStore{url: url, bucketName: url.Host}
 }
 
 // Search and return all keys within the bucket matching the giving pattern.
-func (ds *S3Datastore) Glob(pattern string) ([]string, error) {
+func (ds *S3DataStore) Glob(pattern string) ([]string, error) {
 	allKeys, err := s3.ListAllObjects(ds.bucketName)
 	if err != nil {
 		return nil, err
@@ -42,11 +42,11 @@ func (ds *S3Datastore) Glob(pattern string) ([]string, error) {
 }
 
 // No-op for S3 URLs.
-func (ds *S3Datastore) AbsolutePath(filePath string) (string, error) {
+func (ds *S3DataStore) AbsolutePath(filePath string) (string, error) {
 	return filePath, nil
 }
 
-func (ds *S3Datastore) FileSize(filePath string) (int64, error) {
+func (ds *S3DataStore) FileSize(filePath string) (int64, error) {
 	headObject, err := s3.GetHeadObject(filePath)
 	if err != nil {
 		return 0, err
@@ -55,20 +55,18 @@ func (ds *S3Datastore) FileSize(filePath string) (int64, error) {
 }
 
 // filepath.Join converts URL (s3://...) to directory-like string (s3:/...).
-func (ds *S3Datastore) Join(elem ...string) string {
+func (ds *S3DataStore) Join(elem ...string) string {
 	finalPath := ""
-	for _, fragment := range elem {
-		finalPath += fragment + "/"
-	}
-	return finalPath[:len(finalPath)-1]
+	finalPath += strings.Join(elem, "/")
+	return finalPath
 }
 
-func (ds *S3Datastore) Open(resourceName string) (io.ReadCloser, error) {
+func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
 	// resourceName is hidden underneath a symlink for s3 objects.
 	s3Resource, err := os.Readlink(resourceName)
 	if err != nil {
 		utils.ErrExit("unable to resolve symlink %v to s3 resource: %v", resourceName, err)
 	}
-	reader, err := s3.DownloadS3Object(s3Resource)
+	reader, err := s3.OpenReadableObject(s3Resource)
 	return reader, err
 }

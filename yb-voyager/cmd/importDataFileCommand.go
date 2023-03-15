@@ -29,7 +29,7 @@ var (
 	fileOpts             string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
-	ds                   datastore.Datastore
+	dataStore            datastore.DataStore
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -39,6 +39,7 @@ var importDataFileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags(cmd)
 		escapeFileOptsCharsIfRequired()
+		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importData()
@@ -74,11 +75,11 @@ func prepareForImportDataCmd() {
 func getFileSizeInfo() map[string]int64 {
 	tableFileSize := make(map[string]int64)
 	for table, filePath := range tableNameVsFilePath {
-		fileBytes, err := ds.FileSize(filePath)
+		fileSize, err := dataStore.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
-		tableFileSize[table] = fileBytes
+		tableFileSize[table] = fileSize
 
 		log.Infof("File size of %q for table %q: %d", filePath, table, tableFileSize[table])
 	}
@@ -91,7 +92,7 @@ func createDataFileSymLinks() {
 	for table, filePath := range tableNameVsFilePath {
 		symLinkPath := filepath.Join(exportDir, "data", table+"_data.sql")
 
-		filePath, err := ds.AbsolutePath(filePath)
+		filePath, err := dataStore.AbsolutePath(filePath)
 		if err != nil {
 			utils.ErrExit("absolute original filepath for table %q: %v", table, err)
 		}
@@ -121,7 +122,7 @@ func prepareCopyCommands() {
 	for table, filePath := range tableNameVsFilePath {
 		if fileFormat == datafile.CSV {
 			if hasHeader {
-				reader, err := ds.Open(filePath)
+				reader, err := dataStore.Open(filePath)
 				if err != nil {
 					utils.ErrExit("preparing reader for copy commands on file %q: %v", filePath, err)
 				}
@@ -156,19 +157,18 @@ func setImportTableListFlag() {
 }
 
 func parseFileTableMapping() {
-	ds = datastore.NewDataStore(dataDir)
 	if fileTableMapping != "" {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
 			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			tableNameVsFilePath[table] = ds.Join(dataDir, fileName)
+			tableNameVsFilePath[table] = dataStore.Join(dataDir, fileName)
 		}
 	} else {
 		// TODO: replace "link" with docs link
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
 
 		// get matching file in data-dir
-		files, err := ds.Glob("*_data.csv")
+		files, err := dataStore.Glob("*_data.csv")
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}

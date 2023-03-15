@@ -35,7 +35,7 @@ func createClientIfNotExists() {
 	if client != nil {
 		return
 	}
-	cfg, err := config.LoadDefaultConfig(context.TODO())
+	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		utils.ErrExit("load s3 config: %v", err)
 	}
@@ -49,23 +49,23 @@ func VerifyS3FromDataDir(datadir string) error {
 	}
 	bucket := u.Host
 	if bucket == "" {
-		return fmt.Errorf("missing bucket in s3 url")
+		return fmt.Errorf("missing bucket in s3 url %v", datadir)
 	}
 	return nil
 }
 
-func S3FromUrl(resourceName string) (string, string, error) {
-	u, err := url.Parse(resourceName)
+func SplitObjectPath(objectPath string) (string, string, error) {
+	u, err := url.Parse(objectPath)
 	if err != nil {
 		return "", "", err
 	}
 	bucket := u.Host
 	key := u.Path[1:] //remove initial "/", unable to find object with it
 	if bucket == "" {
-		return "", "", fmt.Errorf("missing bucket in s3 url")
+		return "", "", fmt.Errorf("missing bucket in s3 url %v", objectPath)
 	}
 	if key == "" {
-		return "", "", fmt.Errorf("missing key in s3 url")
+		return "", "", fmt.Errorf("missing key in s3 url %v", objectPath)
 	}
 	return bucket, key, nil
 }
@@ -95,7 +95,7 @@ func ListAllObjects(bucket string) ([]string, error) {
 
 func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 	createClientIfNotExists()
-	bucket, key, err := S3FromUrl(object)
+	bucket, key, err := SplitObjectPath(object)
 	if err != nil {
 		return nil, err
 	}
@@ -110,9 +110,9 @@ func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 	return result, nil
 }
 
-func DownloadS3Object(object string) (io.ReadCloser, error) {
+func OpenReadableObject(object string) (io.ReadCloser, error) {
 	createClientIfNotExists()
-	bucketName, keyName, err := S3FromUrl(object)
+	bucketName, keyName, err := SplitObjectPath(object)
 	if err != nil {
 		return nil, err
 	}

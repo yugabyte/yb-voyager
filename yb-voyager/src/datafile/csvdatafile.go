@@ -83,7 +83,7 @@ func (df *CsvDataFile) GetHeader() string {
 }
 
 func newCsvDataFile(filePath string, fileReadCloser io.ReadCloser, descriptor *Descriptor) (*CsvDataFile, error) {
-	reader, err := csv.Open(filePath, fileReadCloser)
+	reader, err := csv.NewReader(filePath, fileReadCloser)
 	if err != nil {
 		return nil, err
 	}

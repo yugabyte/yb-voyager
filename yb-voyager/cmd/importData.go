@@ -109,6 +109,7 @@ var importDataCmd = &cobra.Command{
 		target.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		sqlname.SourceDBType = sourceDBType
+		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 		importData()
 	},
 }
@@ -617,10 +618,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	numLinesInThisSplit := int64(0)
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	if ds == nil {
-		ds = datastore.NewDataStore(filePath)
-	}
-	reader, err := ds.Open(filePath)
+	reader, err := dataStore.Open(filePath)
 	if err != nil {
 		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
 	}

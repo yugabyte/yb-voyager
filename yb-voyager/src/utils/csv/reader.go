@@ -39,7 +39,7 @@ type Reader struct {
 	lineCount int
 }
 
-func Open(fileName string, fileReadCloser io.ReadCloser) (*Reader, error) {
+func NewReader(fileName string, fileReadCloser io.ReadCloser) (*Reader, error) {
 	buf := make([]byte, CSV_READER_MAX_BUFFER_SIZE)
 	r := &Reader{QuoteChar: '"', EscapeChar: '"', fileName: fileName, file: fileReadCloser, buf: buf}
 	return r, nil
