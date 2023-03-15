@@ -15,11 +15,12 @@ import (
 )
 
 type Event struct {
-	Op         string            `json:"op"`
-	SchemaName string            `json:"schema_name"`
-	TableName  string            `json:"table_name"`
-	Key        map[string]string `json:"key"`
-	Fields     map[string]string `json:"fields"`
+	Op            string            `json:"op"`
+	SchemaName    string            `json:"schema_name"`
+	TableName     string            `json:"table_name"`
+	QualifiedName string            `json:"qualified_name"`
+	Key           map[string]string `json:"key"`
+	Fields        map[string]string `json:"fields"`
 }
 
 func (e *Event) GetSQLStmt() string {
@@ -40,7 +41,6 @@ const updateTemplate = "UPDATE %s SET %s WHERE %s;"
 const deleteTemplate = "DELETE FROM %s WHERE %s;"
 
 func (event *Event) getInsertStmt() string {
-	tableName := event.SchemaName + "." + event.TableName
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
@@ -49,12 +49,11 @@ func (event *Event) getInsertStmt() string {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	stmt := fmt.Sprintf(insertTemplate, event.QualifiedName, columns, values)
 	return stmt
 }
 
 func (event *Event) getUpdateStmt() string {
-	tableName := event.SchemaName + "." + event.TableName
 	var setClauses []string
 	for column, value := range event.Fields {
 		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
@@ -65,22 +64,21 @@ func (event *Event) getUpdateStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, event.QualifiedName, setClause, whereClause)
 }
 
 func (event *Event) getDeleteStmt() string {
-	tableName := event.SchemaName + "." + event.TableName
 	var whereClauses []string
 	for column, value := range event.Key {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
+	return fmt.Sprintf(deleteTemplate, event.QualifiedName, whereClause)
 }
 
 //==================================================================================
 
-func streamChanges(connPool *tgtdb.ConnectionPool) error {
+func streamChanges(connPool *tgtdb.ConnectionPool, sourceDBType string, targetSchema string) error {
 	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
 	log.Infof("Streaming changes from %s", queueFilePath)
 	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
@@ -99,6 +97,17 @@ func streamChanges(connPool *tgtdb.ConnectionPool) error {
 		if err != nil {
 			return fmt.Errorf("error decoding change: %v", err)
 		}
+
+		event.QualifiedName = event.SchemaName + "." + event.TableName
+		if sourceDBType == ORACLE || sourceDBType == MYSQL {
+			if targetSchema == YUGABYTEDB_DEFAULT_SCHEMA {
+				event.QualifiedName = event.TableName
+			} else {
+				event.SchemaName = targetSchema
+				event.QualifiedName = targetSchema + "." + event.TableName
+			}
+		}
+
 		err = handleEvent(connPool, &event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
@@ -120,6 +129,7 @@ func handleEvent(connPool *tgtdb.ConnectionPool, event *Event) error {
 		return false, err
 	})
 	// Idempotency considerations:
+	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
 	// successful even if the row already exists.
 	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
