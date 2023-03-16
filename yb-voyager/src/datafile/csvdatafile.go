@@ -1,18 +1,16 @@
 package datafile
 
 import (
+	"io"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
-
-	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type CsvDataFile struct {
-	file       *os.File
 	reader     *csv.Reader
 	bytesRead  int64
 	Delimiter  string
@@ -51,7 +49,6 @@ func (df *CsvDataFile) NextLine() (string, error) {
 }
 
 func (df *CsvDataFile) Close() {
-	df.file.Close()
 	df.reader.Close()
 }
 
@@ -85,13 +82,8 @@ func (df *CsvDataFile) GetHeader() string {
 	return df.Header
 }
 
-func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	reader, err := csv.Open(filePath)
+func newCsvDataFile(filePath string, fileReadCloser io.ReadCloser, descriptor *Descriptor) (*CsvDataFile, error) {
+	reader, err := csv.NewReader(filePath, fileReadCloser)
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +96,6 @@ func openCsvDataFile(filePath string, descriptor *Descriptor) (*CsvDataFile, err
 	}
 
 	csvDataFile := &CsvDataFile{
-		file:      file,
 		reader:    reader,
 		Delimiter: descriptor.Delimiter,
 	}

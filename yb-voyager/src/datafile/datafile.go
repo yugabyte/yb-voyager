@@ -2,6 +2,7 @@ package datafile
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 )
 
@@ -23,14 +24,14 @@ type DataFile interface {
 // Example: `COPY "Foo" ("v") FROM STDIN;`
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
-func OpenDataFile(filePath string, descriptor *Descriptor) (DataFile, error) {
+func NewDataFile(fileName string, reader io.ReadCloser, descriptor *Descriptor) (DataFile, error) {
 	switch descriptor.FileFormat {
 	case CSV:
-		return openCsvDataFile(filePath, descriptor)
+		return newCsvDataFile(fileName, reader, descriptor)
 	case TEXT:
-		return openTextDataFile(filePath, descriptor)
+		return newTextDataFile(fileName, reader, descriptor)
 	case SQL:
-		return openSqlDataFile(filePath, descriptor)
+		return newSqlDataFile(fileName, reader, descriptor)
 	default:
 		panic(fmt.Sprintf("Unknown file type %q", descriptor.FileFormat))
 

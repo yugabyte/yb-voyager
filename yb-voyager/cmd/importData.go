@@ -37,6 +37,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -108,6 +109,7 @@ var importDataCmd = &cobra.Command{
 		target.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		sqlname.SourceDBType = sourceDBType
+		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 		importData()
 	},
 }
@@ -616,7 +618,11 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	numLinesInThisSplit := int64(0)
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	dataFile, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+	reader, err := dataStore.Open(filePath)
+	if err != nil {
+		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
+	}
+	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}

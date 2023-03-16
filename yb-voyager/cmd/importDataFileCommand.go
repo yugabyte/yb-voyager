@@ -11,7 +11,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
 )
@@ -27,6 +29,7 @@ var (
 	fileOpts             string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
+	dataStore            datastore.DataStore
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -36,6 +39,7 @@ var importDataFileCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags(cmd)
 		escapeFileOptsCharsIfRequired()
+		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
 		importData()
@@ -71,11 +75,11 @@ func prepareForImportDataCmd() {
 func getFileSizeInfo() map[string]int64 {
 	tableFileSize := make(map[string]int64)
 	for table, filePath := range tableNameVsFilePath {
-		fileInfo, err := os.Stat(filePath)
+		fileSize, err := dataStore.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
-		tableFileSize[table] = int64(fileInfo.Size())
+		tableFileSize[table] = fileSize
 
 		log.Infof("File size of %q for table %q: %d", filePath, table, tableFileSize[table])
 	}
@@ -88,7 +92,7 @@ func createDataFileSymLinks() {
 	for table, filePath := range tableNameVsFilePath {
 		symLinkPath := filepath.Join(exportDir, "data", table+"_data.sql")
 
-		filePath, err := filepath.Abs(filePath)
+		filePath, err := dataStore.AbsolutePath(filePath)
 		if err != nil {
 			utils.ErrExit("absolute original filepath for table %q: %v", table, err)
 		}
@@ -118,9 +122,13 @@ func prepareCopyCommands() {
 	for table, filePath := range tableNameVsFilePath {
 		if fileFormat == datafile.CSV {
 			if hasHeader {
-				df, err := datafile.OpenDataFile(filePath, dataFileDescriptor)
+				reader, err := dataStore.Open(filePath)
 				if err != nil {
-					utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
+					utils.ErrExit("preparing reader for copy commands on file %q: %v", filePath, err)
+				}
+				df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
+				if err != nil {
+					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', HEADER,`,
 					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
@@ -153,13 +161,14 @@ func parseFileTableMapping() {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
 			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			tableNameVsFilePath[table] = filepath.Join(dataDir, fileName)
+			tableNameVsFilePath[table] = dataStore.Join(dataDir, fileName)
 		}
 	} else {
 		// TODO: replace "link" with docs link
 		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
+
 		// get matching file in data-dir
-		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.csv"))
+		files, err := dataStore.Glob("*_data.csv")
 		if err != nil {
 			utils.ErrExit("finding data files to import: %v", err)
 		}
@@ -217,6 +226,10 @@ func checkFileFormat() {
 func checkDataDirFlag() {
 	if dataDir == "" {
 		utils.ErrExit(`Error: required flag "data-dir" not set`)
+	}
+	if strings.HasPrefix(dataDir, "s3://") {
+		s3.ValidateObjectURL(dataDir)
+		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {
 		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)

@@ -2,7 +2,7 @@ package datafile
 
 import (
 	"bufio"
-	"os"
+	"io"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -10,7 +10,7 @@ import (
 )
 
 type TextDataFile struct {
-	file      *os.File
+	closer    io.Closer
 	reader    *bufio.Reader
 	bytesRead int64
 	Delimiter string
@@ -45,7 +45,7 @@ func (df *TextDataFile) NextLine() (string, error) {
 }
 
 func (df *TextDataFile) Close() {
-	df.file.Close()
+	df.closer.Close()
 }
 
 func (df *TextDataFile) GetBytesRead() int64 {
@@ -78,19 +78,13 @@ func (df *TextDataFile) GetHeader() string {
 	return df.Header
 }
 
-func openTextDataFile(filePath string, descriptor *Descriptor) (*TextDataFile, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := bufio.NewReader(file)
+func newTextDataFile(filePath string, readCloser io.ReadCloser, descriptor *Descriptor) (*TextDataFile, error) {
 	textDataFile := &TextDataFile{
-		file:      file,
-		reader:    reader,
+		closer:    readCloser,
+		reader:    bufio.NewReader(readCloser),
 		Delimiter: descriptor.Delimiter,
 	}
 	log.Infof("created text data file struct for file: %s", filePath)
 
-	return textDataFile, err
+	return textDataFile, nil
 }
