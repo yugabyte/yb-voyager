@@ -37,7 +37,7 @@ func createClientIfNotExists() {
 	}
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
-		utils.ErrExit("load s3 config: %v", err)
+		utils.ErrExit("load s3 config: %w", err)
 	}
 	client = s3.NewFromConfig(cfg)
 }
@@ -83,7 +83,7 @@ func ListAllObjects(bucket string) ([]string, error) {
 		i++
 		page, err := p.NextPage(context.TODO())
 		if err != nil {
-			utils.ErrExit("failed to get page %v, %v", i, err)
+			utils.ErrExit("failed to get page %v, %w", i, err)
 		}
 		// Log the objects found
 		for _, obj := range page.Contents {
@@ -110,7 +110,7 @@ func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 	return result, nil
 }
 
-func OpenReadableObject(object string) (io.ReadCloser, error) {
+func NewObjectReader(object string) (io.ReadCloser, error) {
 	createClientIfNotExists()
 	bucketName, keyName, err := SplitObjectPath(object)
 	if err != nil {
@@ -118,7 +118,7 @@ func OpenReadableObject(object string) (io.ReadCloser, error) {
 	}
 	bucket, err := s3blob.OpenBucketV2(context.Background(), client, bucketName, nil)
 	if err != nil {
-		utils.ErrExit("open bucket: %v", err)
+		utils.ErrExit("open bucket: %w", err)
 	}
 	return bucket.NewReader(context.Background(), keyName, nil)
 }
