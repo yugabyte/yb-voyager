@@ -228,7 +228,7 @@ func checkDataDirFlag() {
 		utils.ErrExit(`Error: required flag "data-dir" not set`)
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
-		s3.VerifyS3FromDataDir(dataDir)
+		s3.ValidateObjectURL(dataDir)
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {

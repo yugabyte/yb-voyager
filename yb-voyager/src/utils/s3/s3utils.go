@@ -42,7 +42,7 @@ func createClientIfNotExists() {
 	client = s3.NewFromConfig(cfg)
 }
 
-func VerifyS3FromDataDir(datadir string) error {
+func ValidateObjectURL(datadir string) error {
 	u, err := url.Parse(datadir)
 	if err != nil {
 		return err
