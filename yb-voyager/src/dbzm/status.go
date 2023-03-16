@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -55,8 +55,7 @@ func IsLiveMigrationInSnapshotMode(exportDir string) bool {
 	statusFilePath := filepath.Join(exportDir, "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {
-		log.Errorf("Failed to read export status file %s: %v", statusFilePath, err)
-		return false
+		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
 	}
 	return status != nil && status.Mode == MODE_SNAPSHOT
 }

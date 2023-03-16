@@ -25,10 +25,16 @@ type Config struct {
 var baseSrcConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
-
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
+debezium.source.snapshot.mode=%s
 
+debezium.source.offset.storage.file.filename=%s
+
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
+debezium.source.database.user=%s
+debezium.source.database.password=%s
 debezium.source.table.include.list=%s
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
@@ -49,38 +55,17 @@ quarkus.log.level=info
 
 var postgresSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
-debezium.source.snapshot.mode=%s
-
-debezium.source.offset.storage.file.filename=%s
-
-debezium.source.database.hostname=%s
-debezium.source.database.port=%d
-debezium.source.database.user=%s
-debezium.source.database.password=%s
 debezium.source.database.dbname=%s
-
 debezium.source.schema.include.list=%s
 debezium.source.plugin.name=pgoutput
-
 debezium.source.hstore.handling.mode=map`
 
 var oracleSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
-debezium.source.snapshot.mode=%s
-
-debezium.source.offset.storage.file.filename=%s
-
-debezium.source.database.hostname=%s
-debezium.source.database.port=%d
-debezium.source.database.user=%s
-debezium.source.database.password=%s
 debezium.source.database.dbname=%s
 #debezium.source.database.pdb.name=ORCLPDB1
-
 debezium.source.schema.include.list=%s
-
 debezium.source.hstore.handling.mode=map
-
 debezium.source.database.history=io.debezium.relational.history.FileDatabaseHistory
 debezium.source.database.history.file.filename=%s
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
@@ -90,14 +75,7 @@ debezium.source.include.schema.changes=false
 
 var mysqlSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
-debezium.source.snapshot.mode=%s
 
-debezium.source.offset.storage.file.filename=%s
-
-debezium.source.database.hostname=%s
-debezium.source.database.port=%d
-debezium.source.database.user=%s
-debezium.source.database.password=%s
 debezium.source.database.include.list=%s
 debezium.source.database.server.id=ybvoyager-dbzm
 
@@ -118,20 +96,20 @@ func (c *Config) String() string {
 	case "postgresql":
 		return fmt.Sprintf(postgresSrcConfigTemplate,
 			dataDir,
-			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
+			strings.Join(c.TableList, ","),
 			c.DatabaseName,
 			schemaNames)
 
 	case "oracle":
 		return fmt.Sprintf(oracleSrcConfigTemplate,
 			dataDir,
-			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
+			strings.Join(c.TableList, ","),
 			c.DatabaseName,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
@@ -140,10 +118,10 @@ func (c *Config) String() string {
 	case "mysql":
 		return fmt.Sprintf(mysqlSrcConfigTemplate,
 			dataDir,
-			strings.Join(c.TableList, ","),
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
+			strings.Join(c.TableList, ","),
 			c.DatabaseName,
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:

@@ -368,7 +368,11 @@ func importData() {
 
 	if liveMigration {
 		fmt.Println("streaming changes to target DB...")
-		err = streamChanges(connPool, sourceDBType, target.Schema)
+		targetSchema := target.Schema
+		if sourceDBType == POSTGRESQL {
+			targetSchema = ""
+		}
+		err = streamChanges(connPool, targetSchema)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)
 		}

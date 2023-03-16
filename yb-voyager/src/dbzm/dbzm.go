@@ -18,10 +18,6 @@ type Debezium struct {
 	done bool
 }
 
-func NewDebezium(config *Config) *Debezium {
-	return &Debezium{Config: config}
-}
-
 func init() {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
@@ -31,6 +27,10 @@ func init() {
 
 	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(DEBEZIUM_CONF_DIR, "application.properties")
+}
+
+func NewDebezium(config *Config) *Debezium {
+	return &Debezium{Config: config}
 }
 
 func (d *Debezium) Start() error {

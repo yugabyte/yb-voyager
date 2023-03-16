@@ -15,22 +15,21 @@ import (
 )
 
 type Event struct {
-	Op            string            `json:"op"`
-	SchemaName    string            `json:"schema_name"`
-	TableName     string            `json:"table_name"`
-	QualifiedName string            `json:"qualified_name"`
-	Key           map[string]string `json:"key"`
-	Fields        map[string]string `json:"fields"`
+	Op         string            `json:"op"`
+	SchemaName string            `json:"schema_name"`
+	TableName  string            `json:"table_name"`
+	Key        map[string]string `json:"key"`
+	Fields     map[string]string `json:"fields"`
 }
 
-func (e *Event) GetSQLStmt() string {
+func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":
-		return e.getInsertStmt()
+		return e.getInsertStmt(targetSchema)
 	case "u":
-		return e.getUpdateStmt()
+		return e.getUpdateStmt(targetSchema)
 	case "d":
-		return e.getDeleteStmt()
+		return e.getDeleteStmt(targetSchema)
 	default:
 		panic("unknown op: " + e.Op)
 	}
@@ -40,7 +39,11 @@ const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
 const updateTemplate = "UPDATE %s SET %s WHERE %s;"
 const deleteTemplate = "DELETE FROM %s WHERE %s;"
 
-func (event *Event) getInsertStmt() string {
+func (event *Event) getInsertStmt(targetSchema string) string {
+	tableName := event.SchemaName + "." + event.TableName
+	if targetSchema != "" {
+		tableName = targetSchema + "." + event.TableName
+	}
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
@@ -49,11 +52,15 @@ func (event *Event) getInsertStmt() string {
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, event.QualifiedName, columns, values)
+	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
 	return stmt
 }
 
-func (event *Event) getUpdateStmt() string {
+func (event *Event) getUpdateStmt(targetSchema string) string {
+	tableName := event.SchemaName + "." + event.TableName
+	if targetSchema != "" {
+		tableName = targetSchema + "." + event.TableName
+	}
 	var setClauses []string
 	for column, value := range event.Fields {
 		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
@@ -64,21 +71,25 @@ func (event *Event) getUpdateStmt() string {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, event.QualifiedName, setClause, whereClause)
+	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getDeleteStmt() string {
+func (event *Event) getDeleteStmt(targetSchema string) string {
+	tableName := event.SchemaName + "." + event.TableName
+	if targetSchema != "" {
+		tableName = targetSchema + "." + event.TableName
+	}
 	var whereClauses []string
 	for column, value := range event.Key {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, event.QualifiedName, whereClause)
+	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
 //==================================================================================
 
-func streamChanges(connPool *tgtdb.ConnectionPool, sourceDBType string, targetSchema string) error {
+func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
 	log.Infof("Streaming changes from %s", queueFilePath)
 	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
@@ -98,17 +109,7 @@ func streamChanges(connPool *tgtdb.ConnectionPool, sourceDBType string, targetSc
 			return fmt.Errorf("error decoding change: %v", err)
 		}
 
-		event.QualifiedName = event.SchemaName + "." + event.TableName
-		if sourceDBType == ORACLE || sourceDBType == MYSQL {
-			if targetSchema == YUGABYTEDB_DEFAULT_SCHEMA {
-				event.QualifiedName = event.TableName
-			} else {
-				event.SchemaName = targetSchema
-				event.QualifiedName = targetSchema + "." + event.TableName
-			}
-		}
-
-		err = handleEvent(connPool, &event)
+		err = handleEvent(connPool, &event, targetSchema)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -116,9 +117,12 @@ func streamChanges(connPool *tgtdb.ConnectionPool, sourceDBType string, targetSc
 	return nil
 }
 
-func handleEvent(connPool *tgtdb.ConnectionPool, event *Event) error {
+func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
 	log.Debugf("Handling event: %v", event)
-	stmt := event.GetSQLStmt()
+	if targetSchema != "" {
+		event.SchemaName = targetSchema
+	}
+	stmt := event.GetSQLStmt(targetSchema)
 	log.Debug(stmt)
 	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		tag, err := conn.Exec(context.Background(), stmt)
