@@ -119,9 +119,6 @@ func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 
 func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
 	log.Debugf("Handling event: %v", event)
-	if targetSchema != "" {
-		event.SchemaName = targetSchema
-	}
 	stmt := event.GetSQLStmt(targetSchema)
 	log.Debug(stmt)
 	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
