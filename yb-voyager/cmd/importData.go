@@ -37,6 +37,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -1217,7 +1218,12 @@ func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (st
 	}
 
 	dfd := datafile.OpenDescriptor(exportDir)
-	df, err := datafile.OpenDataFile(dataFilePath, dfd)
+	reader, err := dataStore.Open(dataFilePath)
+	if err != nil {
+		utils.ErrExit("preparing reader to find copy command %q: %v", dataFilePath, err)
+	}
+
+	df, err := datafile.NewDataFile(dataFilePath, reader, dfd)
 	if err != nil {
 		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 	}
