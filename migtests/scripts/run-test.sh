@@ -19,6 +19,7 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+echo $LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}
 export TARGET_DB_HOST=${TARGET_DB_HOST}
 export TARGET_DB_PORT=${TARGET_DB_PORT}
