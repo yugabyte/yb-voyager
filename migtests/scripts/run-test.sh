@@ -11,6 +11,7 @@ fi
 set -x
 
 export TEST_NAME=$1
+export USE_DEBEZIUM=$2
 
 export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
