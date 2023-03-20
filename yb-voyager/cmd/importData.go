@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -53,7 +54,7 @@ import (
 )
 
 var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
-var metaInfoDir = META_INFO_DIR_NAME
+var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
@@ -110,6 +111,7 @@ var importDataCmd = &cobra.Command{
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		sqlname.SourceDBType = sourceDBType
 		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
+		checkExportDataDoneFlag()
 		importData()
 	},
 }
@@ -364,6 +366,18 @@ func importData() {
 	time.Sleep(time.Second * 2)
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
+
+	if liveMigration {
+		fmt.Println("streaming changes to target DB...")
+		targetSchema := target.Schema
+		if sourceDBType == POSTGRESQL {
+			targetSchema = ""
+		}
+		err = streamChanges(connPool, targetSchema)
+		if err != nil {
+			utils.ErrExit("Failed to stream changes from source DB: %s", err)
+		}
+	}
 	fmt.Printf("\nexiting...\n")
 }
 
@@ -412,12 +426,12 @@ func checkForDone() {
 		if GenerateSplitsDone.IsSet() {
 			checkPassed := true
 			for _, table := range importTables {
-				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDir, table)
+				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
 				m1, err := filepath.Glob(inProgressPattern)
 				if err != nil {
 					utils.ErrExit("glob %q: %s", inProgressPattern, err)
 				}
-				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDir, table)
+				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
 				m2, err := filepath.Glob(inCreatedPattern)
 				if err != nil {
 					utils.ErrExit("glob %q: %s", inCreatedPattern, err)
@@ -566,7 +580,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		largestCreatedSplitSoFar := int64(0)
 		largestOffsetSoFar := int64(0)
 		fileFullySplit := false
-		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDir, t)
+		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
 		matches, _ := filepath.Glob(pattern)
 
 		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
@@ -613,7 +627,7 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
-	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
+	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
 	numLinesTaken := largestOffset
 	numLinesInThisSplit := int64(0)
 
@@ -698,7 +712,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
 			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.%d.C",
-				exportDir, metaInfoDir, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
+				exportDir, metaInfoDirName, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
 			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
 			err = os.Rename(currTmpFileName, splitFile)
 			if err != nil {
@@ -711,7 +725,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 				splitNum += 1
 				numLinesInThisSplit = 0
 				linesWrittenToBuffer = false
-				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDir, t, splitNum)
+				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
 				log.Infof("create next temp file: %q", currTmpFileName)
 				outfile, err = os.Create(currTmpFileName)
 				if err != nil {
@@ -750,26 +764,9 @@ func executePostImportDataSqls() {
 }
 
 func getTablesToImport() ([]string, []string, []string, error) {
-	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDir)
-
-	_, err := os.Stat(metaInfoDir)
-	if err != nil {
-		utils.ErrExit("metainfo dir is missing. Exiting.")
-	}
-	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
-	_, err = os.Stat(metaInfoDataDir)
-	if err != nil {
-		utils.ErrExit("metainfo data dir is missing. Exiting.")
-	}
-
-	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
-	_, err = os.Stat(exportDataDonePath)
-	if err != nil {
-		utils.ErrExit("Export is not done yet. Exiting.")
-	}
-
-	exportDataDir := fmt.Sprintf("%s/data", exportDir)
-	_, err = os.Stat(exportDataDir)
+	metaInfoDataDir := filepath.Join(exportDir, metaInfoDirName, "data")
+	exportDataDir := filepath.Join(exportDir, "data")
+	_, err := os.Stat(exportDataDir)
 	if err != nil {
 		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
 	}
@@ -1208,8 +1205,49 @@ func incrementImportProgressBar(tableName string, splitFilePath string) {
 	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
+func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
+	if err != nil {
+		return "", err
+	}
+	if status == nil {
+		// export_status.json is not present. This is the case of Offline migration.
+		// The data is exported using pg_dump or ora2pg.
+		return "", nil
+	}
+
+	dfd := datafile.OpenDescriptor(exportDir)
+	reader, err := dataStore.Open(dataFilePath)
+	if err != nil {
+		utils.ErrExit("preparing reader to find copy command %q: %v", dataFilePath, err)
+	}
+
+	df, err := datafile.NewDataFile(dataFilePath, reader, dfd)
+	if err != nil {
+		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
+	}
+	defer df.Close()
+	stmt := fmt.Sprintf(
+		`COPY %s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', HEADER, ROWS_PER_TRANSACTION %%v);`,
+		tableName, df.GetHeader())
+	return stmt, nil
+}
+
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
 	if getCopyCommand(table) != "" {
+		return
+	}
+	// When snapshot is exported by Debezium, the data files are in CSV format,
+	// irrespective of the source database type.
+	stmt, err := findCopyCommandForDebeziumExportedFiles(table, fileToSearchIn)
+	// If the export_status.json file is not present, the err will be nil and stmt will be empty.
+	if err != nil {
+		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
+	}
+	if stmt != "" {
+		copyTableFromCommands[table] = stmt
+		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
 		return
 	}
 	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
@@ -1387,6 +1425,25 @@ func checkSessionVariableSupport(sqlStmt string) bool {
 	}
 
 	return err == nil
+}
+
+func checkExportDataDoneFlag() {
+	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDirName)
+	_, err := os.Stat(metaInfoDir)
+	if err != nil {
+		utils.ErrExit("metainfo dir is missing. Exiting.")
+	}
+	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
+	_, err = os.Stat(metaInfoDataDir)
+	if err != nil {
+		utils.ErrExit("metainfo data dir is missing. Exiting.")
+	}
+
+	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
+	_, err = os.Stat(exportDataDonePath)
+	if err != nil {
+		utils.ErrExit("Export Data is not complete yet. Exiting.")
+	}
 }
 
 func init() {
