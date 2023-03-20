@@ -8,5 +8,6 @@ export TARGET_DB_HOST=${TARGET_DB_HOST}
 export TARGET_DB_PORT=${TARGET_DB_PORT}
 export TARGET_DB_USER=${TARGET_DB_USER}
 export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+test_name=$1
 
-sudo -E ./migtests/scripts/run-test.sh 
+sudo -E ./migtests/scripts/run-test.sh "${test_name}"
