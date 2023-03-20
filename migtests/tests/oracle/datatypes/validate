@@ -7,10 +7,6 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'numeric_types_number': 4,
-	'numeric_types_float': 5,
-	'numeric_types_binary_float': 5,
-	'numeric_types_binary_double': 5,
 	'numeric_types': 8,
 	'date_time_types': 10,
 	'interval_types': 4,
@@ -22,18 +18,6 @@ EXPECTED_ROW_COUNT = {
 }
 
 EXPECTED_DATA_TYPES = {
-	'numeric_types_number': {
-		'num_val': 'numeric'
-	},
-	'numeric_types_float': {
-		'num_val': 'double precision'
-	},
-	'numeric_types_binary_float': {
-		'num_val': 'double precision'
-	},
-	'numeric_types_binary_double': {
-		'num_val': 'double precision'
-	},
 	'numeric_types': {
 		'num_val': 'numeric',
 		'bin_float_val': 'double precision',
