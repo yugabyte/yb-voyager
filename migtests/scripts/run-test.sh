@@ -19,7 +19,7 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
-echo $WOW_WY
+echo $WHICH_PATH
 echo $WOW
 echo $TARGET_DB_PORT
 export LIBRARY_PATH=${LD_LIBRARY_PATH}
