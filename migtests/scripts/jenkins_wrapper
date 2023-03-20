@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 
-echo $LDLIBRARYPATH
-echo $WOW
-echo $TARGET_DB_PORT
 export LD_LIBRARY_PATH=${LDLIBRARYPATH}
 export TARGET_DB_HOST=${TARGET_DB_HOST}
 export TARGET_DB_PORT=${TARGET_DB_PORT}
