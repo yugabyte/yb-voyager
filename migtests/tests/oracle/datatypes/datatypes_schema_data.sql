@@ -1,30 +1,3 @@
-create table numeric_types_number(num_val NUMBER);
-insert into numeric_types_number values(123.79);
-insert into numeric_types_number values(1.2e-4);
-insert into numeric_types_number values(1.2e-5);
-insert into numeric_types_number values(NULL);
-
-create table numeric_types_float(num_val FLOAT(5));
-insert into numeric_types_float values(123.45);
-insert into numeric_types_float values(0);
-insert into numeric_types_float values(-1.9999);
-insert into numeric_types_float values(0.0009);
-insert into numeric_types_float values(NULL);
-
-create table numeric_types_binary_float(num_val BINARY_FLOAT);
-insert into numeric_types_binary_float values(1.17549E-38F);
-insert into numeric_types_binary_float values(3.40282E+28F);
-insert into numeric_types_binary_float values(1.17549E-38F);
-insert into numeric_types_binary_float values(3.40282E+28F);
-insert into numeric_types_binary_float values(NULL);
-
-create table numeric_types_binary_double(num_val BINARY_DOUBLE);
-insert into numeric_types_binary_double values(2.22507485850720E-308);
-insert into numeric_types_binary_double values(1.79769313486231E+108);
-insert into numeric_types_binary_double values(2.22507485850720E-308);
-insert into numeric_types_binary_double values(1.79769313486231E+108);
-insert into numeric_types_binary_double values(NULL);
-
 create table numeric_types(num_val NUMBER,float_val FLOAT(5), bin_float_val BINARY_FLOAT, bin_double_val BINARY_DOUBLE);
 INSERT INTO numeric_types VALUES(13,123.45,1.17549E-38F,2.22507485850720E-308);
 INSERT INTO numeric_types VALUES(123.79,0,3.40282E+28F,1.79769313486231E+108);
