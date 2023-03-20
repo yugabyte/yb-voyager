@@ -11,6 +11,7 @@ jobs:
     strategy:
       matrix:
         version: [2.14.7.0-b51,2.17.1.0-b439,2.16.2.0-b41]
+        use_debezium: [false, true]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -21,7 +22,7 @@ jobs:
         sudo apt install -y libpq-dev
         sudo pip3 install psycopg2
 
-    - name: Run installer script
+    - name: Run installer script to setup voyager
       run: |
         yes | ./installer_scripts/install-yb-voyager --install-from-local-source
       env:
@@ -75,34 +76,34 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: mysql-sakila"
-      run: migtests/scripts/run-test.sh mysql/sakila
+      run: migtests/scripts/run-test.sh mysql/sakila ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-datatypes"
-      run: migtests/scripts/run-test.sh mysql/datatypes
+      run: migtests/scripts/run-test.sh mysql/datatypes ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-constraints"
-      run: migtests/scripts/run-test.sh mysql/constraints
+      run: migtests/scripts/run-test.sh mysql/constraints ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-case-indexes"
-      run: migtests/scripts/run-test.sh mysql/indexes
+      run: migtests/scripts/run-test.sh mysql/indexes ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-functions"
-      run: migtests/scripts/run-test.sh mysql/functions
+      run: migtests/scripts/run-test.sh mysql/functions ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-case-sequences"
-      run: migtests/scripts/run-test.sh mysql/sequences    
+      run: migtests/scripts/run-test.sh mysql/sequences     ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-triggers-procedures"
-      run: migtests/scripts/run-test.sh mysql/triggers-procedures   
+      run: migtests/scripts/run-test.sh mysql/triggers-procedures    ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-case-views"
-      run: migtests/scripts/run-test.sh mysql/views
+      run: migtests/scripts/run-test.sh mysql/views ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-partitions"
-      run: migtests/scripts/run-test.sh mysql/partitions
+      run: migtests/scripts/run-test.sh mysql/partitions ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-sample-chinook"
-      run: migtests/scripts/run-test.sh mysql/chinook
+      run: migtests/scripts/run-test.sh mysql/chinook ${{ matrix.use_debezium }}
 
     - name: "TEST: mysql-reserved-words"
-      run: migtests/scripts/run-test.sh mysql/reserved-words
+      run: migtests/scripts/run-test.sh mysql/reserved-words ${{ matrix.use_debezium }}
