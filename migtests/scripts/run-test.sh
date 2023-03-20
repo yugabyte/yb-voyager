@@ -2,9 +2,9 @@
 
 set -e
 
-if [ $# -ne 1 ]
+if [ $# -ne 2 ]
 then
-	echo "Usage: $0 TEST_NAME"
+	echo "Usage: $0 TEST_NAME USE_DEBEZIUM"
 	exit 1
 fi
 

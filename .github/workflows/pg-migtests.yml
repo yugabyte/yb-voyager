@@ -37,11 +37,18 @@ jobs:
         sudo apt install -y libpq-dev
         sudo pip3 install psycopg2
 
-    - name: Run installer script
+    - name: Run installer script to setup voyager
       run: |
         cd installer_scripts
         yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+
+    - name: Run install script for setup debezium
+      run: |
+        cd installer_scripts
         yes | ./install-yb-voyager-debezium
+      if: matrix.use_debezium == true
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
