@@ -29,7 +29,7 @@ def check_validations_per_schema(tgt,schema_name):
 
 	fetched_triggers = tgt.fetch_all_triggers(schema_name)
 	print(f"fetched triggers list - {fetched_triggers}")
-	assert fetched_triggers == set([("audit_trigger",)])
+	assert fetched_triggers == ["audit_trigger",]
 
 	fetched_procedures_functions = tgt.fetch_all_procedures(schema_name)
 	print(f"count of fetched procedures/functions - {len(fetched_procedures_functions)}")
