@@ -14,7 +14,7 @@ EXPECTED_ROW_COUNT = {
 	'audit': 4
 }
 
-EXPECTED_TRIGGER_SET = set([("audit_trigger",)])
+EXPECTED_TRIGGER_LIST = ["audit_trigger",]
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
@@ -27,7 +27,7 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 
-	fetched_triggers = set(tgt.fetch_all_triggers("public"))
+	fetched_triggers = tgt.fetch_all_triggers("public")
 	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_SET}")
 	assert fetched_triggers == EXPECTED_TRIGGER_SET
 
