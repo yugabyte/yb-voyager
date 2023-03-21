@@ -19,6 +19,8 @@ EXPECTED = {
   	"t1_newline":5,
    	"t1_quote_escape_dq": 3,
 	"t1_escape_backslash": 3,
+	"s3_text": 3,
+	"s3_csv": 3
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -26,6 +28,8 @@ T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
+S3_TEXT_DATA = set([(1,2,3), (4,5,6), (7,8,9)])
+S3_CSV_DATA = set([(1,2), (3,4), (5,6)])
 
 def file_import_done_checks(tgt):
 	got = tgt.row_count_of_all_tables()
@@ -59,6 +63,14 @@ def file_import_done_checks(tgt):
 	t1_escape_backslash_data = tgt.fetch_all_table_rows("t1_escape_backslash")
 	print(f"t1_escape_backslash_data: {t1_escape_backslash_data}\nExpected data: {T1_ESCAPE_BACKSLASH_DATA}\n")
 	assert t1_escape_backslash_data == T1_ESCAPE_BACKSLASH_DATA
+
+	s3_text_data = tgt.fetch_all_table_rows("s3_text")
+	print(f"s3_text_data: {s3_text_data}\nExpected data: {S3_TEXT_DATA}\n")
+	assert s3_text_data == S3_TEXT_DATA
+
+	s3_csv_data = tgt.fetch_all_table_rows("s3_csv")
+	print(f"s3_csv_data: {s3_csv_data}\nExpected data: {S3_CSV_DATA}\n")
+	assert s3_csv_data == S3_CSV_DATA
 
 
 if __name__ == "__main__":

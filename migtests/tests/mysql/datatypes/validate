@@ -18,7 +18,8 @@ EXPECTED_ROW_COUNT = {
   	'int_types': 4,     
  	'json_types': 5,          
  	'string_types': 1,        
-	'uuid_try': 3 
+	'uuid_try': 3,
+	'blob_types': 2
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -113,13 +114,20 @@ EXPECTED_DATA_TYPES = {
     }, 
     'bit_types': {
         'bit_type': 'bit varying'
-    } 
+    },
+	'blob_types': {
+		'id': 'bigint',
+		'tb': 'bytea',
+		'b': 'bytea',
+		'mb': 'bytea',
+		'lb': 'bytea'
+	}
 }
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 10
+	assert len(table_list) == 11
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():

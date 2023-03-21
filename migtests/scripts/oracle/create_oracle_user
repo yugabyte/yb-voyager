@@ -1,2 +1,12 @@
 #!/usr/bin/env bash
+# This script enables the yb-voyager-testing jenkins pipeline to create a user in the source oracle database running on docker 
+# Link to the pipeline: https://github.com/yugabyte/jenkins-helpers/blob/yb-voyager/pipelines/yb-voyager/yb-voyager-testing.groovy
 
+source migtests/scripts/oracle/env.sh
+source migtests/scripts/functions.sh
+
+cat > oracle-create-user.sql << EOF
+CREATE USER ybvoyager IDENTIFIED BY password;
+EOF
+
+run_sqlplus_as_sys ${SOURCE_DB_NAME} "oracle-create-user.sql"

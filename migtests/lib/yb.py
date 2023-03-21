@@ -33,7 +33,16 @@ class PostgresDB:
 		self.user = user
 		self.password = password
 		self.database = database
-	  
+		self.EXPECTED_ORAFCE_FUNCTIONS = "''"
+		self.EXPECTED_ORAFCE_VIEWS = "''"
+		self.EXPECTED_ORAFCE_SCHEMAS = "''"
+		env = os.environ
+		if env.get("SOURCE_DB_TYPE") == "oracle":
+			#issue if function with same name as these is there with different set of arguments in ORACLE migrations then it will be ignored using this as we just compare name
+			self.EXPECTED_ORAFCE_FUNCTIONS = "'nvarchar2typmodin', 'nvarchar2typmodout', 'sinh', 'dump', 'nvarchar2send', 'to_single_byte', 'varchar2out', 'to_multi_byte', 'varchar2_transform', 'varchar2recv', 'nvarchar2_transform', 'varchar2send', 'varchar2', 'nvarchar2in', 'nvl2', 'nvl', 'nanvl', 'decode', 'varchar2typmodout', 'nvarchar2out', 'tanh', 'nvarchar2recv', 'varchar2typmodin', 'varchar2in', 'cosh', 'nvarchar2', 'bitand'"
+			self.EXPECTED_ORAFCE_VIEWS = "'dual'"
+			self.EXPECTED_ORAFCE_SCHEMAS = "'dbms_alert','dbms_assert','dbms_output','dbms_pipe','dbms_random','dbms_utility','plvstr','plvdate','plvchr','plvsubst','plvlex','utl_file','plunit','oracle'"
+
 	def connect(self):
 		self.conn = psycopg2.connect(
 			host=self.host,
@@ -107,7 +116,7 @@ class PostgresDB:
 
 	def get_functions_count(self, schema_name="public") -> int:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}';")
+		cur.execute(f"SELECT count(routine_name) FROM  information_schema.routines WHERE  routine_type = 'FUNCTION' AND routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS});")
 		return cur.fetchone()[0]
 
 	def execute_query(self, query) -> Any:
@@ -120,19 +129,9 @@ class PostgresDB:
 		cur.execute(f"select count(sequence_name) from information_schema.sequences where sequence_schema='{schema_name}';")	
 		return cur.fetchone()[0]
 
-	def fetch_datatypes_of_all_tables_in_schema(self, schema_name="public") -> Dict[str, List[str]]:
-		cur = self.conn.cursor()
-		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
-		tables = {}
-		for table_name, column_name, data_type in cur.fetchall():
-			if table_name not in tables:
-				tables[table_name] = []
-			tables[table_name].append(data_type)
-		return tables
-
 	def get_column_to_data_type_mapping(self, schema_name="public") -> Dict[str, Dict[str,str]]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}'")
+		cur.execute(f"SELECT table_name, column_name, data_type FROM information_schema.columns WHERE table_schema = '{schema_name}' and table_name NOT IN ({self.EXPECTED_ORAFCE_VIEWS})")
 		tables = {}
 		for table_name, column_name, data_type in cur.fetchall():
 			if table_name not in tables:
@@ -158,7 +157,7 @@ class PostgresDB:
 
 	def fetch_all_procedures(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS}); ")
 		return [procedure[0] for procedure in cur.fetchall()]
 
 	def fetch_partitions(self, table_name, schema_name) -> int:
@@ -173,7 +172,7 @@ class PostgresDB:
 
 	def fetch_all_function_names(self, schema_name="public") -> List[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}'")
+		cur.execute(f"SELECT routine_name FROM information_schema.routines WHERE routine_schema = '{schema_name}' AND routine_name NOT IN ({self.EXPECTED_ORAFCE_FUNCTIONS});")
 		return [function[0] for function in cur.fetchall()]
 
 	def fetch_all_table_rows(self, table_name, schema_name="public") -> set[str]:
@@ -188,5 +187,5 @@ class PostgresDB:
 
 	def fetch_all_schemas(self) -> set[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema'")
+		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema' and schema_name NOT IN ({self.EXPECTED_ORAFCE_SCHEMAS})")		
 		return set(cur.fetchall())

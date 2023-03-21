@@ -29,6 +29,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
@@ -68,6 +69,9 @@ func init() {
 
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
+
+	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
+		"true - to enable live migration(default false)")
 }
 
 func exportData() {
@@ -96,7 +100,7 @@ func exportDataOffline() bool {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	defer cancel()
 
 	var tableList []*sqlname.SourceName
 	var finalTableList []*sqlname.SourceName
@@ -114,6 +118,14 @@ func exportDataOffline() bool {
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		os.Exit(0)
+	}
+
+	if liveMigration || useDebezium {
+		err := debeziumExportData(ctx, finalTableList)
+		if err != nil {
+			utils.PrintAndLog("Failed to run live migration: %s", err)
+		}
+		return err == nil
 	}
 
 	exportDataStart := make(chan bool)
@@ -168,6 +180,107 @@ func exportDataOffline() bool {
 	return true
 }
 
+func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) error {
+	absExportDir, err := filepath.Abs(exportDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
+	}
+
+	snapshotMode := "initial_only" // useDebezium is true
+	if liveMigration {
+		snapshotMode = "initial"
+	}
+
+	var dbzmTableList []string
+	for _, table := range tableList {
+		dbzmTableList = append(dbzmTableList, table.Qualified.MinQuoted)
+	}
+
+	config := &dbzm.Config{
+		SourceDBType: source.DBType,
+		ExportDir:    absExportDir,
+		Host:         source.Host,
+		Port:         source.Port,
+		Username:     source.User,
+		Password:     source.Password,
+
+		DatabaseName: source.DBName,
+		SchemaNames:  source.Schema,
+		TableList:    dbzmTableList,
+		SnapshotMode: snapshotMode,
+	}
+	debezium := dbzm.NewDebezium(config)
+	err = debezium.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start debezium: %w", err)
+	}
+	var status *dbzm.ExportStatus
+	exportingSnapshot := true
+	for exportingSnapshot {
+		status, err = debezium.GetExportStatus()
+		if err != nil {
+			return fmt.Errorf("failed to read export status: %w", err)
+		}
+
+		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
+			exportingSnapshot = false
+			utils.PrintAndLog("Snapshot export is complete.")
+			createExportDataDoneFlag()
+			err = writeDataFileDescriptor(exportDir, status)
+			if err != nil {
+				return fmt.Errorf("failed to write data file descriptor: %w", err)
+			}
+			outputExportStatus(status)
+		}
+		time.Sleep(time.Second)
+	}
+	if err := debezium.Error(); err != nil {
+		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
+	}
+
+	if !liveMigration && useDebezium {
+		log.Infof("snapshot export is complete, stopping debezium...")
+		return debezium.Stop()
+	}
+
+	// live migration part
+	color.Blue("streaming changes to a local queue file...")
+	for debezium.IsRunning() {
+		time.Sleep(time.Second)
+	}
+	if err := debezium.Error(); err != nil {
+		return fmt.Errorf("debezium failed during live migration phase: %v", err)
+	}
+
+	return nil
+}
+
+func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
+	tableRowCount := make(map[string]int64)
+	for _, table := range status.Tables {
+		tableRowCount[table.TableName] = table.ExportedRowCount
+	}
+	dfd := datafile.Descriptor{
+		FileFormat:    datafile.CSV,
+		TableRowCount: tableRowCount,
+		Delimiter:     ",",
+		HasHeader:     true,
+		ExportDir:     exportDir,
+	}
+	dfd.Save()
+	return nil
+}
+
+func outputExportStatus(status *dbzm.ExportStatus) {
+	for i, table := range status.Tables {
+		if i == 0 {
+			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
+			fmt.Println("====================================================================================================")
+		}
+		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+	}
+}
+
 // flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
@@ -193,7 +306,11 @@ func checkDataDirs() {
 		os.Remove(dfdFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+			if !liveMigration || dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+			}
+		} else {
+			utils.PrintAndLog("Continuing streaming from where we left off...")
 		}
 	}
 }

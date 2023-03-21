@@ -1,30 +1,3 @@
-create table numeric_types_number(num_val NUMBER);
-insert into numeric_types_number values(123.79);
-insert into numeric_types_number values(1.2e-4);
-insert into numeric_types_number values(1.2e-5);
-insert into numeric_types_number values(NULL);
-
-create table numeric_types_float(num_val FLOAT(5));
-insert into numeric_types_float values(123.45);
-insert into numeric_types_float values(0);
-insert into numeric_types_float values(-1.9999);
-insert into numeric_types_float values(0.0009);
-insert into numeric_types_float values(NULL);
-
-create table numeric_types_binary_float(num_val BINARY_FLOAT);
-insert into numeric_types_binary_float values(1.17549E-38F);
-insert into numeric_types_binary_float values(3.40282E+28F);
-insert into numeric_types_binary_float values(1.17549E-38F);
-insert into numeric_types_binary_float values(3.40282E+28F);
-insert into numeric_types_binary_float values(NULL);
-
-create table numeric_types_binary_double(num_val BINARY_DOUBLE);
-insert into numeric_types_binary_double values(2.22507485850720E-308);
-insert into numeric_types_binary_double values(1.79769313486231E+108);
-insert into numeric_types_binary_double values(2.22507485850720E-308);
-insert into numeric_types_binary_double values(1.79769313486231E+108);
-insert into numeric_types_binary_double values(NULL);
-
 create table numeric_types(num_val NUMBER,float_val FLOAT(5), bin_float_val BINARY_FLOAT, bin_double_val BINARY_DOUBLE);
 INSERT INTO numeric_types VALUES(13,123.45,1.17549E-38F,2.22507485850720E-308);
 INSERT INTO numeric_types VALUES(123.79,0,3.40282E+28F,1.79769313486231E+108);
@@ -96,3 +69,7 @@ INSERT INTO RAW_TYPE VALUES('','');
 
 CREATE TABLE NUMBER_PS(num_val NUMBER,num_3 NUMBER(3), num_p_s NUMBER(3,2), num_s_p NUMBER(2,7), num_neg_s NUMBER);
 INSERT INTO NUMBER_PS values(123.89,401.78,5.79,.0000012,546.99);
+
+CREATE TABLE lob_types(id int, b_type blob, ctype clob, n_type nclob);
+INSERT INTO lob_types values(1,'abc','abc','abc');
+INSERT INTO lob_types values(2,utl_raw.cast_to_raw('Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.'),'Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.');

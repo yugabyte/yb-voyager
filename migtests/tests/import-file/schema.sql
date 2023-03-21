@@ -66,3 +66,7 @@ create table t1_newline (i int, j timestamp, k bigint, l varchar(30));
 create table t1_quote_escape_dq (i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_escape_backslash (i int, j varchar, k int);
+
+create table s3_text(i int, j int, k int);
+
+create table s3_csv(i int, j int);

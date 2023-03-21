@@ -45,7 +45,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
 			if cmd.Use != "version" && cmd.Use != "status" {
-				lockExportDir()
+				lockExportDir(cmd)
 			}
 			InitLogging(exportDir, cmd.Use == "status")
 		}
@@ -133,13 +133,22 @@ func validateExportDirFlag() {
 	}
 }
 
-func lockExportDir() {
-	lockFileName, err := filepath.Abs(filepath.Join(exportDir, ".lockfile.lck"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get the lockfile path: %v\n", err)
-		os.Exit(1)
+func lockExportDir(cmd *cobra.Command) {
+	lockFileName := ".lockfile.lck"
+	// using different lockfile as import data can be run in parallel with export data(for live migration)
+	if cmd.Use == "data" && cmd.Parent().Use == "import" {
+		lockFileName = ".importDataLockfile.lck"
 	}
 
+	lockFilePath, err := filepath.Abs(filepath.Join(exportDir, lockFileName))
+	if err != nil {
+		utils.ErrExit("Failed to get absolute path for lockfile %q: %v\n", lockFileName, err)
+	}
+	createLock(lockFilePath)
+}
+
+func createLock(lockFileName string) {
+	var err error
 	lockFile, err = lockfile.New(lockFileName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockFileName, err)
@@ -156,7 +165,6 @@ func lockExportDir() {
 		fmt.Fprintf(os.Stderr, "Unable to lock the export-dir: %v\n", err)
 		os.Exit(1)
 	}
-
 }
 
 func unlockExportDir() {

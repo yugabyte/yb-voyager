@@ -11,6 +11,9 @@ export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
+export S3_BUCKET="s3://voyager-automation-data"
+export AWS_DEFAULT_REGION="us-west-2"
+
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 source ${SCRIPTS}/yugabytedb/env.sh
@@ -90,6 +93,16 @@ main() {
 	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
+
+	# Test import from s3 (text file)
+	step "Import data file from S3 (text): text_test.text -> s3_text"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "text_test.text:s3_text"
+
+	# Test import from s3 (csv):
+	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
+	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+			--file-table-map "csv_test.csv:s3_csv"
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"
