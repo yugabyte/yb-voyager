@@ -150,9 +150,9 @@ class PostgresDB:
 		return False
 
 
-	def fetch_all_triggers(self, schema_name="public") -> set[str]:
+	def fetch_all_triggers(self, schema_name="public") -> list[str]:
 		cur = self.conn.cursor()
-		cur.execute(f"SELECT * FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
+		cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
 		# cur.execute(f"SELECT trigger_name FROM information_schema.triggers WHERE trigger_schema = '{schema_name}'")
 		return set(cur.fetchall())
 
