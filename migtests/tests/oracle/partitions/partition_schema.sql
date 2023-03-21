@@ -66,7 +66,7 @@ CREATE TABLE SALES_HASH
    s_saledate   DATE,
    s_custid     NUMBER,
    s_totalprice NUMBER)
-   PARTITION BY HASH(s_productid)
+  PARTITION BY HASH(s_productid)
   ( PARTITION P1
   , PARTITION P2
   , PARTITION P3
