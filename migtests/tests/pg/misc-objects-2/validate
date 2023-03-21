@@ -27,9 +27,9 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 
-	fetched_triggers = tgt.fetch_all_triggers("public")
+	fetched_triggers = set({tgt.fetch_all_triggers("public")})
 	print(f"fetched triggers list: {fetched_triggers}\n Expected triggers: {EXPECTED_TRIGGER_SET}")
-	assert set(fetched_triggers) == EXPECTED_TRIGGER_SET
+	assert fetched_triggers == EXPECTED_TRIGGER_SET
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
