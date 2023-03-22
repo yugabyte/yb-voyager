@@ -62,11 +62,13 @@ func (ds *S3DataStore) Join(elem ...string) string {
 }
 
 func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
-	// resourceName is hidden underneath a symlink for s3 objects.
+	if strings.HasPrefix(resourceName, "s3://") {
+		return s3.NewObjectReader(resourceName)
+	}
+	// if resourceName is hidden underneath a symlink for s3 objects...
 	objectPath, err := os.Readlink(resourceName)
 	if err != nil {
 		utils.ErrExit("unable to resolve symlink %v to s3 resource: %w", resourceName, err)
 	}
-	reader, err := s3.NewObjectReader(objectPath)
-	return reader, err
+	return s3.NewObjectReader(objectPath)
 }
