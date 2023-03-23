@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type MyFormatter struct{}
@@ -53,12 +54,15 @@ func InitLogging(logDir string, disableLogging bool) {
 		log.SetOutput(io.Discard)
 		return
 	}
-	logFileName := filepath.Join(logDir, "yb-voyager.log")
-	f, err := os.OpenFile(logFileName, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to initialise logging: open log file %q: %s", logFileName, err))
+	logFileName := filepath.Join(logDir, "logs", "yb-voyager.log")
+
+	// logRotator handles scenario where "logs" folder, or yb-voyager.log file does not exist.
+	logRotator := &lumberjack.Logger{
+		Filename:   logFileName,
+		MaxSize:    200, // 200 MB log size before rotation
+		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
 	}
-	log.SetOutput(f)
+	log.SetOutput(logRotator)
 
 	log.SetReportCaller(true)
 	log.SetFormatter(&MyFormatter{})

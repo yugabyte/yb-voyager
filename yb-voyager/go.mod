@@ -26,6 +26,7 @@ require (
 	gocloud.dev v0.29.0
 	golang.org/x/exp v0.0.0-20230124195608-d38c7dcee874
 	golang.org/x/term v0.5.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require github.com/jmespath/go-jmespath v0.4.0 // indirect
