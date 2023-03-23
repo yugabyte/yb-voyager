@@ -54,11 +54,13 @@ func InitLogging(logDir string, disableLogging bool) {
 		log.SetOutput(io.Discard)
 		return
 	}
-	logFileName := filepath.Join(logDir, "yb-voyager.log")
+	logFileName := filepath.Join(logDir, "logs", "yb-voyager.log")
+
+	// logRotator handles scenario where "logs" folder, or yb-voyager.log file does not exist.
 	logRotator := &lumberjack.Logger{
 		Filename:   logFileName,
-		MaxSize:    20, // 20 MB log size before rotation
-		MaxBackups: 5,  // Allow upto 5 logs at once before deleting oldest logs.
+		MaxSize:    200, // 200 MB log size before rotation
+		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
 	}
 	log.SetOutput(logRotator)
 
