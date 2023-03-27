@@ -99,10 +99,20 @@ main() {
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "text_test.text:s3_text"
 
-	# Test import from s3 (csv):
+	# Test import from s3 (csv)
 	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
 			--file-table-map "csv_test.csv:s3_csv"
+	
+	# Test multi-table import from s3
+	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "t1.text:s3_multitable_t1, t2.text:s3_multitable_t2"
+
+	# Test larger import from s3
+	step "Import large data file from S3: volume.text-> s3_volume"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "t1.text:s3_multitable_t1, t2.text:s3_multitable_t2"
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"

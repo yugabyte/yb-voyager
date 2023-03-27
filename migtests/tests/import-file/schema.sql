@@ -70,3 +70,5 @@ create table t1_escape_backslash (i int, j varchar, k int);
 create table s3_text(i int, j int, k int);
 
 create table s3_csv(i int, j int);
+
+create table s3_volume(i int, j int, k int);

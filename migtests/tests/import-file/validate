@@ -20,7 +20,10 @@ EXPECTED = {
    	"t1_quote_escape_dq": 3,
 	"t1_escape_backslash": 3,
 	"s3_text": 3,
-	"s3_csv": 3
+	"s3_csv": 3,
+	"s3_multitable_t1": 3,
+	"s3_multitable_t2": 3,
+	"s3_volume": 100000
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -72,6 +75,13 @@ def file_import_done_checks(tgt):
 	print(f"s3_csv_data: {s3_csv_data}\nExpected data: {S3_CSV_DATA}\n")
 	assert s3_csv_data == S3_CSV_DATA
 
+	s3_t1_data = tgt.fetch_all_table_rows("s3_multitable_t1")
+	print(f"s3_t1_data: {s3_t1_data}\nExpected data: {S3_TEXT_DATA}\n")
+	assert s3_t1_data == S3_TEXT_DATA
 
+	s3_t2_data = tgt.fetch_all_table_rows("s3_multitable_t2")
+	print(f"s3_t2_data: {s3_t2_data}\nExpected data: {S3_CSV_DATA}\n")
+	assert s3_t2_data == S3_CSV_DATA
+	
 if __name__ == "__main__":
 	main()
