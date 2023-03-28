@@ -77,4 +77,4 @@ create table s3_csv_with_header (i int, j int, k int);
 
 create table s3_multitable_t1 (i int, j int, k int);
 
-create table s3_multitable_t2 (i int, j int);
+create table s3_multitable_t2 (i int, j int, k int);
