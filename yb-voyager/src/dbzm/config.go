@@ -2,6 +2,7 @@ package dbzm
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -77,7 +78,7 @@ var mysqlSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
 
 debezium.source.database.include.list=%s
-debezium.source.database.server.id=ybvoyager-dbzm
+debezium.source.database.server.id=%d
 
 
 
@@ -123,6 +124,7 @@ func (c *Config) String() string {
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
 			c.DatabaseName,
+			rand.Int(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
