@@ -107,7 +107,7 @@ main() {
 	# Test multi-table import from s3
 	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "t1.text:s3_multitable_t1, t2.text:s3_multitable_t2"
+			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
 
 	# Test csv with header import from s3
 	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
