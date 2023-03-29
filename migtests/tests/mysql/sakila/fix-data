@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+pushd ${EXPORT_DIR}
+
+echo "Printing export_status.json file....."
+cat data/export_status.json
+
+echo "Printing debezium.log file....."
+cat debezium.log
