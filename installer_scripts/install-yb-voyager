@@ -11,7 +11,7 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # the hash corresponds to the yb-voyager/v1.1.0 tag
-YB_VOYAGER_GIT_HASH="051bd70bda705441d1c3b5894930f08f37476b05"
+YB_VOYAGER_GIT_HASH="6088893747f05aa0d56307e76f0cb3273006a2f5"
 
 ONLY_PG="false"
 
