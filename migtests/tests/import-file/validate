@@ -19,6 +19,12 @@ EXPECTED = {
   	"t1_newline":5,
    	"t1_quote_escape_dq": 3,
 	"t1_escape_backslash": 3,
+	"s3_text": 3,
+	"s3_csv": 3,
+	"s3_multitable_t1": 3,
+	"s3_multitable_t2": 3,
+	"s3_csv_with_header": 3,
+	"s3_volume": 100000
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -26,6 +32,11 @@ T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
+S3_TEXT_DATA = set([(1,2,3), (4,5,6), (7,8,9)])
+S3_CSV_DATA = set([(1,2), (3,4), (5,6)])
+S3_T1_DATA = S3_TEXT_DATA
+S3_T2_DATA = S3_TEXT_DATA
+S3_CSV_WITH_HEADER_DATA = S3_TEXT_DATA
 
 def file_import_done_checks(tgt):
 	got = tgt.row_count_of_all_tables()
@@ -60,6 +71,25 @@ def file_import_done_checks(tgt):
 	print(f"t1_escape_backslash_data: {t1_escape_backslash_data}\nExpected data: {T1_ESCAPE_BACKSLASH_DATA}\n")
 	assert t1_escape_backslash_data == T1_ESCAPE_BACKSLASH_DATA
 
+	s3_text_data = tgt.fetch_all_table_rows("s3_text")
+	print(f"s3_text_data: {s3_text_data}\nExpected data: {S3_TEXT_DATA}\n")
+	assert s3_text_data == S3_TEXT_DATA
 
+	s3_csv_data = tgt.fetch_all_table_rows("s3_csv")
+	print(f"s3_csv_data: {s3_csv_data}\nExpected data: {S3_CSV_DATA}\n")
+	assert s3_csv_data == S3_CSV_DATA
+
+	s3_t1_data = tgt.fetch_all_table_rows("s3_multitable_t1")
+	print(f"s3_t1_data: {s3_t1_data}\nExpected data: {S3_T1_DATA}\n")
+	assert s3_t1_data == S3_T1_DATA
+
+	s3_t2_data = tgt.fetch_all_table_rows("s3_multitable_t2")
+	print(f"s3_t2_data: {s3_t2_data}\nExpected data: {S3_T2_DATA}\n")
+	assert s3_t2_data == S3_T2_DATA
+
+	s3_header_data = tgt.fetch_all_table_rows("s3_csv_with_header")
+	print(f"s3_header_data: {s3_header_data}\nExpected data: {S3_CSV_WITH_HEADER_DATA}\n")
+	assert s3_header_data == S3_CSV_WITH_HEADER_DATA
+	
 if __name__ == "__main__":
 	main()
