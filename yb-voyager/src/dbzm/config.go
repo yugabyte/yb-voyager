@@ -2,9 +2,12 @@ package dbzm
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -124,7 +127,7 @@ func (c *Config) String() string {
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
 			c.DatabaseName,
-			rand.Int(),
+			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
@@ -138,4 +141,39 @@ func (c *Config) WriteToFile(filePath string) error {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
 	}
 	return nil
+}
+
+// read config file DEBEZIUM_CONF_FILEPATH into a string
+func readConfigFile() (string, error) {
+	configFile, err := os.ReadFile(DEBEZIUM_CONF_FILEPATH)
+	if err != nil {
+		return "", fmt.Errorf("failed to read config file %s: %w", DEBEZIUM_CONF_FILEPATH, err)
+	}
+
+	return string(configFile), nil
+}
+
+// generate/fetch the value for 'debezium.source.database.server.id' property for MySQL
+func getDatabaseServerID() int {
+	databaseServerId := rand.Intn(100000)
+	configFile, err := readConfigFile()
+	if err != nil {
+		log.Fatalf("failed to read config file: %v", err)
+		return databaseServerId
+	}
+
+	// if config file exists, read the value of 'debezium.source.database.server.id' property
+	if strings.Contains(configFile, "debezium.source.database.server.id") {
+		re := regexp.MustCompile(`(?m)^debezium.source.database.server.id=(\d+)$`)
+		matches := re.FindStringSubmatch(configFile)
+		if len(matches) == 2 {
+			databaseServerId, err = strconv.Atoi(matches[1])
+			if err != nil {
+				log.Fatalf("failed to convert database server id to int: %v", err)
+				return databaseServerId
+			}
+		}
+	}
+
+	return databaseServerId
 }
