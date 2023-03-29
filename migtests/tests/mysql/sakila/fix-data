@@ -5,8 +5,16 @@ set -x
 
 pushd ${EXPORT_DIR}
 
-echo "Printing export_status.json file....."
-cat data/export_status.json
+if [ -f debezium.log ]; then
+    echo "Printing debezium.log file....."
+    cat debezium.log
+else
+    echo "debezium.log file not found!!"
+fi
 
-echo "Printing debezium.log file....."
-cat debezium.log
+echo "Printing export_status.json file....."
+if [ -f data/export_status.json ]; then
+    cat data/export_status.json
+else
+    echo "data/export_status.json file not found!!"
+fi
