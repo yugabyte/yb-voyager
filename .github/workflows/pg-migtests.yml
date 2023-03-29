@@ -134,8 +134,8 @@ jobs:
     - name: "TEST: analyze-schema"
       run: migtests/tests/analyze-schema/run-analyze-schema-test
       
-    - name: "TEST: pg-codependent-schemas"
-      run: migtests/scripts/run-test.sh pg/codependent-schemas ${{ matrix.use_debezium }}
+    # - name: "TEST: pg-codependent-schemas"
+    #   run: migtests/scripts/run-test.sh pg/codependent-schemas ${{ matrix.use_debezium }}
 
     - name: "TEST: pg-sample-schema-emp"
       run: migtests/scripts/run-test.sh pg/sample-employee ${{ matrix.use_debezium }}

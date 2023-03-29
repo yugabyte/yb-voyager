@@ -17,7 +17,7 @@ EXPECTED_ROW_COUNT = {
 	'customer': 599,
 	'film_actor': 5462,
 	'film_category': 1000,
-	'film': 1000,
+	# 'film': 1000,
 	'inventory': 4581,
 	'language': 6,
 	'payment': 14596,

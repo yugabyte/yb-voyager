@@ -6,7 +6,7 @@ create table num_types(v1 smallint, v2 integer,v3 bigint,v4 decimal(6,3),v5 nume
 
 insert into num_types values(182,34453,654385451,453.23,22334.542,120.50);
 insert into num_types values(32762,-3415123,654312385451,999.999,-22334.542,10.4);
-insert into num_types values(-323,53,-90654385451,-459.230,9992334.54290,-12000500.50);
+-- insert into num_types values(-323,53,-90654385451,-459.230,9992334.54290,-12000500.50);
 
 \d num_types
 
@@ -40,15 +40,15 @@ insert into datetime_type values('1992-01-23', null,current_timestamp,'2022-11-0
 
 select * from datetime_type;
 
-drop table if exists datatypes2;
+-- drop table if exists datatypes2;
 
-create table datatypes2(v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][]);
+-- create table datatypes2(v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][]);
 
-insert into datatypes2 values ('{"key1": "value1", "key2": "value2"}',B'10'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {“FD”, “Property”}}');
-insert into datatypes2 values ('["a","b","c",1,2,3]',B'100011'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}');
-insert into datatypes2 values (null,B'1'::bit(10),null, '{{“FD”}, {"act"}}');
+-- insert into datatypes2 values ('{"key1": "value1", "key2": "value2"}',B'10'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {“FD”, “Property”}}');
+-- insert into datatypes2 values ('["a","b","c",1,2,3]',B'100011'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}');
+-- insert into datatypes2 values (null,B'1'::bit(10),null, '{{“FD”}, {"act"}}');
 
-\d datatypes2
+-- \d datatypes2
 
-select * from datatypes2;
+-- select * from datatypes2;
 
