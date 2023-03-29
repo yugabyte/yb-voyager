@@ -2,13 +2,15 @@ package dbzm
 
 import (
 	"fmt"
-	"log"
+	"math"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
@@ -145,31 +147,31 @@ func (c *Config) WriteToFile(filePath string) error {
 
 // read config file DEBEZIUM_CONF_FILEPATH into a string
 func readConfigFile() (string, error) {
-	configFile, err := os.ReadFile(DEBEZIUM_CONF_FILEPATH)
+	config, err := os.ReadFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return "", fmt.Errorf("failed to read config file %s: %w", DEBEZIUM_CONF_FILEPATH, err)
 	}
 
-	return string(configFile), nil
+	return string(config), nil
 }
 
 // generate/fetch the value for 'debezium.source.database.server.id' property for MySQL
 func getDatabaseServerID() int {
-	databaseServerId := rand.Intn(100000)
-	configFile, err := readConfigFile()
+	databaseServerId := rand.Intn(math.MaxInt-10000) + 10000
+	config, err := readConfigFile()
 	if err != nil {
-		log.Fatalf("failed to read config file: %v", err)
+		log.Errorf("failed to read config file: %v", err)
 		return databaseServerId
 	}
 
 	// if config file exists, read the value of 'debezium.source.database.server.id' property
-	if strings.Contains(configFile, "debezium.source.database.server.id") {
+	if strings.Contains(config, "debezium.source.database.server.id") {
 		re := regexp.MustCompile(`(?m)^debezium.source.database.server.id=(\d+)$`)
-		matches := re.FindStringSubmatch(configFile)
+		matches := re.FindStringSubmatch(config)
 		if len(matches) == 2 {
 			databaseServerId, err = strconv.Atoi(matches[1])
 			if err != nil {
-				log.Fatalf("failed to convert database server id to int: %v", err)
+				log.Errorf("failed to convert database server id to int: %v", err)
 				return databaseServerId
 			}
 		}
