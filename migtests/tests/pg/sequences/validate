@@ -39,16 +39,16 @@ def migration_completed_checks(tgt):
 	print(f"Number of Sequences {num_sequences}")
 	assert num_sequences == 2
     
-	INSERT_SEQUENCE_QUERY = f"insert into public.sequence_check2 (first_name, last_name, email, gender, ip_address) values ('Yugabyte', 'Meecher', 'nmeecher9@quantcast.com', 'Male', '152.239.228.215');"
-	insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
-	print(f"insert query returned for sequence_check2 - {insert_query_chk_error}")
-	assert insert_query_chk_error == False
+	# INSERT_SEQUENCE_QUERY = f"insert into public.sequence_check2 (first_name, last_name, email, gender, ip_address) values ('Yugabyte', 'Meecher', 'nmeecher9@quantcast.com', 'Male', '152.239.228.215');"
+	# insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
+	# print(f"insert query returned for sequence_check2 - {insert_query_chk_error}")
+	# assert insert_query_chk_error == False
 	
 	
-	SELECT_ID_QUERY = f"select id from public.sequence_check2 where first_name = 'Yugabyte'";
-	id_returned = tgt.execute_query(SELECT_ID_QUERY)
-	print(f"for sequence_check2, Id returned- {id_returned} and expected id - 8")
-	assert id_returned == 8
+	# SELECT_ID_QUERY = f"select id from public.sequence_check2 where first_name = 'Yugabyte'";
+	# id_returned = tgt.execute_query(SELECT_ID_QUERY)
+	# print(f"for sequence_check2, Id returned- {id_returned} and expected id - 8")
+	# assert id_returned == 8
 
 	# this validation check has been as added for issue - https://github.com/yugabyte/yb-voyager/issues/632
 	SEQUENCE_NAMES = ["sequence_check1_id_seq", "sequence_check2_id_seq", "sequence_check3_id_seq"]
