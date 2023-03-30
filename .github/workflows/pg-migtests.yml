@@ -18,7 +18,6 @@ jobs:
         image: postgres:13
         env:
           POSTGRES_PASSWORD: secret
-        command: ['postgres', '-c', 'wal_level=logical']
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -31,6 +30,13 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+
+    - name: "Enable postgres with wal_level as logical"
+      run: |
+        docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
+        docker restart ${{ job.services.postgres.id }}
+        sleep 10
+      if: matrix.use_debezium == 1
 
     - name: Install python3 and psycopg2
       run: |
