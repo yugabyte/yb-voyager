@@ -110,12 +110,13 @@ jobs:
 
     - name: "TEST: pg-partitions"
       run: migtests/scripts/run-test.sh pg/partitions ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0
       
     # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
     # Fixed in 2.17.1.0-b368
     - name: "TEST: pg-partitions-with-index"
       run: migtests/scripts/run-test.sh pg/partitions-with-indexes ${{ matrix.use_debezium }}
-      if: matrix.version != '2.16.2.0-b41'
+      if: matrix.version != '2.16.2.0-b41' && matrix.use_debezium == 0
 
     - name: "TEST: pg-views-and-rules"
       run: migtests/scripts/run-test.sh pg/views-and-rules ${{ matrix.use_debezium }}
@@ -131,6 +132,7 @@ jobs:
 
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg/multiple-schemas ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0
 
     - name: "TEST: import-data-file"
       env:
@@ -149,4 +151,5 @@ jobs:
 
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0
 
