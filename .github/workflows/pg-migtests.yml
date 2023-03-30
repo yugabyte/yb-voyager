@@ -16,7 +16,7 @@ jobs:
     services:
       postgres:
         image: postgres:13
-        environment:
+        env:
           POSTGRES_PASSWORD: secret
         command: ['postgres', '-c', 'wal_level=logical']
         # Set health checks to wait until postgres has started

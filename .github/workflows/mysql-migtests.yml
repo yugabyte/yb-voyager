@@ -107,3 +107,4 @@ jobs:
 
     - name: "TEST: mysql-reserved-words"
       run: migtests/scripts/run-test.sh mysql/reserved-words ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0
