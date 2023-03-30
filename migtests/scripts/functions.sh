@@ -90,6 +90,7 @@ grant_user_permission_mysql() {
 		"GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+		"GRANT ALL PRIVILEGES ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 	)
 
 	for command in "${commands[@]}"; do
