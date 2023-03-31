@@ -69,6 +69,14 @@ main() {
 	export_data
 	ls -l ${EXPORT_DIR}/data
 
+	if [ -f ${EXPORT_DIR}/debezium.log ]
+	then
+		echo "Printing debeziun.log file"
+		cat ${EXPORT_DIR}/debezium.log
+	else
+		echo "No debezium.log found."
+	fi
+
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
 	then
