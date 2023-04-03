@@ -62,7 +62,7 @@ do
 		exported_vars="${exported_vars} -e ${argv[${j}]}"
 		argv[$i]=''
 		argv[$j]=''
-
+	fi
     i=$(( $i + 1))
 done
 
