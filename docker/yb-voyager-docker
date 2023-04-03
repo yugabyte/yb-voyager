@@ -27,16 +27,36 @@ do
 			docker volume rm voyager-export-dir
 			docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
 		
-			vol="-v voyager-export-dir:/export-dir"
+			export_vol="-v voyager-export-dir:/export-dir"
 		else
-			vol="-v ${export_dir}:/export-dir"
+			export_vol="-v ${export_dir}:/export-dir"
 		fi
 		argv[$j]='/export-dir'
     fi
+	
+	if [[ ${argv[${i}]} == "--data-dir" ]]
+	then 
+		j=$(( $i + 1))
+		data_dir=${argv[${j}]}
+
+		# If the OS is macOS
+		if [[ $OSTYPE == 'darwin'* ]]; then
+
+			# Delete the old volume and create a new one it its place attached to the user's data-dir
+			docker volume rm voyager-data-dir
+			docker volume create --driver local --opt type=none --opt device="${data_dir}" --opt o=bind voyager-data-dir 
+		
+			data_vol="${vol} -v voyager-data-dir:/data-dir"
+		else
+			data_vol="${vol} -v ${data_dir}:/data-dir"
+		fi
+		argv[$i]='/data-dir'
+	fi	
+
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
