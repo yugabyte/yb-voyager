@@ -13,6 +13,9 @@ then
 fi
 
 i=0
+
+exported_vars=""
+
 while [ $i -lt $# ]
 do
     if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
@@ -53,10 +56,17 @@ do
 		argv[$j]='/data-dir'
 	fi	
 
+	if [[ ${argv[${i}]} == "--export-var" ]]
+	then 
+		j=$(( $i + 1))
+		exported_vars="${exported_vars} -e ${argv[${j}]}"
+		argv[$i]=''
+		argv[$j]=''
+
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
