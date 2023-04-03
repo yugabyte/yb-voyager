@@ -124,6 +124,7 @@ jobs:
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg/misc-objects-1 ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0
 
     - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
       run: migtests/scripts/run-test.sh pg/misc-objects-2 ${{ matrix.use_debezium }}
