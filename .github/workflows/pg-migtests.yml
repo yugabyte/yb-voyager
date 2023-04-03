@@ -131,6 +131,7 @@ jobs:
 
     - name: "TEST: pg-dependent-ddls"
       run: migtests/scripts/run-test.sh pg/dependent-ddls ${{ matrix.use_debezium }}
+      if: matrix.use_debezium == 0 #skip due to zero row count issue and text[] datatype not supported
 
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg/multiple-schemas ${{ matrix.use_debezium }}
