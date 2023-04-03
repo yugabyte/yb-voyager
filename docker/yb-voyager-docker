@@ -50,7 +50,7 @@ do
 		else
 			data_vol="${vol} -v ${data_dir}:/data-dir"
 		fi
-		argv[$i]='/data-dir'
+		argv[$j]='/data-dir'
 	fi	
 
     i=$(( $i + 1))
