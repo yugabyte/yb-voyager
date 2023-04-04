@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -687,47 +686,65 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
 
 	var sqlInfoArr []sqlInfo
+	reportNextSql := 0
 
+	file, err := os.ReadFile(path)
+	if err != nil {
+		utils.ErrExit("Error while reading %q: %s", path, err)
+	}
+
+	stmt := ""
+	formattedStmt := ""
+	lines := strings.Split(string(file), "\n")
+	for i := 0; i < len(lines); i++ {
+		currLine := lines[i]
+		if len(currLine) == 0 {
+			continue
+		}
+
+		if strings.Contains(strings.TrimLeft(currLine, ""), "--") {
+			reportNextSql = invalidSqlComment(currLine)
+			continue
+		}
+
+		if isStartOfCodeBlockSqlStmt(currLine) {
+			collectSqlStmtContainingCode(&stmt, &formattedStmt, lines, &i)
+		} else {
+			collectSqlStmt(&stmt, &formattedStmt, lines, &i)
+		}
+		processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+	}
+
+	return sqlInfoArr
+}
+
+// returns true when sql stmt is a CREATE statement for TRIGGER, FUNCTION, PROCEDURE
+func isStartOfCodeBlockSqlStmt(line string) bool {
+	reCreateProc, _ := getCreateObjRegex("PROCEDURE")
+	reCreateFunc, _ := getCreateObjRegex("FUNCTION")
+	reCreateTrigger, _ := getCreateObjRegex("TRIGGER")
+
+	return reCreateProc.MatchString(line) || reCreateFunc.MatchString(line) || reCreateTrigger.MatchString(line)
+}
+
+func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []string, i *int) {
 	// 0 -> code block is not started
 	// 1 -> code block is being traversed
 	// 2 -> code block is completed/terminated
 	dollarQuoteFlag := 0
 	// Delimiter to outermost Code Block if nested Code Blocks present
 	codeBlockDelimiter := ""
-	reportNextSql := 0
 
-	file, err := os.Open(path)
-	if err != nil {
-		utils.ErrExit("Error while opening %q: %s", path, err)
-	}
-	defer file.Close()
+	for ; *i < len(lines); *i++ {
+		currLine := lines[*i]
 
-	scanner := bufio.NewScanner(file)
-	stmt := ""
-	formattedStmt := ""
-
-	// assemble array of lines, each line ends with semicolon
-	for scanner.Scan() {
-		currLine := scanner.Text()
-		if len(currLine) == 0 {
-			continue
-		}
-
-		if strings.Contains(currLine, "--") { //in case there is a space before '--'
-			reportNextSql = invalidSqlComment(currLine)
-			if dollarQuoteFlag == 0 { // ignore comment only if it is outside a DDL
-				continue
-			}
-		}
-
-		stmt += currLine + " "
-		formattedStmt += currLine + "\n"
+		*stmt += currLine + " "
+		*formattedStmt += currLine + "\n"
 
 		// Assuming that both the dollar quote strings will not be in same line
 		if dollarQuoteFlag == 0 {
-			if strings.Contains(currLine, ";") { // in case, there is no body part or body part is in single line
-				//one liner sql string created, now will check for obj count and report cases
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+			if isEndOfSqlStmt(currLine) { // in case, there is no body part or body part is in single line
+				break
 			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
 				dollarQuoteFlag = 1 //denotes start of the code/body part
 				codeBlockDelimiter = matches[0]
@@ -738,20 +755,30 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 			}
 		}
 		if dollarQuoteFlag == 2 {
-			if strings.Contains(currLine, ";") {
-				processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
-				//reset for parsing other sqls
-				dollarQuoteFlag = 0
-				codeBlockDelimiter = ""
+			if isEndOfSqlStmt(currLine) {
+				break
 			}
 		}
 	}
-	// check whether there was error reading the script
-	if scanner.Err() != nil {
-		panic(scanner.Err())
-	}
+}
 
-	return sqlInfoArr
+func collectSqlStmt(stmt *string, formattedStmt *string, lines []string, i *int) {
+	for ; *i < len(lines); *i++ {
+		currLine := lines[*i]
+
+		*stmt += currLine + " "
+		*formattedStmt += currLine + "\n"
+
+		if isEndOfSqlStmt(currLine) {
+			break
+		}
+	}
+}
+
+func isEndOfSqlStmt(line string) bool {
+	/* not checking for ending with `;` to cover cases like comment at the end after `;`
+	   example: "CREATE TABLE t1 (c1 int); -- table t1" */
+	return strings.Contains(line, ";")
 }
 
 func initializeSummaryMap() {
