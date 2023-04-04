@@ -51,7 +51,7 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         AWS_DEFAULT_REGION: "us-west-2"
-      run: |
+    - run: |
         sudo tar -xvzf debezium-latest.tar.gz -C /opt/
         rm debezium-latest.tar.gz
 
