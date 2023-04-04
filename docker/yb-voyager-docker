@@ -41,6 +41,7 @@ do
 		j=$(( $i + 1))
 		data_dir=${argv[${j}]}
 
+		# If the data-dir is an S3 bucket, skip it
 		if [[ $data_dir == 's3://'* ]]
 		then 
 			continue
