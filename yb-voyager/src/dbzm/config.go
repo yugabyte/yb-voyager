@@ -158,6 +158,7 @@ func readConfigFile() (string, error) {
 // generate/fetch the value for 'debezium.source.database.server.id' property for MySQL
 func getDatabaseServerID() int {
 	databaseServerId := rand.Intn(math.MaxInt-10000) + 10000
+	log.Infof("randomly generated database server id: %d", databaseServerId)
 	config, err := readConfigFile()
 	if err != nil {
 		log.Errorf("failed to read config file: %v", err)
@@ -176,6 +177,6 @@ func getDatabaseServerID() int {
 			}
 		}
 	}
-
+	log.Infof("final database server id: %d", databaseServerId)
 	return databaseServerId
 }
