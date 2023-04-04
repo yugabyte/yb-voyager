@@ -13,7 +13,6 @@ then
 fi
 
 i=0
-
 exported_vars=""
 
 while [ $i -lt $# ]
@@ -41,6 +40,11 @@ do
 	then 
 		j=$(( $i + 1))
 		data_dir=${argv[${j}]}
+
+		if [[ $data_dir == 's3://'* ]]
+		then 
+			continue
+		fi
 
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]]; then
