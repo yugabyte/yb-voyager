@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -44,21 +42,6 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 		return nil, fmt.Errorf("failed to open file %s: %v", statusFilePath, err)
 	}
 	defer file.Close()
-
-	// loop until file size is zero or we get an error
-	for {
-		fi, err := file.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("failed to stat file %s: %v", statusFilePath, err)
-		}
-		if fi.Size() == 0 {
-			log.Infof("File %s is empty, waiting for it to be populated", statusFilePath)
-			time.Sleep(time.Second * 1)
-			continue
-		}
-		log.Infof("File %s is not empty, reading it", statusFilePath)
-		break
-	}
 
 	var status ExportStatus
 	err = json.NewDecoder(file).Decode(&status)
