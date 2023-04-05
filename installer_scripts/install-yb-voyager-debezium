@@ -9,7 +9,7 @@ LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
-DEBEZIUM_COMMIT_HASH="7164f6280183d7d7c92088537792e9200defad09"
+DEBEZIUM_COMMIT_HASH="4d513804b713505a4e5c8479d10c92f047f2a253"
 
 on_exit() {
 	rc=$?
