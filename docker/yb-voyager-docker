@@ -33,7 +33,7 @@ do
 		else
 			export_vol="-v ${export_dir}:/export-dir"
 		fi
-		argv[$j]='/export-dir'
+		argv[$j]='/export-dir '
     fi
 	
 	# if [[ ${argv[${i}]} == "--data-dir" ]]
