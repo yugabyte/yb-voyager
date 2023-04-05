@@ -36,46 +36,46 @@ do
 		argv[$j]='/export-dir'
     fi
 	
-	# if [[ ${argv[${i}]} == "--data-dir" ]]
-	# then 
-	# 	j=$(( $i + 1))
-	# 	data_dir=${argv[${j}]}
+	if [[ ${argv[${i}]} == "--data-dir" ]]
+	then 
+		j=$(( $i + 1))
+		data_dir=${argv[${j}]}
 
-	# 	# If the data-dir is an S3 bucket
-	# 	if [[ $data_dir == 's3://'* ]]
-	# 	then 
-	# 		# Check if aws directory exists
-	# 		if [ -d "${HOME}/.aws" ]; then
-	# 			if [[ $OSTYPE == 'darwin'* ]]; then
-	# 				# Delete the old volume and create a new one it its place attached to the user's data-dir
-	# 				docker volume rm aws-dir
-	# 				docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
+		# If the data-dir is an S3 bucket
+		if [[ $data_dir == 's3://'* ]]
+		then 
+			# Check if aws directory exists
+			if [ -d "${HOME}/.aws" ]; then
+				if [[ $OSTYPE == 'darwin'* ]]; then
+					# Delete the old volume and create a new one it its place attached to the user's data-dir
+					docker volume rm aws-dir
+					docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
 			
-	# 				aws_vol="-v aws-dir:/root/.aws"
-	# 			else
-	# 				aws_vol="-v ${HOME}/.aws:/root/.aws"
-	# 			fi
-	# 		fi
-	# 		# Capture exported variables for aws
-	# 		for var in $(env | grep -E '^AWS_'); do
-	# 			exported_vars="${exported_vars} -e ${var%%=*}"
-	# 		done
-	# 	else 
-	# 		# If the data-dir is not an S3 bucket
-	# 		# If the OS is macOS
-	# 		if [[ $OSTYPE == 'darwin'* ]]; then
+					aws_vol="-v aws-dir:/root/.aws"
+				else
+					aws_vol="-v ${HOME}/.aws:/root/.aws"
+				fi
+			fi
+			# Capture exported variables for aws
+			for var in $(env | grep -E '^AWS_'); do
+				exported_vars="${exported_vars} -e ${var%%=*}"
+			done
+		else 
+			# If the data-dir is not an S3 bucket
+			# If the OS is macOS
+			if [[ $OSTYPE == 'darwin'* ]]; then
 
-	# 			# Delete the old volume and create a new one it its place attached to the user's data-dir
-	# 			docker volume rm voyager-data-dir
-	# 			docker volume create --driver local --opt type=none --opt device="${data_dir}" --opt o=bind voyager-data-dir 
+				# Delete the old volume and create a new one it its place attached to the user's data-dir
+				docker volume rm voyager-data-dir
+				docker volume create --driver local --opt type=none --opt device="${data_dir}" --opt o=bind voyager-data-dir 
 		
-	# 			data_vol="${vol} -v voyager-data-dir:/data-dir"
-	# 		else
-	# 			data_vol="${vol} -v ${data_dir}:/data-dir"
-	# 		fi
-	# 		argv[$j]='/data-dir'
-	# 	fi
-	# fi	
+				data_vol="${vol} -v voyager-data-dir:/data-dir"
+			else
+				data_vol="${vol} -v ${data_dir}:/data-dir"
+			fi
+			argv[$j]='/data-dir'
+		fi
+	fi	
 
     i=$(( $i + 1))
 done
