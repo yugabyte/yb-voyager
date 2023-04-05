@@ -44,7 +44,7 @@ jobs:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
     - name: Fetch debezium-server
-      uses: imehedi/actions-awscli-v2@latest
+      uses: imehedi/actions-awscli-v2@v1.0.17
       with:
         args: s3 cp s3://voyager-automation-data/debezium-latest.tar.gz .
       env:
