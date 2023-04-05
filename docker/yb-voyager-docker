@@ -51,9 +51,9 @@ do
 					docker volume rm aws-dir
 					docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
 			
-					aws_vol="-v aws-dir:/root/.aws"
+					aws_vol="-v aws-dir:~/.aws"
 				else
-					aws_vol="-v ${HOME}/.aws:/root/.aws"
+					aws_vol="-v ${HOME}/.aws:~/.aws"
 				fi
 			fi
 			# Capture exported variables for aws
