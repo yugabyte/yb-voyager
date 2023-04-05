@@ -44,7 +44,7 @@ do
 		# If the data-dir is an S3 bucket
 		if [[ $data_dir == 's3://'* ]]
 		then 
-		
+
 			# Check if aws directory exists
 			if [ -d "${HOME}/.aws" ]; then
 				if [[ $OSTYPE == 'darwin'* ]]; then
@@ -62,6 +62,7 @@ do
 			for var in $(env | grep -E '^AWS_'); do
 				exported_vars="${exported_vars} -e ${var%%=*}"
 			done
+			i=$(( $i + 1))
 			continue
 		fi
 
