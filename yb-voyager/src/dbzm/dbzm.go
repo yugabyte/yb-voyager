@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -46,6 +47,10 @@ func (d *Debezium) Start() error {
 	cmdStr := fmt.Sprintf("cd %q; %s > %s 2>&1", DEBEZIUM_DIST_DIR, filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), logFile)
 	log.Infof("running command: %s\n", cmdStr)
 	d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
+	d.cmd.SysProcAttr = &syscall.SysProcAttr{
+		Pdeathsig: syscall.SIGKILL, // kill the debezium process if the parent process dies
+	}
+
 	err = d.cmd.Start()
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
