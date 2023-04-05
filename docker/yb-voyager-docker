@@ -41,12 +41,27 @@ do
 		j=$(( $i + 1))
 		data_dir=${argv[${j}]}
 
-		# If the data-dir is an S3 bucket, skip it
+		# If the data-dir is an S3 bucket
 		if [[ $data_dir == 's3://'* ]]
 		then 
+			if [[ $OSTYPE == 'darwin'* ]]; then
+				# Delete the old volume and create a new one it its place attached to the user's data-dir
+				docker volume rm aws-dir
+				docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
+			
+				aws_vol="-v aws-dir:/root/.aws"
+			else
+				aws_vol="-v ${HOME}/.aws:/root/.aws"
+			fi
+
+			# Capture exported variables for aws
+			for var in $(env | grep -E '^AWS_'); do
+				exported_vars="${exported_vars} -e ${var%%=*}"
+			done
 			continue
 		fi
 
+		# If the data-dir is not an S3 bucket
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]]; then
 
@@ -61,18 +76,11 @@ do
 		argv[$j]='/data-dir'
 	fi	
 
-	if [[ ${argv[${i}]} == "--export-var" ]]
-	then 
-		j=$(( $i + 1))
-		exported_vars="${exported_vars} -e ${argv[${j}]}"
-		argv[$i]=''
-		argv[$j]=''
-	fi
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${aws_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
-# echo $dockerCmd
+echo $dockerCmd
 
 $dockerCmd
