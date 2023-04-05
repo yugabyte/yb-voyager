@@ -44,14 +44,18 @@ do
 		# If the data-dir is an S3 bucket
 		if [[ $data_dir == 's3://'* ]]
 		then 
-			if [[ $OSTYPE == 'darwin'* ]]; then
-				# Delete the old volume and create a new one it its place attached to the user's data-dir
-				docker volume rm aws-dir
-				docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
+		
+			# Check if aws directory exists
+			if [ -d "${HOME}/.aws" ]; then
+				if [[ $OSTYPE == 'darwin'* ]]; then
+					# Delete the old volume and create a new one it its place attached to the user's data-dir
+					docker volume rm aws-dir
+					docker volume create --driver local --opt type=none --opt device="${HOME}/.aws" --opt o=bind aws-dir
 			
-				aws_vol="-v aws-dir:/root/.aws"
-			else
-				aws_vol="-v ${HOME}/.aws:/root/.aws"
+					aws_vol="-v aws-dir:/root/.aws"
+				else
+					aws_vol="-v ${HOME}/.aws:/root/.aws"
+				fi
 			fi
 
 			# Capture exported variables for aws
