@@ -70,6 +70,6 @@ done
 
 dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${aws_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
-echo $dockerCmd
+# echo $dockerCmd
 
 $dockerCmd
