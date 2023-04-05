@@ -58,6 +58,7 @@ do
 			fi
 			# Capture exported variables for aws
 			for var in $(env | grep -E '^AWS_'); do
+				echo "$var"
 				exported_vars="${exported_vars} -e ${var%%=*}"
 			done
 		else 
