@@ -737,6 +737,9 @@ func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []s
 
 	for ; *i < len(lines); *i++ {
 		currLine := lines[*i]
+		if len(currLine) == 0 {
+			continue
+		}
 
 		*stmt += currLine + " "
 		*formattedStmt += currLine + "\n"
@@ -765,6 +768,9 @@ func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []s
 func collectSqlStmt(stmt *string, formattedStmt *string, lines []string, i *int) {
 	for ; *i < len(lines); *i++ {
 		currLine := lines[*i]
+		if len(currLine) == 0 {
+			continue
+		}
 
 		*stmt += currLine + " "
 		*formattedStmt += currLine + "\n"
