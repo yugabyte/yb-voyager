@@ -16,7 +16,8 @@ EXPECTED_ROW_COUNT = {
 	'primary_test': 6,  
 	'unique_test': 5,
 	'xyz':3,
-	'abc':3
+	'abc':3,
+	'emp': 1,
 }
 QUERIES_CHECK = {
 	'NULL_CHECK': {
@@ -49,7 +50,7 @@ QUERIES_CHECK = {
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 8
+	assert len(table_list) == 9
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")
@@ -69,7 +70,7 @@ def migration_completed_checks(tgt):
 
 	SELECT__DEFAULT_ID_QUERY = f"select age from public.default_test where first_name = 'Yugabyte';"
 	age_returned = tgt.execute_query(SELECT__DEFAULT_ID_QUERY)
-	print(f"for {table_name}, Age returned- {age_returned} and expected age - {18}")
+	print(f"for default_test, Age returned- {age_returned} and expected age - {18}")
 	assert age_returned == 18
 
 
