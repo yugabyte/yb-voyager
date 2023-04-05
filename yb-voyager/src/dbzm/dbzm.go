@@ -22,7 +22,7 @@ func init() {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		DEBEZIUM_DIST_DIR = "/etc/yb-voyager/debezium"
+		DEBEZIUM_DIST_DIR = "/opt/debezium-server"
 	}
 
 	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")
