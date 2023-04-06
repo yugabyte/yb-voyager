@@ -193,7 +193,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 	var dbzmTableList []string
 	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.MinQuoted)
+		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 
 	config := &dbzm.Config{
