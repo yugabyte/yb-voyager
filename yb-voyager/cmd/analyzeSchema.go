@@ -651,12 +651,12 @@ func getCreateObjRegex(objType string) (*regexp.Regexp, int) {
 	return createObjRegex, objNameIndex
 }
 
-func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objType string, sqlInfoArr *[]sqlInfo, reportNextSql *int) {
+func processCollectedSql(fpath string, stmt string, formattedStmt string, objType string, reportNextSql *int) sqlInfo {
 	createObjRegex, objNameIndex := getCreateObjRegex(objType)
 	var objName = "" // to extract from sql statement
 
 	//update about sqlStmt in the summary variable for the report generation part
-	createObjStmt := createObjRegex.FindStringSubmatch(*formattedStmt)
+	createObjStmt := createObjRegex.FindStringSubmatch(formattedStmt)
 	if createObjStmt != nil {
 		objName = createObjStmt[objNameIndex]
 		if summaryMap != nil && summaryMap[objType] != nil { //when just createSqlStrArray() is called from someother file, then no summaryMap exists
@@ -666,20 +666,18 @@ func processCollectedSql(fpath string, stmt *string, formattedStmt *string, objT
 	}
 
 	if *reportNextSql > 0 && (summaryMap != nil && summaryMap[objType] != nil) {
-		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, *formattedStmt)
+		reportBasedOnComment(*reportNextSql, fpath, "", "", objName, objType, formattedStmt)
 		*reportNextSql = 0 //reset flag
 	}
 
-	*formattedStmt = strings.TrimRight(*formattedStmt, "\n") //removing new line from end
+	formattedStmt = strings.TrimRight(formattedStmt, "\n") //removing new line from end
 
 	sqlInfo := sqlInfo{
 		objName:       objName,
-		stmt:          *stmt,
-		formattedStmt: *formattedStmt,
+		stmt:          stmt,
+		formattedStmt: formattedStmt,
 	}
-	*sqlInfoArr = append(*sqlInfoArr, sqlInfo)
-	(*stmt) = ""
-	(*formattedStmt) = ""
+	return sqlInfo
 }
 
 func createSqlStrInfoArray(path string, objType string) []sqlInfo {
@@ -693,8 +691,6 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 		utils.ErrExit("Error while reading %q: %s", path, err)
 	}
 
-	stmt := ""
-	formattedStmt := ""
 	lines := strings.Split(string(file), "\n")
 	for i := 0; i < len(lines); i++ {
 		currLine := lines[i]
@@ -702,17 +698,19 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 			continue
 		}
 
-		if strings.Contains(strings.TrimLeft(currLine, ""), "--") {
+		if strings.Contains(strings.TrimLeft(currLine, " "), "--") {
 			reportNextSql = invalidSqlComment(currLine)
 			continue
 		}
 
+		var stmt, formattedStmt string
 		if isStartOfCodeBlockSqlStmt(currLine) {
-			collectSqlStmtContainingCode(&stmt, &formattedStmt, lines, &i)
+			stmt, formattedStmt = collectSqlStmtContainingCode(lines, &i)
 		} else {
-			collectSqlStmt(&stmt, &formattedStmt, lines, &i)
+			stmt, formattedStmt = collectSqlStmt(lines, &i)
 		}
-		processCollectedSql(path, &stmt, &formattedStmt, objType, &sqlInfoArr, &reportNextSql)
+		sqlInfo := processCollectedSql(path, stmt, formattedStmt, objType, &reportNextSql)
+		sqlInfoArr = append(sqlInfoArr, sqlInfo)
 	}
 
 	return sqlInfoArr
@@ -727,7 +725,7 @@ func isStartOfCodeBlockSqlStmt(line string) bool {
 	return reCreateProc.MatchString(line) || reCreateFunc.MatchString(line) || reCreateTrigger.MatchString(line)
 }
 
-func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []string, i *int) {
+func collectSqlStmtContainingCode(lines []string, i *int) (string, string) {
 	// 0 -> code block is not started
 	// 1 -> code block is being traversed
 	// 2 -> code block is completed/terminated
@@ -735,14 +733,17 @@ func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []s
 	// Delimiter to outermost Code Block if nested Code Blocks present
 	codeBlockDelimiter := ""
 
+	stmt := ""
+	formattedStmt := ""
+
 	for ; *i < len(lines); *i++ {
 		currLine := lines[*i]
 		if len(currLine) == 0 {
 			continue
 		}
 
-		*stmt += currLine + " "
-		*formattedStmt += currLine + "\n"
+		stmt += currLine + " "
+		formattedStmt += currLine + "\n"
 
 		// Assuming that both the dollar quote strings will not be in same line
 		if dollarQuoteFlag == 0 {
@@ -763,26 +764,31 @@ func collectSqlStmtContainingCode(stmt *string, formattedStmt *string, lines []s
 			}
 		}
 	}
+
+	return stmt, formattedStmt
 }
 
-func collectSqlStmt(stmt *string, formattedStmt *string, lines []string, i *int) {
+func collectSqlStmt(lines []string, i *int) (string, string) {
+	stmt := ""
+	formattedStmt := ""
 	for ; *i < len(lines); *i++ {
 		currLine := lines[*i]
 		if len(currLine) == 0 {
 			continue
 		}
 
-		*stmt += currLine + " "
-		*formattedStmt += currLine + "\n"
+		stmt += currLine + " "
+		formattedStmt += currLine + "\n"
 
 		if isEndOfSqlStmt(currLine) {
 			break
 		}
 	}
+	return stmt, formattedStmt
 }
 
 func isEndOfSqlStmt(line string) bool {
-	/* not checking for ending with `;` to cover cases like comment at the end after `;`
+	/* not checking for string with suffix `;` to cover cases like comment at the end after `;`
 	   example: "CREATE TABLE t1 (c1 int); -- table t1" */
 	return strings.Contains(line, ";")
 }
