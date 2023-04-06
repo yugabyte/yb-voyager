@@ -55,6 +55,8 @@ main() {
 			;;
 	esac
 
+	sudo mkdir -p /opt/yb-voyager
+
 	check_java
 	check_install_maven
 	install_debezium_server
@@ -197,16 +199,16 @@ check_install_maven() {
 
 install_maven() {
 	# if dir already present, assuming it was installed in a previous run
-	if [ ! -d "/opt/yb-debezium-maven-3.8.4" ]
+	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
 	then
 		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
 		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
 		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
 		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
-		sudo mv yb-debezium-maven-3.8.4 /opt/
+		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager
 		rm apache-maven-3.8.4-bin.tar.gz
 	fi
-	export PATH=/opt/yb-debezium-maven-3.8.4/bin:$PATH
+	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
 }
 
 install_debezium_server() {
@@ -218,8 +220,8 @@ install_debezium_server() {
 	# build
 	cd debezium-${DEBEZIUM_COMMIT_HASH}
 	sh buildDebeziumServer.sh 1>&2
-	# move to /opt/debezium-server
-	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/ 1>&2
+	# move to /opt/yb-voyager/debezium-server
+	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
 	cd ..
 	rm -r debezium-${DEBEZIUM_COMMIT_HASH}
