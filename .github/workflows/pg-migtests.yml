@@ -54,7 +54,7 @@ jobs:
     
     - name: Unpack debezium-server
       run: |
-        sudo tar -xvzf debezium-latest.tar.gz -C /opt/
+        sudo tar -xvzf debezium-latest.tar.gz -C /opt/yb-voyager/
         rm debezium-latest.tar.gz
 
     - name: Test PostgreSQL Connection

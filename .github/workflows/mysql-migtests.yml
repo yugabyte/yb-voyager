@@ -38,7 +38,8 @@ jobs:
     
     - name: Unpack debezium-server
       run: |
-        sudo tar -xvzf debezium-latest.tar.gz -C /opt/
+        sudo mkdir -p /opt/yb-voyager
+        sudo tar -xvzf debezium-latest.tar.gz -C /opt/yb-voyager/
         rm debezium-latest.tar.gz
 
     - name: Start MySQL
