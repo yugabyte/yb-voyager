@@ -2,9 +2,15 @@ package dbzm
 
 import (
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Config struct {
@@ -77,7 +83,7 @@ var mysqlSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
 
 debezium.source.database.include.list=%s
-debezium.source.database.server.id=ybvoyager-dbzm
+debezium.source.database.server.id=%d
 
 
 
@@ -123,6 +129,7 @@ func (c *Config) String() string {
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
 			c.DatabaseName,
+			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
@@ -136,4 +143,40 @@ func (c *Config) WriteToFile(filePath string) error {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
 	}
 	return nil
+}
+
+// read config file DEBEZIUM_CONF_FILEPATH into a string
+func readConfigFile() (string, error) {
+	config, err := os.ReadFile(DEBEZIUM_CONF_FILEPATH)
+	if err != nil {
+		return "", fmt.Errorf("failed to read config file %s: %w", DEBEZIUM_CONF_FILEPATH, err)
+	}
+
+	return string(config), nil
+}
+
+// generate/fetch the value for 'debezium.source.database.server.id' property for MySQL
+func getDatabaseServerID() int {
+	databaseServerId := rand.Intn(math.MaxInt-10000) + 10000
+	log.Infof("randomly generated database server id: %d", databaseServerId)
+	config, err := readConfigFile()
+	if err != nil {
+		log.Errorf("failed to read config file: %v", err)
+		return databaseServerId
+	}
+
+	// if config file exists, read the value of 'debezium.source.database.server.id' property
+	if strings.Contains(config, "debezium.source.database.server.id") {
+		re := regexp.MustCompile(`(?m)^debezium.source.database.server.id=(\d+)$`)
+		matches := re.FindStringSubmatch(config)
+		if len(matches) == 2 {
+			databaseServerId, err = strconv.Atoi(matches[1])
+			if err != nil {
+				log.Errorf("failed to convert database server id to int: %v", err)
+				return databaseServerId
+			}
+		}
+	}
+	log.Infof("final database server id: %d", databaseServerId)
+	return databaseServerId
 }
