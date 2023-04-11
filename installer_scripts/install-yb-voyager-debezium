@@ -225,7 +225,7 @@ install_debezium_server() {
 	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
 	cd ..
-	#rm -r debezium-${DEBEZIUM_COMMIT_HASH}
+	rm -r debezium-${DEBEZIUM_COMMIT_HASH}
 	rm debezium.tar.gz
 }
 
