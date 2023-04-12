@@ -43,7 +43,12 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	// TODO: handle the case if table name has double quotes/case sensitive
 
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
-	if source.DBType == "postgresql" {
+	if liveMigration || useDebezium {
+		for _, key := range sortedKeys {
+			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", tablesProgressMetadata[key].TableName.ObjectName.Unquoted+"_data.sql")
+			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", tablesProgressMetadata[key].TableName.ObjectName.Unquoted+"_data.sql")
+		}
+	} else if source.DBType == "postgresql" {
 		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName

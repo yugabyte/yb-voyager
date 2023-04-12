@@ -135,17 +135,48 @@ func exportDataOffline() bool {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
-	if liveMigration || useDebezium {
-		err := debeziumExportData(ctx, finalTableList)
-		if err != nil {
-			utils.PrintAndLog("Failed to run live migration: %s", err)
-		}
-		return err == nil
-	}
-
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
+
+	if liveMigration || useDebezium {
+		go func() {
+			err := debeziumExportData(ctx, finalTableList, exportDataStart)
+			if err != nil {
+				utils.PrintAndLog("Failed to run live migration: %s", err)
+				quitChan <- true
+			}
+			exportSuccessChan <- true
+		}()
+
+		go func() {
+			q := <-quitChan
+			if q {
+				log.Infoln("Cancel() being called, within exportDataOffline()")
+				cancel()                    //will cancel/stop both dump tool and progress bar
+				time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
+				utils.ErrExit("yb-voyager encountered internal error. "+
+					"Check %s/yb-voyager.log for more details.", exportDir)
+			}
+		}()
+
+		initializeExportTableMetadata(finalTableList)
+		UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
+		updateFilePaths(&source, exportDir, tablesProgressMetadata)
+		utils.WaitGroup.Add(1)
+		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, disablePb)
+
+		utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
+		if ctx.Err() != nil {
+			fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
+			return false
+		}
+
+		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
+		printExportedRowCount(tableRowCount)
+		return err == nil
+	}
+
 	go func() {
 		q := <-quitChan
 		if q {
@@ -195,7 +226,7 @@ func exportDataOffline() bool {
 	return true
 }
 
-func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) error {
+func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, exportDataStart chan bool) error {
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
@@ -229,6 +260,18 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
+
+	go func() {
+		for {
+			status, _ := debezium.GetExportStatus()
+			if status != nil && status.IsTablesExporting() {
+				exportDataStart <- true
+				break
+			}
+			time.Sleep(time.Millisecond * 300)
+		}
+	}()
+
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
 	for exportingSnapshot {
@@ -245,7 +288,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			if err != nil {
 				return fmt.Errorf("failed to write data file descriptor: %w", err)
 			}
-			outputExportStatus(status)
 		}
 		time.Sleep(time.Second)
 	}
@@ -273,7 +315,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCount
+		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
@@ -292,7 +334,7 @@ func outputExportStatus(status *dbzm.ExportStatus) {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
 	}
 }
 

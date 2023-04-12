@@ -3,9 +3,11 @@ package dbzm
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -15,12 +17,13 @@ const (
 )
 
 type TableExportStatus struct {
+	Sno          int    `json:"sno"`
 	DatabaseName string `json:"database_name"`
 	SchemaName   string `json:"schema_name"`
 	TableName    string `json:"table_name"`
 
-	FileName         string `json:"file_name"`
-	ExportedRowCount int64  `json:"exported_row_count"`
+	FileName                 string `json:"file_name"`
+	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
 }
 
 type ExportStatus struct {
@@ -67,4 +70,55 @@ func IsLiveMigrationInStreamingMode(exportDir string) bool {
 		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
 	}
 	return status != nil && status.Mode == MODE_STREAMING
+}
+
+// get table with largest sno
+func (status *ExportStatus) GetTableWithLargestSno() *TableExportStatus {
+	var table *TableExportStatus
+	for i := range status.Tables {
+		if table == nil || status.Tables[i].Sno > table.Sno {
+			table = &status.Tables[i]
+		}
+	}
+	if table != nil {
+		log.Infof("GetTableWithLargestSno(): table=%q with largest sno: %v\n", table.TableName, table.Sno)
+	}
+	return table
+}
+
+// get table's sno
+func (status *ExportStatus) GetTableSno(tableName string, schemaName string) int {
+	tableSno := math.MaxInt32
+	for i := 0; i < len(status.Tables); i++ {
+		if status.Tables[i].TableName == tableName && status.Tables[i].SchemaName == schemaName {
+			tableSno = status.Tables[i].Sno
+			break
+		}
+	}
+
+	log.Infof("GetTableSno(): table=%q with sno: %d\n", tableName, tableSno)
+	return tableSno
+}
+
+// check given tablename is exported if sno is lesser than largest sno
+func (status *ExportStatus) IsTableExported(tableName string) bool {
+	largestSno := status.GetTableWithLargestSno().Sno
+	for i := range status.Tables {
+		if status.Tables[i].TableName == tableName && status.Tables[i].Sno < largestSno {
+			return true
+		}
+	}
+	return false
+}
+
+func (status *ExportStatus) InProgressTable() string {
+	if !status.IsTablesExporting() {
+		return ""
+	}
+
+	return status.GetTableWithLargestSno().TableName
+}
+
+func (status *ExportStatus) IsTablesExporting() bool {
+	return status.GetTableWithLargestSno() != nil
 }

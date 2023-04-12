@@ -21,12 +21,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pbreporter"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -86,8 +88,8 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			if quit {
 				break
 			}
-			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && (utils.FileOrFolderExists(tablesProgressMetadata[key].InProgressFilePath) ||
-				utils.FileOrFolderExists(tablesProgressMetadata[key].FinalFilePath)) {
+			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && checkIfTableHasStarted(tablesProgressMetadata[key]) {
+				log.Infof("exportDataStatus: table=%q has started", key)
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
 				go startExportPB(progressContainer, key, quitChan2, disablePb)
 			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE || (tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && safeExit) {
@@ -127,6 +129,36 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 	//TODO: print remaining/unable-to-export tables
 }
 
+func checkIfTableHasStarted(tableProgressMetadata *utils.TableProgressMetadata) bool {
+	if liveMigration || useDebezium {
+		log.Infof("checkIfTableHasStarted begin for table=%q", tableProgressMetadata.TableName.Qualified.Unquoted)
+		for {
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if status == nil || err != nil || status.GetTableWithLargestSno() == nil {
+				time.Sleep(time.Millisecond * 100)
+				continue
+			}
+			// if err != nil {
+			// 	log.Errorf("Error reading export status: %v", err)
+			// 	return false
+			// }
+
+			a := status.GetTableSno(tableProgressMetadata.TableName.ObjectName.Unquoted, tableProgressMetadata.TableName.SchemaName.Unquoted)
+			b := status.GetTableWithLargestSno().Sno
+			log.Infof("checkIfTableHasStarted values: table=%q, TableSno=%v, LargestTableSno=%v", tableProgressMetadata.TableName.Qualified.MinQuoted, a, b)
+			res := a <= b
+			if res {
+				log.Infof("checkIfTableHasStarted for debezium for table=%q, status=%v", tableProgressMetadata.TableName.Qualified.MinQuoted, res)
+			}
+			return res
+		}
+	} else {
+		log.Infof("checkIfTableHasStarted for offline for table=%q", tableProgressMetadata.TableName.Qualified.MinQuoted)
+		return (utils.FileOrFolderExists(tableProgressMetadata.InProgressFilePath) ||
+			utils.FileOrFolderExists(tableProgressMetadata.FinalFilePath))
+	}
+}
+
 func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
 	tableName := mapKey
 	tableMetadata := tablesProgressMetadata[mapKey]
@@ -149,7 +181,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	}
 	tableDataFile, err := os.Open(tableDataFileName)
 	if err != nil {
-		utils.PrintAndLog("failed to open the data file %s for progress reporting: %q", tableDataFileName, err)
+		utils.PrintAndLog("failed to open the data file %q of table = %q for progress reporting: %q", tableDataFileName, tableName, err)
 		quitChan <- true
 		runtime.Goexit()
 	}
