@@ -1173,7 +1173,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
 			if target.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
-				errString := "/*\n ERROR: " + err.Error() + "\n*/\n"
+				errString := "/*\n" + err.Error() + "\n*/\n"
 				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
 				os.Exit(1)
