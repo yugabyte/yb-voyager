@@ -716,28 +716,32 @@ func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	return sqlInfoArr
 }
 
+var reCreateProc, _ = getCreateObjRegex("PROCEDURE")
+var reCreateFunc, _ = getCreateObjRegex("FUNCTION")
+var reCreateTrigger, _ = getCreateObjRegex("TRIGGER")
+
 // returns true when sql stmt is a CREATE statement for TRIGGER, FUNCTION, PROCEDURE
 func isStartOfCodeBlockSqlStmt(line string) bool {
-	reCreateProc, _ := getCreateObjRegex("PROCEDURE")
-	reCreateFunc, _ := getCreateObjRegex("FUNCTION")
-	reCreateTrigger, _ := getCreateObjRegex("TRIGGER")
-
 	return reCreateProc.MatchString(line) || reCreateFunc.MatchString(line) || reCreateTrigger.MatchString(line)
 }
 
+const (
+	CODE_BLOCK_NOT_STARTED = 0
+	CODE_BLOCK_STARTED     = 1
+	CODE_BLOCK_COMPLETED   = 2
+)
+
 func collectSqlStmtContainingCode(lines []string, i *int) (string, string) {
-	// 0 -> code block is not started
-	// 1 -> code block is being traversed
-	// 2 -> code block is completed/terminated
-	dollarQuoteFlag := 0
+	dollarQuoteFlag := CODE_BLOCK_NOT_STARTED
 	// Delimiter to outermost Code Block if nested Code Blocks present
 	codeBlockDelimiter := ""
 
 	stmt := ""
 	formattedStmt := ""
 
+sqlParsingLoop:
 	for ; *i < len(lines); *i++ {
-		currLine := lines[*i]
+		currLine := strings.TrimRight(lines[*i], " ")
 		if len(currLine) == 0 {
 			continue
 		}
@@ -746,21 +750,24 @@ func collectSqlStmtContainingCode(lines []string, i *int) (string, string) {
 		formattedStmt += currLine + "\n"
 
 		// Assuming that both the dollar quote strings will not be in same line
-		if dollarQuoteFlag == 0 {
+		switch dollarQuoteFlag {
+		case CODE_BLOCK_NOT_STARTED:
 			if isEndOfSqlStmt(currLine) { // in case, there is no body part or body part is in single line
-				break
+				break sqlParsingLoop
 			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
 				dollarQuoteFlag = 1 //denotes start of the code/body part
 				codeBlockDelimiter = matches[0]
 			}
-		} else if dollarQuoteFlag == 1 {
+		case CODE_BLOCK_STARTED:
 			if strings.Contains(currLine, codeBlockDelimiter) {
 				dollarQuoteFlag = 2 //denotes end of code/body part
+				if isEndOfSqlStmt(currLine) {
+					break sqlParsingLoop
+				}
 			}
-		}
-		if dollarQuoteFlag == 2 {
+		case CODE_BLOCK_COMPLETED:
 			if isEndOfSqlStmt(currLine) {
-				break
+				break sqlParsingLoop
 			}
 		}
 	}
@@ -772,7 +779,7 @@ func collectSqlStmt(lines []string, i *int) (string, string) {
 	stmt := ""
 	formattedStmt := ""
 	for ; *i < len(lines); *i++ {
-		currLine := lines[*i]
+		currLine := strings.TrimRight(lines[*i], " ")
 		if len(currLine) == 0 {
 			continue
 		}
@@ -788,8 +795,15 @@ func collectSqlStmt(lines []string, i *int) (string, string) {
 }
 
 func isEndOfSqlStmt(line string) bool {
-	/* not checking for string with suffix `;` to cover cases like comment at the end after `;`
-	   example: "CREATE TABLE t1 (c1 int); -- table t1" */
+	/*	checking for string with ending with `;`
+		Also, cover cases like comment at the end after `;`
+		example: "CREATE TABLE t1 (c1 int); -- table t1" */
+
+	cmtStartIdx := strings.Index(line, "--")
+	if cmtStartIdx != -1 {
+		line = line[0:cmtStartIdx] // ignore comment
+		line = strings.TrimRight(line, " ")
+	}
 	return strings.Contains(line, ";")
 }
 
