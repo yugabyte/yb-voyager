@@ -60,7 +60,6 @@ func importDefferedStatements() {
 	defer func() { conn.Close(context.Background()) }()
 
 	var err error
-	var errString string
 	// max loop iterations to remove all errors
 	for i := 1; i <= maxIterations && len(defferedSqlStmts) > 0; i++ {
 		for j := 0; j < len(defferedSqlStmts); {
@@ -74,7 +73,7 @@ func importDefferedStatements() {
 				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
 				// fails to execute in final attempt
 				if i == maxIterations {
-					errString = "/*\n" + err.Error() + "\n*/\n"
+					errString := "/*\n" + err.Error() + "\n*/\n"
 					failedSqlStmts = append(failedSqlStmts, errString+defferedSqlStmts[j].formattedStmt)
 				}
 				conn.Close(context.Background())
