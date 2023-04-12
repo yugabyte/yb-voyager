@@ -2,7 +2,8 @@
 
 argv=( "$@" )
 
-if ! which docker > /dev/null; then
+if ! which docker > /dev/null
+then
 	echo "Could not find docker! Please install docker before proceeeding."
 	exit 1
 fi
@@ -13,30 +14,63 @@ then
 fi
 
 i=0
+exported_vars=""
+
 while [ $i -lt $# ]
 do
-    if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
+	if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
 	then
-        j=$(( $i + 1))
+		j=$(( $i + 1))
 		export_dir=${argv[${j}]}
 
 		# If the OS is macOS
-		if [[ $OSTYPE == 'darwin'* ]]; then
-
+		if [[ $OSTYPE == 'darwin'* ]] 
+		then
 			# Delete the old volume and create a new one it its place attached to the user's export-dir
 			docker volume rm voyager-export-dir
 			docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
 		
-			vol="-v voyager-export-dir:/export-dir"
+			export_vol="-v voyager-export-dir:/export-dir"
 		else
-			vol="-v ${export_dir}:/export-dir"
+			export_vol="-v ${export_dir}:/export-dir"
 		fi
 		argv[$j]='/export-dir'
     fi
+	
+	if [[ ${argv[${i}]} == "--data-dir" ]]
+	then 
+		j=$(( $i + 1))
+		data_dir=${argv[${j}]}
+
+		# If the data-dir is an S3 bucket
+		if [[ $data_dir == 's3://'* ]]
+		then 
+			# Capture exported variables for aws
+			for var in $(env | grep -E '^AWS_') 
+			do
+				exported_vars="${exported_vars} -e $var"
+			done
+		else 
+			# If the data-dir is not an S3 bucket
+			# If the OS is macOS
+			if [[ $OSTYPE == 'darwin'* ]] 
+			then
+				# Delete the old volume and create a new one it its place attached to the user's data-dir
+				docker volume rm voyager-data-dir
+				docker volume create --driver local --opt type=none --opt device="${data_dir}" --opt o=bind voyager-data-dir 
+		
+				data_vol="-v voyager-data-dir:/data-dir"
+			else
+				data_vol="-v ${data_dir}:/data-dir"
+			fi
+			argv[$j]='/data-dir'
+		fi
+	fi	
+
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
