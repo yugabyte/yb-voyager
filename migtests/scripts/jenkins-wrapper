@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# This script is used to run the migration tests on the jenkins testing pipeline. A few environment variables are required to be set before running the run-test script which is done by jenkins-wrapper.
 
 export LD_LIBRARY_PATH=${LDLIBRARYPATH}
 export TARGET_DB_HOST=${TARGET_DB_HOST}
