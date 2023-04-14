@@ -27,7 +27,7 @@ import (
 )
 
 var defferedSqlStmts []sqlInfo
-var failedSqlStmts []sqlInfo
+var failedSqlStmts []string
 
 func importSchemaInternal(exportDir string, importObjectList []string,
 	skipFn func(string, string) bool) {
@@ -71,14 +71,17 @@ func importDefferedStatements() {
 				break // no increment in j
 			} else {
 				log.Infof("failed retry of deffered stmt: %s\n%v", utils.GetSqlStmtToPrint(defferedSqlStmts[j].stmt), err)
+				// fails to execute in final attempt
+				if i == maxIterations {
+					errString := "/*\n" + err.Error() + "\n*/\n"
+					failedSqlStmts = append(failedSqlStmts, errString+defferedSqlStmts[j].formattedStmt)
+				}
 				conn.Close(context.Background())
 				conn = newTargetConn()
 				j++
 			}
 		}
 	}
-
-	failedSqlStmts = append(failedSqlStmts, defferedSqlStmts...)
 }
 
 func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {

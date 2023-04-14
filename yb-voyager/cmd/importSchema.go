@@ -151,7 +151,7 @@ func importSchema() {
 	callhome.PackAndSendPayload(exportDir)
 }
 
-func dumpStatements(stmts []sqlInfo, filePath string) {
+func dumpStatements(stmts []string, filePath string) {
 	if len(stmts) == 0 {
 		if utils.FileOrFolderExists(filePath) {
 			err := os.Remove(filePath)
@@ -169,7 +169,7 @@ func dumpStatements(stmts []sqlInfo, filePath string) {
 	}
 
 	for i := 0; i < len(stmts); i++ {
-		_, err = file.WriteString(stmts[i].formattedStmt + "\n\n")
+		_, err = file.WriteString(stmts[i] + "\n\n")
 		if err != nil {
 			utils.ErrExit("failed writing in file %s: %v", filePath, err)
 		}
