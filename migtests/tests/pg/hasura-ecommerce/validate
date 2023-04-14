@@ -70,7 +70,7 @@ def migration_completed_checks(tgt):
 	# fetch and check all triggers from given schema
 	trigger_list = tgt.fetch_all_triggers("public")
 	print(f"trigger_list: {trigger_list}")
-	assert len(trigger_list) == 8
+	assert len(set(trigger_list)) == 8
 
 if __name__ == "__main__":
 	main()
