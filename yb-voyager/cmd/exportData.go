@@ -103,6 +103,7 @@ func exportDataOffline() bool {
 	defer cancel()
 
 	var tableList []*sqlname.SourceName
+	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
@@ -114,6 +115,7 @@ func exportDataOffline() bool {
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
 
+	finalTableList = source.DB().FilterEmptyTables(finalTableList)
 	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")

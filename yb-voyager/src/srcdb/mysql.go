@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -191,4 +192,27 @@ func (ms *MySQL) GetCharset() (string, error) {
 
 func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	return tableList
+}
+
+func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	nonEmptyTableList := make([]*sqlname.SourceName, 0)
+	for _, tableName := range tableList {
+		query := fmt.Sprintf(`SELECT false FROM %s.%s LIMIT 1;`, tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+		fmt.Printf("query: %v\n", query)
+		var empty bool
+		err := ms.db.QueryRow(query).Scan(&empty)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				empty = true
+			} else {
+				utils.ErrExit("error in querying table %v: %v", tableName, err)
+			}
+		}
+		if !empty {
+			nonEmptyTableList = append(nonEmptyTableList, tableName)
+		} else {
+			log.Infof("Skipping empty table %v", tableName)
+		}
+	}
+	return nonEmptyTableList
 }

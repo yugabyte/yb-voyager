@@ -234,6 +234,39 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*s
 	return tableList
 }
 
+func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	nonEmptyTableList := make([]*sqlname.SourceName, 0)
+	for _, tableName := range tableList {
+		// sql query to find out if it is oracle nested table
+		chkNestedTblquery := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+		isNestedTable := 0
+		err := ora.db.QueryRow(chkNestedTblquery).Scan(&isNestedTable)
+		if err != nil && err != sql.ErrNoRows {
+			utils.ErrExit("error in query to check if table %v is a nested table: %v", tableName, err)
+		}
+
+		chkEmptyTblquery := fmt.Sprintf("SELECT 0 FROM %s WHERE ROWNUM=1", tableName.ObjectName.MinQuoted)
+		// if isNestedTable == 1 {
+		//TODO: query for nested oracle tables
+		// }
+		var empty int
+		err = ora.db.QueryRow(chkEmptyTblquery).Scan(&empty)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				empty = 1
+			} else {
+				utils.ErrExit("error in querying table %v: %v", tableName, err)
+			}
+		}
+		if empty == 0 {
+			nonEmptyTableList = append(nonEmptyTableList, tableName)
+		} else {
+			log.Infof("Skipping empty table %v", tableName)
+		}
+	}
+	return nonEmptyTableList
+}
+
 func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
 	var tableName, columnName string
 	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schema, strings.ToUpper(sequenceName))

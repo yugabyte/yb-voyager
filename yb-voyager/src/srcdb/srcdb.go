@@ -21,6 +21,7 @@ type SourceDB interface {
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
+	FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
 }
 
 func newSourceDB(source *Source) SourceDB {
