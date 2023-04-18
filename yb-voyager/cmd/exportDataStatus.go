@@ -91,7 +91,7 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 			if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && checkIfTableHasStarted(tablesProgressMetadata[key]) {
 				log.Infof("exportDataStatus: table=%q has started", key)
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_IN_PROGRESS
-				go startExportPB(progressContainer, key, quitChan2, disablePb)
+				go initiateExportPB(progressContainer, key, quitChan2, disablePb)
 			} else if tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_DONE || (tablesProgressMetadata[key].Status == utils.TABLE_MIGRATION_NOT_STARTED && safeExit) {
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
@@ -131,32 +131,74 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 
 func checkIfTableHasStarted(tableProgressMetadata *utils.TableProgressMetadata) bool {
 	if liveMigration || useDebezium {
-		log.Infof("checkIfTableHasStarted begin for table=%q", tableProgressMetadata.TableName.Qualified.Unquoted)
 		for {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if status == nil || err != nil || status.GetTableWithLargestSno() == nil {
 				time.Sleep(time.Millisecond * 100)
 				continue
 			}
-			// if err != nil {
-			// 	log.Errorf("Error reading export status: %v", err)
-			// 	return false
-			// }
-
 			a := status.GetTableSno(tableProgressMetadata.TableName.ObjectName.Unquoted, tableProgressMetadata.TableName.SchemaName.Unquoted)
 			b := status.GetTableWithLargestSno().Sno
-			log.Infof("checkIfTableHasStarted values: table=%q, TableSno=%v, LargestTableSno=%v", tableProgressMetadata.TableName.Qualified.MinQuoted, a, b)
-			res := a <= b
-			if res {
-				log.Infof("checkIfTableHasStarted for debezium for table=%q, status=%v", tableProgressMetadata.TableName.Qualified.MinQuoted, res)
-			}
-			return res
+
+			return a <= b
 		}
 	} else {
 		log.Infof("checkIfTableHasStarted for offline for table=%q", tableProgressMetadata.TableName.Qualified.MinQuoted)
 		return (utils.FileOrFolderExists(tableProgressMetadata.InProgressFilePath) ||
 			utils.FileOrFolderExists(tableProgressMetadata.FinalFilePath))
 	}
+}
+
+func initiateExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
+	if useDebezium {
+		startExportPBDbzm(progressContainer, mapKey, quitChan, disablePb)
+	} else {
+		startExportPB(progressContainer, mapKey, quitChan, disablePb)
+	}
+}
+
+func startExportPBDbzm(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
+	tableName := tablesProgressMetadata[mapKey].TableName.ObjectName.Unquoted
+	tableMetadata := tablesProgressMetadata[mapKey]
+
+	pbr := pbreporter.NewExportPB(progressContainer, tableName, disablePb)
+	// initialize PB total with identified approx row count
+	pbr.SetTotalRowCount(tableMetadata.CountTotalRows, false)
+
+	// parallel goroutine to calculate and set total to actual row count
+	go func() {
+		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName.Qualified.MinQuoted)
+		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
+			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.Qualified.MinQuoted)
+		pbr.SetTotalRowCount(actualRowCount, false)
+	}()
+
+	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(statusFilePath)
+	if err != nil {
+		log.Errorf("Error reading export status while initiating progress bar for table(%s): %v", tableName, err)
+	}
+	for {
+		if err := status.Refresh(statusFilePath); err != nil {
+			log.Infof("Error refreshing export status: %v", err)
+		}
+		pbr.SetExportedRowCount(status.GetTableExportedRowCount(tableName))
+
+		if status.SnapshotExportIsComplete() {
+			log.Infof("break from startExportPBDbzm for table=%q, exportStatus: %+v", tableName, status)
+			break
+		}
+		time.Sleep(time.Millisecond * 500)
+	}
+
+	if status.IsTableExported(tableName) {
+		pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
+	} else {
+		log.Infof("Table %s not exported", tableName)
+	}
+
+	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
+	log.Infof("Progress bar complete for table %s", tableName)
 }
 
 func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan bool, disablePb bool) {
@@ -242,6 +284,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
+	log.Infof("Progress bar complete for table %s", tableName)
 }
 
 func checkForEndOfFile(source *srcdb.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {

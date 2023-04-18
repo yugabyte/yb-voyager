@@ -162,7 +162,6 @@ func exportDataOffline() bool {
 
 		initializeExportTableMetadata(finalTableList)
 		UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
-		updateFilePaths(&source, exportDir, tablesProgressMetadata)
 		utils.WaitGroup.Add(1)
 		exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, disablePb)
 
@@ -264,7 +263,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ex
 	go func() {
 		for {
 			status, _ := debezium.GetExportStatus()
-			if status != nil && status.IsTablesExporting() {
+			if status != nil && status.AreTablesExporting() {
 				exportDataStart <- true
 				break
 			}

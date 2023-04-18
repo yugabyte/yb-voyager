@@ -104,7 +104,7 @@ func (status *ExportStatus) GetTableSno(tableName string, schemaName string) int
 func (status *ExportStatus) IsTableExported(tableName string) bool {
 	largestSno := status.GetTableWithLargestSno().Sno
 	for i := range status.Tables {
-		if status.Tables[i].TableName == tableName && status.Tables[i].Sno < largestSno {
+		if status.Tables[i].TableName == tableName && status.Tables[i].Sno <= largestSno {
 			return true
 		}
 	}
@@ -112,13 +112,33 @@ func (status *ExportStatus) IsTableExported(tableName string) bool {
 }
 
 func (status *ExportStatus) InProgressTable() string {
-	if !status.IsTablesExporting() {
+	if status.SnapshotExportIsComplete() {
 		return ""
 	}
 
 	return status.GetTableWithLargestSno().TableName
 }
 
-func (status *ExportStatus) IsTablesExporting() bool {
+func (status *ExportStatus) AreTablesExporting() bool {
 	return status.GetTableWithLargestSno() != nil
+}
+
+// read status file again for updated status
+func (status *ExportStatus) Refresh(statusFilePath string) error {
+	newStatus, err := ReadExportStatus(statusFilePath)
+	if err != nil {
+		return err
+	}
+	log.Infof("refreshed status: %+v", newStatus)
+	*status = *newStatus
+	return nil
+}
+
+func (status *ExportStatus) GetTableExportedRowCount(tableName string) int64 {
+	for i := range status.Tables {
+		if status.Tables[i].TableName == tableName {
+			return status.Tables[i].ExportedRowCountSnapshot
+		}
+	}
+	return 0
 }
