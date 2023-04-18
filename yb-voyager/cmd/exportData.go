@@ -119,6 +119,9 @@ func exportDataOffline() bool {
 	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
+		createExportDataDoneFlag()
+		dfd := datafile.Descriptor{ExportDir: exportDir}
+		dfd.Save()
 		os.Exit(0)
 	}
 
