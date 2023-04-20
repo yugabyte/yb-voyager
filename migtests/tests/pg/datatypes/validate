@@ -9,21 +9,21 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
- 	'num_types': 2,   
+ 	'num_types': 3,   
 	'datatypes1': 3,  
 	'datetime_type': 3, 
-	# 'datatypes2': 3,
+	'datatypes2': 3,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
-	# 'num_types': {
-	# 	'v1': '32621',
-	# 	'v2': '-3380617',
-	# 	'v3': '564312385451',
-	# 	'v4': '993.999',
-	# 	'v5': '9992334.5429',
-	# 	'v6': '-$12,000,369.60'
-	# }
+	'num_types': {
+		'v1': '32621',
+		'v2': '-3380617',
+		'v3': '564312385451',
+		'v4': '993.999',
+		'v5': '9992334.5429',
+		'v6': '-$12,000,369.60'
+	}
 }
 
 EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -31,7 +31,7 @@ EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 3
+	assert len(table_list) == 4
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
