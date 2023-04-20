@@ -109,3 +109,20 @@ create unique index idx on xyz using btree(id);
 
 alter table abc add constraint fk FOREIGN KEY (xyz_id) REFERENCES xyz(id);
 insert into abc values('fsdfs', 1),('sfdfds',2),('svss', 3); 
+
+
+CREATE TABLE emp (
+    empno integer NOT NULL,
+    ename text NOT NULL,
+    job text,
+    mgr integer,
+    hiredate date,
+    sal integer,
+    comm integer,
+    deptno integer NOT NULL,
+    email text,
+    other_info jsonb,
+    CONSTRAINT emp_email_check CHECK ((email ~ '^[a-zA-Z0-9.!#$%&''*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'::text))
+);
+
+insert into emp values(1,'sdf','sdf',1,'2019-01-01',1,1,1,'sadnawqd@gmail.com','{}');

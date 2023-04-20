@@ -387,7 +387,7 @@
             "objectType": "TABLE",
             "objectName": "tbl_f",
             "reason": "Foreign key constraints are not supported on foreign tables.",
-            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(\n\tfid int, \n\tpid int FOREIGN KEY REFERENCES tbl_p(id)\n);",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(\n\tfid int,\n\tpid int FOREIGN KEY REFERENCES tbl_p(id)\n);",
             "suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10699"
         },
