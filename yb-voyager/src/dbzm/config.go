@@ -48,7 +48,6 @@ debezium.source.offset.flush.interval.ms=0
 debezium.source.topic.prefix=yb-voyager
 debezium.source.database.server.name=yb-voyager
 
-debezium.source.decimal.handling.mode=string
 debezium.source.interval.handling.mode=string
 
 debezium.source.include.unknown.datatypes=true
@@ -64,7 +63,10 @@ debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnect
 debezium.source.database.dbname=%s
 debezium.source.schema.include.list=%s
 debezium.source.plugin.name=pgoutput
-debezium.source.hstore.handling.mode=map`
+debezium.source.hstore.handling.mode=map
+debezium.source.converters=postgres_to_yb_converter
+debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+`
 
 var oracleSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
