@@ -9,7 +9,7 @@ def main():
 # =============================================================================
 
 EXPECTED_ROW_COUNT = {
-	'members': 998
+	'members': 1000
 }
 
 EXPECTED_INDEX_COUNT = {
