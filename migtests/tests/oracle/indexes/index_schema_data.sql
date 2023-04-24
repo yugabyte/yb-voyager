@@ -177,7 +177,7 @@ INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUE
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (158, 'Valeda', 'Jachimiak', 'F', 'vjachimiak4d@mail.ru', DATE '1999-07-08');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (159, 'Creighton', 'Puve', 'M', 'cpuve4e@themeforest.net', DATE '1985-07-20');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (160, 'Lucie', 'Bourhill', 'F', 'lbourhill4f@free.fr', DATE '1975-11-06');
-INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (161, 'Lizabeth', 'Cottee', 'F', 'lcottee4g@mashable.com', '2000-01-15');
+INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (161, 'Lizabeth', 'Cottee', 'F', 'lcottee4g@mashable.com', DATE '2000-01-15');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (162, 'Cullie', 'Arlett', 'M', 'carlett4h@foxnews.com', DATE '1979-02-20');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (163, 'Meris', 'Roofe', 'F', 'mroofe4i@eventbrite.com', DATE '1998-07-30');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (164, 'Katlin', 'De Gregorio', 'F', 'kdegregorio4j@paginegialle.it', DATE '1991-11-15');
@@ -760,7 +760,7 @@ INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUE
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (741, 'Leigh', 'Arcase', 'F', 'larcasekk@artisteer.com', DATE '1981-09-01');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (742, 'Burty', 'Dawidowicz', 'M', 'bdawidowiczkl@microsoft.com', DATE '1986-05-24');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (743, 'Gabriel', 'Pinnick', 'F', 'gpinnickkm@miitbeian.gov.cn', DATE '1985-03-10');
-INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (744, 'Clarissa', 'Perview', 'F', 'cperviewkn@fema.gov', '2000-01-20');
+INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (744, 'Clarissa', 'Perview', 'F', 'cperviewkn@fema.gov', DATE '2000-01-20');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (745, 'Cam', 'Trevance', 'F', 'ctrevanceko@craigslist.org', DATE '1990-02-22');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (746, 'Connie', 'Carrack', 'M', 'ccarrackkp@istockphoto.com', DATE '1988-01-31');
 INSERT INTO members (member_id, first_name, last_name, gender, email, dob) VALUES (747, 'Charlotta', 'Robertet', 'F', 'crobertetkq@surveymonkey.com', DATE '1990-07-22');
