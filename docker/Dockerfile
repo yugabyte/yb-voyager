@@ -4,9 +4,9 @@ RUN go install github.com/go-delve/delve/cmd/dlv@latest
 FROM amd64/ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
 ENV MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
-ENV DEBEZIUM_COMMIT_HASH=“4c892e5e3d5b4fad26daa4bf6e253cff0eb454a7”
-ENV DEBEZIUM_VERSION=“2.2.0-SNAPSHOT”
-ENV debezium_server_dist_filename=“debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz”
+ENV DEBEZIUM_COMMIT_HASH="4c892e5e3d5b4fad26daa4bf6e253cff0eb454a7"
+ENV DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
+ENV debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
 RUN apt-get update && \
     apt-get install -y default-jdk wget make && \
     wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz && \
@@ -29,7 +29,7 @@ FROM amd64/ubuntu:22.04
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 RUN apt-get update && \
-    apt-get install -y wget default-jdk && \
+    apt-get install -y wget default-jre && \
     wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb && \
     apt-get install -y ./yb-apt-repo_1.0.0_all.deb && \
     apt-get update && \
