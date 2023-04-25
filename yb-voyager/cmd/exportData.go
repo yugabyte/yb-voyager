@@ -116,7 +116,9 @@ func exportDataOffline() bool {
 	}
 
 	finalTableList = source.DB().FilterEmptyTables(finalTableList)
+	log.Infof("table list for data export(after filtering empty tables): %v", finalTableList)
 	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
+	log.Infof("table list for data export(after filtering unsupported tables): %v", finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()

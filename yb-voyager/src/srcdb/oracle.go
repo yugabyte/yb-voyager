@@ -245,7 +245,7 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname
 				tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
 		}
 
-		if IsTableEmpty(ora.db, query) {
+		if !IsTableEmpty(ora.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
 			log.Infof("Skipping empty table %v", tableName)
