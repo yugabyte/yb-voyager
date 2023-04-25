@@ -42,7 +42,7 @@ func (d *Debezium) Start() error {
 	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
 	log.Infof("debezium logfile path: %s\n", logFile)
 
-	cmdStr := fmt.Sprintf("%s %s> %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
+	cmdStr := fmt.Sprintf("%s %s > %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
 	log.Infof("running command: %s\n", cmdStr)
 	d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
 	d.cmd.SysProcAttr = &syscall.SysProcAttr{
