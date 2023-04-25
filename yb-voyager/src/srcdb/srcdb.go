@@ -2,6 +2,7 @@ package srcdb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -35,4 +36,13 @@ func newSourceDB(source *Source) SourceDB {
 	default:
 		panic(fmt.Sprintf("unknown source database type %q", source.DBType))
 	}
+}
+
+func IsTableEmpty(db *sql.DB, query string) bool {
+	rowsExist := 0
+	err := db.QueryRow(query).Scan(&rowsExist)
+	if err != nil && err != sql.ErrNoRows {
+		utils.ErrExit("Failed to query %q for row count: %s", query, err)
+	}
+	return rowsExist == 0
 }
