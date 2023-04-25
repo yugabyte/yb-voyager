@@ -246,9 +246,13 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname
 		}
 
 		chkEmptyTblquery := fmt.Sprintf("SELECT 0 FROM %s WHERE ROWNUM=1", tableName.ObjectName.MinQuoted)
-		// if isNestedTable == 1 {
-		//TODO: query for nested oracle tables
-		// }
+		if isNestedTable == 1 {
+			// query to check empty nested oracle tables
+			chkEmptyTblquery = fmt.Sprintf(`SELECT 0 from dba_segments 
+			where owner = '%s' AND segment_name = '%s' AND segment_type = 'NESTED TABLE'`,
+				tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+		}
+
 		var empty int
 		err = ora.db.QueryRow(chkEmptyTblquery).Scan(&empty)
 		if err != nil {

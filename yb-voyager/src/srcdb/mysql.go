@@ -198,7 +198,6 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.S
 	nonEmptyTableList := make([]*sqlname.SourceName, 0)
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s.%s LIMIT 1;`, tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
-		fmt.Printf("query: %v\n", query)
 		var empty bool
 		err := ms.db.QueryRow(query).Scan(&empty)
 		if err != nil {
