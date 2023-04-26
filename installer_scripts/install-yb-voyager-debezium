@@ -12,6 +12,7 @@ YUM="sudo yum install -y -q"
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
 DEBEZIUM_COMMIT_HASH="d462ff23656ab40c3afecf8d4ef0acf9b6b8c7ff"
 
+
 on_exit() {
 	rc=$?
 	set +x
