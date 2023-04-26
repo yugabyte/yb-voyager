@@ -39,10 +39,13 @@ func newSourceDB(source *Source) SourceDB {
 }
 
 func IsTableEmpty(db *sql.DB, query string) bool {
-	rowsExist := 0
+	var rowsExist int
 	err := db.QueryRow(query).Scan(&rowsExist)
-	if err != nil && err != sql.ErrNoRows {
+	if err == sql.ErrNoRows {
+		return true
+	}
+	if err != nil {
 		utils.ErrExit("Failed to query %q for row count: %s", query, err)
 	}
-	return rowsExist == 0
+	return false
 }

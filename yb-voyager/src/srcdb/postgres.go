@@ -254,7 +254,7 @@ func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) [
 func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	nonEmptyTableList := make([]*sqlname.SourceName, 0)
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT false FROM %s.%s LIMIT 1;`, tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
 		var empty bool
 		err := pg.db.QueryRow(context.Background(), query).Scan(&empty)
 		if err != nil {

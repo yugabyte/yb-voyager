@@ -242,7 +242,7 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname
 			// query to check empty nested oracle tables
 			query = fmt.Sprintf(`SELECT 1 from dba_segments 
 			where owner = '%s' AND segment_name = '%s' AND segment_type = 'NESTED TABLE'`,
-				tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+				tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 		}
 
 		if !IsTableEmpty(ora.db, query) {
@@ -256,10 +256,10 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname
 
 func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
 	// sql query to find out if it is oracle nested table
-	chkNestedTblquery := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'",
+	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND TABLE_NAME = '%s'",
 		tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	isNestedTable := 0
-	err := ora.db.QueryRow(chkNestedTblquery).Scan(&isNestedTable)
+	err := ora.db.QueryRow(query).Scan(&isNestedTable)
 	if err != nil && err != sql.ErrNoRows {
 		utils.ErrExit("error in query to check if table %v is a nested table: %v", tableName, err)
 	}

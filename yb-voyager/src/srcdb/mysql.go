@@ -196,7 +196,7 @@ func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sql
 func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	nonEmptyTableList := make([]*sqlname.SourceName, 0)
 	for _, tableName := range tableList {
-		query := fmt.Sprintf(`SELECT 1 FROM %s.%s LIMIT 1;`, tableName.SchemaName.Unquoted, tableName.ObjectName.MinQuoted)
+		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
 		if !IsTableEmpty(ms.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
