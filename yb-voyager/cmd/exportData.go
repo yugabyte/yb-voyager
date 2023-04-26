@@ -299,11 +299,13 @@ func validateTableListFlag(tableListString string, flagName string) {
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
+	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
+		os.Remove(propertiesFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
