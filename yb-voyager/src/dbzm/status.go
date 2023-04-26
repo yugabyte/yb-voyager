@@ -19,8 +19,8 @@ type TableExportStatus struct {
 	SchemaName   string `json:"schema_name"`
 	TableName    string `json:"table_name"`
 
-	FileName         string `json:"file_name"`
-	ExportedRowCount int64  `json:"exported_row_count"`
+	FileName                 string `json:"file_name"`
+	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
 }
 
 type ExportStatus struct {

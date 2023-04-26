@@ -293,7 +293,7 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCount
+		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
@@ -312,7 +312,7 @@ func outputExportStatus(status *dbzm.ExportStatus) {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
 	}
 }
 
