@@ -272,3 +272,28 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	}
 	return nonEmptyTableList, emptyTableList
 }
+
+func (pg *PostgreSQL) GetParentTable(table *sqlname.SourceName) *sqlname.SourceName {
+	var parentTable *sqlname.SourceName
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table.ObjectName.Unquoted)
+
+	var currentParentTable string
+	err := pg.db.QueryRow(context.Background(), query).Scan(&currentParentTable)
+	if err != pgx.ErrNoRows && err != nil {
+		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
+	}
+
+	if len(currentParentTable) == 0 {
+		return nil
+	} else {
+		currentParentTableSrc := sqlname.NewSourceNameFromMaybeQualifiedName(currentParentTable, table.SchemaName.Unquoted)
+		parentTable = pg.GetParentTable(currentParentTableSrc)
+		if parentTable == nil {
+			parentTable = currentParentTableSrc
+		}
+	}
+
+	return parentTable
+}

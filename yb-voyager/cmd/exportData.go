@@ -136,6 +136,7 @@ func exportDataOffline() bool {
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
 	if liveMigration || useDebezium {
+		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
 			utils.PrintAndLog("Failed to run live migration: %s", err)
@@ -206,10 +207,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		snapshotMode = "initial"
 	}
 
-	var dbzmTableList []string
+	var dbzmIncludeTableList []string
 	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+		dbzmIncludeTableList = append(dbzmIncludeTableList, table.Qualified.Unquoted)
 	}
+
+	utils.PrintAndLog("final table list for data export: %v\n", dbzmIncludeTableList)
 
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
@@ -221,7 +224,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
-		TableList:    dbzmTableList,
+		TableList:    dbzmIncludeTableList,
 		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)
@@ -268,6 +271,23 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 
 	return nil
+}
+
+func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	if source.DBType != POSTGRESQL || source.TableList != "" {
+		return tableList
+	}
+
+	filteredTableList := []*sqlname.SourceName{}
+	for _, table := range tableList {
+		pt := source.DB().GetParentTable(table)
+		if pt == nil { // only add parent tables
+			filteredTableList = append(filteredTableList, table)
+		} else {
+			fmt.Printf("Parent table not nil for %s\n", pt.ObjectName.MinQuoted)
+		}
+	}
+	return filteredTableList
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
