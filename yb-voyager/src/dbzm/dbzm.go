@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_DIR, DEBEZIUM_CONF_FILEPATH string
+var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 type Debezium struct {
 	*Config
@@ -32,7 +32,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo/conf/application.properties")
+	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
