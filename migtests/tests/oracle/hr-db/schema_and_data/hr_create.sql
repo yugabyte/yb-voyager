@@ -286,4 +286,13 @@ WHERE e.department_id = d.department_id
   AND j.job_id = e.job_id 
 WITH READ ONLY;
 
+
+CREATE OR REPLACE TYPE my_nested_table IS TABLE OF VARCHAR2 (10);
+
+CREATE TABLE my_subject(
+	  sub_id    	NUMBER,
+	  sub_name  	VARCHAR2 (20),
+	  sub_schedule_day    my_nested_table
+) NESTED TABLE sub_schedule_day STORE AS nested_tab_space;
+
 COMMIT;

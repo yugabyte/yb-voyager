@@ -2,6 +2,7 @@ package srcdb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -21,6 +22,7 @@ type SourceDB interface {
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
+	FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
 }
 
 func newSourceDB(source *Source) SourceDB {
@@ -34,4 +36,16 @@ func newSourceDB(source *Source) SourceDB {
 	default:
 		panic(fmt.Sprintf("unknown source database type %q", source.DBType))
 	}
+}
+
+func IsTableEmpty(db *sql.DB, query string) bool {
+	var rowsExist int
+	err := db.QueryRow(query).Scan(&rowsExist)
+	if err == sql.ErrNoRows {
+		return true
+	}
+	if err != nil {
+		utils.ErrExit("Failed to query %q for row count: %s", query, err)
+	}
+	return false
 }

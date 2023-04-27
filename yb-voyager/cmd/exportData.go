@@ -103,6 +103,7 @@ func exportDataOffline() bool {
 	defer cancel()
 
 	var tableList []*sqlname.SourceName
+	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
@@ -114,9 +115,15 @@ func exportDataOffline() bool {
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 	}
 
+	finalTableList = source.DB().FilterEmptyTables(finalTableList)
+	log.Infof("table list for data export(after filtering empty tables): %v", finalTableList)
 	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
+	log.Infof("table list for data export(after filtering unsupported tables): %v", finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
+		createExportDataDoneFlag()
+		dfd := datafile.Descriptor{ExportDir: exportDir}
+		dfd.Save()
 		os.Exit(0)
 	}
 
@@ -299,18 +306,20 @@ func validateTableListFlag(tableListString string, flagName string) {
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
+	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
+		os.Remove(propertiesFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			if !liveMigration || dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
+				utils.PrintAndLog("Continuing streaming from where we left off...")
+			} else {
 				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
 			}
-		} else {
-			utils.PrintAndLog("Continuing streaming from where we left off...")
 		}
 	}
 }

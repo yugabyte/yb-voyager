@@ -192,3 +192,16 @@ func (ms *MySQL) GetCharset() (string, error) {
 func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	return tableList
 }
+
+func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	nonEmptyTableList := make([]*sqlname.SourceName, 0)
+	for _, tableName := range tableList {
+		query := fmt.Sprintf(`SELECT 1 FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
+		if !IsTableEmpty(ms.db, query) {
+			nonEmptyTableList = append(nonEmptyTableList, tableName)
+		} else {
+			log.Infof("Skipping empty table %v", tableName)
+		}
+	}
+	return nonEmptyTableList
+}

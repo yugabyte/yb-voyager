@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_DIR, DEBEZIUM_CONF_FILEPATH string
+var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 type Debezium struct {
 	*Config
@@ -25,9 +25,6 @@ func init() {
 	} else {
 		DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
 	}
-
-	DEBEZIUM_CONF_DIR = filepath.Join(DEBEZIUM_DIST_DIR, "conf")
-	DEBEZIUM_CONF_FILEPATH = filepath.Join(DEBEZIUM_CONF_DIR, "application.properties")
 }
 
 func NewDebezium(config *Config) *Debezium {
@@ -35,16 +32,17 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
+	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
 	}
 
 	log.Infof("starting debezium...")
-	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "debezium.log"))
+	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
 	log.Infof("debezium logfile path: %s\n", logFile)
 
-	cmdStr := fmt.Sprintf("cd %q; %s > %s 2>&1", DEBEZIUM_DIST_DIR, filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), logFile)
+	cmdStr := fmt.Sprintf("%s %s > %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
 	log.Infof("running command: %s\n", cmdStr)
 	d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
 	d.cmd.SysProcAttr = &syscall.SysProcAttr{

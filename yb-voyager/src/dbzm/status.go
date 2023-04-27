@@ -59,3 +59,12 @@ func IsLiveMigrationInSnapshotMode(exportDir string) bool {
 	}
 	return status != nil && status.Mode == MODE_SNAPSHOT
 }
+
+func IsLiveMigrationInStreamingMode(exportDir string) bool {
+	statusFilePath := filepath.Join(exportDir, "export_status.json")
+	status, err := ReadExportStatus(statusFilePath)
+	if err != nil {
+		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
+	}
+	return status != nil && status.Mode == MODE_STREAMING
+}
