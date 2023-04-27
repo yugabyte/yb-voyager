@@ -283,8 +283,6 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 		pt := source.DB().GetParentTable(table)
 		if pt == nil { // only add parent tables
 			filteredTableList = append(filteredTableList, table)
-		} else {
-			fmt.Printf("Parent table not nil for %s\n", pt.ObjectName.MinQuoted)
 		}
 	}
 	return filteredTableList
