@@ -228,9 +228,6 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*s
 	}
 
 	tableList = maps.Values(supportedTables)
-	if len(tableList) > 0 {
-		fmt.Printf("final table list for data export: %s\n", tableList)
-	}
 	return tableList
 }
 

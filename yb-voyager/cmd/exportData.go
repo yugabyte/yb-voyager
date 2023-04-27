@@ -111,14 +111,14 @@ func exportDataOffline() bool {
 	} else {
 		tableList = source.DB().GetAllTableNames()
 		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-		fmt.Printf("Num tables to export: %d\n", len(finalTableList))
-		utils.PrintAndLog("table list for data export: %v", finalTableList)
+		log.Infof("initial all tables table list for data export: %v", tableList)
+
+		finalTableList = source.DB().FilterEmptyTables(finalTableList)
+		log.Infof("table list for data export(after filtering empty tables): %v", finalTableList)
+		finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
+		log.Infof("table list for data export(after filtering unsupported tables): %v", finalTableList)
 	}
 
-	finalTableList = source.DB().FilterEmptyTables(finalTableList)
-	log.Infof("table list for data export(after filtering empty tables): %v", finalTableList)
-	finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
-	log.Infof("table list for data export(after filtering unsupported tables): %v", finalTableList)
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()
@@ -126,6 +126,9 @@ func exportDataOffline() bool {
 		dfd.Save()
 		os.Exit(0)
 	}
+
+	fmt.Printf("Num tables to export: %d\n", len(finalTableList))
+	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
 	if liveMigration || useDebezium {
 		err := debeziumExportData(ctx, finalTableList)
