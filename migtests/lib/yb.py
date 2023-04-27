@@ -104,6 +104,11 @@ class PostgresDB:
 		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
 		return [value[0] for value in cur.fetchall()]
 
+	def get_all_values__of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
+		cur = self.conn.cursor()
+		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
+		return [value[0] for value in cur.fetchall()]
+
 	# takes query and error_code and return true id the error_code you believe that query should throw matches
 	def run_query_and_chk_error(self, query, error_code) -> boolean:
 		cur = self.conn.cursor()
@@ -189,3 +194,17 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema' and schema_name NOT IN ({self.EXPECTED_ORAFCE_SCHEMAS})")		
 		return set(cur.fetchall())
+
+	def assert_distinct_values_of_col(self, table_name, column_name, schema_name="public", transform_func=str, expected_distinct_values=[]):
+		distinct_values = self.get_distinct_values__of_column_of_table(table_name, column_name, schema_name)
+		for distinct_value in distinct_values:
+			transformed_distinct_value = transform_func(distinct_value) if distinct_value else distinct_value
+			print(f"{transformed_distinct_value}")
+			assert transformed_distinct_value in expected_distinct_values
+
+	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=str, expected_values=[]):
+		all_values = self.get_all_values__of_column_of_table(table_name, column_name, schema_name)
+		for value in all_values:
+			transformed_value = transform_func(value) if value else value
+			print(f"{transformed_value}")
+			assert transformed_value in expected_values
