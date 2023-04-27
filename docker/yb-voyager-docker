@@ -70,7 +70,7 @@ do
     i=$(( $i + 1))
 done
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} -it --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 

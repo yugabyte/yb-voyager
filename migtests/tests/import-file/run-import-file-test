@@ -37,82 +37,82 @@ main() {
 	step "Create target table."
 	ysql_import_file ${TARGET_DB_NAME} schema.sql
 
-	# step "Import data file: OneMRows.text -> one_m_rows"
-	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
-	# 	--file-table-map "OneMRows.text:one_m_rows"
+	step "Import data file: OneMRows.text -> one_m_rows"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
+		--file-table-map "OneMRows.text:one_m_rows"
 
 	# export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
-	# step "Import data file: FY2021_Survey.csv -> survey"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-	# 	--file-table-map "FY2021_Survey.csv:survey" --has-header
+	step "Import data file: FY2021_Survey.csv -> survey"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "FY2021_Survey.csv:survey" --has-header
 
 	# step "Import data file: SMSA.txt -> smsa"
-	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
-	# 		--file-table-map "SMSA.txt:smsa"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+			--file-table-map "SMSA.txt:smsa"
 
 	# Test for multiple table files import
-	# step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-	# 	--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
-	# 	--has-header --batch-size 1000
+	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
+		--has-header --batch-size 1000
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
 	#Test for fileOpts Flags having quote_char as single quote
-	# step "Import data file: t1_quote_char.csv -> t1_quote_char"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-	# 		--file-table-map "t1_quote_char.csv:t1_quote_char" --file-opts "quote_char='"
+	step "Import data file: t1_quote_char.csv -> t1_quote_char"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_char.csv:t1_quote_char" --file-opts "quote_char='"
 
-	# #Test for fileOpts Flags having quote_char as single quote and escape_char as single quote
-	# step "Import data file: t1_quote_escape_char1.csv -> t1_quote_escape_char1"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-	# 		--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1" --file-opts "quote_char=',escape_char='"
+	#Test for fileOpts Flags having quote_char as single quote and escape_char as single quote
+	step "Import data file: t1_quote_escape_char1.csv -> t1_quote_escape_char1"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1" --file-opts "quote_char=',escape_char='"
 
-	# #Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
-	# step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-	# 		--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --file-opts "quote_char=',escape_char=\\"
+	#Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
+	step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --file-opts "quote_char=',escape_char=\\"
 	
 
-	# #Test in case delimiter is same as escape character
-	# step "Import data file: t1_delimiter_escape_same.csv -> t1_delimiter_escape_same"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-	# 		--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --file-opts "quote_char=',escape_char=|"
+	#Test in case delimiter is same as escape character
+	step "Import data file: t1_delimiter_escape_same.csv -> t1_delimiter_escape_same"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --file-opts "quote_char=',escape_char=|"
 
-	# # Test for csv file containing actual newline in it
-	# step "Import data file: t1_newline.csv -> t1_newline"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-	# 		--file-table-map "t1_newline.csv:t1_newline"
+	# Test for csv file containing actual newline in it
+	step "Import data file: t1_newline.csv -> t1_newline"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_newline.csv:t1_newline"
 
-	# # Test for csv file with default escape and quote character
-	# step "Import data file: t1_quote_escape_dq.csv -> t1_quote_escape_dq"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-	# 		--file-table-map "t1_quote_escape_dq.csv:t1_quote_escape_dq"
+	# Test for csv file with default escape and quote character
+	step "Import data file: t1_quote_escape_dq.csv -> t1_quote_escape_dq"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_dq.csv:t1_quote_escape_dq"
 
-	# # Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
-	# step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-	# 		--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
+	# Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
+	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
 
-	# # Test import from s3 (text file)
-	# step "Import data file from S3 (text): text_test.text -> s3_text"
-	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-	# 		--file-table-map "text_test.text:s3_text"
+	# Test import from s3 (text file)
+	step "Import data file from S3 (text): text_test.text -> s3_text"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "text_test.text:s3_text"
 
-	# # Test import from s3 (csv)
-	# step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
-	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-	# 		--file-table-map "csv_test.csv:s3_csv"
+	# Test import from s3 (csv)
+	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
+	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+			--file-table-map "csv_test.csv:s3_csv"
 	
-	# # Test multi-table import from s3
-	# step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
-	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-	# 		--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
+	# Test multi-table import from s3
+	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
 
-	# # Test csv with header import from s3
-	# step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
-	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-	# 		--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
+	# Test csv with header import from s3
+	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
+	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
 
 	# Test larger import from s3
 	step "Import large data file from S3: volume.text-> s3_volume"
