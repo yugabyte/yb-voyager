@@ -184,7 +184,6 @@ func GetTableRowCount(filePath string) map[string]int64 {
 }
 
 func printExportedRowCount(exportedRowCount map[string]int64) {
-
 	var keys []string
 	for key := range exportedRowCount {
 		keys = append(keys, key)
