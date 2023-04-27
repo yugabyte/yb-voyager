@@ -120,7 +120,6 @@ jobs:
 
     - name: "TEST: pg-views-and-rules"
       run: migtests/scripts/run-test.sh pg/views-and-rules ${{ matrix.use_debezium }}
-      if: matrix.use_debezium == 0
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg/misc-objects-1 ${{ matrix.use_debezium }}

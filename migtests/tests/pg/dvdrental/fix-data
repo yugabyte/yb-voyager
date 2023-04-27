@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-set -e
-set -x
-
-pushd ${EXPORT_DIR}/data
-
-echo "Delete film_data.sql file"
-rm film_data.sql

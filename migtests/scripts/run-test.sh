@@ -72,7 +72,7 @@ main() {
 	if [ -f ${EXPORT_DIR}/debezium.log ]
 	then
 		echo "Printing debeziun.log file"
-		cat ${EXPORT_DIR}/debezium.log
+		cat ${EXPORT_DIR}/logs/debezium.log
 	else
 		echo "No debezium.log found."
 	fi

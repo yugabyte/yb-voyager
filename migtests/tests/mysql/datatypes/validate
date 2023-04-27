@@ -9,7 +9,7 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
- 	# 'bit_types': 4,   
+ 	# 'bit_types': 4,   https://yugabyte.atlassian.net/browse/DB-5929
 	'bool_types': 6,  
 	'date_time_types': 10, 
 	'enum_types': 3,   
