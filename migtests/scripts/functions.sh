@@ -90,7 +90,7 @@ grant_user_permission_mysql() {
 		"GRANT SELECT ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT SHOW VIEW ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT TRIGGER ON ${SOURCE_DB_NAME}.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
-		# Extra steps required to enable Debezium export 
+    # Extra steps required to enable Debezium export 
 		"GRANT FLUSH_TABLES ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT REPLICATION CLIENT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 	)
@@ -183,6 +183,7 @@ export_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
+		--start-clean
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -202,6 +203,7 @@ export_data() {
 		--disable-pb
 		--send-diagnostics=false
 		--yes
+		--start-clean
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -241,6 +243,7 @@ import_data() {
 		--target-db-schema ${TARGET_DB_SCHEMA} \
 		--disable-pb \
 		--send-diagnostics=false \
+		--start-clean
 		$*
 }
 

@@ -13,6 +13,7 @@ EXPECTED_ROW_COUNT = {
 	'datatypes1': 3,  
 	'datetime_type': 3, 
 	'datatypes2': 3,
+	'datetime_type2': 2, 
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -27,11 +28,12 @@ EXPECTED_SUM_OF_COLUMN = {
 }
 
 EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+EXPECTED_BYTE_TYPE_VALUES = ['3031303130', '2d61626364', '34343538']
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 4
+	assert len(table_list) == 5
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -56,6 +58,32 @@ def migration_completed_checks(tgt):
 	for distinct_value in distinct_values_bool_types:
 		print(f"{distinct_value}")
 		assert distinct_value == 0 or distinct_value == 1
+
+	print(f"distinct_bytea_values:")
+	tgt.assert_distinct_values_of_col("datatypes1", "byte_type", "public", 
+		transform_func=lambda x: x.hex(), expected_distinct_values=EXPECTED_BYTE_TYPE_VALUES)
+
+	print(f"distinct_json_values:")
+	tgt.assert_all_values_of_col("datatypes2", "v1", "public", 
+		transform_func=str, expected_values=["{'key1': 'value1', 'key2': 'value2'}", "['a', 'b', 'c', 1, 2, 3]", None])
+
+	print(f"distinct_bit10_values:")
+	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
+		transform_func=str, expected_distinct_values=['1000000000','1000110000'])
+
+	print(f"distinct_int[]_values:")
+	tgt.assert_distinct_values_of_col("datatypes2", "v3", "public", 
+		expected_distinct_values=[[20000, 14600, 23500, 13250], None])
+
+	print(f"distinct_text[]_values:")
+	expected_text_mda_values = [[['“FD”'], ['act']], [['“FD”', '“MF”'], ['“FD”', '“Property”']], [['“FD”', '“MF”'], ['act', 'two']]]
+	tgt.assert_distinct_values_of_col("datatypes2", "v4", "public", 
+		expected_distinct_values=expected_text_mda_values)
+
+	print(f"distinct_ts_values:")
+	tgt.assert_distinct_values_of_col("datetime_type2", "v1", "public", 
+		transform_func=str, expected_distinct_values=['2022-11-01 15:55:58.091241', '2022-11-01 15:58:02'])
+	
 		
 
 if __name__ == "__main__":

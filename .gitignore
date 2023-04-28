@@ -13,6 +13,7 @@ export-dir/
 *.dylib
 *.idea
 *.vscode
+*.python-version
 
 # Test binary, built with `go test -c`
 *.test
@@ -25,3 +26,6 @@ export-dir/
 
 # vim temp files.
 *.swp
+
+# skipping __pycache__ directory and *.pyc files
+__pycache__/
