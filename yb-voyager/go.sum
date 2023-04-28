@@ -1796,6 +1796,8 @@ github.com/syndtr/gocapability v0.0.0-20170704070218-db04d3cc01c8/go.mod h1:hkRG
 github.com/syndtr/gocapability v0.0.0-20180916011248-d98352740cb2/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635/go.mod h1:hkRG7XYTFWNJGYcbNJQlaLq0fg1yr4J4t/NcTQtrfww=
 github.com/tchap/go-patricia v2.2.6+incompatible/go.mod h1:bmLyhP68RS6kStMGxByiQ23RP/odRBOTVjwp2cDyi6I=
+github.com/tebeka/atexit v0.3.0 h1:jleL99H7Ywt80oJKR+VWmJNnezcCOG0CuzcN3CIpsdI=
+github.com/tebeka/atexit v0.3.0/go.mod h1:WJmSUSmMT7WoR7etUOaGBVXk+f5/ZJ+67qwuedq7Fbs=
 github.com/tedsuo/ifrit v0.0.0-20180802180643-bea94bb476cc/go.mod h1:eyZnKCc955uh98WQvzOm0dgAeLnf2O0Rz0LPoC5ze+0=
 github.com/tevino/abool/v2 v2.0.1 h1:OF7FC5V5z3yAWyixbc32ecEzrgAJCsPkVOsPM2qoZPI=
 github.com/tevino/abool/v2 v2.0.1/go.mod h1:+Lmlqk6bHDWHqN1cbxqhwEAwMPXgc8I1SDEamtseuXY=
