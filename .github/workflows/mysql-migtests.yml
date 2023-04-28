@@ -109,4 +109,4 @@ jobs:
 
     - name: "TEST: mysql-reserved-words"
       run: migtests/scripts/run-test.sh mysql/reserved-words
-      if: matrix.use_debezium == 0
+      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/827 
