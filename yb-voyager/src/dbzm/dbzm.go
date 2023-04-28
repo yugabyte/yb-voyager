@@ -47,21 +47,13 @@ func (d *Debezium) Start() error {
 	}
 
 	log.Infof("starting debezium...")
-	// logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
-	// log.Infof("debezium logfile path: %s\n", logFile)
-
-	// cmdStr := fmt.Sprintf("%s %s > %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
-	// log.Infof("running command: %s\n", cmdStr)
-	// d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	// capture stdout, stderr
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	d.cmd.Stdout = &outbuf
 	d.cmd.Stderr = &errbuf
-	// d.cmd.SysProcAttr = &syscall.SysProcAttr{
-	// 	Pdeathsig: syscall.SIGKILL, // kill the debezium process if the parent process dies
-	// }
+
 	d.registerExitHandlers()
 	err = d.cmd.Start()
 	if err != nil {
