@@ -63,18 +63,7 @@ func (d *Debezium) Start() error {
 	// d.cmd.SysProcAttr = &syscall.SysProcAttr{
 	// 	Pdeathsig: syscall.SIGKILL, // kill the debezium process if the parent process dies
 	// }
-
-	atexit.Register(func() {
-		d.Stop()
-	})
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		utils.PrintAndLog("Received signal %s. Exiting", sig)
-		atexit.Exit(0)
-	}()
-
+	d.registerExitHandlers()
 	err = d.cmd.Start()
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
@@ -88,6 +77,19 @@ func (d *Debezium) Start() error {
 		}
 	}()
 	return nil
+}
+
+func (d *Debezium) registerExitHandlers() {
+	atexit.Register(func() {
+		d.Stop()
+	})
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		utils.PrintAndLog("Received signal %s. Exiting...", sig)
+		atexit.Exit(0)
+	}()
 }
 
 func (d *Debezium) IsRunning() bool {
