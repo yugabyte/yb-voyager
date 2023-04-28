@@ -104,11 +104,6 @@ class PostgresDB:
 		cur.execute(f"select distinct({column_name}) from {schema_name}.{table_name}")
 		return [value[0] for value in cur.fetchall()]
 
-	def get_all_values__of_column_of_table(self, table_name, column_name, schema_name="public") -> List[Any]:
-		cur = self.conn.cursor()
-		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
-		return [value[0] for value in cur.fetchall()]
-
 	# takes query and error_code and return true id the error_code you believe that query should throw matches
 	def run_query_and_chk_error(self, query, error_code) -> boolean:
 		cur = self.conn.cursor()
@@ -206,7 +201,9 @@ class PostgresDB:
 			assert transformed_distinct_value in expected_distinct_values
 
 	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_values=[]):
-		all_values = self.get_all_values__of_column_of_table(table_name, column_name, schema_name)
+		cur = self.conn.cursor()
+		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
+		all_values = [value[0] for value in cur.fetchall()]
 		for value in all_values:
 			if transform_func:
 				transformed_value = transform_func(value) if value else value
