@@ -1,6 +1,8 @@
 package dbzm
 
 import (
+	// "bytes"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -45,21 +47,18 @@ func (d *Debezium) Start() error {
 	}
 
 	log.Infof("starting debezium...")
-	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
-	log.Infof("debezium logfile path: %s\n", logFile)
+	// logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
+	// log.Infof("debezium logfile path: %s\n", logFile)
 
 	// cmdStr := fmt.Sprintf("%s %s > %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
 	// log.Infof("running command: %s\n", cmdStr)
 	// d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
-	// open the out file for writing
-	outfile, err := os.Create(logFile)
-	if err != nil {
-		panic(err)
-	}
-	defer outfile.Close()
-	d.cmd.Stdout = outfile
-	d.cmd.Stderr = outfile
+	// capture stdout, stderr
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
+	d.cmd.Stdout = &outbuf
+	d.cmd.Stderr = &errbuf
 	// d.cmd.SysProcAttr = &syscall.SysProcAttr{
 	// 	Pdeathsig: syscall.SIGKILL, // kill the debezium process if the parent process dies
 	// }
@@ -74,6 +73,7 @@ func (d *Debezium) Start() error {
 		d.done = true
 		if d.err != nil {
 			log.Errorf("Debezium exited with: %v", d.err)
+			utils.ErrExit("Data export failed:\nSTDOUT:%s\nSTDERR:%s", outbuf.String(), errbuf.String())
 		}
 	}()
 	return nil

@@ -54,8 +54,16 @@ debezium.source.include.unknown.datatypes=true
 debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*
 
 debezium.source.tombstones.on.delete=false
-quarkus.log.console.json=false
+
 quarkus.log.level=info
+
+quarkus.log.file.enable=true
+quarkus.log.file.level=INFO
+quarkus.log.file.path=%s
+quarkus.log.file.json=false
+
+quarkus.log.console.json=false
+quarkus.log.console.level=ERROR
 `
 
 var postgresSrcConfigTemplate = baseSrcConfigTemplate + `
@@ -99,6 +107,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	logFile, _ := filepath.Abs(filepath.Join(c.ExportDir, "logs/debezium.log"))
 
 	switch c.SourceDBType {
 	case "postgresql":
@@ -108,6 +117,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			logFile,
 			c.DatabaseName,
 			schemaNames)
 
@@ -118,6 +128,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			logFile,
 			c.DatabaseName,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
@@ -130,6 +141,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			logFile,
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
