@@ -40,6 +40,16 @@ insert into datetime_type values('1992-01-23', null,current_timestamp,'2022-11-0
 
 select * from datetime_type;
 
+drop table if exists datetime_type2;
+
+create table datetime_type2(v1 timestamp);
+insert into datetime_type2 values('2022-11-01 15:55:58.091241');
+insert into datetime_type2 values('2022-11-01 15:58:02');
+
+\d datetime_type2
+
+select * from datetime_type2;
+
 drop table if exists datatypes2;
 
 create table datatypes2(v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][]);

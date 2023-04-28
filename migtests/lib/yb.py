@@ -195,16 +195,22 @@ class PostgresDB:
 		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema' and schema_name NOT IN ({self.EXPECTED_ORAFCE_SCHEMAS})")		
 		return set(cur.fetchall())
 
-	def assert_distinct_values_of_col(self, table_name, column_name, schema_name="public", transform_func=str, expected_distinct_values=[]):
+	def assert_distinct_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_distinct_values=[]):
 		distinct_values = self.get_distinct_values__of_column_of_table(table_name, column_name, schema_name)
 		for distinct_value in distinct_values:
-			transformed_distinct_value = transform_func(distinct_value) if distinct_value else distinct_value
+			if transform_func:
+				transformed_distinct_value = transform_func(distinct_value) if distinct_value else distinct_value
+			else:
+				transformed_distinct_value = distinct_value
 			print(f"{transformed_distinct_value}")
 			assert transformed_distinct_value in expected_distinct_values
 
-	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=str, expected_values=[]):
+	def assert_all_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_values=[]):
 		all_values = self.get_all_values__of_column_of_table(table_name, column_name, schema_name)
 		for value in all_values:
-			transformed_value = transform_func(value) if value else value
+			if transform_func:
+				transformed_value = transform_func(value) if value else value
+			else:
+				transformed_distinct_value = value
 			print(f"{transformed_value}")
 			assert transformed_value in expected_values
