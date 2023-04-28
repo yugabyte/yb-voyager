@@ -2,16 +2,15 @@
 
 set -e
 
-if [ $# -ne 2 ]
+if [ $# -ne 1 ]
 then
-	echo "Usage: $0 TEST_NAME USE_DEBEZIUM"
+	echo "Usage: $0 TEST_NAME"
 	exit 1
 fi
 
 set -x
 
 export TEST_NAME=$1
-export USE_DEBEZIUM=$2
 
 export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
@@ -69,7 +68,7 @@ main() {
 	export_data
 	ls -l ${EXPORT_DIR}/data
 
-	if [ -f ${EXPORT_DIR}/debezium.log ]
+	if [ -f ${EXPORT_DIR}/logs/debezium.log ]
 	then
 		echo "Printing debeziun.log file"
 		cat ${EXPORT_DIR}/logs/debezium.log

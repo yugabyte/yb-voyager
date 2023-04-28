@@ -12,6 +12,8 @@ jobs:
       matrix:
         version: [2.14.8.0-b17,2.17.2.0-b216,2.16.3.0-b43]
         use_debezium: [0, 1]
+    env:
+      USE_DEBEZIUM: ${{ matrix.use_debezium }}
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -94,46 +96,46 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: pg-dvdrental"
-      run: migtests/scripts/run-test.sh pg/dvdrental ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/dvdrental 
 
     - name: "TEST: pg-datatypes"
-      run: migtests/scripts/run-test.sh pg/datatypes ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/datatypes
 
     - name: "TEST: pg-constraints"
-      run: migtests/scripts/run-test.sh pg/constraints ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/constraints
 
     - name: "TEST: pg-sequences"
-      run: migtests/scripts/run-test.sh pg/sequences ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/sequences
 
     - name: "TEST: pg-indexes"
-      run: migtests/scripts/run-test.sh pg/indexes ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/indexes
 
     - name: "TEST: pg-partitions"
-      run: migtests/scripts/run-test.sh pg/partitions ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/partitions
       if: matrix.use_debezium == 0
       
     # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
     # Fixed in 2.17.1.0-b368
     - name: "TEST: pg-partitions-with-index"
-      run: migtests/scripts/run-test.sh pg/partitions-with-indexes ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/partitions-with-indexes
       if: matrix.version != '2.16.3.0-b43' && matrix.use_debezium == 0
 
     - name: "TEST: pg-views-and-rules"
-      run: migtests/scripts/run-test.sh pg/views-and-rules ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/views-and-rules
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
-      run: migtests/scripts/run-test.sh pg/misc-objects-1 ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/misc-objects-1
       if: matrix.use_debezium == 0
 
     - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
-      run: migtests/scripts/run-test.sh pg/misc-objects-2 ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/misc-objects-2
 
     - name: "TEST: pg-dependent-ddls"
-      run: migtests/scripts/run-test.sh pg/dependent-ddls ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/dependent-ddls
       if: matrix.use_debezium == 0 #skip due to zero row count issue and text[] datatype not supported
 
     - name:  "TEST: pg-multiple-schemas"
-      run: migtests/scripts/run-test.sh pg/multiple-schemas ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/multiple-schemas
       if: matrix.use_debezium == 0
 
     - name: "TEST: import-data-file"
@@ -149,9 +151,9 @@ jobs:
     #   run: migtests/scripts/run-test.sh pg/codependent-schemas ${{ matrix.use_debezium }}
 
     - name: "TEST: pg-sample-schema-emp"
-      run: migtests/scripts/run-test.sh pg/sample-employee ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/sample-employee
 
     - name: "TEST: pg-hasura-ecommerce"
-      run: migtests/scripts/run-test.sh pg/hasura-ecommerce ${{ matrix.use_debezium }}
+      run: migtests/scripts/run-test.sh pg/hasura-ecommerce
       if: matrix.use_debezium == 0
 
