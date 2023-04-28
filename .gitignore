@@ -13,6 +13,7 @@ export-dir/
 *.dylib
 *.idea
 *.vscode
+*.python-version
 
 # Test binary, built with `go test -c`
 *.test
