@@ -33,7 +33,7 @@ jobs:
     - name: Fetch debezium-server
       uses: docker://amazon/aws-cli:2.7.27
       with:
-        args: s3 cp s3://voyager-automation-data/debezium-server-dist-93c7704d1fe662d515c48cf58feadf49168b33f0.tar.gz .
+        args: s3 cp s3://voyager-automation-data/debezium-server-latest.tar.gz .
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
@@ -42,8 +42,8 @@ jobs:
     - name: Unpack debezium-server
       run: |
         sudo mkdir -p /opt/yb-voyager
-        sudo tar -xvzf debezium-server-dist-93c7704d1fe662d515c48cf58feadf49168b33f0.tar.gz -C /opt/yb-voyager/
-        rm debezium-server-dist-93c7704d1fe662d515c48cf58feadf49168b33f0.tar.gz
+        sudo tar -xvzf debezium-server-latest.tar.gz -C /opt/yb-voyager/
+        rm debezium-server-latest.tar.gz
 
     - name: Start MySQL
       run: |
