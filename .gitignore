@@ -25,3 +25,6 @@ export-dir/
 
 # vim temp files.
 *.swp
+
+# skipping __pycache__ directory and *.pyc files
+__pycache__/

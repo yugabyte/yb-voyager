@@ -68,10 +68,11 @@ main() {
 	export_data
 	ls -l ${EXPORT_DIR}/data
 
-	if [ -f ${EXPORT_DIR}/logs/debezium.log ]
+	# Print debezium.log file if present and exportDataDone flag file is not present
+	if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/exportDataDone" ]
 	then
-		echo "Printing debeziun.log file"
-		cat ${EXPORT_DIR}/logs/debezium.log
+		echo "Printing debezium.log file"
+		tail -n 100 ${EXPORT_DIR}/logs/debezium.log
 	else
 		echo "No debezium.log found."
 	fi

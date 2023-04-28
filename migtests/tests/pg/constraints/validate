@@ -63,7 +63,8 @@ def migration_completed_checks(tgt):
 		chk_err_returned = tgt.run_query_and_chk_error(query, code)
 		print(f"Checking {type_check} ..", code, {chk_err_returned} )
 		assert chk_err_returned == True
-		
+	
+ 	# this validation check has been commented for issue - https://yugabyte.atlassian.net/browse/DB-5927
 	# rows = tgt.fetch_all_rows_of_a_table("default_test_id_seq")
 	# print(f"rows of default_test_id_seq: {rows}")
 
