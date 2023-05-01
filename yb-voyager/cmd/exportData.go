@@ -104,7 +104,7 @@ func exportDataOffline() bool {
 
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList []*sqlname.SourceName
+	var finalTableList, skippedTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
 		finalTableList = extractTableListFromString(source.TableList)
@@ -113,10 +113,15 @@ func exportDataOffline() bool {
 		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 		log.Infof("initial all tables table list for data export: %v", tableList)
 
-		finalTableList = source.DB().FilterEmptyTables(finalTableList)
-		log.Infof("table list for data export(after filtering empty tables): %v", finalTableList)
-		finalTableList = source.DB().FilterUnsupportedTables(finalTableList)
-		log.Infof("table list for data export(after filtering unsupported tables): %v", finalTableList)
+		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
+		if len(skippedTableList) != 0 {
+			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
+		}
+
+		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList)
+		if len(skippedTableList) != 0 {
+			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+		}
 	}
 
 	if len(finalTableList) == 0 {
@@ -127,7 +132,7 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	fmt.Printf("Num tables to export: %d\n", len(finalTableList))
+	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
 	if liveMigration || useDebezium {

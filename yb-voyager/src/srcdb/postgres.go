@@ -247,12 +247,12 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	return tableList
+func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+	return tableList, nil
 }
 
-func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	nonEmptyTableList := make([]*sqlname.SourceName, 0)
+func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+	var nonEmptyTableList, emptyTableList []*sqlname.SourceName
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
 		var empty bool
@@ -267,8 +267,8 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqln
 		if !empty {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
-			log.Infof("Skipping empty table %v", tableName)
+			emptyTableList = append(emptyTableList, tableName)
 		}
 	}
-	return nonEmptyTableList
+	return nonEmptyTableList, emptyTableList
 }

@@ -10,7 +10,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type Oracle struct {
@@ -204,12 +204,10 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	supportedTables := map[string]*sqlname.SourceName{}
-	for _, table := range tableList {
-		supportedTables[table.Qualified.Quoted] = table
-	}
-	// query to find unsupported tables
+func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+	var filteredTableList, unsupportedTableList []*sqlname.SourceName
+
+	// query to find unsupported queue tables
 	query := fmt.Sprintf("SELECT queue_table from ALL_QUEUE_TABLES WHERE OWNER = '%s'", ora.source.Schema)
 	log.Infof("query for queue tables: %q\n", query)
 	rows, err := ora.db.Query(query)
@@ -223,16 +221,24 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*s
 			utils.ErrExit("failed to scan tableName from output of query %q: %v", query, err)
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
-		qualifiedName := sqlname.NewSourceName(ora.source.Schema, tableName).Qualified.Quoted
-		delete(supportedTables, qualifiedName)
+		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
+		if slices.Contains(tableList, tableSrcName) {
+			unsupportedTableList = append(unsupportedTableList, tableSrcName)
+		}
 	}
 
-	tableList = maps.Values(supportedTables)
-	return tableList
+	for _, table := range tableList {
+		if !slices.Contains(unsupportedTableList, table) {
+			filteredTableList = append(filteredTableList, table)
+		}
+	}
+
+	return filteredTableList, unsupportedTableList
 }
 
-func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	nonEmptyTableList := make([]*sqlname.SourceName, 0)
+	skippedTableList := make([]*sqlname.SourceName, 0)
 	for _, tableName := range tableList {
 		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.Qualified.MinQuoted)
 		if ora.IsNestedTable(tableName) {
@@ -245,10 +251,10 @@ func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname
 		if !IsTableEmpty(ora.db, query) {
 			nonEmptyTableList = append(nonEmptyTableList, tableName)
 		} else {
-			log.Infof("Skipping empty table %v", tableName)
+			skippedTableList = append(skippedTableList, tableName)
 		}
 	}
-	return nonEmptyTableList
+	return nonEmptyTableList, skippedTableList
 }
 
 func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
