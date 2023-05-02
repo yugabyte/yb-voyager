@@ -237,7 +237,7 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) []*s
 func (ora *Oracle) FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	nonEmptyTableList := make([]*sqlname.SourceName, 0)
 	for _, tableName := range tableList {
-		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.ObjectName.MinQuoted)
+		query := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM=1", tableName.Qualified.MinQuoted)
 		if ora.IsNestedTable(tableName) {
 			// query to check empty nested oracle tables
 			query = fmt.Sprintf(`SELECT 1 from dba_segments 
