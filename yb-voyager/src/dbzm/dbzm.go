@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -59,7 +60,7 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
 	}
-	log.Infof("Debezium started successfully")
+	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
 	go func() {
 		d.err = d.cmd.Wait()
 		d.done = true
@@ -102,10 +103,20 @@ func (d *Debezium) Stop() error {
 	if d.IsRunning() {
 		log.Infof("Stopping debezium...")
 		err := d.cmd.Process.Signal(syscall.SIGTERM)
+		go func() {
+			// wait for a certain time for debezium to shut down before force killing the process.
+			sigtermTimeout := 100
+			time.Sleep(time.Duration(sigtermTimeout) * time.Second)
+			if d.IsRunning() {
+				log.Warnf("Waited %d seconds for debezium process to stop. Force killing it now.", sigtermTimeout)
+				d.cmd.Process.Kill()
+			}
+		}()
 		if err != nil {
 			return fmt.Errorf("Error stopping debezium: %v", err)
 		}
 		d.cmd.Wait()
+		d.done = true
 		log.Info("Stopped debezium.")
 	}
 	return nil
