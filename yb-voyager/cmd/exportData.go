@@ -26,6 +26,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -124,7 +125,7 @@ func exportDataOffline() bool {
 		createExportDataDoneFlag()
 		dfd := datafile.Descriptor{ExportDir: exportDir}
 		dfd.Save()
-		os.Exit(0)
+		atexit.Exit(0)
 	}
 
 	if liveMigration || useDebezium {

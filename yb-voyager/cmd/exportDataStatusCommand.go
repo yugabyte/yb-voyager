@@ -22,8 +22,7 @@ var exportDataStatusCmd = &cobra.Command{
 		validateExportDirFlag()
 		err := runExportDataStatusCmd()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			os.Exit(1)
+			utils.ErrExit("error: %s\n", err)
 		}
 	},
 }
