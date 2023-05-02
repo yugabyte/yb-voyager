@@ -277,7 +277,7 @@ func (pg *PostgreSQL) GetParentTable(table *sqlname.SourceName) *sqlname.SourceN
 	var parentTable *sqlname.SourceName
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table.ObjectName.Unquoted)
+	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.Unquoted)
 
 	var currentParentTable string
 	err := pg.db.QueryRow(context.Background(), query).Scan(&currentParentTable)
