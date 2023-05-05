@@ -143,7 +143,7 @@ func exportDataOffline() bool {
 		go func() {
 			err := debeziumExportData(ctx, finalTableList, exportDataStart)
 			if err != nil {
-				utils.PrintAndLog("Failed to run live migration: %s", err)
+				utils.PrintAndLog("Debezium failed to export data: %s", err)
 				quitChan <- true
 			}
 			exportSuccessChan <- true
@@ -152,7 +152,7 @@ func exportDataOffline() bool {
 		go func() {
 			q := <-quitChan
 			if q {
-				log.Infoln("Cancel() being called, within exportDataOffline()")
+				log.Infoln("cancel() being called")
 				cancel()                    //will cancel/stop both dump tool and progress bar
 				time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 				utils.ErrExit("yb-voyager encountered internal error. "+
@@ -179,7 +179,7 @@ func exportDataOffline() bool {
 	go func() {
 		q := <-quitChan
 		if q {
-			log.Infoln("Cancel() being called, within exportDataOffline()")
+			log.Infoln("cancel() being called")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 			utils.ErrExit("yb-voyager encountered internal error. "+

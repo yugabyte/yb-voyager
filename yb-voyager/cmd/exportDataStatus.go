@@ -59,7 +59,7 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	}
 }
 
-func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
+func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan chan bool, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
 	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
