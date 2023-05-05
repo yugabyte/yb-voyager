@@ -206,6 +206,6 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) map[string][]string {
-	return nil
+func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string,[]string) {
+	return nil, nil
 }

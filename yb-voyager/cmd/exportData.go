@@ -211,8 +211,15 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 
-	columnList := source.DB().PartiallySupportedTablesColumnList(tableList)
-	for table, columns := range columnList {
+	tablesColumnList, unsupportedColumnNames := source.DB().PartiallySupportedTablesColumnList(tableList)
+	if len(tablesColumnList) > 0 {
+		log.Infof("preparing include column list for debezium without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to export tables by ignoring those specific columns of the table?") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+	}
+	for table, columns := range tablesColumnList {
 		for _, column := range columns {
 			dbzmColumnList = append(dbzmColumnList, source.Schema+"."+table+"."+column)
 		}

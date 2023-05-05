@@ -169,12 +169,13 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 }
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	tablesColumnList := ora.PartiallySupportedTablesColumnList(tableList)
+	tablesColumnList, unsupportedColumnNames := ora.PartiallySupportedTablesColumnList(tableList)
 	if len(tablesColumnList) > 0 {
-		if !utils.AskPrompt(fmt.Sprintf("There are tables having unsupported column types. Do you want to continue by ignoring those specific columns of the table?")) {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` to continue without these tables")
+		log.Infof("preparing include column list for debezium without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to export tables by ignoring those specific columns of the table?") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
-		log.Infof("Exporting tables with unsupported column types: %v", tablesColumnList)
 	}
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
@@ -312,11 +313,12 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []s
 	return columns, datatypes
 }
 
-func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) map[string][]string {
+func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string, []string) {
 	tableColumnMap := make(map[string][]string)
+	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
 		columns, datatypes := ora.GetTableColumns(tableName)
-		var unsupportedColumnNames []string
+		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			unsupported := false
 			for _, unsupportedDataType := range oracleUnsuportedDataTypes {
@@ -326,15 +328,16 @@ func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.Sourc
 			}
 
 			if unsupported {
-				utils.PrintAndLog(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName, columns[i], datatypes[i]))
+				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
 			} else {
-				unsupportedColumnNames = append(unsupportedColumnNames, columns[i])
+				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
 		}
-		if len(unsupportedColumnNames) < len(columns) {
-			tableColumnMap[tableName.ObjectName.Unquoted] = unsupportedColumnNames
+		if len(supportedColumnNames) < len(columns) {
+			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
 		}
 	}
 
-	return tableColumnMap
+	return tableColumnMap, unsupportedColumnNames
 }
