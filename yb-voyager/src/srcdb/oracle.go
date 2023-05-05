@@ -173,7 +173,7 @@ func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList [
 	if len(tablesColumnList) > 0 {
 		log.Infof("preparing include column list for debezium without unsupported datatype columns: %v", unsupportedColumnNames)
 		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to export tables by ignoring those specific columns of the table?") {
+			"\nDo you want to ignore these columns and export data of tables with supported columns") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
 	}

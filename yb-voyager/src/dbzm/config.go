@@ -43,7 +43,6 @@ debezium.source.database.port=%d
 debezium.source.database.user=%s
 debezium.source.database.password=%s
 debezium.source.table.include.list=%s
-debezium.source.column.include.list=%s
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
 debezium.source.offset.flush.interval.ms=0
@@ -90,57 +89,58 @@ debezium.source.database.include.list=%s
 debezium.source.database.server.id=%d
 
 
-
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
-
 `
 
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-
+	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
-		return fmt.Sprintf(postgresSrcConfigTemplate,
+		conf = fmt.Sprintf(postgresSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			schemaNames)
 
 	case "oracle":
-		return fmt.Sprintf(oracleSrcConfigTemplate,
+		conf = fmt.Sprintf(oracleSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 
 	case "mysql":
-		return fmt.Sprintf(mysqlSrcConfigTemplate,
+		conf = fmt.Sprintf(mysqlSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
 	}
+
+	if c.ColumnList != nil {
+		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
+	}
+
+	return conf
 }
 
 func (c *Config) WriteToFile(filePath string) error {
