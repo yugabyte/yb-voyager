@@ -229,6 +229,9 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		for debezium.IsRunning() {
 			if snapshotComplete == false {
 				snapshotComplete, err = verifyAndHandleDebeziumSnapshotComplete(*debezium)
+				if err != nil {
+					return err
+				}
 				if snapshotComplete {
 					utils.PrintAndLog("Streaming changes to a local queue file...")
 				}
