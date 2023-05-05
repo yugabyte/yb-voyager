@@ -21,8 +21,8 @@ type SourceDB interface {
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
-	FilterUnsupportedTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
-	FilterEmptyTables(tableList []*sqlname.SourceName) []*sqlname.SourceName
+	FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
+	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string, []string)
 }
 
