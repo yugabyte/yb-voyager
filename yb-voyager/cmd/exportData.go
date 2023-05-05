@@ -131,7 +131,7 @@ func exportDataOffline() bool {
 	if liveMigration || useDebezium {
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
-			utils.PrintAndLog("Failed to run live migration: %s", err)
+			utils.PrintAndLog("Debezium export failed: %s", err)
 		}
 		return err == nil
 	}
@@ -222,45 +222,60 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
-	var status *dbzm.ExportStatus
-	exportingSnapshot := true
-	for exportingSnapshot {
-		status, err = debezium.GetExportStatus()
-		if err != nil {
-			return fmt.Errorf("failed to read export status: %w", err)
-		}
 
-		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
-			exportingSnapshot = false
-			utils.PrintAndLog("Snapshot export is complete.")
-			createExportDataDoneFlag()
-			err = writeDataFileDescriptor(exportDir, status)
-			if err != nil {
-				return fmt.Errorf("failed to write data file descriptor: %w", err)
+	if liveMigration {
+		// monitor the debezium process and mode = snapshot/streaming
+		snapshotComplete := false
+		for debezium.IsRunning() {
+			if snapshotComplete == false {
+				snapshotComplete, err = verifyAndHandleDebeziumSnapshotComplete(*debezium)
+				if snapshotComplete {
+					utils.PrintAndLog("Streaming changes to a local queue file...")
+				}
 			}
-			outputExportStatus(status)
+			time.Sleep(time.Second)
 		}
-		time.Sleep(time.Second)
-	}
-	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
-	}
-
-	if !liveMigration && useDebezium {
-		log.Infof("snapshot export is complete, stopping debezium...")
-		return debezium.Stop()
-	}
-
-	// live migration part
-	color.Blue("streaming changes to a local queue file...")
-	for debezium.IsRunning() {
-		time.Sleep(time.Second)
-	}
-	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during live migration phase: %v", err)
+		err = debezium.Error()
+		if err != nil {
+			utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+		}
+	} else {
+		// offline migration.
+		// monitor the debezium process
+		for debezium.IsRunning() {
+			time.Sleep(time.Second)
+		}
+		err = debezium.Error()
+		if err != nil {
+			utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+		} else {
+			// verify snapshot is complete.
+			snapshotComplete, err := verifyAndHandleDebeziumSnapshotComplete(*debezium)
+			if !snapshotComplete || err != nil {
+				utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+			}
+		}
 	}
 
 	return nil
+}
+
+func verifyAndHandleDebeziumSnapshotComplete(debezium dbzm.Debezium) (bool, error) {
+	status, err := debezium.GetExportStatus()
+	if err != nil {
+		return false, fmt.Errorf("failed to read export status: %w", err)
+	}
+	if status != nil && status.SnapshotExportIsComplete() {
+		utils.PrintAndLog("Snapshot export is complete.")
+		createExportDataDoneFlag()
+		err := writeDataFileDescriptor(exportDir, status)
+		if err != nil {
+			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+		}
+		outputExportStatus(status)
+		return true, nil
+	}
+	return false, nil
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {

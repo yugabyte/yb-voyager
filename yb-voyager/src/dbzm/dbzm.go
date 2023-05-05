@@ -23,9 +23,10 @@ var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 type Debezium struct {
 	*Config
-	cmd  *exec.Cmd
-	err  error
-	done bool
+	cmd            *exec.Cmd
+	err            error
+	done           bool
+	combinedOutput string
 }
 
 func init() {
@@ -66,7 +67,7 @@ func (d *Debezium) Start() error {
 		d.done = true
 		if d.err != nil {
 			log.Errorf("Debezium exited with: %v", d.err)
-			utils.ErrExit("Data export failed:\nSTDOUT:%s\nSTDERR:%s", outbuf.String(), errbuf.String())
+			d.combinedOutput = fmt.Sprintf("STDOUT:%s\nSTDERR:%s", outbuf.String(), errbuf.String())
 		}
 	}()
 	return nil
@@ -91,6 +92,10 @@ func (d *Debezium) IsRunning() bool {
 
 func (d *Debezium) Error() error {
 	return d.err
+}
+
+func (d *Debezium) CombinedOutput() string {
+	return d.combinedOutput
 }
 
 func (d *Debezium) GetExportStatus() (*ExportStatus, error) {
