@@ -131,7 +131,6 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 
 func checkIfTableHasStarted(tableProgressMetadata *utils.TableProgressMetadata) bool {
 	if liveMigration || useDebezium {
-		log.Infof("checkIfTableHasStarted begin for table=%q", tableProgressMetadata.TableName.Qualified.Unquoted)
 		for {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if status == nil || err != nil || status.GetTableWithLargestSno() == nil {

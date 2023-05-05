@@ -104,7 +104,7 @@ func (status *ExportStatus) GetTableSno(tableName string, schemaName string) int
 func (status *ExportStatus) IsTableExported(tableName string) bool {
 	largestSno := status.GetTableWithLargestSno().Sno
 	for i := range status.Tables {
-		if status.Tables[i].TableName == tableName && status.Tables[i].Sno < largestSno {
+		if status.Tables[i].TableName == tableName && status.Tables[i].Sno <= largestSno {
 			return true
 		}
 	}

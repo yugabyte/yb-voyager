@@ -134,10 +134,6 @@ func exportDataOffline() bool {
 
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
-<<<<<<< HEAD
-
-=======
->>>>>>> 6fd37680 (savepoint: in progress changes of debezium progress bar support)
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -331,21 +327,6 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-func outputExportStatus(status *dbzm.ExportStatus) {
-	for i, table := range status.Tables {
-		if i == 0 {
-			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
-			fmt.Println("====================================================================================================")
-		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
-	}
-}
-
->>>>>>> 6fd37680 (savepoint: in progress changes of debezium progress bar support)
-=======
 func renameDbzmExportedDataFiles() {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
@@ -374,7 +355,6 @@ func renameDbzmExportedDataFiles() {
 	}
 }
 
->>>>>>> 4d2fb865 ([DB-6100] & [DB-6012]: Fixed Debezium Data Export bugs in case of case-sensitive tables(PostgreSQL) and reserved keywords tables(Oracle/MySQL))
 // flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListString string, flagName string) {
 	if tableListString == "" {
