@@ -227,7 +227,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		// monitor the debezium process and mode = snapshot/streaming
 		snapshotComplete := false
 		for debezium.IsRunning() {
-			if snapshotComplete == false {
+			if !snapshotComplete {
 				snapshotComplete, err = verifyAndHandleDebeziumSnapshotComplete(*debezium)
 				if err != nil {
 					return err
