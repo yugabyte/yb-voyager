@@ -163,7 +163,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 }
 
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, nil, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -204,4 +204,8 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 		}
 	}
 	return nonEmptyTableList, emptyTableList
+}
+
+func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) map[string][]string {
+	return nil
 }

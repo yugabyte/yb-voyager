@@ -170,6 +170,7 @@ type Ora2pgConfig struct {
 	DisablePartition string
 	DisableComment   string
 	Allow            string
+	ModifyStruct     string
 }
 
 func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {

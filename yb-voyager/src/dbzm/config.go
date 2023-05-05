@@ -25,6 +25,7 @@ type Config struct {
 	DatabaseName string
 	SchemaNames  string
 	TableList    []string
+	ColumnList   []string
 	SnapshotMode string
 }
 
@@ -42,6 +43,7 @@ debezium.source.database.port=%d
 debezium.source.database.user=%s
 debezium.source.database.password=%s
 debezium.source.table.include.list=%s
+debezium.source.column.include.list=%s
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
 debezium.source.offset.flush.interval.ms=0
@@ -108,6 +110,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			schemaNames)
 
@@ -118,6 +121,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
@@ -130,6 +134,7 @@ func (c *Config) String() string {
 			offsetFile,
 			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
+			strings.Join(c.ColumnList, ","),
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))

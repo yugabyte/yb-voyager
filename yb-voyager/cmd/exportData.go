@@ -206,9 +206,16 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		snapshotMode = "initial"
 	}
 
-	var dbzmTableList []string
+	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+	}
+
+	columnList := source.DB().PartiallySupportedTablesColumnList(tableList)
+	for table, columns := range columnList {
+		for _, column := range columns {
+			dbzmColumnList = append(dbzmColumnList, source.Schema+"."+table+"."+column)
+		}
 	}
 
 	config := &dbzm.Config{
@@ -222,6 +229,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
 		TableList:    dbzmTableList,
+		ColumnList:   dbzmColumnList,
 		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)

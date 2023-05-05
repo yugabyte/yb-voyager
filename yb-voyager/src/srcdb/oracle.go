@@ -19,6 +19,9 @@ type Oracle struct {
 	db *sql.DB
 }
 
+var oracleUnsuportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
+	"SYS.AnyData", "SYS.AnyType", "SYS.AnyDataSet"}
+
 func newOracle(s *Source) *Oracle {
 	return &Oracle{source: s}
 }
@@ -166,7 +169,14 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 }
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+	tablesColumnList := ora.PartiallySupportedTablesColumnList(tableList)
+	if len(tablesColumnList) > 0 {
+		if !utils.AskPrompt(fmt.Sprintf("There are tables having unsupported column types. Do you want to continue by ignoring those specific columns of the table?")) {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` to continue without these tables")
+		}
+		log.Infof("Exporting tables with unsupported column types: %v", tablesColumnList)
+	}
+	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -281,4 +291,50 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	}
 
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
+}
+
+func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string) {
+	var columns, datatypes []string
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+	}
+	for rows.Next() {
+		var column, dataType string
+		err := rows.Scan(&column, &dataType)
+		if err != nil {
+			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+		}
+		columns = append(columns, column)
+		datatypes = append(datatypes, dataType)
+	}
+	return columns, datatypes
+}
+
+func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) map[string][]string {
+	tableColumnMap := make(map[string][]string)
+	for _, tableName := range tableList {
+		columns, datatypes := ora.GetTableColumns(tableName)
+		var unsupportedColumnNames []string
+		for i := 0; i < len(columns); i++ {
+			unsupported := false
+			for _, unsupportedDataType := range oracleUnsuportedDataTypes {
+				if strings.EqualFold(datatypes[i], unsupportedDataType) {
+					unsupported = true
+				}
+			}
+
+			if unsupported {
+				utils.PrintAndLog(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName, columns[i], datatypes[i]))
+			} else {
+				unsupportedColumnNames = append(unsupportedColumnNames, columns[i])
+			}
+		}
+		if len(unsupportedColumnNames) < len(columns) {
+			tableColumnMap[tableName.ObjectName.Unquoted] = unsupportedColumnNames
+		}
+	}
+
+	return tableColumnMap
 }

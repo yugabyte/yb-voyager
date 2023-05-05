@@ -272,3 +272,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	}
 	return nonEmptyTableList, emptyTableList
 }
+
+func (pg *PostgreSQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) map[string][]string {
+	return nil
+}
