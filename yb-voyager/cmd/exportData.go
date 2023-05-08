@@ -230,7 +230,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			if !snapshotComplete {
 				snapshotComplete, err = verifyAndHandleDebeziumSnapshotComplete(*debezium)
 				if err != nil {
-					return err
+					utils.ErrExit("could not verify debezium snapshot status: %w", err)
 				}
 				if snapshotComplete {
 					utils.PrintAndLog("Streaming changes to a local queue file...")
