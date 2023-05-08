@@ -107,7 +107,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-	logFile, _ := filepath.Abs(filepath.Join(c.ExportDir, "logs/debezium.log"))
+	logFile, _ := filepath.Abs(filepath.Join(c.ExportDir, "logs", "debezium.log"))
 
 	switch c.SourceDBType {
 	case "postgresql":

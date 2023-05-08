@@ -73,9 +73,18 @@ func (d *Debezium) Start() error {
 	return nil
 }
 
+// Registers handlers to ensure that debezium is shut down gracefully in the event that voyager exits
+// either due to some error or due to a signal received.
+//  1. An atexit handler. This will be run whenever atexit.Exit() (or essentially utils.ErrExit) is called
+//     within voyager
+//  2. Signal handlers for SIGINT, SIGTERM that calls atexit.Exit()
 func (d *Debezium) registerExitHandlers() {
 	atexit.Register(func() {
-		d.Stop()
+		err := d.Stop()
+		if err != nil {
+			log.Errorf("Error stopping debezium: %v", err)
+			os.Exit(1)
+		}
 	})
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -103,23 +112,27 @@ func (d *Debezium) GetExportStatus() (*ExportStatus, error) {
 	return ReadExportStatus(statusFilePath)
 }
 
-// stops debezium process if it is running
+// stops debezium process gracefully if it is running
 func (d *Debezium) Stop() error {
 	if d.IsRunning() {
 		log.Infof("Stopping debezium...")
 		err := d.cmd.Process.Signal(syscall.SIGTERM)
+		if err != nil {
+			return fmt.Errorf("Error sending signal to SIGTERM: %v", err)
+		}
 		go func() {
 			// wait for a certain time for debezium to shut down before force killing the process.
 			sigtermTimeout := 100
 			time.Sleep(time.Duration(sigtermTimeout) * time.Second)
 			if d.IsRunning() {
 				log.Warnf("Waited %d seconds for debezium process to stop. Force killing it now.", sigtermTimeout)
-				d.cmd.Process.Kill()
+				err = d.cmd.Process.Kill()
+				if err != nil {
+					log.Errorf("Error force-stopping debezium: %v", err)
+					os.Exit(1) // not calling atexit.Exit here because this func is called from within an atexit handler
+				}
 			}
 		}()
-		if err != nil {
-			return fmt.Errorf("Error stopping debezium: %v", err)
-		}
 		d.cmd.Wait()
 		d.done = true
 		log.Info("Stopped debezium.")
