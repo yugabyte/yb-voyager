@@ -273,6 +273,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	return nil
 }
 
+// required only for postgresql since GetAllTables() returns all tables and partitions
 func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
 	if source.DBType != POSTGRESQL || source.TableList != "" {
 		return tableList
