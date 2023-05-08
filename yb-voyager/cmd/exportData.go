@@ -87,7 +87,6 @@ func exportData() {
 	} else {
 		color.Red("Export of data failed, retry!! \u274C")
 		log.Error("Export of data failed.")
-		atexit.Exit(1)
 	}
 }
 
@@ -231,7 +230,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			if !snapshotComplete {
 				snapshotComplete, err = verifyAndHandleDebeziumSnapshotComplete(*debezium)
 				if err != nil {
-					return fmt.Errorf("failed to verify debezium export status: %w", err)
+					return err
 				}
 				if snapshotComplete {
 					utils.PrintAndLog("Streaming changes to a local queue file...")
@@ -241,7 +240,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		}
 		err = debezium.Error()
 		if err != nil {
-			return fmt.Errorf("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+			utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
 		}
 	} else {
 		// offline migration.
@@ -251,12 +250,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		}
 		err = debezium.Error()
 		if err != nil {
-			return fmt.Errorf("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+			utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
 		} else {
 			// verify snapshot is complete.
 			snapshotComplete, err := verifyAndHandleDebeziumSnapshotComplete(*debezium)
 			if !snapshotComplete || err != nil {
-				return fmt.Errorf("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
+				utils.ErrExit("debezium exited unexpectedly: %w\nOutput:%s", err, debezium.CombinedOutput())
 			}
 		}
 	}
