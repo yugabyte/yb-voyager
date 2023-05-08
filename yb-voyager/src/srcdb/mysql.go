@@ -206,6 +206,6 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) GetParentTable(table *sqlname.SourceName) *sqlname.SourceName {
+func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {
 	panic("not implemented")
 }

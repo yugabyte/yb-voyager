@@ -280,8 +280,7 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 
 	filteredTableList := []*sqlname.SourceName{}
 	for _, table := range tableList {
-		pt := source.DB().GetParentTable(table)
-		if pt == nil { // only add parent tables
+		if !source.DB().IsTablePartition(table) {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
