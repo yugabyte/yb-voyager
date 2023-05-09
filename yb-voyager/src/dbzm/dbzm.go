@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"os/signal"
 	"path/filepath"
 	"syscall"
 	"time"
@@ -72,11 +71,8 @@ func (d *Debezium) Start() error {
 	return nil
 }
 
-// Registers handlers to ensure that debezium is shut down gracefully in the event that voyager exits
-// either due to some error or due to a signal received.
-//  1. An atexit handler. This will be run whenever atexit.Exit() (or essentially utils.ErrExit) is called
-//     within voyager
-//  2. Signal handlers for SIGINT, SIGTERM that calls atexit.Exit()
+// Registers an atexit handlers to ensure that debezium is shut down gracefully in the
+// event that voyager exits either due to some error.
 func (d *Debezium) registerExitHandlers() {
 	atexit.Register(func() {
 		err := d.Stop()
@@ -85,13 +81,6 @@ func (d *Debezium) registerExitHandlers() {
 			os.Exit(1)
 		}
 	})
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		sig := <-sigs
-		utils.PrintAndLog("Received signal %s. Exiting...", sig)
-		atexit.Exit(0)
-	}()
 }
 
 func (d *Debezium) IsRunning() bool {
