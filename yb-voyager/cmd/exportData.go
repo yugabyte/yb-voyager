@@ -312,16 +312,17 @@ func renameDbzmExportedDataFiles() {
 	}
 
 	for i := 0; i < len(status.Tables); i++ {
-		fmt.Printf("status: %+v\n", status.Tables[i])
-		if source.DBType != MYSQL {
-			status.Tables[i].TableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		tableName := fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		schemaOrDbName := status.Tables[i].SchemaName
+		if source.DBType == MYSQL {
+			tableName = status.Tables[i].TableName
+			schemaOrDbName = status.Tables[i].DatabaseName
 		}
-		tableSrcName := sqlname.NewSourceName(status.Tables[i].SchemaName,
-			status.Tables[i].TableName)
 
+		tableSrcName := sqlname.NewSourceName(schemaOrDbName, tableName)
 		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
 		newFilePath := filepath.Join(exportDir, "data", tableSrcName.ObjectName.MinQuoted+"_data.sql")
-		if tableSrcName.SchemaName.Unquoted != "public" {
+		if tableSrcName.SchemaName.Unquoted != "public" && source.DBType == POSTGRESQL {
 			newFilePath = filepath.Join(exportDir, "data", tableSrcName.Qualified.MinQuoted+"_data.sql")
 		}
 
@@ -339,7 +340,12 @@ func outputExportStatus(status *dbzm.ExportStatus) {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
+		if table.SchemaName != "" {
+			fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
+		} else {
+			fmt.Printf("%-30s%-30s%10d\n", table.DatabaseName, table.TableName, table.ExportedRowCountSnapshot)
+		}
+
 	}
 }
 
