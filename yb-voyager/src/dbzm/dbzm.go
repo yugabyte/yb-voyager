@@ -1,7 +1,6 @@
 package dbzm
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -44,11 +43,14 @@ func (d *Debezium) Start() error {
 
 	log.Infof("starting debezium...")
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
-	// capture stdout, stderr
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	d.cmd.Stdout = &outbuf
-	d.cmd.Stderr = &errbuf
+	// log file
+	logFilePath, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
+	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("Error creating log file: %v", err)
+	}
+	d.cmd.Stdout = logFile
+	d.cmd.Stderr = logFile
 
 	d.registerExitHandlers()
 	err = d.cmd.Start()
@@ -56,11 +58,14 @@ func (d *Debezium) Start() error {
 		return fmt.Errorf("Error starting debezium: %v", err)
 	}
 	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
+
+	// wait for process to end.
+	// TODO: move this logic to the debeziumExportData func, and also exit when debezium exits.
 	go func() {
 		d.err = d.cmd.Wait()
 		d.done = true
 		if d.err != nil {
-			log.Errorf("Debezium export failed:%s\nSTDOUT:%s\nSTDERR:%s", d.err, outbuf.String(), errbuf.String())
+			log.Errorf("Debezium export failed: %s", d.err)
 		}
 	}()
 	return nil
