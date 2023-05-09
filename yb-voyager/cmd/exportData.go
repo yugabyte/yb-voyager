@@ -223,6 +223,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
+	// TODO: check also for debezium.IsRunning here.
+	// Currently, this loops continues forever when debezium exits with some error.
 	for exportingSnapshot {
 		status, err = debezium.GetExportStatus()
 		if err != nil {

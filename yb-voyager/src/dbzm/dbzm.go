@@ -56,7 +56,6 @@ func (d *Debezium) Start() error {
 	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
 
 	// wait for process to end.
-	// TODO: move this logic to the debeziumExportData func, and also exit when debezium exits.
 	go func() {
 		d.err = d.cmd.Wait()
 		d.done = true
