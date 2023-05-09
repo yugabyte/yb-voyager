@@ -23,6 +23,7 @@ type SourceDB interface {
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
+	IsTablePartition(table *sqlname.SourceName) bool
 }
 
 func newSourceDB(source *Source) SourceDB {

@@ -136,6 +136,7 @@ func exportDataOffline() bool {
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
 	if liveMigration || useDebezium {
+		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
 			utils.PrintAndLog("Failed to run live migration: %s", err)
@@ -206,10 +207,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		snapshotMode = "initial"
 	}
 
-	var dbzmTableList []string
+	var dbzmIncludeTableList []string
 	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+		dbzmIncludeTableList = append(dbzmIncludeTableList, table.Qualified.Unquoted)
 	}
+
+	utils.PrintAndLog("final table list for data export: %v\n", dbzmIncludeTableList)
 
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
@@ -221,7 +224,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
-		TableList:    dbzmTableList,
+		TableList:    dbzmIncludeTableList,
 		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)
@@ -270,10 +273,25 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	return nil
 }
 
+// required only for postgresql since GetAllTables() returns all tables and partitions
+func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	if source.DBType != POSTGRESQL || source.TableList != "" {
+		return tableList
+	}
+
+	filteredTableList := []*sqlname.SourceName{}
+	for _, table := range tableList {
+		if !source.DB().IsTablePartition(table) {
+			filteredTableList = append(filteredTableList, table)
+		}
+	}
+	return filteredTableList
+}
+
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCount
+		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
@@ -292,7 +310,7 @@ func outputExportStatus(status *dbzm.ExportStatus) {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
 	}
 }
 

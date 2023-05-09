@@ -272,3 +272,17 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	}
 	return nonEmptyTableList, emptyTableList
 }
+
+func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
+	var parentTable string
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.Unquoted)
+
+	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
+	if err != pgx.ErrNoRows && err != nil {
+		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
+	}
+
+	return parentTable != ""
+}
