@@ -1,7 +1,6 @@
 package dbzm
 
 import (
-	// "bytes"
 	"bytes"
 	"fmt"
 	"os"
@@ -12,8 +11,6 @@ import (
 
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
-	// "syscall"
 
 	log "github.com/sirupsen/logrus"
 )
