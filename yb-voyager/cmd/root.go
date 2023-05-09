@@ -24,7 +24,6 @@ import (
 	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -55,7 +54,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			cmd.Help()
-			atexit.Exit(0)
+			os.Exit(0)
 		}
 	},
 
