@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/tebeka/atexit"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -61,8 +60,7 @@ func (d *Debezium) Start() error {
 		d.err = d.cmd.Wait()
 		d.done = true
 		if d.err != nil {
-			log.Errorf("Debezium exited with: %v", d.err)
-			utils.ErrExit("Data export failed:\nSTDOUT:%s\nSTDERR:%s", outbuf.String(), errbuf.String())
+			log.Errorf("Debezium export failed:%s\nSTDOUT:%s\nSTDERR:%s", d.err, outbuf.String(), errbuf.String())
 		}
 	}()
 	return nil

@@ -85,7 +85,7 @@ func exportData() {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
-		color.Red("Export of data failed, retry!! \u274C")
+		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
 	}
 }
@@ -131,7 +131,7 @@ func exportDataOffline() bool {
 	if liveMigration || useDebezium {
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
-			utils.PrintAndLog("Failed to run live migration: %s", err)
+			log.Errorf("Export Data using debezium failed: %v", err)
 		}
 		return err == nil
 	}
