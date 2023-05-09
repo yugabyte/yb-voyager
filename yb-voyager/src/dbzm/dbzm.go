@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/tebeka/atexit"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -43,15 +44,10 @@ func (d *Debezium) Start() error {
 
 	log.Infof("starting debezium...")
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
-	// log file
-	logFilePath, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
-	logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	err = d.setupLogFile()
 	if err != nil {
-		return fmt.Errorf("Error creating log file: %v", err)
+		return fmt.Errorf("Error setting up logging for debezium: %v", err)
 	}
-	d.cmd.Stdout = logFile
-	d.cmd.Stderr = logFile
-
 	d.registerExitHandlers()
 	err = d.cmd.Start()
 	if err != nil {
@@ -68,6 +64,19 @@ func (d *Debezium) Start() error {
 			log.Errorf("Debezium exited with: %v", d.err)
 		}
 	}()
+	return nil
+}
+
+func (d *Debezium) setupLogFile() error {
+	logFilePath, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
+
+	logRotator := &lumberjack.Logger{
+		Filename:   logFilePath,
+		MaxSize:    200, // 200 MB log size before rotation
+		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
+	}
+	d.cmd.Stdout = logRotator
+	d.cmd.Stderr = logRotator
 	return nil
 }
 
