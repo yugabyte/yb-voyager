@@ -54,10 +54,8 @@ debezium.source.include.unknown.datatypes=true
 debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*
 
 debezium.source.tombstones.on.delete=false
-
-quarkus.log.level=info
 quarkus.log.console.json=false
-quarkus.log.console.level=INFO
+quarkus.log.level=info
 `
 
 var postgresSrcConfigTemplate = baseSrcConfigTemplate + `

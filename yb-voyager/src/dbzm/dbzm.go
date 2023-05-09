@@ -65,7 +65,7 @@ func (d *Debezium) Start() error {
 		d.err = d.cmd.Wait()
 		d.done = true
 		if d.err != nil {
-			log.Errorf("Debezium export failed: %s", d.err)
+			log.Errorf("Debezium exited with: %v", d.err)
 		}
 	}()
 	return nil
