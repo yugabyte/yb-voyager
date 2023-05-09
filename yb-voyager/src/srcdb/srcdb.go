@@ -12,7 +12,7 @@ import (
 type SourceDB interface {
 	Connect() error
 	GetTableRowCount(tableName string) int64
-	GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64
+	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName

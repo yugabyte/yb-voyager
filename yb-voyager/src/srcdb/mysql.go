@@ -45,25 +45,18 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (ms *MySQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+func (ms *MySQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
-	var query string
-	if !tableProgressMetadata.IsPartition {
-		query = fmt.Sprintf("SELECT table_rows from information_schema.tables "+
-			"where table_name = '%s'", tableProgressMetadata.TableName.ObjectName.Unquoted)
-	} else {
-		query = fmt.Sprintf("SELECT table_rows from information_schema.partitions "+
-			"where table_name='%s' and partition_name='%s' and table_schema='%s'",
-			tableProgressMetadata.ParentTable, tableProgressMetadata.TableName.ObjectName.Unquoted, tableProgressMetadata.TableName.SchemaName.Unquoted)
-	}
+	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
+		"where table_name = '%s'", tableName.ObjectName.Unquoted)
 
-	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
 	return approxRowCount.Int64
 }
 
