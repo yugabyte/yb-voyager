@@ -49,7 +49,8 @@ func (ora *Oracle) GetTableRowCount(tableName string) int64 {
 func (ora *Oracle) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT NUM_ROWS FROM ALL_TABLES "+
-		"WHERE TABLE_NAME='%s'", tableName.ObjectName.Unquoted)
+		"WHERE TABLE_NAME = '%s' and OWNER =  '%s'",
+		tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ora.db.QueryRow(query).Scan(&approxRowCount)

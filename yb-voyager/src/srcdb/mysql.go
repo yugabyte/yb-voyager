@@ -48,7 +48,8 @@ func (ms *MySQL) GetTableRowCount(tableName string) int64 {
 func (ms *MySQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT table_rows from information_schema.tables "+
-		"where table_name = '%s'", tableName.ObjectName.Unquoted)
+		"where table_name = '%s' and table_schema = '%s'",
+		tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
