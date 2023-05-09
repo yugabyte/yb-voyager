@@ -100,32 +100,6 @@ func (ms *MySQL) GetAllTableNames() []*sqlname.SourceName {
 	return tableNames
 }
 
-func (ms *MySQL) GetAllPartitionNames(tableName string) []string {
-	query := fmt.Sprintf(`SELECT partition_name  from information_schema.partitions
-	WHERE table_name='%s' and table_schema='%s' ORDER BY partition_name ASC`,
-		tableName, ms.source.DBName)
-
-	rows, err := ms.db.Query(query)
-	if err != nil {
-		utils.ErrExit("failed to list partitions of table %q: %v", tableName, err)
-	}
-	defer rows.Close()
-
-	var partitionNames []string
-	for rows.Next() {
-		var partitionName sql.NullString
-		err = rows.Scan(&partitionName)
-		if err != nil {
-			utils.ErrExit("error in scanning query rows: %v", err)
-		}
-		if partitionName.Valid {
-			partitionNames = append(partitionNames, partitionName.String)
-		}
-	}
-	log.Infof("Partition Names for parent table %q: %q", tableName, partitionNames)
-	return partitionNames
-}
-
 func (ms *MySQL) getConnectionUri() string {
 	source := ms.source
 	if source.Uri != "" {

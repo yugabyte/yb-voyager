@@ -146,10 +146,6 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	return tableNames
 }
 
-func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
-	panic("Not Implemented")
-}
-
 func (pg *PostgreSQL) getConnectionUri() string {
 	source := pg.source
 	if source.Uri != "" {
