@@ -141,6 +141,7 @@ func exportDataOffline() bool {
 		if err != nil {
 			utils.PrintAndLog("Failed to run live migration: %s", err)
 		}
+		renameDbzmExportedDataFiles()
 		return err == nil
 	}
 
@@ -302,6 +303,34 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	}
 	dfd.Save()
 	return nil
+}
+
+func renameDbzmExportedDataFiles() {
+	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("Failed to read export status during renaming dbzm exported data files: %v", err)
+	}
+
+	for i := 0; i < len(status.Tables); i++ {
+		fmt.Printf("status: %+v\n", status.Tables[i])
+		if source.DBType != MYSQL {
+			status.Tables[i].TableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		}
+		tableSrcName := sqlname.NewSourceName(status.Tables[i].SchemaName,
+			status.Tables[i].TableName)
+
+		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
+		newFilePath := filepath.Join(exportDir, "data", tableSrcName.ObjectName.MinQuoted+"_data.sql")
+		if tableSrcName.SchemaName.Unquoted != "public" {
+			newFilePath = filepath.Join(exportDir, "data", tableSrcName.Qualified.MinQuoted+"_data.sql")
+		}
+
+		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
+		err = os.Rename(oldFilePath, newFilePath)
+		if err != nil {
+			utils.ErrExit("Failed to rename dbzm exported data file: %v", err)
+		}
+	}
 }
 
 func outputExportStatus(status *dbzm.ExportStatus) {
