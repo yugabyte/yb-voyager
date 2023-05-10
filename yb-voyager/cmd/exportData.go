@@ -305,7 +305,6 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
-// handle renaming for tables having case sensitivity and reserved keywords
 func renameDbzmExportedDataFiles() {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
@@ -313,17 +312,18 @@ func renameDbzmExportedDataFiles() {
 	}
 
 	for i := 0; i < len(status.Tables); i++ {
-		tableName := status.Tables[i].TableName
-		// either case sensitive or reserved keyword
-		if (!sqlname.IsAllLowercase(tableName) && !sqlname.IsAllUppercase(tableName)) ||
-			sqlname.IsReservedKeyword(tableName) {
-			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		tableName := fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		schemaOrDbName := status.Tables[i].SchemaName
+		if source.DBType == MYSQL {
+			tableName = status.Tables[i].TableName
+			schemaOrDbName = status.Tables[i].DatabaseName
 		}
 
+		tableSrcName := sqlname.NewSourceName(schemaOrDbName, tableName)
 		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
-		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
+		newFilePath := filepath.Join(exportDir, "data", tableSrcName.ObjectName.MinQuoted+"_data.sql")
+		if tableSrcName.SchemaName.Unquoted != "public" && source.DBType == POSTGRESQL {
+			newFilePath = filepath.Join(exportDir, "data", tableSrcName.Qualified.MinQuoted+"_data.sql")
 		}
 
 		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)

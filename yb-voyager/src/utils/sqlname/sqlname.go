@@ -195,7 +195,7 @@ func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
 	case YUGABYTE, POSTGRESQL:
-		if IsAllLowercase(objectName) && !IsReservedKeyword(objectName) {
+		if isAllLowercase(objectName) && !IsReservedKeyword(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
@@ -203,7 +203,7 @@ func minQuote(objectName, sourceDBType string) string {
 	case MYSQL:
 		return objectName
 	case ORACLE:
-		if IsAllUppercase(objectName) && !IsReservedKeyword(objectName) {
+		if isAllUppercase(objectName) && !IsReservedKeyword(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
@@ -213,7 +213,7 @@ func minQuote(objectName, sourceDBType string) string {
 	}
 }
 
-func IsAllUppercase(s string) bool {
+func isAllUppercase(s string) bool {
 	for _, c := range s {
 		if c >= 'a' && c <= 'z' {
 			return false
@@ -222,7 +222,7 @@ func IsAllUppercase(s string) bool {
 	return true
 }
 
-func IsAllLowercase(s string) bool {
+func isAllLowercase(s string) bool {
 	for _, c := range s {
 		if c >= 'A' && c <= 'Z' {
 			return false
