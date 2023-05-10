@@ -314,8 +314,8 @@ func renameDbzmExportedDataFiles() {
 
 	for i := 0; i < len(status.Tables); i++ {
 		tableName := status.Tables[i].TableName
-		// either case sensitive or reserved keyword
-		if (!sqlname.IsAllLowercase(tableName) && !sqlname.IsAllUppercase(tableName)) ||
+		// either case sensitive(postgresql) or reserved keyword(any source db)
+		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
 			sqlname.IsReservedKeyword(tableName) {
 			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
 		}
