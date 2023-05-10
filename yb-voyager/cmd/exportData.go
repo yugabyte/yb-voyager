@@ -84,7 +84,7 @@ func exportData() {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
-		color.Red("Export of data failed, retry!! \u274C")
+		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
 	}
 }
@@ -139,7 +139,7 @@ func exportDataOffline() bool {
 		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
-			utils.PrintAndLog("Failed to run live migration: %s", err)
+			log.Errorf("Export Data using debezium failed: %v", err)
 		}
 		return err == nil
 	}
@@ -234,6 +234,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
+	// TODO: check also for debezium.IsRunning here.
+	// Currently, this loops continues forever when debezium exits with some error.
 	for exportingSnapshot {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
