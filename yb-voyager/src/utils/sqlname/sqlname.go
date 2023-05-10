@@ -201,12 +201,7 @@ func minQuote(objectName, sourceDBType string) string {
 			return `"` + objectName + `"`
 		}
 	case MYSQL:
-		// case sensitive tables are not quoted in mysql to import as case-insensitive in yugabyte
-		if !IsReservedKeyword(objectName) {
-			return objectName
-		} else {
-			return `"` + objectName + `"`
-		}
+		return objectName
 	case ORACLE:
 		if isAllUppercase(objectName) && !IsReservedKeyword(objectName) {
 			return objectName
