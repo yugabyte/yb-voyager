@@ -10,7 +10,7 @@ YUM="sudo yum install -y -q"
 
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
-DEBEZIUM_COMMIT_HASH="93c7704d1fe662d515c48cf58feadf49168b33f0"
+DEBEZIUM_COMMIT_HASH="8d2043e631eca4e527963b4a8f2f364a2c355f1b"
 
 
 on_exit() {
