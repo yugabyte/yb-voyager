@@ -89,7 +89,6 @@ func (d *Debezium) registerExitHandlers() {
 		err := d.Stop()
 		if err != nil {
 			log.Errorf("Error stopping debezium: %v", err)
-			os.Exit(1)
 		}
 	})
 }
