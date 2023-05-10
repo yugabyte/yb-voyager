@@ -141,6 +141,7 @@ func exportDataOffline() bool {
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
 		}
+		renameDbzmExportedDataFiles()
 		return err == nil
 	}
 
@@ -306,13 +307,47 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
+// handle renaming for tables having case sensitivity and reserved keywords
+func renameDbzmExportedDataFiles() {
+	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("Failed to read export status during renaming dbzm exported data files: %v", err)
+	}
+
+	for i := 0; i < len(status.Tables); i++ {
+		tableName := status.Tables[i].TableName
+		// either case sensitive(postgresql) or reserved keyword(any source db)
+		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
+			sqlname.IsReservedKeyword(tableName) {
+			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		}
+
+		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
+		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
+		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
+			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
+		}
+
+		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
+		err = os.Rename(oldFilePath, newFilePath)
+		if err != nil {
+			utils.ErrExit("Failed to rename dbzm exported data file: %v", err)
+		}
+	}
+}
+
 func outputExportStatus(status *dbzm.ExportStatus) {
 	for i, table := range status.Tables {
 		if i == 0 {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
+		if table.SchemaName != "" {
+			fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
+		} else {
+			fmt.Printf("%-30s%-30s%10d\n", table.DatabaseName, table.TableName, table.ExportedRowCountSnapshot)
+		}
+
 	}
 }
 
