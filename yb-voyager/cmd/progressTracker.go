@@ -43,7 +43,7 @@ func (pt *ProgressTracker) UpdateProgress(status *dbzm.ExportStatus) {
 	}
 	exportedRowCount := status.GetTableExportedRowCount(pt.inProgressTableSno)
 	if pt.totalRowCount[pt.inProgressQualifiedTableName] <= exportedRowCount {
-		pt.totalRowCount[pt.inProgressQualifiedTableName] += int64(float64(exportedRowCount) * 1.05)
+		pt.totalRowCount[pt.inProgressQualifiedTableName] = int64(float64(exportedRowCount) * 1.05)
 		pt.pb.SetTotalRowCount(pt.totalRowCount[pt.inProgressQualifiedTableName], false)
 	}
 	pt.pb.SetExportedRowCount(exportedRowCount)
