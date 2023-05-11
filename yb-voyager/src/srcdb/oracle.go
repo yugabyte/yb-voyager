@@ -282,3 +282,7 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
+
+func (ora *Oracle) IsTablePartition(table *sqlname.SourceName) bool {
+	panic("not implemented")
+}

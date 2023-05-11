@@ -205,3 +205,7 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	}
 	return nonEmptyTableList, emptyTableList
 }
+
+func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {
+	panic("not implemented")
+}

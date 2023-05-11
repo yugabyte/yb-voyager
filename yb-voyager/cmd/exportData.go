@@ -84,7 +84,7 @@ func exportData() {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
-		color.Red("Export of data failed, retry!! \u274C")
+		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
 	}
 }
@@ -136,10 +136,12 @@ func exportDataOffline() bool {
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
 	if liveMigration || useDebezium {
+		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList)
 		if err != nil {
-			utils.PrintAndLog("Failed to run live migration: %s", err)
+			log.Errorf("Export Data using debezium failed: %v", err)
 		}
+		renameDbzmExportedDataFiles()
 		return err == nil
 	}
 
@@ -206,10 +208,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		snapshotMode = "initial"
 	}
 
-	var dbzmTableList []string
+	var dbzmIncludeTableList []string
 	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
+		dbzmIncludeTableList = append(dbzmIncludeTableList, table.Qualified.Unquoted)
 	}
+
+	utils.PrintAndLog("final table list for data export: %v\n", dbzmIncludeTableList)
 
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
@@ -221,7 +225,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
-		TableList:    dbzmTableList,
+		TableList:    dbzmIncludeTableList,
 		SnapshotMode: snapshotMode,
 	}
 	debezium := dbzm.NewDebezium(config)
@@ -231,6 +235,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
+	// TODO: check also for debezium.IsRunning here.
+	// Currently, this loops continues forever when debezium exits with some error.
 	for exportingSnapshot {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
@@ -270,10 +276,25 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	return nil
 }
 
+// required only for postgresql since GetAllTables() returns all tables and partitions
+func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	if source.DBType != POSTGRESQL || source.TableList != "" {
+		return tableList
+	}
+
+	filteredTableList := []*sqlname.SourceName{}
+	for _, table := range tableList {
+		if !source.DB().IsTablePartition(table) {
+			filteredTableList = append(filteredTableList, table)
+		}
+	}
+	return filteredTableList
+}
+
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCount
+		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
@@ -286,13 +307,47 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
+// handle renaming for tables having case sensitivity and reserved keywords
+func renameDbzmExportedDataFiles() {
+	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("Failed to read export status during renaming dbzm exported data files: %v", err)
+	}
+
+	for i := 0; i < len(status.Tables); i++ {
+		tableName := status.Tables[i].TableName
+		// either case sensitive(postgresql) or reserved keyword(any source db)
+		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
+			sqlname.IsReservedKeyword(tableName) {
+			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
+		}
+
+		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
+		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
+		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
+			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
+		}
+
+		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
+		err = os.Rename(oldFilePath, newFilePath)
+		if err != nil {
+			utils.ErrExit("Failed to rename dbzm exported data file: %v", err)
+		}
+	}
+}
+
 func outputExportStatus(status *dbzm.ExportStatus) {
 	for i, table := range status.Tables {
 		if i == 0 {
 			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
 			fmt.Println("====================================================================================================")
 		}
-		fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCount)
+		if table.SchemaName != "" {
+			fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
+		} else {
+			fmt.Printf("%-30s%-30s%10d\n", table.DatabaseName, table.TableName, table.ExportedRowCountSnapshot)
+		}
+
 	}
 }
 
