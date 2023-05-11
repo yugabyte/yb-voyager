@@ -10,7 +10,9 @@ YUM="sudo yum install -y -q"
 
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
-DEBEZIUM_COMMIT_HASH="8d2043e631eca4e527963b4a8f2f364a2c355f1b"
+if [ -z "$DEBEZIUM_REF" ]; then
+	DEBEZIUM_REF="8d2043e631eca4e527963b4a8f2f364a2c355f1b"
+fi
 
 
 on_exit() {
@@ -263,16 +265,16 @@ install_debezium_server() {
 	output "Installing debezium"
 	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
 	# download
-	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_COMMIT_HASH}.tar.gz -O debezium.tar.gz 1>&2
+	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_REF}.tar.gz -O debezium.tar.gz 1>&2
 	tar -xzvf debezium.tar.gz 1>&2
 	# build
-	cd debezium-${DEBEZIUM_COMMIT_HASH}
+	cd debezium-${DEBEZIUM_REF}
 	sh buildDebeziumServer.sh 1>&2
 	# move to /opt/yb-voyager/debezium-server
 	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
 	cd ..
-	rm -r debezium-${DEBEZIUM_COMMIT_HASH}
+	rm -r debezium-${DEBEZIUM_REF}
 	rm debezium.tar.gz
 }
 
