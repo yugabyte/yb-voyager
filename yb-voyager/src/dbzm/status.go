@@ -114,5 +114,5 @@ func (status *ExportStatus) GetTableExportedRowCount(tableSno int) int64 {
 			return status.Tables[i].ExportedRowCountSnapshot
 		}
 	}
-	return 0
+	panic("table sno not found in export status")
 }
