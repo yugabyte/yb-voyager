@@ -41,3 +41,4 @@ func (pbr *DisablePBReporter) SetExportedRowCount(exportedRowCount int64) {
 func (pbr *DisablePBReporter) IsComplete() bool {
 	return pbr.IsCompleted
 }
+

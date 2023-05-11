@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -15,10 +16,10 @@ const (
 )
 
 type TableExportStatus struct {
-	DatabaseName string `json:"database_name"`
-	SchemaName   string `json:"schema_name"`
-	TableName    string `json:"table_name"`
-
+	Sno                      int    `json:"sno"`
+	DatabaseName             string `json:"database_name"`
+	SchemaName               string `json:"schema_name"`
+	TableName                string `json:"table_name"`
 	FileName                 string `json:"file_name"`
 	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
 }
@@ -67,4 +68,44 @@ func IsLiveMigrationInStreamingMode(exportDir string) bool {
 		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
 	}
 	return status != nil && status.Mode == MODE_STREAMING
+}
+
+// get table with largest sno
+func (status *ExportStatus) GetTableWithLargestSno() *TableExportStatus {
+	var table *TableExportStatus
+	for i := range status.Tables {
+		if table == nil || status.Tables[i].Sno > table.Sno {
+			table = &status.Tables[i]
+		}
+	}
+	if table != nil {
+		log.Infof("GetTableWithLargestSno(): table=%q with largest sno: %v\n", table.TableName, table.Sno)
+	}
+	return table
+}
+
+func (status *ExportStatus) InProgressTable() *TableExportStatus {
+	if status.SnapshotExportIsComplete() {
+		return nil
+	}
+
+	// return status.GetTableWithLargestSno().SchemaName, status.GetTableWithLargestSno().TableName
+	return status.GetTableWithLargestSno()
+}
+
+func (status *ExportStatus) GetTableExportedRowCount(schemaName string, tableName string) int64 {
+	for i := range status.Tables {
+		if status.Tables[i].SchemaName == schemaName && status.Tables[i].TableName == tableName {
+			return status.Tables[i].ExportedRowCountSnapshot
+		}
+	}
+	return 0
+}
+
+func QualifiedTableName(tableExportStatus *TableExportStatus) string {
+	schemaOrDb := tableExportStatus.SchemaName
+	if schemaOrDb == "" {
+		schemaOrDb = tableExportStatus.DatabaseName
+	}
+	return fmt.Sprintf("%s.%s", schemaOrDb, tableExportStatus.TableName)
 }
