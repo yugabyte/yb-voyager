@@ -84,28 +84,35 @@ func (status *ExportStatus) GetTableWithLargestSno() *TableExportStatus {
 	return table
 }
 
-func (status *ExportStatus) InProgressTable() *TableExportStatus {
-	if status.SnapshotExportIsComplete() {
-		return nil
+func (status *ExportStatus) InProgressTableSno() int {
+	if status.SnapshotExportIsComplete() || status.GetTableWithLargestSno() == nil {
+		return -1
 	}
 
-	// return status.GetTableWithLargestSno().SchemaName, status.GetTableWithLargestSno().TableName
-	return status.GetTableWithLargestSno()
+	return status.GetTableWithLargestSno().Sno
 }
 
-func (status *ExportStatus) GetTableExportedRowCount(schemaName string, tableName string) int64 {
+func (status *ExportStatus) GetQualifiedTableName(tableSno int) string {
+	var schemaOrDb, tableName string
 	for i := range status.Tables {
-		if status.Tables[i].SchemaName == schemaName && status.Tables[i].TableName == tableName {
+		if status.Tables[i].Sno == tableSno {
+			schemaOrDb = status.Tables[i].SchemaName
+			if schemaOrDb == "" {
+				schemaOrDb = status.Tables[i].DatabaseName
+			}
+			tableName = status.Tables[i].TableName
+			break
+		}
+	}
+
+	return fmt.Sprintf("%s.%s", schemaOrDb, tableName)
+}
+
+func (status *ExportStatus) GetTableExportedRowCount(tableSno int) int64 {
+	for i := range status.Tables {
+		if status.Tables[i].Sno == tableSno {
 			return status.Tables[i].ExportedRowCountSnapshot
 		}
 	}
 	return 0
-}
-
-func QualifiedTableName(tableExportStatus *TableExportStatus) string {
-	schemaOrDb := tableExportStatus.SchemaName
-	if schemaOrDb == "" {
-		schemaOrDb = tableExportStatus.DatabaseName
-	}
-	return fmt.Sprintf("%s.%s", schemaOrDb, tableExportStatus.TableName)
 }
