@@ -16,6 +16,8 @@ EXPECTED_ROW_COUNT = {
 	'number_ps': 1,
 	'lob_types': 2
 }
+if os.environ.get('USE_DEBEZIUM') == '1':
+	EXPECTED_ROW_COUNT['long_type'] = 2 # https://yugabyte.atlassian.net/browse/DB-5929	
 
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
