@@ -1229,10 +1229,23 @@ func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (st
 		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
 	}
 	defer df.Close()
+	columnNames := quoteColumnNamesIfRequired(df.GetHeader())
 	stmt := fmt.Sprintf(
 		`COPY %s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', HEADER, ROWS_PER_TRANSACTION %%v);`,
-		tableName, df.GetHeader())
+		tableName, columnNames)
 	return stmt, nil
+}
+
+func quoteColumnNamesIfRequired(csvHeader string) string {
+	columnNames := strings.Split(csvHeader, ",")
+	for i := 0; i < len(columnNames); i++ {
+		columnNames[i] = strings.TrimSpace(columnNames[i])
+		if sqlname.IsReservedKeyword(columnNames[i]) || (sourceDBType == POSTGRESQL && sqlname.IsCaseSensitive(columnNames[i], sourceDBType)) {
+			columnNames[i] = fmt.Sprintf(`"%s"`, columnNames[i])
+		}
+	}
+
+	return strings.Join(columnNames, ",")
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
