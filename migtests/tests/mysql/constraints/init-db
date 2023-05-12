@@ -5,9 +5,6 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
-# echo "Granting Permission to root at all hosts"
-# mysql -u ${SOURCE_DB_ADMIN_USER} -p${SOURCE_DB_ADMIN_PASSWORD} -h localhost -P ${SOURCE_DB_PORT} -D mysql -e "GRANT ALL ON *.* TO 'root'@'%' IDENTIFIED BY 'root';"
-
 echo "Creating ${SOURCE_DB_NAME} database on source"
 run_mysql mysql "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
 run_mysql mysql "CREATE DATABASE ${SOURCE_DB_NAME};"
