@@ -57,18 +57,18 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableProgressMetadata.TableName.Qualified.MinQuoted)
+		"where oid = '%s'::regclass", tableName.Qualified.MinQuoted)
 
-	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.Qualified.MinQuoted, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.Qualified.MinQuoted, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
 	return approxRowCount.Int64
 }
 
@@ -144,10 +144,6 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	}
 	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
 	return tableNames
-}
-
-func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
-	panic("Not Implemented")
 }
 
 func (pg *PostgreSQL) getConnectionUri() string {

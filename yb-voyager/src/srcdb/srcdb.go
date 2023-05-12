@@ -12,11 +12,10 @@ import (
 type SourceDB interface {
 	Connect() error
 	GetTableRowCount(tableName string) int64
-	GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64
+	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
-	GetAllPartitionNames(tableName string) []string
 	ExportSchema(exportDir string)
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
