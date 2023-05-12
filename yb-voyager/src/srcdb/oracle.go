@@ -20,7 +20,7 @@ type Oracle struct {
 }
 
 var oracleUnsuportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
-	"SYS.AnyData", "SYS.AnyType", "SYS.AnyDataSet"}
+"SYS.AnyData", "SYS.AnyType", "SYS.AnyDataSet", "ROWID", "UROWID","SDO_GEOMETRY","SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY","SDO_GTYPE","SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE","SDO_STRING_ARRAY", "JSON"}
 
 func newOracle(s *Source) *Oracle {
 	return &Oracle{source: s}
@@ -168,15 +168,7 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	tablesColumnList, unsupportedColumnNames := ora.PartiallySupportedTablesColumnList(tableList)
-	if len(tablesColumnList) > 0 {
-		log.Infof("preparing include column list for debezium without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore these columns and export data of tables with supported columns") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		}
-	}
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[string][]string) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -294,36 +286,38 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
 
-func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string) {
-	var columns, datatypes []string
-	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+	var columns, datatypes, datatypes_owner []string
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
 	}
 	for rows.Next() {
-		var column, dataType string
-		err := rows.Scan(&column, &dataType)
+		var column, dataType, dataTypeOwner string
+		err := rows.Scan(&column, &dataType, &dataTypeOwner)
 		if err != nil {
 			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
 		}
 		columns = append(columns, column)
 		datatypes = append(datatypes, dataType)
+		datatypes_owner = append(datatypes_owner, dataTypeOwner)
 	}
-	return columns, datatypes
+	return columns, datatypes, datatypes_owner
 }
 
-func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string, []string) {
+func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
 	tableColumnMap := make(map[string][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
-		columns, datatypes := ora.GetTableColumns(tableName)
+		columns, datatypes, datatypes_owner := ora.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			unsupported := false
 			for _, unsupportedDataType := range oracleUnsuportedDataTypes {
-				if strings.EqualFold(datatypes[i], unsupportedDataType) {
-					unsupported = true
+				isUdtWithDebezium := (datatypes_owner[i] == ora.source.Schema) && useDebezium; // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
+				if strings.EqualFold(datatypes[i], unsupportedDataType) || isUdtWithDebezium { 
+					unsupported = true 
 				}
 			}
 
@@ -333,11 +327,17 @@ func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.Sourc
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
+
 		}
 		if len(supportedColumnNames) < len(columns) {
 			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
+		} else if len(supportedColumnNames) == len(columns) {
+			var allColumns []string
+			allColumns = append(allColumns, "*")
+			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns;
 		}
 	}
-
+		
 	return tableColumnMap, unsupportedColumnNames
 }
+

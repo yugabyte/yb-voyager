@@ -18,12 +18,12 @@ type SourceDB interface {
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllPartitionNames(tableName string) []string
 	ExportSchema(exportDir string)
-	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool)
+	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[string][]string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
-	PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string, []string)
+	PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string)
 }
 
 func newSourceDB(source *Source) SourceDB {

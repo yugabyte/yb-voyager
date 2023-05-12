@@ -162,7 +162,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[string][]string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, nil, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -206,6 +206,6 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName) (map[string][]string,[]string) {
+func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string,[]string) {
 	return nil, nil
 }
