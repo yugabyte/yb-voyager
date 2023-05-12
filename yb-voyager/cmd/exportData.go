@@ -228,11 +228,16 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		TableList:    dbzmIncludeTableList,
 		SnapshotMode: snapshotMode,
 	}
+
+	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
 	debezium := dbzm.NewDebezium(config)
 	err = debezium.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
+
+	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
+
 	var status *dbzm.ExportStatus
 	exportingSnapshot := true
 	// TODO: check also for debezium.IsRunning here.
@@ -242,19 +247,25 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
-
+		if status == nil {
+			time.Sleep(2 * time.Second)
+			continue
+		}
+		progressTracker.UpdateProgress(status)
 		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
 			exportingSnapshot = false
-			utils.PrintAndLog("Snapshot export is complete.")
+			progressTracker.Done(status)
 			createExportDataDoneFlag()
 			err = writeDataFileDescriptor(exportDir, status)
 			if err != nil {
 				return fmt.Errorf("failed to write data file descriptor: %w", err)
 			}
 			outputExportStatus(status)
+
 		}
-		time.Sleep(time.Second)
+		time.Sleep(time.Millisecond * 500)
 	}
+
 	if err := debezium.Error(); err != nil {
 		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
 	}
@@ -274,6 +285,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 
 	return nil
+}
+
+func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
+	tableNameToApproxRowCountMap := make(map[string]int64)
+	for _, table := range tableList {
+		tableNameToApproxRowCountMap[table.Qualified.Unquoted] = source.DB().GetTableApproxRowCount(table)
+	}
+	return tableNameToApproxRowCountMap
 }
 
 // required only for postgresql since GetAllTables() returns all tables and partitions
