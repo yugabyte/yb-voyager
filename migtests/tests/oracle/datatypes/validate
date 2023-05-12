@@ -11,7 +11,7 @@ EXPECTED_ROW_COUNT = {
 	'date_time_types': 10,
 	'interval_types': 4,
 	'char_types': 6,
-	'long_type': 3,
+	'long_type': 4,
 	'raw_type': 6,
 	'number_ps': 1,
 	'lob_types': 2
