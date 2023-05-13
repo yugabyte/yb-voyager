@@ -53,7 +53,6 @@ import (
 	"github.com/jackc/pgx/v4"
 )
 
-var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
@@ -355,10 +354,6 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
-		splitFileChannelSize = parallelism + 1
-	}
-
 	determineTablesToImport()
 	if startClean {
 		cleanImportState()
@@ -375,9 +370,11 @@ func importData() {
 		if !disablePb {
 			go importDataStatus()
 		}
-		taskQueue := make(chan *SplitFileImportTask, splitFileChannelSize)
-		go processTaskQueue(taskQueue, parallelism, connPool)
-		splitDataFiles(importTables, taskQueue)
+		batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
+		for _, tableName := range importTables {
+			importTable(tableName, connPool)
+		}
+		log.Info("waiting for import to complete...")
 		for !isImportDone() {
 			time.Sleep(5 * time.Second)
 		}
@@ -457,7 +454,6 @@ func isImportDone() bool {
 
 		if len(m1) > 0 || len(m2) > 0 {
 			importDone = false
-			time.Sleep(2 * time.Second)
 			break
 		}
 	}
@@ -558,61 +554,59 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
-	log.Infof("Started splitting files for tables: %v", importTables)
-	for _, t := range importTables {
-		origDataFile := exportDir + "/data/" + t + "_data.sql"
-		extractCopyStmtForTable(t, origDataFile)
-		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
+func importTable(tableName string, connPool *tgtdb.ConnectionPool) {
+	log.Infof("Started splitting files for table: %v", tableName)
 
-		log.Infof("Collect all interrupted/remaining splits.")
-		largestCreatedSplitSoFar := int64(0)
-		largestOffsetSoFar := int64(0)
-		fileFullySplit := false
-		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
-		matches, _ := filepath.Glob(pattern)
+	origDataFile := exportDir + "/data/" + tableName + "_data.sql"
+	extractCopyStmtForTable(tableName, origDataFile)
+	log.Infof("Start splitting table %q: data-file: %q", tableName, origDataFile)
 
-		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
-		doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-		splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
-		splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
+	log.Infof("Collect all interrupted/remaining splits.")
+	largestCreatedSplitSoFar := int64(0)
+	largestOffsetSoFar := int64(0)
+	fileFullySplit := false
+	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, tableName)
+	matches, _ := filepath.Glob(pattern)
 
-		for _, filepath := range matches {
-			submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
-			for _, match := range submatches {
-				// fmt.Printf("filepath: %s, %v\n", filepath, match)
-				/*
-					offsets are 0-based, while numLines are 1-based
-					offsetStart is the line in original datafile from where current split starts
-					offsetEnd   is the line in original datafile from where next split starts
-				*/
-				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetStart := offsetEnd - numLines
-				if splitNum == LAST_SPLIT_NUM {
-					fileFullySplit = true
-				}
-				if splitNum > largestCreatedSplitSoFar {
-					largestCreatedSplitSoFar = splitNum
-				}
-				if offsetEnd > largestOffsetSoFar {
-					largestOffsetSoFar = offsetEnd
-				}
-				if !doneSplitRegexp.MatchString(filepath) {
-					addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
-				}
+	doneSplitRegexStr := fmt.Sprintf(`.+/%s\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.[D]$`, tableName)
+	doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
+	splitFileNameRegexStr := fmt.Sprintf(`.+/%s\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.[CPD]$`, tableName)
+	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
+
+	for _, filepath := range matches {
+		submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
+		for _, match := range submatches {
+			// fmt.Printf("filepath: %s, %v\n", filepath, match)
+			/*
+				offsets are 0-based, while numLines are 1-based
+				offsetStart is the line in original datafile from where current split starts
+				offsetEnd   is the line in original datafile from where next split starts
+			*/
+			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
+			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
+			numLines, _ := strconv.ParseInt(match[3], 10, 64)
+			offsetStart := offsetEnd - numLines
+			if splitNum == LAST_SPLIT_NUM {
+				fileFullySplit = true
+			}
+			if splitNum > largestCreatedSplitSoFar {
+				largestCreatedSplitSoFar = splitNum
+			}
+			if offsetEnd > largestOffsetSoFar {
+				largestOffsetSoFar = offsetEnd
+			}
+			if !doneSplitRegexp.MatchString(filepath) {
+				submitBatchImportTask("", tableName, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
 			}
 		}
-
-		if !fileFullySplit {
-			splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
-		}
 	}
-	log.Info("All table data files are split.")
+	if !fileFullySplit {
+		splitFilesForTable(origDataFile, tableName, connPool, largestCreatedSplitSoFar, largestOffsetSoFar)
+	}
+	log.Infof("Done splitting data files for table %v", tableName)
 }
 
-func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
+func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPool, largestSplit int64, largestOffset int64) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
@@ -707,7 +701,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
 			dataFile.ResetBytesRead()
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
+			submitBatchImportTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
 
 			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
@@ -729,17 +723,22 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	taskQueue chan *SplitFileImportTask) {
-	var t SplitFileImportTask
-	t.SchemaName = schemaName
-	t.TableName = tableName
-	t.SplitFilePath = filepath
-	t.SplitNumber = splitNumber
-	t.OffsetStart = offsetStart
-	t.OffsetEnd = offsetEnd
-	t.Interrupted = interrupted
-	taskQueue <- &t
+func submitBatchImportTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
+	connPool *tgtdb.ConnectionPool) {
+	t := &SplitFileImportTask{
+		SchemaName:    schemaName,
+		TableName:     tableName,
+		SplitFilePath: filepath,
+		SplitNumber:   splitNumber,
+		OffsetStart:   offsetStart,
+		OffsetEnd:     offsetEnd,
+		Interrupted:   interrupted,
+	}
+	batchImportSemaphore.Acquire(context.Background(), 1)
+	go func() {
+		doOneImport(t, connPool)
+		batchImportSemaphore.Release(1)
+	}()
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
 
@@ -806,18 +805,6 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	}
 
 	return doneTables, interruptedTables, remainingTables, nil
-}
-
-func processTaskQueue(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
-	batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
-	for {
-		t := <-taskQueue
-		batchImportSemaphore.Acquire(context.Background(), 1)
-		go func() {
-			doOneImport(t, connPool)
-			batchImportSemaphore.Release(1)
-		}()
-	}
 }
 
 func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
