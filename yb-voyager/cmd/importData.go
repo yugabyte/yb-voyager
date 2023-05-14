@@ -379,10 +379,10 @@ func importData() {
 		}
 		go doImport(splitFilesChannel, parallelism, connPool)
 		splitDataFiles(importTables, splitFilesChannel)
-		for Done.IsNotSet() {
-			checkForDone()
+		for !isImportDone() {
 			time.Sleep(5 * time.Second)
 		}
+		Done.Set()
 		time.Sleep(time.Second * 2)
 	}
 	executePostImportDataSqls()
@@ -442,8 +442,8 @@ outer:
 	return nil
 }
 
-func checkForDone() {
-	checkPassed := true
+func isImportDone() bool {
+	importDone := true
 	for _, table := range importTables {
 		inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
 		m1, err := filepath.Glob(inProgressPattern)
@@ -457,16 +457,15 @@ func checkForDone() {
 		}
 
 		if len(m1) > 0 || len(m2) > 0 {
-			checkPassed = false
+			importDone = false
 			time.Sleep(2 * time.Second)
 			break
 		}
 	}
-	if checkPassed {
-		// once above loop is executed for each table, import is done
+	if importDone {
 		log.Infof("No in-progress or newly-created splits. Import Done.")
-		Done.Set()
 	}
+	return importDone
 }
 
 func determineTablesToImport() {
