@@ -6,6 +6,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
+
+	"github.com/tebeka/atexit"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -39,22 +43,19 @@ func (d *Debezium) Start() error {
 	}
 
 	log.Infof("starting debezium...")
-	logFile, _ := filepath.Abs(filepath.Join(d.ExportDir, "logs/debezium.log"))
-	log.Infof("debezium logfile path: %s\n", logFile)
-
-	cmdStr := fmt.Sprintf("%s %s > %s 2>&1", filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH, logFile)
-	log.Infof("running command: %s\n", cmdStr)
-	d.cmd = exec.Command("/bin/bash", "-c", cmdStr)
-	d.cmd.SysProcAttr = &syscall.SysProcAttr{
-		Pdeathsig: syscall.SIGKILL, // kill the debezium process if the parent process dies
+	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
+	err = d.setupLogFile()
+	if err != nil {
+		return fmt.Errorf("Error setting up logging for debezium: %v", err)
 	}
-
+	d.registerExitHandlers()
 	err = d.cmd.Start()
 	if err != nil {
 		return fmt.Errorf("Error starting debezium: %v", err)
 	}
+	log.Infof("Debezium started successfully with pid = %d", d.cmd.Process.Pid)
 
-	log.Infof("Debezium started successfully")
+	// wait for process to end.
 	go func() {
 		d.err = d.cmd.Wait()
 		d.done = true
@@ -63,6 +64,33 @@ func (d *Debezium) Start() error {
 		}
 	}()
 	return nil
+}
+
+func (d *Debezium) setupLogFile() error {
+	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
+	if err != nil {
+		return fmt.Errorf("failed to create absolute path:%v", err)
+	}
+
+	logRotator := &lumberjack.Logger{
+		Filename:   logFilePath,
+		MaxSize:    200, // 200 MB log size before rotation
+		MaxBackups: 10,  // Allow upto 10 logs at once before deleting oldest logs.
+	}
+	d.cmd.Stdout = logRotator
+	d.cmd.Stderr = logRotator
+	return nil
+}
+
+// Registers an atexit handlers to ensure that debezium is shut down gracefully in the
+// event that voyager exits either due to some error.
+func (d *Debezium) registerExitHandlers() {
+	atexit.Register(func() {
+		err := d.Stop()
+		if err != nil {
+			log.Errorf("Error stopping debezium: %v", err)
+		}
+	})
 }
 
 func (d *Debezium) IsRunning() bool {
@@ -78,14 +106,30 @@ func (d *Debezium) GetExportStatus() (*ExportStatus, error) {
 	return ReadExportStatus(statusFilePath)
 }
 
-// stops debezium process if it is running
+// stops debezium process gracefully if it is running
 func (d *Debezium) Stop() error {
 	if d.IsRunning() {
 		log.Infof("Stopping debezium...")
-		err := d.cmd.Process.Kill()
+		err := d.cmd.Process.Signal(syscall.SIGTERM)
 		if err != nil {
-			return fmt.Errorf("Error stopping debezium: %v", err)
+			return fmt.Errorf("Error sending signal to SIGTERM: %v", err)
 		}
+		go func() {
+			// wait for a certain time for debezium to shut down before force killing the process.
+			sigtermTimeout := 100
+			time.Sleep(time.Duration(sigtermTimeout) * time.Second)
+			if d.IsRunning() {
+				log.Warnf("Waited %d seconds for debezium process to stop. Force killing it now.", sigtermTimeout)
+				err = d.cmd.Process.Kill()
+				if err != nil {
+					log.Errorf("Error force-stopping debezium: %v", err)
+					os.Exit(1) // not calling atexit.Exit here because this func is called from within an atexit handler
+				}
+			}
+		}()
+		d.cmd.Wait()
+		d.done = true
+		log.Info("Stopped debezium.")
 	}
 	return nil
 }

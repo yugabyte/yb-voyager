@@ -12,11 +12,10 @@ import (
 type SourceDB interface {
 	Connect() error
 	GetTableRowCount(tableName string) int64
-	GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64
+	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
 	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
-	GetAllPartitionNames(tableName string) []string
 	ExportSchema(exportDir string)
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[string][]string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
@@ -24,6 +23,7 @@ type SourceDB interface {
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string)
+	IsTablePartition(table *sqlname.SourceName) bool
 }
 
 func newSourceDB(source *Source) SourceDB {

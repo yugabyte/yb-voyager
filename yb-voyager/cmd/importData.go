@@ -1176,7 +1176,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := "/*\n" + err.Error() + "\n*/\n"
 				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				os.Exit(1)
+				utils.ErrExit("error: %s\n", err)
 			}
 		}
 	}

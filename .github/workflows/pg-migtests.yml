@@ -52,21 +52,14 @@ jobs:
         yes | ./install-yb-voyager --install-from-local-source --only-pg-support
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-
-    - name: Fetch debezium-server
-      uses: docker://amazon/aws-cli:2.7.27
-      with:
-        args: s3 cp s3://voyager-automation-data/debezium-server-latest.tar.gz .
-      env:
-        AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
-        AWS_DEFAULT_REGION: "us-west-2"
     
-    - name: Unpack debezium-server
+    - name: Fetch and unpack debezium-server
       run: |
+        dist_name=debezium-server-latest
+        wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${dist_name}.tar.gz"
         sudo mkdir -p /opt/yb-voyager
-        sudo tar -xvzf debezium-server-latest.tar.gz -C /opt/yb-voyager/
-        rm debezium-server-latest.tar.gz
+        sudo tar -xvzf "${dist_name}.tar.gz" -C /opt/yb-voyager/
+        rm "${dist_name}".tar.gz
 
     - name: Test PostgreSQL Connection
       run: |
@@ -112,20 +105,18 @@ jobs:
 
     - name: "TEST: pg-partitions"
       run: migtests/scripts/run-test.sh pg/partitions
-      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/825 
       
     # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
     # Fixed in 2.17.1.0-b368
-    - name: "TEST: pg-partitions-with-index"
+    - name: "TEST: pg-partitions-with-indexes"
       run: migtests/scripts/run-test.sh pg/partitions-with-indexes
-      if: matrix.version != '2.16.3.0-b43' && matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/825 
+      if: matrix.version != '2.16.3.0-b43'
 
     - name: "TEST: pg-views-and-rules"
       run: migtests/scripts/run-test.sh pg/views-and-rules
     
     - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
       run: migtests/scripts/run-test.sh pg/misc-objects-1
-      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/827
 
     - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
       run: migtests/scripts/run-test.sh pg/misc-objects-2
@@ -135,7 +126,6 @@ jobs:
       
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg/multiple-schemas
-      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/827
 
     - name: "TEST: import-data-file"
       env:
@@ -148,12 +138,10 @@ jobs:
       
     - name: "TEST: pg-codependent-schemas"
       run: migtests/scripts/run-test.sh pg/codependent-schemas
-      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/825 
 
     - name: "TEST: pg-sample-schema-emp"
       run: migtests/scripts/run-test.sh pg/sample-employee
 
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce
-      if: matrix.use_debezium == 0 # fixed once PR merges: https://github.com/yugabyte/yb-voyager/pull/827
 

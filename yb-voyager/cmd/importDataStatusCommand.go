@@ -12,6 +12,7 @@ import (
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var importDataStatusCmd = &cobra.Command{
@@ -22,8 +23,7 @@ var importDataStatusCmd = &cobra.Command{
 		validateExportDirFlag()
 		err := runImportDataStatusCmd()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s\n", err)
-			os.Exit(1)
+			utils.ErrExit("error: %s\n", err)
 		}
 	},
 }
