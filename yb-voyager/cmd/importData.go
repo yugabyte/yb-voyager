@@ -29,7 +29,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 
@@ -43,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -58,6 +58,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
+var batchImportSemaphore *semaphore.Weighted
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -377,6 +378,7 @@ func importData() {
 		if !disablePb {
 			go importDataStatus()
 		}
+		batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
 		go processTaskQueue(taskQueue, parallelism, connPool)
 		for _, t := range importTables {
 			importTable(t, taskQueue)
@@ -811,22 +813,14 @@ func getTablesToImport() ([]string, []string, []string, error) {
 }
 
 func processTaskQueue(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
-	parallelImportCount := int64(0)
 	for {
 		t := <-taskQueue
-		// fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
-		// parallelImportChannel <- t
-		for parallelImportCount >= int64(parallelism) {
-			time.Sleep(time.Second * 2)
-		}
-		atomic.AddInt64(&parallelImportCount, 1)
-		go doImportInParallel(t, connPool, &parallelImportCount)
+		batchImportSemaphore.Acquire(context.Background(), 1)
+		go func() {
+			doOneImport(t, connPool)
+			batchImportSemaphore.Release(1)
+		}()
 	}
-}
-
-func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, parallelImportCount *int64) {
-	doOneImport(t, connPool)
-	atomic.AddInt64(parallelImportCount, -1)
 }
 
 func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
