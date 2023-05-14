@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -35,7 +35,9 @@ import (
 func importDataStatus() {
 	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)
 	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
-
+	importProgressContainer = ProgressContainer{
+		container: mpb.New(),
+	}
 	for Done.IsNotSet() {
 		for _, table := range importTables {
 
