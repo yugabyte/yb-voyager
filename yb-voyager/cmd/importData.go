@@ -58,7 +58,6 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
-var GenerateSplitsDone = abool.New()
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -442,34 +441,32 @@ outer:
 
 func checkForDone() {
 	for Done.IsNotSet() {
-		if GenerateSplitsDone.IsSet() {
-			checkPassed := true
-			for _, table := range importTables {
-				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
-				m1, err := filepath.Glob(inProgressPattern)
-				if err != nil {
-					utils.ErrExit("glob %q: %s", inProgressPattern, err)
-				}
-				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
-				m2, err := filepath.Glob(inCreatedPattern)
-				if err != nil {
-					utils.ErrExit("glob %q: %s", inCreatedPattern, err)
-				}
+		checkPassed := true
+		for _, table := range importTables {
+			inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
+			m1, err := filepath.Glob(inProgressPattern)
+			if err != nil {
+				utils.ErrExit("glob %q: %s", inProgressPattern, err)
+			}
+			inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
+			m2, err := filepath.Glob(inCreatedPattern)
+			if err != nil {
+				utils.ErrExit("glob %q: %s", inCreatedPattern, err)
+			}
 
-				if len(m1) > 0 || len(m2) > 0 {
-					checkPassed = false
-					time.Sleep(2 * time.Second)
-					break
-				}
+			if len(m1) > 0 || len(m2) > 0 {
+				checkPassed = false
+				time.Sleep(2 * time.Second)
+				break
 			}
-			if checkPassed {
-				// once above loop is executed for each table, import is done
-				log.Infof("No in-progress or newly-created splits. Import Done.")
-				Done.Set()
-			}
-		} else {
-			time.Sleep(5 * time.Second)
 		}
+		if checkPassed {
+			// once above loop is executed for each table, import is done
+			log.Infof("No in-progress or newly-created splits. Import Done.")
+			Done.Set()
+		}
+
+		time.Sleep(5 * time.Second)
 	}
 }
 
@@ -618,7 +615,6 @@ func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) 
 		}
 	}
 	log.Info("All table data files are split.")
-	GenerateSplitsDone.Set()
 }
 
 func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
