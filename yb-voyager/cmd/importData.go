@@ -361,6 +361,9 @@ func importData() {
 	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
 
 	determineTablesToImport()
+	if startClean {
+		cleanImportState()
+	}
 	generateSmallerSplits(splitFilesChannel)
 	go doImport(splitFilesChannel, parallelism, connPool)
 	checkForDone()
@@ -501,34 +504,34 @@ func determineTablesToImport() {
 	}
 }
 
-func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
-	if startClean {
-		conn := newTargetConn()
-		defer conn.Close(context.Background())
-		nonEmptyTableNames := getNonEmptyTables(conn, allTables)
-		if len(nonEmptyTableNames) > 0 {
-			utils.ErrExit("Following tables are not empty. "+
-				"TRUNCATE them before importing data with --start-clean.\n%s",
-				strings.Join(nonEmptyTableNames, ", "))
-		}
-
-		for _, table := range allTables {
-			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
-			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
-			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
-			utils.ClearMatchingFiles(filePattern)
-
-			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
-			res, err := conn.Exec(context.Background(), cmd)
-			if err != nil {
-				utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
-			}
-			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
-		}
-
-		importTables = allTables //since all tables needs to imported now
+func cleanImportState() {
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
+	nonEmptyTableNames := getNonEmptyTables(conn, allTables)
+	if len(nonEmptyTableNames) > 0 {
+		utils.ErrExit("Following tables are not empty. "+
+			"TRUNCATE them before importing data with --start-clean.\n%s",
+			strings.Join(nonEmptyTableNames, ", "))
 	}
 
+	for _, table := range allTables {
+		tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
+		filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
+		log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
+		utils.ClearMatchingFiles(filePattern)
+
+		cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
+		res, err := conn.Exec(context.Background(), cmd)
+		if err != nil {
+			utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
+		}
+		log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
+	}
+
+	importTables = allTables //since all tables needs to imported now
+}
+
+func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	if target.VerboseMode {
 		fmt.Printf("all the tables to be imported: %v\n", allTables)
 	}
