@@ -360,6 +360,7 @@ func importData() {
 	}
 	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
 
+	determineTablesToImport()
 	generateSmallerSplits(splitFilesChannel)
 	go doImport(splitFilesChannel, parallelism, connPool)
 	checkForDone()
@@ -454,7 +455,7 @@ func checkForDone() {
 	}
 }
 
-func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
+func determineTablesToImport() {
 	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
 
 	log.Infof("doneTables: %s", doneTables)
@@ -495,7 +496,12 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 
 	log.Infof("allTables: %s", allTables)
 	log.Infof("importTables: %s", importTables)
+	if !startClean {
+		fmt.Printf("skipping already imported tables: %s\n", doneTables)
+	}
+}
 
+func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 	if startClean {
 		conn := newTargetConn()
 		defer conn.Close(context.Background())
@@ -525,10 +531,6 @@ func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
 
 	if target.VerboseMode {
 		fmt.Printf("all the tables to be imported: %v\n", allTables)
-	}
-
-	if !startClean {
-		fmt.Printf("skipping already imported tables: %s\n", doneTables)
 	}
 
 	if target.VerboseMode {
