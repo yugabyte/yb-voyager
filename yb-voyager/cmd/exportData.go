@@ -244,6 +244,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		DatabaseName: source.DBName,
 		SchemaNames:  source.Schema,
 		TableList:    dbzmTableList,
+		ColumnList:   dbzmColumnList,
 		SnapshotMode: snapshotMode,
 	}
 
