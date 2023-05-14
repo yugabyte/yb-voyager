@@ -53,7 +53,6 @@ import (
 	"github.com/tevino/abool/v2"
 )
 
-var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
@@ -355,11 +354,6 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
-		splitFileChannelSize = parallelism + 1
-	}
-	taskQueue := make(chan *SplitFileImportTask, splitFileChannelSize)
-
 	determineTablesToImport()
 	if startClean {
 		cleanImportState()
@@ -379,9 +373,8 @@ func importData() {
 			go importDataStatus()
 		}
 		batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
-		go processTaskQueue(taskQueue, parallelism, connPool)
 		for _, t := range importTables {
-			importTable(t, taskQueue)
+			importTable(t, connPool)
 		}
 		for !isImportDone() {
 			time.Sleep(5 * time.Second)
@@ -565,7 +558,7 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func importTable(t string, taskQueue chan *SplitFileImportTask) {
+func importTable(t string, connPool *tgtdb.ConnectionPool) {
 
 	origDataFile := exportDir + "/data/" + t + "_data.sql"
 	extractCopyStmtForTable(t, origDataFile)
@@ -606,17 +599,17 @@ func importTable(t string, taskQueue chan *SplitFileImportTask) {
 				largestOffsetSoFar = offsetEnd
 			}
 			if !doneSplitRegexp.MatchString(filepath) {
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
 			}
 		}
 	}
 
 	if !fileFullySplit {
-		splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
+		splitFilesForTable(origDataFile, t, connPool, largestCreatedSplitSoFar, largestOffsetSoFar)
 	}
 }
 
-func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
+func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPool, largestSplit int64, largestOffset int64) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
 	splitNum := largestSplit + 1
 	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
@@ -711,7 +704,7 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
 			dataFile.ResetBytesRead()
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
+			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
 
 			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
@@ -734,8 +727,8 @@ func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImpo
 }
 
 func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	taskQueue chan *SplitFileImportTask) {
-	var t SplitFileImportTask
+	connPool *tgtdb.ConnectionPool) {
+	t := &SplitFileImportTask{}
 	t.SchemaName = schemaName
 	t.TableName = tableName
 	t.SplitFilePath = filepath
@@ -743,7 +736,12 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 	t.OffsetStart = offsetStart
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
-	taskQueue <- &t
+
+	batchImportSemaphore.Acquire(context.Background(), 1)
+	go func() {
+		doOneImport(t, connPool)
+		batchImportSemaphore.Release(1)
+	}()
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
 
@@ -810,17 +808,6 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	}
 
 	return doneTables, interruptedTables, remainingTables, nil
-}
-
-func processTaskQueue(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
-	for {
-		t := <-taskQueue
-		batchImportSemaphore.Acquire(context.Background(), 1)
-		go func() {
-			doOneImport(t, connPool)
-			batchImportSemaphore.Release(1)
-		}()
-	}
 }
 
 func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
