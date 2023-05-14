@@ -364,10 +364,22 @@ func importData() {
 	if startClean {
 		cleanImportState()
 	}
-	generateSmallerSplits(splitFilesChannel)
-	go doImport(splitFilesChannel, parallelism, connPool)
-	checkForDone()
-	time.Sleep(time.Second * 2)
+	if target.VerboseMode {
+		fmt.Printf("all the tables to be imported: %v\n", allTables)
+		fmt.Printf("tables left to import: %v\n", importTables)
+	}
+
+	if len(importTables) == 0 {
+		fmt.Printf("All the tables are already imported, nothing left to import\n")
+		Done.Set()
+	} else {
+		fmt.Printf("Importing tables: %v\n", importTables)
+		initializeImportDataStatus(exportDir, importTables)
+		go splitDataFiles(importTables, splitFilesChannel)
+		go doImport(splitFilesChannel, parallelism, connPool)
+		checkForDone()
+		time.Sleep(time.Second * 2)
+	}
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
 
@@ -529,29 +541,6 @@ func cleanImportState() {
 	}
 
 	importTables = allTables //since all tables needs to imported now
-}
-
-func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
-	if target.VerboseMode {
-		fmt.Printf("all the tables to be imported: %v\n", allTables)
-	}
-
-	if target.VerboseMode {
-		fmt.Printf("tables left to import: %v\n", importTables)
-	}
-
-	if len(importTables) == 0 {
-		fmt.Printf("All the tables are already imported, nothing left to import\n")
-		Done.Set()
-		return
-	} else {
-		fmt.Printf("Preparing to import the tables: %v\n", importTables)
-	}
-
-	//Preparing the tablesProgressMetadata array
-	initializeImportDataStatus(exportDir, importTables)
-
-	go splitDataFiles(importTables, taskQueue)
 }
 
 func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
