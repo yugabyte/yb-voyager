@@ -357,7 +357,7 @@ func importData() {
 	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
 		splitFileChannelSize = parallelism + 1
 	}
-	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
+	taskQueue := make(chan *SplitFileImportTask, splitFileChannelSize)
 
 	determineTablesToImport()
 	if startClean {
@@ -377,9 +377,9 @@ func importData() {
 		if !disablePb {
 			go importDataStatus()
 		}
-		go doImport(splitFilesChannel, parallelism, connPool)
+		go processTaskQueue(taskQueue, parallelism, connPool)
 		for _, t := range importTables {
-			importTable(t, splitFilesChannel)
+			importTable(t, taskQueue)
 		}
 		for !isImportDone() {
 			time.Sleep(5 * time.Second)
@@ -810,7 +810,7 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	return doneTables, interruptedTables, remainingTables, nil
 }
 
-func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
+func processTaskQueue(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
 	if Done.IsSet() { //if import is already done, return
 		log.Infof("Done is already set.")
 		return
