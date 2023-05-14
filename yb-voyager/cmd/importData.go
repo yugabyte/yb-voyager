@@ -811,29 +811,17 @@ func getTablesToImport() ([]string, []string, []string, error) {
 }
 
 func processTaskQueue(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
-	if Done.IsSet() { //if import is already done, return
-		log.Infof("Done is already set.")
-		return
-	}
 	parallelImportCount := int64(0)
-
-	for Done.IsNotSet() {
-		select {
-		case t := <-taskQueue:
-			// fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
-			// parallelImportChannel <- t
-			for parallelImportCount >= int64(parallelism) {
-				time.Sleep(time.Second * 2)
-			}
-			atomic.AddInt64(&parallelImportCount, 1)
-			go doImportInParallel(t, connPool, &parallelImportCount)
-		default:
-			// fmt.Printf("No file sleeping for 2 seconds\n")
-			time.Sleep(2 * time.Second)
+	for {
+		t := <-taskQueue
+		// fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
+		// parallelImportChannel <- t
+		for parallelImportCount >= int64(parallelism) {
+			time.Sleep(time.Second * 2)
 		}
+		atomic.AddInt64(&parallelImportCount, 1)
+		go doImportInParallel(t, connPool, &parallelImportCount)
 	}
-
-	importProgressContainer.container.Wait()
 }
 
 func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, parallelImportCount *int64) {
