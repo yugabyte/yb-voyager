@@ -378,7 +378,9 @@ func importData() {
 			go importDataStatus()
 		}
 		go doImport(splitFilesChannel, parallelism, connPool)
-		splitDataFiles(importTables, splitFilesChannel)
+		for _, t := range importTables {
+			importTable(t, splitFilesChannel)
+		}
 		for !isImportDone() {
 			time.Sleep(5 * time.Second)
 		}
@@ -561,58 +563,55 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
-	log.Infof("Started goroutine: splitDataFiles")
-	for _, t := range importTables {
-		origDataFile := exportDir + "/data/" + t + "_data.sql"
-		extractCopyStmtForTable(t, origDataFile)
-		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
+func importTable(t string, taskQueue chan *SplitFileImportTask) {
 
-		log.Infof("Collect all interrupted/remaining splits.")
-		largestCreatedSplitSoFar := int64(0)
-		largestOffsetSoFar := int64(0)
-		fileFullySplit := false
-		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
-		matches, _ := filepath.Glob(pattern)
+	origDataFile := exportDir + "/data/" + t + "_data.sql"
+	extractCopyStmtForTable(t, origDataFile)
+	log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
-		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
-		doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-		splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
-		splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
+	log.Infof("Collect all interrupted/remaining splits.")
+	largestCreatedSplitSoFar := int64(0)
+	largestOffsetSoFar := int64(0)
+	fileFullySplit := false
+	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
+	matches, _ := filepath.Glob(pattern)
 
-		for _, filepath := range matches {
-			submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
-			for _, match := range submatches {
-				// fmt.Printf("filepath: %s, %v\n", filepath, match)
-				/*
-					offsets are 0-based, while numLines are 1-based
-					offsetStart is the line in original datafile from where current split starts
-					offsetEnd   is the line in original datafile from where next split starts
-				*/
-				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetStart := offsetEnd - numLines
-				if splitNum == LAST_SPLIT_NUM {
-					fileFullySplit = true
-				}
-				if splitNum > largestCreatedSplitSoFar {
-					largestCreatedSplitSoFar = splitNum
-				}
-				if offsetEnd > largestOffsetSoFar {
-					largestOffsetSoFar = offsetEnd
-				}
-				if !doneSplitRegexp.MatchString(filepath) {
-					addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
-				}
+	doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
+	doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
+	splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
+	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
+
+	for _, filepath := range matches {
+		submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
+		for _, match := range submatches {
+			// fmt.Printf("filepath: %s, %v\n", filepath, match)
+			/*
+				offsets are 0-based, while numLines are 1-based
+				offsetStart is the line in original datafile from where current split starts
+				offsetEnd   is the line in original datafile from where next split starts
+			*/
+			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
+			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
+			numLines, _ := strconv.ParseInt(match[3], 10, 64)
+			offsetStart := offsetEnd - numLines
+			if splitNum == LAST_SPLIT_NUM {
+				fileFullySplit = true
+			}
+			if splitNum > largestCreatedSplitSoFar {
+				largestCreatedSplitSoFar = splitNum
+			}
+			if offsetEnd > largestOffsetSoFar {
+				largestOffsetSoFar = offsetEnd
+			}
+			if !doneSplitRegexp.MatchString(filepath) {
+				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
 			}
 		}
-
-		if !fileFullySplit {
-			splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
-		}
 	}
-	log.Info("All table data files are split.")
+
+	if !fileFullySplit {
+		splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
+	}
 }
 
 func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
