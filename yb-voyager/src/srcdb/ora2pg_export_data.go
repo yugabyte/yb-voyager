@@ -45,9 +45,8 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
 	// providing column list for tables having unsupported column types
 	for tableName, columnList := range tablesColumnList {
-		var allColumns []string
-		allColumns = append(allColumns, "*")
-		if len(columnList) > 0 && columnList[0] == "*" {
+		allColumns := "*" 
+		if len(columnList) > 0 && columnList[0] == allColumns {
 			continue
 		}
 		fmt.Printf("Modifying struct for table %s, columnList: %v\n", tableName, columnList)

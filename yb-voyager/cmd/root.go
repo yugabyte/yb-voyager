@@ -151,26 +151,22 @@ func createLock(lockFileName string) {
 	var err error
 	lockFile, err = lockfile.New(lockFileName)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create lockfile %q: %v\n", lockFileName, err)
-		os.Exit(1)
+		utils.ErrExit("Failed to create lockfile %q: %v\n", lockFileName, err)
 	}
 
 	err = lockFile.TryLock()
 	if err == nil {
 		return
 	} else if err == lockfile.ErrBusy {
-		fmt.Fprintf(os.Stderr, "Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
-		os.Exit(1)
+		utils.ErrExit("Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
 	} else {
-		fmt.Fprintf(os.Stderr, "Unable to lock the export-dir: %v\n", err)
-		os.Exit(1)
+		utils.ErrExit("Unable to lock the export-dir: %v\n", err)
 	}
 }
 
 func unlockExportDir() {
 	err := lockFile.Unlock()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to unlock %q: %v\n", lockFile, err)
-		os.Exit(1)
+		utils.ErrExit("Unable to unlock %q: %v\n", lockFile, err)
 	}
 }

@@ -57,18 +57,18 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (pg *PostgreSQL) GetTableApproxRowCount(tableProgressMetadata *utils.TableProgressMetadata) int64 {
+func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
-		"where oid = '%s'::regclass", tableProgressMetadata.TableName.Qualified.MinQuoted)
+		"where oid = '%s'::regclass", tableName.Qualified.MinQuoted)
 
-	log.Infof("Querying '%s' approx row count of table %q", query, tableProgressMetadata.TableName)
+	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableProgressMetadata.TableName.Qualified.MinQuoted, err)
+		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
 
-	log.Infof("Table %q has approx %v rows.", tableProgressMetadata.TableName.Qualified.MinQuoted, approxRowCount)
+	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
 	return approxRowCount.Int64
 }
 
@@ -144,10 +144,6 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	}
 	log.Infof("Query found %d tables in the source db: %v", len(tableNames), tableNames)
 	return tableNames
-}
-
-func (pg *PostgreSQL) GetAllPartitionNames(tableName string) []string {
-	panic("Not Implemented")
 }
 
 func (pg *PostgreSQL) getConnectionUri() string {
@@ -275,4 +271,19 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 
 func (pg *PostgreSQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
 	return nil, nil
+}
+
+func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
+	var parentTable string
+	// For this query in case of case sensitive tables, minquoting is required
+	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
+	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
+	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.MinQuoted)
+
+	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
+	if err != pgx.ErrNoRows && err != nil {
+		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
+	}
+
+	return parentTable != ""
 }
