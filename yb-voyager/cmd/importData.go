@@ -58,6 +58,7 @@ var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
 var batchImportSemaphore *semaphore.Weighted
+var batchImportWorkGroup sync.WaitGroup
 
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -365,7 +366,6 @@ func importData() {
 
 	if len(importTables) == 0 {
 		fmt.Printf("All the tables are already imported, nothing left to import\n")
-		Done.Set()
 	} else {
 		fmt.Printf("Importing tables: %v\n", importTables)
 		initializeImportDataStatus(exportDir, importTables)
@@ -376,9 +376,8 @@ func importData() {
 		for _, t := range importTables {
 			importTable(t, connPool)
 		}
-		for !isImportDone() {
-			time.Sleep(5 * time.Second)
-		}
+		// wait for all the import jobs to finish
+		batchImportWorkGroup.Wait()
 		Done.Set()
 		time.Sleep(time.Second * 2)
 	}
@@ -437,32 +436,6 @@ outer:
 		conn.Close(context.Background())
 	}
 	return nil
-}
-
-func isImportDone() bool {
-	importDone := true
-	for _, table := range importTables {
-		inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
-		m1, err := filepath.Glob(inProgressPattern)
-		if err != nil {
-			utils.ErrExit("glob %q: %s", inProgressPattern, err)
-		}
-		inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
-		m2, err := filepath.Glob(inCreatedPattern)
-		if err != nil {
-			utils.ErrExit("glob %q: %s", inCreatedPattern, err)
-		}
-
-		if len(m1) > 0 || len(m2) > 0 {
-			importDone = false
-			time.Sleep(2 * time.Second)
-			break
-		}
-	}
-	if importDone {
-		log.Infof("No in-progress or newly-created splits. Import Done.")
-	}
-	return importDone
 }
 
 func determineTablesToImport() {
@@ -737,10 +710,12 @@ func submitBatchImportTask(schemaName string, tableName string, filepath string,
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
 
+	batchImportWorkGroup.Add(1)
 	batchImportSemaphore.Acquire(context.Background(), 1)
 	go func() {
 		doOneImport(t, connPool)
 		batchImportSemaphore.Release(1)
+		batchImportWorkGroup.Done()
 	}()
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
