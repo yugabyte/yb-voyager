@@ -378,8 +378,8 @@ func importData() {
 		if !disablePb {
 			go importDataStatus()
 		}
-		go splitDataFiles(importTables, splitFilesChannel)
 		go doImport(splitFilesChannel, parallelism, connPool)
+		splitDataFiles(importTables, splitFilesChannel)
 		checkForDone()
 		time.Sleep(time.Second * 2)
 	}
