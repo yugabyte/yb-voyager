@@ -599,7 +599,7 @@ func importTable(t string, connPool *tgtdb.ConnectionPool) {
 				largestOffsetSoFar = offsetEnd
 			}
 			if !doneSplitRegexp.MatchString(filepath) {
-				addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
+				submitBatchImportTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
 			}
 		}
 	}
@@ -704,7 +704,7 @@ func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPoo
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
 			dataFile.ResetBytesRead()
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
+			submitBatchImportTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
 
 			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
@@ -726,7 +726,7 @@ func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPoo
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
+func submitBatchImportTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
 	connPool *tgtdb.ConnectionPool) {
 	t := &SplitFileImportTask{}
 	t.SchemaName = schemaName
