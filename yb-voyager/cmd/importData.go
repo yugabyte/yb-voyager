@@ -375,6 +375,9 @@ func importData() {
 	} else {
 		fmt.Printf("Importing tables: %v\n", importTables)
 		initializeImportDataStatus(exportDir, importTables)
+		if !disablePb {
+			go importDataStatus()
+		}
 		go splitDataFiles(importTables, splitFilesChannel)
 		go doImport(splitFilesChannel, parallelism, connPool)
 		checkForDone()
@@ -820,13 +823,6 @@ func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tg
 		return
 	}
 	parallelImportCount := int64(0)
-
-	importProgressContainer = ProgressContainer{
-		container: mpb.New(),
-	}
-	if !disablePb {
-		go importDataStatus()
-	}
 
 	for Done.IsNotSet() {
 		select {

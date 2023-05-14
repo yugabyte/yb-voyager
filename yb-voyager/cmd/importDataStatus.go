@@ -35,7 +35,9 @@ import (
 func importDataStatus() {
 	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)
 	// fmt.Printf("TablesProgressMetadata: %v\n", tablesProgressMetadata)
-
+	importProgressContainer = ProgressContainer{
+		container: mpb.New(),
+	}
 	for Done.IsNotSet() {
 		for _, table := range importTables {
 
