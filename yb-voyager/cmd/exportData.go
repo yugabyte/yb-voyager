@@ -239,10 +239,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 
 	var status *dbzm.ExportStatus
-	exportingSnapshot := true
 	// TODO: check also for debezium.IsRunning here.
 	// Currently, this loops continues forever when debezium exits with some error.
-	for exportingSnapshot {
+	snapshotComplete := false
+	for debezium.IsRunning() {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
@@ -252,8 +252,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			continue
 		}
 		progressTracker.UpdateProgress(status)
-		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
-			exportingSnapshot = false
+		if !snapshotComplete && status.SnapshotExportIsComplete() {
+			snapshotComplete = true
 			progressTracker.Done(status)
 			createExportDataDoneFlag()
 			err = writeDataFileDescriptor(exportDir, status)
@@ -261,28 +261,31 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 				return fmt.Errorf("failed to write data file descriptor: %w", err)
 			}
 			outputExportStatus(status)
-
+			log.Infof("snapshot export is complete.")
+			if liveMigration {
+				color.Blue("streaming changes to a local queue file...")
+			}
 		}
 		time.Sleep(time.Millisecond * 500)
 	}
-
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
+		return fmt.Errorf("debezium failed with error: %w", err)
 	}
+	log.Info("Debezium exited normally.")
 
-	if !liveMigration && useDebezium {
-		log.Infof("snapshot export is complete, stopping debezium...")
-		return debezium.Stop()
-	}
+	// if !liveMigration && useDebezium {
+	// 	log.Infof("snapshot export is complete, stopping debezium...")
+	// 	return debezium.Stop()
+	// }
 
-	// live migration part
-	color.Blue("streaming changes to a local queue file...")
-	for debezium.IsRunning() {
-		time.Sleep(time.Second)
-	}
-	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during live migration phase: %v", err)
-	}
+	// // live migration part
+	// color.Blue("streaming changes to a local queue file...")
+	// for debezium.IsRunning() {
+	// 	time.Sleep(time.Second)
+	// }
+	// if err := debezium.Error(); err != nil {
+	// 	return fmt.Errorf("debezium failed during live migration phase: %v", err)
+	// }
 
 	return nil
 }
