@@ -74,3 +74,25 @@ INSERT INTO NUMBER_PS values(123.89,401.78,5.79,.0000012,546.99);
 CREATE TABLE lob_types(id int, b_type blob, ctype clob, n_type nclob);
 INSERT INTO lob_types values(1,'abc','abc','abc');
 INSERT INTO lob_types values(2,utl_raw.cast_to_raw('Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.'),'Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.');
+
+create type varray_type IS VARRAY(4) OF VARCHAR(100);
+/
+create table varray_table (id int, some_text varchar(100), v1 varray_type, rid rowid);
+INSERT INTO varray_table(id,some_text,v1) values(1,'abc',varray_type('abc','def','ghi','jkl'));
+INSERT INTO varray_table(id,some_text,v1) values(2,'def',varray_type('mno','pqr','stu','vwx'));
+INSERT INTO varray_table(id,some_text,v1) values(3,'ghi',varray_type('yza','bcd','efg','hij'));
+INSERT INTO varray_table(id,some_text,v1) values(4,'jkl',varray_type('klm','nop','qrs','tuv'));
+INSERT INTO varray_table(id,some_text,v1) values(5,'mno',varray_type('wxy','zab','cde','fgh'));
+INSERT INTO varray_table(id,some_text,v1) values(6,'pqr',varray_type('ghi','jkl','mno','pqr'));
+INSERT INTO varray_table(id,some_text,v1) values(7,'stu',varray_type('stu','vwx','yza','bcd'));
+INSERT INTO varray_table(id,some_text,v1) values(8,'vwx',varray_type('efg','hij','klm','nop'));
+INSERT INTO varray_table(id,some_text,v1) values(9,'yza',varray_type('qrs','tuv','wxy','zab'));
+INSERT INTO varray_table(id,some_text,v1) values(10,'bcd',varray_type('cde','fgh','ghi','jkl'));
+INSERT INTO varray_table(id,some_text,v1) values(11,'efg',varray_type('mno','pqr','stu','vwx'));
+INSERT INTO varray_table(id,some_text,v1) values(12,'hij',varray_type('yza','bcd','efg','hij'));
+INSERT INTO varray_table(id,some_text,v1) values(13,'klm',varray_type('klm','nop','qrs','tuv'));
+INSERT INTO varray_table(id,some_text,v1) values(14,'nop',varray_type('wxy','zab','cde','fgh'));
+INSERT INTO varray_table(id,some_text,v1) values(15,'qrs',varray_type('ghi','jkl','mno','pqr'));
+INSERT INTO varray_table(id,some_text,v1) values(16,'tuv',varray_type('stu','vwx','yza','bcd'));
+INSERT INTO varray_table(id,some_text,v1) values(17,'wxy',varray_type('efg','hij','klm','nop'));
+UPDATE varray_table SET rid=rowid where id=9;
