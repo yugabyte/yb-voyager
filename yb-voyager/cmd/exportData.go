@@ -391,11 +391,13 @@ func validateTableListFlag(tableListString string, flagName string) {
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
+	useDebeziumFlagFilePath := filepath.Join(exportDir, "metainfo", "flags", "useDebezium")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
+		os.Remove(useDebeziumFlagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
 	} else {
