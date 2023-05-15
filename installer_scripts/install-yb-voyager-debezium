@@ -10,8 +10,9 @@ YUM="sudo yum install -y -q"
 
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
+DEBEZIUM_TARBALL_VERSION="latest"
 if [ -z "$DEBEZIUM_REF" ]; then
-	DEBEZIUM_REF="8d2043e631eca4e527963b4a8f2f364a2c355f1b"
+	DEBEZIUM_REF="voyager-main"
 fi
 
 
@@ -62,7 +63,6 @@ main() {
 	sudo mkdir -p /opt/yb-voyager
 
 	check_java
-	check_install_maven
 	install_debezium_server
 	output "Installation complete."
 }
@@ -217,6 +217,24 @@ macos_install_brew() {
 
 check_java() {
 		if [ -z "$JAVA_HOME" ]; then
+			JAVA_BINARY="java"
+		else
+			JAVA_BINARY="$JAVA_HOME/bin/java"
+		fi
+        MIN_REQUIRED_MAJOR_VERSION='11'
+		JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+
+        if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+        then
+        	output "Found sufficient Java version = ${JAVA_MAJOR_VER}"
+        else
+        	output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install Java>=${MIN_REQUIRED_MAJOR_VERSION}"
+			exit 1;
+        fi
+}
+
+check_javac() {
+	if [ -z "$JAVA_HOME" ]; then
 			JAVAC_BINARY="javac"
 		else
 			JAVAC_BINARY="$JAVA_HOME/bin/javac"
@@ -263,6 +281,28 @@ install_maven() {
 
 install_debezium_server() {
 	output "Installing debezium"
+	if [ "$DEBEZIUM_REF" == "voyager-main" ]; then
+		install_debezium_server_tarball
+	else
+		build_and_install_debezium_server
+	fi
+}
+
+install_debezium_server_tarball() {
+	output "Installing debezium from tarball"
+	debezium_server_filename="debezium-server-${DEBEZIUM_TARBALL_VERSION}.tar.gz"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${debezium_server_filename}"
+	# move to /opt/yb-voyager/debezium-server
+	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
+	# cleanup
+	rm ${debezium_server_filename}
+}
+
+build_and_install_debezium_server() {
+	output "Building debezium from source. It will take upto 15 minutes"
+	check_javac
+	check_install_maven
 	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
 	# download
 	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_REF}.tar.gz -O debezium.tar.gz 1>&2
