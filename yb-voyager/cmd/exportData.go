@@ -239,8 +239,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 
 	var status *dbzm.ExportStatus
-	// TODO: check also for debezium.IsRunning here.
-	// Currently, this loops continues forever when debezium exits with some error.
 	snapshotComplete := false
 	for debezium.IsRunning() {
 		status, err = debezium.GetExportStatus()
@@ -272,20 +270,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		return fmt.Errorf("debezium failed with error: %w", err)
 	}
 	log.Info("Debezium exited normally.")
-
-	// if !liveMigration && useDebezium {
-	// 	log.Infof("snapshot export is complete, stopping debezium...")
-	// 	return debezium.Stop()
-	// }
-
-	// // live migration part
-	// color.Blue("streaming changes to a local queue file...")
-	// for debezium.IsRunning() {
-	// 	time.Sleep(time.Second)
-	// }
-	// if err := debezium.Error(); err != nil {
-	// 	return fmt.Errorf("debezium failed during live migration phase: %v", err)
-	// }
 
 	return nil
 }
