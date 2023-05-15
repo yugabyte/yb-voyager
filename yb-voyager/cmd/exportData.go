@@ -250,18 +250,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			continue
 		}
 		progressTracker.UpdateProgress(status)
-		if !snapshotComplete && status.SnapshotExportIsComplete() {
-			snapshotComplete = true
-			progressTracker.Done(status)
-			createExportDataDoneFlag()
-			err = writeDataFileDescriptor(exportDir, status)
+		if !snapshotComplete {
+			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
 			if err != nil {
-				return fmt.Errorf("failed to write data file descriptor: %w", err)
-			}
-			outputExportStatus(status)
-			log.Infof("snapshot export is complete.")
-			if liveMigration {
-				color.Blue("streaming changes to a local queue file...")
+				return err
 			}
 		}
 		time.Sleep(time.Millisecond * 500)
@@ -269,9 +261,40 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	if err := debezium.Error(); err != nil {
 		return fmt.Errorf("debezium failed with error: %w", err)
 	}
+	// handle case where debezium finished before snapshot completion
+	// was handled in above loop
+	if !snapshotComplete {
+		status, err = debezium.GetExportStatus()
+		if err != nil {
+			return fmt.Errorf("failed to read export status: %w", err)
+		}
+		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+		if err != nil {
+			return err
+		}
+	}
 	log.Info("Debezium exited normally.")
 
 	return nil
+}
+
+func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+	if status.SnapshotExportIsComplete() {
+		progressTracker.Done(status)
+		createExportDataDoneFlag()
+		err := writeDataFileDescriptor(exportDir, status)
+		if err != nil {
+			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+		}
+		outputExportStatus(status)
+		log.Infof("snapshot export is complete.")
+		if liveMigration {
+			color.Blue("streaming changes to a local queue file...")
+		}
+		return true, nil
+	} else {
+		return false, nil
+	}
 }
 
 func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
