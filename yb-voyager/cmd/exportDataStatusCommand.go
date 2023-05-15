@@ -62,7 +62,6 @@ func runExportDataStatusCmdDbzm() error {
 			status:    "DONE",
 		}
 		if table.Sno == status.InProgressTableSno() && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-			// The last table is the one that is currently being exported as sorted on the basis of tables.sno in case of snapshot mode.
 			row.status = "EXPORTING"
 		}
 		exportStatusOutputRows = append(exportStatusOutputRows, row)
