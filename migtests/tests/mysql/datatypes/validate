@@ -91,11 +91,11 @@ EXPECTED_DATA_TYPES = {
         'tint_s': 'smallint',
         'sint_u': 'integer',
         'iint_s': 'integer',
-        'iinteger_s': 'bigint',
+        'iinteger_s': 'integer',
         'sint_s': 'smallint',
         'tint_u': 'smallint',
         'bint_u': 'numeric',
-        'iinteger_u': 'integer',
+        'iinteger_u': 'bigint',
         'bint_s': 'bigint',
         'mint_s': 'integer'
     }, 
