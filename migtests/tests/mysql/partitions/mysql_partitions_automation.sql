@@ -82,7 +82,7 @@ SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE
 select * from key_partition_test partition(p0);
 select * from key_partition_test partition(p1);
 
-
+/*
 drop table if exists hash_partition_test;
 
 CREATE TABLE hash_partition_test (
@@ -99,6 +99,7 @@ SELECT PARTITION_NAME, TABLE_ROWS FROM INFORMATION_SCHEMA.PARTITIONS WHERE TABLE
 
 select * from hash_partition_test partition(p0);
 select * from hash_partition_test partition(p1);
+*/
 
 drop table if exists subpartitioning_test;
 

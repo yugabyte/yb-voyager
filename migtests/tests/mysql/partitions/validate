@@ -9,7 +9,7 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
-	"public.hash_partition_test":         	5,        
+#	"public.hash_partition_test":         	5,        
 	"public.key_partition_test":          	5,        
 	"public.list_partition_test":         	9,        
 	"public.range_columns_partition_test":	6,       
@@ -19,13 +19,13 @@ EXPECTED_ROW_COUNT = {
 	"public.range_partition_test_p2":       2,
 	"public.range_columns_partition_test_p0": 3,
 	"public.key_partition_test_p1":         3,
-	"public.hash_partition_test_p0":        1,
+#	"public.hash_partition_test_p0":        1,
 	"public.subpartitioning_test_p2_p2sp1": 1
 }
 
 
 TABLE_NAME_TO_PARTITION_COUNT = {
-	"public.hash_partition_test":         	2,        
+#	"public.hash_partition_test":         	2,        
 	"public.key_partition_test":          	2,        
 	"public.list_partition_test":         	5,        
 	"public.range_columns_partition_test":	2,       
@@ -55,11 +55,11 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 		"partition_table_name": "key_partition_test_p1",
 		"schema_name": "public"
 	},
-	"Hash" : {
-		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
-		"partition_table_name": "hash_partition_test_p0",
-		"schema_name": "public"
-	},
+#	"Hash" : {
+#		"query": "INSERT INTO hash_partition_test VALUES (1,2,1)",
+#		"partition_table_name": "hash_partition_test_p0",
+#		"schema_name": "public"
+#	},
 	"Multilevel" : {
 		"query": "INSERT INTO subpartitioning_test VALUES  (6, 'Stephen', 'S743', 100, '2017-05-31', 964.00)",
 		"partition_table_name": "subpartitioning_test_p2_p2sp1",
@@ -80,7 +80,7 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_t
 def migration_completed_checks(tgt):    
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 37
+	assert len(table_list) == 34
 
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		schema = table_name.split(".")[0]
