@@ -27,7 +27,7 @@ LOG_FILE=/tmp/install-yb-voyager.log
 
 # commit hash in main branch after release 23.2
 # issues #489 #492 #247 in ora2pg were fixed after this change
-ORA2PG_VERSION="f08d47a4e5c20ff7d348e535ed05ab571b4bb350"
+ORA2PG_VERSION="432636af366a2512a154385b01f26f9dbff15367"
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
