@@ -269,12 +269,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
 		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
-		if err != nil {
-			return err
+		if !snapshotComplete || err != nil {
+			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
 	}
-	log.Info("Debezium exited normally.")
 
+	log.Info("Debezium exited normally.")
 	return nil
 }
 
