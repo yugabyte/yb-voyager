@@ -21,11 +21,8 @@ var exportDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		err := setUseDebeziumFlag()
-		if err != nil {
-			utils.ErrExit("setting use debezium flag: %s\n", err)
-		}
-		if useDebezium {
+		var err error
+		if checkDebezium() {
 			err = runExportDataStatusCmdDbzm()
 		} else {
 			err = runExportDataStatusCmd()
@@ -58,22 +55,17 @@ func runExportDataStatusCmdDbzm() error {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
 	tables := status.Tables
-	sort.Slice(tables, func(i, j int) bool {
-		return tables[i].Sno < tables[j].Sno
-	})
 	var exportStatusOutputRows []*exportTableMigStatusOutputRow
-	for idx, table := range tables {
-		var status string
-		if idx == (len(tables) - 1) && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-			// The last table is the one that is currently being exported as sorted on the basis of tables.sno in case of snapshot mode.
-			status = "EXPORTING"
-		} else {
-			status = "DONE"
-		}
-		exportStatusOutputRows = append(exportStatusOutputRows, &exportTableMigStatusOutputRow{
+	for _, table := range tables {
+		row := &exportTableMigStatusOutputRow{
 			tableName: table.TableName,
-			status:    status,
-		})
+			status:    "DONE",
+		}
+		if table.Sno == status.InProgressTableSno() && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+			// The last table is the one that is currently being exported as sorted on the basis of tables.sno in case of snapshot mode.
+			row.status = "EXPORTING"
+		}
+		exportStatusOutputRows = append(exportStatusOutputRows, row)
 	}
 	displayExportDataStatus(exportStatusOutputRows)
 	return nil
@@ -172,18 +164,16 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow){
 	}
 }
 
-func setUseDebeziumFlag() error {
+func checkDebezium() bool {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
 	_, err := os.Stat(exportStatusFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			useDebezium = false
-			return nil
-		}
-		return fmt.Errorf("check if debezium is being used: %w", err)
+			return false
+		} 
+		utils.ErrExit("checking if debezium is being used as exporting tool: %s\n", err)
 	}
-	useDebezium = true
-	return nil
+	return true
 }
 
 func checkSchemaExportDone() error{
