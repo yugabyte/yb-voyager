@@ -48,15 +48,11 @@ type exportTableMigStatusOutputRow struct {
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
 func runExportDataStatusCmdDbzm() error {
-	exportSchemaDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportSchemaDone")
-	_, err := os.Stat(exportSchemaDoneFlagFilePath)
+	err := checkSchemaExportDone()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `export data status` before schema export is done")
-		}
-		return fmt.Errorf("check if schema export is done: %w", err)
+		return err
 	}
-	exportStatusFilePath := filepath.Join(exportDir, "data/export_status.json");
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json");
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
@@ -83,15 +79,10 @@ func runExportDataStatusCmdDbzm() error {
 	return nil
 }
 func runExportDataStatusCmd() error {
-	exportSchemaDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportSchemaDone")
-	_, err := os.Stat(exportSchemaDoneFlagFilePath)
+	err := checkSchemaExportDone()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `export data status` before schema export is done")
-		}
-		return fmt.Errorf("check if schema export is done: %w", err)
+		return err
 	}
-
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
 	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
@@ -182,8 +173,8 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow){
 }
 
 func setUseDebeziumFlag() error {
-	useDebeziumFlagFilePath := filepath.Join(exportDir, "metainfo/flags/useDebezium")
-	_, err := os.Stat(useDebeziumFlagFilePath)
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
+	_, err := os.Stat(exportStatusFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			useDebezium = false
@@ -192,5 +183,17 @@ func setUseDebeziumFlag() error {
 		return fmt.Errorf("check if debezium is being used: %w", err)
 	}
 	useDebezium = true
+	return nil
+}
+
+func checkSchemaExportDone() error{
+	exportSchemaDoneFlagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
+	_, err := os.Stat(exportSchemaDoneFlagFilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("cannot run `export data status` before schema export is done")
+		}
+		return fmt.Errorf("check if schema export is done: %w", err)
+	}
 	return nil
 }

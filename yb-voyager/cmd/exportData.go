@@ -75,9 +75,6 @@ func init() {
 }
 
 func exportData() {
-	if useDebezium {
-		createUseDebeziumFlag()	
-	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	success := exportDataOffline()
@@ -391,13 +388,11 @@ func validateTableListFlag(tableListString string, flagName string) {
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
-	useDebeziumFlagFilePath := filepath.Join(exportDir, "metainfo", "flags", "useDebezium")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		os.Remove(flagFilePath)
-		os.Remove(useDebeziumFlagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
 	} else {
@@ -442,14 +437,6 @@ func createExportDataDoneFlag() {
 	_, err := os.Create(exportDoneFlagPath)
 	if err != nil {
 		utils.ErrExit("creating exportDataDone flag: %v", err)
-	}
-}
-
-func createUseDebeziumFlag(){
-	useDebeziumFlag := filepath.Join(exportDir, "metainfo", "flags", "useDebezium")
-	_, err := os.Create(useDebeziumFlag)
-	if err != nil {
-		utils.ErrExit("creating useDebezium flag: %v", err)
 	}
 }
 
