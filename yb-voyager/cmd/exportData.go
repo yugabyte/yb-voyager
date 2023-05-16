@@ -239,10 +239,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 
 	var status *dbzm.ExportStatus
-	exportingSnapshot := true
-	// TODO: check also for debezium.IsRunning here.
-	// Currently, this loops continues forever when debezium exits with some error.
-	for exportingSnapshot {
+	snapshotComplete := false
+	for debezium.IsRunning() {
 		status, err = debezium.GetExportStatus()
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
@@ -252,39 +250,50 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 			continue
 		}
 		progressTracker.UpdateProgress(status)
-		if status != nil && exportingSnapshot && status.SnapshotExportIsComplete() {
-			exportingSnapshot = false
-			progressTracker.Done(status)
-			createExportDataDoneFlag()
-			err = writeDataFileDescriptor(exportDir, status)
+		if !snapshotComplete {
+			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
 			if err != nil {
-				return fmt.Errorf("failed to write data file descriptor: %w", err)
+				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
-			outputExportStatus(status)
-
 		}
 		time.Sleep(time.Millisecond * 500)
 	}
-
 	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during initial snapshot phase: %w", err)
+		return fmt.Errorf("debezium failed with error: %w", err)
+	}
+	// handle case where debezium finished before snapshot completion
+	// was handled in above loop
+	if !snapshotComplete {
+		status, err = debezium.GetExportStatus()
+		if err != nil {
+			return fmt.Errorf("failed to read export status: %w", err)
+		}
+		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+		if !snapshotComplete || err != nil {
+			return fmt.Errorf("snapshot was not completed: %w", err)
+		}
 	}
 
-	if !liveMigration && useDebezium {
-		log.Infof("snapshot export is complete, stopping debezium...")
-		return debezium.Stop()
-	}
-
-	// live migration part
-	color.Blue("streaming changes to a local queue file...")
-	for debezium.IsRunning() {
-		time.Sleep(time.Second)
-	}
-	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed during live migration phase: %v", err)
-	}
-
+	log.Info("Debezium exited normally.")
 	return nil
+}
+
+func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+	if !status.SnapshotExportIsComplete() {
+		return false, nil
+	}
+	progressTracker.Done(status)
+	createExportDataDoneFlag()
+	err := writeDataFileDescriptor(exportDir, status)
+	if err != nil {
+		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+	}
+	outputExportStatus(status)
+	log.Infof("snapshot export is complete.")
+	if liveMigration {
+		color.Blue("streaming changes to a local queue file...")
+	}
+	return true, nil
 }
 
 func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
