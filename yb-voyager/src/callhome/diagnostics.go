@@ -15,7 +15,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-//call-home json formats
+// call-home json formats
 var (
 	jsonFilePath    string
 	Payload         payload
@@ -48,7 +48,7 @@ type payload struct {
 	SourceCloudDBType     string    `json:"source_cloud_type"`       //TODO
 }
 
-//[For development] Read ENV VARS for value of SendDiagnostics
+// [For development] Read ENV VARS for value of SendDiagnostics
 func ReadEnvSendDiagnostics() {
 	rawSendDiag := os.Getenv("YB_VOYAGER_SEND_DIAGNOSTICS")
 	for _, val := range []string{"0", "no", "false"} {
@@ -60,7 +60,6 @@ func ReadEnvSendDiagnostics() {
 
 // Fill in primary-key based fields, if needed
 func initJSON(exportdir string) {
-
 	jsonFilePath = filepath.Join(exportdir, "metainfo", "diagnostics.json")
 	file, err := os.OpenFile(jsonFilePath, os.O_RDWR|os.O_CREATE, 0644)
 	file.Close()
@@ -114,6 +113,7 @@ func PackAndSendPayload(exportdir string) {
 		log.Errorf("Error while packing diagnostics json: %v", err)
 		return
 	}
+
 	err = os.WriteFile(jsonFilePath, jsonBuf, 0644)
 	if err != nil {
 		log.Errorf("Error while writing diagnostics json: %v", err)
