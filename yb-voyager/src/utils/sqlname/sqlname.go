@@ -231,6 +231,18 @@ func IsAllLowercase(s string) bool {
 	return true
 }
 
+func IsCaseSensitive(s string, sourceDbType string) bool {
+	switch sourceDbType {
+	case ORACLE:
+		return !IsAllUppercase(s)
+	case POSTGRESQL:
+		return !IsAllLowercase(s)
+	case MYSQL:
+		return false
+	}
+	panic("invalid source db type")
+}
+
 var PgReservedKeywords = []string{"all", "analyse", "analyze", "and", "any", "array",
 	"as", "asc", "asymmetric", "both", "case", "cast", "check", "collate", "column",
 	"constraint", "create", "current_catalog", "current_date", "current_role",
