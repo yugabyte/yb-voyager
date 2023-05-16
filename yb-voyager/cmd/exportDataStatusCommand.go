@@ -22,7 +22,8 @@ var exportDataStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
 		var err error
-		if checkDebezium() {
+		useDebezium = usingDebeziumForDataExport()
+		if useDebezium {
 			err = runExportDataStatusCmdDbzm()
 		} else {
 			err = runExportDataStatusCmd()
@@ -38,42 +39,37 @@ func init() {
 }
 
 type exportTableMigStatusOutputRow struct {
-	tableName string
-	status    string
+	tableName     string
+	status        string
+	exportedCount int64
 }
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
 func runExportDataStatusCmdDbzm() error {
-	err := checkSchemaExportDone()
-	if err != nil {
-		return err
-	}
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json");
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
-	tables := status.Tables
-	var exportStatusOutputRows []*exportTableMigStatusOutputRow
-	for _, table := range tables {
+	InProgressTableSno := status.InProgressTableSno()
+	var rows []*exportTableMigStatusOutputRow
+	for _, table := range status.Tables {
 		row := &exportTableMigStatusOutputRow{
-			tableName: table.TableName,
-			status:    "DONE",
+			tableName:     table.TableName,
+			status:        "DONE",
+			exportedCount: table.ExportedRowCountSnapshot,
 		}
-		if table.Sno == status.InProgressTableSno() && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+		if table.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
 			row.status = "EXPORTING"
 		}
-		exportStatusOutputRows = append(exportStatusOutputRows, row)
+		rows = append(rows, row)
 	}
-	displayExportDataStatus(exportStatusOutputRows)
+	displayExportDataStatus(rows)
 	return nil
 }
+
 func runExportDataStatusCmd() error {
-	err := checkSchemaExportDone()
-	if err != nil {
-		return err
-	}
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
 	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
@@ -132,15 +128,19 @@ func runExportDataStatusCmd() error {
 	}
 
 	displayExportDataStatus(outputRows)
-	
+
 	return nil
 }
 
-func displayExportDataStatus(rows []*exportTableMigStatusOutputRow){
+func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+	if useDebezium {
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("EXPORTED ROWS"))
+	} else {
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+	}
 
 	// First sort by status and then by table-name.
 	sort.Slice(rows, func(i, j int) bool {
@@ -154,7 +154,11 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow){
 		}
 	})
 	for _, row := range rows {
-		table.AddRow(row.tableName, row.status)
+		if useDebezium {
+			table.AddRow(row.tableName, row.status, row.exportedCount)
+		} else {
+			table.AddRow(row.tableName, row.status)
+		}
 	}
 	if len(rows) > 0 {
 		fmt.Print("\n")
@@ -163,26 +167,14 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow){
 	}
 }
 
-func checkDebezium() bool {
+func usingDebeziumForDataExport() bool {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
 	_, err := os.Stat(exportStatusFilePath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return false
-		} 
+		}
 		utils.ErrExit("checking if debezium is being used as exporting tool: %s\n", err)
 	}
 	return true
-}
-
-func checkSchemaExportDone() error{
-	exportSchemaDoneFlagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	_, err := os.Stat(exportSchemaDoneFlagFilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `export data status` before schema export is done")
-		}
-		return fmt.Errorf("check if schema export is done: %w", err)
-	}
-	return nil
 }
