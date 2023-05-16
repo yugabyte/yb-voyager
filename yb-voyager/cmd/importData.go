@@ -756,7 +756,7 @@ func addASplitTask(schemaName string, tableName string, filepath string, splitNu
 }
 
 func executePostImportDataSqls() {
-	sequenceFilePath := filepath.Join(exportDir, "/data/postdata.sql")
+	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
 		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })

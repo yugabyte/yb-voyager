@@ -25,8 +25,9 @@ type TableExportStatus struct {
 }
 
 type ExportStatus struct {
-	Mode   string              `json:"mode"`
-	Tables []TableExportStatus `json:"tables"`
+	Mode      string              `json:"mode"`
+	Tables    []TableExportStatus `json:"tables"`
+	Sequences map[string]int64    `json:"sequences"`
 }
 
 func (status *ExportStatus) SnapshotExportIsComplete() bool {
