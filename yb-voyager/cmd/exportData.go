@@ -313,7 +313,11 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
+		tableName := table.TableName
+		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
+			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
+		}
+		tableRowCount[tableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
