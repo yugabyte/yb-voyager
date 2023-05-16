@@ -18,7 +18,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -364,7 +363,7 @@ func createResumeSequencesFile() {
 
 	if len(sqlStmts) > 0 {
 		file := filepath.Join(exportDir, "data", "postdata.sql")
-		err = ioutil.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
+		err = os.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
 		if err != nil {
 			utils.ErrExit("Failed to write resume sequence file: %v", err)
 		}
