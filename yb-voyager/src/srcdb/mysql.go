@@ -174,7 +174,7 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string,[]string) {
+func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
 	return nil, nil
 }
 

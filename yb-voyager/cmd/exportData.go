@@ -225,7 +225,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	for table, columns := range tablesColumnList {
 		for _, column := range columns {
-			if (column == "*"){
+			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, source.Schema+"."+table+`[a-zA-Z0-9_."]+`)
 				break
 			}
@@ -305,7 +305,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	return nil
 }
-
 func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
 	tableNameToApproxRowCountMap := make(map[string]int64)
 	for _, table := range tableList {

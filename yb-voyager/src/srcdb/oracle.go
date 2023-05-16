@@ -20,7 +20,7 @@ type Oracle struct {
 }
 
 var oracleUnsuportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
-"SYS.AnyData", "SYS.AnyType", "SYS.AnyDataSet", "ROWID", "UROWID","SDO_GEOMETRY","SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY","SDO_GTYPE","SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE","SDO_STRING_ARRAY", "JSON"}
+	"SYS.AnyData", "SYS.AnyType", "SYS.AnyDataSet", "ROWID", "UROWID", "SDO_GEOMETRY", "SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY", "SDO_GTYPE", "SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE", "SDO_STRING_ARRAY", "JSON"}
 
 func newOracle(s *Source) *Oracle {
 	return &Oracle{source: s}
@@ -290,9 +290,9 @@ func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.Sourc
 		for i := 0; i < len(columns); i++ {
 			unsupported := false
 			for _, unsupportedDataType := range oracleUnsuportedDataTypes {
-				isUdtWithDebezium := (datatypes_owner[i] == ora.source.Schema) && useDebezium; // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
-				if strings.EqualFold(datatypes[i], unsupportedDataType) || isUdtWithDebezium { 
-					unsupported = true 
+				isUdtWithDebezium := (datatypes_owner[i] == ora.source.Schema) && useDebezium // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
+				if strings.EqualFold(datatypes[i], unsupportedDataType) || isUdtWithDebezium {
+					unsupported = true
 				}
 			}
 
@@ -309,10 +309,9 @@ func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.Sourc
 		} else if len(supportedColumnNames) == len(columns) {
 			var allColumns []string
 			allColumns = append(allColumns, "*")
-			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns;
+			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns
 		}
 	}
-		
+
 	return tableColumnMap, unsupportedColumnNames
 }
-
