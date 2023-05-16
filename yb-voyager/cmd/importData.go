@@ -1236,6 +1236,11 @@ func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (st
 	return stmt, nil
 }
 
+/*
+Valid cases requiring column name quoting:
+1. ReservedKeyWords in case of any source database type
+2. CaseSensitive column names in case of PostgreSQL(Oracle and MySQL columns are exported as case-insensitive by ora2pg)
+*/
 func quoteColumnNamesIfRequired(csvHeader string) string {
 	columnNames := strings.Split(csvHeader, ",")
 	for i := 0; i < len(columnNames); i++ {
