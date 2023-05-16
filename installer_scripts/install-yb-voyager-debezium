@@ -62,7 +62,7 @@ main() {
 
 	sudo mkdir -p /opt/yb-voyager
 
-	check_java
+	check_binary "java"
 	install_debezium_server
 	output "Installation complete."
 }
@@ -215,38 +215,26 @@ macos_install_brew() {
 # Debezium
 #=============================================================================
 
-check_java() {
+check_binary() {
+		binary=$1
 		if [ -z "$JAVA_HOME" ]; then
-			JAVA_BINARY="java"
+			BINARY=$binary
 		else
-			JAVA_BINARY="$JAVA_HOME/bin/java"
+			BINARY="$JAVA_HOME/bin/$binary"
 		fi
         MIN_REQUIRED_MAJOR_VERSION='11'
-		JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 
-        if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
-        then
-        	output "Found sufficient Java version = ${JAVA_MAJOR_VER}"
-        else
-        	output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install Java>=${MIN_REQUIRED_MAJOR_VERSION}"
-			exit 1;
-        fi
-}
-
-check_javac() {
-	if [ -z "$JAVA_HOME" ]; then
-			JAVAC_BINARY="javac"
-		else
-			JAVAC_BINARY="$JAVA_HOME/bin/javac"
+		if [ "$binary" == "java" ]; then
+			BINARY_MAJOR_VER=$(${BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+		else 
+			BINARY_MAJOR_VER=$(${BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
 		fi
-        MIN_REQUIRED_MAJOR_VERSION='11'
-		JDK_MAJOR_VER=$(${JAVAC_BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
-
-        if ([ -n "$JDK_MAJOR_VER" ] && (( 10#${JDK_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+		
+        if ([ -n "$BINARY_MAJOR_VER" ] && (( 10#${BINARY_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
         then
-        	output "Found sufficient JDK version = ${JDK_MAJOR_VER}"
+        	output "Found sufficient $binary version = ${BINARY_MAJOR_VER}"
         else
-        	output "ERROR: JDK not found or insuffiencient version ${JDK_MAJOR_VER}. Please install JDK>=${MIN_REQUIRED_MAJOR_VERSION}"
+        	output "ERROR: $binary not found or insuffiencient version ${BINARY_MAJOR_VER}. Please install $binary>=${MIN_REQUIRED_MAJOR_VERSION}"
 			exit 1;
         fi
 }
@@ -301,7 +289,7 @@ install_debezium_server_tarball() {
 
 build_and_install_debezium_server() {
 	output "Building debezium from source. It will take upto 15 minutes"
-	check_javac
+	check_binary "javac"
 	check_install_maven
 	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
 	# download
