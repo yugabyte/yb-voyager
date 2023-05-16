@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/tebeka/atexit"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	log "github.com/sirupsen/logrus"
@@ -25,11 +26,9 @@ type Debezium struct {
 }
 
 func init() {
-
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
 		OS := runtime.GOOS
 		if OS == "darwin" {
 			homebrewPrefix := os.Getenv("HOMEBREW_PREFIX")
@@ -50,8 +49,7 @@ func init() {
 			})
 
 			if err != nil {
-				log.Errorf("Error finding debezium-server: %v\n", err)
-				os.Exit(1)
+				utils.ErrExit("Error finding debezium-server: %v\n", err)
 			}
 		} else {
 			DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
