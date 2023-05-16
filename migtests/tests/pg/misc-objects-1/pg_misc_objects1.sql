@@ -54,7 +54,7 @@ comment on table session_log is 'Our session logs';
 
 drop table if exists "Mixed_Case_Test";
 
-Create table "Mixed_Case_Test" (
+create table "Mixed_Case_Test" (
 	id serial primary key,
 	first_name VARCHAR(50),
 	last_name VARCHAR(50),
@@ -74,4 +74,27 @@ insert into "Mixed_Case_Test" (first_name, last_name, email, gender, ip_address)
 
 \d "Mixed_Case_Test"
 
-Select * from "Mixed_Case_Test";
+select * from "Mixed_Case_Test";
+
+drop table if exists "Case_Sensitive_Columns";
+
+create table "Case_Sensitive_Columns" (
+	id serial primary key,
+	"user" VARCHAR(50),
+	"Last_Name" VARCHAR(50),
+	email VARCHAR(50),
+	gender VARCHAR(50),
+	ip_address VARCHAR(20)
+    
+);
+
+insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_address) values ('Modestine', 'MacMeeking', 'mmacmeeking0@zimbio.com', 'Female', '208.44.58.185');
+insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_address) values ('Genna', 'Kaysor', 'gkaysor1@hibu.com', 'Female', '202.48.51.58');
+insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_address) values ('Tess', 'Wesker', 'twesker2@scientificamerican.com', 'Female', '177.153.32.186');
+insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_address) values ('Magnum', 'Danzelman', 'mdanzelman3@storify.com', 'Bigender', '192.200.33.56');
+insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_address) values ('Mitzi', 'Pidwell', 'mpidwell4@shutterfly.com', 'Female', '216.4.250.71');
+
+\d "Case_Sensitive_Columns"
+
+select * from "Case_Sensitive_Columns";
+
