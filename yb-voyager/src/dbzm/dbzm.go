@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -24,10 +25,37 @@ type Debezium struct {
 }
 
 func init() {
+
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
 		DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
+		OS := runtime.GOOS
+		if OS == "darwin" {
+			homebrewPrefix := os.Getenv("HOMEBREW_PREFIX")
+			if homebrewPrefix == "" {
+				fmt.Println("Homebrew is not installed or the HOMEBREW_PREFIX environment variable is not set. Using default.")
+				homebrewPrefix = "/usr/local"
+			}
+
+			targetDir := "debezium-server"
+			err := filepath.Walk(homebrewPrefix, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return err
+				}
+				if info.Name() == targetDir {
+					DEBEZIUM_DIST_DIR = path
+				}
+				return nil
+			})
+
+			if err != nil {
+				log.Errorf("Error finding debezium-server: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
+		}
 	}
 }
 
