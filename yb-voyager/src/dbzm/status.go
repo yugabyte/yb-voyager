@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -77,9 +76,6 @@ func (status *ExportStatus) GetTableWithLargestSno() *TableExportStatus {
 		if table == nil || status.Tables[i].Sno > table.Sno {
 			table = &status.Tables[i]
 		}
-	}
-	if table != nil {
-		log.Infof("GetTableWithLargestSno(): table=%q with largest sno: %v\n", table.TableName, table.Sno)
 	}
 	return table
 }
