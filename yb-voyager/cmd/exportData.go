@@ -253,7 +253,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		if !snapshotComplete {
 			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
 		}
 		time.Sleep(time.Millisecond * 500)
@@ -279,22 +279,21 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 }
 
 func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
-	if status.SnapshotExportIsComplete() {
-		progressTracker.Done(status)
-		createExportDataDoneFlag()
-		err := writeDataFileDescriptor(exportDir, status)
-		if err != nil {
-			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
-		}
-		outputExportStatus(status)
-		log.Infof("snapshot export is complete.")
-		if liveMigration {
-			color.Blue("streaming changes to a local queue file...")
-		}
-		return true, nil
-	} else {
+	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
+	progressTracker.Done(status)
+	createExportDataDoneFlag()
+	err := writeDataFileDescriptor(exportDir, status)
+	if err != nil {
+		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+	}
+	outputExportStatus(status)
+	log.Infof("snapshot export is complete.")
+	if liveMigration {
+		color.Blue("streaming changes to a local queue file...")
+	}
+	return true, nil
 }
 
 func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
