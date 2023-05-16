@@ -53,7 +53,7 @@ func ReadExportStatus(statusFilePath string) (*ExportStatus, error) {
 }
 
 func IsLiveMigrationInSnapshotMode(exportDir string) bool {
-	statusFilePath := filepath.Join(exportDir, "export_status.json")
+	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
@@ -62,7 +62,7 @@ func IsLiveMigrationInSnapshotMode(exportDir string) bool {
 }
 
 func IsLiveMigrationInStreamingMode(exportDir string) bool {
-	statusFilePath := filepath.Join(exportDir, "export_status.json")
+	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)

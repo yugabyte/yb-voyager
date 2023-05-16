@@ -11,14 +11,15 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'recipients': 1,    
 	'session_log': 0,
-	'Mixed_Case_Test': 5
+	'Mixed_Case_Test': 5,
+	'Case_Sensitive_Columns': 5
 }
 
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 3
+	assert len(table_list) == 4
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")

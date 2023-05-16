@@ -8,6 +8,9 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'trunc_test': 1,
  	'test_timezone': 1,
+	'group':5,
+	'check':5,
+	'reserved_column':5
 }
 
 def migration_completed_checks(tgt):
