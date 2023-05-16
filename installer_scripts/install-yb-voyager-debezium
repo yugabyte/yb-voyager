@@ -226,7 +226,7 @@ check_binary() {
 
 		if [ "$binary" == "java" ]; then
 			BINARY_MAJOR_VER=$(${BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-		else 
+		elif [ "$binary" == "javac" ]; then
 			BINARY_MAJOR_VER=$(${BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
 		fi
 		
