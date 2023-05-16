@@ -304,12 +304,12 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 		AND d.deptype IN ('i', 'a')
 		AND t.relkind IN ('r', 'P')
 		AND s.relkind = 'S'
-		AND t.relnamespace = '%s'::regnamespace
-		AND t.oid = '%s'::regclass;`, table.SchemaName.MinQuoted, table.ObjectName.MinQuoted)
+		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(context.Background(), query)
 		if err != nil {
+			log.Infof("Query to find column to sequence mapping: %s", query)
 			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
 		}
 		for rows.Next() {
