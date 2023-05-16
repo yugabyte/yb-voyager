@@ -11,6 +11,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -20,7 +21,13 @@ var exportDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		err := runExportDataStatusCmd()
+		var err error
+		useDebezium = usingDebeziumForDataExport()
+		if useDebezium {
+			err = runExportDataStatusCmdDbzm()
+		} else {
+			err = runExportDataStatusCmd()
+		}
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
@@ -32,22 +39,37 @@ func init() {
 }
 
 type exportTableMigStatusOutputRow struct {
-	tableName string
-	status    string
+	tableName     string
+	status        string
+	exportedCount int64
 }
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
-func runExportDataStatusCmd() error {
-	exportSchemaDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportSchemaDone")
-	_, err := os.Stat(exportSchemaDoneFlagFilePath)
+func runExportDataStatusCmdDbzm() error {
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `export data status` before schema export is done")
-		}
-		return fmt.Errorf("check if schema export is done: %w", err)
+		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	InProgressTableSno := status.InProgressTableSno()
+	var rows []*exportTableMigStatusOutputRow
+	for _, table := range status.Tables {
+		row := &exportTableMigStatusOutputRow{
+			tableName:     table.TableName,
+			status:        "DONE",
+			exportedCount: table.ExportedRowCountSnapshot,
+		}
+		if table.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+			row.status = "EXPORTING"
+		}
+		rows = append(rows, row)
+	}
+	displayExportDataStatus(rows)
+	return nil
+}
 
+func runExportDataStatusCmd() error {
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
 	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
@@ -105,30 +127,54 @@ func runExportDataStatusCmd() error {
 		outputRows = append(outputRows, row)
 	}
 
+	displayExportDataStatus(outputRows)
+
+	return nil
+}
+
+func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+	if useDebezium {
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("EXPORTED ROWS"))
+	} else {
+		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+	}
 
 	// First sort by status and then by table-name.
-	sort.Slice(outputRows, func(i, j int) bool {
+	sort.Slice(rows, func(i, j int) bool {
 		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3}
-		row1 := outputRows[i]
-		row2 := outputRows[j]
+		row1 := rows[i]
+		row2 := rows[j]
 		if row1.status == row2.status {
 			return strings.Compare(row1.tableName, row2.tableName) < 0
 		} else {
 			return ordStates[row1.status] < ordStates[row2.status]
 		}
 	})
-	for _, row := range outputRows {
-		table.AddRow(row.tableName, row.status)
+	for _, row := range rows {
+		if useDebezium {
+			table.AddRow(row.tableName, row.status, row.exportedCount)
+		} else {
+			table.AddRow(row.tableName, row.status)
+		}
 	}
-	if len(tableMap) > 0 {
+	if len(rows) > 0 {
 		fmt.Print("\n")
 		fmt.Println(table)
 		fmt.Print("\n")
 	}
+}
 
-	return nil
+func usingDebeziumForDataExport() bool {
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
+	_, err := os.Stat(exportStatusFilePath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+		utils.ErrExit("checking if debezium is being used as exporting tool: %s\n", err)
+	}
+	return true
 }
