@@ -4,16 +4,15 @@ export LC_CTYPE=en_US.UTF-8
 export LC_ALL=en_US.UTF-8
 
 set -e
+ARGS_MACOS=$*
+ARGS_LINUX=$@
+
 trap on_exit EXIT
 LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
-DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
-DEBEZIUM_TARBALL_VERSION="latest"
-if [ -z "$DEBEZIUM_REF" ]; then
-	DEBEZIUM_REF="voyager-main"
-fi
+DEBEZIUM_TARBALL_VERSION="random"
 
 
 on_exit() {
@@ -49,9 +48,11 @@ main() {
 	os=$(uname -s)
 	case ${os} in
 		"Darwin")
+			get_passed_options darwin
 			install_core_utils_macos
 			;;
 		"Linux")
+			get_passed_options linux
 			install_core_utils_linux
 			;;
 		*)
@@ -62,7 +63,7 @@ main() {
 
 	sudo mkdir -p /opt/yb-voyager
 
-	check_binary "java"
+	check_java
 	install_debezium_server
 	output "Installation complete."
 }
@@ -70,6 +71,29 @@ main() {
 #=============================================================================
 # COMMON
 #=============================================================================
+
+get_passed_options() {
+	if [ "$1" == "linux" ]
+	then
+		OPTS=$(getopt -o "l", --long latest --name 'install-yb-voyager-debezium' -- $ARGS_LINUX)
+	else
+		OPTS=$(getopt  l  $ARGS_MACOS)
+	fi
+
+	eval set -- "$OPTS"
+
+	while true; do
+		case "$1" in
+			-l | --latest ) 
+				DEBEZIUM_TARBALL_VERSION="latest"
+				shift
+				;;
+			* ) 
+				break 
+				;;
+		esac
+	done
+}
 
 # https://stackoverflow.com/a/4025065
 # 0 if equal, 1 if $1 > $2, 2 if $2 > $1
@@ -215,69 +239,27 @@ macos_install_brew() {
 # Debezium
 #=============================================================================
 
-check_binary() {
-		binary=$1
+check_java() {
 		if [ -z "$JAVA_HOME" ]; then
-			BINARY=$binary
+			JAVA_BINARY="java"
 		else
-			BINARY="$JAVA_HOME/bin/$binary"
+			JAVA_BINARY="$JAVA_HOME/bin/java"
 		fi
-        MIN_REQUIRED_MAJOR_VERSION='11'
 
-		if [ "$binary" == "java" ]; then
-			BINARY_MAJOR_VER=$(${BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
-		elif [ "$binary" == "javac" ]; then
-			BINARY_MAJOR_VER=$(${BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
-		fi
+        MIN_REQUIRED_MAJOR_VERSION='11'
+		JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
 		
-        if ([ -n "$BINARY_MAJOR_VER" ] && (( 10#${BINARY_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+        if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
         then
-        	output "Found sufficient $binary version = ${BINARY_MAJOR_VER}"
+        	output "Found sufficient java version = ${JAVA_MAJOR_VER}"
         else
-        	output "ERROR: $binary not found or insuffiencient version ${BINARY_MAJOR_VER}. Please install $binary>=${MIN_REQUIRED_MAJOR_VERSION}"
+        	output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
 			exit 1;
         fi
 }
 
-check_install_maven() {
-	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
-	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
-    version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
-	if [[ $version_ok -eq 1 ]]
-	# if ([ -n "$MAVEN_VER" ] && (( 10#${MAVEN_VER} >= 10#${MIN_REQUIRED_MAVEN_VERSION} )) )
-        then
-                output "Found sufficient maven version = ${MAVEN_VER}"
-        else
-                output "Maven not found or not sufficient. Installing..."
-                install_maven
-        fi
-}
-
-install_maven() {
-	# if dir already present, assuming it was installed in a previous run
-	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
-	then
-		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
-		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
-		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
-		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
-		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager
-		rm apache-maven-3.8.4-bin.tar.gz
-	fi
-	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
-}
-
 install_debezium_server() {
 	output "Installing debezium"
-	if [ "$DEBEZIUM_REF" == "voyager-main" ]; then
-		install_debezium_server_tarball
-	else
-		build_and_install_debezium_server
-	fi
-}
-
-install_debezium_server_tarball() {
-	output "Installing debezium from tarball"
 	debezium_server_filename="debezium-server-${DEBEZIUM_TARBALL_VERSION}.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${debezium_server_filename}"
@@ -285,25 +267,6 @@ install_debezium_server_tarball() {
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
 	rm ${debezium_server_filename}
-}
-
-build_and_install_debezium_server() {
-	output "Building debezium from source. It will take upto 15 minutes"
-	check_binary "javac"
-	check_install_maven
-	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
-	# download
-	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_REF}.tar.gz -O debezium.tar.gz 1>&2
-	tar -xzvf debezium.tar.gz 1>&2
-	# build
-	cd debezium-${DEBEZIUM_REF}
-	sh buildDebeziumServer.sh 1>&2
-	# move to /opt/yb-voyager/debezium-server
-	sudo tar -xvzf debezium-server/debezium-server-dist/target/${debezium_server_dist_filename} -C /opt/yb-voyager 1>&2
-	# cleanup
-	cd ..
-	rm -r debezium-${DEBEZIUM_REF}
-	rm debezium.tar.gz
 }
 
 main 2>> $LOG_FILE
