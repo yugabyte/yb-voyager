@@ -170,8 +170,8 @@ macos_main() {
 	output "=================================================="
 	check_java
 	macos_install_brew
-	# macos_install_pg_dump
-	# brew install wget
+	macos_install_pg_dump
+	brew install wget
 	install_golang darwin
 	install_debezium_server
 	install_yb_voyager
