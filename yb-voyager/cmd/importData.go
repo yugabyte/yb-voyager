@@ -542,178 +542,103 @@ func importTable(t string, connPool *tgtdb.ConnectionPool) {
 	log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
 	log.Infof("Collect all interrupted/remaining splits.")
-	largestCreatedSplitSoFar := int64(0)
-	largestOffsetSoFar := int64(0)
-	fileFullySplit := false
-	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
-	matches, _ := filepath.Glob(pattern)
-
-	doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
-	doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-	splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
-	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
-
-	for _, filepath := range matches {
-		submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
-		for _, match := range submatches {
-			// fmt.Printf("filepath: %s, %v\n", filepath, match)
-			/*
-				offsets are 0-based, while numLines are 1-based
-				offsetStart is the line in original datafile from where current split starts
-				offsetEnd   is the line in original datafile from where next split starts
-			*/
-			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-			numLines, _ := strconv.ParseInt(match[3], 10, 64)
-			offsetStart := offsetEnd - numLines
-			if splitNum == LAST_SPLIT_NUM {
-				fileFullySplit = true
-			}
-			if splitNum > largestCreatedSplitSoFar {
-				largestCreatedSplitSoFar = splitNum
-			}
-			if offsetEnd > largestOffsetSoFar {
-				largestOffsetSoFar = offsetEnd
-			}
-			if !doneSplitRegexp.MatchString(filepath) {
-				submitBatch("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
-			}
-		}
+	state := NewImportDataState(exportDir)
+	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(t)
+	if err != nil {
+		utils.ErrExit("recovering state for table %q: %s", t, err)
 	}
-
+	for _, batch := range pendingBatches {
+		submitBatch(batch, connPool)
+	}
 	if !fileFullySplit {
-		splitFilesForTable(origDataFile, t, connPool, largestCreatedSplitSoFar, largestOffsetSoFar)
+		splitFilesForTable(state, origDataFile, t, connPool, lastBatchNumber, lastOffset)
 	}
 }
 
-func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPool, largestSplit int64, largestOffset int64) {
-	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
-	splitNum := largestSplit + 1
-	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
-	numLinesTaken := largestOffset
-	numLinesInThisSplit := int64(0)
+func splitFilesForTable(state *ImportDataState, filePath string, t string, connPool *tgtdb.ConnectionPool, lastBatchNumber int64, lastOffset int64) {
+	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
+	batchNum := lastBatchNumber + 1
+	numLinesTaken := lastOffset
 
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	reader, err := dataStore.Open(filePath)
 	if err != nil {
 		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
 	}
+
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}
 	defer dataFile.Close()
 
-	sz := 0
-	log.Infof("current temp file: %s", currTmpFileName)
-	outfile, err := os.Create(currTmpFileName)
+	log.Infof("Skipping %d lines from %q", lastOffset, filePath)
+	err = dataFile.SkipLines(lastOffset)
 	if err != nil {
-		utils.ErrExit("create file %q: %s", currTmpFileName, err)
+		utils.ErrExit("skipping line for offset=%d: %v", lastOffset, err)
 	}
 
-	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
-	err = dataFile.SkipLines(largestOffset)
-	if err != nil {
-		utils.ErrExit("skipping line for offset=%d: %v", largestOffset, err)
-	}
-
-	// Create a buffered writer from the file
-	bufferedWriter := bufio.NewWriter(outfile)
-	if dataFileDescriptor.HasHeader {
-		bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
-	}
 	var readLineErr error = nil
 	var line string
-	linesWrittenToBuffer := false
+	var batchWriter *BatchWriter
+	header := ""
+	if dataFileDescriptor.HasHeader {
+		header = dataFile.GetHeader()
+	}
 	for readLineErr == nil {
+
+		if batchWriter == nil {
+			batchWriter = state.NewBatchWriter(t, batchNum)
+			err := batchWriter.Init()
+			if err != nil {
+				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+			}
+			if header != "" {
+				err = batchWriter.WriteHeader(header)
+				if err != nil {
+					utils.ErrExit("writing header for table %q: %s", t, err)
+				}
+			}
+		}
+
 		line, readLineErr = dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
-			numLinesInThisSplit += 1
 		}
-
-		var length int
-		if linesWrittenToBuffer {
-			bufferedWriter.WriteString("\n")
-			length = len("\n")
-		}
-		bytesWritten, err := bufferedWriter.WriteString(line)
-		length += bytesWritten
-		linesWrittenToBuffer = true
+		err = batchWriter.WriteRecord(line)
 		if err != nil {
-			utils.ErrExit("Write line to %q: %s", outfile.Name(), err)
+			utils.ErrExit("Write to batch %d: %s", batchNum, err)
 		}
-		sz += length
-		if sz >= FOUR_MB {
-			err = bufferedWriter.Flush()
-			if err != nil {
-				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
-			}
-			bufferedWriter.Reset(outfile)
-			sz = 0
-		}
-
-		if numLinesInThisSplit == numLinesInASplit ||
+		if batchWriter.NumRecordsWritten == numLinesInASplit ||
 			dataFile.GetBytesRead() >= MAX_SPLIT_SIZE_BYTES ||
 			readLineErr != nil {
 
-			err = bufferedWriter.Flush()
-			if err != nil {
-				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
-			}
-			outfile.Close()
-			fileSplitNumber := splitNum
+			isLastBatch := false
 			if readLineErr == io.EOF {
-				fileSplitNumber = LAST_SPLIT_NUM
-				log.Infof("Preparing last split of %q", filePath)
+				isLastBatch = true
 			} else if readLineErr != nil {
 				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 			}
 
-			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
-			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.%d.C",
-				exportDir, metaInfoDirName, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
-			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
-			err = os.Rename(currTmpFileName, splitFile)
+			batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
 			if err != nil {
-				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
+				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 			}
 			dataFile.ResetBytesRead()
-			submitBatch("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
+			submitBatch(batch, connPool)
 
-			if fileSplitNumber != LAST_SPLIT_NUM {
-				splitNum += 1
-				numLinesInThisSplit = 0
-				linesWrittenToBuffer = false
-				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
-				log.Infof("create next temp file: %q", currTmpFileName)
-				outfile, err = os.Create(currTmpFileName)
-				if err != nil {
-					utils.ErrExit("create %q: %s", currTmpFileName, err)
-				}
-				bufferedWriter = bufio.NewWriter(outfile)
-				if dataFileDescriptor.HasHeader {
-					bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
-				}
+			if !isLastBatch {
+				batchNum += 1
+				batchWriter = nil
 			}
 		}
 	}
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func submitBatch(schemaName string, tableName string, filepath string, batchNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	connPool *tgtdb.ConnectionPool) {
-	batch := &Batch{}
-	batch.SchemaName = schemaName
-	batch.TableName = tableName
-	batch.FilePath = filepath
-	batch.Number = batchNumber
-	batch.OffsetStart = offsetStart
-	batch.OffsetEnd = offsetEnd
-	batch.Interrupted = interrupted
-
+func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
