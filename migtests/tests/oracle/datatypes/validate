@@ -96,7 +96,7 @@ def migration_completed_checks(tgt):
 	else:
 		assert fetched_value_v1_column_in_varray_table == None
 
-	fetched_value_rid_column_in_varray_table = tgt.execute_query("SELECT rid FROM varray_table where id = 9")
+	fetched_value_rid_column_in_varray_table = tgt.execute_query("SELECT rid FROM varray_table where id = 9") # ROWID datatypes data is not exported
 	print(fetched_value_rid_column_in_varray_table)
 	assert fetched_value_rid_column_in_varray_table == None
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
@@ -17,6 +18,8 @@ type MySQL struct {
 
 	db *sql.DB
 }
+
+var mysqlUnsuportedDataTypes = []string{"TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB"}
 
 func newMySQL(s *Source) *MySQL {
 	return &MySQL{source: s}
@@ -174,8 +177,56 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
+func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string) {
+	var columns, datatypes []string
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", ms.source.DBName, tableName.ObjectName.Unquoted)
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+	}
+	for rows.Next() {
+		var column, dataType string
+		err := rows.Scan(&column, &dataType)
+		if err != nil {
+			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+		}
+		columns = append(columns, column)
+		datatypes = append(datatypes, dataType)
+	}
+	return columns, datatypes
+}
+
 func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
-	return nil, nil
+	tableColumnMap := make(map[string][]string)
+	var unsupportedColumnNames []string
+	for _, tableName := range tableList {
+		columns, datatypes := ms.GetTableColumns(tableName)
+		var supportedColumnNames []string
+		for i := 0; i < len(columns); i++ {
+			unsupported := false
+			for _, unsupportedDataType := range mysqlUnsuportedDataTypes {
+				if strings.EqualFold(datatypes[i], unsupportedDataType) && useDebezium {
+					unsupported = true
+				}
+			}
+
+			if unsupported {
+				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
+			} else {
+				supportedColumnNames = append(supportedColumnNames, columns[i])
+			}
+
+		}
+		if len(supportedColumnNames) < len(columns) {
+			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
+		} else if len(supportedColumnNames) == len(columns) {
+			var allColumns []string
+			allColumns = append(allColumns, "*")
+			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns
+		}
+	}
+	return tableColumnMap, unsupportedColumnNames
 }
 
 func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {

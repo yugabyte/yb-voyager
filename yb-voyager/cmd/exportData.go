@@ -135,7 +135,7 @@ func exportDataOffline() bool {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
-	tablesColumnList, unsupportedColumnNames := source.DB().PartiallySupportedTablesColumnList(tableList, useDebezium)
+	tablesColumnList, unsupportedColumnNames := source.DB().PartiallySupportedTablesColumnList(finalTableList, useDebezium)
 	if len(tablesColumnList) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
 		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
@@ -225,11 +225,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	for table, columns := range tablesColumnList {
 		for _, column := range columns {
+			var columnName string
+			if source.DBType == MYSQL {
+				columnName = source.DBName + "." + table + "." + column
+			} else if source.DBType == ORACLE {
+                columnName = source.Schema + "." + table + "." + column
+            }
 			if column == "*" {
-				dbzmColumnList = append(dbzmColumnList, source.Schema+"."+table+`[a-zA-Z0-9_."]+`)
+				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break
 			}
-			dbzmColumnList = append(dbzmColumnList, source.Schema+"."+table+"."+column) // if column is PK, then data for it will come from debezium
+			dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
 		}
 	}
 

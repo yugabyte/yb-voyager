@@ -162,5 +162,8 @@ def migration_completed_checks(tgt):
 			print(f"column_name: {column_name}, datatype: {datatype}")
 			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
+	fetched_value_b_column_in_blob_types = tgt.execute_query("SELECT b FROM blob_types where id = 1") # blob/tinyblob/mediumblob/longblob datatypes data is not exported
+	print(fetched_value_b_column_in_blob_types)
+	assert fetched_value_b_column_in_blob_types == None
 if __name__ == "__main__":
 	main()
