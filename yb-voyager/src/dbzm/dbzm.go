@@ -2,10 +2,10 @@ package dbzm
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -29,30 +29,29 @@ func init() {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		OS := runtime.GOOS
-		if OS == "darwin" {
-			homebrewPrefix := os.Getenv("HOMEBREW_PREFIX")
-			if homebrewPrefix == "" {
-				fmt.Println("Homebrew is not installed or the HOMEBREW_PREFIX environment variable is not set. Using default.")
-				homebrewPrefix = "/usr/local"
-			}
+		searchDirectory := "debezium-server"
+		possiblePaths := []string{"/opt/homebrew", "/usr/local", "/opt/yb-voyager"}
 
-			targetDir := "debezium-server"
-			err := filepath.Walk(homebrewPrefix, func(path string, info os.FileInfo, err error) error {
+		for _, path := range possiblePaths {
+			err := filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
 				if err != nil {
-					return err
+					log.Errorf("Failed to access path %q: %v\n", path, err)
+					return nil
 				}
-				if info.IsDir() && info.Name() == targetDir {
+
+				if info.IsDir() && info.Name() == searchDirectory {
 					DEBEZIUM_DIST_DIR = path
 				}
+
 				return nil
 			})
 
 			if err != nil {
-				utils.ErrExit("Error finding debezium-server: %v\n", err)
+				log.Errorf("Failed to walk directory %q: %v\n", path, err)
 			}
-		} else {
-			DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
+		}
+		if DEBEZIUM_DIST_DIR == "" {
+			utils.ErrExit("Debezium dist directory not found")
 		}
 	}
 }
