@@ -66,9 +66,13 @@ EXPECTED_DATA_TYPES = {
 	},
 	'varray_table': {
 		'id': 'numeric',
-		'some_text': 'character varying',
+		'sometext': 'character varying',
 		'v1': 'USER-DEFINED',
 		'rid':'oid'
+	},
+	'nested_table': {
+		'id': 'numeric',
+		'col1': 'USER-DEFINED'
 	}
 }
 
@@ -96,10 +100,19 @@ def migration_completed_checks(tgt):
 	else:
 		assert fetched_value_v1_column_in_varray_table == None
 
-	fetched_value_rid_column_in_varray_table = tgt.execute_query("SELECT rid FROM varray_table where id = 9") # ROWID datatypes data is not exported
+	fetched_value_rid_column_in_varray_table = tgt.execute_query("SELECT rid FROM varray_table where id = 9") # ROWID datatype's data is not exported
 	print(fetched_value_rid_column_in_varray_table)
 	assert fetched_value_rid_column_in_varray_table == None
 
+	cnt = tgt.get_row_count('nested_table')
+	print(cnt)
+	if not os.environ.get("USE_DEBEZIUM") == '1':
+		fetched_value_col1_column_in_varray_table = tgt.execute_query("SELECT col1 FROM nested_table ORDER BY id DESC LIMIT 1") 
+		print(fetched_value_col1_column_in_varray_table)
+		expected_value = '("{(D,E,F)}")'
+		assert cnt == 3 and fetched_value_col1_column_in_varray_table == expected_value 
+	else:
+		assert cnt == 0 # NESTED TABLE datatype's data is not supported in debezium
 	
 if __name__ == "__main__":
 	main()

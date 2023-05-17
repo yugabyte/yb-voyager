@@ -7,10 +7,11 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type Oracle struct {
@@ -19,7 +20,8 @@ type Oracle struct {
 	db *sql.DB
 }
 
-var oracleUnsuportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
+// Expect these, for Debezium UDT types are also not supported handled below in GetColumnsWithSupportedTypes()
+var oracleUnsupportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
 	"AnyData", "AnyType", "AnyDataSet", "ROWID", "UROWID", "SDO_GEOMETRY", "SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY", "SDO_GTYPE", "SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE", "SDO_STRING_ARRAY", "JSON"}
 
 func newOracle(s *Source) *Oracle {
@@ -178,7 +180,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var filteredTableList, unsupportedTableList []*sqlname.SourceName
 
 	// query to find unsupported queue tables
@@ -198,6 +200,16 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
 		if slices.Contains(tableList, tableSrcName) {
 			unsupportedTableList = append(unsupportedTableList, tableSrcName)
+		}
+	}
+
+	if useDebezium {
+		fmt.Println(tableList)
+		for _, tableName := range tableList {
+			if ora.IsNestedTable(tableName) || ora.IsParentOfNestedTable(tableName) {
+				//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
+				unsupportedTableList = append(unsupportedTableList, tableName)
+			}
 		}
 	}
 
@@ -243,6 +255,18 @@ func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
 	return isNestedTable == 1
 }
 
+func (ora *Oracle) IsParentOfNestedTable(tableName *sqlname.SourceName) bool {
+	// sql query to find out if it is parent of oracle nested table
+	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND PARENT_TABLE_NAME= '%s'",
+		tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	isParentNestedTable := 0
+	err := ora.db.QueryRow(query).Scan(&isParentNestedTable)
+	if err != nil && err != sql.ErrNoRows {
+		utils.ErrExit("error in query to check if table %v is parent of nested table: %v", tableName, err)
+	}
+	return isParentNestedTable == 1
+}
+
 func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
 	var tableName, columnName string
 	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schema, strings.ToUpper(sequenceName))
@@ -262,7 +286,7 @@ func (ora *Oracle) IsTablePartition(table *sqlname.SourceName) bool {
 }
 
 func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
-	var columns, datatypes, datatypes_owner []string
+	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ora.db.Query(query)
 	if err != nil {
@@ -275,30 +299,23 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []s
 			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
 		}
 		columns = append(columns, column)
-		datatypes = append(datatypes, dataType)
-		datatypes_owner = append(datatypes_owner, dataTypeOwner)
+		dataTypes = append(dataTypes, dataType)
+		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
 	}
-	return columns, datatypes, datatypes_owner
+	return columns, dataTypes, dataTypesOwner
 }
 
-func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
 	tableColumnMap := make(map[string][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
-		columns, datatypes, datatypes_owner := ora.GetTableColumns(tableName)
+		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			unsupported := false
-			for _, unsupportedDataType := range oracleUnsuportedDataTypes {
-				isUdtWithDebezium := (datatypes_owner[i] == ora.source.Schema) && useDebezium // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
-				if strings.EqualFold(datatypes[i], unsupportedDataType) || isUdtWithDebezium {
-					unsupported = true
-				}
-			}
-
-			if unsupported {
-				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
-				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
+			isUdtWithDebezium := (dataTypesOwner[i] == ora.source.Schema) && useDebezium // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
+			if isUdtWithDebezium || utils.InsensitiveSliceContains(oracleUnsupportedDataTypes, dataTypes[i]) {
+				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
@@ -307,9 +324,7 @@ func (ora *Oracle) PartiallySupportedTablesColumnList(tableList []*sqlname.Sourc
 		if len(supportedColumnNames) < len(columns) {
 			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
 		} else if len(supportedColumnNames) == len(columns) {
-			var allColumns []string
-			allColumns = append(allColumns, "*")
-			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns
+			tableColumnMap[tableName.ObjectName.Unquoted] = []string{"*"}
 		}
 	}
 

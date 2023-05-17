@@ -25,16 +25,15 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 var exportDataCmd = &cobra.Command{
@@ -118,7 +117,7 @@ func exportDataOffline() bool {
 			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
 		}
 
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList)
+		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
 		if len(skippedTableList) != 0 {
 			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 		}
@@ -135,8 +134,8 @@ func exportDataOffline() bool {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
-	tablesColumnList, unsupportedColumnNames := source.DB().PartiallySupportedTablesColumnList(finalTableList, useDebezium)
-	if len(tablesColumnList) > 0 {
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
+	if len(unsupportedColumnNames) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
 		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
 			"\nDo you want to ignore these columns and export data of tables with supported columns") {
@@ -229,8 +228,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 			if source.DBType == MYSQL {
 				columnName = source.DBName + "." + table + "." + column
 			} else if source.DBType == ORACLE {
-                columnName = source.Schema + "." + table + "." + column
-            }
+				columnName = source.Schema + "." + table + "." + column
+			} // need to think of pg case as schema name might be multiple, need to get it in tableColumnList in some way
 			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break

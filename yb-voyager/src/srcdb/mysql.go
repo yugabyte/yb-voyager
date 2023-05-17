@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"strings"
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -19,7 +19,7 @@ type MySQL struct {
 	db *sql.DB
 }
 
-var mysqlUnsuportedDataTypes = []string{"TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB"}
+var mysqlUnsupportedDataTypes = []string{"TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB"}
 
 func newMySQL(s *Source) *MySQL {
 	return &MySQL{source: s}
@@ -134,7 +134,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 }
 
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[string][]string) {
-	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, nil, quitChan, exportDataStart, exportSuccessChan)
+	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -160,7 +160,7 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
@@ -178,7 +178,7 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 }
 
 func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string) {
-	var columns, datatypes []string
+	var columns, dataTypes []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", ms.source.DBName, tableName.ObjectName.Unquoted)
 	rows, err := ms.db.Query(query)
 	if err != nil {
@@ -191,28 +191,21 @@ func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []str
 			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
 		}
 		columns = append(columns, column)
-		datatypes = append(datatypes, dataType)
+		dataTypes = append(dataTypes, dataType)
 	}
-	return columns, datatypes
+	return columns, dataTypes
 }
 
-func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
 	tableColumnMap := make(map[string][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
-		columns, datatypes := ms.GetTableColumns(tableName)
+		columns, dataTypes := ms.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			unsupported := false
-			for _, unsupportedDataType := range mysqlUnsuportedDataTypes {
-				if strings.EqualFold(datatypes[i], unsupportedDataType) && useDebezium {
-					unsupported = true
-				}
-			}
-
-			if unsupported {
-				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
-				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], datatypes[i]))
+			if utils.InsensitiveSliceContains(mysqlUnsupportedDataTypes, dataTypes[i]) {
+				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
@@ -221,9 +214,7 @@ func (ms *MySQL) PartiallySupportedTablesColumnList(tableList []*sqlname.SourceN
 		if len(supportedColumnNames) < len(columns) {
 			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
 		} else if len(supportedColumnNames) == len(columns) {
-			var allColumns []string
-			allColumns = append(allColumns, "*")
-			tableColumnMap[tableName.ObjectName.Unquoted] = allColumns
+			tableColumnMap[tableName.ObjectName.Unquoted] = []string{"*"}
 		}
 	}
 	return tableColumnMap, unsupportedColumnNames
