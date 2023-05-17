@@ -374,7 +374,10 @@ func createResumeSequencesFile() {
 func renameDbzmExportedDataFiles() {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		utils.ErrExit("Failed to read export status during renaming dbzm exported data files: %v", err)
+		utils.ErrExit("Failed to read export status during renaming exported data files: %v", err)
+	}
+	if status == nil {
+		utils.ErrExit("Export status is empty during renaming exported data files")
 	}
 
 	for i := 0; i < len(status.Tables); i++ {
