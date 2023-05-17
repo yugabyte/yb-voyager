@@ -12,7 +12,7 @@ LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
-DEBEZIUM_TARBALL_VERSION="random"
+DEBEZIUM_TARBALL_VERSION="latest"
 
 
 on_exit() {
