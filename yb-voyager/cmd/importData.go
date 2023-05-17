@@ -84,14 +84,14 @@ const (
 		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
 )
 
-type SplitFileImportTask struct {
+type Batch struct {
 	TableName           string
 	SchemaName          string
-	SplitFilePath       string
+	FilePath            string
 	OffsetStart         int64
 	OffsetEnd           int64
 	TmpConnectionString string
-	SplitNumber         int64
+	Number              int64
 	Interrupted         bool
 }
 
@@ -576,7 +576,7 @@ func importTable(t string, connPool *tgtdb.ConnectionPool) {
 				largestOffsetSoFar = offsetEnd
 			}
 			if !doneSplitRegexp.MatchString(filepath) {
-				submitBatchImportTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
+				submitBatch("", t, filepath, splitNum, offsetStart, offsetEnd, true, connPool)
 			}
 		}
 	}
@@ -681,7 +681,7 @@ func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPoo
 				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
 			}
 			dataFile.ResetBytesRead()
-			submitBatchImportTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
+			submitBatch("", t, splitFile, splitNum, offsetStart, offsetEnd, false, connPool)
 
 			if fileSplitNumber != LAST_SPLIT_NUM {
 				splitNum += 1
@@ -703,24 +703,24 @@ func splitFilesForTable(filePath string, t string, connPool *tgtdb.ConnectionPoo
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func submitBatchImportTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
+func submitBatch(schemaName string, tableName string, filepath string, batchNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
 	connPool *tgtdb.ConnectionPool) {
-	t := &SplitFileImportTask{}
-	t.SchemaName = schemaName
-	t.TableName = tableName
-	t.SplitFilePath = filepath
-	t.SplitNumber = splitNumber
-	t.OffsetStart = offsetStart
-	t.OffsetEnd = offsetEnd
-	t.Interrupted = interrupted
+	batch := &Batch{}
+	batch.SchemaName = schemaName
+	batch.TableName = tableName
+	batch.FilePath = filepath
+	batch.Number = batchNumber
+	batch.OffsetStart = offsetStart
+	batch.OffsetEnd = offsetEnd
+	batch.Interrupted = interrupted
 
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		doOneImport(t, connPool)
+		doOneImport(batch, connPool)
 	})
-	log.Infof("Queued an import task: %s", spew.Sdump(t))
+	log.Infof("Queued batch: %s", spew.Sdump(batch))
 }
 
 func executePostImportDataSqls() {
@@ -788,31 +788,31 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	return doneTables, interruptedTables, remainingTables, nil
 }
 
-func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
-	log.Infof("Importing %q", task.SplitFilePath)
+func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
+	log.Infof("Importing %q", batch.FilePath)
 	//this is done to signal start progress bar for this table
-	if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
-		tablesProgressMetadata[task.TableName].CountLiveRows = 0
+	if tablesProgressMetadata[batch.TableName].CountLiveRows == -1 {
+		tablesProgressMetadata[batch.TableName].CountLiveRows = 0
 	}
 	// Rename the file to .P
-	inProgressFilePath := getInProgressFilePath(task)
-	log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
-	err := os.Rename(task.SplitFilePath, inProgressFilePath)
+	inProgressFilePath := getInProgressFilePath(batch)
+	log.Infof("Renaming file from %q to %q", batch.FilePath, inProgressFilePath)
+	err := os.Rename(batch.FilePath, inProgressFilePath)
 	if err != nil {
-		utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
+		utils.ErrExit("rename %q to %q: %s", batch.FilePath, inProgressFilePath, err)
 	}
 	file, err := os.Open(inProgressFilePath)
 	if err != nil {
 		utils.ErrExit("open %q: %s", inProgressFilePath, err)
 	}
 
-	copyCommand := getCopyCommand(task.TableName)
+	copyCommand := getCopyCommand(batch.TableName)
 	// copyCommand is empty when there are no rows for that table
 	if copyCommand == "" {
-		markTaskDone(task)
+		markTaskDone(batch)
 		return
 	}
-	copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
+	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
 	log.Infof("COPY command: %s", copyCommand)
 	var rowsAffected int64
 	attempt := 0
@@ -820,7 +820,7 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		var err error
 		attempt++
-		rowsAffected, err = importSplit(conn, task, file, copyCommand)
+		rowsAffected, err = importBatch(conn, batch, file, copyCommand)
 		if err == nil ||
 			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
 			attempt == COPY_MAX_RETRY_COUNT {
@@ -839,13 +839,13 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	err = connPool.WithConn(copyFn)
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
-		utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
+		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, inProgressFilePath, err)
 	}
-	incrementImportProgressBar(task.TableName, inProgressFilePath)
-	markTaskDone(task)
+	incrementImportProgressBar(batch.TableName, inProgressFilePath)
+	markTaskDone(batch)
 }
 
-func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyCmd string) (rowsAffected int64, err error) {
+func importBatch(conn *pgx.Conn, task *Batch, file *os.File, copyCmd string) (rowsAffected int64, err error) {
 	// reset the reader to begin for every call
 	file.Seek(0, io.SeekStart)
 	//setting the schema so that COPY command can acesss the table
@@ -891,7 +891,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.SplitFilePath)
+			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.FilePath)
 		}
 		return res.RowsAffected(), err
 	}
@@ -911,7 +911,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	return rowsAffected, nil
 }
 
-func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
+func splitIsAlreadyImported(task *Batch, tx pgx.Tx) (bool, int64, error) {
 	var rowsImported int64
 	fileName := filepath.Base(getInProgressFilePath(task))
 	schemaName := getTargetSchemaName(task.TableName)
@@ -930,7 +930,7 @@ func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, 
 	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
 }
 
-func markTaskDone(task *SplitFileImportTask) {
+func markTaskDone(task *Batch) {
 	inProgressFilePath := getInProgressFilePath(task)
 	doneFilePath := getDoneFilePath(task)
 	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
@@ -1113,13 +1113,13 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
-func getInProgressFilePath(task *SplitFileImportTask) string {
-	path := task.SplitFilePath
+func getInProgressFilePath(task *Batch) string {
+	path := task.FilePath
 	return path[0:len(path)-1] + "P" // *.C -> *.P
 }
 
-func getDoneFilePath(task *SplitFileImportTask) string {
-	path := task.SplitFilePath
+func getDoneFilePath(task *Batch) string {
+	path := task.FilePath
 	return path[0:len(path)-1] + "D" // *.P -> *.D
 }
 
