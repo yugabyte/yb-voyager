@@ -93,7 +93,10 @@ func initJSON(exportdir string) {
 
 }
 
-// Getter method for updating payload
+/*
+This getter method for payload: if json isn't already initialized,
+initialize it and fills mandatory fields in Payload struct
+*/
 func GetPayload(exportDir string) *payload {
 	//if json isn't already initialized...
 	if Payload.MigrationUuid == uuid.Nil {
