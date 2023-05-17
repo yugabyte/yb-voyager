@@ -80,6 +80,12 @@ func exportData() {
 	success := exportDataOffline()
 
 	if success {
+		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
+		printExportedRowCount(tableRowCount)
+		callhome.GetPayload(exportDir)
+		callhome.UpdateDataStats(exportDir, tableRowCount)
+		callhome.PackAndSendPayload(exportDir)
+
 		createExportDataDoneFlag()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
@@ -189,11 +195,6 @@ func exportDataOffline() bool {
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-
-	tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
-	printExportedRowCount(tableRowCount)
-	callhome.UpdateDataStats(exportDir, tableRowCount)
-	callhome.PackAndSendPayload(exportDir)
 	return true
 }
 
