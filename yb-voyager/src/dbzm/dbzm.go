@@ -42,7 +42,7 @@ func init() {
 				if err != nil {
 					return err
 				}
-				if info.Name() == targetDir {
+				if info.IsDir() && info.Name() == targetDir {
 					DEBEZIUM_DIST_DIR = path
 				}
 				return nil
