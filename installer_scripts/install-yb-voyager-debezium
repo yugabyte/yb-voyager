@@ -200,7 +200,7 @@ install_core_utils_linux() {
 install_core_utils_centos() {
 	check_binutils_version
 	centos_check_base_repo_enabled
-	$YUM which wget git gcc make 1>&2
+	$YUM which wget git gcc 1>&2
 }
 
 #=============================================================================
@@ -210,7 +210,7 @@ install_core_utils_centos() {
 install_core_utils_ubuntu() {
 	check_binutils_version
 	sudo apt update 1>&2
-	sudo apt-get -y install wget make 1>&2
+	sudo apt-get -y install wget 1>&2
 }
 
 #=============================================================================
