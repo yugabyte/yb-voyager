@@ -6,6 +6,7 @@ type ExportProgressReporter interface { // Bare minimum required to simulate mpb
 	SetTotalRowCount(totalRowCount int64, triggerComplete bool)
 	SetExportedRowCount(exportedRowCount int64)
 	IsComplete() bool
+	Abort(bool)
 }
 
 func NewExportPB(progressContainer *mpb.Progress, tableName string, disablePb bool) ExportProgressReporter {

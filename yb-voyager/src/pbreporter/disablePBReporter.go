@@ -42,3 +42,6 @@ func (pbr *DisablePBReporter) IsComplete() bool {
 	return pbr.IsCompleted
 }
 
+func (pbr *DisablePBReporter) Abort(bool) {
+	pbr.IsCompleted = true
+}

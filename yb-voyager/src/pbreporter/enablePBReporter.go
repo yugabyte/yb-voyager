@@ -39,3 +39,7 @@ func (pbr *EnablePBReporter) SetTotalRowCount(totalRowCount int64, triggerComple
 func (pbr *EnablePBReporter) IsComplete() bool {
 	return pbr.bar.Completed()
 }
+
+func (pbr *EnablePBReporter) Abort(drop bool) {
+	pbr.bar.Abort(drop)
+}

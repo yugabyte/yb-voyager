@@ -231,13 +231,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
+	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 	debezium := dbzm.NewDebezium(config)
 	err = debezium.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
-
-	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 
 	var status *dbzm.ExportStatus
 	snapshotComplete := false
