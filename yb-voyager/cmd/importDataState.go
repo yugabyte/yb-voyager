@@ -2,12 +2,14 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 
+	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -210,5 +212,24 @@ func (batch *Batch) MarkDone() error {
 		}
 	}
 	batch.FilePath = doneFilePath
+	return nil
+}
+
+func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
+	return splitIsAlreadyImported(batch, tx)
+}
+
+func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
+	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
+	fileName := filepath.Base(getInProgressFilePath(batch))
+	schemaName := getTargetSchemaName(batch.TableName)
+	cmd := fmt.Sprintf(
+		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
+		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
+	_, err := tx.Exec(context.Background(), cmd)
+	if err != nil {
+		return fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
+	}
+	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
 	return nil
 }
