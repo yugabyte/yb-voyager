@@ -795,7 +795,7 @@ func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int
 
 	// Check if the split is already imported.
 	var alreadyImported bool
-	alreadyImported, rowsAffected, err = splitIsAlreadyImported(batch, tx)
+	alreadyImported, rowsAffected, err = batch.IsAlreadyImported(tx)
 	if err != nil {
 		return 0, err
 	}
@@ -814,19 +814,11 @@ func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int
 		return res.RowsAffected(), err
 	}
 
-	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
-	rowsAffected = res.RowsAffected()
-	fileName := filepath.Base(getInProgressFilePath(batch))
-	schemaName := getTargetSchemaName(batch.TableName)
-	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
-		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
-	_, err = tx.Exec(ctx, cmd)
+	err = batch.RecordEntryInDB(tx, res.RowsAffected())
 	if err != nil {
-		return 0, fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
+		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.FilePath, err)
 	}
-	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
-	return rowsAffected, nil
+	return res.RowsAffected(), err
 }
 
 func splitIsAlreadyImported(task *Batch, tx pgx.Tx) (bool, int64, error) {
