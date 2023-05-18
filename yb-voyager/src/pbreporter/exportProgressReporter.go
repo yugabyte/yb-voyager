@@ -1,6 +1,6 @@
 package pbreporter
 
-import "github.com/vbauerster/mpb/v7"
+import "github.com/vbauerster/mpb/v8"
 
 type ExportProgressReporter interface { // Bare minimum required to simulate mpb.bar for exportDataStatus
 	SetTotalRowCount(totalRowCount int64, triggerComplete bool)
