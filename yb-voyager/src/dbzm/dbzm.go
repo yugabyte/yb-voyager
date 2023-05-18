@@ -2,7 +2,6 @@ package dbzm
 
 import (
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +17,9 @@ import (
 
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
+const DEBEZIUM_BREW_VERSION = "2.2.0-voyager-1.3"
+const DEBEZIUM_VERSION = "2.2.0"
+
 type Debezium struct {
 	*Config
 	cmd  *exec.Cmd
@@ -25,29 +27,18 @@ type Debezium struct {
 	done bool
 }
 
-func init() {
+func findDebeziumDistribution() {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		searchDirectory := "debezium-server"
-		possiblePaths := []string{"/opt/homebrew", "/usr/local", "/opt/yb-voyager"}
-
+		possiblePaths := []string{
+			"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_BREW_VERSION + "/debezium-server",
+			"/usr/localCellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_BREW_VERSION + "/debezium-server",
+			"/opt/yb-voyager/debezium-server"}
 		for _, path := range possiblePaths {
-			err := filepath.WalkDir(path, func(path string, info fs.DirEntry, err error) error {
-				if err != nil {
-					log.Errorf("Failed to access path %q: %v\n", path, err)
-					return nil
-				}
-
-				if info.IsDir() && info.Name() == searchDirectory {
-					DEBEZIUM_DIST_DIR = path
-				}
-
-				return nil
-			})
-
-			if err != nil {
-				log.Errorf("Failed to walk directory %q: %v\n", path, err)
+			if utils.FileOrFolderExists(path) {
+				DEBEZIUM_DIST_DIR = path
+				break
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
@@ -61,6 +52,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
+	findDebeziumDistribution()
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
 	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
