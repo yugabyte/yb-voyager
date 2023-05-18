@@ -27,12 +27,13 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir string, tableNameList []*sqlname.SourceName,
-	tablesColumnList map[string][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+	tablesColumnList map[*sqlname.SourceName][]string, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
 	//ora2pg does accepts table names in format of SCHEMA_NAME.TABLE_NAME
@@ -49,8 +50,8 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 		if len(columnList) > 0 && columnList[0] == allColumns {
 			continue
 		}
-		fmt.Printf("Modifying struct for table %s, columnList: %v\n", tableName, columnList)
-		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName, strings.Join(columnList, ","))
+		fmt.Printf("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
+		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
 	}
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	source.PopulateOra2pgConfigFile(configFilePath, conf)

@@ -133,7 +133,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[string][]string) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -196,8 +196,8 @@ func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []str
 	return columns, dataTypes
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
-	tableColumnMap := make(map[string][]string)
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
 		columns, dataTypes := ms.GetTableColumns(tableName)
@@ -212,9 +212,9 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 
 		}
 		if len(supportedColumnNames) < len(columns) {
-			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
+			tableColumnMap[tableName] = supportedColumnNames
 		} else if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName.ObjectName.Unquoted] = []string{"*"}
+			tableColumnMap[tableName] = []string{"*"}
 		}
 	}
 	return tableColumnMap, unsupportedColumnNames

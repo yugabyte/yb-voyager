@@ -204,7 +204,7 @@ func exportDataOffline() bool {
 	return true
 }
 
-func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[string][]string) error {
+func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
@@ -222,14 +222,9 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	utils.PrintAndLog("final table list for data export: %v\n", dbzmTableList)
 
-	for table, columns := range tablesColumnList {
+	for tableName, columns := range tablesColumnList {
 		for _, column := range columns {
-			var columnName string
-			if source.DBType == MYSQL {
-				columnName = source.DBName + "." + table + "." + column
-			} else if source.DBType == ORACLE {
-				columnName = source.Schema + "." + table + "." + column
-			} // need to think of pg case as schema name might be multiple, need to get it in tableColumnList in some way
+			columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
 			if column == "*" {
 				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
 				break

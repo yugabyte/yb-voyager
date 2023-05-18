@@ -141,7 +141,7 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[string][]string) {
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -305,8 +305,8 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []s
 	return columns, dataTypes, dataTypesOwner
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string) {
-	tableColumnMap := make(map[string][]string)
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
 		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
@@ -322,9 +322,9 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 
 		}
 		if len(supportedColumnNames) < len(columns) {
-			tableColumnMap[tableName.ObjectName.Unquoted] = supportedColumnNames
+			tableColumnMap[tableName] = supportedColumnNames
 		} else if len(supportedColumnNames) == len(columns) {
-			tableColumnMap[tableName.ObjectName.Unquoted] = []string{"*"}
+			tableColumnMap[tableName] = []string{"*"}
 		}
 	}
 

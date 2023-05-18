@@ -17,12 +17,12 @@ type SourceDB interface {
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	ExportSchema(exportDir string)
-	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[string][]string)
+	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
-	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[string][]string, []string)
+	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string)
 	IsTablePartition(table *sqlname.SourceName) bool
 }
 
