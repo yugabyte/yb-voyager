@@ -284,6 +284,33 @@ func (ora *Oracle) IsTablePartition(table *sqlname.SourceName) bool {
 	panic("not implemented")
 }
 
+/*
+GetColumnToSequenceMap returns a map of column name to sequence name for all identity columns in the given list of tables.
+Note: There can be only one identity column per table in Oracle
+*/
+func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+	columnToSequenceMap := make(map[string]string)
+	for _, table := range tableList {
+		// query to find out if table has a identity column
+		query := fmt.Sprintf("SELECT column_name FROM all_tab_identity_cols WHERE owner = '%s' AND table_name = '%s'", table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		rows, err := ora.db.Query(query)
+		if err != nil {
+			utils.ErrExit("failed to query %q for finding identity column: %v", query, err)
+		}
+		for rows.Next() {
+			var columnName string
+			err := rows.Scan(&columnName)
+			if err != nil {
+				utils.ErrExit("failed to scan columnName from output of query %q: %v", query, err)
+			}
+			qualifiedColumnName := fmt.Sprintf("%s.%s.%s", table.SchemaName.Unquoted, table.ObjectName.Unquoted, columnName)
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", table.ObjectName.Unquoted, columnName)
+		}
+	}
+
+	return columnToSequenceMap
+}
+
 func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)

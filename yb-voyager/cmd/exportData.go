@@ -79,6 +79,12 @@ func exportData() {
 	success := exportDataOffline()
 
 	if success {
+		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
+		printExportedRowCount(tableRowCount)
+		callhome.GetPayload(exportDir)
+		callhome.UpdateDataStats(exportDir, tableRowCount)
+		callhome.PackAndSendPayload(exportDir)
+
 		createExportDataDoneFlag()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
@@ -149,6 +155,7 @@ func exportDataOffline() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 		}
 		renameDbzmExportedDataFiles()
+		createResumeSequencesFile()
 		return err == nil
 	}
 
@@ -196,11 +203,6 @@ func exportDataOffline() bool {
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-
-	tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
-	printExportedRowCount(tableRowCount)
-	callhome.UpdateDataStats(exportDir, tableRowCount)
-	callhome.PackAndSendPayload(exportDir)
 	return true
 }
 
@@ -219,7 +221,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for _, table := range tableList {
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
-
 	utils.PrintAndLog("final table list for data export: %v\n", dbzmTableList)
 
 	for tableName, columns := range tablesColumnList {
@@ -233,6 +234,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		}
 	}
 
+	var columnSequenceMap []string
+	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
+	for column, sequence := range colToSeqMap {
+		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
+	}
+
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -241,11 +248,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		Username:     source.User,
 		Password:     source.Password,
 
-		DatabaseName: source.DBName,
-		SchemaNames:  source.Schema,
-		TableList:    dbzmTableList,
-		ColumnList:   dbzmColumnList,
-		SnapshotMode: snapshotMode,
+		DatabaseName:      source.DBName,
+		SchemaNames:       source.Schema,
+		TableList:         dbzmTableList,
+		ColumnList:        dbzmColumnList,
+		ColumnSequenceMap: columnSequenceMap,
+		SnapshotMode:      snapshotMode,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -340,7 +348,11 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	tableRowCount := make(map[string]int64)
 	for _, table := range status.Tables {
-		tableRowCount[table.TableName] = table.ExportedRowCountSnapshot
+		tableName := table.TableName
+		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
+			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
+		}
+		tableRowCount[tableName] = table.ExportedRowCountSnapshot
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:    datafile.CSV,
@@ -353,11 +365,38 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	return nil
 }
 
+func createResumeSequencesFile() {
+	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("Failed to read export status during creating resume sequence file: %v", err)
+	}
+
+	var sqlStmts []string
+	for sequenceName, lastValue := range status.Sequences {
+		if lastValue == 0 {
+			continue
+		}
+		sqlStmt := fmt.Sprintf("SELECT pg_catalog.setval('%s', %d, true);\n", sequenceName, lastValue)
+		sqlStmts = append(sqlStmts, sqlStmt)
+	}
+
+	if len(sqlStmts) > 0 {
+		file := filepath.Join(exportDir, "data", "postdata.sql")
+		err = os.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
+		if err != nil {
+			utils.ErrExit("Failed to write resume sequence file: %v", err)
+		}
+	}
+}
+
 // handle renaming for tables having case sensitivity and reserved keywords
 func renameDbzmExportedDataFiles() {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		utils.ErrExit("Failed to read export status during renaming dbzm exported data files: %v", err)
+		utils.ErrExit("Failed to read export status during renaming exported data files: %v", err)
+	}
+	if status == nil {
+		utils.ErrExit("Export status is empty during renaming exported data files")
 	}
 
 	for i := 0; i < len(status.Tables); i++ {

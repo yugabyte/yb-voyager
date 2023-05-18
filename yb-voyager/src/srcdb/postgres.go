@@ -292,3 +292,44 @@ func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
 
 	return parentTable != ""
 }
+
+func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+	columnToSequenceMap := make(map[string]string)
+	for _, table := range tableList {
+		// query to find out column name vs sequence name for a table
+		// this query also covers the case of identity columns
+		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
+		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
+		FROM pg_class AS t
+			JOIN pg_attribute AS a
+		ON a.attrelid = t.oid
+			JOIN pg_depend AS d
+		ON d.refobjid = t.oid
+			AND d.refobjsubid = a.attnum
+			JOIN pg_class AS s
+		ON s.oid = d.objid
+		WHERE d.classid = 'pg_catalog.pg_class'::regclass
+		AND d.refclassid = 'pg_catalog.pg_class'::regclass
+		AND d.deptype IN ('i', 'a')
+		AND t.relkind IN ('r', 'P')
+		AND s.relkind = 'S'
+		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+
+		var columeName, sequenceName, schemaName string
+		rows, err := pg.db.Query(context.Background(), query)
+		if err != nil {
+			log.Infof("Query to find column to sequence mapping: %s", query)
+			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
+		}
+		for rows.Next() {
+			err := rows.Scan(&columeName, &sequenceName, &schemaName)
+			if err != nil {
+				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
+			}
+			qualifiedColumnName := fmt.Sprintf("%s.%s", table.Qualified.Unquoted, columeName)
+			columnToSequenceMap[qualifiedColumnName] = schemaName + "." + sequenceName
+		}
+	}
+
+	return columnToSequenceMap
+}

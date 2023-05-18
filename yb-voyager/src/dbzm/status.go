@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -25,8 +24,9 @@ type TableExportStatus struct {
 }
 
 type ExportStatus struct {
-	Mode   string              `json:"mode"`
-	Tables []TableExportStatus `json:"tables"`
+	Mode      string              `json:"mode"`
+	Tables    []TableExportStatus `json:"tables"`
+	Sequences map[string]int64    `json:"sequences"`
 }
 
 func (status *ExportStatus) SnapshotExportIsComplete() bool {
@@ -77,9 +77,6 @@ func (status *ExportStatus) GetTableWithLargestSno() *TableExportStatus {
 		if table == nil || status.Tables[i].Sno > table.Sno {
 			table = &status.Tables[i]
 		}
-	}
-	if table != nil {
-		log.Infof("GetTableWithLargestSno(): table=%q with largest sno: %v\n", table.TableName, table.Sno)
 	}
 	return table
 }
