@@ -15,7 +15,8 @@ EXPECTED_ROW_COUNT = {
 	'long_type': 4,
 	'raw_type': 6,
 	'number_ps': 1,
-	'lob_types': 2
+	'lob_types': 2,
+	'varray_table':17
 }
 if os.environ.get('USE_DEBEZIUM') == '1':
 	EXPECTED_ROW_COUNT['long_type'] = 2 # https://yugabyte.atlassian.net/browse/DB-5929	
@@ -62,6 +63,16 @@ EXPECTED_DATA_TYPES = {
 		'ctype': 'text',
 		'n_type': 'text',
 		'id': 'numeric'
+	},
+	'varray_table': {
+		'id': 'numeric',
+		'sometext': 'character varying',
+		'v1': 'USER-DEFINED',
+		'rid':'oid'
+	},
+	'nested_table': {
+		'id': 'numeric',
+		'col1': 'USER-DEFINED'
 	}
 }
 
@@ -81,5 +92,27 @@ def migration_completed_checks(tgt):
 			print(f"column_name: {column_name}, datatype: {datatype}")
 			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
+	fetched_value_v1_column_in_varray_table = tgt.execute_query("SELECT v1 FROM varray_table where id = 10")
+	print(fetched_value_v1_column_in_varray_table)
+	expected_value = '("{(cde,fgh,ghi,jkl)}")'
+	if not os.environ.get("USE_DEBEZIUM") == '1':
+		assert fetched_value_v1_column_in_varray_table == expected_value
+	else:
+		assert fetched_value_v1_column_in_varray_table == None
+
+	fetched_value_rid_column_in_varray_table = tgt.execute_query("SELECT rid FROM varray_table where id = 9") # ROWID datatype's data is not exported
+	print(fetched_value_rid_column_in_varray_table)
+	assert fetched_value_rid_column_in_varray_table == None
+
+	cnt = tgt.get_row_count('nested_table')
+	print(cnt)
+	if not os.environ.get("USE_DEBEZIUM") == '1':
+		fetched_value_col1_column_in_varray_table = tgt.execute_query("SELECT col1 FROM nested_table ORDER BY id DESC LIMIT 1") 
+		print(fetched_value_col1_column_in_varray_table)
+		expected_value = '("{(D,E,F)}")'
+		assert cnt == 3 and fetched_value_col1_column_in_varray_table == expected_value 
+	else:
+		assert cnt == 0 # NESTED TABLE datatype's data is not supported in debezium
+	
 if __name__ == "__main__":
 	main()

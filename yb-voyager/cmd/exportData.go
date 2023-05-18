@@ -25,16 +25,15 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 )
 
 var exportDataCmd = &cobra.Command{
@@ -124,7 +123,7 @@ func exportDataOffline() bool {
 			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
 		}
 
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList)
+		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
 		if len(skippedTableList) != 0 {
 			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 		}
@@ -141,9 +140,17 @@ func exportDataOffline() bool {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
+	if len(unsupportedColumnNames) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to ignore just these columns' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+	}
 	if liveMigration || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
-		err := debeziumExportData(ctx, finalTableList)
+		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
 		}
@@ -181,7 +188,7 @@ func exportDataOffline() bool {
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan)
+	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList)
 	// Wait for the export data to start.
 	<-exportDataStart
 
@@ -199,7 +206,7 @@ func exportDataOffline() bool {
 	return true
 }
 
-func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) error {
+func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
@@ -210,11 +217,22 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 		snapshotMode = "initial"
 	}
 
-	var dbzmIncludeTableList []string
+	var dbzmTableList, dbzmColumnList []string
 	for _, table := range tableList {
-		dbzmIncludeTableList = append(dbzmIncludeTableList, table.Qualified.Unquoted)
+		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
-	utils.PrintAndLog("final table list for data export: %v\n", dbzmIncludeTableList)
+	utils.PrintAndLog("final table list for data export: %v\n", dbzmTableList)
+
+	for tableName, columns := range tablesColumnList {
+		for _, column := range columns {
+			columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
+			if column == "*" {
+				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
+				break
+			}
+			dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
+		}
+	}
 
 	var columnSequenceMap []string
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
@@ -232,7 +250,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName) er
 
 		DatabaseName:      source.DBName,
 		SchemaNames:       source.Schema,
-		TableList:         dbzmIncludeTableList,
+		TableList:         dbzmTableList,
+		ColumnList:        dbzmColumnList,
 		ColumnSequenceMap: columnSequenceMap,
 		SnapshotMode:      snapshotMode,
 	}
@@ -303,7 +322,6 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	}
 	return true, nil
 }
-
 func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
 	tableNameToApproxRowCountMap := make(map[string]int64)
 	for _, table := range tableList {

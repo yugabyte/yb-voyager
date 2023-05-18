@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -17,6 +18,8 @@ type MySQL struct {
 
 	db *sql.DB
 }
+
+var mysqlUnsupportedDataTypes = []string{"TINYBLOB", "BLOB", "MEDIUMBLOB", "LONGBLOB"}
 
 func newMySQL(s *Source) *MySQL {
 	return &MySQL{source: s}
@@ -130,8 +133,8 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
+	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -157,7 +160,7 @@ func (ms *MySQL) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ms *MySQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
@@ -172,6 +175,49 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 		}
 	}
 	return nonEmptyTableList, emptyTableList
+}
+
+func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+	var columns, dataTypes []string
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	rows, err := ms.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+	}
+	for rows.Next() {
+		var column, dataType string
+		err := rows.Scan(&column, &dataType)
+		if err != nil {
+			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+		}
+		columns = append(columns, column)
+		dataTypes = append(dataTypes, dataType)
+	}
+	return columns, dataTypes, nil
+}
+
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+	tableColumnMap := make(map[*sqlname.SourceName][]string)
+	var unsupportedColumnNames []string
+	for _, tableName := range tableList {
+		columns, dataTypes, _ := ms.GetTableColumns(tableName)
+		var supportedColumnNames []string
+		for i := 0; i < len(columns); i++ {
+			if utils.InsensitiveSliceContains(mysqlUnsupportedDataTypes, dataTypes[i]) {
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+			} else {
+				supportedColumnNames = append(supportedColumnNames, columns[i])
+			}
+
+		}
+		if len(supportedColumnNames) == len(columns) {
+			tableColumnMap[tableName] = []string{"*"}
+		} else {
+			tableColumnMap[tableName] = supportedColumnNames
+		}
+	}
+	return tableColumnMap, unsupportedColumnNames
 }
 
 func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {

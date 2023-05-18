@@ -26,6 +26,7 @@ type Config struct {
 	SchemaNames       string
 	TableList         []string
 	ColumnSequenceMap []string
+	ColumnList        []string
 	SnapshotMode      string
 }
 
@@ -90,21 +91,19 @@ debezium.source.database.include.list=%s
 debezium.source.database.server.id=%d
 
 
-
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
-
 `
 
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-
+	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
-		return fmt.Sprintf(postgresSrcConfigTemplate,
+		conf = fmt.Sprintf(postgresSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
@@ -115,7 +114,7 @@ func (c *Config) String() string {
 			schemaNames)
 
 	case "oracle":
-		return fmt.Sprintf(oracleSrcConfigTemplate,
+		conf = fmt.Sprintf(oracleSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
@@ -128,7 +127,7 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
 
 	case "mysql":
-		return fmt.Sprintf(mysqlSrcConfigTemplate,
+		conf = fmt.Sprintf(mysqlSrcConfigTemplate,
 			dataDir,
 			c.SnapshotMode,
 			offsetFile,
@@ -141,6 +140,12 @@ func (c *Config) String() string {
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
 	}
+
+	if c.ColumnList != nil {
+		conf += fmt.Sprintf("\ndebezium.source.column.include.list=%s", strings.Join(c.ColumnList, ","))
+	}
+
+	return conf
 }
 
 func (c *Config) WriteToFile(filePath string) error {

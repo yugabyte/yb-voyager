@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -182,7 +183,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -243,7 +244,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
@@ -267,6 +268,14 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 		}
 	}
 	return nonEmptyTableList, emptyTableList
+}
+
+func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+	return nil, nil, nil
+}
+
+func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+	return nil, nil
 }
 
 func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {

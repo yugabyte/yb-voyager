@@ -7,10 +7,11 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 type Oracle struct {
@@ -18,6 +19,10 @@ type Oracle struct {
 
 	db *sql.DB
 }
+
+// In addition to the types listed below, user-defined types (UDTs) are also not supported if Debezium is used for data export. The UDT case is handled inside the `GetColumnsWithSupportedTypes()`.
+var oracleUnsupportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
+	"AnyData", "AnyType", "AnyDataSet", "ROWID", "UROWID", "SDO_GEOMETRY", "SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY", "SDO_GTYPE", "SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE", "SDO_STRING_ARRAY", "JSON"}
 
 func newOracle(s *Source) *Oracle {
 	return &Oracle{source: s}
@@ -136,8 +141,8 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool) {
-	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
+	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -175,7 +180,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var filteredTableList, unsupportedTableList []*sqlname.SourceName
 
 	// query to find unsupported queue tables
@@ -195,6 +200,15 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
 		if slices.Contains(tableList, tableSrcName) {
 			unsupportedTableList = append(unsupportedTableList, tableSrcName)
+		}
+	}
+
+	if useDebezium {
+		for _, tableName := range tableList {
+			if ora.IsNestedTable(tableName) || ora.IsParentOfNestedTable(tableName) {
+				//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
+				unsupportedTableList = append(unsupportedTableList, tableName)
+			}
 		}
 	}
 
@@ -240,6 +254,18 @@ func (ora *Oracle) IsNestedTable(tableName *sqlname.SourceName) bool {
 	return isNestedTable == 1
 }
 
+func (ora *Oracle) IsParentOfNestedTable(tableName *sqlname.SourceName) bool {
+	// sql query to find out if it is parent of oracle nested table
+	query := fmt.Sprintf("SELECT 1 FROM ALL_NESTED_TABLES WHERE OWNER = '%s' AND PARENT_TABLE_NAME= '%s'",
+		tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	isParentNestedTable := 0
+	err := ora.db.QueryRow(query).Scan(&isParentNestedTable)
+	if err != nil && err != sql.ErrNoRows {
+		utils.ErrExit("error in query to check if table %v is parent of nested table: %v", tableName, err)
+	}
+	return isParentNestedTable == 1
+}
+
 func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) string {
 	var tableName, columnName string
 	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s' AND sequence_name = '%s'", ora.source.Schema, strings.ToUpper(sequenceName))
@@ -283,4 +309,50 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[s
 	}
 
 	return columnToSequenceMap
+}
+
+func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+	var columns, dataTypes, dataTypesOwner []string
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
+	}
+	for rows.Next() {
+		var column, dataType, dataTypeOwner string
+		err := rows.Scan(&column, &dataType, &dataTypeOwner)
+		if err != nil {
+			utils.ErrExit("failed to scan column name from output of query %q: %v", query, err)
+		}
+		columns = append(columns, column)
+		dataTypes = append(dataTypes, dataType)
+		dataTypesOwner = append(dataTypesOwner, dataTypeOwner)
+	}
+	return columns, dataTypes, dataTypesOwner
+}
+
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+	tableColumnMap := make(map[*sqlname.SourceName][]string)
+	var unsupportedColumnNames []string
+	for _, tableName := range tableList {
+		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
+		var supportedColumnNames []string
+		for i := 0; i < len(columns); i++ {
+			isUdtWithDebezium := (dataTypesOwner[i] == tableName.SchemaName.Unquoted) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
+			if isUdtWithDebezium || utils.InsensitiveSliceContains(oracleUnsupportedDataTypes, dataTypes[i]) {
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
+				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+			} else {
+				supportedColumnNames = append(supportedColumnNames, columns[i])
+			}
+
+		}
+		if len(supportedColumnNames) == len(columns) {
+			tableColumnMap[tableName] = []string{"*"}
+		} else {
+			tableColumnMap[tableName] = supportedColumnNames
+		}
+	}
+
+	return tableColumnMap, unsupportedColumnNames
 }
