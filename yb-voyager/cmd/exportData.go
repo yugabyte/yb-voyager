@@ -138,7 +138,7 @@ func exportDataOffline() bool {
 	if len(unsupportedColumnNames) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
 		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore these columns and export data of tables with supported columns") {
+			"\nDo you want to ignore just these columns' data and continue with export") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
 	}

@@ -20,7 +20,7 @@ type Oracle struct {
 	db *sql.DB
 }
 
-// Expect these, for Debezium UDT types are also not supported handled below in GetColumnsWithSupportedTypes()
+// In addition to the types listed below, user-defined types (UDTs) are also not supported if Debezium is used for data export. The UDT case is handled inside the `GetColumnsWithSupportedTypes()`.
 var oracleUnsupportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
 	"AnyData", "AnyType", "AnyDataSet", "ROWID", "UROWID", "SDO_GEOMETRY", "SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY", "SDO_GTYPE", "SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE", "SDO_STRING_ARRAY", "JSON"}
 
@@ -204,7 +204,6 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useD
 	}
 
 	if useDebezium {
-		fmt.Println(tableList)
 		for _, tableName := range tableList {
 			if ora.IsNestedTable(tableName) || ora.IsParentOfNestedTable(tableName) {
 				//In case of nested tables there are two tables created in the oracle one is this main parent table created by user and other is nested table for a column which is created by oracle
@@ -312,19 +311,19 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			isUdtWithDebezium := (dataTypesOwner[i] == ora.source.Schema) && useDebezium // datatype owner check is for UDT type detection as VARRAY/Nested tables are created using UDT
+			isUdtWithDebezium := (dataTypesOwner[i] == tableName.SchemaName.Unquoted) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
 			if isUdtWithDebezium || utils.InsensitiveSliceContains(oracleUnsupportedDataTypes, dataTypes[i]) {
-				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
 
 		}
-		if len(supportedColumnNames) < len(columns) {
-			tableColumnMap[tableName] = supportedColumnNames
-		} else if len(supportedColumnNames) == len(columns) {
+		if len(supportedColumnNames) == len(columns) {
 			tableColumnMap[tableName] = []string{"*"}
+		} else {
+			tableColumnMap[tableName] = supportedColumnNames
 		}
 	}
 

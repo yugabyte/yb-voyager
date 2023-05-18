@@ -270,6 +270,10 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
+func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+	return nil, nil, nil
+}
+
 func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
 	return nil, nil
 }

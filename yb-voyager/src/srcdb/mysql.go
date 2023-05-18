@@ -177,9 +177,9 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 	return nonEmptyTableList, emptyTableList
 }
 
-func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string) {
+func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
 	var columns, dataTypes []string
-	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", ms.source.DBName, tableName.ObjectName.Unquoted)
+	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE from INFORMATION_SCHEMA.COLUMNS where table_schema = '%s' and table_name='%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	rows, err := ms.db.Query(query)
 	if err != nil {
 		utils.ErrExit("failed to query %q for finding table columns: %v", query, err)
@@ -193,28 +193,28 @@ func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []str
 		columns = append(columns, column)
 		dataTypes = append(dataTypes, dataType)
 	}
-	return columns, dataTypes
+	return columns, dataTypes, nil
 }
 
 func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
 	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
-		columns, dataTypes := ms.GetTableColumns(tableName)
+		columns, dataTypes, _ := ms.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			if utils.InsensitiveSliceContains(mysqlUnsupportedDataTypes, dataTypes[i]) {
-				log.Infof(fmt.Sprintf("Skipping column %s.%s of type %s as it is not supported", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
+				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {
 				supportedColumnNames = append(supportedColumnNames, columns[i])
 			}
 
 		}
-		if len(supportedColumnNames) < len(columns) {
-			tableColumnMap[tableName] = supportedColumnNames
-		} else if len(supportedColumnNames) == len(columns) {
+		if len(supportedColumnNames) == len(columns) {
 			tableColumnMap[tableName] = []string{"*"}
+		} else {
+			tableColumnMap[tableName] = supportedColumnNames
 		}
 	}
 	return tableColumnMap, unsupportedColumnNames

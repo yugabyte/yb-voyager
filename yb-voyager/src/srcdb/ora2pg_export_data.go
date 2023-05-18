@@ -47,10 +47,10 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	// providing column list for tables having unsupported column types
 	for tableName, columnList := range tablesColumnList {
 		allColumns := "*"
-		if len(columnList) > 0 && columnList[0] == allColumns {
+		if len(columnList) == 1 && columnList[0] == allColumns {
 			continue
 		}
-		fmt.Printf("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
+		log.Infof("Modifying struct for table %s, columnList: %v\n", tableName.ObjectName.Unquoted, columnList)
 		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
 	}
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")

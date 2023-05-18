@@ -23,6 +23,7 @@ type SourceDB interface {
 	FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string)
+	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string)
 	IsTablePartition(table *sqlname.SourceName) bool
 }
 
