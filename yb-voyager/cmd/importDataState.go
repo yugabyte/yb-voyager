@@ -166,3 +166,49 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 	}
 	return batch, nil
 }
+
+type Batch struct {
+	TableName           string
+	SchemaName          string
+	FilePath            string
+	OffsetStart         int64
+	OffsetEnd           int64
+	TmpConnectionString string
+	Number              int64
+	Interrupted         bool
+}
+
+func (batch *Batch) Open() (*os.File, error) {
+	return os.Open(batch.FilePath)
+}
+
+func (batch *Batch) MarkPending() error {
+	// Rename the file to .P
+	inProgressFilePath := getInProgressFilePath(batch)
+	log.Infof("Renaming file from %q to %q", batch.FilePath, inProgressFilePath)
+	err := os.Rename(batch.FilePath, inProgressFilePath)
+	if err != nil {
+		return fmt.Errorf("rename %q to %q: %w", batch.FilePath, inProgressFilePath, err)
+	}
+	batch.FilePath = inProgressFilePath
+	return nil
+}
+
+func (batch *Batch) MarkDone() error {
+	inProgressFilePath := getInProgressFilePath(batch)
+	doneFilePath := getDoneFilePath(batch)
+	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
+	err := os.Rename(inProgressFilePath, doneFilePath)
+	if err != nil {
+		return fmt.Errorf("rename %q => %q: %w", inProgressFilePath, doneFilePath, err)
+	}
+
+	if truncateSplits {
+		err = os.Truncate(doneFilePath, 0)
+		if err != nil {
+			log.Warnf("truncate file %q: %s", doneFilePath, err)
+		}
+	}
+	batch.FilePath = doneFilePath
+	return nil
+}
