@@ -84,17 +84,6 @@ const (
 		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
 )
 
-type Batch struct {
-	TableName           string
-	SchemaName          string
-	FilePath            string
-	OffsetStart         int64
-	OffsetEnd           int64
-	TmpConnectionString string
-	Number              int64
-	Interrupted         bool
-}
-
 var importDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command imports data into YugabyteDB database",
@@ -714,27 +703,23 @@ func getTablesToImport() ([]string, []string, []string, error) {
 }
 
 func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
-	log.Infof("Importing %q", batch.FilePath)
 	//this is done to signal start progress bar for this table
 	if tablesProgressMetadata[batch.TableName].CountLiveRows == -1 {
 		tablesProgressMetadata[batch.TableName].CountLiveRows = 0
 	}
-	// Rename the file to .P
-	inProgressFilePath := getInProgressFilePath(batch)
-	log.Infof("Renaming file from %q to %q", batch.FilePath, inProgressFilePath)
-	err := os.Rename(batch.FilePath, inProgressFilePath)
+	err := batch.MarkPending()
 	if err != nil {
-		utils.ErrExit("rename %q to %q: %s", batch.FilePath, inProgressFilePath, err)
+		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
 	}
-	file, err := os.Open(inProgressFilePath)
-	if err != nil {
-		utils.ErrExit("open %q: %s", inProgressFilePath, err)
-	}
+	log.Infof("Importing %q", batch.FilePath)
 
 	copyCommand := getCopyCommand(batch.TableName)
 	// copyCommand is empty when there are no rows for that table
 	if copyCommand == "" {
-		markTaskDone(batch)
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
+		}
 		return
 	}
 	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
@@ -745,34 +730,42 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		var err error
 		attempt++
-		rowsAffected, err = importBatch(conn, batch, file, copyCommand)
+		rowsAffected, err = importBatch(conn, batch, copyCommand)
 		if err == nil ||
 			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
 			attempt == COPY_MAX_RETRY_COUNT {
 			return false, err
 		}
-		log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
 		sleepIntervalSec += 10
 		if sleepIntervalSec > MAX_SLEEP_SECOND {
 			sleepIntervalSec = MAX_SLEEP_SECOND
 		}
 		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, inProgressFilePath, attempt)
+			sleepIntervalSec, batch.FilePath, attempt)
 		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 		return true, err
 	}
 	err = connPool.WithConn(copyFn)
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
-		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, inProgressFilePath, err)
+		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
 	}
-	incrementImportProgressBar(batch.TableName, inProgressFilePath)
-	markTaskDone(batch)
+	incrementImportProgressBar(batch.TableName, batch.FilePath)
+	err = batch.MarkDone()
+	if err != nil {
+		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
+	}
 }
 
-func importBatch(conn *pgx.Conn, task *Batch, file *os.File, copyCmd string) (rowsAffected int64, err error) {
-	// reset the reader to begin for every call
-	file.Seek(0, io.SeekStart)
+func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int64, err error) {
+	var file *os.File
+	file, err = batch.Open()
+	if err != nil {
+		utils.ErrExit("opening batch %s: %s", batch.FilePath, err)
+	}
+	defer file.Close()
+
 	//setting the schema so that COPY command can acesss the table
 	setTargetSchema(conn)
 
@@ -802,7 +795,7 @@ func importBatch(conn *pgx.Conn, task *Batch, file *os.File, copyCmd string) (ro
 
 	// Check if the split is already imported.
 	var alreadyImported bool
-	alreadyImported, rowsAffected, err = splitIsAlreadyImported(task, tx)
+	alreadyImported, rowsAffected, err = splitIsAlreadyImported(batch, tx)
 	if err != nil {
 		return 0, err
 	}
@@ -816,15 +809,15 @@ func importBatch(conn *pgx.Conn, task *Batch, file *os.File, copyCmd string) (ro
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.FilePath)
+			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.FilePath)
 		}
 		return res.RowsAffected(), err
 	}
 
 	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
 	rowsAffected = res.RowsAffected()
-	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task.TableName)
+	fileName := filepath.Base(getInProgressFilePath(batch))
+	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
 		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
 		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
@@ -853,23 +846,6 @@ func splitIsAlreadyImported(task *Batch, tx pgx.Tx) (bool, int64, error) {
 		return false, 0, nil
 	}
 	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
-}
-
-func markTaskDone(task *Batch) {
-	inProgressFilePath := getInProgressFilePath(task)
-	doneFilePath := getDoneFilePath(task)
-	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
-	err := os.Rename(inProgressFilePath, doneFilePath)
-	if err != nil {
-		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
-	}
-
-	if truncateSplits {
-		err = os.Truncate(doneFilePath, 0)
-		if err != nil {
-			log.Warnf("truncate file %q: %s", doneFilePath, err)
-		}
-	}
 }
 
 func newTargetConn() *pgx.Conn {
