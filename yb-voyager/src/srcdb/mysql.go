@@ -177,3 +177,35 @@ func (ms *MySQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.
 func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {
 	panic("not implemented")
 }
+
+/*
+Only valid case is when the table has a auto increment column
+Note: a mysql table can have only one auto increment column
+*/
+func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+	columnToSequenceMap := make(map[string]string)
+	for _, table := range tableList {
+		// query to find out auto increment column
+		query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns
+		WHERE table_schema = '%s' AND table_name = '%s' AND extra = 'auto_increment'`,
+			table.SchemaName.Unquoted, table.ObjectName.Unquoted)
+		log.Infof("Querying '%s' for auto increment column of table %q", query, table.String())
+
+		var columnName string
+		rows, err := ms.db.Query(query)
+		if err != nil {
+			utils.ErrExit("Failed to query %q for auto increment column of %q: %s", query, table.String(), err)
+		}
+		if rows.Next() {
+			err = rows.Scan(&columnName)
+			if err != nil {
+				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
+			}
+			qualifiedColumeName := fmt.Sprintf("%s.%s.%s", table.SchemaName.Unquoted, table.ObjectName.Unquoted, columnName)
+			// sequence name as per PG naming convention for bigserial datatype's sequence
+			sequenceName := fmt.Sprintf("%s_%s_seq", table.ObjectName.Unquoted, columnName)
+			columnToSequenceMap[qualifiedColumeName] = sequenceName
+		}
+	}
+	return columnToSequenceMap
+}

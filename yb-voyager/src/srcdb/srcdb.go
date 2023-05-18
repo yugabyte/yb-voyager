@@ -23,6 +23,7 @@ type SourceDB interface {
 	FilterUnsupportedTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	IsTablePartition(table *sqlname.SourceName) bool
+	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 }
 
 func newSourceDB(source *Source) SourceDB {
