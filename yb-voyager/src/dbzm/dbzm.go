@@ -27,7 +27,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution() {
+func findDebeziumDistribution() error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -42,9 +42,11 @@ func findDebeziumDistribution() {
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			utils.ErrExit("Debezium dist directory not found")
+			err := fmt.Errorf("Debezium dist directory not found")
+			return err
 		}
 	}
+	return nil
 }
 
 func NewDebezium(config *Config) *Debezium {
@@ -52,9 +54,12 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	findDebeziumDistribution()
+	err := findDebeziumDistribution()
+	if err != nil {
+		return err
+	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
-	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
+	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
 	}
