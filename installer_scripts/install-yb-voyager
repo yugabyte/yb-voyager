@@ -189,13 +189,17 @@ check_java() {
 	else
 		JAVA_BINARY="$JAVA_HOME/bin/java"
 	fi
-	
-	if which "${JAVA_BINARY}" >/dev/null 2>&1; then
-    	echo "Found Java."
-	else
-    	echo "Java not found."
-		exit 1
-	fi
+
+    MIN_REQUIRED_MAJOR_VERSION='17'
+	JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+
+    if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        output "Found sufficient java version = ${JAVA_MAJOR_VER}"
+    else
+        output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
+		exit 1;
+    fi
 }
 
 install_debezium_server() {
