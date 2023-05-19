@@ -821,25 +821,6 @@ func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int
 	return res.RowsAffected(), err
 }
 
-func splitIsAlreadyImported(task *Batch, tx pgx.Tx) (bool, int64, error) {
-	var rowsImported int64
-	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task.TableName)
-	query := fmt.Sprintf(
-		"SELECT rows_imported FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE schema_name = '%s' AND file_name = '%s';",
-		schemaName, fileName)
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
-	if err == nil {
-		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
-		return true, rowsImported, nil
-	}
-	if err == pgx.ErrNoRows {
-		log.Infof("%q is not imported yet", fileName)
-		return false, 0, nil
-	}
-	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
-}
-
 func newTargetConn() *pgx.Conn {
 	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
 	if err != nil {
@@ -1004,16 +985,6 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 	}
 	return err
-}
-
-func getInProgressFilePath(task *Batch) string {
-	path := task.FilePath
-	return path[0:len(path)-1] + "P" // *.C -> *.P
-}
-
-func getDoneFilePath(task *Batch) string {
-	path := task.FilePath
-	return path[0:len(path)-1] + "D" // *.P -> *.D
 }
 
 func getTargetSchemaName(tableName string) string {

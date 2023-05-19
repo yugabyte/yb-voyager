@@ -186,7 +186,7 @@ func (batch *Batch) Open() (*os.File, error) {
 
 func (batch *Batch) MarkPending() error {
 	// Rename the file to .P
-	inProgressFilePath := getInProgressFilePath(batch)
+	inProgressFilePath := batch.getInProgressFilePath()
 	log.Infof("Renaming file from %q to %q", batch.FilePath, inProgressFilePath)
 	err := os.Rename(batch.FilePath, inProgressFilePath)
 	if err != nil {
@@ -197,8 +197,8 @@ func (batch *Batch) MarkPending() error {
 }
 
 func (batch *Batch) MarkDone() error {
-	inProgressFilePath := getInProgressFilePath(batch)
-	doneFilePath := getDoneFilePath(batch)
+	inProgressFilePath := batch.getInProgressFilePath()
+	doneFilePath := batch.getDoneFilePath()
 	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
 	err := os.Rename(inProgressFilePath, doneFilePath)
 	if err != nil {
@@ -216,12 +216,27 @@ func (batch *Batch) MarkDone() error {
 }
 
 func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
-	return splitIsAlreadyImported(batch, tx)
+	var rowsImported int64
+	fileName := filepath.Base(batch.getInProgressFilePath())
+	schemaName := getTargetSchemaName(batch.TableName)
+	query := fmt.Sprintf(
+		"SELECT rows_imported FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE schema_name = '%s' AND file_name = '%s';",
+		schemaName, fileName)
+	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
+	if err == nil {
+		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
+		return true, rowsImported, nil
+	}
+	if err == pgx.ErrNoRows {
+		log.Infof("%q is not imported yet", fileName)
+		return false, 0, nil
+	}
+	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
 }
 
 func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
 	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
-	fileName := filepath.Base(getInProgressFilePath(batch))
+	fileName := filepath.Base(batch.getInProgressFilePath())
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
 		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
@@ -232,4 +247,12 @@ func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
 	}
 	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
 	return nil
+}
+
+func (batch *Batch) getInProgressFilePath() string {
+	return batch.FilePath[0:len(batch.FilePath)-1] + "P" // *.C -> *.P
+}
+
+func (batch *Batch) getDoneFilePath() string {
+	return batch.FilePath[0:len(batch.FilePath)-1] + "D" // *.P -> *.D
 }
