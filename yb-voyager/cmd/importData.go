@@ -73,7 +73,7 @@ var importTables []string
 var allTables []string
 var usePublicIp bool
 var targetEndpoints string
-var copyTableFromCommands = make(map[string]string)
+var copyTableFromCommands = sync.Map{}
 var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
 var enableUpsert bool               // upsert instead of insert for import data
 var disableTransactionalWrites bool // to disable transactional writes for copy command
@@ -1088,7 +1088,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
 	}
 	if stmt != "" {
-		copyTableFromCommands[table] = stmt
+		copyTableFromCommands.Store(table, stmt)
 		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
 		return
 	}
@@ -1135,7 +1135,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		}
 		if copyCommandRegex.MatchString(line) {
 			line = strings.Trim(line, ";") + ` WITH (ROWS_PER_TRANSACTION %v)`
-			copyTableFromCommands[table] = line
+			copyTableFromCommands.Store(table, line)
 			log.Infof("copyTableFromCommand for table %q is %q", table, line)
 			return
 		}
@@ -1169,8 +1169,8 @@ func getParentTable(table string, conn *pgx.Conn) string {
 }
 
 func getCopyCommand(table string) string {
-	if copyCommand, ok := copyTableFromCommands[table]; ok {
-		return copyCommand
+	if copyCommand, ok := copyTableFromCommands.Load(table); ok {
+		return copyCommand.(string)
 	} else {
 		log.Infof("No COPY command for table %q", table)
 	}
