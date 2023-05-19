@@ -9,12 +9,17 @@ import (
 	"time"
 
 	"github.com/tebeka/atexit"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	log "github.com/sirupsen/logrus"
 )
 
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
+
+// These versions need to be changed at the time of a release
+const DEBEZIUM_VERSION = "2.2.0-voyager-1.3"
+const BASE_DEBEZIUM_VERSION = "2.2.0"
 
 type Debezium struct {
 	*Config
@@ -23,12 +28,26 @@ type Debezium struct {
 	done bool
 }
 
-func init() {
+func findDebeziumDistribution() error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		DEBEZIUM_DIST_DIR = "/opt/yb-voyager/debezium-server"
+		possiblePaths := []string{
+			"/opt/homebrew/Cellar/debezium@" + BASE_DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+			"/usr/localCellar/debezium@" + BASE_DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+			"/opt/yb-voyager/debezium-server"}
+		for _, path := range possiblePaths {
+			if utils.FileOrFolderExists(path) {
+				DEBEZIUM_DIST_DIR = path
+				break
+			}
+		}
+		if DEBEZIUM_DIST_DIR == "" {
+			err := fmt.Errorf("could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
+			return err
+		}
 	}
+	return nil
 }
 
 func NewDebezium(config *Config) *Debezium {
@@ -36,8 +55,12 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
+	err := findDebeziumDistribution()
+	if err != nil {
+		return err
+	}
 	DEBEZIUM_CONF_FILEPATH = filepath.Join(d.ExportDir, "metainfo", "conf", "application.properties")
-	err := d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
+	err = d.Config.WriteToFile(DEBEZIUM_CONF_FILEPATH)
 	if err != nil {
 		return err
 	}
