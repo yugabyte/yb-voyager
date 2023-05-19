@@ -43,7 +43,7 @@ func findDebeziumDistribution() error {
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
-			err := fmt.Errorf("Debezium dist directory not found")
+			err := fmt.Errorf("Could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
 			return err
 		}
 	}
