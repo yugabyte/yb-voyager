@@ -125,6 +125,7 @@ func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
+		cmd := ""
 		if fileFormat == datafile.CSV {
 			if hasHeader {
 				reader, err := dataStore.Open(filePath)
@@ -135,22 +136,21 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
+				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
 					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 				df.Close()
 			} else {
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
+				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
 					table, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
-			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
-				table, fileFormat, []rune(delimiter)[0], nullString)
+			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', `, table, fileFormat, []rune(delimiter)[0])
 		} else {
 			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
-		copyTableFromCommands[table] += ` ROWS_PER_TRANSACTION %v)`
+		cmd += ` ROWS_PER_TRANSACTION %v)`
+		copyTableFromCommands.Store(table, cmd)
 	}
-	log.Infof("copyTableFromCommands map: %+v", copyTableFromCommands)
 }
 
 func setImportTableListFlag() {
