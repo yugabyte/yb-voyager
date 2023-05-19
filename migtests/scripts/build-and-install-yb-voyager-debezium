@@ -221,7 +221,7 @@ check_java() {
 		else
 			JAVAC_BINARY="$JAVA_HOME/bin/javac"
 		fi
-        MIN_REQUIRED_MAJOR_VERSION='11'
+        MIN_REQUIRED_MAJOR_VERSION='17'
 		JDK_MAJOR_VER=$(${JAVAC_BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
 
         if ([ -n "$JDK_MAJOR_VER" ] && (( 10#${JDK_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
