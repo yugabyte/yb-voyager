@@ -95,7 +95,7 @@ def migration_completed_checks(tgt):
 	fetched_value_v1_column_in_varray_table = tgt.execute_query("SELECT v1 FROM varray_table where id = 10")
 	print(fetched_value_v1_column_in_varray_table)
 	expected_value = '("{(cde,fgh,ghi,jkl)}")'
-	if not os.environ.get("USE_DEBEZIUM") == '1':
+	if not os.environ.get("EXPERIMENTAL_FAST_EXPORT") == '1':
 		assert fetched_value_v1_column_in_varray_table == expected_value
 	else:
 		assert fetched_value_v1_column_in_varray_table == None
@@ -106,7 +106,7 @@ def migration_completed_checks(tgt):
 
 	cnt = tgt.get_row_count('nested_table')
 	print(cnt)
-	if not os.environ.get("USE_DEBEZIUM") == '1':
+	if not os.environ.get("EXPERIMENTAL_FAST_EXPORT") == '1':
 		fetched_value_col1_column_in_varray_table = tgt.execute_query("SELECT col1 FROM nested_table ORDER BY id DESC LIMIT 1") 
 		print(fetched_value_col1_column_in_varray_table)
 		expected_value = '("{(D,E,F)}")'
