@@ -11,9 +11,9 @@ jobs:
     strategy:
       matrix:
         version: [2.14.8.0-b17,2.17.2.0-b216,2.16.3.0-b43]
-        use_debezium: [0, 1]
+        EXPERIMENTAL_FAST_EXPORT: [0, 1]
     env:
-      USE_DEBEZIUM: ${{ matrix.use_debezium }}
+      EXPERIMENTAL_FAST_EXPORT: ${{ matrix.EXPERIMENTAL_FAST_EXPORT }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3

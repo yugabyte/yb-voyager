@@ -104,7 +104,7 @@ func setExportFlagsDefaults() {
 	setSourceDefaultPort() //will set only if required
 	setDefaultSSLMode()
 
-	val, ok := os.LookupEnv("USE_DEBEZIUM")
+	val, ok := os.LookupEnv("EXPERIMENTAL_FAST_EXPORT")
 	if ok {
 		useDebezium = (val == "true" || val == "1" || val == "yes")
 	}

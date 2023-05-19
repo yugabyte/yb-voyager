@@ -18,7 +18,7 @@ EXPECTED_ROW_COUNT = {
 	'lob_types': 2,
 	'varray_table':17
 }
-if os.environ.get('USE_DEBEZIUM') == '1':
+if os.environ.get('EXPERIMENTAL_FAST_EXPORT') == '1':
 	EXPECTED_ROW_COUNT['long_type'] = 2 # https://yugabyte.atlassian.net/browse/DB-5929	
 
 EXPECTED_DATA_TYPES = {
