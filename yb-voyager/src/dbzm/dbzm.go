@@ -1,10 +1,12 @@
 package dbzm
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -26,6 +28,35 @@ type Debezium struct {
 	cmd  *exec.Cmd
 	err  error
 	done bool
+}
+
+func checkJavaInstalled() error {
+	script := `if [ -z "$JAVA_HOME" ]; then
+		JAVA_BINARY="java"
+	else
+		JAVA_BINARY="$JAVA_HOME/bin/java"
+	fi
+	MIN_REQUIRED_MAJOR_VERSION='17'
+	JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+	if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+	then
+		echo "Found sufficient java version = ${JAVA_MAJOR_VER}"
+		exit 0
+	else
+		echo "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}" >&2
+		exit 1
+	fi`
+	cmd := exec.Command("bash")
+	cmd.Stdin = strings.NewReader(script)
+	var outb, errb bytes.Buffer
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+	err := cmd.Run()
+	log.Infof("java check: stdout:%sstderr:%s", outb.String(), errb.String())
+	if err != nil {
+		return fmt.Errorf("Java check failed with err:%w stderr: %s", err, errb.String())
+	}
+	return nil
 }
 
 func findDebeziumDistribution() error {
@@ -56,6 +87,10 @@ func NewDebezium(config *Config) *Debezium {
 
 func (d *Debezium) Start() error {
 	err := findDebeziumDistribution()
+	if err != nil {
+		return err
+	}
+	err = checkJavaInstalled()
 	if err != nil {
 		return err
 	}
