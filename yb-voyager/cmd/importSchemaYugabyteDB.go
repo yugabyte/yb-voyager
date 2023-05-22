@@ -109,7 +109,7 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 			if strings.HasPrefix(subItemName, "source-db-") {
 				splits := strings.Split(subItemName, "-")
 				metaInfo.SourceDBType = splits[len(splits)-1]
-				log.Infof("Source database type: %s", metaInfo.SourceDBType)
+				log.Infof("Extracted source database type: %s", metaInfo.SourceDBType)
 			}
 		}
 	}

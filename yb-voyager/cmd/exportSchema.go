@@ -139,3 +139,19 @@ func clearSchemaIsExported(exportDir string) {
 	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
 	os.Remove(flagFilePath)
 }
+
+// clear and set source db type flag
+func setSourceDbType(sourceDbType string, exportDir string) {
+	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
+	for _, supportedSourceDBType := range supportedSourceDBTypes {
+		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", supportedSourceDBType))
+		os.Remove(flagFilePath)
+	}
+
+	flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
+	fh, err := os.Create(flagFilePath)
+	if err != nil {
+		utils.ErrExit("create %q: %s", flagFilePath, err)
+	}
+	fh.Close()
+}
