@@ -240,8 +240,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	// Clear any old migration db type and recreating it
-	clearSourceDbType(projectDirPath)
 	setSourceDbType(dbType, projectDirPath)
 
 	schemaObjectList := utils.GetSchemaObjectList(dbType)

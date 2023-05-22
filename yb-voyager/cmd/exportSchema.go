@@ -58,7 +58,6 @@ func exportSchema() {
 			}
 
 			clearSchemaIsExported(exportDir)
-			clearSourceDbType(exportDir)
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -141,19 +140,18 @@ func clearSchemaIsExported(exportDir string) {
 	os.Remove(flagFilePath)
 }
 
-func setSourceDbType(sourceDbType, exportDir string) {
+// clear and set source db type flag
+func setSourceDbType(sourceDbType string, exportDir string) {
+	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
+	for _, supportedSourceDBType := range supportedSourceDBTypes {
+		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", supportedSourceDBType))
+		os.Remove(flagFilePath)
+	}
+
 	flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
 	fh, err := os.Create(flagFilePath)
 	if err != nil {
 		utils.ErrExit("create %q: %s", flagFilePath, err)
 	}
 	fh.Close()
-}
-
-func clearSourceDbType(exportDir string) {
-	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
-	for _, sourceDbType := range supportedSourceDBTypes {
-		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
-		os.Remove(flagFilePath)
-	}
 }
