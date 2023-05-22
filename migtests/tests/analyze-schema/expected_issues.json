@@ -414,6 +414,38 @@
             "sqlStatement": "ALTER TYPE compfoo ADD ATTRIBUTE f3 int;",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anydata_test",
+            "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydata_test (\n\tid numeric,\n\tcontent ANYDATA\n) ;",
+            "suggestion": "remove the column with AnyData datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anydataset_test",
+            "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydataset_test (\n\tid numeric,\n\tcontent ANYDATASET\n) ;",
+            "suggestion": "remove the column with AnyData datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anytype_test",
+            "reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anytype_test (\n\tid numeric,\n\tcontent ANYTYPE\n) ;",
+            "suggestion": "remove the column with AnyType datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "uritype_test",
+            "reason": "URIType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE uritype_test (\n\tid numeric,\n\tcontent URITYPE\n) ;",
+            "suggestion": "remove the column with URIType datatype",
+            "GH": ""
         }
 
 ]
