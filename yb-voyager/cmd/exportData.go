@@ -377,7 +377,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 func createResumeSequencesFile() error {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		return fmt.Errorf("Failed to read export status during creating resume sequence file: %v", err)
+		return fmt.Errorf("failed to read export status during creating resume sequence file: %w", err)
 	}
 
 	var sqlStmts []string
@@ -393,7 +393,7 @@ func createResumeSequencesFile() error {
 		file := filepath.Join(exportDir, "data", "postdata.sql")
 		err = os.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
 		if err != nil {
-			return fmt.Errorf("Failed to write resume sequence file: %v", err)
+			return fmt.Errorf("failed to write resume sequence file: %w", err)
 		}
 	}
 	return nil
@@ -403,10 +403,10 @@ func createResumeSequencesFile() error {
 func renameDbzmExportedDataFiles() error {
 	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
-		return fmt.Errorf("Failed to read export status during renaming exported data files: %v", err)
+		return fmt.Errorf("failed to read export status during renaming exported data files: %w", err)
 	}
 	if status == nil {
-		return fmt.Errorf("Export status is empty during renaming exported data files")
+		return fmt.Errorf("export status is empty during renaming exported data files")
 	}
 
 	for i := 0; i < len(status.Tables); i++ {
@@ -426,7 +426,7 @@ func renameDbzmExportedDataFiles() error {
 		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
 		err = os.Rename(oldFilePath, newFilePath)
 		if err != nil {
-			return fmt.Errorf("Failed to rename dbzm exported data file: %v", err)
+			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
 		}
 	}
 	return nil
