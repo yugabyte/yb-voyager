@@ -54,7 +54,7 @@ func checkJavaInstalled() error {
 	err := cmd.Run()
 	log.Infof("java check: stdout:%sstderr:%s", outb.String(), errb.String())
 	if err != nil {
-		return fmt.Errorf("Java check failed with err:%w stderr: %s", err, errb.String())
+		return fmt.Errorf("java check failed with err:%w stderr: %s", err, errb.String())
 	}
 	return nil
 }
