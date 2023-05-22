@@ -19,19 +19,18 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
-	"path/filepath"
-	"strconv"
-
-	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
-
 	"os"
+	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type summaryInfo struct {

@@ -8,11 +8,10 @@ import (
 	"syscall"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	log "github.com/sirupsen/logrus"
 )
 
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string

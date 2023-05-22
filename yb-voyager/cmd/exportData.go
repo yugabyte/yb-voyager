@@ -80,7 +80,7 @@ func exportData() {
 
 	if success {
 		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
-		printExportedRowCount(tableRowCount)
+		printExportedRowCount(tableRowCount, useDebezium)
 		callhome.GetPayload(exportDir)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -315,7 +315,6 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 	}
-	outputExportStatus(status)
 	log.Infof("snapshot export is complete.")
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
@@ -418,21 +417,6 @@ func renameDbzmExportedDataFiles() {
 		if err != nil {
 			utils.ErrExit("Failed to rename dbzm exported data file: %v", err)
 		}
-	}
-}
-
-func outputExportStatus(status *dbzm.ExportStatus) {
-	for i, table := range status.Tables {
-		if i == 0 {
-			fmt.Printf("%-30s%-30s%10s\n", "Schema", "Table", "Row count")
-			fmt.Println("====================================================================================================")
-		}
-		if table.SchemaName != "" {
-			fmt.Printf("%-30s%-30s%10d\n", table.SchemaName, table.TableName, table.ExportedRowCountSnapshot)
-		} else {
-			fmt.Printf("%-30s%-30s%10d\n", table.DatabaseName, table.TableName, table.ExportedRowCountSnapshot)
-		}
-
 	}
 }
 
