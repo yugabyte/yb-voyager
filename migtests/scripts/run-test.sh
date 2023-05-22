@@ -65,7 +65,21 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Export data."
-	export_data
+	{ #TRY
+		export_data 
+		export_data_exit_code=$?
+	}|| { #CATCH
+		# Print debezium.log file if present and exportDataDone flag file is not present
+		if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
+		then
+			echo "Printing debezium.log file"
+			tail -n 100 ${EXPORT_DIR}/logs/debezium.log
+		else
+			echo "No debezium.log found."
+		fi	
+		exit 1 #since the TRY block failed
+	}
+
 	ls -l ${EXPORT_DIR}/data
 
 	step "Fix data."
