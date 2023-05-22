@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/maps"
 )
 
 var importDataStatusCmd = &cobra.Command{
@@ -61,13 +62,12 @@ func runImportDataStatusCmd() error {
 		totalRowCountMap = dataFileDescriptor.TableFileSize
 	}
 
-	tableNames := []string{}
-	for tableName := range totalRowCountMap {
-		tableNames = append(tableNames, tableName)
+	tableNames := maps.Keys(totalRowCountMap)
+	state := NewImportDataState(exportDir)
+	importedRowCountMap, err := state.GetImportProgressAmount(tableNames)
+	if err != nil {
+		return fmt.Errorf("get imported rows count: %w", err)
 	}
-
-	importedRowCountMap := getImportedRowsCount(exportDir, tableNames)
-
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
