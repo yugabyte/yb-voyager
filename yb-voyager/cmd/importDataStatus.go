@@ -16,8 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -115,10 +113,13 @@ func startImportPB(table string) {
 	tablesProgressMetadata[table].Status = 2 //set Status=DONE, before return
 }
 
-func initializeImportDataStatus(exportDir string, tables []string) {
+func initializeImportDataStatus(state *ImportDataState, exportDir string, tables []string) {
 	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
-	importedRowCount := getImportedRowsCount(exportDir, tables)
+	importedRowCount, err := state.GetImportProgressAmount(tables)
+	if err != nil {
+		utils.ErrExit("Failed to get import progress amount: %w", err)
+	}
 	var totalRowCountMap map[string]int64
 	if dataFileDescriptor.TableRowCount != nil {
 		totalRowCountMap = dataFileDescriptor.TableRowCount
@@ -144,27 +145,4 @@ func initializeImportDataStatus(exportDir string, tables []string) {
 		}
 	}
 
-}
-
-// TODO: rename it and corresponding refactoring so that RowCount & ByteCount both are signified
-func getImportedRowsCount(exportDir string, tables []string) map[string]int64 {
-	metaInfoDataDir := exportDir + "/metainfo/data"
-	importedRowCounts := make(map[string]int64)
-
-	for _, table := range tables {
-		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, table, SPLIT_INFO_PATTERN)
-		matches, _ := filepath.Glob(pattern)
-		importedRowCounts[table] = 0
-
-		for _, filePath := range matches {
-			importedRowCounts[table] += getProgressAmount(filePath)
-		}
-
-		if importedRowCounts[table] == 0 { //if it zero, then its import not started yet
-			importedRowCounts[table] = -1
-		}
-		// fmt.Printf("Previous count %s = %d\n", table, importedRowCounts[table])
-	}
-	log.Infof("importedRowCount: %v", importedRowCounts)
-	return importedRowCounts
 }

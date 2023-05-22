@@ -355,7 +355,8 @@ func importData() {
 		fmt.Printf("All the tables are already imported, nothing left to import\n")
 	} else {
 		fmt.Printf("Importing tables: %v\n", importTables)
-		initializeImportDataStatus(exportDir, importTables)
+		state := NewImportDataState(exportDir)
+		initializeImportDataStatus(state, exportDir, importTables)
 		if !disablePb {
 			go importDataStatus()
 		}
@@ -367,7 +368,7 @@ func importData() {
 		// `parallelism` number of batches at a time.
 		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 		for _, t := range importTables {
-			importTable(t, connPool)
+			importTable(state, t, connPool)
 		}
 		// wait for all the import jobs to finish
 		batchImportPool.Wait()
@@ -524,14 +525,13 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func importTable(t string, connPool *tgtdb.ConnectionPool) {
+func importTable(state *ImportDataState, t string, connPool *tgtdb.ConnectionPool) {
 
 	origDataFile := exportDir + "/data/" + t + "_data.sql"
 	extractCopyStmtForTable(t, origDataFile)
 	log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
 
 	log.Infof("Collect all interrupted/remaining splits.")
-	state := NewImportDataState(exportDir)
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(t)
 	if err != nil {
 		utils.ErrExit("recovering state for table %q: %s", t, err)
@@ -751,7 +751,7 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	if err != nil {
 		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
 	}
-	incrementImportProgressBar(batch.TableName, batch.FilePath)
+	incrementImportProgressBar(batch.TableName, batch.ProgressAmount())
 	err = batch.MarkDone()
 	if err != nil {
 		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
@@ -995,8 +995,8 @@ func getTargetSchemaName(tableName string) string {
 	return target.Schema // default set to "public"
 }
 
-func incrementImportProgressBar(tableName string, splitFilePath string) {
-	tablesProgressMetadata[tableName].CountLiveRows += getProgressAmount(splitFilePath)
+func incrementImportProgressBar(tableName string, progressAmount int64) {
+	tablesProgressMetadata[tableName].CountLiveRows += progressAmount
 	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
@@ -1146,26 +1146,6 @@ func getCopyCommand(table string) string {
 		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
-}
-
-func getProgressAmount(filePath string) int64 {
-	splitName := filepath.Base(filePath)
-	parts := strings.Split(splitName, ".")
-
-	var p int64
-	var err error
-	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
-		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
-	} else { // case of importDataFileCommand where file size is available not row counts
-		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
-	}
-
-	if err != nil {
-		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
-	}
-
-	log.Debugf("got progress amount=%d for file %q", p, filePath)
-	return p
 }
 
 func getYBSessionInitScript() []string {

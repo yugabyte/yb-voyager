@@ -8,9 +8,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ImportDataState struct {
@@ -73,11 +75,60 @@ func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, boo
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) NewBatchWriter(tableName string, batchNumber int64) *BatchWriter {
-	return &BatchWriter{tableName: tableName, batchNumber: batchNumber}
+func (s *ImportDataState) GetImportProgressAmount(tableNames []string) (map[string]int64, error) {
+	// "progress" is either number of rows imported or number of bytes imported.
+	metaInfoDataDir := exportDir + "/metainfo/data"
+	result := make(map[string]int64)
+
+	for _, table := range tableNames {
+		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, table, SPLIT_INFO_PATTERN)
+		matches, err := filepath.Glob(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("glob %s: %s", pattern, err)
+		}
+		result[table] = 0
+
+		for _, filePath := range matches {
+			result[table] += s.getProgressAmount(filePath)
+		}
+
+		if result[table] == 0 { //if it zero, then its import not started yet
+			result[table] = -1
+		}
+	}
+	log.Infof("imported Count: %v", result)
+	return result, nil
 }
 
+func (s *ImportDataState) getProgressAmount(filePath string) int64 {
+	splitName := filepath.Base(filePath)
+	parts := strings.Split(splitName, ".")
+
+	var p int64
+	var err error
+	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
+		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
+	} else { // case of importDataFileCommand where file size is available not row counts
+		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
+	}
+
+	if err != nil {
+		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
+	}
+
+	log.Debugf("got progress amount=%d for file %q", p, filePath)
+	return p
+}
+
+func (s *ImportDataState) NewBatchWriter(tableName string, batchNumber int64) *BatchWriter {
+	return &BatchWriter{state: s, tableName: tableName, batchNumber: batchNumber}
+}
+
+//============================================================================
+
 type BatchWriter struct {
+	state *ImportDataState
+
 	tableName   string
 	batchNumber int64
 
@@ -169,7 +220,10 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 	return batch, nil
 }
 
+//============================================================================
+
 type Batch struct {
+	importDataState     *ImportDataState
 	TableName           string
 	SchemaName          string
 	FilePath            string
@@ -182,6 +236,10 @@ type Batch struct {
 
 func (batch *Batch) Open() (*os.File, error) {
 	return os.Open(batch.FilePath)
+}
+
+func (batch *Batch) ProgressAmount() int64 {
+	return batch.importDataState.getProgressAmount(batch.FilePath)
 }
 
 func (batch *Batch) MarkPending() error {
