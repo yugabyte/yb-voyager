@@ -152,17 +152,17 @@ func exportDataOffline() bool {
 		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
 		if err != nil {
-			log.Errorf("Export Data using debezium failed: %v", err)
+			log.Errorf("Export Data using debezium failed: %w", err)
 			return false
 		}
 		err = renameDbzmExportedDataFiles()
 		if err != nil {
-			log.Errorf("Failed to rename dbzm exported data files: %v", err)
+			log.Errorf("Failed to rename dbzm exported data files: %w", err)
 			return false
 		}
 		err = createResumeSequencesFile()
 		if err != nil {
-			log.Errorf("Failed to create resume sequences files: %v", err)
+			log.Errorf("Failed to create resume sequences files: %w", err)
 			return false
 		}
 		return true
