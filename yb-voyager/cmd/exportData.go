@@ -147,11 +147,10 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	fmt.Printf("num tables to export: %d\n", len(finalTableList))
-	utils.PrintAndLog("table list for data export: %v", finalTableList)
-
 	if liveMigration || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
+		fmt.Printf("num tables to export: %d\n", len(finalTableList))
+		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -170,6 +169,8 @@ func exportDataOffline() bool {
 		return true
 	}
 
+	fmt.Printf("num tables to export: %d\n", len(finalTableList))
+	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -232,7 +233,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for _, table := range tableList {
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
-	utils.PrintAndLog("final table list for data export: %v\n", dbzmTableList)
 
 	for tableName, columns := range tablesColumnList {
 		for _, column := range columns {
