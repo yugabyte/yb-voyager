@@ -80,15 +80,7 @@ func exportData() {
 
 	if success {
 		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
-		if useDebezium {
-			exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-			if err != nil{
-				utils.ErrExit("Failed to read export status during data export: %v", err)
-			}
-			printExportedRowCount(tableRowCount, exportStatus)
-		} else {
-			printExportedRowCount(tableRowCount, nil)
-		}
+		printExportedRowCount(tableRowCount, useDebezium)
 		callhome.GetPayload(exportDir)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)

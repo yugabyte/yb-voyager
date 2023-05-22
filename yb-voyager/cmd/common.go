@@ -178,7 +178,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func printExportedRowCount(exportedRowCount map[string]int64, exportStatus *dbzm.ExportStatus) {
+func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) {
 	var keys []string
 	for key := range exportedRowCount {
 		keys = append(keys, key)
@@ -187,7 +187,11 @@ func printExportedRowCount(exportedRowCount map[string]int64, exportStatus *dbzm
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if exportStatus != nil {
+	if useDebezium {
+		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			utils.ErrExit("Failed to read export status during data export: %v", err)
+		}
 		for i, tableStatus := range exportStatus.Tables {
 			if i == 0 {
 				if tableStatus.SchemaName != "" {
