@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -91,6 +92,7 @@ func exportData() {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
+		atexit.Exit(1)
 	}
 }
 

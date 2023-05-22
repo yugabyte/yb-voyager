@@ -210,6 +210,15 @@ export_data() {
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
 	yb-voyager export data ${args} $*
+
+	# Print debezium.log file if present and exportDataDone flag file is not present
+	if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
+	then
+		echo "Printing debezium.log file"
+		tail -n 100 ${EXPORT_DIR}/logs/debezium.log
+	else
+		echo "No debezium.log found."
+	fi
 }
 
 analyze_schema() {
