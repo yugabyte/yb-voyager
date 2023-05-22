@@ -148,6 +148,7 @@ func exportDataOffline() bool {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
 	}
+	finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	if liveMigration || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
@@ -312,6 +313,20 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
+}
+
+func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
+	if tablesColumnList == nil {
+		return finalTableList
+	}
+	var filteredTableList []*sqlname.SourceName
+	for _, table := range finalTableList {
+		if len(tablesColumnList[table]) == 0 {
+			continue
+		}
+		filteredTableList = append(filteredTableList, table)
+	}
+	return filteredTableList
 }
 
 func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
