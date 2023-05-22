@@ -136,8 +136,8 @@ func exportDataOffline() bool {
 			"\nDo you want to ignore just these columns' data and continue with export") {
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		}
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
@@ -317,9 +317,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 }
 
 func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
-	if tablesColumnList == nil {
-		return finalTableList
-	}
 	var filteredTableList []*sqlname.SourceName
 	for _, table := range finalTableList {
 		if len(tablesColumnList[table]) == 0 {

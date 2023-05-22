@@ -108,7 +108,9 @@ CREATE TABLE nested_table (id NUMBER, col1 my_tab_t)
 INSERT INTO nested_table VALUES (1, my_tab_t('A'));
 INSERT INTO nested_table VALUES (2, my_tab_t('B', 'C'));
 INSERT INTO nested_table VALUES (3, my_tab_t('D', 'E', 'F'));
-COMMIT;
 
-CREATE TABLE BLOB_TYPE(B BLOB); --  
+--single column unsupported case
+CREATE TABLE BLOB_TYPE(B BLOB); 
 INSERT INTO BLOB_TYPE VALUES('ABC');
+
+COMMIT;
