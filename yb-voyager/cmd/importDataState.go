@@ -23,18 +23,15 @@ func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{exportDir: exportDir}
 }
 
-func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, bool, error) {
-	var pendingBatches []*Batch
+func (s *ImportDataState) getBatches(tableName string, states string) ([]*Batch, error) {
+	var result []*Batch
 
-	lastBatchNumber := int64(0)
-	lastOffset := int64(0)
-	fileFullySplit := false
-	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, tableName)
-	batchFiles, _ := filepath.Glob(pattern)
-
-	doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", tableName)
-	doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-	splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", tableName)
+	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[%s]", exportDir, metaInfoDirName, tableName, states)
+	batchFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("error while globbing for %s: %w", pattern, err)
+	}
+	splitFileNameRegexStr := fmt.Sprintf(`.+/%s\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.[CPD]$`, tableName)
 	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
 
 	for _, filepath := range batchFiles {
@@ -47,29 +44,66 @@ func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, boo
 			*/
 			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
 			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-			numLines, _ := strconv.ParseInt(match[3], 10, 64)
-			offsetStart := offsetEnd - numLines
-			if splitNum == LAST_SPLIT_NUM {
-				fileFullySplit = true
+			recordCount, _ := strconv.ParseInt(match[3], 10, 64)
+			byteCount, _ := strconv.ParseInt(match[4], 10, 64)
+			offsetStart := offsetEnd - recordCount
+			batch := &Batch{
+				SchemaName:  "",
+				TableName:   tableName,
+				FilePath:    filepath,
+				Number:      splitNum,
+				OffsetStart: offsetStart,
+				OffsetEnd:   offsetEnd,
+				ByteCount:   byteCount,
+				RecordCount: recordCount,
 			}
-			if splitNum > lastBatchNumber {
-				lastBatchNumber = splitNum
-			}
-			if offsetEnd > lastOffset {
-				lastOffset = offsetEnd
-			}
-			if !doneSplitRegexp.MatchString(filepath) {
-				batch := &Batch{
-					SchemaName:  "",
-					TableName:   tableName,
-					FilePath:    filepath,
-					Number:      splitNum,
-					OffsetStart: offsetStart,
-					OffsetEnd:   offsetEnd,
-					Interrupted: true,
-				}
-				pendingBatches = append(pendingBatches, batch)
-			}
+			result = append(result, batch)
+		}
+	}
+	return result, nil
+
+}
+
+func (s *ImportDataState) GetPendingBatches(tableName string) ([]*Batch, error) {
+	return s.getBatches(tableName, "CP")
+}
+
+func (s *ImportDataState) GetCompletedBatches(tableName string) ([]*Batch, error) {
+	return s.getBatches(tableName, "D")
+}
+
+func (s *ImportDataState) GetAllBatches(tableName string) ([]*Batch, error) {
+	return s.getBatches(tableName, "CPD")
+}
+
+func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, bool, error) {
+	var pendingBatches []*Batch
+
+	lastBatchNumber := int64(0)
+	lastOffset := int64(0)
+	fileFullySplit := false
+
+	batches, err := s.GetAllBatches(tableName)
+	if err != nil {
+		return nil, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+	}
+	for _, batch := range batches {
+		/*
+			offsets are 0-based, while numLines are 1-based
+			offsetStart is the line in original datafile from where current split starts
+			offsetEnd   is the line in original datafile from where next split starts
+		*/
+		if batch.Number == LAST_SPLIT_NUM {
+			fileFullySplit = true
+		}
+		if batch.Number > lastBatchNumber {
+			lastBatchNumber = batch.Number
+		}
+		if batch.OffsetEnd > lastOffset {
+			lastOffset = batch.OffsetEnd
+		}
+		if !batch.IsDone() {
+			pendingBatches = append(pendingBatches, batch)
 		}
 	}
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
@@ -223,19 +257,26 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 //============================================================================
 
 type Batch struct {
-	importDataState     *ImportDataState
+	Number              int64
 	TableName           string
 	SchemaName          string
 	FilePath            string
 	OffsetStart         int64
 	OffsetEnd           int64
+	RecordCount         int64
+	ByteCount           int64
 	TmpConnectionString string
-	Number              int64
 	Interrupted         bool
+
+	importDataState *ImportDataState
 }
 
 func (batch *Batch) Open() (*os.File, error) {
 	return os.Open(batch.FilePath)
+}
+
+func (batch *Batch) IsDone() bool {
+	return strings.HasSuffix(batch.FilePath, ".D")
 }
 
 func (batch *Batch) ProgressAmount() int64 {
