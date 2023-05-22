@@ -129,6 +129,16 @@ func exportDataOffline() bool {
 		}
 	}
 
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
+	if len(unsupportedColumnNames) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to ignore just these columns' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
+	}
+
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()
@@ -140,14 +150,6 @@ func exportDataOffline() bool {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
-	if len(unsupportedColumnNames) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore just these columns' data and continue with export") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		}
-	}
 	if liveMigration || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
 		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
@@ -312,6 +314,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
+}
+
+func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
+	var filteredTableList []*sqlname.SourceName
+	for _, table := range finalTableList {
+		if len(tablesColumnList[table]) == 0 {
+			continue
+		}
+		filteredTableList = append(filteredTableList, table)
+	}
+	return filteredTableList
 }
 
 func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
