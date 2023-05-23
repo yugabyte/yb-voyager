@@ -38,7 +38,7 @@ import (
 
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "This command is used to export table's data from source database to *.sql files",
+	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is an experimental feature to speed up the data export, set the environment variable EXPERIMENTAL_FAST_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details on this feature.",
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -71,6 +71,8 @@ func init() {
 
 	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
 		"true - to enable live migration(default false)")
+
+	exportDataCmd.Flags().MarkHidden("live-migration")
 }
 
 func exportData() {
