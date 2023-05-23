@@ -751,7 +751,11 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	if err != nil {
 		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
 	}
-	incrementImportProgressBar(batch.TableName, batch.ProgressAmount())
+	if dataFileDescriptor.TableRowCount != nil {
+		incrementImportProgressBar(batch.TableName, batch.RecordCount)
+	} else {
+		incrementImportProgressBar(batch.TableName, batch.ByteCount)
+	}
 	err = batch.MarkDone()
 	if err != nil {
 		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
