@@ -20,12 +20,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
-
 	"github.com/spf13/cobra"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var sourceDBType string
@@ -152,6 +152,8 @@ func registerImportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&liveMigration, "live-migration", false,
 		"set this flag to true to enable streaming data from source to target database")
+	
+	cmd.Flags().MarkHidden("live-migration")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
