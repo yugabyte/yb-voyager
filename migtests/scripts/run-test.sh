@@ -66,8 +66,7 @@ main() {
 
 	step "Export data."
 	{ #TRY
-		export_data 
-		export_data_exit_code=$?
+		export_data
 	}|| { #CATCH
 		# Print debezium.log file if present and exportDataDone flag file is not present
 		if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
