@@ -55,35 +55,39 @@ func runImportDataStatusCmd() error {
 	}
 
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	var totalRowCountMap map[string]int64
+	var totalCountMap, importedCountMap map[string]int64
 	if dataFileDescriptor.TableRowCount != nil {
-		totalRowCountMap = dataFileDescriptor.TableRowCount
+		totalCountMap = dataFileDescriptor.TableRowCount
 	} else {
-		totalRowCountMap = dataFileDescriptor.TableFileSize
+		totalCountMap = dataFileDescriptor.TableFileSize
 	}
 
-	tableNames := maps.Keys(totalRowCountMap)
+	tableNames := maps.Keys(totalCountMap)
 	state := NewImportDataState(exportDir)
-	importedRowCountMap, err := state.GetImportProgressAmount(tableNames)
-	if err != nil {
-		return fmt.Errorf("get imported rows count: %w", err)
-	}
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	if dataFileDescriptor.TableRowCount != nil {
 		// case of importData where row counts is available
+		importedCountMap, err = state.GetImportedRowCount(tableNames)
+		if err != nil {
+			return fmt.Errorf("get imported rows count: %w", err)
+		}
 		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("TOTAL ROWS"), headerfmt("IMPORTED ROWS"), headerfmt("PERCENTAGE"))
 	} else {
 		// case of importDataFileCommand where file size is available not row counts
+		importedCountMap, err = state.GetImportedByteCount(tableNames)
+		if err != nil {
+			return fmt.Errorf("get imported bytes count: %w", err)
+		}
 		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE(MB)"), headerfmt("IMPORTED SIZE(MB)"), headerfmt("PERCENTAGE"))
 	}
 
 	var outputRows []*tableMigStatusOutputRow
 	for _, tableName := range tableNames {
 		// totalCount and importedCount store row-count for import data command and byte-count for import data file command.
-		totalCount := totalRowCountMap[tableName]
-		importedCount := importedRowCountMap[tableName]
+		totalCount := totalCountMap[tableName]
+		importedCount := importedCountMap[tableName]
 		if importedCount == -1 {
 			importedCount = 0
 		}

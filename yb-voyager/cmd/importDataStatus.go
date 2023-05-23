@@ -114,17 +114,22 @@ func startImportPB(table string) {
 }
 
 func initializeImportDataStatus(state *ImportDataState, exportDir string, tables []string) {
+	var err error
 	log.Infof("Initializing import data status")
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
-	importedRowCount, err := state.GetImportProgressAmount(tables)
-	if err != nil {
-		utils.ErrExit("Failed to get import progress amount: %w", err)
-	}
-	var totalRowCountMap map[string]int64
+	var totalProgressCountMap, importedProgressCount map[string]int64
 	if dataFileDescriptor.TableRowCount != nil {
-		totalRowCountMap = dataFileDescriptor.TableRowCount
+		totalProgressCountMap = dataFileDescriptor.TableRowCount
+		importedProgressCount, err = state.GetImportedRowCount(tables)
+		if err != nil {
+			utils.ErrExit("Failed to get imported row count: %w", err)
+		}
 	} else {
-		totalRowCountMap = dataFileDescriptor.TableFileSize
+		totalProgressCountMap = dataFileDescriptor.TableFileSize
+		importedProgressCount, err = state.GetImportedByteCount(tables)
+		if err != nil {
+			utils.ErrExit("Failed to get imported byte count: %w", err)
+		}
 	}
 
 	for _, fullTableName := range tables {
@@ -140,9 +145,8 @@ func initializeImportDataStatus(state *ImportDataState, exportDir string, tables
 		tablesProgressMetadata[fullTableName] = &utils.TableProgressMetadata{
 			TableName:      sqlname.NewSourceName(schema, table), // TODO: Use sqlname.TargetName instead.
 			Status:         0,
-			CountLiveRows:  importedRowCount[fullTableName],
-			CountTotalRows: totalRowCountMap[fullTableName],
+			CountLiveRows:  importedProgressCount[fullTableName],
+			CountTotalRows: totalProgressCountMap[fullTableName],
 		}
 	}
-
 }
