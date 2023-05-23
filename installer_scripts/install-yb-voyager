@@ -11,7 +11,8 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_TARBALL_VERSION="1.3"
+DEBEZIUM_BASE_VERSION="2.2.0-voyager-1.3.0"
+DEBEZIUM_VERSION="2.2.0-voyager-1.3.1"
 
 # the hash corresponds to the yb-voyager/v1.2.0 tag
 YB_VOYAGER_GIT_HASH="6088893747f05aa0d56307e76f0cb3273006a2f5"
@@ -204,9 +205,9 @@ check_java() {
 
 install_debezium_server() {
 	output "Installing debezium"
-	debezium_server_filename="debezium-server-${DEBEZIUM_TARBALL_VERSION}.tar.gz"
+	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
-	wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium-${DEBEZIUM_TARBALL_VERSION}/${debezium_server_filename}"
+	wget -nv "https://github.com/yugabyte/debezium/releases/download/debezium-${DEBEZIUM_BASE_VERSION}/${debezium_server_filename}"
 	# move to /opt/yb-voyager/debezium-server
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
