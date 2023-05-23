@@ -257,7 +257,7 @@
         },
         {
             "objectType": "TABLE",
-            "objectName": "",
+            "objectName": "oldschema.tbl_name",
             "reason": "ALTER TABLE SET SCHEMA not supported yet.",
             "sqlStatement": "ALTER TABLE oldschema.tbl_name SET SCHEMA newschema;",
             "suggestion": "",
@@ -414,6 +414,14 @@
             "sqlStatement": "ALTER TYPE compfoo ADD ATTRIBUTE f3 int;",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "party_profile_part",
+            "reason": "ALTER TABLE OF not supported yet.",
+            "sqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
         }
 
 ]
