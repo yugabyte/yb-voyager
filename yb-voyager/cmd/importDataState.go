@@ -12,7 +12,6 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ImportDataState struct {
@@ -120,6 +119,10 @@ func (s *ImportDataState) GetImportedRowCount(tableNames []string) (map[string]i
 		for _, batch := range batches {
 			result[table] += batch.RecordCount
 		}
+		if result[table] == 0 {
+			// Import not started.
+			result[table] = -1
+		}
 	}
 	return result, nil
 }
@@ -135,28 +138,12 @@ func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]
 		for _, batch := range batches {
 			result[table] += batch.ByteCount
 		}
+		if result[table] == 0 {
+			// Import not started.
+			result[table] = -1
+		}
 	}
 	return result, nil
-}
-
-func (s *ImportDataState) getProgressAmount(filePath string) int64 {
-	splitName := filepath.Base(filePath)
-	parts := strings.Split(splitName, ".")
-
-	var p int64
-	var err error
-	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
-		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
-	} else { // case of importDataFileCommand where file size is available not row counts
-		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
-	}
-
-	if err != nil {
-		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
-	}
-
-	log.Debugf("got progress amount=%d for file %q", p, filePath)
-	return p
 }
 
 func (s *ImportDataState) NewBatchWriter(tableName string, batchNumber int64) *BatchWriter {
@@ -254,7 +241,8 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 		Number:      batchNumber,
 		OffsetStart: offsetEnd - bw.NumRecordsWritten,
 		OffsetEnd:   offsetEnd,
-		Interrupted: false,
+		RecordCount: bw.NumRecordsWritten,
+		ByteCount:   byteCount,
 	}
 	return batch, nil
 }
@@ -282,10 +270,6 @@ func (batch *Batch) Open() (*os.File, error) {
 
 func (batch *Batch) IsDone() bool {
 	return strings.HasSuffix(batch.FilePath, ".D")
-}
-
-func (batch *Batch) ProgressAmount() int64 {
-	return batch.importDataState.getProgressAmount(batch.FilePath)
 }
 
 func (batch *Batch) MarkPending() error {
