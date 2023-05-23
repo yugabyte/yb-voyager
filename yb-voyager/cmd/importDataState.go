@@ -109,28 +109,33 @@ func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, boo
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) GetImportProgressAmount(tableNames []string) (map[string]int64, error) {
-	// "progress" is either number of rows imported or number of bytes imported.
-	metaInfoDataDir := exportDir + "/metainfo/data"
+func (s *ImportDataState) GetImportedRowCount(tableNames []string) (map[string]int64, error) {
 	result := make(map[string]int64)
 
 	for _, table := range tableNames {
-		pattern := fmt.Sprintf("%s/%s.%s.[D]", metaInfoDataDir, table, SPLIT_INFO_PATTERN)
-		matches, err := filepath.Glob(pattern)
+		batches, err := s.GetCompletedBatches(table)
 		if err != nil {
-			return nil, fmt.Errorf("glob %s: %s", pattern, err)
+			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
 		}
-		result[table] = 0
-
-		for _, filePath := range matches {
-			result[table] += s.getProgressAmount(filePath)
-		}
-
-		if result[table] == 0 { //if it zero, then its import not started yet
-			result[table] = -1
+		for _, batch := range batches {
+			result[table] += batch.RecordCount
 		}
 	}
-	log.Infof("imported Count: %v", result)
+	return result, nil
+}
+
+func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]int64, error) {
+	result := make(map[string]int64)
+
+	for _, table := range tableNames {
+		batches, err := s.GetCompletedBatches(table)
+		if err != nil {
+			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
+		}
+		for _, batch := range batches {
+			result[table] += batch.ByteCount
+		}
+	}
 	return result, nil
 }
 
