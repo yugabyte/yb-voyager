@@ -38,7 +38,7 @@ import (
 
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "This command is used to export table's data from source database to *.sql files",
+	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is an experimental feature to speed up the data export, set the environment variable EXPERIMENTAL_FAST_EXPORT=1 for trying that out",
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
