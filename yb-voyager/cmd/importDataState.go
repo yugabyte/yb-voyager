@@ -260,8 +260,6 @@ type Batch struct {
 	ByteCount           int64
 	TmpConnectionString string
 	Interrupted         bool
-
-	importDataState *ImportDataState
 }
 
 func (batch *Batch) Open() (*os.File, error) {
