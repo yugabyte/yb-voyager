@@ -50,6 +50,10 @@ do
 			do
 				exported_vars="${exported_vars} -e $var"
 			done
+
+			# Capture EXPERIMENTAL_FAST_EXPORT variable
+			var=$(env | grep -E 'EXPERIMENTAL_FAST_EXPORT')
+			exported_vars="${exported_vars} -e $var"
 		else 
 			# If the data-dir is not an S3 bucket
 			# If the OS is macOS
