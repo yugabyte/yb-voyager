@@ -207,7 +207,7 @@ install_debezium_server() {
 	output "Installing debezium"
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
-	wget -nv "https://github.com/yugabyte/debezium/releases/download/debezium-${DEBEZIUM_BASE_VERSION}/${debezium_server_filename}"
+	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_BASE_VERSION}/${debezium_server_filename}"
 	# move to /opt/yb-voyager/debezium-server
 	sudo mkdir -p /opt/yb-voyager
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
