@@ -82,3 +82,7 @@ create table s3_multitable_t2 (i int, j int, k int);
 create table t1_null_string_csv(i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_null_string_text(i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_null_string_csv2(i int, j timestamp, k bigint, l varchar(30));
+
+create table t1_null_string_text2(i int, j timestamp, k bigint, l varchar(30));
