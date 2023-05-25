@@ -121,7 +121,7 @@ main() {
 
 	# Test import csv file with null_string as NIL
 	step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_null_string_csv.csv:t1_null_string_csv" --null-string "NIL"
 		
 	# Test import text file with null_string as NONE
