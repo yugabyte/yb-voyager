@@ -16,6 +16,8 @@ type DataStore interface {
 func NewDataStore(location string) DataStore {
 	if strings.HasPrefix(location, "s3://") {
 		return NewS3DataStore(location)
+	} else if strings.HasPrefix(location, "gs://") {
+		return NewGCSDataStore(location)
 	}
 	return NewLocalDataStore(location)
 
