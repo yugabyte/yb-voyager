@@ -119,6 +119,16 @@ main() {
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
 			--file-table-map "volume_test:s3_volume"
 
+	# Test import csv file with null_string as NIL
+	step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+			--file-table-map "t1_null_string_csv.csv:t1_null_string_csv" --null-string "NIL"
+		
+	# Test import text file with null_string as NONE
+	step "Import data file: t1_null_string_text.txt -> t1_null_string_text"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+			--file-table-map "t1_null_string_text.txt:t1_null_string_text" --null-string "NONE"
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }

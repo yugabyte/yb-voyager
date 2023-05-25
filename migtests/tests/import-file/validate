@@ -24,7 +24,9 @@ EXPECTED = {
 	"s3_multitable_t1": 3,
 	"s3_multitable_t2": 3,
 	"s3_csv_with_header": 3,
-	"s3_volume": 100000
+	"s3_volume": 100000,
+	"t1_null_string_csv": 3,
+	"t1_null_string_text": 3,
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -32,6 +34,8 @@ T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
+T1_NULL_STRING_CSV = set([(1,"NIL","NIL","Hello World"), (2,"NIL","NIL","Hello World"), (3,"NIL","NIL","Hello World")])
+T1_NULL_STRING_TEXT = set([(1,"NONE","NONE","Hello World"), (2,"NONE","NONE","Hello World"), (3,"NONE","NONE","Hello World")])	
 S3_TEXT_DATA = set([(1,2,3), (4,5,6), (7,8,9)])
 S3_CSV_DATA = set([(1,2), (3,4), (5,6)])
 S3_T1_DATA = S3_TEXT_DATA
@@ -90,6 +94,14 @@ def file_import_done_checks(tgt):
 	s3_header_data = tgt.fetch_all_table_rows("s3_csv_with_header")
 	print(f"s3_header_data: {s3_header_data}\nExpected data: {S3_CSV_WITH_HEADER_DATA}\n")
 	assert s3_header_data == S3_CSV_WITH_HEADER_DATA
+ 
+	t1_null_string_csv = tgt.fetch_all_table_rows("t1_null_string_csv")
+	print(f"t1_null_string_csv: {t1_null_string_csv}\nExpected data: {T1_NULL_STRING_CSV}\n")
+	assert t1_null_string_csv == T1_NULL_STRING_CSV
+
+	t1_null_string_text = tgt.fetch_all_table_rows("t1_null_string_text")
+	print(f"t1_null_string_text: {t1_null_string_text}\nExpected data: {T1_NULL_STRING_TEXT}\n")
+	assert t1_null_string_text == T1_NULL_STRING_TEXT 
 	
 if __name__ == "__main__":
 	main()
