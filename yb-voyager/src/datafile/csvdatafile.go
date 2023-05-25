@@ -4,10 +4,10 @@ import (
 	"io"
 	"strings"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
-
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/csv"
 )
 
 type CsvDataFile struct {
