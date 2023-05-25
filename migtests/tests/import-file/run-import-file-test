@@ -94,12 +94,12 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
 
-	# Test for csv file with backspace as quote character and escape character in text field
+	# Test for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char.csv -> test_backspace_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_char.csv:test_backspace_char" --file-opts "escape_char=\b,quote_char=\b"
 
-	# Test2 for csv file with backspace as quote character and escape character in text field
+	# Test2 for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char2.csv -> test_backspace_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --file-opts "escape_char=\b,quote_char=\b"

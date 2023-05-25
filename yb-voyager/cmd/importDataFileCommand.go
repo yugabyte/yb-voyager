@@ -69,7 +69,7 @@ func prepareForImportDataCmd() {
 	}
 	dfd.Save()
 
-	escapeFileOptsCharsIfRequired() //escaping for COPY command should be done after saving chars in descriptor
+	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	createDataFileSymLinks()
 	prepareCopyCommands()
 	setImportTableListFlag()
@@ -259,12 +259,12 @@ func checkDataDirFlag() {
 }
 
 func checkDelimiterFlag() {
-	parsedDelimiter, ok := parseAndCheckSingleByteChar(delimiter)
+	resolvedDelimiter, ok := resolveAndCheckSingleByteChar(delimiter)
 	if !ok {
 		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
 	}
-	log.Infof("resolved delimiter value: %q", parsedDelimiter)
-	delimiter = parsedDelimiter
+	log.Infof("resolved delimiter value: %q", resolvedDelimiter)
+	delimiter = resolvedDelimiter
 }
 
 func checkHasHeader() {
@@ -292,11 +292,11 @@ func checkAndParseFileOpts() {
 			if !slices.Contains(supportedCsvFileOpts, key) {
 				utils.ErrExit("ERROR: %q is not a valid csv file option", key)
 			} else {
-				parsedValue, ok := parseAndCheckSingleByteChar(value)
+				resolvedValue, ok := resolveAndCheckSingleByteChar(value)
 				if !ok {
 					utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
 				}
-				fileOptsMap[key] = parsedValue
+				fileOptsMap[key] = resolvedValue
 			}
 		}
 
@@ -326,22 +326,20 @@ func setDefaultForNullString() {
 	}
 }
 
-// escaping single quote character
-// checks and process the given string is a single byte character
-func parseAndCheckSingleByteChar(value string) (string, bool) {
+// resolves and check the given string is a single byte character
+func resolveAndCheckSingleByteChar(value string) (string, bool) {
 	if len(value) == 1 {
 		return value, true
 	}
-	parsedValue, err := strconv.Unquote(`"` + value + `"`)
-	if err != nil || len(parsedValue) != 1 {
-		return parsedValue, false
+	resolvedValue, err := strconv.Unquote(`"` + value + `"`)
+	if err != nil || len(resolvedValue) != 1 {
+		return resolvedValue, false
 	}
-	return parsedValue, true
+	return resolvedValue, true
 }
 
 // in case of csv file format, escape and quote characters are required to be escaped with
-//
-//	backslash if they are single quote or backslash with E in copy Command
+// backslash if there are single quote or backslash provided with E in copy Command
 func escapeFileOptsCharsIfRequired() {
 	if fileOptsMap["escape_char"] == `'` {
 		fileOptsMap["escape_char"] = `\'`
