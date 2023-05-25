@@ -94,6 +94,41 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
 
+	# Test for csv file with backspace as quote character and escape character in text field
+	step "Import data file: test_backspace_char.csv -> test_backspace_char"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "test_backspace_char.csv:test_backspace_char" --file-opts "escape_char=\b,quote_char=\b"
+
+	# Test2 for csv file with backspace as quote character and escape character in text field
+	step "Import data file: test_backspace_char2.csv -> test_backspace_char2"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --file-opts "escape_char=\b,quote_char=\b"
+
+	# Test for csv file with backspace as quote character and single quote as escape character
+	step "Import data file: test_backspace_quote_single_quote_escape.csv -> test_backspace_quote_single_quote_escape"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "test_backspace_quote_single_quote_escape.csv:test_backspace_quote_single_quote_escape" --file-opts "escape_char=',quote_char=\b"
+
+	# Test for csv file with backspace as quote character and double quote as escape character
+	step "Import data file: test_backspace_quote_double_quote_escape.csv -> test_backspace_quote_double_quote_escape"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --file-opts "escape_char=\",quote_char=\b"
+
+	# Test for csv file with backspace as escape character and double quote as quote character
+	step "Import data file: test_backspace_escape_double_quote.csv -> test_backspace_escape_double_quote"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --file-opts "escape_char=\b,quote_char=\""
+
+	# Test for csv file with delimiter as backspace char
+	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\b' \
+			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace" 
+
+	# Test for txt file with delimiter as backspace char
+	step "Import data file: test_delimiter_backspace_text.txt -> test_delimiter_backspace_text"
+	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\b' \
+			--file-table-map "test_delimiter_backspace_text.txt:test_delimiter_backspace_text" 
+
 	# Test import from s3 (text file)
 	step "Import data file from S3 (text): text_test.text -> s3_text"
 	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
