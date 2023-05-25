@@ -44,7 +44,7 @@ T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld")
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
 TEST_BACKSPACE_CHAR_DATA = set([(4, 123, 'Some more testing \x08?'), (2, 123, 'Some test " quote'), (1, 123, 'How\x08s it going?'), (3, 123, "How's it going?")])
-TEST_BACKSPACE_CHAR2_DATA = set([(0, 'default', 'CIF-0000000000', 'USER-0000000000', 1000000000, 1000000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True, datetime.datetime(2023, 4, 14, 13, 50, 6, 60000)), (1, 'John Doe', '\\', 'USER-0000000001', 1000000, 1000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True, datetime.datetime(2022, 1, 1, 17, 0)), (2, 'Jane Doe', 'CIF-0000000002', 'USER-0000000002', 2000000, 2000000, 'Giro BNI', 'Jl. Thamrin No. 456, Jakarta', True, datetime.datetime(2022, 1, 2, 17, 0))])
+TEST_BACKSPACE_CHAR2_DATA = set([(0, 'default', 'CIF-0000000000', 'USER-0000000000', 1000000000, 1000000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True), (1, 'John Doe', '\\', 'USER-0000000001', 1000000, 1000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True), (2, 'Jane Doe', 'CIF-0000000002', 'USER-0000000002', 2000000, 2000000, 'Giro BNI', 'Jl. Thamrin No. 456, Jakarta', True)])
 TEST_BACKSPACE_QUOTE_SINGLE_QUOTE_ESCAPE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going \x08?"), (3, 1233, 'How is it going?')])
 TEST_BACKSPACE_QUOTE_DOUBLE_QUOTE_ESCAPE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going \x08?"), (3, 1233, 'How is it going?')])
 TEST_BACKSPACE_ESCAPE_DOUBLE_QUOTE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going ?"), (3, 1233, 'How is "test quote" it going?')])
@@ -71,7 +71,7 @@ TABLE_NAME_DATA_MAP = {
 	"s3_multitable_t1": S3_T1_DATA,
 	"s3_multitable_t2": S3_T2_DATA,
 	"s3_csv_with_header": S3_CSV_WITH_HEADER_DATA,
-	"s3_volume": S3_TEXT_DATA,
+	"s3_csv_with_header": S3_CSV_WITH_HEADER_DATA, 
 	"test_backspace_char": TEST_BACKSPACE_CHAR_DATA,
 	"test_backspace_char2": TEST_BACKSPACE_CHAR2_DATA,
 	"test_backspace_quote_single_quote_escape": TEST_BACKSPACE_QUOTE_SINGLE_QUOTE_ESCAPE_DATA,

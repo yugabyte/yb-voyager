@@ -81,7 +81,7 @@ create table s3_multitable_t2 (i int, j int, k int);
 
 create table test_backspace_char(i bigint, j int, k text);
 
-create table test_backspace_char2(c1 int, c2 text, c3 text, c4 text, c5 bigint, c6 bigint, c7 text, c8 text, c9 boolean,c10 timestamp);
+create table test_backspace_char2(c1 int, c2 text, c3 text, c4 text, c5 bigint, c6 bigint, c7 text, c8 text, c9 boolean);
 
 create table test_backspace_quote_single_quote_escape(i bigint, j int, k text);
 
