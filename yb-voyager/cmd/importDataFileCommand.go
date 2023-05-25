@@ -28,6 +28,7 @@ var (
 	tableNameVsFilePath  = make(map[string]string)
 	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
 	fileOpts             string
+	nullString           string
 	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
 	dataStore            datastore.DataStore
@@ -134,15 +135,16 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER,`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
+					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 				df.Close()
 			} else {
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', `,
-					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
+					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
-			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', `, table, fileFormat, []rune(delimiter)[0])
+			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
+				table, fileFormat, []rune(delimiter)[0], nullString)
 		} else {
 			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
@@ -210,6 +212,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	checkDelimiterFlag()
 	checkHasHeader()
 	checkAndParseFileOpts()
+	setDefaultForNullString()
 	validateTargetPassword(cmd)
 }
 
@@ -311,6 +314,20 @@ func checkAndParseFileOpts() {
 	log.Infof("fileOptsMap: %v", fileOptsMap)
 }
 
+func setDefaultForNullString() {
+	if nullString == "" {
+		switch fileFormat {
+		case datafile.CSV:
+			nullString = ""
+		case datafile.TEXT:
+			nullString = "\\N"
+		default:
+			panic("unsupported file format")
+		}
+	}
+}
+
+// escaping single quote character
 // checks and process the given string is a single byte character
 func parseAndCheckSingleByteChar(value string) (string, bool) {
 	if len(value) == 1 {
@@ -376,4 +393,7 @@ func init() {
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
+
+	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
+		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
 }
