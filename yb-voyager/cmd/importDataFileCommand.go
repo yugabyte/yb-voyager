@@ -59,7 +59,6 @@ func prepareForImportDataCmd() {
 		HasHeader:     hasHeader,
 		ExportDir:     exportDir,
 	}
-	fmt.Printf("fileOptsMap: %+v\n", fileOptsMap)
 	if fileOptsMap["quote_char"] != "" {
 		quoteCharBytes := []byte(fileOptsMap["quote_char"])
 		dfd.QuoteChar = quoteCharBytes[0]
