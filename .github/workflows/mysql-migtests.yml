@@ -14,7 +14,7 @@ jobs:
         EXPERIMENTAL_FAST_EXPORT: [0, 1]
     env:
       EXPERIMENTAL_FAST_EXPORT: ${{ matrix.EXPERIMENTAL_FAST_EXPORT }}
-    if: ${{ (github.event_name != 'pull_request') || (github.event_name== 'pull_request' && matrix.version == '2.18.0.0-b65') }}
+    if: (github.event_name != 'pull_request') || (github.event_name== 'pull_request' && matrix.version == '2.18.0.0-b65')
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
