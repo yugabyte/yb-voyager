@@ -156,21 +156,6 @@ func CleanDir(dir string) {
 	}
 }
 
-func ClearMatchingFiles(filePattern string) {
-	log.Infof("Clearing files matching with pattern: %s", filePattern)
-	files, err := filepath.Glob(filePattern)
-	if err != nil {
-		ErrExit("failed to list files matching with the given pattern: %s", err)
-	}
-	for _, file := range files {
-		log.Infof("Removing file: %q", file)
-		err := os.RemoveAll(file)
-		if err != nil {
-			ErrExit("delete file %q: %s", file, err)
-		}
-	}
-}
-
 func PrintIfTrue(message string, args ...bool) {
 	for i := 0; i < len(args); i++ {
 		if !args[i] {
@@ -344,4 +329,3 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 	}
 }
-
