@@ -32,7 +32,7 @@ func findDebeziumDistribution() error {
 	} else {
 		possiblePaths := []string{
 			"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/usr/localCellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+			"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
 			"/opt/yb-voyager/debezium-server"}
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
