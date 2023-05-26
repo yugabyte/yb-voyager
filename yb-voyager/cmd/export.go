@@ -106,8 +106,10 @@ func setExportFlagsDefaults() {
 
 	val, ok := os.LookupEnv("BETA_FAST_DATA_EXPORT")
 	if ok {
-		utils.PrintAndLog("Note: Experimental feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 		useDebezium = (val == "true" || val == "1" || val == "yes")
+	}
+	if useDebezium {
+		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 }
 
