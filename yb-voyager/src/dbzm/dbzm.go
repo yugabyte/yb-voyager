@@ -18,7 +18,6 @@ var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 // These versions need to be changed at the time of a release
 const DEBEZIUM_VERSION = "2.2.0-1.3.0"
-const BASE_DEBEZIUM_VERSION = "2.2.0"
 
 type Debezium struct {
 	*Config
@@ -32,8 +31,8 @@ func findDebeziumDistribution() error {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
 		possiblePaths := []string{
-			"/opt/homebrew/Cellar/debezium@" + BASE_DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/usr/localCellar/debezium@" + BASE_DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+			"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+			"/usr/localCellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
 			"/opt/yb-voyager/debezium-server"}
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
