@@ -22,47 +22,6 @@ func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{exportDir: exportDir}
 }
 
-func (s *ImportDataState) getBatches(tableName string, states string) ([]*Batch, error) {
-	var result []*Batch
-
-	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[%s]", exportDir, metaInfoDirName, tableName, states)
-	batchFiles, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("error while globbing for %s: %w", pattern, err)
-	}
-	splitFileNameRegexStr := fmt.Sprintf(`.+/%s\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.[CPD]$`, tableName)
-	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
-
-	for _, filepath := range batchFiles {
-		matches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
-		for _, match := range matches {
-			/*
-				offsets are 0-based, while numLines are 1-based
-				offsetStart is the line in original datafile from where current split starts
-				offsetEnd   is the line in original datafile from where next split starts
-			*/
-			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-			recordCount, _ := strconv.ParseInt(match[3], 10, 64)
-			byteCount, _ := strconv.ParseInt(match[4], 10, 64)
-			offsetStart := offsetEnd - recordCount
-			batch := &Batch{
-				SchemaName:  "",
-				TableName:   tableName,
-				FilePath:    filepath,
-				Number:      splitNum,
-				OffsetStart: offsetStart,
-				OffsetEnd:   offsetEnd,
-				ByteCount:   byteCount,
-				RecordCount: recordCount,
-			}
-			result = append(result, batch)
-		}
-	}
-	return result, nil
-
-}
-
 func (s *ImportDataState) GetPendingBatches(tableName string) ([]*Batch, error) {
 	return s.getBatches(tableName, "CP")
 }
@@ -148,6 +107,47 @@ func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]
 
 func (s *ImportDataState) NewBatchWriter(tableName string, batchNumber int64) *BatchWriter {
 	return &BatchWriter{state: s, tableName: tableName, batchNumber: batchNumber}
+}
+
+func (s *ImportDataState) getBatches(tableName string, states string) ([]*Batch, error) {
+	var result []*Batch
+
+	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[%s]", exportDir, metaInfoDirName, tableName, states)
+	batchFiles, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("error while globbing for %s: %w", pattern, err)
+	}
+	splitFileNameRegexStr := fmt.Sprintf(`.+/%s\.(\d+)\.(\d+)\.(\d+)\.(\d+)\.[CPD]$`, tableName)
+	splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
+
+	for _, filepath := range batchFiles {
+		matches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
+		for _, match := range matches {
+			/*
+				offsets are 0-based, while numLines are 1-based
+				offsetStart is the line in original datafile from where current split starts
+				offsetEnd   is the line in original datafile from where next split starts
+			*/
+			splitNum, _ := strconv.ParseInt(match[1], 10, 64)
+			offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
+			recordCount, _ := strconv.ParseInt(match[3], 10, 64)
+			byteCount, _ := strconv.ParseInt(match[4], 10, 64)
+			offsetStart := offsetEnd - recordCount
+			batch := &Batch{
+				SchemaName:  "",
+				TableName:   tableName,
+				FilePath:    filepath,
+				Number:      splitNum,
+				OffsetStart: offsetStart,
+				OffsetEnd:   offsetEnd,
+				ByteCount:   byteCount,
+				RecordCount: recordCount,
+			}
+			result = append(result, batch)
+		}
+	}
+	return result, nil
+
 }
 
 //============================================================================
