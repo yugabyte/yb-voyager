@@ -342,9 +342,10 @@ func importData() {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
+	state := NewImportDataState(exportDir)
 	determineTablesToImport()
 	if startClean {
-		cleanImportState()
+		cleanImportState(state)
 	}
 	if target.VerboseMode {
 		fmt.Printf("all the tables to be imported: %v\n", allTables)
@@ -355,7 +356,6 @@ func importData() {
 		fmt.Printf("All the tables are already imported, nothing left to import\n")
 	} else {
 		fmt.Printf("Importing tables: %v\n", importTables)
-		state := NewImportDataState(exportDir)
 		initializeImportDataStatus(state, exportDir, importTables)
 		if !disablePb {
 			go importDataStatus()
@@ -478,9 +478,10 @@ func determineTablesToImport() {
 	}
 }
 
-func cleanImportState() {
+func cleanImportState(state *ImportDataState) {
 	conn := newTargetConn()
 	defer conn.Close(context.Background())
+
 	nonEmptyTableNames := getNonEmptyTables(conn, allTables)
 	if len(nonEmptyTableNames) > 0 {
 		utils.ErrExit("Following tables are not empty. "+
@@ -488,18 +489,11 @@ func cleanImportState() {
 			strings.Join(nonEmptyTableNames, ", "))
 	}
 
-	for _, table := range allTables {
-		tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
-		filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
-		log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
-		utils.ClearMatchingFiles(filePattern)
-
-		cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
-		res, err := conn.Exec(context.Background(), cmd)
+	for _, tableName := range allTables {
+		err := state.Clean(tableName, conn)
 		if err != nil {
-			utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
+			utils.ErrExit("failed to clean import data state for table %q: %s", tableName, err)
 		}
-		log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	}
 
 	importTables = allTables //since all tables needs to imported now

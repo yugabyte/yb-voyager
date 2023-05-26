@@ -67,6 +67,29 @@ func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, boo
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
+func (s *ImportDataState) Clean(tableName string, conn *pgx.Conn) error {
+	log.Infof("Cleaning import data state for table %q.", tableName)
+	batches, err := s.GetAllBatches(tableName)
+	if err != nil {
+		return fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+	}
+	for _, batch := range batches {
+		err = batch.Delete()
+		if err != nil {
+			return fmt.Errorf("error while deleting batch %d for %s: %w", batch.Number, tableName, err)
+		}
+	}
+	// Delete all entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo for this table.
+	metaInfoTableName := "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo"
+	cmd := fmt.Sprintf(`DELETE FROM %s WHERE file_name LIKE '%s.%%'`, metaInfoTableName, tableName)
+	res, err := conn.Exec(context.Background(), cmd)
+	if err != nil {
+		return fmt.Errorf("remove %q related entries from %s: %w", tableName, metaInfoTableName, err)
+	}
+	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
+	return nil
+}
+
 func (s *ImportDataState) GetImportedRowCount(tableNames []string) (map[string]int64, error) {
 	result := make(map[string]int64)
 
@@ -264,6 +287,16 @@ type Batch struct {
 
 func (batch *Batch) Open() (*os.File, error) {
 	return os.Open(batch.FilePath)
+}
+
+func (batch *Batch) Delete() error {
+	err := os.RemoveAll(batch.FilePath)
+	if err != nil {
+		return fmt.Errorf("remove %q: %s", batch.FilePath, err)
+	}
+	log.Infof("Deleted %q", batch.FilePath)
+	batch.FilePath = ""
+	return nil
 }
 
 func (batch *Batch) IsDone() bool {
