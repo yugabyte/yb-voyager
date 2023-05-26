@@ -34,6 +34,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -42,7 +43,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -57,9 +57,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
-var batchImportSemaphore *semaphore.Weighted
-var batchImportWorkGroup sync.WaitGroup
-
+var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
@@ -372,12 +370,12 @@ func importData() {
 		if !disablePb {
 			go importDataStatus()
 		}
-		batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
+		batchImportPool = pool.New().WithMaxGoroutines(parallelism)
 		for _, t := range importTables {
 			importTable(t, connPool)
 		}
 		// wait for all the import jobs to finish
-		batchImportWorkGroup.Wait()
+		batchImportPool.Wait()
 		Done.Set()
 		time.Sleep(time.Second * 2)
 	}
@@ -710,13 +708,9 @@ func submitBatchImportTask(schemaName string, tableName string, filepath string,
 	t.OffsetEnd = offsetEnd
 	t.Interrupted = interrupted
 
-	batchImportWorkGroup.Add(1)
-	batchImportSemaphore.Acquire(context.Background(), 1)
-	go func() {
+	batchImportPool.Go(func() {
 		doOneImport(t, connPool)
-		batchImportSemaphore.Release(1)
-		batchImportWorkGroup.Done()
-	}()
+	})
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
 
