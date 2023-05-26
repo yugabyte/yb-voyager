@@ -51,8 +51,8 @@ do
 				exported_vars="${exported_vars} -e $var"
 			done
 
-			# Capture EXPERIMENTAL_FAST_EXPORT variable
-			var=$(env | grep -E 'EXPERIMENTAL_FAST_EXPORT')
+			# Capture BETA_FAST_DATA_EXPORT variable
+			var=$(env | grep -E 'BETA_FAST_DATA_EXPORT')
 			if [[ -n "$var" ]]
 			then
 				exported_vars="${exported_vars} -e $var"
