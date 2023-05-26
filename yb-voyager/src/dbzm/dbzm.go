@@ -17,7 +17,7 @@ import (
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 // These versions need to be changed at the time of a release
-const DEBEZIUM_VERSION = "2.2.0-voyager-1.3"
+const DEBEZIUM_VERSION = "2.2.0-1.3.0"
 const BASE_DEBEZIUM_VERSION = "2.2.0"
 
 type Debezium struct {
