@@ -108,6 +108,9 @@ func setExportFlagsDefaults() {
 	if ok {
 		useDebezium = (val == "true" || val == "1" || val == "yes")
 	}
+	if useDebezium {
+		utils.PrintAndLog("Note: Experimental feature to accelerate data export is enabled by setting EXPERIMENTAL_FAST_EXPORT environment variable")
+	}
 }
 
 func setSourceDefaultPort() {
