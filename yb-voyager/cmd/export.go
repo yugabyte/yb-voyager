@@ -104,9 +104,9 @@ func setExportFlagsDefaults() {
 	setSourceDefaultPort() //will set only if required
 	setDefaultSSLMode()
 
-	val, ok := os.LookupEnv("EXPERIMENTAL_FAST_EXPORT")
+	val, ok := os.LookupEnv("BETA_FAST_DATA_EXPORT")
 	if ok {
-		utils.PrintAndLog("Note: Experimental feature to accelerate data export is enabled by setting EXPERIMENTAL_FAST_EXPORT environment variable")
+		utils.PrintAndLog("Note: Experimental feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 		useDebezium = (val == "true" || val == "1" || val == "yes")
 	}
 }
