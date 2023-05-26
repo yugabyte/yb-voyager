@@ -10,12 +10,13 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -38,7 +39,6 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		checkImportDataFileFlags(cmd)
-		escapeFileOptsCharsIfRequired()
 		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
@@ -59,13 +59,16 @@ func prepareForImportDataCmd() {
 		ExportDir:     exportDir,
 	}
 	if fileOptsMap["quote_char"] != "" {
-		dfd.QuoteChar = byte(fileOptsMap["quote_char"][0])
+		quoteCharBytes := []byte(fileOptsMap["quote_char"])
+		dfd.QuoteChar = quoteCharBytes[0]
 	}
 	if fileOptsMap["escape_char"] != "" {
-		dfd.EscapeChar = byte(fileOptsMap["escape_char"][0])
+		escapeCharBytes := []byte(fileOptsMap["escape_char"])
+		dfd.EscapeChar = escapeCharBytes[0]
 	}
 	dfd.Save()
 
+	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	createDataFileSymLinks()
 	prepareCopyCommands()
 	setImportTableListFlag()
@@ -130,15 +133,16 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', HEADER,`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
+					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 				df.Close()
 			} else {
-				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', `,
-					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
+					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
-			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', `, table, fileFormat, []rune(delimiter)[0])
+			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
+				table, fileFormat, []rune(delimiter)[0], nullString)
 		} else {
 			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
@@ -253,12 +257,12 @@ func checkDataDirFlag() {
 }
 
 func checkDelimiterFlag() {
-	var err error
-	delimiter, err = strconv.Unquote(`"` + delimiter + `"`)
-	if err != nil || len(delimiter) != 1 {
-		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %q. It should be a valid single-byte value.", delimiter)
+	resolvedDelimiter, ok := resolveAndCheckSingleByteChar(delimiter)
+	if !ok {
+		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
 	}
-	log.Infof("resolved delimiter value: %q", delimiter)
+	log.Infof("resolved delimiter value: %q", resolvedDelimiter)
+	delimiter = resolvedDelimiter
 }
 
 func checkHasHeader() {
@@ -285,10 +289,13 @@ func checkAndParseFileOpts() {
 			key = strings.ToLower(key)
 			if !slices.Contains(supportedCsvFileOpts, key) {
 				utils.ErrExit("ERROR: %q is not a valid csv file option", key)
-			} else if len(value) != 1 {
-				utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
+			} else {
+				resolvedValue, ok := resolveAndCheckSingleByteChar(value)
+				if !ok {
+					utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
+				}
+				fileOptsMap[key] = resolvedValue
 			}
-			fileOptsMap[key] = value
 		}
 
 	case datafile.TEXT:
@@ -304,15 +311,37 @@ func checkAndParseFileOpts() {
 	log.Infof("fileOptsMap: %v", fileOptsMap)
 }
 
+func setDefaultForNullString() {
+	if nullString == "" {
+		switch fileFormat {
+		case datafile.CSV:
+			nullString = ""
+		case datafile.TEXT:
+			nullString = "\\N"
+		default:
+			panic("unsupported file format")
+		}
+	}
+}
+
 // escaping single quote character
 func escapeFileOptsCharsIfRequired() {
-	if fileOptsMap["escape_char"] == "'" {
-		fileOptsMap["escape_char"] = "''"
+	if fileOptsMap["escape_char"] == `'` {
+		fileOptsMap["escape_char"] = `\'`
 	}
 
-	if fileOptsMap["quote_char"] == "'" {
-		fileOptsMap["quote_char"] = "''"
+	if fileOptsMap["quote_char"] == `'` {
+		fileOptsMap["quote_char"] = `\'`
 	}
+
+	if fileOptsMap["escape_char"] == `\` {
+		fileOptsMap["escape_char"] = `\\`
+	}
+
+	if fileOptsMap["quote_char"] == `\` {
+		fileOptsMap["quote_char"] = `\\`
+	}
+
 }
 
 func init() {
