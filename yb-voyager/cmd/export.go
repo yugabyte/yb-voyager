@@ -106,6 +106,7 @@ func setExportFlagsDefaults() {
 
 	val, ok := os.LookupEnv("EXPERIMENTAL_FAST_EXPORT")
 	if ok {
+		utils.PrintAndLog("Note: Experimental feature to accelerate data export is enabled by setting EXPERIMENTAL_FAST_EXPORT environment variable")
 		useDebezium = (val == "true" || val == "1" || val == "yes")
 	}
 }
