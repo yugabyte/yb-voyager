@@ -33,6 +33,7 @@ func OpenDescriptor(exportDir string) *Descriptor {
 	log.Infof("loading DataFileDescriptor from %q", filePath)
 	dfdJson, err := os.ReadFile(filePath)
 	if err != nil {
+		panic(fmt.Sprintf("Could not read file %q: %v", filePath, err))
 		utils.ErrExit("load data descriptor file: %v", err)
 	}
 
