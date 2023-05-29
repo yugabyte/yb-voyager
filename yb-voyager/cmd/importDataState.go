@@ -34,6 +34,43 @@ func (s *ImportDataState) GetAllBatches(tableName string) ([]*Batch, error) {
 	return s.getBatches(tableName, "CPD")
 }
 
+type TableImportState string
+
+const (
+	TABLE_IMPORT_NOT_STARTED TableImportState = "TABLE_IMPORT_NOT_STARTED"
+	TABLE_IMPORT_IN_PROGRESS TableImportState = "TABLE_IMPORT_IN_PROGRESS"
+	TABLE_IMPORT_COMPLETED   TableImportState = "TABLE_IMPORT_COMPLETED"
+)
+
+func (s *ImportDataState) GetTableImportState(tableName string) (TableImportState, error) {
+	batches, err := s.GetAllBatches(tableName)
+	if err != nil {
+		return TABLE_IMPORT_NOT_STARTED, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+	}
+	if len(batches) == 0 {
+		return TABLE_IMPORT_NOT_STARTED, nil
+	}
+	batchGenerationCompleted := false
+	interruptedCount, doneCount := 0, 0
+	for _, batch := range batches {
+		if batch.IsDone() {
+			doneCount++
+		} else if batch.IsInterrupted() {
+			interruptedCount++
+		}
+		if batch.Number == LAST_SPLIT_NUM {
+			batchGenerationCompleted = true
+		}
+	}
+	if doneCount == len(batches) && batchGenerationCompleted {
+		return TABLE_IMPORT_COMPLETED, nil
+	}
+	if interruptedCount == 0 && doneCount == 0 {
+		return TABLE_IMPORT_NOT_STARTED, nil
+	}
+	return TABLE_IMPORT_IN_PROGRESS, nil
+}
+
 func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, bool, error) {
 	var pendingBatches []*Batch
 
@@ -297,6 +334,14 @@ func (batch *Batch) Delete() error {
 	log.Infof("Deleted %q", batch.FilePath)
 	batch.FilePath = ""
 	return nil
+}
+
+func (batch *Batch) ImportIsNotStarted() bool {
+	return strings.HasSuffix(batch.FilePath, ".C")
+}
+
+func (batch *Batch) IsInterrupted() bool {
+	return strings.HasSuffix(batch.FilePath, ".P")
 }
 
 func (batch *Batch) IsDone() bool {
