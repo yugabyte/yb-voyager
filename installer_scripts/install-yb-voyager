@@ -14,7 +14,7 @@ VERSION="latest"
 DEBEZIUM_RELEASE_TAG="2.2.0-1.3.0"
 DEBEZIUM_VERSION="2.2.0-1.3.0"
 
-# the hash corresponds to the yb-voyager/v1.2.0 tag
+# the hash corresponds to the yb-voyager/v1.3.0 tag
 YB_VOYAGER_GIT_HASH="6eda1db635805279646b0ad6decda90e4e6cea02"
 
 ONLY_PG="false"
