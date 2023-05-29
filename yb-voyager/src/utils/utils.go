@@ -262,11 +262,13 @@ func SetDifference(includeList []string, excludeList []string) []string {
 }
 
 func CsvStringToSlice(str string) []string {
-	result := strings.Split(str, ",")
-	for i := 0; i < len(result); i++ {
-		result[i] = strings.TrimSpace(result[i])
+	result := []string{}
+	for _, s := range strings.Split(str, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
 	}
-
 	return result
 }
 
