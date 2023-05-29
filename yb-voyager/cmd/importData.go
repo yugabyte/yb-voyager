@@ -101,6 +101,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	checkExportDataDoneFlag()
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	importData()
 }
 
@@ -311,7 +312,6 @@ func importData() {
 
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 	payload.NodeCount = len(targets)
 
