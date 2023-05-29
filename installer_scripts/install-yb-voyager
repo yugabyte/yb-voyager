@@ -104,6 +104,8 @@ main() {
 			exit 1
 			;;
 	esac
+	echo "TESTING"
+	echo $YB_VOYAGER_GIT_HASH
 }
 
 
