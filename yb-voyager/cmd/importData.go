@@ -43,7 +43,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
-	"golang.org/x/sync/semaphore"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -59,7 +58,6 @@ var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
 var Done = abool.New()
 var batchImportPool *pool.Pool
-var batchImportSemaphore *semaphore.Weighted
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
@@ -339,7 +337,7 @@ func importData() {
 	}
 
 	params := &tgtdb.ConnectionParams{
-		NumConnections:    parallelImportJobs + 1,
+		NumConnections:    parallelImportJobs,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(),
 	}
@@ -379,7 +377,6 @@ func importData() {
 		// The code can produce `poolSize` number of batches at a time. But, it can consume only
 		// `parallelism` number of batches at a time.
 		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-		batchImportSemaphore = semaphore.NewWeighted(int64(parallelism))
 		for _, t := range importTables {
 			importTable(t, connPool)
 		}
@@ -718,11 +715,10 @@ func submitBatchImportTask(schemaName string, tableName string, filepath string,
 	t.Interrupted = interrupted
 
 	batchImportPool.Go(func() {
-		// There are `poolSize` number of competing go-routines for the semaphore.
-		// But only `parallelism` number of go-routines can acquire the semaphore at a time.
-		batchImportSemaphore.Acquire(context.Background(), 1)
+		// There are `poolSize` number of competing go-routines trying to invoke COPY.
+		// But the `connPool` will allow only `parallelism` number of connections to be
+		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		doOneImport(t, connPool)
-		batchImportSemaphore.Release(1)
 	})
 	log.Infof("Queued an import task: %s", spew.Sdump(t))
 }
