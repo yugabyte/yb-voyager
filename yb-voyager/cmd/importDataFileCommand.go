@@ -44,7 +44,8 @@ var importDataFileCmd = &cobra.Command{
 		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
-		importData(nil)
+		importFileToTableMap := prepareFileToTableMapping()
+		importData(importFileToTableMap)
 	},
 }
 
@@ -68,6 +69,9 @@ func prepareForImportDataCmd() {
 		escapeCharBytes := []byte(escapeChar)
 		dataFileDescriptor.EscapeChar = escapeCharBytes[0]
 	}
+	// `import data status` depends on the saved descriptor file for the file-sizes.
+	// Can't get rid of it until we extract the file-size info out of descriptor file.
+	dataFileDescriptor.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	createDataFileSymLinks()
@@ -122,7 +126,6 @@ func createDataFileSymLinks() {
 
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	for table, filePath := range tableNameVsFilePath {
 		cmd := ""
 		if fileFormat == datafile.CSV {
@@ -159,6 +162,19 @@ func setImportTableListFlag() {
 	}
 
 	target.TableList = strings.Join(tableList, ",")
+}
+
+func prepareFileToTableMapping() map[string]string {
+	result := make(map[string]string)
+	if fileTableMapping != "" {
+		kvs := strings.Split(fileTableMapping, ",")
+		for _, kv := range kvs {
+			fileName, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
+			filePath := dataStore.Join(dataDir, fileName)
+			result[filePath] = table
+		}
+	}
+	return result
 }
 
 func parseFileTableMapping() {

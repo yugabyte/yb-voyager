@@ -594,7 +594,6 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
 	}
 
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
