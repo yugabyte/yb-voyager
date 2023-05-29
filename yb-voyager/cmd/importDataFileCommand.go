@@ -52,7 +52,7 @@ func prepareForImportDataCmd() {
 	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
 	tableFileSize := getFileSizeInfo()
-	dfd := &datafile.Descriptor{
+	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:    fileFormat,
 		TableFileSize: tableFileSize,
 		Delimiter:     delimiter,
@@ -61,13 +61,12 @@ func prepareForImportDataCmd() {
 	}
 	if fileOptsMap["quote_char"] != "" {
 		quoteCharBytes := []byte(fileOptsMap["quote_char"])
-		dfd.QuoteChar = quoteCharBytes[0]
+		dataFileDescriptor.QuoteChar = quoteCharBytes[0]
 	}
 	if fileOptsMap["escape_char"] != "" {
 		escapeCharBytes := []byte(fileOptsMap["escape_char"])
-		dfd.EscapeChar = escapeCharBytes[0]
+		dataFileDescriptor.EscapeChar = escapeCharBytes[0]
 	}
-	dfd.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	createDataFileSymLinks()
