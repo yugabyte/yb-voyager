@@ -92,15 +92,16 @@ var importDataCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
 	},
+	Run: importDataCommandFn,
+}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		target.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		sqlname.SourceDBType = sourceDBType
-		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
-		checkExportDataDoneFlag()
-		importData()
-	},
+func importDataCommandFn(cmd *cobra.Command, args []string) {
+	target.ImportMode = true
+	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	sqlname.SourceDBType = sourceDBType
+	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
+	checkExportDataDoneFlag()
+	importData()
 }
 
 func getYBServers() []*tgtdb.Target {
