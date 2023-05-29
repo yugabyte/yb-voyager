@@ -343,7 +343,7 @@ func importData() {
 	}
 
 	state := NewImportDataState(exportDir)
-	determineTablesToImport()
+	determineTablesToImport(state)
 	if startClean {
 		cleanImportState(state)
 	}
@@ -432,8 +432,8 @@ outer:
 	return nil
 }
 
-func determineTablesToImport() {
-	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
+func determineTablesToImport(state *ImportDataState) {
+	doneTables, interruptedTables, remainingTables, _ := getTablesToImport(state)
 
 	log.Infof("doneTables: %s", doneTables)
 	log.Infof("interruptedTables: %s", interruptedTables)
@@ -639,8 +639,7 @@ func executePostImportDataSqls() {
 	}
 }
 
-func getTablesToImport() ([]string, []string, []string, error) {
-	metaInfoDataDir := filepath.Join(exportDir, metaInfoDirName, "data")
+func getTablesToImport(state *ImportDataState) ([]string, []string, []string, error) {
 	exportDataDir := filepath.Join(exportDir, "data")
 	_, err := os.Stat(exportDataDir)
 	if err != nil {
@@ -666,30 +665,20 @@ func getTablesToImport() ([]string, []string, []string, error) {
 	var interruptedTables []string
 	var remainingTables []string
 	for _, t := range tables {
-
-		donePattern := fmt.Sprintf("%s/%s.%s.D", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		interruptedPattern := fmt.Sprintf("%s/%s.%s.P", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		createdPattern := fmt.Sprintf("%s/%s.%s.C", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		lastSplitPattern := fmt.Sprintf("%s/%s.%s.[CPD]", metaInfoDataDir, t, LAST_SPLIT_PATTERN)
-
-		doneMatches, _ := filepath.Glob(donePattern)
-		interruptedMatches, _ := filepath.Glob(interruptedPattern)
-		createdMatches, _ := filepath.Glob(createdPattern)
-		lastSplitMatches, _ := filepath.Glob(lastSplitPattern)
-
-		if len(lastSplitMatches) > 1 {
-			utils.ErrExit("More than one last split is present, which is not valid scenario. last split names are: %v", lastSplitMatches)
+		tableImportState, err := state.GetTableImportState(t)
+		if err != nil {
+			utils.ErrExit("getting table import state for %q: %s", t, err)
 		}
-
-		if len(lastSplitMatches) > 0 && len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
+		log.Infof("Table %q import state: %s", t, tableImportState)
+		switch tableImportState {
+		case TABLE_IMPORT_COMPLETED:
 			doneTables = append(doneTables, t)
-		} else {
-			if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
-				(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
-				remainingTables = append(remainingTables, t)
-			} else {
-				interruptedTables = append(interruptedTables, t)
-			}
+		case TABLE_IMPORT_IN_PROGRESS:
+			interruptedTables = append(interruptedTables, t)
+		case TABLE_IMPORT_NOT_STARTED:
+			remainingTables = append(remainingTables, t)
+		default:
+			utils.ErrExit("unknown table import state %q for table %q", tableImportState, t)
 		}
 	}
 
