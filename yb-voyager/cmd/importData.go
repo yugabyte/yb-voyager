@@ -102,7 +102,52 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	checkExportDataDoneFlag()
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	importData()
+	importFileToTableMap := discoverFilesToImport()
+	importFileToTableMap = applyTableListFilter(importFileToTableMap)
+	importData(importFileToTableMap)
+}
+
+func discoverFilesToImport() map[string]string {
+	result := make(map[string]string)
+	exportDataDir := filepath.Join(exportDir, "data")
+	_, err := os.Stat(exportDataDir)
+	if err != nil {
+		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
+	}
+	// Collect all the data files
+	dataFilePatern := fmt.Sprintf("%s/*_data.sql", exportDataDir)
+	datafiles, err := filepath.Glob(dataFilePatern)
+	if err != nil {
+		utils.ErrExit("find data files in %q: %s", exportDataDir, err)
+	}
+
+	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
+	for _, v := range datafiles {
+		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
+		for _, match := range tablenameMatches {
+			tableName := match[1]
+			result[v] = tableName
+		}
+	}
+	return result
+}
+
+func applyTableListFilter(importFileToTableMap map[string]string) map[string]string {
+	result := make(map[string]string)
+	includeList := utils.CsvStringToSlice(target.TableList)
+	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
+	for fileName, tableName := range importFileToTableMap {
+		if len(includeList) > 0 && !slices.Contains(includeList, tableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", tableName, fileName)
+			continue
+		}
+		if len(excludeList) > 0 && slices.Contains(excludeList, tableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", tableName, fileName)
+			continue
+		}
+		result[fileName] = tableName
+	}
+	return result
 }
 
 func getYBServers() []*tgtdb.Target {
@@ -300,7 +345,7 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 	return cloneConnectionUri
 }
 
-func importData() {
+func importData(importFileToTableMap map[string]string) {
 	utils.PrintAndLog("import of data in %q database started", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {

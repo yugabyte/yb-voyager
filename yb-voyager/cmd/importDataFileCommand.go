@@ -43,7 +43,7 @@ var importDataFileCmd = &cobra.Command{
 		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
-		importData()
+		importData(nil)
 	},
 }
 
