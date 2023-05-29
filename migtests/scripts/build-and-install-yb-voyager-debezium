@@ -221,7 +221,7 @@ check_java() {
 		else
 			JAVAC_BINARY="$JAVA_HOME/bin/javac"
 		fi
-        MIN_REQUIRED_MAJOR_VERSION='11'
+        MIN_REQUIRED_MAJOR_VERSION='17'
 		JDK_MAJOR_VER=$(${JAVAC_BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
 
         if ([ -n "$JDK_MAJOR_VER" ] && (( 10#${JDK_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
@@ -262,7 +262,7 @@ install_maven() {
 }
 
 install_debezium_server() {
-	output "Installing debezium"
+	output "Installing debezium. It might take up to 15 minutes."
 	debezium_server_dist_filename="debezium-server-dist-${DEBEZIUM_VERSION}.tar.gz"
 	# download
 	wget -nv https://github.com/yugabyte/debezium/archive/${DEBEZIUM_REF}.tar.gz -O debezium.tar.gz 1>&2

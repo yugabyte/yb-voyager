@@ -10,8 +10,12 @@ ARGS_LINUX=$@
 
 VERSION="latest"
 
-# the hash corresponds to the yb-voyager/v1.2.0 tag
-YB_VOYAGER_GIT_HASH="6088893747f05aa0d56307e76f0cb3273006a2f5"
+# This needs to be changed to the latest debezium release tag
+DEBEZIUM_RELEASE_TAG="2.2.0-1.3.0"
+DEBEZIUM_VERSION="2.2.0-1.3.0"
+
+# the hash corresponds to the yb-voyager/v1.3.0 tag
+YB_VOYAGER_GIT_HASH="6eda1db635805279646b0ad6decda90e4e6cea02"
 
 ONLY_PG="false"
 
@@ -105,6 +109,7 @@ main() {
 
 centos_main() {
 	check_binutils_version
+	check_java
 	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
@@ -121,6 +126,7 @@ centos_main() {
 		install_ora2pg
 		create_base_ora2pg_conf_file
 	fi
+	install_debezium_server
 	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
@@ -131,6 +137,7 @@ centos_main() {
 
 ubuntu_main() {
 	check_binutils_version
+	check_java
 	output "Installing packages."
 	sudo apt update 1>&2
 	sudo apt-get -y install wget  1>&2
@@ -148,6 +155,7 @@ ubuntu_main() {
 		install_ora2pg
 		create_base_ora2pg_conf_file
 	fi
+	install_debezium_server
 	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
@@ -161,9 +169,12 @@ macos_main() {
 	output "NOTE: From MacOS, yb-voyager can only migrate PostgreSQL databases."
 	output "      Use a CentOS/Ubuntu machine to migrate from Oracle/MySQL. "
 	output "=================================================="
+	check_java
 	macos_install_brew
 	macos_install_pg_dump
+	brew install wget
 	install_golang darwin
+	install_debezium_server
 	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
@@ -172,6 +183,37 @@ macos_main() {
 #=============================================================================
 # COMMON
 #=============================================================================
+
+check_java() {
+	if [ -z "$JAVA_HOME" ]; then
+		JAVA_BINARY="java"
+	else
+		JAVA_BINARY="$JAVA_HOME/bin/java"
+	fi
+
+    MIN_REQUIRED_MAJOR_VERSION='17'
+	JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+
+    if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
+    then
+        output "Found sufficient java version = ${JAVA_MAJOR_VER}"
+    else
+        output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
+		exit 1;
+    fi
+}
+
+install_debezium_server() {
+	output "Installing debezium"
+	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
+	# move to /opt/yb-voyager/debezium-server
+	sudo mkdir -p /opt/yb-voyager
+	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
+	# cleanup
+	rm ${debezium_server_filename}
+}
 
 get_passed_options() {
 	if [ "$1" == "linux" ]
@@ -187,6 +229,7 @@ get_passed_options() {
 		case "$1" in
 			-l | --install-from-local-source ) 
 				VERSION="local"
+				DEBEZIUM_TARBALL_VERSION="latest"
 				shift
 				;;
 			-p | --only-pg-support ) 
