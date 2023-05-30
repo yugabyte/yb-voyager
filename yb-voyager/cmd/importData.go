@@ -426,11 +426,19 @@ func importData(importFileTasks []*ImportFileTask) {
 		// The code can produce `poolSize` number of batches at a time. But, it can consume only
 		// `parallelism` number of batches at a time.
 		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
-			importFile(state, task, connPool)
+			totalProgressAmount := getTotalProgressAmount(task)
+			progressReporter.ImportFileStarted(task, totalProgressAmount)
+			importedProgressAmount := getImportedProgressAmount(task, state)
+			progressReporter.AddProgressAmount(task, importedProgressAmount)
+			updateProgressFn := func(progressAmount int64) {
+				progressReporter.AddProgressAmount(task, progressAmount)
+			}
+			importFile(state, task, connPool, updateProgressFn)
+			batchImportPool.Wait()                // Wait for the file import to finish.
+			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 		}
-		// wait for all the import jobs to finish
-		batchImportPool.Wait()
 		Done.Set()
 		time.Sleep(time.Second * 2)
 	}
@@ -449,6 +457,32 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 	fmt.Printf("\nexiting...\n")
+}
+
+func getTotalProgressAmount(task *ImportFileTask) int64 {
+	// TODO: Make dataFileDescriptor file-centric.
+	if dataFileDescriptor.TableRowCount != nil {
+		return dataFileDescriptor.TableRowCount[task.TableName]
+	} else {
+		return dataFileDescriptor.TableFileSize[task.TableName]
+	}
+}
+
+func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
+	if dataFileDescriptor.TableRowCount != nil {
+		// TODO: Change GetImportedRowCount to take just a single table.
+		result, err := state.GetImportedRowCount([]string{task.TableName})
+		if err != nil {
+			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableName, err)
+		}
+		return result[task.TableName]
+	} else {
+		result, err := state.GetImportedByteCount([]string{task.TableName})
+		if err != nil {
+			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableName, err)
+		}
+		return result[task.TableName]
+	}
 }
 
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
@@ -562,7 +596,8 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool) {
+func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool,
+	updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
 	extractCopyStmtForTable(task.TableName, origDataFile)
@@ -574,14 +609,15 @@ func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.Co
 		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
 	}
 	for _, batch := range pendingBatches {
-		submitBatch(batch, connPool)
+		submitBatch(batch, connPool, updateProgressFn)
 	}
 	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, task.TableName, connPool, lastBatchNumber, lastOffset)
+		splitFilesForTable(state, origDataFile, task.TableName, connPool, lastBatchNumber, lastOffset, updateProgressFn)
 	}
 }
 
-func splitFilesForTable(state *ImportDataState, filePath string, t string, connPool *tgtdb.ConnectionPool, lastBatchNumber int64, lastOffset int64) {
+func splitFilesForTable(state *ImportDataState, filePath string, t string, connPool *tgtdb.ConnectionPool,
+	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64)) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
 	batchNum := lastBatchNumber + 1
 	numLinesTaken := lastOffset
@@ -652,7 +688,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 			}
 			dataFile.ResetBytesRead()
-			submitBatch(batch, connPool)
+			submitBatch(batch, connPool, updateProgressFn)
 
 			if !isLastBatch {
 				batchNum += 1
@@ -663,12 +699,17 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool) {
+func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool, updateProgressFn func(int64)) {
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		doOneImport(batch, connPool)
+		if dataFileDescriptor.TableRowCount != nil {
+			updateProgressFn(batch.RecordCount)
+		} else {
+			updateProgressFn(batch.ByteCount)
+		}
 	})
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 }
