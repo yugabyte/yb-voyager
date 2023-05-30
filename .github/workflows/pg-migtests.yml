@@ -36,7 +36,7 @@ jobs:
       # https://github.com/actions/setup-java
       with:
         distribution: 'temurin'
-        java-version: '17'
+        java-version: '11'
         check-latest: true
     - name: "Enable postgres with wal_level as logical"
       run: |
