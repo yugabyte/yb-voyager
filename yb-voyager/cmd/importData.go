@@ -45,7 +45,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/vbauerster/mpb/v7"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
@@ -62,12 +61,6 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
 
-type ProgressContainer struct {
-	mu        sync.Mutex
-	container *mpb.Progress
-}
-
-var importProgressContainer ProgressContainer
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = sync.Map{}
@@ -415,10 +408,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		// initializeImportDataStatus(state, exportDir, importTables)
-		// if !disablePb {
-		// 	go importDataStatus()
-		// }
 		poolSize := 20
 		if parallelism > poolSize {
 			poolSize = parallelism + parallelism/2
@@ -723,10 +712,6 @@ func executePostImportDataSqls() {
 }
 
 func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
-	//this is done to signal start progress bar for this table
-	// if tablesProgressMetadata[batch.TableName].CountLiveRows == -1 {
-	// 	tablesProgressMetadata[batch.TableName].CountLiveRows = 0
-	// }
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
@@ -770,11 +755,6 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
 		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
-	}
-	if dataFileDescriptor.TableRowCount != nil {
-		incrementImportProgressBar(batch.TableName, batch.RecordCount)
-	} else {
-		incrementImportProgressBar(batch.TableName, batch.ByteCount)
 	}
 	err = batch.MarkDone()
 	if err != nil {
@@ -1017,11 +997,6 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	return target.Schema // default set to "public"
-}
-
-func incrementImportProgressBar(tableName string, progressAmount int64) {
-	// tablesProgressMetadata[tableName].CountLiveRows += progressAmount
-	// log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
