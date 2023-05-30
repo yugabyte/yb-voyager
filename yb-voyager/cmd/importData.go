@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -69,8 +68,6 @@ type ProgressContainer struct {
 }
 
 var importProgressContainer ProgressContainer
-var importTables []string
-var allTables []string
 var usePublicIp bool
 var targetEndpoints string
 var copyTableFromCommands = sync.Map{}
@@ -399,24 +396,27 @@ func importData(importFileTasks []*ImportFileTask) {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
+	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
-	determineTablesToImport(state)
 	if startClean {
-		cleanImportState(state)
-	}
-	if target.VerboseMode {
-		fmt.Printf("all the tables to be imported: %v\n", allTables)
-		fmt.Printf("tables left to import: %v\n", importTables)
+		cleanImportState(state, importFileTasks)
+		pendingTasks = importFileTasks
+	} else {
+		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
+		if err != nil {
+			utils.ErrExit("Failed to classify tasks: %s", err)
+		}
+		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
-	if len(importTables) == 0 {
-		fmt.Printf("All the tables are already imported, nothing left to import\n")
+	if len(pendingTasks) == 0 {
+		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
-		fmt.Printf("Importing tables: %v\n", importTables)
-		initializeImportDataStatus(state, exportDir, importTables)
-		if !disablePb {
-			go importDataStatus()
-		}
+		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+		// initializeImportDataStatus(state, exportDir, importTables)
+		// if !disablePb {
+		// 	go importDataStatus()
+		// }
 		poolSize := 20
 		if parallelism > poolSize {
 			poolSize = parallelism + parallelism/2
@@ -424,8 +424,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		// The code can produce `poolSize` number of batches at a time. But, it can consume only
 		// `parallelism` number of batches at a time.
 		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-		for _, t := range importTables {
-			importTable(state, t, connPool)
+		for _, task := range pendingTasks {
+			importTable(state, task, connPool)
 		}
 		// wait for all the import jobs to finish
 		batchImportPool.Wait()
@@ -489,71 +489,55 @@ outer:
 	return nil
 }
 
-func determineTablesToImport(state *ImportDataState) {
-	doneTables, interruptedTables, remainingTables, _ := getTablesToImport(state)
-
-	log.Infof("doneTables: %s", doneTables)
-	log.Infof("interruptedTables: %s", interruptedTables)
-	log.Infof("remainingTables: %s", remainingTables)
-
-	if target.TableList == "" { //no table-list is given by user
-		importTables = append(interruptedTables, remainingTables...)
-		allTables = append(importTables, doneTables...)
-	} else {
-		allTables = utils.CsvStringToSlice(target.TableList)
-
-		//filter allTables to remove tables in case not present in --table-list flag
-		for _, table := range allTables {
-			//TODO: 'table' can be schema_name.table_name, so split and proceed
-			notDone := true
-			for _, t := range doneTables {
-				if t == table {
-					notDone = false
-					break
-				}
-			}
-
-			if notDone {
-				importTables = append(importTables, table)
-			}
-		}
-		if target.VerboseMode {
-			fmt.Printf("given table-list: %v\n", target.TableList)
-		}
+func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
+	tableNames := []string{}
+	for _, t := range tasks {
+		tableNames = append(tableNames, t.TableName)
 	}
-
-	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
-	importTables = utils.SetDifference(importTables, excludeTableList)
-	allTables = utils.SetDifference(allTables, excludeTableList)
-	sort.Strings(allTables)
-	sort.Strings(importTables)
-
-	log.Infof("allTables: %s", allTables)
-	log.Infof("importTables: %s", importTables)
-	if !startClean {
-		fmt.Printf("skipping already imported tables: %s\n", doneTables)
-	}
+	return utils.Uniq(tableNames)
 }
 
-func cleanImportState(state *ImportDataState) {
+func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
+	inProgressTasks := []*ImportFileTask{}
+	notStartedTasks := []*ImportFileTask{}
+	for _, t := range tasks {
+		s, err := state.GetTableImportState(t.FilePath, t.TableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get table import state: %w", err)
+		}
+		switch s {
+		case TABLE_IMPORT_COMPLETED:
+			completedTasks = append(completedTasks, t)
+		case TABLE_IMPORT_IN_PROGRESS:
+			inProgressTasks = append(inProgressTasks, t)
+		case TABLE_IMPORT_NOT_STARTED:
+			notStartedTasks = append(notStartedTasks, t)
+		default:
+			return nil, nil, fmt.Errorf("invalid table import state: %s", s)
+		}
+	}
+	// Start with in-progress tasks, followed by not-started tasks.
+	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
+}
+
+func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	conn := newTargetConn()
 	defer conn.Close(context.Background())
 
-	nonEmptyTableNames := getNonEmptyTables(conn, allTables)
+	tableNames := importFileTasksToTableNames(tasks)
+	nonEmptyTableNames := getNonEmptyTables(conn, tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.ErrExit("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
 			strings.Join(nonEmptyTableNames, ", "))
 	}
 
-	for _, tableName := range allTables {
-		err := state.Clean(tableName, conn)
+	for _, task := range tasks {
+		err := state.Clean(task.FilePath, task.TableName, conn)
 		if err != nil {
-			utils.ErrExit("failed to clean import data state for table %q: %s", tableName, err)
+			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
 	}
-
-	importTables = allTables //since all tables needs to imported now
 }
 
 func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
@@ -576,22 +560,22 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func importTable(state *ImportDataState, t string, connPool *tgtdb.ConnectionPool) {
+func importTable(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool) {
 
-	origDataFile := exportDir + "/data/" + t + "_data.sql"
-	extractCopyStmtForTable(t, origDataFile)
-	log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
+	origDataFile := task.FilePath
+	extractCopyStmtForTable(task.TableName, origDataFile)
+	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
 	log.Infof("Collect all interrupted/remaining splits.")
-	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(t)
+	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableName)
 	if err != nil {
-		utils.ErrExit("recovering state for table %q: %s", t, err)
+		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
 	}
 	for _, batch := range pendingBatches {
 		submitBatch(batch, connPool)
 	}
 	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, t, connPool, lastBatchNumber, lastOffset)
+		splitFilesForTable(state, origDataFile, task.TableName, connPool, lastBatchNumber, lastOffset)
 	}
 }
 
@@ -627,7 +611,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 	for readLineErr == nil {
 
 		if batchWriter == nil {
-			batchWriter = state.NewBatchWriter(t, batchNum)
+			batchWriter = state.NewBatchWriter(filePath, t, batchNum)
 			err := batchWriter.Init()
 			if err != nil {
 				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
@@ -695,57 +679,11 @@ func executePostImportDataSqls() {
 	}
 }
 
-func getTablesToImport(state *ImportDataState) ([]string, []string, []string, error) {
-	exportDataDir := filepath.Join(exportDir, "data")
-	_, err := os.Stat(exportDataDir)
-	if err != nil {
-		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
-	}
-	// Collect all the data files
-	dataFilePatern := fmt.Sprintf("%s/*_data.sql", exportDataDir)
-	datafiles, err := filepath.Glob(dataFilePatern)
-	if err != nil {
-		utils.ErrExit("find data files in %q: %s", exportDataDir, err)
-	}
-
-	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	var tables []string
-	for _, v := range datafiles {
-		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
-		for _, match := range tablenameMatches {
-			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
-		}
-	}
-
-	var doneTables []string
-	var interruptedTables []string
-	var remainingTables []string
-	for _, t := range tables {
-		tableImportState, err := state.GetTableImportState(t)
-		if err != nil {
-			utils.ErrExit("getting table import state for %q: %s", t, err)
-		}
-		log.Infof("Table %q import state: %s", t, tableImportState)
-		switch tableImportState {
-		case TABLE_IMPORT_COMPLETED:
-			doneTables = append(doneTables, t)
-		case TABLE_IMPORT_IN_PROGRESS:
-			interruptedTables = append(interruptedTables, t)
-		case TABLE_IMPORT_NOT_STARTED:
-			remainingTables = append(remainingTables, t)
-		default:
-			utils.ErrExit("unknown table import state %q for table %q", tableImportState, t)
-		}
-	}
-
-	return doneTables, interruptedTables, remainingTables, nil
-}
-
 func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	//this is done to signal start progress bar for this table
-	if tablesProgressMetadata[batch.TableName].CountLiveRows == -1 {
-		tablesProgressMetadata[batch.TableName].CountLiveRows = 0
-	}
+	// if tablesProgressMetadata[batch.TableName].CountLiveRows == -1 {
+	// 	tablesProgressMetadata[batch.TableName].CountLiveRows = 0
+	// }
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
@@ -1039,8 +977,8 @@ func getTargetSchemaName(tableName string) string {
 }
 
 func incrementImportProgressBar(tableName string, progressAmount int64) {
-	tablesProgressMetadata[tableName].CountLiveRows += progressAmount
-	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
+	// tablesProgressMetadata[tableName].CountLiveRows += progressAmount
+	// log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {

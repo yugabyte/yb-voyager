@@ -42,7 +42,7 @@ const (
 	TABLE_IMPORT_COMPLETED   TableImportState = "TABLE_IMPORT_COMPLETED"
 )
 
-func (s *ImportDataState) GetTableImportState(tableName string) (TableImportState, error) {
+func (s *ImportDataState) GetTableImportState(filePath, tableName string) (TableImportState, error) {
 	batches, err := s.GetAllBatches(tableName)
 	if err != nil {
 		return TABLE_IMPORT_NOT_STARTED, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
@@ -71,7 +71,7 @@ func (s *ImportDataState) GetTableImportState(tableName string) (TableImportStat
 	return TABLE_IMPORT_IN_PROGRESS, nil
 }
 
-func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, bool, error) {
+func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, int64, bool, error) {
 	var pendingBatches []*Batch
 
 	lastBatchNumber := int64(0)
@@ -104,7 +104,7 @@ func (s *ImportDataState) Recover(tableName string) ([]*Batch, int64, int64, boo
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) Clean(tableName string, conn *pgx.Conn) error {
+func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
 	batches, err := s.GetAllBatches(tableName)
 	if err != nil {
@@ -165,7 +165,7 @@ func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]
 	return result, nil
 }
 
-func (s *ImportDataState) NewBatchWriter(tableName string, batchNumber int64) *BatchWriter {
+func (s *ImportDataState) NewBatchWriter(filePath, tableName string, batchNumber int64) *BatchWriter {
 	return &BatchWriter{state: s, tableName: tableName, batchNumber: batchNumber}
 }
 
