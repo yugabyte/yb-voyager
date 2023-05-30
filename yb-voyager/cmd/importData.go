@@ -143,7 +143,9 @@ func discoverFilesToImport() []*ImportFileTask {
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
 	includeList := utils.CsvStringToSlice(target.TableList)
+	log.Infof("includeList: %v", includeList)
 	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
+	log.Infof("excludeList: %v", excludeList)
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
@@ -425,7 +427,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		// `parallelism` number of batches at a time.
 		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 		for _, task := range pendingTasks {
-			importTable(state, task, connPool)
+			importFile(state, task, connPool)
 		}
 		// wait for all the import jobs to finish
 		batchImportPool.Wait()
@@ -501,16 +503,16 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
 	for _, t := range tasks {
-		s, err := state.GetTableImportState(t.FilePath, t.TableName)
+		s, err := state.GetFileImportState(t.FilePath, t.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
 		switch s {
-		case TABLE_IMPORT_COMPLETED:
+		case FILE_IMPORT_COMPLETED:
 			completedTasks = append(completedTasks, t)
-		case TABLE_IMPORT_IN_PROGRESS:
+		case FILE_IMPORT_IN_PROGRESS:
 			inProgressTasks = append(inProgressTasks, t)
-		case TABLE_IMPORT_NOT_STARTED:
+		case FILE_IMPORT_NOT_STARTED:
 			notStartedTasks = append(notStartedTasks, t)
 		default:
 			return nil, nil, fmt.Errorf("invalid table import state: %s", s)
@@ -560,7 +562,7 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func importTable(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool) {
+func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool) {
 
 	origDataFile := task.FilePath
 	extractCopyStmtForTable(task.TableName, origDataFile)
