@@ -22,33 +22,33 @@ func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{exportDir: exportDir}
 }
 
-func (s *ImportDataState) GetPendingBatches(tableName string) ([]*Batch, error) {
-	return s.getBatches(tableName, "CP")
+func (s *ImportDataState) GetPendingBatches(filePath, tableName string) ([]*Batch, error) {
+	return s.getBatches(filePath, tableName, "CP")
 }
 
-func (s *ImportDataState) GetCompletedBatches(tableName string) ([]*Batch, error) {
-	return s.getBatches(tableName, "D")
+func (s *ImportDataState) GetCompletedBatches(filePath, tableName string) ([]*Batch, error) {
+	return s.getBatches(filePath, tableName, "D")
 }
 
-func (s *ImportDataState) GetAllBatches(tableName string) ([]*Batch, error) {
-	return s.getBatches(tableName, "CPD")
+func (s *ImportDataState) GetAllBatches(filePath, tableName string) ([]*Batch, error) {
+	return s.getBatches(filePath, tableName, "CPD")
 }
 
-type TableImportState string
+type FileImportState string
 
 const (
-	TABLE_IMPORT_NOT_STARTED TableImportState = "TABLE_IMPORT_NOT_STARTED"
-	TABLE_IMPORT_IN_PROGRESS TableImportState = "TABLE_IMPORT_IN_PROGRESS"
-	TABLE_IMPORT_COMPLETED   TableImportState = "TABLE_IMPORT_COMPLETED"
+	FILE_IMPORT_NOT_STARTED FileImportState = "FILE_IMPORT_NOT_STARTED"
+	FILE_IMPORT_IN_PROGRESS FileImportState = "FILE_IMPORT_IN_PROGRESS"
+	FILE_IMPORT_COMPLETED   FileImportState = "FILE_IMPORT_COMPLETED"
 )
 
-func (s *ImportDataState) GetTableImportState(filePath, tableName string) (TableImportState, error) {
-	batches, err := s.GetAllBatches(tableName)
+func (s *ImportDataState) GetFileImportState(filePath, tableName string) (FileImportState, error) {
+	batches, err := s.GetAllBatches(filePath, tableName)
 	if err != nil {
-		return TABLE_IMPORT_NOT_STARTED, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+		return FILE_IMPORT_NOT_STARTED, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
 	}
 	if len(batches) == 0 {
-		return TABLE_IMPORT_NOT_STARTED, nil
+		return FILE_IMPORT_NOT_STARTED, nil
 	}
 	batchGenerationCompleted := false
 	interruptedCount, doneCount := 0, 0
@@ -63,12 +63,12 @@ func (s *ImportDataState) GetTableImportState(filePath, tableName string) (Table
 		}
 	}
 	if doneCount == len(batches) && batchGenerationCompleted {
-		return TABLE_IMPORT_COMPLETED, nil
+		return FILE_IMPORT_COMPLETED, nil
 	}
 	if interruptedCount == 0 && doneCount == 0 {
-		return TABLE_IMPORT_NOT_STARTED, nil
+		return FILE_IMPORT_NOT_STARTED, nil
 	}
-	return TABLE_IMPORT_IN_PROGRESS, nil
+	return FILE_IMPORT_IN_PROGRESS, nil
 }
 
 func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, int64, bool, error) {
@@ -78,7 +78,7 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 	lastOffset := int64(0)
 	fileFullySplit := false
 
-	batches, err := s.GetAllBatches(tableName)
+	batches, err := s.GetAllBatches(filePath, tableName)
 	if err != nil {
 		return nil, 0, 0, false, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
 	}
@@ -106,7 +106,7 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 
 func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
-	batches, err := s.GetAllBatches(tableName)
+	batches, err := s.GetAllBatches(filePath, tableName)
 	if err != nil {
 		return fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
 	}
@@ -131,7 +131,7 @@ func (s *ImportDataState) GetImportedRowCount(tableNames []string) (map[string]i
 	result := make(map[string]int64)
 
 	for _, table := range tableNames {
-		batches, err := s.GetCompletedBatches(table)
+		batches, err := s.GetCompletedBatches("", table) // TODO: make GetImportedRowCount file-centric.
 		if err != nil {
 			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
 		}
@@ -150,7 +150,7 @@ func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]
 	result := make(map[string]int64)
 
 	for _, table := range tableNames {
-		batches, err := s.GetCompletedBatches(table)
+		batches, err := s.GetCompletedBatches("", table) // TODO: make GetImportedByteCount file-centric.
 		if err != nil {
 			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
 		}
@@ -169,7 +169,7 @@ func (s *ImportDataState) NewBatchWriter(filePath, tableName string, batchNumber
 	return &BatchWriter{state: s, tableName: tableName, batchNumber: batchNumber}
 }
 
-func (s *ImportDataState) getBatches(tableName string, states string) ([]*Batch, error) {
+func (s *ImportDataState) getBatches(filePath, tableName string, states string) ([]*Batch, error) {
 	var result []*Batch
 
 	pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[%s]", exportDir, metaInfoDirName, tableName, states)
