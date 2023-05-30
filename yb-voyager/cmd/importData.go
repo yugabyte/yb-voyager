@@ -102,13 +102,19 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	checkExportDataDoneFlag()
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	importFileToTableMap := discoverFilesToImport()
-	importFileToTableMap = applyTableListFilter(importFileToTableMap)
-	importData(importFileToTableMap)
+	importFileTasks := discoverFilesToImport()
+	importFileTasks = applyTableListFilter(importFileTasks)
+	importData(importFileTasks)
 }
 
-func discoverFilesToImport() map[string]string {
-	result := make(map[string]string)
+type ImportFileTask struct {
+	ID        int
+	FilePath  string
+	TableName string
+}
+
+func discoverFilesToImport() []*ImportFileTask {
+	result := []*ImportFileTask{}
 	exportDataDir := filepath.Join(exportDir, "data")
 	_, err := os.Stat(exportDataDir)
 	if err != nil {
@@ -122,30 +128,35 @@ func discoverFilesToImport() map[string]string {
 	}
 
 	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	for _, v := range datafiles {
+	for i, v := range datafiles {
 		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
 		for _, match := range tablenameMatches {
 			tableName := match[1]
-			result[v] = tableName
+			task := &ImportFileTask{
+				ID:        i,
+				FilePath:  v,
+				TableName: tableName,
+			}
+			result = append(result, task)
 		}
 	}
 	return result
 }
 
-func applyTableListFilter(importFileToTableMap map[string]string) map[string]string {
-	result := make(map[string]string)
+func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
+	result := []*ImportFileTask{}
 	includeList := utils.CsvStringToSlice(target.TableList)
 	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
-	for fileName, tableName := range importFileToTableMap {
-		if len(includeList) > 0 && !slices.Contains(includeList, tableName) {
-			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", tableName, fileName)
+	for _, task := range importFileTasks {
+		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, tableName) {
-			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", tableName, fileName)
+		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
-		result[fileName] = tableName
+		result = append(result, task)
 	}
 	return result
 }
@@ -345,7 +356,7 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 	return cloneConnectionUri
 }
 
-func importData(importFileToTableMap map[string]string) {
+func importData(importFileTasks []*ImportFileTask) {
 	utils.PrintAndLog("import of data in %q database started", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {

@@ -43,8 +43,8 @@ var importDataFileCmd = &cobra.Command{
 		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
 		prepareForImportDataCmd()
-		importFileToTableMap := prepareFileToTableMapping()
-		importData(importFileToTableMap)
+		importFileTasks := prepareImportFileTasks()
+		importData(importFileTasks)
 	},
 }
 
@@ -163,14 +163,19 @@ func setImportTableListFlag() {
 	target.TableList = strings.Join(tableList, ",")
 }
 
-func prepareFileToTableMapping() map[string]string {
-	result := make(map[string]string)
+func prepareImportFileTasks() []*ImportFileTask {
+	result := []*ImportFileTask{}
 	if fileTableMapping != "" {
 		kvs := strings.Split(fileTableMapping, ",")
-		for _, kv := range kvs {
+		for i, kv := range kvs {
 			fileName, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 			filePath := dataStore.Join(dataDir, fileName)
-			result[filePath] = table
+			task := &ImportFileTask{
+				ID:        i,
+				FilePath:  filePath,
+				TableName: table,
+			}
+			result = append(result, task)
 		}
 	}
 	return result
