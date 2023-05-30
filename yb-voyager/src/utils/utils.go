@@ -331,3 +331,15 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
 	}
 }
+
+func Uniq(slice []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+	for _, entry := range slice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}

@@ -28,7 +28,7 @@ import (
 	"github.com/vbauerster/mpb/v8/decor"
 )
 
-// var debugFile *os.File
+var importTables []string // TODO: Get rid of this variable.
 
 func importDataStatus() {
 	// debugFile, _ = os.OpenFile(exportDir+"/temp/debug.txt", os.O_CREATE|os.O_WRONLY, 0644)
