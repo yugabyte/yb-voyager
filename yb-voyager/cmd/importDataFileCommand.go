@@ -137,15 +137,16 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
-				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', HEADER,`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
+					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 				df.Close()
 			} else {
-				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', ESCAPE '%s', QUOTE '%s', `,
-					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"])
+				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s', `,
+					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
-			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', `, table, fileFormat, []rune(delimiter)[0])
+			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
+				table, fileFormat, []rune(delimiter)[0], nullString)
 		} else {
 			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
