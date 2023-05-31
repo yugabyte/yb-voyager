@@ -48,13 +48,11 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/tevino/abool/v2"
 )
 
 var metaInfoDirName = META_INFO_DIR_NAME
 var numLinesInASplit = int64(0)
 var parallelImportJobs = 0
-var Done = abool.New()
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -428,7 +426,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			batchImportPool.Wait()                // Wait for the file import to finish.
 			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 		}
-		Done.Set()
 		time.Sleep(time.Second * 2)
 	}
 	executePostImportDataSqls()
