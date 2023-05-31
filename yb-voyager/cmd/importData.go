@@ -410,11 +410,12 @@ func importData(importFileTasks []*ImportFileTask) {
 		if parallelism > poolSize {
 			poolSize = parallelism + parallelism/2
 		}
-		// The code can produce `poolSize` number of batches at a time. But, it can consume only
-		// `parallelism` number of batches at a time.
-		batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
+			// The code can produce `poolSize` number of batches at a time. But, it can consume only
+			// `parallelism` number of batches at a time.
+			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+
 			totalProgressAmount := getTotalProgressAmount(task)
 			progressReporter.ImportFileStarted(task, totalProgressAmount)
 			importedProgressAmount := getImportedProgressAmount(task, state)
