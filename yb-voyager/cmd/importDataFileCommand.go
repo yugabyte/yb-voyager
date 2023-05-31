@@ -146,7 +146,8 @@ func prepareCopyCommands() {
 					table, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
-			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER '%c', `, table, fileFormat, []rune(delimiter)[0])
+			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
+				table, fileFormat, []rune(delimiter)[0], nullString)
 		} else {
 			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
 		}
