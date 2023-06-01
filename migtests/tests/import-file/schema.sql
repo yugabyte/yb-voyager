@@ -93,6 +93,10 @@ create table test_delimiter_backspace(i bigint, j int, k text);
 
 create table test_delimiter_backspace_text(i bigint, j int, k text);
 
+create table test_default_delimiter(i int, j text);
+
+create table test_default_delimiter_csv(i int, j text);
+
 create table t1_null_string_csv(i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_null_string_text(i int, j timestamp, k bigint, l varchar(30));

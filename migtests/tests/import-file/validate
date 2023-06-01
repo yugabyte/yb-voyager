@@ -32,6 +32,8 @@ EXPECTED = {
 	"test_backspace_escape_double_quote": 3,
 	"test_delimiter_backspace": 3,
 	"test_delimiter_backspace_text" :3,
+	"test_default_delimiter":2,
+	"test_default_delimiter_csv":2,
 	"t1_null_string_csv": 3,
 	"t1_null_string_text": 3,
 	"t1_null_string_csv2": 3,
@@ -50,6 +52,7 @@ TEST_BACKSPACE_QUOTE_DOUBLE_QUOTE_ESCAPE_DATA = set([(2, 1233, 'How"s it going \
 TEST_BACKSPACE_ESCAPE_DOUBLE_QUOTE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going ?"), (3, 1233, 'How is "test quote" it going?')])
 TEST_DELIMITER_BACKSPACE_DATA = set([(1, 1233, 'How is it going?'), (2, 1233, 'How is it going ?'), (3, 1233, 'How is it going?')])
 TEST_DELIMITER_BACKSPACE_TEXT_DATA = set([(1, 1233, 'How is it going?'), (2, 1233, 'How is it going ?'), (3, 1233, 'How is it going?')])
+TEST_DEFAULT_DELIMITER = set([(1, 'some thing for testing'), (2, 'someText')])
 T1_NULL_STRING_CSV = set([(1,None,None,"Hello World"), (2,None,None,"Hello World"), (3,None,None,"Hello World")])
 T1_NULL_STRING_TEXT = set([(1,None,None,"Hello World"), (2,None,None,"Hello World"), (3,None,None,"Hello World")])
 S3_TEXT_DATA = set([(1,2,3), (4,5,6), (7,8,9)])
@@ -81,7 +84,9 @@ TABLE_NAME_DATA_MAP = {
 	"t1_null_string_csv": T1_NULL_STRING_CSV,
 	"t1_null_string_text": T1_NULL_STRING_TEXT,
 	"t1_null_string_csv2": T1_NULL_STRING_CSV,
-	"t1_null_string_text2": T1_NULL_STRING_TEXT
+	"t1_null_string_text2": T1_NULL_STRING_TEXT,
+	"test_default_delimiter": TEST_DEFAULT_DELIMITER,
+	"test_default_delimiter_csv": TEST_DEFAULT_DELIMITER,
 }
 
 def file_import_done_checks(tgt):

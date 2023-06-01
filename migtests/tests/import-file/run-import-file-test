@@ -84,6 +84,15 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 			--file-table-map "t1_newline.csv:t1_newline"
 
+	# Test for text file for default delimiter
+	step "Import data file: test_default_delimiter.csv -> test_default_delimiter"
+	import_data_file --data-dir ${TEST_DIR} --format text  \
+			--file-table-map "test_default_delimiter.txt:test_default_delimiter"
+
+	step "Import data file: test_default_delimiter_csv.csv -> test_default_delimiter_csv"
+	import_data_file --data-dir ${TEST_DIR} --format csv  \
+			--file-table-map "test_default_delimiter_csv.csv:test_default_delimiter_csv"
+
 	# Test for csv file with default escape and quote character
 	step "Import data file: t1_quote_escape_dq.csv -> t1_quote_escape_dq"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
