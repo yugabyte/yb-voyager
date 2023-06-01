@@ -208,6 +208,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	fileFormat = strings.ToLower(fileFormat)
 	checkFileFormat()
 	checkDataDirFlag()
+	setDefaultForDelimiter()
 	checkDelimiterFlag()
 	checkHasHeader()
 	checkAndParseFileOpts()
@@ -326,6 +327,19 @@ func setDefaultForNullString() {
 	}
 }
 
+func setDefaultForDelimiter() {
+	if delimiter == "" {
+		switch fileFormat {
+		case datafile.CSV:
+			delimiter = `,`
+		case datafile.TEXT:
+			delimiter = `\t`
+		default:
+			panic("unsupported file format")
+		}
+	}
+}
+
 // resolves and check the given string is a single byte character
 func resolveAndCheckSingleByteChar(value string) (string, bool) {
 	if len(value) == 1 {
@@ -367,8 +381,8 @@ func init() {
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
 		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
 
-	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", ",",
-		"character used as delimiter in rows of the table(s)")
+	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "",
+		`character used as delimiter in rows of the table(s)(default for csv: ',' andgit  for text: '\t')`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory contains data files to import into table(s)")
