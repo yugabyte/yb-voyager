@@ -328,15 +328,16 @@ func setDefaultForNullString() {
 }
 
 func setDefaultForDelimiter() {
-	if delimiter == "" {
-		switch fileFormat {
-		case datafile.CSV:
-			delimiter = `,`
-		case datafile.TEXT:
-			delimiter = `\t`
-		default:
-			panic("unsupported file format")
-		}
+	if delimiter != "" {
+		return
+	}
+	switch fileFormat {
+	case datafile.CSV:
+		delimiter = `,`
+	case datafile.TEXT:
+		delimiter = `\t`
+	default:
+		panic("unsupported file format")
 	}
 }
 
@@ -382,7 +383,7 @@ func init() {
 		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "",
-		`character used as delimiter in rows of the table(s)(default for csv: ',' andgit  for text: '\t')`)
+		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory contains data files to import into table(s)")
