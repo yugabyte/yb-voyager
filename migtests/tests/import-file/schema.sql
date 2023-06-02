@@ -53,6 +53,19 @@ CREATE TABLE smsa (
     NOx NUMERIC
 );
 
+CREATE TABLE public.accounts (
+    block bigint NOT NULL,
+    address text NOT NULL,
+    dc_balance bigint DEFAULT 0 NOT NULL,
+    dc_nonce bigint DEFAULT 0 NOT NULL,
+    security_balance bigint DEFAULT 0 NOT NULL,
+    security_nonce bigint DEFAULT 0 NOT NULL,
+    balance bigint DEFAULT 0 NOT NULL,
+    nonce bigint DEFAULT 0 NOT NULL,
+    staked_balance bigint,
+    PRIMARY KEY (block, address)
+);
+
 create table t1_quote_char (i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_quote_escape_char1 (i int, j timestamp, k bigint, l varchar(30));
