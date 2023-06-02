@@ -472,14 +472,17 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	}
 }
 
+// TODO: Move this to importDataState.go .
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
 		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			data_file_name VARCHAR(250),
+			batch_number INT,
 			schema_name VARCHAR(250),
-			file_name VARCHAR(250),
+			table_name VARCHAR(250),
 			rows_imported BIGINT,
-			PRIMARY KEY (schema_name, file_name)
+			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`,
 	}
 
@@ -590,6 +593,10 @@ func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.Co
 	extractCopyStmtForTable(task.TableName, origDataFile)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
+	err := state.PrepareForFileImport(task.FilePath, task.TableName)
+	if err != nil {
+		utils.ErrExit("preparing for file import: %s", err)
+	}
 	log.Infof("Collect all interrupted/remaining splits.")
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableName)
 	if err != nil {
