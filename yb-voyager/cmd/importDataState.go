@@ -38,6 +38,14 @@ func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error
 	if err != nil {
 		return fmt.Errorf("error while creating %q: %w", fileStateDir, err)
 	}
+	// Create a symlink to the filePath. The symLink is only for human consumption.
+	// It helps in easily distinguishing in files with same names but different paths.
+	symlinkPath := filepath.Join(fileStateDir, "link")
+	log.Infof("Creating symlink %q -> %q.", symlinkPath, filePath)
+	err = os.Symlink(filePath, symlinkPath)
+	if err != nil {
+		return fmt.Errorf("error while creating symlink %q -> %q: %w", symlinkPath, filePath, err)
+	}
 	return nil
 }
 
@@ -126,7 +134,6 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
 	fileStateDir := s.getFileStateDir(filePath, tableName)
-	schemaName := getTargetSchemaName(tableName)
 	log.Infof("Removing %q.", fileStateDir)
 	err := os.RemoveAll(fileStateDir)
 	if err != nil {
@@ -134,8 +141,10 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 	}
 
 	// Delete all entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo for this table.
+	schemaName := getTargetSchemaName(tableName)
 	metaInfoTableName := "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo"
-	cmd := fmt.Sprintf(`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
+	cmd := fmt.Sprintf(
+		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
 		metaInfoTableName, filePath, schemaName, tableName)
 	res, err := conn.Exec(context.Background(), cmd)
 	if err != nil {
