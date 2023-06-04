@@ -22,9 +22,9 @@ import (
 	"net/url"
 
 	"cloud.google.com/go/storage"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var client *storage.Client
@@ -33,8 +33,8 @@ func createClientIfNotExists() {
 	if client != nil {
 		return
 	}
-	// Creates a client that can only view public data - to be changed in final iteration after testing
-	c, err := storage.NewClient(context.Background(), option.WithoutAuthentication())
+	// Creates a client with default credentials.
+	c, err := storage.NewClient(context.Background())
 	if err != nil {
 		utils.ErrExit("create gcs client: %w", err)
 	}
