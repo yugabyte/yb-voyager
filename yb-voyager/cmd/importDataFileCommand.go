@@ -31,7 +31,6 @@ var (
 	escapeChar           string
 	quoteChar            string
 	nullString           string
-	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
 	dataStore            datastore.DataStore
 )
