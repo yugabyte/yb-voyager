@@ -98,12 +98,12 @@ main() {
 	# Test for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char.csv -> test_backspace_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_char.csv:test_backspace_char" --escape-char=\b --quote-char=\b
+			--file-table-map "test_backspace_char.csv:test_backspace_char" --escape-char="\b" --quote-char="\b"
 
 	# Test2 for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char2.csv -> test_backspace_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --escape-char=\b --quote-char=\b
+			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --escape-char="\b" --quote-char="\b"
 
 	# Test for csv file with backspace as quote character and single quote as escape character
 	step "Import data file: test_backspace_quote_single_quote_escape.csv -> test_backspace_quote_single_quote_escape"
@@ -113,12 +113,12 @@ main() {
 	# Test for csv file with backspace as quote character and double quote as escape character
 	step "Import data file: test_backspace_quote_double_quote_escape.csv -> test_backspace_quote_double_quote_escape"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --escape-char=\" --quote-char="\b"
+			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --escape-char="\"" --quote-char="\b"
 
 	# Test for csv file with backspace as escape character and double quote as quote character
 	step "Import data file: test_backspace_escape_double_quote.csv -> test_backspace_escape_double_quote"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --escape-char=\b --quote-char=\"
+			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --escape-char="\b" --quote-char="\""
 
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
