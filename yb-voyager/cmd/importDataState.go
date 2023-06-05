@@ -154,40 +154,26 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 	return nil
 }
 
-func (s *ImportDataState) GetImportedRowCount(tableNames []string) (map[string]int64, error) {
-	result := make(map[string]int64)
-
-	for _, table := range tableNames {
-		batches, err := s.GetCompletedBatches("", table) // TODO: make GetImportedRowCount file-centric.
-		if err != nil {
-			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
-		}
-		for _, batch := range batches {
-			result[table] += batch.RecordCount
-		}
-		if result[table] == 0 {
-			// Import not started.
-			result[table] = -1
-		}
+func (s *ImportDataState) GetImportedRowCount(filePath, tableName string) (int64, error) {
+	batches, err := s.GetCompletedBatches(filePath, tableName)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableName, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.RecordCount
 	}
 	return result, nil
 }
 
-func (s *ImportDataState) GetImportedByteCount(tableNames []string) (map[string]int64, error) {
-	result := make(map[string]int64)
-
-	for _, table := range tableNames {
-		batches, err := s.GetCompletedBatches("", table) // TODO: make GetImportedByteCount file-centric.
-		if err != nil {
-			return nil, fmt.Errorf("error while getting completed batches for %s: %w", table, err)
-		}
-		for _, batch := range batches {
-			result[table] += batch.ByteCount
-		}
-		if result[table] == 0 {
-			// Import not started.
-			result[table] = -1
-		}
+func (s *ImportDataState) GetImportedByteCount(filePath, tableName string) (int64, error) {
+	batches, err := s.GetCompletedBatches(filePath, tableName)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting completed batches for %s: %w", tableName, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.ByteCount
 	}
 	return result, nil
 }
@@ -202,7 +188,9 @@ func (s *ImportDataState) NewBatchWriter(filePath, tableName string, batchNumber
 }
 
 func (s *ImportDataState) getBatches(filePath, tableName string, states string) ([]*Batch, error) {
-	var result []*Batch
+	// result == nil: import not started.
+	// empty result: import started but no batches created yet.
+	result := []*Batch{}
 
 	fileStateDir := s.getFileStateDir(filePath, tableName)
 	// Check if the fileStateDir exists.
@@ -279,20 +267,20 @@ func (s *ImportDataState) getTableStateDir(tableName string) string {
 	return fmt.Sprintf("%s/table::%s", s.stateDir, tableName)
 }
 
-func (s *ImportDataState) getTableStateDirs() (map[string]string, error) {
-	tableDirs := make(map[string]string)
-	files, err := ioutil.ReadDir(s.stateDir)
-	if err != nil {
-		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
-	}
-	for _, f := range files {
-		if f.IsDir() && strings.HasPrefix(f.Name(), "table::") {
-			tableName := strings.TrimPrefix(f.Name(), "table::")
-			tableDirs[tableName] = filepath.Join(s.stateDir, f.Name())
-		}
-	}
-	return tableDirs, nil
-}
+// func (s *ImportDataState) getTableStateDirs() (map[string]string, error) {
+// 	tableDirs := make(map[string]string)
+// 	files, err := ioutil.ReadDir(s.stateDir)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
+// 	}
+// 	for _, f := range files {
+// 		if f.IsDir() && strings.HasPrefix(f.Name(), "table::") {
+// 			tableName := strings.TrimPrefix(f.Name(), "table::")
+// 			tableDirs[tableName] = filepath.Join(s.stateDir, f.Name())
+// 		}
+// 	}
+// 	return tableDirs, nil
+// }
 
 func (s *ImportDataState) getFileStateDir(filePath, tableName string) string {
 	// NOTE: filePath must be absolute.

@@ -84,6 +84,7 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+	reportProgressInBytes = false
 	target.ImportMode = true
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	sqlname.SourceDBType = sourceDBType
@@ -447,28 +448,30 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
-	// TODO: Make dataFileDescriptor file-centric.
-	if dataFileDescriptor.TableRowCount != nil {
-		return dataFileDescriptor.TableRowCount[task.TableName]
+	fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName)
+	if fileEntry == nil {
+		utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
+	}
+	if reportProgressInBytes {
+		return fileEntry.FileSize
 	} else {
-		return dataFileDescriptor.TableFileSize[task.TableName]
+		return fileEntry.RowCount
 	}
 }
 
 func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
-	if dataFileDescriptor.TableRowCount != nil {
-		// TODO: Change GetImportedRowCount to take just a single table.
-		result, err := state.GetImportedRowCount([]string{task.TableName})
-		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableName, err)
-		}
-		return result[task.TableName]
-	} else {
-		result, err := state.GetImportedByteCount([]string{task.TableName})
+	if reportProgressInBytes {
+		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableName)
 		if err != nil {
 			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableName, err)
 		}
-		return result[task.TableName]
+		return byteCount
+	} else {
+		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableName)
+		if err != nil {
+			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableName, err)
+		}
+		return rowCount
 	}
 }
 
@@ -699,10 +702,10 @@ func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool, updateProgressFn 
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		doOneImport(batch, connPool)
-		if dataFileDescriptor.TableRowCount != nil {
-			updateProgressFn(batch.RecordCount)
-		} else {
+		if reportProgressInBytes {
 			updateProgressFn(batch.ByteCount)
+		} else {
+			updateProgressFn(batch.RecordCount)
 		}
 	})
 	log.Infof("Queued batch: %s", spew.Sdump(batch))

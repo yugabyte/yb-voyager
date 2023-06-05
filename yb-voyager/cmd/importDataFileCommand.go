@@ -20,19 +20,20 @@ import (
 )
 
 var (
-	fileFormat           string
-	delimiter            string
-	dataDir              string
-	fileTableMapping     string
-	hasHeader            bool
-	tableNameVsFilePath  = make(map[string]string)
-	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
-	fileOpts             string
-	escapeChar           string
-	quoteChar            string
-	nullString           string
-	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
-	dataStore            datastore.DataStore
+	fileFormat            string
+	delimiter             string
+	dataDir               string
+	fileTableMapping      string
+	hasHeader             bool
+	tableNameVsFilePath   = make(map[string]string)
+	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
+	fileOpts              string
+	escapeChar            string
+	quoteChar             string
+	nullString            string
+	supportedCsvFileOpts  = []string{"escape_char", "quote_char"}
+	dataStore             datastore.DataStore
+	reportProgressInBytes bool
 )
 
 var importDataFileCmd = &cobra.Command{
@@ -40,6 +41,7 @@ var importDataFileCmd = &cobra.Command{
 	Short: "This command imports data from given files into YugabyteDB database",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		reportProgressInBytes = true
 		checkImportDataFileFlags(cmd)
 		dataStore = datastore.NewDataStore(dataDir)
 		parseFileTableMapping()
@@ -53,13 +55,13 @@ func prepareForImportDataCmd() {
 	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
-	tableFileSize := getFileSizeInfo()
+	dataFileList := getFileSizeInfo()
 	dataFileDescriptor = &datafile.Descriptor{
-		FileFormat:    fileFormat,
-		TableFileSize: tableFileSize,
-		Delimiter:     delimiter,
-		HasHeader:     hasHeader,
-		ExportDir:     exportDir,
+		FileFormat:   fileFormat,
+		DataFileList: dataFileList,
+		Delimiter:    delimiter,
+		HasHeader:    hasHeader,
+		ExportDir:    exportDir,
 	}
 	if quoteChar != "" {
 		quoteCharBytes := []byte(quoteChar)
@@ -80,19 +82,24 @@ func prepareForImportDataCmd() {
 	createExportDataDoneFlag()
 }
 
-func getFileSizeInfo() map[string]int64 {
-	tableFileSize := make(map[string]int64)
+func getFileSizeInfo() []*datafile.FileEntry {
+	dataFileList := make([]*datafile.FileEntry, 0)
 	for table, filePath := range tableNameVsFilePath {
 		fileSize, err := dataStore.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
-		tableFileSize[table] = fileSize
-
-		log.Infof("File size of %q for table %q: %d", filePath, table, tableFileSize[table])
+		fileEntry := &datafile.FileEntry{
+			TableName: table,
+			FilePath:  filePath,
+			FileSize:  fileSize,
+			RowCount:  -1, // Not available.
+		}
+		dataFileList = append(dataFileList, fileEntry)
+		log.Infof("File size of %q for table %q: %d", filePath, table, fileSize)
 	}
 
-	return tableFileSize
+	return dataFileList
 }
 
 func createDataFileSymLinks() {

@@ -13,15 +13,23 @@ const (
 	DESCRIPTOR_PATH = "/metainfo/dataFileDescriptor.json"
 )
 
+type FileEntry struct {
+	FilePath  string `json:"FilePath"`
+	TableName string `json:"TableName"`
+	RowCount  int64  `json:"RowCount"`
+	FileSize  int64  `json:"FileSize"`
+}
+
 type Descriptor struct {
-	FileFormat    string           `json:"FileFormat"`
-	TableRowCount map[string]int64 `json:"TableRowCount"`
-	TableFileSize map[string]int64 `json:"TableFileSize"`
-	Delimiter     string           `json:"Delimiter"`
-	HasHeader     bool             `json:"HasHeader"`
-	ExportDir     string           `json:"-"`
-	QuoteChar     byte             `json:"QuoteChar,omitempty"`
-	EscapeChar    byte             `json:"EscapeChar,omitempty"`
+	FileFormat string `json:"FileFormat"`
+	// TableRowCount map[string]int64 `json:"TableRowCount"`
+	// TableFileSize map[string]int64 `json:"TableFileSize"`
+	Delimiter    string       `json:"Delimiter"`
+	HasHeader    bool         `json:"HasHeader"`
+	ExportDir    string       `json:"-"`
+	QuoteChar    byte         `json:"QuoteChar,omitempty"`
+	EscapeChar   byte         `json:"EscapeChar,omitempty"`
+	DataFileList []*FileEntry `json:"FileList"`
 }
 
 func OpenDescriptor(exportDir string) *Descriptor {
@@ -58,4 +66,13 @@ func (dfd *Descriptor) Save() {
 		fmt.Printf("%+v\n", dfd)
 		utils.ErrExit("writing DataFileDescriptor: %v", err)
 	}
+}
+
+func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
+	for _, fileEntry := range dfd.DataFileList {
+		if fileEntry.FilePath == filePath && fileEntry.TableName == tableName {
+			return fileEntry
+		}
+	}
+	return nil
 }

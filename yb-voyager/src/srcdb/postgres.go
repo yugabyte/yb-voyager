@@ -189,13 +189,13 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
+	dataFileList := getExportedDataFileList(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.TEXT,
-		TableRowCount: exportedRowCount,
-		Delimiter:     "\t",
-		HasHeader:     false,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.TEXT,
+		DataFileList: dataFileList,
+		Delimiter:    "\t",
+		HasHeader:    false,
+		ExportDir:    exportDir,
 	}
 	dfd.Save()
 }
