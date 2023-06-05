@@ -1,7 +1,8 @@
 package cmd
 
 import (
-	"github.com/vbauerster/mpb/v7"
+	"github.com/tebeka/atexit"
+	"github.com/vbauerster/mpb/v8"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/pbreporter"
 )
@@ -17,10 +18,14 @@ type ProgressTracker struct {
 }
 
 func NewProgressTracker(totalRowCount map[string]int64) *ProgressTracker {
-	return &ProgressTracker{
+	pt := &ProgressTracker{
 		totalRowCount: totalRowCount,
 		mpbProgress:   mpb.New(),
 	}
+	atexit.Register(func() {
+		pt.mpbProgress.Shutdown()
+	})
+	return pt
 }
 
 func (pt *ProgressTracker) UpdateProgress(status *dbzm.ExportStatus) {

@@ -33,7 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
-	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v8"
 )
 
 func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
