@@ -196,3 +196,7 @@ CREATE TABLE uritype_test (
 	id numeric,
 	content URITYPE
 ) ;
+-- valid
+Alter table only parent_tbl add constraint party_profile_pk primary key (party_profile_id);
+-- alter table not supported
+Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);

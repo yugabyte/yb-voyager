@@ -240,15 +240,9 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	// Put info to metainfo/schema about the source db
-	sourceInfoFile := filepath.Join(projectDirPath, "metainfo", "schema", "source-db-"+dbType)
-	_, err := exec.Command("touch", sourceInfoFile).CombinedOutput()
-	if err != nil {
-		utils.ErrExit("coludn't touch file %q: %v", sourceInfoFile, err)
-	}
+	setSourceDbType(dbType, projectDirPath)
 
 	schemaObjectList := utils.GetSchemaObjectList(dbType)
-
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range schemaObjectList {
 		if schemaObjectType == "INDEX" { //no separate dir for indexes

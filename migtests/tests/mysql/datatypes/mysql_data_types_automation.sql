@@ -164,7 +164,9 @@ create table blob_types(id int,tb tinyblob, b blob, mb mediumblob, lb longblob);
 insert into blob_types values(1,'abc','abc','abc','abc');
 insert into blob_types values(2,'Lorem','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.','Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu.');
 
-      
+create table test(b blob); -- single column unsupported case
+insert into test values('abc'),('gsdgxaf');
+
 desc int_types;
 desc fixed_point_types;
 desc floating_point_types;
@@ -176,3 +178,4 @@ desc bool_types;
 desc enum_types;
 desc uuid_try;
 desc blob_types;
+

@@ -24,7 +24,18 @@ EXPECTED = {
 	"s3_multitable_t1": 3,
 	"s3_multitable_t2": 3,
 	"s3_csv_with_header": 3,
-	"s3_volume": 100000
+	"s3_volume": 100000,
+	"test_backspace_char": 4,
+	"test_backspace_char2":3,
+	"test_backspace_quote_single_quote_escape": 3,
+	"test_backspace_quote_double_quote_escape": 3,
+	"test_backspace_escape_double_quote": 3,
+	"test_delimiter_backspace": 3,
+	"test_delimiter_backspace_text" :3,
+	"t1_null_string_csv": 3,
+	"t1_null_string_text": 3,
+	"t1_null_string_csv2": 3,
+	"t1_null_string_text2": 3,
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -32,64 +43,56 @@ T1_QUOTE_ESCAPE_DQ_DATA = set([(1,None,None,"\"Hello World\""), (2,None,None,"\"
 T1_NEWLINE_DATA = set([(1,None,None,"Hello World"), (2,None,None,"Hello\nWorld"), (3,None,None,"Hello	World"),
                        (4,None,None,"Hello\\nWorld"), (5,None,None,"Hello\\tWorld")])
 T1_ESCAPE_BACKSLASH_DATA = set([(11, 'Hello world', 11), (12, '",12\n13,\\\\', 13), (10, 'Hello world escape test', 10)])
+TEST_BACKSPACE_CHAR_DATA = set([(4, 123, 'Some more testing \x08?'), (2, 123, 'Some test " quote'), (1, 123, 'How\x08s it going?'), (3, 123, "How's it going?")])
+TEST_BACKSPACE_CHAR2_DATA = set([(0, 'default', 'CIF-0000000000', 'USER-0000000000', 1000000000, 1000000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True), (1, 'John Doe', '\\', 'USER-0000000001', 1000000, 1000000, 'Tabungan BNI', 'Jl. Sudirman No. 123, Jakarta', True), (2, 'Jane Doe', 'CIF-0000000002', 'USER-0000000002', 2000000, 2000000, 'Giro BNI', 'Jl. Thamrin No. 456, Jakarta', True)])
+TEST_BACKSPACE_QUOTE_SINGLE_QUOTE_ESCAPE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going \x08?"), (3, 1233, 'How is it going?')])
+TEST_BACKSPACE_QUOTE_DOUBLE_QUOTE_ESCAPE_DATA = set([(2, 1233, 'How"s it going \x08?'), (3, 1233, 'How is it going?'), (1, 1233, 'How"s it going?')])
+TEST_BACKSPACE_ESCAPE_DOUBLE_QUOTE_DATA = set([(1, 1233, "How's it going?"), (2, 1233, "How's it going ?"), (3, 1233, 'How is "test quote" it going?')])
+TEST_DELIMITER_BACKSPACE_DATA = set([(1, 1233, 'How is it going?'), (2, 1233, 'How is it going ?'), (3, 1233, 'How is it going?')])
+TEST_DELIMITER_BACKSPACE_TEXT_DATA = set([(1, 1233, 'How is it going?'), (2, 1233, 'How is it going ?'), (3, 1233, 'How is it going?')])
+T1_NULL_STRING_CSV = set([(1,None,None,"Hello World"), (2,None,None,"Hello World"), (3,None,None,"Hello World")])
+T1_NULL_STRING_TEXT = set([(1,None,None,"Hello World"), (2,None,None,"Hello World"), (3,None,None,"Hello World")])
 S3_TEXT_DATA = set([(1,2,3), (4,5,6), (7,8,9)])
 S3_CSV_DATA = set([(1,2), (3,4), (5,6)])
 S3_T1_DATA = S3_TEXT_DATA
 S3_T2_DATA = S3_TEXT_DATA
 S3_CSV_WITH_HEADER_DATA = S3_TEXT_DATA
 
+TABLE_NAME_DATA_MAP = {
+	"t1_quote_char": T1_TABLE_DATA,
+	"t1_quote_escape_char1": T1_TABLE_DATA,
+	"t1_quote_escape_char2": T1_TABLE_DATA,
+	"t1_delimiter_escape_same": T1_TABLE_DATA,
+	"t1_newline": T1_NEWLINE_DATA,
+	"t1_quote_escape_dq": T1_QUOTE_ESCAPE_DQ_DATA,
+	"t1_escape_backslash": T1_ESCAPE_BACKSLASH_DATA,
+	"s3_text": S3_TEXT_DATA,
+	"s3_csv": S3_CSV_DATA,
+	"s3_multitable_t1": S3_T1_DATA,
+	"s3_multitable_t2": S3_T2_DATA,
+	"s3_csv_with_header": S3_CSV_WITH_HEADER_DATA,
+	"test_backspace_char": TEST_BACKSPACE_CHAR_DATA,
+	"test_backspace_char2": TEST_BACKSPACE_CHAR2_DATA,
+	"test_backspace_quote_single_quote_escape": TEST_BACKSPACE_QUOTE_SINGLE_QUOTE_ESCAPE_DATA,
+	"test_backspace_quote_double_quote_escape": TEST_BACKSPACE_QUOTE_DOUBLE_QUOTE_ESCAPE_DATA,
+	"test_backspace_escape_double_quote": TEST_BACKSPACE_ESCAPE_DOUBLE_QUOTE_DATA,
+	"test_delimiter_backspace": TEST_DELIMITER_BACKSPACE_DATA,
+	"test_delimiter_backspace_text" : TEST_DELIMITER_BACKSPACE_TEXT_DATA,
+	"t1_null_string_csv": T1_NULL_STRING_CSV,
+	"t1_null_string_text": T1_NULL_STRING_TEXT,
+	"t1_null_string_csv2": T1_NULL_STRING_CSV,
+	"t1_null_string_text2": T1_NULL_STRING_TEXT
+}
+
 def file_import_done_checks(tgt):
-	got = tgt.row_count_of_all_tables()
-	print(f"Row counts after import data file: {got}")
-	assert got == EXPECTED
+	fetched_row_cnts = tgt.row_count_of_all_tables()
+	print(f"Row counts after import data file: {fetched_row_cnts}")
+	assert fetched_row_cnts == EXPECTED
 	
-	t1_quote_char_data = tgt.fetch_all_table_rows("t1_quote_char")
-	print(f"t1_quote_char_data: {t1_quote_char_data}\n, Expected data: {T1_TABLE_DATA}\n")
-	assert t1_quote_char_data == T1_TABLE_DATA
-	
-	t1_quote_escape_char1_data = tgt.fetch_all_table_rows("t1_quote_escape_char1")
-	print(f"t1_quote_escape_char1_data: {t1_quote_escape_char1_data}\nExpected data: {T1_TABLE_DATA}\n")
-	assert t1_quote_escape_char1_data == T1_TABLE_DATA
- 
-	t1_quote_escape_char2_data = tgt.fetch_all_table_rows("t1_quote_escape_char2")
-	print(f"t1_quote_escape_char2_data: {t1_quote_escape_char2_data}\nExpected data: {T1_TABLE_DATA}\n")
-	assert t1_quote_escape_char2_data == T1_TABLE_DATA
-  
-	t1_delimiter_escape_same_data = tgt.fetch_all_table_rows("t1_delimiter_escape_same")
-	print(f"t1_delimiter_escape_same_data: {t1_delimiter_escape_same_data}\nExpected data: {T1_TABLE_DATA}\n")
-	assert t1_delimiter_escape_same_data == T1_TABLE_DATA
-	
-	t1_quote_escape_dq = tgt.fetch_all_table_rows("t1_quote_escape_dq")
-	print(f"t1_quote_escape_dq: {t1_quote_escape_dq}\nExpected data: {T1_QUOTE_ESCAPE_DQ_DATA}\n")
-	assert t1_quote_escape_dq == T1_QUOTE_ESCAPE_DQ_DATA
- 
-	t1_newline_data = tgt.fetch_all_table_rows("t1_newline")
-	print(f"t1_newline_data: {t1_newline_data}\nExpected data: {T1_NEWLINE_DATA}\n")
-	assert t1_newline_data == T1_NEWLINE_DATA
-	
-	t1_escape_backslash_data = tgt.fetch_all_table_rows("t1_escape_backslash")
-	print(f"t1_escape_backslash_data: {t1_escape_backslash_data}\nExpected data: {T1_ESCAPE_BACKSLASH_DATA}\n")
-	assert t1_escape_backslash_data == T1_ESCAPE_BACKSLASH_DATA
+	for table_name, data in TABLE_NAME_DATA_MAP.items():
+		fetched_data = tgt.fetch_all_table_rows(table_name)
+		print(f"Data fetched from table {table_name}: {fetched_data}\nExpected data: {data}\n")
+		assert fetched_data == data
 
-	s3_text_data = tgt.fetch_all_table_rows("s3_text")
-	print(f"s3_text_data: {s3_text_data}\nExpected data: {S3_TEXT_DATA}\n")
-	assert s3_text_data == S3_TEXT_DATA
-
-	s3_csv_data = tgt.fetch_all_table_rows("s3_csv")
-	print(f"s3_csv_data: {s3_csv_data}\nExpected data: {S3_CSV_DATA}\n")
-	assert s3_csv_data == S3_CSV_DATA
-
-	s3_t1_data = tgt.fetch_all_table_rows("s3_multitable_t1")
-	print(f"s3_t1_data: {s3_t1_data}\nExpected data: {S3_T1_DATA}\n")
-	assert s3_t1_data == S3_T1_DATA
-
-	s3_t2_data = tgt.fetch_all_table_rows("s3_multitable_t2")
-	print(f"s3_t2_data: {s3_t2_data}\nExpected data: {S3_T2_DATA}\n")
-	assert s3_t2_data == S3_T2_DATA
-
-	s3_header_data = tgt.fetch_all_table_rows("s3_csv_with_header")
-	print(f"s3_header_data: {s3_header_data}\nExpected data: {S3_CSV_WITH_HEADER_DATA}\n")
-	assert s3_header_data == S3_CSV_WITH_HEADER_DATA
-	
 if __name__ == "__main__":
 	main()

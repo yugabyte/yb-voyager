@@ -28,6 +28,7 @@ import (
 	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -38,7 +39,7 @@ import (
 
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "This command is used to export table's data from source database to *.sql files",
+	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is a beta feature to speed up the data export, set the environment variable BETA_FAST_DATA_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details on this feature.",
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -71,6 +72,8 @@ func init() {
 
 	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
 		"true - to enable live migration(default false)")
+
+	exportDataCmd.Flags().MarkHidden("live-migration")
 }
 
 func exportData() {
@@ -91,6 +94,7 @@ func exportData() {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
+		atexit.Exit(1)
 	}
 }
 
@@ -129,6 +133,16 @@ func exportDataOffline() bool {
 		}
 	}
 
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
+	if len(unsupportedColumnNames) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to ignore just these columns' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
+	}
+
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()
@@ -137,19 +151,10 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	fmt.Printf("num tables to export: %d\n", len(finalTableList))
-	utils.PrintAndLog("table list for data export: %v", finalTableList)
-
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
-	if len(unsupportedColumnNames) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore just these columns' data and continue with export") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		}
-	}
 	if liveMigration || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
+		fmt.Printf("num tables to export: %d\n", len(finalTableList))
+		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -168,6 +173,8 @@ func exportDataOffline() bool {
 		return true
 	}
 
+	fmt.Printf("num tables to export: %d\n", len(finalTableList))
+	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -230,7 +237,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for _, table := range tableList {
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
-	utils.PrintAndLog("final table list for data export: %v\n", dbzmTableList)
 
 	for tableName, columns := range tablesColumnList {
 		for _, column := range columns {
@@ -312,6 +318,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
+}
+
+func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
+	var filteredTableList []*sqlname.SourceName
+	for _, table := range finalTableList {
+		if len(tablesColumnList[table]) == 0 {
+			continue
+		}
+		filteredTableList = append(filteredTableList, table)
+	}
+	return filteredTableList
 }
 
 func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
