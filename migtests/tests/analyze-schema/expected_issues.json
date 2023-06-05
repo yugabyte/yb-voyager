@@ -420,15 +420,15 @@
             "objectName": "anydata_test",
             "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
             "sqlStatement": "CREATE TABLE anydata_test (\n\tid numeric,\n\tcontent ANYDATA\n) ;",
-            "suggestion": "remove the column with AnyData datatype",
+            "suggestion": "Remove the column with AnyData datatype or Change it to a supported datatype",
             "GH": ""
         },
         {
             "objectType": "TABLE",
             "objectName": "anydataset_test",
-            "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
+            "reason": "AnyDataSet datatype doesn't have a mapping in YugabyteDB",
             "sqlStatement": "CREATE TABLE anydataset_test (\n\tid numeric,\n\tcontent ANYDATASET\n) ;",
-            "suggestion": "remove the column with AnyData datatype",
+            "suggestion": "Remove the column with AnyDataSet datatype or Change it to a supported datatype",
             "GH": ""
         },
         {
@@ -436,7 +436,7 @@
             "objectName": "anytype_test",
             "reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
             "sqlStatement": "CREATE TABLE anytype_test (\n\tid numeric,\n\tcontent ANYTYPE\n) ;",
-            "suggestion": "remove the column with AnyType datatype",
+            "suggestion": "Remove the column with AnyType datatype or Change it to a supported datatype",
             "GH": ""
         },
         {
@@ -444,7 +444,7 @@
             "objectName": "uritype_test",
             "reason": "URIType datatype doesn't have a mapping in YugabyteDB",
             "sqlStatement": "CREATE TABLE uritype_test (\n\tid numeric,\n\tcontent URITYPE\n) ;",
-            "suggestion": "remove the column with URIType datatype",
+            "suggestion": "Remove the column with URIType datatype or Change it to a supported datatype",
             "GH": ""
         }
 
