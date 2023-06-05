@@ -62,18 +62,19 @@ func runImportDataStatusCmd() error {
 	uiTable := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 	for i, row := range table {
+		perc := fmt.Sprintf("%.2f", row.percentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
 				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE(MB)"), headerfmt("IMPORTED SIZE(MB)"), headerfmt("PERCENTAGE"))
 			}
 			// case of importDataFileCommand where file size is available not row counts
-			uiTable.AddRow(row.tableName, row.fileName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, row.percentageComplete)
+			uiTable.AddRow(row.tableName, row.fileName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, perc)
 		} else {
 			if i == 0 {
 				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL ROWS"), headerfmt("IMPORTED ROWS"), headerfmt("PERCENTAGE"))
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.tableName, row.fileName, row.status, row.totalCount, row.importedCount, row.percentageComplete)
+			uiTable.AddRow(row.tableName, row.fileName, row.status, row.totalCount, row.importedCount, perc)
 		}
 	}
 
@@ -132,7 +133,11 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		row1 := table[i]
 		row2 := table[j]
 		if row1.status == row2.status {
-			return strings.Compare(row1.fileName, row2.fileName) < 0
+			if row1.tableName == row2.tableName {
+				return strings.Compare(row1.fileName, row2.fileName) < 0
+			} else {
+				return strings.Compare(row1.tableName, row2.tableName) < 0
+			}
 		} else {
 			return ordStates[row1.status] < ordStates[row2.status]
 		}
