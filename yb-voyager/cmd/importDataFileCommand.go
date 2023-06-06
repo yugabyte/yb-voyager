@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -20,12 +19,13 @@ import (
 )
 
 var (
-	fileFormat            string
-	delimiter             string
-	dataDir               string
-	fileTableMapping      string
-	hasHeader             bool
-	tableNameVsFilePath   = make(map[string]string)
+	fileFormat       string
+	delimiter        string
+	dataDir          string
+	fileTableMapping string
+	hasHeader        bool
+	//tableNameVsFilePath   = make(map[string]string)
+	filePathToTableName   = make(map[string]string)
 	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
 	fileOpts              string
 	escapeChar            string
@@ -76,7 +76,6 @@ func prepareForImportDataCmd() {
 	dataFileDescriptor.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
-	createDataFileSymLinks()
 	prepareCopyCommands()
 	setImportTableListFlag()
 	createExportDataDoneFlag()
@@ -84,56 +83,32 @@ func prepareForImportDataCmd() {
 
 func getFileSizeInfo() []*datafile.FileEntry {
 	dataFileList := make([]*datafile.FileEntry, 0)
-	for table, filePath := range tableNameVsFilePath {
+	for filePath, tableName := range filePathToTableName {
 		fileSize, err := dataStore.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
 		}
 		fileEntry := &datafile.FileEntry{
-			TableName: table,
+			TableName: tableName,
 			FilePath:  filePath,
 			FileSize:  fileSize,
 			RowCount:  -1, // Not available.
 		}
 		dataFileList = append(dataFileList, fileEntry)
-		log.Infof("File size of %q for table %q: %d", filePath, table, fileSize)
+		log.Infof("File size of %q for table %q: %d", filePath, tableName, fileSize)
 	}
 
 	return dataFileList
 }
 
-func createDataFileSymLinks() {
-	log.Infof("creating symlinks to original data files")
-	for table, filePath := range tableNameVsFilePath {
-		symLinkPath := filepath.Join(exportDir, "data", table+"_data.sql")
-
-		filePath, err := dataStore.AbsolutePath(filePath)
-		if err != nil {
-			utils.ErrExit("absolute original filepath for table %q: %v", table, err)
-		}
-		log.Infof("absolute filepath for %q: %q", table, filePath)
-		log.Infof("symlink path for file %q is %q", filePath, symLinkPath)
-
-		log.Infof("removing symlink: %q to create fresh link", symLinkPath)
-		err = os.Remove(symLinkPath)
-		if err != nil {
-			if os.IsNotExist(err) {
-				log.Infof("symlink %q does not exist: %v", symLinkPath, err)
-			} else {
-				utils.ErrExit("removing symlink %q: %v", symLinkPath, err)
-			}
-		}
-
-		err = os.Symlink(filePath, symLinkPath)
-		if err != nil {
-			utils.ErrExit("error creating symlink to data file %q: %v", filePath, err)
-		}
-	}
-}
-
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
-	for table, filePath := range tableNameVsFilePath {
+	for filePath, table := range filePathToTableName {
+		// Skip the loop body if the `table` entry is already present in the copyTableFromCommands map.
+		// TODO: Calculate the copy commands per file and not per table.
+		if _, ok := copyTableFromCommands.Load(table); ok {
+			continue
+		}
 		cmd := ""
 		if fileFormat == datafile.CSV {
 			if hasHeader {
@@ -165,8 +140,8 @@ func prepareCopyCommands() {
 
 func setImportTableListFlag() {
 	tableList := []string{}
-	for key := range tableNameVsFilePath {
-		tableList = append(tableList, key)
+	for _, tableName := range filePathToTableName {
+		tableList = append(tableList, tableName)
 	}
 
 	target.TableList = strings.Join(tableList, ",")
@@ -195,7 +170,8 @@ func parseFileTableMapping() {
 		keyValuePairs := strings.Split(fileTableMapping, ",")
 		for _, keyValuePair := range keyValuePairs {
 			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			tableNameVsFilePath[table] = dataStore.Join(dataDir, fileName)
+			filePath := dataStore.Join(dataDir, fileName)
+			filePathToTableName[filePath] = table
 		}
 	} else {
 		// TODO: replace "link" with docs link
@@ -227,7 +203,7 @@ func parseFileTableMapping() {
 			}
 
 			tableName := matches[0][1]
-			tableNameVsFilePath[tableName] = file
+			filePathToTableName[file] = tableName
 		}
 	}
 }
