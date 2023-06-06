@@ -234,6 +234,29 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 	return "", err
 }
 
+// GetAllSequences returns all the sequence names in the database for the given schema list
+func (pg *PostgreSQL) GetAllSequences() []string {
+	schemaList := pg.checkSchemasExists()
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	return sequenceNames
+}
+
 func (pg *PostgreSQL) GetCharset() (string, error) {
 	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
 	encoding := ""

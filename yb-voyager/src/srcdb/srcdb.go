@@ -26,6 +26,7 @@ type SourceDB interface {
 	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string)
 	IsTablePartition(table *sqlname.SourceName) bool
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
+	GetAllSequences() []string
 }
 
 func newSourceDB(source *Source) SourceDB {

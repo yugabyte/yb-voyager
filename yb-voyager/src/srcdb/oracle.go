@@ -311,6 +311,10 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[s
 	return columnToSequenceMap
 }
 
+func (ora *Oracle) GetAllSequences() []string {
+	return nil
+}
+
 func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
 	var columns, dataTypes, dataTypesOwner []string
 	query := fmt.Sprintf("SELECT COLUMN_NAME, DATA_TYPE, DATA_TYPE_OWNER FROM ALL_TAB_COLUMNS WHERE OWNER = '%s' AND TABLE_NAME = '%s'", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
