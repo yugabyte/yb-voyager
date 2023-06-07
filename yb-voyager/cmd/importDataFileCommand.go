@@ -260,12 +260,12 @@ func checkDataDirFlag() {
 }
 
 func checkDelimiterFlag() {
-	resolvedDelimiter, ok := resolveAndCheckSingleByteChar(delimiter)
+	var ok bool
+	delimiter, ok = interpreteEscapeSequences(delimiter)
 	if !ok {
 		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
 	}
-	log.Infof("resolved delimiter value: %q", resolvedDelimiter)
-	delimiter = resolvedDelimiter
+	log.Infof("resolved delimiter value: %q", delimiter)
 }
 
 func checkHasHeader() {
@@ -301,26 +301,18 @@ func checkAndParseEscapeAndQuoteChar() {
 				}
 			}
 		}
+		var ok bool
 
-		resolvedEscapeChar, ok := resolveAndCheckSingleByteChar(escapeChar)
+		escapeChar, ok = interpreteEscapeSequences(escapeChar)
 		if !ok {
 			utils.ErrExit("ERROR: invalid syntax of --escape-char=%s flag. It should be a valid single-byte value.", escapeChar)
 		}
-		escapeChar = resolvedEscapeChar
 
-		resolvedQuoteChar, ok := resolveAndCheckSingleByteChar(quoteChar)
+		quoteChar, ok = interpreteEscapeSequences(quoteChar)
 		if !ok {
 			utils.ErrExit("ERROR: invalid syntax of --quote-char=%s flag. It should be a valid single-byte value.", quoteChar)
 		}
-		quoteChar = resolvedQuoteChar
 
-	case datafile.TEXT:
-		if escapeChar != "" {
-			utils.ErrExit("ERROR: --escape-char flag is invalid for %q format", fileFormat)
-		}
-		if quoteChar != "" {
-			utils.ErrExit("ERROR: --quote-char flag is invalid for %q format", fileFormat)
-		}
 	default:
 		if escapeChar != "" {
 			utils.ErrExit("ERROR: --escape-char flag is invalid for %q format", fileFormat)
@@ -349,13 +341,13 @@ func setDefaultForNullString() {
 }
 
 // resolves and check the given string is a single byte character
-func resolveAndCheckSingleByteChar(value string) (string, bool) {
+func interpreteEscapeSequences(value string) (string, bool) {
 	if len(value) == 1 {
 		return value, true
 	}
 	resolvedValue, err := strconv.Unquote(`"` + value + `"`)
 	if err != nil || len(resolvedValue) != 1 {
-		return resolvedValue, false
+		return value, false
 	}
 	return resolvedValue, true
 }
@@ -399,10 +391,10 @@ func init() {
 			"(Note: only works for csv file type)")
 
 	importDataFileCmd.Flags().StringVar(&escapeChar, "escape-char", "",
-		`escape character (default double quotes '"')`)
+		`escape character (default double quotes '"') only applicable to CSV file format`)
 
 	importDataFileCmd.Flags().StringVar(&quoteChar, "quote-char", "",
-		`character used to quote the values (default double quotes '"')`)
+		`character used to quote the values (default double quotes '"') only applicable to CSV file format`)
 
 	importDataFileCmd.Flags().StringVar(&fileOpts, "file-opts", "",
 		`comma separated options for csv file format:
