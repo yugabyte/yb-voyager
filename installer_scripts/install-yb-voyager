@@ -192,14 +192,15 @@ check_java() {
 	fi
 
     MIN_REQUIRED_MAJOR_VERSION='11'
-	JAVA_MAJOR_VER=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}' | awk -F. '{print $1}')
+	JAVA_COMPLETE_VERSION=$(${JAVA_BINARY} -version 2>&1 | awk -F '"' '/version/ {print $2}')
+    JAVA_MAJOR_VER=$(echo "${JAVA_COMPLETE_VERSION}" | awk -F. '{print $1}')
 
     if ([ -n "$JAVA_MAJOR_VER" ] && (( 10#${JAVA_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
     then
-        output "Found sufficient java version = ${JAVA_MAJOR_VER}"
+        output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"
     else
-        output "ERROR: Java not found or insuffiencient version ${JAVA_MAJOR_VER}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
-		exit 1;
+        output "ERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
+                exit 1;
     fi
 }
 
