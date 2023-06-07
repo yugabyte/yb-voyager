@@ -65,10 +65,12 @@ func runImportDataStatusCmd() error {
 		perc := fmt.Sprintf("%.2f", row.percentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
-				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE(MB)"), headerfmt("IMPORTED SIZE(MB)"), headerfmt("PERCENTAGE"))
+				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE"), headerfmt("IMPORTED SIZE"), headerfmt("PERCENTAGE"))
 			}
 			// case of importDataFileCommand where file size is available not row counts
-			uiTable.AddRow(row.tableName, row.fileName, row.status, float64(row.totalCount)/1000000.0, float64(row.importedCount)/1000000.0, perc)
+			totalCount := utils.HumanReadableByteCount(row.totalCount)
+			importedCount := utils.HumanReadableByteCount(row.importedCount)
+			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
 		} else {
 			if i == 0 {
 				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL ROWS"), headerfmt("IMPORTED ROWS"), headerfmt("PERCENTAGE"))
