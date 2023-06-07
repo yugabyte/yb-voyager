@@ -21,12 +21,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
-
 	"github.com/spf13/cobra"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // source struct will be populated by CLI arguments parsing
@@ -107,9 +107,6 @@ func setExportFlagsDefaults() {
 	val, ok := os.LookupEnv("BETA_FAST_DATA_EXPORT")
 	if ok {
 		useDebezium = (val == "true" || val == "1" || val == "yes")
-	}
-	if useDebezium {
-		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 }
 
