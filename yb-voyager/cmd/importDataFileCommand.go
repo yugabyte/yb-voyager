@@ -28,8 +28,9 @@ var (
 	tableNameVsFilePath  = make(map[string]string)
 	supportedFileFormats = []string{datafile.CSV, datafile.TEXT}
 	fileOpts             string
+	escapeChar           string
+	quoteChar            string
 	nullString           string
-	fileOptsMap          = make(map[string]string)
 	supportedCsvFileOpts = []string{"escape_char", "quote_char"}
 	dataStore            datastore.DataStore
 )
@@ -59,12 +60,12 @@ func prepareForImportDataCmd() {
 		HasHeader:     hasHeader,
 		ExportDir:     exportDir,
 	}
-	if fileOptsMap["quote_char"] != "" {
-		quoteCharBytes := []byte(fileOptsMap["quote_char"])
+	if quoteChar != "" {
+		quoteCharBytes := []byte(quoteChar)
 		dfd.QuoteChar = quoteCharBytes[0]
 	}
-	if fileOptsMap["escape_char"] != "" {
-		escapeCharBytes := []byte(fileOptsMap["escape_char"])
+	if escapeChar != "" {
+		escapeCharBytes := []byte(escapeChar)
 		dfd.EscapeChar = escapeCharBytes[0]
 	}
 	dfd.Save()
@@ -135,11 +136,11 @@ func prepareCopyCommands() {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
+					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 				df.Close()
 			} else {
 				copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
-					table, fileFormat, []rune(delimiter)[0], fileOptsMap["escape_char"], fileOptsMap["quote_char"], nullString)
+					table, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 			}
 		} else if fileFormat == datafile.TEXT {
 			copyTableFromCommands[table] = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
@@ -211,7 +212,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	setDefaultForDelimiter()
 	checkDelimiterFlag()
 	checkHasHeader()
-	checkAndParseFileOpts()
+	checkAndParseEscapeAndQuoteChar()
 	setDefaultForNullString()
 	validateTargetPassword(cmd)
 }
@@ -260,12 +261,12 @@ func checkDataDirFlag() {
 }
 
 func checkDelimiterFlag() {
-	resolvedDelimiter, ok := resolveAndCheckSingleByteChar(delimiter)
+	var ok bool
+	delimiter, ok = interpreteEscapeSequences(delimiter)
 	if !ok {
 		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
 	}
-	log.Infof("resolved delimiter value: %q", resolvedDelimiter)
-	delimiter = resolvedDelimiter
+	log.Infof("resolved delimiter value: %q", delimiter)
 }
 
 func checkHasHeader() {
@@ -274,56 +275,69 @@ func checkHasHeader() {
 	}
 }
 
-func checkAndParseFileOpts() {
+func checkAndParseEscapeAndQuoteChar() {
 	switch fileFormat {
 	case datafile.CSV:
-		// setting default values for escape and quote, will be updated if provided in fileOpts flag
-		fileOptsMap = map[string]string{
-			"escape_char": "\"",
-			"quote_char":  "\"",
+		// setting default values for escape and quote
+		if escapeChar == "" {
+			escapeChar = `"`
 		}
-		if strings.Trim(fileOpts, " ") == "" { // if fileOpts is empty, then return
-			return
+		if quoteChar == "" {
+			quoteChar = `"`
 		}
 
-		keyValuePairs := strings.Split(fileOpts, ",")
-		for _, keyValuePair := range keyValuePairs {
-			key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
-			key = strings.ToLower(key)
-			if !slices.Contains(supportedCsvFileOpts, key) {
-				utils.ErrExit("ERROR: %q is not a valid csv file option", key)
-			} else {
-				resolvedValue, ok := resolveAndCheckSingleByteChar(value)
-				if !ok {
-					utils.ErrExit("ERROR: invalid syntax of opt '%s=%s' in --file-opts flag. It should be a valid single-byte value.", key, value)
+		if fileOpts != "" {
+			keyValuePairs := strings.Split(fileOpts, ",")
+			for _, keyValuePair := range keyValuePairs {
+				key, value := strings.Split(keyValuePair, "=")[0], strings.Split(keyValuePair, "=")[1]
+				key = strings.ToLower(key)
+				if !slices.Contains(supportedCsvFileOpts, key) {
+					utils.ErrExit("ERROR: %q is not a valid csv file option", key)
+				} else {
+					if key == "escape_char" {
+						escapeChar = value
+					} else if key == "quote_char" {
+						quoteChar = value
+					}
 				}
-				fileOptsMap[key] = resolvedValue
 			}
 		}
+		var ok bool
 
-	case datafile.TEXT:
-		if fileOpts != "" {
-			utils.ErrExit("ERROR: --file-opts flag is invalid for %q format", fileFormat)
+		escapeChar, ok = interpreteEscapeSequences(escapeChar)
+		if !ok {
+			utils.ErrExit("ERROR: invalid syntax of --escape-char=%s flag. It should be a valid single-byte value.", escapeChar)
 		}
+
+		quoteChar, ok = interpreteEscapeSequences(quoteChar)
+		if !ok {
+			utils.ErrExit("ERROR: invalid syntax of --quote-char=%s flag. It should be a valid single-byte value.", quoteChar)
+		}
+
 	default:
-		if fileOpts != "" {
-			panic(fmt.Sprintf("ERROR: --file-opts flag not implemented for %q format\n", fileFormat))
+		if escapeChar != "" {
+			utils.ErrExit("ERROR: --escape-char flag is invalid for %q format", fileFormat)
+		}
+		if quoteChar != "" {
+			utils.ErrExit("ERROR: --quote-char flag is invalid for %q format", fileFormat)
 		}
 	}
 
-	log.Infof("fileOptsMap: %v", fileOptsMap)
+	log.Infof("escapeChar: %s, quoteChar: %s", escapeChar, quoteChar)
+
 }
 
 func setDefaultForNullString() {
-	if nullString == "" {
-		switch fileFormat {
-		case datafile.CSV:
-			nullString = ""
-		case datafile.TEXT:
-			nullString = "\\N"
-		default:
-			panic("unsupported file format")
-		}
+	if nullString != "" {
+		return
+	}
+	switch fileFormat {
+	case datafile.CSV:
+		nullString = ""
+	case datafile.TEXT:
+		nullString = "\\N"
+	default:
+		panic("unsupported file format")
 	}
 }
 
@@ -342,36 +356,27 @@ func setDefaultForDelimiter() {
 }
 
 // resolves and check the given string is a single byte character
-func resolveAndCheckSingleByteChar(value string) (string, bool) {
+func interpreteEscapeSequences(value string) (string, bool) {
 	if len(value) == 1 {
 		return value, true
 	}
 	resolvedValue, err := strconv.Unquote(`"` + value + `"`)
 	if err != nil || len(resolvedValue) != 1 {
-		return resolvedValue, false
+		return value, false
 	}
 	return resolvedValue, true
 }
 
 // in case of csv file format, escape and quote characters are required to be escaped with
-// backslash if there are single quote or backslash provided with E in copy Command
+// E in copy Command using backslash if there are single quote or backslash provided
 func escapeFileOptsCharsIfRequired() {
-	if fileOptsMap["escape_char"] == `'` {
-		fileOptsMap["escape_char"] = `\'`
+	if escapeChar == `'` || escapeChar == `\` {
+		escapeChar = `\` + escapeChar
 	}
 
-	if fileOptsMap["quote_char"] == `'` {
-		fileOptsMap["quote_char"] = `\'`
+	if quoteChar == `'` || quoteChar == `\` {
+		quoteChar = `\` + quoteChar
 	}
-
-	if fileOptsMap["escape_char"] == `\` {
-		fileOptsMap["escape_char"] = `\\`
-	}
-
-	if fileOptsMap["quote_char"] == `\` {
-		fileOptsMap["quote_char"] = `\\`
-	}
-
 }
 
 func init() {
@@ -400,11 +405,19 @@ func init() {
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
 			"(Note: only works for csv file type)")
 
+	importDataFileCmd.Flags().StringVar(&escapeChar, "escape-char", "",
+		`escape character (default double quotes '"') only applicable to CSV file format`)
+
+	importDataFileCmd.Flags().StringVar(&quoteChar, "quote-char", "",
+		`character used to quote the values (default double quotes '"') only applicable to CSV file format`)
+
 	importDataFileCmd.Flags().StringVar(&fileOpts, "file-opts", "",
 		`comma separated options for csv file format:
 		1. escape_char: escape character (default is double quotes '"')
 		2. quote_char: 	character used to quote the values (default double quotes '"')
 		for eg: --file-opts "escape_char=\",quote_char=\"" or --file-opts 'escape_char=",quote_char="'`)
+
+	importDataFileCmd.Flags().MarkDeprecated("file-opts", "use --escape-char and --quote-char flags instead")
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)

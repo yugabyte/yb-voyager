@@ -67,9 +67,10 @@ main() {
 	#Test for fileOpts Flags having quote_char as single quote
 	step "Import data file: t1_quote_char.csv -> t1_quote_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_quote_char.csv:t1_quote_char" --file-opts "quote_char='"
+			--file-table-map "t1_quote_char.csv:t1_quote_char" --quote-char="'"
 
-	#Test for fileOpts Flags having quote_char as single quote and escape_char as single quote
+	#Test for fileOpts Flags having quote_char as single quote and escape_char as single quote 
+	#file-opts is deprecated just keeping for backward compatibility test
 	step "Import data file: t1_quote_escape_char1.csv -> t1_quote_escape_char1"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
 			--file-table-map "t1_quote_escape_char1.csv:t1_quote_escape_char1" --file-opts "quote_char=',escape_char='"
@@ -77,13 +78,13 @@ main() {
 	#Test for fileOpts Flags having quote_char as single quote and escape_char as backslash
 	step "Import data file: t1_quote_escape_char2.csv -> t1_quote_escape_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --file-opts "quote_char=',escape_char=\\"
+			--file-table-map "t1_quote_escape_char2.csv:t1_quote_escape_char2" --quote-char="'" --escape-char="\\"
 	
 
 	#Test in case delimiter is same as escape character
 	step "Import data file: t1_delimiter_escape_same.csv -> t1_delimiter_escape_same"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --file-opts "quote_char=',escape_char=|"
+			--file-table-map "t1_delimiter_escape_same.csv:t1_delimiter_escape_same" --quote-char="'" --escape-char="|"
 
 	# Test for csv file containing actual newline in it
 	step "Import data file: t1_newline.csv -> t1_newline"
@@ -107,32 +108,32 @@ main() {
 	# Test for csv file with backslash as escape and default quote character having multiple double quote strings in varchar field
 	step "Import data file: t1_escape_backslash.csv -> t1_escape_backslash"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --file-opts "escape_char=\\"
+			--file-table-map "t1_escape_backslash.csv:t1_escape_backslash" --escape-char="\\"
 
 	# Test for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char.csv -> test_backspace_char"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_char.csv:test_backspace_char" --file-opts "escape_char=\b,quote_char=\b"
+			--file-table-map "test_backspace_char.csv:test_backspace_char" --escape-char="\b" --quote-char="\b"
 
 	# Test2 for csv file with backspace as quote character and escape character in varchar field
 	step "Import data file: test_backspace_char2.csv -> test_backspace_char2"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --file-opts "escape_char=\b,quote_char=\b"
+			--file-table-map "test_backspace_char2.csv:test_backspace_char2" --escape-char="\b" --quote-char="\b"
 
 	# Test for csv file with backspace as quote character and single quote as escape character
 	step "Import data file: test_backspace_quote_single_quote_escape.csv -> test_backspace_quote_single_quote_escape"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_quote_single_quote_escape.csv:test_backspace_quote_single_quote_escape" --file-opts "escape_char=',quote_char=\b"
+			--file-table-map "test_backspace_quote_single_quote_escape.csv:test_backspace_quote_single_quote_escape" --escape-char="'" --quote-char="\b"
 
 	# Test for csv file with backspace as quote character and double quote as escape character
 	step "Import data file: test_backspace_quote_double_quote_escape.csv -> test_backspace_quote_double_quote_escape"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --file-opts "escape_char=\",quote_char=\b"
+			--file-table-map "test_backspace_quote_double_quote_escape.csv:test_backspace_quote_double_quote_escape" --escape-char="\"" --quote-char="\b"
 
 	# Test for csv file with backspace as escape character and double quote as quote character
 	step "Import data file: test_backspace_escape_double_quote.csv -> test_backspace_escape_double_quote"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --file-opts "escape_char=\b,quote_char=\""
+			--file-table-map "test_backspace_escape_double_quote.csv:test_backspace_escape_double_quote" --escape-char="\b" --quote-char="\""
 
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
