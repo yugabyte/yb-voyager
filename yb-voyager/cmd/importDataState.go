@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -209,12 +208,12 @@ func (s *ImportDataState) getBatches(filePath, tableName string, states string) 
 	}
 
 	// Find regular files in the `fileStateDir` whose name starts with "batch::"
-	files, err := ioutil.ReadDir(fileStateDir)
+	files, err := os.ReadDir(fileStateDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir %q: %s", fileStateDir, err)
 	}
 	for _, file := range files {
-		if file.Mode().IsRegular() && strings.HasPrefix(file.Name(), "batch::") {
+		if file.Type().IsRegular() && strings.HasPrefix(file.Name(), "batch::") {
 			batchNum, offsetEnd, recordCount, byteCount, state, err := parseBatchFileName(file.Name())
 			if err != nil {
 				return nil, fmt.Errorf("parse batch file name %q: %w", file.Name(), err)
