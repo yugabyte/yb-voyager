@@ -19,12 +19,11 @@ import (
 )
 
 var (
-	fileFormat       string
-	delimiter        string
-	dataDir          string
-	fileTableMapping string
-	hasHeader        bool
-	//tableNameVsFilePath   = make(map[string]string)
+	fileFormat            string
+	delimiter             string
+	dataDir               string
+	fileTableMapping      string
+	hasHeader             bool
 	filePathToTableName   = make(map[string]string)
 	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
 	fileOpts              string

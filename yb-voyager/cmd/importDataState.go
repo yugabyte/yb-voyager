@@ -273,21 +273,6 @@ func (s *ImportDataState) getTableStateDir(tableName string) string {
 	return fmt.Sprintf("%s/table::%s", s.stateDir, tableName)
 }
 
-// func (s *ImportDataState) getTableStateDirs() (map[string]string, error) {
-// 	tableDirs := make(map[string]string)
-// 	files, err := ioutil.ReadDir(s.stateDir)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
-// 	}
-// 	for _, f := range files {
-// 		if f.IsDir() && strings.HasPrefix(f.Name(), "table::") {
-// 			tableName := strings.TrimPrefix(f.Name(), "table::")
-// 			tableDirs[tableName] = filepath.Join(s.stateDir, f.Name())
-// 		}
-// 	}
-// 	return tableDirs, nil
-// }
-
 func (s *ImportDataState) getFileStateDir(filePath, tableName string) string {
 	// NOTE: filePath must be absolute.
 	hash := computePathHash(filePath)
