@@ -200,7 +200,7 @@ check_java() {
         output "Found sufficient java version = ${JAVA_COMPLETE_VERSION}"
     else
         output "ERROR: Java not found or insuffiencient version ${JAVA_COMPLETE_VERSION}. Please install java>=${MIN_REQUIRED_MAJOR_VERSION}"
-                exit 1;
+        exit 1;
     fi
 }
 
@@ -219,9 +219,9 @@ install_debezium_server() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpd", --long install-from-local-source,only-pg-support,install-debezium-server-latest --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
-		OPTS=$(getopt  lp  $ARGS_MACOS)
+		OPTS=$(getopt  lpd  $ARGS_MACOS)
 	fi
 
 	eval set -- "$OPTS"
@@ -230,9 +230,13 @@ get_passed_options() {
 		case "$1" in
 			-l | --install-from-local-source ) 
 				VERSION="local"
-				DEBEZIUM_TARBALL_VERSION="latest"
 				shift
 				;;
+			-d | --install-debezium-server-latest )
+                DEBEZIUM_VERSION=latest
+                DEBEZIUM_RELEASE_TAG=voyager-debezium
+                shift
+                ;;
 			-p | --only-pg-support ) 
 				ONLY_PG="true"; 
 				shift 
