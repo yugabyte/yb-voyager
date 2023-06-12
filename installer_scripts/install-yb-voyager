@@ -205,7 +205,7 @@ check_java() {
 }
 
 install_debezium_server() {
-	output "Installing debezium"
+	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
