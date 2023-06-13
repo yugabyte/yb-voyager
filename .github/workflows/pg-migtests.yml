@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ ${GITHUB_REF#refs/heads/} ]
 
 jobs:
   run-pg-migration-tests:
@@ -39,7 +39,7 @@ jobs:
         docker restart ${{ job.services.postgres.id }}
         sleep 10
       if: matrix.EXPERIMENTAL_FAST_EXPORT == 1
-
+    # some-test
     - name: Install python3 and psycopg2
       run: |
         sudo apt install -y python3
