@@ -233,7 +233,7 @@ get_passed_options() {
 				shift
 				;;
 			-d | --install-debezium-server-latest )
-        		DEBEZIUM_VERSION=latest
+				DEBEZIUM_VERSION=latest
 				DEBEZIUM_RELEASE_TAG=voyager-debezium
 				shift
 				;;
