@@ -109,7 +109,12 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		if err != nil {
 			return nil, fmt.Errorf("compute imported data size: %w", err)
 		}
-		perc := float64(importedCount) * 100.0 / float64(totalCount)
+		var perc float64
+		if totalCount == 0 {
+			perc = float64(0)
+		} else {
+			perc = float64(importedCount) * 100.0 / float64(totalCount)
+		}
 		var status string
 		switch true {
 		case importedCount == totalCount:

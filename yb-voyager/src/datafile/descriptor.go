@@ -21,9 +21,7 @@ type FileEntry struct {
 }
 
 type Descriptor struct {
-	FileFormat string `json:"FileFormat"`
-	// TableRowCount map[string]int64 `json:"TableRowCount"`
-	// TableFileSize map[string]int64 `json:"TableFileSize"`
+	FileFormat   string       `json:"FileFormat"`
 	Delimiter    string       `json:"Delimiter"`
 	HasHeader    bool         `json:"HasHeader"`
 	ExportDir    string       `json:"-"`

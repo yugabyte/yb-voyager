@@ -136,11 +136,12 @@ func FileOrFolderExists(path string) bool {
 		if os.IsNotExist(err) {
 			return false
 		} else {
-			panic(err)
+			ErrExit("check if %q exists: %s", path, err)
 		}
 	} else {
 		return true
 	}
+	panic("unreachable")
 }
 
 func CleanDir(dir string) {

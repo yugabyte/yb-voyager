@@ -1,3 +1,18 @@
+/*
+Copyright (c) YugaByte, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package cmd
 
 import (
@@ -13,6 +28,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 )
 
 /*
@@ -69,15 +85,16 @@ func (s *ImportDataState) GetAllBatches(filePath, tableName string) ([]*Batch, e
 type FileImportState string
 
 const (
-	FILE_IMPORT_NOT_STARTED FileImportState = "FILE_IMPORT_NOT_STARTED"
-	FILE_IMPORT_IN_PROGRESS FileImportState = "FILE_IMPORT_IN_PROGRESS"
-	FILE_IMPORT_COMPLETED   FileImportState = "FILE_IMPORT_COMPLETED"
+	FILE_IMPORT_STATE_UNKNOWN FileImportState = "FILE_IMPORT_STATE_UNKNOWN"
+	FILE_IMPORT_NOT_STARTED   FileImportState = "FILE_IMPORT_NOT_STARTED"
+	FILE_IMPORT_IN_PROGRESS   FileImportState = "FILE_IMPORT_IN_PROGRESS"
+	FILE_IMPORT_COMPLETED     FileImportState = "FILE_IMPORT_COMPLETED"
 )
 
 func (s *ImportDataState) GetFileImportState(filePath, tableName string) (FileImportState, error) {
 	batches, err := s.GetAllBatches(filePath, tableName)
 	if err != nil {
-		return FILE_IMPORT_NOT_STARTED, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
+		return FILE_IMPORT_STATE_UNKNOWN, fmt.Errorf("error while getting all batches for %s: %w", tableName, err)
 	}
 	if len(batches) == 0 {
 		return FILE_IMPORT_NOT_STARTED, nil
@@ -260,7 +277,7 @@ func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byte
 		return 0, 0, 0, 0, "", fmt.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
 	}
 	state = md[4]
-	if !strings.Contains("CPD", state) {
+	if !slices.Contains([]string{"C", "P", "D"}, state) {
 		return 0, 0, 0, 0, "", fmt.Errorf("invalid state %q in the file name %q", md[4], fileName)
 	}
 	return batchNum, offsetEnd, recordCount, byteCount, state, nil
@@ -339,7 +356,7 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 	}
 	bw.NumRecordsWritten++
 	bw.flagFirstRecordWritten = true
-	if bw.w.Buffered() == 4*1024*1024 {
+	if bw.w.Buffered() >= FOUR_MB {
 		err = bw.w.Flush()
 		if err != nil {
 			return fmt.Errorf("flush %q: %s", bw.outFile.Name(), err)
@@ -416,7 +433,7 @@ func (batch *Batch) Delete() error {
 	return nil
 }
 
-func (batch *Batch) ImportIsNotStarted() bool {
+func (batch *Batch) IsNotStarted() bool {
 	return strings.HasSuffix(batch.FilePath, ".C")
 }
 

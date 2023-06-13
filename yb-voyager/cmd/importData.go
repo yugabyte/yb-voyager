@@ -51,8 +51,8 @@ import (
 )
 
 var metaInfoDirName = META_INFO_DIR_NAME
-var numLinesInASplit = int64(0)
-var parallelImportJobs = 0
+var batchSize = int64(0)
+var parallelism = 0
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -86,10 +86,10 @@ var importDataCmd = &cobra.Command{
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	target.ImportMode = true
+	checkExportDataDoneFlag()
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
-	checkExportDataDoneFlag()
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
@@ -104,30 +104,14 @@ type ImportFileTask struct {
 
 func discoverFilesToImport() []*ImportFileTask {
 	result := []*ImportFileTask{}
-	exportDataDir := filepath.Join(exportDir, "data")
-	_, err := os.Stat(exportDataDir)
-	if err != nil {
-		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
-	}
-	// Collect all the data files
-	dataFilePatern := fmt.Sprintf("%s/*_data.sql", exportDataDir)
-	datafiles, err := filepath.Glob(dataFilePatern)
-	if err != nil {
-		utils.ErrExit("find data files in %q: %s", exportDataDir, err)
-	}
 
-	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	for i, v := range datafiles {
-		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
-		for _, match := range tablenameMatches {
-			tableName := match[1]
-			task := &ImportFileTask{
-				ID:        i,
-				FilePath:  v,
-				TableName: tableName,
-			}
-			result = append(result, task)
+	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		task := &ImportFileTask{
+			ID:        i,
+			FilePath:  fileEntry.FilePath,
+			TableName: fileEntry.TableName,
 		}
+		result = append(result, task)
 	}
 	return result
 }
@@ -241,9 +225,9 @@ func getYBServers() []*tgtdb.Target {
 
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
-		if parallelImportJobs == -1 {
-			parallelImportJobs = 2 * len(targets)
-			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+		if parallelism == -1 {
+			parallelism = 2 * len(targets)
+			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 		}
 		targets = []*tgtdb.Target{&target}
 	} else {
@@ -368,13 +352,13 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if parallelImportJobs == -1 {
-		parallelImportJobs = fetchDefaultParllelJobs(targets)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+	if parallelism == -1 {
+		parallelism = fetchDefaultParllelJobs(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 	}
 
 	params := &tgtdb.ConnectionParams{
-		NumConnections:    parallelImportJobs,
+		NumConnections:    parallelism,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(),
 	}
@@ -383,7 +367,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
-	var parallelism = parallelImportJobs
+
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
 	if target.VerboseMode {
@@ -441,7 +425,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)
 		}
 	}
-	fmt.Printf("\nexiting...\n")
+	fmt.Printf("\nImport data complete.\n")
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
@@ -526,20 +510,20 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
-	for _, t := range tasks {
-		s, err := state.GetFileImportState(t.FilePath, t.TableName)
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
-		switch s {
+		switch fileImportState {
 		case FILE_IMPORT_COMPLETED:
-			completedTasks = append(completedTasks, t)
+			completedTasks = append(completedTasks, task)
 		case FILE_IMPORT_IN_PROGRESS:
-			inProgressTasks = append(inProgressTasks, t)
+			inProgressTasks = append(inProgressTasks, task)
 		case FILE_IMPORT_NOT_STARTED:
-			notStartedTasks = append(notStartedTasks, t)
+			notStartedTasks = append(notStartedTasks, task)
 		default:
-			return nil, nil, fmt.Errorf("invalid table import state: %s", s)
+			return nil, nil, fmt.Errorf("invalid table import state: %s", fileImportState)
 		}
 	}
 	// Start with in-progress tasks, followed by not-started tasks.
@@ -665,7 +649,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 		if err != nil {
 			utils.ErrExit("Write to batch %d: %s", batchNum, err)
 		}
-		if batchWriter.NumRecordsWritten == numLinesInASplit ||
+		if batchWriter.NumRecordsWritten == batchSize ||
 			dataFile.GetBytesRead() >= MAX_SPLIT_SIZE_BYTES ||
 			readLineErr != nil {
 
@@ -681,12 +665,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			if err != nil {
 				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 			}
+			batchWriter = nil
 			dataFile.ResetBytesRead()
 			submitBatch(batch, connPool, updateProgressFn)
 
 			if !isLastBatch {
 				batchNum += 1
-				batchWriter = nil
 			}
 		}
 	}
@@ -1230,12 +1214,6 @@ func checkExportDataDoneFlag() {
 	if err != nil {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
-	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
-	_, err = os.Stat(metaInfoDataDir)
-	if err != nil {
-		utils.ErrExit("metainfo data dir is missing. Exiting.")
-	}
-
 	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
 	_, err = os.Stat(exportDataDonePath)
 	if err != nil {
