@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [ ${GITHUB_REF#refs/heads/} ]
 
 jobs:
   run-pg-migration-tests:
