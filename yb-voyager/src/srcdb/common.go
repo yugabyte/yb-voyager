@@ -20,7 +20,7 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 		tableMetadata := tablesMetadata[key]
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		fileEntry := &datafile.FileEntry{
-			FilePath:  tableMetadata.FinalFilePath,
+			FilePath:  filepath.Base(tableMetadata.FinalFilePath),
 			TableName: targetTableName,
 			RowCount:  tableMetadata.CountLiveRows,
 			FileSize:  -1, // Not available.

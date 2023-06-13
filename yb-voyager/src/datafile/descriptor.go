@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 
+	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -46,7 +48,14 @@ func OpenDescriptor(exportDir string) *Descriptor {
 	if err != nil {
 		utils.ErrExit("unmarshal dfd: %v", err)
 	}
-	log.Infof("Parsed DataFileDescriptor: %+v", dfd)
+
+	// Prefix the export dir to the file paths, if the paths are not absolute.
+	for _, fileEntry := range dfd.DataFileList {
+		if !path.IsAbs(fileEntry.FilePath) {
+			fileEntry.FilePath = path.Join(exportDir, "data", fileEntry.FilePath)
+		}
+	}
+	log.Infof("Parsed DataFileDescriptor: %v", spew.Sdump(dfd))
 	return dfd
 }
 
