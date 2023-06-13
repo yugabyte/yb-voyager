@@ -139,13 +139,12 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFilesForReservedWords(tablesProgressMetadata)
-	dataFileList := getExportedDataFileList(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileFormat:   datafile.SQL,
 		Delimiter:    "\t",
 		HasHeader:    false,
 		ExportDir:    exportDir,
-		DataFileList: dataFileList,
+		DataFileList: getExportedDataFileList(tablesProgressMetadata),
 	}
 	dfd.Save()
 }

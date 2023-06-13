@@ -56,15 +56,9 @@ func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error
 	// Create a symlink to the filePath. The symLink is only for human consumption.
 	// It helps in easily distinguishing in files with same names but different paths.
 	symlinkPath := filepath.Join(fileStateDir, "link")
-	// First remove the entry if it exists.
-	log.Infof("Removing %q.", symlinkPath)
-	err = os.Remove(symlinkPath)
-	if err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("error while removing %q: %w", symlinkPath, err)
-	}
 	log.Infof("Creating symlink %q -> %q.", symlinkPath, filePath)
 	err = os.Symlink(filePath, symlinkPath)
-	if err != nil {
+	if err != nil && !os.IsExist(err) {
 		return fmt.Errorf("error while creating symlink %q -> %q: %w", symlinkPath, filePath, err)
 	}
 	return nil
