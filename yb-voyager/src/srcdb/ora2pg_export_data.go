@@ -180,6 +180,7 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 			if err != nil {
 				utils.ErrExit("renaming data file for table %q after data export: %v", tblNameQuoted, err)
 			}
+			tableProgressMetadata.FinalFilePath = newFilePath
 		} else {
 			utils.PrintAndLog("File %q to rename doesn't exists!", oldFilePath)
 		}
