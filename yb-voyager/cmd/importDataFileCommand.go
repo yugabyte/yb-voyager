@@ -18,12 +18,12 @@ package cmd
 import (
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -39,7 +39,7 @@ var (
 	dataDir               string
 	fileTableMapping      string
 	hasHeader             bool
-	filePathToTableName   = make(map[string]string)
+	importFileTasks       []*ImportFileTask
 	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
 	fileOpts              string
 	escapeChar            string
@@ -58,9 +58,8 @@ var importDataFileCmd = &cobra.Command{
 		reportProgressInBytes = true
 		checkImportDataFileFlags(cmd)
 		dataStore = datastore.NewDataStore(dataDir)
-		parseFileTableMapping()
+		importFileTasks = prepareImportFileTasks()
 		prepareForImportDataCmd()
-		importFileTasks := prepareImportFileTasks()
 		importData(importFileTasks)
 	},
 }
@@ -97,7 +96,9 @@ func prepareForImportDataCmd() {
 
 func getFileSizeInfo() []*datafile.FileEntry {
 	dataFileList := make([]*datafile.FileEntry, 0)
-	for filePath, tableName := range filePathToTableName {
+	for _, task := range importFileTasks {
+		filePath := task.FilePath
+		tableName := task.TableName
 		fileSize, err := dataStore.FileSize(filePath)
 		if err != nil {
 			utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
@@ -117,7 +118,9 @@ func getFileSizeInfo() []*datafile.FileEntry {
 
 func prepareCopyCommands() {
 	log.Infof("preparing copy commands for the tables to import")
-	for filePath, table := range filePathToTableName {
+	for _, task := range importFileTasks {
+		filePath := task.FilePath
+		table := task.TableName
 		// Skip the loop body if the `table` entry is already present in the copyTableFromCommands map.
 		// TODO: Calculate the copy commands per file and not per table.
 		if _, ok := copyTableFromCommands.Load(table); ok {
@@ -153,12 +156,11 @@ func prepareCopyCommands() {
 }
 
 func setImportTableListFlag() {
-	tableList := []string{}
-	for _, tableName := range filePathToTableName {
-		tableList = append(tableList, tableName)
+	tableList := map[string]bool{}
+	for _, task := range importFileTasks {
+		tableList[task.TableName] = true
 	}
-
-	target.TableList = strings.Join(tableList, ",")
+	target.TableList = strings.Join(maps.Keys(tableList), ",")
 }
 
 func prepareImportFileTasks() []*ImportFileTask {
@@ -178,49 +180,6 @@ func prepareImportFileTasks() []*ImportFileTask {
 		result = append(result, task)
 	}
 	return result
-}
-
-func parseFileTableMapping() {
-	if fileTableMapping != "" {
-		keyValuePairs := strings.Split(fileTableMapping, ",")
-		for _, keyValuePair := range keyValuePairs {
-			fileName, table := strings.Split(keyValuePair, ":")[0], strings.Split(keyValuePair, ":")[1]
-			filePath := dataStore.Join(dataDir, fileName)
-			filePathToTableName[filePath] = table
-		}
-	} else {
-		// TODO: replace "link" with docs link
-		utils.PrintAndLog("Note: --file-table-map flag is not provided, default will assume the file names in format as mentioned in the docs. Refer - link")
-
-		// get matching file in data-dir
-		files, err := dataStore.Glob("*_data.csv")
-		if err != nil {
-			utils.ErrExit("finding data files to import: %v", err)
-		}
-
-		if len(files) == 0 {
-			utils.ErrExit("No data files found to import in %q", dataDir)
-		} else {
-			var tableFiles []string
-			for _, file := range files {
-				tableFiles = append(tableFiles, filepath.Base(file))
-			}
-			utils.PrintAndLog("Table data files identified to import from data-dir(%q) are: [%s]\n\n", dataDir, strings.Join(tableFiles, ", "))
-		}
-
-		reTableName := regexp.MustCompile(`(\S+)_data.csv`)
-		for _, file := range files {
-			fileName := filepath.Base(file)
-
-			matches := reTableName.FindAllStringSubmatch(fileName, -1)
-			if len(matches) == 0 {
-				utils.ErrExit("datafile names in %q are not in right format, refer docs", dataDir)
-			}
-
-			tableName := matches[0][1]
-			filePathToTableName[file] = tableName
-		}
-	}
 }
 
 func checkImportDataFileFlags(cmd *cobra.Command) {
