@@ -27,7 +27,13 @@ type Config struct {
 	TableList         []string
 	ColumnSequenceMap []string
 	ColumnList        []string
-	SnapshotMode      string
+
+	SSLMode     string
+	SSLCertPath string
+	SSLKey      string
+	SSLRootCert string
+
+	SnapshotMode string
 }
 
 var baseSrcConfigTemplate = `
@@ -71,6 +77,14 @@ debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
 
+var postgresSSLConfigTemplate = `
+debezium.source.database.sslmode=%s
+debezium.source.database.sslcert=%s
+debezium.source.database.sslkey=%s
+debezium.source.database.sslpassword=
+debezium.source.database.sslrootcert=%s
+`
+
 var oracleSrcConfigTemplate = baseSrcConfigTemplate + `
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
 debezium.source.database.dbname=%s
@@ -112,6 +126,12 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			c.DatabaseName,
 			schemaNames)
+		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
+			c.SSLMode,
+			c.SSLCertPath,
+			c.SSLKey,
+			c.SSLRootCert)
+		conf = conf + sslConf
 
 	case "oracle":
 		conf = fmt.Sprintf(oracleSrcConfigTemplate,

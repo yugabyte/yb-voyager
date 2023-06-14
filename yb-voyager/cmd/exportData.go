@@ -258,6 +258,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
 	}
 
+	err = source.PrepareSSLParamsForDebezium(absExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
+	}
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -271,7 +275,13 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		TableList:         dbzmTableList,
 		ColumnList:        dbzmColumnList,
 		ColumnSequenceMap: columnSequenceMap,
-		SnapshotMode:      snapshotMode,
+
+		SSLMode:     source.SSLMode,
+		SSLCertPath: source.SSLCertPath,
+		SSLKey:      source.SSLKey,
+		SSLRootCert: source.SSLRootCert,
+
+		SnapshotMode: snapshotMode,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)

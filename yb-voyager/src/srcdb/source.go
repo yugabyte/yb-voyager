@@ -5,7 +5,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
+	"encoding/pem"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -288,4 +290,40 @@ func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
 	}
 
 	return DSN
+}
+
+func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
+	switch source.DBType {
+	case "postgresql":
+		privateKeyBytes, err := convertPKCS8PrivateKeyPEMtoDER(source.SSLKey)
+		if err != nil {
+			return fmt.Errorf("could not convert private key from PEM to DER: %w", err)
+		}
+		keyFilePath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
+		err = os.WriteFile(keyFilePath, privateKeyBytes, 0600)
+		if err != nil {
+			return fmt.Errorf("could not write DER key: %w", err)
+		}
+		source.SSLKey = keyFilePath
+	case "mysql":
+	default:
+	}
+	return nil
+}
+
+func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
+	pkPEM, err := ioutil.ReadFile(pemFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read key file: %w", err)
+	}
+
+	b, _ := pem.Decode(pkPEM)
+	if b == nil {
+		return nil, fmt.Errorf("could not decode pem key file")
+	}
+
+	if b.Type != "PRIVATE KEY" {
+		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard. (type=PRIVATE KEY), received type=%s", b.Type)
+	}
+	return b.Bytes, nil
 }
