@@ -378,6 +378,7 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
+		// TODO: TableName and FilePath must be quoted by debezium plugin.
 		tableName := table.TableName
 		if (sqlname.IsCaseSensitive(tableName, source.DBType) || sqlname.IsReservedKeyword(tableName)) &&
 			!sqlname.IsQuoted(tableName) {
@@ -388,7 +389,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		}
 		fileEntry := &datafile.FileEntry{
 			TableName: tableName,
-			FilePath:  table.FileName,
+			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
 			RowCount:  table.ExportedRowCountSnapshot,
 			FileSize:  -1, // Not available.
 		}
