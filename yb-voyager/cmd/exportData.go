@@ -385,7 +385,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 			tableName = fmt.Sprintf(`"%s"`, tableName)
 		}
 		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
+			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
 		}
 		fileEntry := &datafile.FileEntry{
 			TableName: tableName,
