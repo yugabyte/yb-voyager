@@ -379,7 +379,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
 		tableName := table.TableName
-		if (sqlname.IsCaseSensitive(tableName, sourceDBType) || sqlname.IsReservedKeyword(tableName)) &&
+		if (sqlname.IsCaseSensitive(tableName, source.DBType) || sqlname.IsReservedKeyword(tableName)) &&
 			!sqlname.IsQuoted(tableName) {
 			tableName = fmt.Sprintf(`"%s"`, tableName)
 		}
