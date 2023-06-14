@@ -379,6 +379,10 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
 		tableName := table.TableName
+		if (sqlname.IsCaseSensitive(tableName, sourceDBType) || sqlname.IsReservedKeyword(tableName)) &&
+			!sqlname.IsQuoted(tableName) {
+			tableName = fmt.Sprintf(`"%s"`, tableName)
+		}
 		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
 			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
 		}

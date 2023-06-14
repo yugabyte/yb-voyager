@@ -137,13 +137,13 @@ func (t *TargetName) String() string {
 	return t.Qualified.Quoted
 }
 
-func isQuoted(s string) bool {
+func IsQuoted(s string) bool {
 	// TODO: Learn the semantics of backticks in MySQL and Oracle.
 	return (s[0] == '"' && s[len(s)-1] == '"') || (s[0] == '`' && s[len(s)-1] == '`')
 }
 
 func quote(s string, dbType string) string {
-	if isQuoted(s) {
+	if IsQuoted(s) {
 		if s[0] == '`' && dbType == YUGABYTE {
 			return `"` + unquote(s, dbType) + `"` // `Foo` -> "Foo"
 		}
@@ -162,7 +162,7 @@ func quote(s string, dbType string) string {
 }
 
 func unquote(s string, dbType string) string {
-	if isQuoted(s) {
+	if IsQuoted(s) {
 		return s[1 : len(s)-1]
 	}
 	switch dbType {
