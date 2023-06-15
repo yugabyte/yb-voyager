@@ -5,9 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	_ "embed"
-	"encoding/pem"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,6 +13,7 @@ import (
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -295,35 +294,31 @@ func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
 func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {
 	case "postgresql":
-		privateKeyBytes, err := convertPKCS8PrivateKeyPEMtoDER(source.SSLKey)
-		if err != nil {
-			return fmt.Errorf("could not convert private key from PEM to DER: %w", err)
+		if source.SSLKey != "" {
+			derKeyFilePath, err := writePKCS8PrivateKeyPEMasDER(source.SSLKey, exportDir)
+			if err != nil {
+				return fmt.Errorf("could not write private key PEM as DER: %w", err)
+			}
+			source.SSLKey = derKeyFilePath
 		}
-		keyFilePath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
-		err = os.WriteFile(keyFilePath, privateKeyBytes, 0600)
-		if err != nil {
-			return fmt.Errorf("could not write DER key: %w", err)
-		}
-		source.SSLKey = keyFilePath
 	case "mysql":
 	default:
 	}
 	return nil
 }
 
-func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
-	pkPEM, err := ioutil.ReadFile(pemFilePath)
+// pgjdbc (internally used by debezium) only supports keys in DER format.
+// https://github.com/pgjdbc/pgjdbc/issues/1364#issuecomment-447441182
+func writePKCS8PrivateKeyPEMasDER(sslKeyPath string, exportDir string) (string, error) {
+	privateKeyBytes, err := dbzm.ConvertPKCS8PrivateKeyPEMtoDER(sslKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not read key file: %w", err)
+		return "", fmt.Errorf("could not convert private key from PEM to DER: %w", err)
 	}
-
-	b, _ := pem.Decode(pkPEM)
-	if b == nil {
-		return nil, fmt.Errorf("could not decode pem key file")
+	keyFilePath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
+	err = os.WriteFile(keyFilePath, privateKeyBytes, 0600)
+	if err != nil {
+		return "", fmt.Errorf("could not write DER key: %w", err)
 	}
-
-	if b.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard. (type=PRIVATE KEY), received type=%s", b.Type)
-	}
-	return b.Bytes, nil
+	utils.PrintAndLog("Converted SSL key from PEM to DER format. File saved at %s", keyFilePath)
+	return keyFilePath, nil
 }
