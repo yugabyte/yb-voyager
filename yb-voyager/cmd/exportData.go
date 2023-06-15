@@ -107,7 +107,7 @@ func exportDataOffline() bool {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
+	// source.DB().CheckRequiredToolsAreInstalled()
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
@@ -276,10 +276,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		ColumnList:        dbzmColumnList,
 		ColumnSequenceMap: columnSequenceMap,
 
-		SSLMode:     source.SSLMode,
-		SSLCertPath: source.SSLCertPath,
-		SSLKey:      source.SSLKey,
-		SSLRootCert: source.SSLRootCert,
+		SSLMode:               source.SSLMode,
+		SSLCertPath:           source.SSLCertPath,
+		SSLKey:                source.SSLKey,
+		SSLRootCert:           source.SSLRootCert,
+		SSLKeyStore:           source.SSLKeyStore,
+		SSLKeyStorePassword:   source.SSLKeyStorePassword,
+		SSLTrustStore:         source.SSLTrustStore,
+		SSLTrustStorePassword: source.SSLTrustStorePassword,
 
 		SnapshotMode: snapshotMode,
 	}

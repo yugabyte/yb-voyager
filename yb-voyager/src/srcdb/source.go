@@ -18,29 +18,33 @@ import (
 )
 
 type Source struct {
-	DBType            string
-	Host              string
-	Port              int
-	User              string
-	Password          string
-	DBName            string
-	DBSid             string
-	OracleHome        string
-	TNSAlias          string
-	Schema            string
-	SSLMode           string
-	SSLCertPath       string
-	SSLKey            string
-	SSLRootCert       string
-	SSLCRL            string
-	SSLQueryString    string
-	Uri               string
-	NumConnections    int
-	VerboseMode       bool
-	TableList         string
-	ExcludeTableList  string
-	UseOrafce         bool
-	CommentsOnObjects bool
+	DBType                string
+	Host                  string
+	Port                  int
+	User                  string
+	Password              string
+	DBName                string
+	DBSid                 string
+	OracleHome            string
+	TNSAlias              string
+	Schema                string
+	SSLMode               string
+	SSLCertPath           string
+	SSLKey                string
+	SSLRootCert           string
+	SSLCRL                string
+	SSLQueryString        string
+	SSLKeyStore           string
+	SSLKeyStorePassword   string
+	SSLTrustStore         string
+	SSLTrustStorePassword string
+	Uri                   string
+	NumConnections        int
+	VerboseMode           bool
+	TableList             string
+	ExcludeTableList      string
+	UseOrafce             bool
+	CommentsOnObjects     bool
 
 	sourceDB SourceDB
 }
@@ -304,7 +308,38 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 			source.SSLKey = targetSslKeyPath
 		}
 	case "mysql":
-
+		switch source.SSLMode {
+		case "disable":
+			source.SSLMode = "disabled"
+		case "prefer":
+			source.SSLMode = "preferred"
+		case "require":
+			source.SSLMode = "required"
+		case "verify-ca":
+			source.SSLMode = "verify_ca"
+		case "verify-full":
+			source.SSLMode = "verify_identity"
+		}
+		if source.SSLKey != "" {
+			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", "keystore.jks")
+			keyStorePassword := "password"
+			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, keyStorePassword, keyStorePath)
+			if err != nil {
+				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
+			}
+			source.SSLKeyStore = keyStorePath
+			source.SSLKeyStorePassword = keyStorePassword
+		}
+		if source.SSLRootCert != "" {
+			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", "truststore.jks")
+			trustStorePassword := "password"
+			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, trustStorePassword, trustStorePath)
+			if err != nil {
+				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
+			}
+			source.SSLTrustStore = trustStorePath
+			source.SSLTrustStorePassword = trustStorePassword
+		}
 	default:
 	}
 	return nil

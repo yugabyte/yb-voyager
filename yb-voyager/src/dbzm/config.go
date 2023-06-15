@@ -28,10 +28,14 @@ type Config struct {
 	ColumnSequenceMap []string
 	ColumnList        []string
 
-	SSLMode     string
-	SSLCertPath string
-	SSLKey      string
-	SSLRootCert string
+	SSLMode               string
+	SSLCertPath           string
+	SSLKey                string
+	SSLRootCert           string
+	SSLKeyStore           string
+	SSLKeyStorePassword   string
+	SSLTrustStore         string
+	SSLTrustStorePassword string
 
 	SnapshotMode string
 }
@@ -110,6 +114,20 @@ debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
 `
 
+var mysqlSSLConfigTemplate = `
+debezium.source.database.ssl.mode=%s
+`
+
+var mysqlSSLKeyStoreConfigTemplate = `
+debezium.source.database.ssl.keystore=%s
+debezium.source.database.ssl.keystore.password=%s
+`
+
+var mysqlSSLTrustStoreConfigTemplate = `
+debezium.source.database.ssl.truststore=%s
+debezium.source.database.ssl.truststore.password=%s
+`
+
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
@@ -157,6 +175,19 @@ func (c *Config) String() string {
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"))
+		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
+		if c.SSLKeyStore != "" {
+			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
+				c.SSLKeyStore,
+				c.SSLKeyStorePassword)
+		}
+		if c.SSLTrustStore != "" {
+			sslConf += fmt.Sprintf(mysqlSSLTrustStoreConfigTemplate,
+				c.SSLTrustStore,
+				c.SSLTrustStorePassword)
+		}
+
+		conf = conf + sslConf
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))
 	}

@@ -4,6 +4,9 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"time"
+
+	"github.com/pavlo-v-chernykh/keystore-go/v4"
 )
 
 // pgjdbc (internally used by debezium) only supports keys in DER format.
@@ -37,4 +40,98 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard. (type=PRIVATE KEY), received type=%s", b.Type)
 	}
 	return b.Bytes, nil
+}
+
+func WritePKCS8PrivateKeyCertAsJavaKeystore(sslKeyPath string, sslCertPath string, password string, filepath string) error {
+	ks := keystore.New()
+
+	pkBytes, err := convertPKCS8PrivateKeyPEMtoDER(sslKeyPath)
+	if err != nil {
+		return fmt.Errorf("could not convert private key from PEM to DER: %w", err)
+	}
+	certBytes, err := readCertificate(sslCertPath)
+	if err != nil {
+		return fmt.Errorf("could not read cert file: %w", err)
+	}
+	pke := keystore.PrivateKeyEntry{
+		CreationTime: time.Now(),
+		PrivateKey:   pkBytes,
+		CertificateChain: []keystore.Certificate{
+			{
+				Type:    "X509",
+				Content: certBytes,
+			},
+		},
+	}
+
+	err = ks.SetPrivateKeyEntry("mysqlclient", pke, []byte(password))
+	if err != nil {
+		return fmt.Errorf("failed to form keystore: %w", err)
+	}
+	err = writeKeyStore(ks, filepath, []byte(password))
+	if err != nil {
+		return fmt.Errorf("failed to write keystore: %w", err)
+	}
+	return nil
+}
+
+func WriteRootCertAsJavaTrustStore(sslRootCertPath string, password string, filepath string) error {
+	ks := keystore.New()
+	certBytes, err := readCertificate(sslRootCertPath)
+	if err != nil {
+		return fmt.Errorf("could not read cert file: %w", err)
+	}
+	tce := keystore.TrustedCertificateEntry{
+		CreationTime: time.Now(),
+		Certificate: keystore.Certificate{
+			Type:    "X509",
+			Content: certBytes,
+		},
+	}
+
+	err = ks.SetTrustedCertificateEntry("MySQLCACert", tce)
+	if err != nil {
+		return fmt.Errorf("failed to form truststore: %w", err)
+	}
+	err = writeKeyStore(ks, filepath, []byte(password))
+	if err != nil {
+		return fmt.Errorf("failed to write truststore: %w", err)
+	}
+	return nil
+}
+
+func readCertificate(filepath string) ([]byte, error) {
+	pkPEM, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read cert file: %w", err)
+	}
+
+	b, _ := pem.Decode(pkPEM)
+	if b == nil {
+		return nil, fmt.Errorf("invalid pem file. should have at least one pem block: %w", err)
+	}
+
+	if b.Type != "CERTIFICATE" {
+		return nil, fmt.Errorf("invalid type. should be CERTIFICATE: %w", err)
+	}
+	return b.Bytes, nil
+}
+
+func writeKeyStore(ks keystore.KeyStore, filename string, password []byte) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("could not create keystore file: %w", err)
+	}
+
+	defer func() {
+		if err := f.Close(); err != nil {
+			panic(err)
+		}
+	}()
+
+	err = ks.Store(f, password)
+	if err != nil {
+		return err
+	}
+	return nil
 }
