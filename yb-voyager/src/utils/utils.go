@@ -348,19 +348,19 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 
 // https://yourbasic.org/golang/generate-random-string/
 func GenerateRandomString(length int) string {
-	rand.Seed(time.Now().UnixNano())
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	digits := "0123456789"
 	specials := "~=+%^*/()[]{}/!@#$?|"
 	all := "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		digits + specials
 	buf := make([]byte, length)
-	buf[0] = digits[rand.Intn(len(digits))]
-	buf[1] = specials[rand.Intn(len(specials))]
+	buf[0] = digits[r.Intn(len(digits))]
+	buf[1] = specials[r.Intn(len(specials))]
 	for i := 2; i < length; i++ {
-		buf[i] = all[rand.Intn(len(all))]
+		buf[i] = all[r.Intn(len(all))]
 	}
-	rand.Shuffle(len(buf), func(i, j int) {
+	r.Shuffle(len(buf), func(i, j int) {
 		buf[i], buf[j] = buf[j], buf[i]
 	})
 	return string(buf)
