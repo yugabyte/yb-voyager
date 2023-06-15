@@ -142,6 +142,10 @@ var (
 	inheritRegex          = re("CREATE", opt(capture(unqualifiedIdent)), "TABLE", ifNotExists, capture(ident), anything, "INHERITS", "[ |(]")
 	withOidsRegex         = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "WITH", anything, "OIDS")
 	intvlRegex            = re("CREATE", "TABLE", ifNotExists, capture(ident)+`\(`, anything, "interval", "PRIMARY")
+	anydataRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyData", anything)
+	anydatasetRegex       = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyDataSet", anything)
+	anyTypeRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "AnyType", anything)
+	uriTypeRegex          = re("CREATE", "TABLE", ifNotExists, capture(ident), anything, "URIType", anything)
 	//super user role required, language c is errored as unsafe
 	cLangRegex = re("CREATE", opt("OR REPLACE"), "FUNCTION", capture(ident), anything, "language c")
 
@@ -560,7 +564,16 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			objType := strings.ToUpper(strings.Split(fileName, ".")[0])
 			reportCase(fpath, `temporary table is not a supported clause for drop`,
 				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt)
+		} else if regMatch := anydataRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			reportCase(fpath, "AnyData datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyData datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+		} else if regMatch := anydatasetRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			reportCase(fpath, "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyDataSet datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+		} else if regMatch := anyTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+		} else if regMatch := uriTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		}
+
 	}
 }
 
