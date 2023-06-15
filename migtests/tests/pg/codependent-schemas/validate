@@ -71,7 +71,7 @@ def check_validations_per_schema(tgt, schema_name) -> None:
     assert len(procedures_or_functions) == EXPECTED_COUNTS[schema_name]["procedures_count"]
 
     QUERY_FOREIGN_KEY_TEST = f"insert into {schema_name}.foreign_test values (5,1,7);"
-    chk_err_returned = tgt.run_query_and_chk_error(QUERY_FOREIGN_KEY_TEST, 23503)
+    chk_err_returned = tgt.run_query_and_chk_error(QUERY_FOREIGN_KEY_TEST, "23503")
     print(f"Checking Foreign key test on schema {schema_name} - {chk_err_returned}")
     assert chk_err_returned == True
 
