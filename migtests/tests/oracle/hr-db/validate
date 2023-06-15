@@ -18,15 +18,15 @@ EXPECTED_ROW_COUNT = {
 QUERIES_CHECK = {
 	'FAULTY_QUERY_LESSER_END_DATE': {
 		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2003-01-01', '2002-01-01', 'AD_PRES', 90);",
-		'code': 23514
+		'code': "23514"
 	}, 
 	'VIOLATE_INDEX_jhist_emp_id_st_date_pk': {
 		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2001-01-13', '2006-07-24', 'AD_PRES', 90);",
-		'code': 23505
+		'code': "23505"
 	},
 	'VIOLATE_CHECK_CONSTRAINT_emp_salary_min': {
 		'query': "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);",
-		'code': 23514
+		'code': "23514"
 	}
 }
 
@@ -77,11 +77,18 @@ def migration_completed_checks(tgt):
  
 	# Validate if the stored procedure can be executed on the target
 	INSERT_DATA_INTO_DEPARTMENT_PROCEDURE = "call create_dept(199, 'Administration_199', 200, 1700);"
-	tgt.execute_query(INSERT_DATA_INTO_DEPARTMENT_PROCEDURE);
+	tgt.execute_query(INSERT_DATA_INTO_DEPARTMENT_PROCEDURE)
 	FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA = "select count(*) from departments WHERE department_name = 'Administration_199';"
-	returned_row_count = tgt.execute_query(FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA);
-	print(f"Returned row count is - {returned_row_count}")
+	returned_row_count = tgt.execute_query(FETCH_ROW_COUNT_AFTER_PROCEDURE_INSERTS_DATA)
+	print(f"Returned row count is: {returned_row_count}")
 	assert returned_row_count == 1
+
+	# Validate the errors after running faulty queries
+	for type_check, query_and_code in QUERIES_CHECK.items():
+		query, code = query_and_code['query'], query_and_code['code']
+		chk_err_returned = tgt.run_query_and_chk_error(query, code)
+		print(f"Checking {type_check} ..", code, {chk_err_returned} )
+		assert chk_err_returned == True
 	
 if __name__ == "__main__":
 	main()

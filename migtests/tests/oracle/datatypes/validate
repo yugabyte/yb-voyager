@@ -22,6 +22,30 @@ EXPECTED_ROW_COUNT = {
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	EXPECTED_ROW_COUNT['long_type'] = 2 # https://yugabyte.atlassian.net/browse/DB-5929	
 
+EXPECTED_SUM_OF_COLUMN = {
+	'numeric_types': {
+		'num_val': '260.580264',
+		'float_val': '236.0018',
+		'bin_float_val': '1.361127976e+29',
+		'bin_double_val': '5.39307940458693e+108'
+	},
+	'number_ps': {
+		'num_val': '123.89',
+		'num_3': '402',
+		'num_p_s': '5.79',
+		'num_s_p': '0.0000012',
+		'num_neg_s': '546.99'
+	}
+}
+if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
+	EXPECTED_SUM_OF_COLUMN = {
+	'numeric_types': {
+		'num_val': '260.580264',
+		'float_val': '236.0018',
+		'bin_float_val': '1.361128e+29',
+		'bin_double_val': '5.39307940458693e+108'
+	}
+}
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
 		'num_val': 'numeric',
@@ -117,6 +141,13 @@ def migration_completed_checks(tgt):
 		assert cnt == 3 and fetched_value_col1_column_in_varray_table == expected_value 
 	else:
 		assert cnt == 0 # NESTED TABLE datatype's data is not supported in debezium
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
 	
 if __name__ == "__main__":
 	main()
