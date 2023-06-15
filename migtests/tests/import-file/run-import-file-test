@@ -33,7 +33,7 @@ main() {
 
 	# create the credentials file for the authentication for GCS bucket
 	step "Create the credentials file for GCS default authentications"
-	${TEST_DIR}/create_gcs_credentials_file.sh
+	${TEST_DIR}/create_gcs_credentials_file
 
 	step "Unzip the data file."
 	[ -f OneMRows.text ] || gunzip -c OneMRows.text.gz > OneMRows.text
