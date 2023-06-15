@@ -11,6 +11,7 @@ import (
 
 type SourceDB interface {
 	Connect() error
+	Disconnect()
 	GetTableRowCount(tableName string) int64
 	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
 	CheckRequiredToolsAreInstalled()
