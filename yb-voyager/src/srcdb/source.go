@@ -295,30 +295,17 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {
 	case "postgresql":
 		if source.SSLKey != "" {
-			derKeyFilePath, err := writePKCS8PrivateKeyPEMasDER(source.SSLKey, exportDir)
+			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
+			err := dbzm.WritePKCS8PrivateKeyPEMasDER(source.SSLKey, targetSslKeyPath)
 			if err != nil {
 				return fmt.Errorf("could not write private key PEM as DER: %w", err)
 			}
-			source.SSLKey = derKeyFilePath
+			utils.PrintAndLog("Converted SSL key from PEM to DER format. File saved at %s", targetSslKeyPath)
+			source.SSLKey = targetSslKeyPath
 		}
 	case "mysql":
+
 	default:
 	}
 	return nil
-}
-
-// pgjdbc (internally used by debezium) only supports keys in DER format.
-// https://github.com/pgjdbc/pgjdbc/issues/1364#issuecomment-447441182
-func writePKCS8PrivateKeyPEMasDER(sslKeyPath string, exportDir string) (string, error) {
-	privateKeyBytes, err := dbzm.ConvertPKCS8PrivateKeyPEMtoDER(sslKeyPath)
-	if err != nil {
-		return "", fmt.Errorf("could not convert private key from PEM to DER: %w", err)
-	}
-	keyFilePath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
-	err = os.WriteFile(keyFilePath, privateKeyBytes, 0600)
-	if err != nil {
-		return "", fmt.Errorf("could not write DER key: %w", err)
-	}
-	utils.PrintAndLog("Converted SSL key from PEM to DER format. File saved at %s", keyFilePath)
-	return keyFilePath, nil
 }
