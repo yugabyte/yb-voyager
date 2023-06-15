@@ -196,6 +196,10 @@ func (ms *MySQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []str
 	return columns, dataTypes, nil
 }
 
+func (ms *MySQL) GetAllSequences() []string {
+	return nil
+}
+
 func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
 	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string

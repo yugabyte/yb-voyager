@@ -199,7 +199,7 @@ func exportDataOffline() bool {
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
+		sequenceList := source.DB().GetAllSequences()
 		for _, seq := range sequenceList {
 			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
 			finalTableList = append(finalTableList, name)
