@@ -565,13 +565,13 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, `temporary table is not a supported clause for drop`,
 				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt)
 		} else if regMatch := anydataRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			reportCase(fpath, "AnyData datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyData datatype or Change it to a supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+			reportCase(fpath, "AnyData datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyData datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := anydatasetRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			reportCase(fpath, "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyDataSet datatype or Change it to a supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+			reportCase(fpath, "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyDataSet datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := anyTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyType datatype or Change it to a supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := uriTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
-			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with URIType datatype or Change it to a supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		}
 
 	}
