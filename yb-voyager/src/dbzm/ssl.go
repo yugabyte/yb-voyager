@@ -3,11 +3,11 @@ package dbzm
 import (
 	"encoding/pem"
 	"fmt"
-	"io/ioutil"
+	"os"
 )
 
 func ConvertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
-	pkPEM, err := ioutil.ReadFile(pemFilePath)
+	pkPEM, err := os.ReadFile(pemFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("could not read key file: %w", err)
 	}
