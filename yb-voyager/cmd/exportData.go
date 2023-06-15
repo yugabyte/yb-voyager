@@ -107,7 +107,7 @@ func exportDataOffline() bool {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
 	checkSourceDBCharset()
-	// source.DB().CheckRequiredToolsAreInstalled()
+	source.DB().CheckRequiredToolsAreInstalled()
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 

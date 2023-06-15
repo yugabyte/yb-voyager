@@ -322,7 +322,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 		}
 		if source.SSLKey != "" {
 			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", "keystore.jks")
-			keyStorePassword := "password"
+			keyStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, keyStorePassword, keyStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
@@ -332,7 +332,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 		}
 		if source.SSLRootCert != "" {
 			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", "truststore.jks")
-			trustStorePassword := "password"
+			trustStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, trustStorePassword, trustStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
