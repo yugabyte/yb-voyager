@@ -483,9 +483,11 @@ func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
+	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
+		utils.CleanDir(sslDir)
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
