@@ -272,6 +272,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		ColumnList:        dbzmColumnList,
 		ColumnSequenceMap: columnSequenceMap,
 		SnapshotMode:      snapshotMode,
+		Uri:               source.Uri,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)

@@ -28,6 +28,7 @@ type Config struct {
 	ColumnSequenceMap []string
 	ColumnList        []string
 	SnapshotMode      string
+	Uri               string
 }
 
 var baseConfigTemplate = `
@@ -79,10 +80,9 @@ var postgresConfigTemplate = baseConfigTemplate +
 	baseSinkConfigTemplate
 
 var oracleSrcConfigTemplate = `
-debezium.source.database.hostname=%s
-debezium.source.database.port=%d
+debezium.source.database.url=%s
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
-debezium.source.database.dbname=%s
+debezium.source.database.dbname=PLACEHOLDER
 #debezium.source.database.pdb.name=ORCLPDB1
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
@@ -158,6 +158,12 @@ func (c *Config) String() string {
 		// 	schemaNames,
 		// 	filepath.Join(c.ExportDir, "data", "history.dat"),
 		// 	filepath.Join(c.ExportDir, "data", "schema_history.json"))
+		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
+		match := connectionStringRegex.FindStringSubmatch(c.Uri)
+		if match == nil || len(match) != 2 {
+			panic("not able to retrieve connection string for oracle")
+		}
+		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
 			c.Password,
@@ -165,8 +171,7 @@ func (c *Config) String() string {
 			offsetFile,
 			strings.Join(c.TableList, ","),
 
-			c.Host, c.Port,
-			c.DatabaseName,
+			connectionString,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
