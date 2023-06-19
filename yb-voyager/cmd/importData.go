@@ -391,7 +391,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		poolSize := parallelism + parallelism/2
+		poolSize := parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
 			// The code can produce `poolSize` number of batches at a time. But, it can consume only

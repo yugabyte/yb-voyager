@@ -211,10 +211,11 @@ func (s *ImportDataState) getBatches(filePath, tableName string, states string) 
 	fileStateDir := s.getFileStateDir(filePath, tableName)
 	// Check if the fileStateDir exists.
 	_, err := os.Stat(fileStateDir)
-	if err != nil && os.IsNotExist(err) {
-		log.Infof("fileStateDir %q does not exist", fileStateDir)
-		return nil, nil
-	} else if err != nil {
+	if err != nil {
+		if os.IsNotExist(err) {
+			log.Infof("fileStateDir %q does not exist", fileStateDir)
+			return nil, nil
+		}
 		return nil, fmt.Errorf("stat %q: %s", fileStateDir, err)
 	}
 
@@ -321,7 +322,7 @@ func (bw *BatchWriter) Init() error {
 		return fmt.Errorf("create file %q: %s", currTmpFileName, err)
 	}
 	bw.outFile = outFile
-	bw.w = bufio.NewWriter(outFile)
+	bw.w = bufio.NewWriterSize(outFile, FOUR_MB)
 	return nil
 }
 
@@ -350,13 +351,6 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 	}
 	bw.NumRecordsWritten++
 	bw.flagFirstRecordWritten = true
-	if bw.w.Buffered() >= FOUR_MB {
-		err = bw.w.Flush()
-		if err != nil {
-			return fmt.Errorf("flush %q: %s", bw.outFile.Name(), err)
-		}
-		bw.w.Reset(bw.outFile)
-	}
 	return nil
 }
 

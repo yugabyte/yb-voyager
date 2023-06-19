@@ -16,10 +16,18 @@ const (
 )
 
 type FileEntry struct {
-	FilePath  string `json:"FilePath"`
+	// The in-memory Descriptor MUST always have absolute paths.
+	// If the on-disk JSON file has relative file-paths, they are converted to
+	// absolute paths when the JSON file is loaded.
+	FilePath string `json:"FilePath"`
+	// Case sensitive table names and reserved words used as table names are quoted.
+	// If the `TableName` doesn't have schema name, it is assumed to be the "public" schema.
 	TableName string `json:"TableName"`
-	RowCount  int64  `json:"RowCount"`
-	FileSize  int64  `json:"FileSize"`
+	// The number of rows in the file.
+	// In case of `import data file` the number of rows in the file is not known upfront.
+	// In that case, this field is set to -1.
+	RowCount int64 `json:"RowCount"`
+	FileSize int64 `json:"FileSize"`
 }
 
 type Descriptor struct {
