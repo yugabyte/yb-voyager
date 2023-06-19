@@ -29,6 +29,7 @@ type Config struct {
 	ColumnList        []string
 	SnapshotMode      string
 	Uri               string
+	OracleHome        string
 }
 
 var baseConfigTemplate = `

@@ -286,6 +286,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		ColumnSequenceMap: columnSequenceMap,
 		SnapshotMode:      snapshotMode,
 		Uri:               uri,
+		OracleHome:        source.GetOracleHome(),
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)

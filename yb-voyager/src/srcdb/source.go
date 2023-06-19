@@ -51,6 +51,14 @@ func (s *Source) DB() SourceDB {
 	return s.sourceDB
 }
 
+func (s *Source) GetOracleHome() string {
+	if s.OracleHome != "" {
+		return s.OracleHome
+	} else {
+		return "/usr/lib/oracle/21/client64"
+	}
+}
+
 func parseSSLString(source *Source) {
 	if source.SSLQueryString == "" {
 		return
@@ -181,11 +189,7 @@ func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
 	conf.OraclePWD = source.Password
 	conf.DisablePartition = "0"
 
-	if source.OracleHome != "" {
-		conf.OracleHome = source.OracleHome
-	} else {
-		conf.OracleHome = "/usr/lib/oracle/21/client64"
-	}
+	conf.OracleHome = source.GetOracleHome()
 	if source.Schema != "" {
 		conf.Schema = source.Schema
 	} else {
