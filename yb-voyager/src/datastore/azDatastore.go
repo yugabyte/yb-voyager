@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"regexp"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
@@ -30,7 +31,14 @@ func (ds *AzDataStore) Glob(pattern string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return allKeys, nil
+	regexPattern := regexp.MustCompile(strings.Replace(pattern, "*", ".*", -1))
+	var resultSet []string
+	for _, value := range allKeys {
+		if regexPattern.MatchString(value) {
+			resultSet = append(resultSet, ds.url.String()+"/"+value) // Simulate /path/to/data-dir/file behaviour.
+		}
+	}
+	return resultSet, nil
 }
 
 // No-op for Azure URLs.

@@ -93,6 +93,9 @@ func SplitObjectPath(objectPath string) (string, string, string, error) {
 		return "", "", "", err
 	}
 	objectUrl, err := url.Parse(objectPath)
+	if err != nil {
+		return "", "", "", err
+	}
 	serviceUrl := objectUrl.Host
 	blobPath := objectUrl.Path[1:]
 	container := strings.Split(blobPath, "/")[0]
