@@ -234,14 +234,15 @@ func (s *ImportDataState) getBatches(filePath, tableName string, states string) 
 				continue
 			}
 			batch := &Batch{
-				SchemaName:  "",
-				TableName:   tableName,
-				FilePath:    filepath.Join(fileStateDir, file.Name()),
-				Number:      batchNum,
-				OffsetStart: offsetEnd - recordCount,
-				OffsetEnd:   offsetEnd,
-				ByteCount:   byteCount,
-				RecordCount: recordCount,
+				SchemaName:   "",
+				TableName:    tableName,
+				FilePath:     filepath.Join(fileStateDir, file.Name()),
+				BaseFilePath: filePath,
+				Number:       batchNum,
+				OffsetStart:  offsetEnd - recordCount,
+				OffsetEnd:    offsetEnd,
+				ByteCount:    byteCount,
+				RecordCount:  recordCount,
 			}
 			result = append(result, batch)
 		}
