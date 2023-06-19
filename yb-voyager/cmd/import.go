@@ -20,9 +20,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
-	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -64,7 +64,7 @@ func validateImportFlags(cmd *cobra.Command) {
 	if disableTransactionalWrites {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
-	validateBatchSizeFlag(numLinesInASplit)
+	validateBatchSizeFlag(batchSize)
 	validateTargetPassword(cmd)
 }
 
@@ -121,9 +121,9 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"list of tables to exclude while importing data (ignored if --table-list is used)")
 	cmd.Flags().StringVar(&target.TableList, "table-list", "",
 		"list of tables to import data")
-	cmd.Flags().Int64Var(&numLinesInASplit, "batch-size", DEFAULT_BATCH_SIZE,
+	cmd.Flags().Int64Var(&batchSize, "batch-size", DEFAULT_BATCH_SIZE,
 		"maximum number of rows in each batch generated during import.")
-	cmd.Flags().IntVar(&parallelImportJobs, "parallel-jobs", -1,
+	cmd.Flags().IntVar(&parallelism, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster")
@@ -152,7 +152,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().BoolVar(&liveMigration, "live-migration", false,
 		"set this flag to true to enable streaming data from source to target database")
-	
+
 	cmd.Flags().MarkHidden("live-migration")
 }
 

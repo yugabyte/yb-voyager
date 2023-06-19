@@ -17,7 +17,6 @@ package cmd
 
 const (
 	FOUR_MB                      = 4 * 1024 * 1024
-	SPLIT_FILE_CHANNEL_SIZE      = 20
 	META_INFO_DIR_NAME           = "metainfo"
 	NEWLINE                      = '\n'
 	GET_YB_SERVERS_QUERY         = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
