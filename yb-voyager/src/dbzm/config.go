@@ -123,16 +123,6 @@ func (c *Config) String() string {
 	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
-		// conf = fmt.Sprintf(postgresSrcConfigTemplate,
-		// 	dataDir,
-		// 	c.SnapshotMode,
-		// 	offsetFile,
-		// 	c.Host, c.Port, c.Username, c.Password,
-		// 	strings.Join(c.TableList, ","),
-		// 	strings.Join(c.ColumnSequenceMap, ","),
-		// 	c.DatabaseName,
-		// 	schemaNames)
-
 		conf = fmt.Sprintf(postgresConfigTemplate,
 			c.Username,
 			c.Password,
@@ -148,18 +138,6 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","))
 
 	case "oracle":
-		// conf = fmt.Sprintf(oracleSrcConfigTemplate,
-		// 	dataDir,
-		// 	c.SnapshotMode,
-		// 	offsetFile,
-		// 	c.Host, c.Port, c.Username, c.Password,
-		// 	strings.Join(c.TableList, ","),
-		// 	strings.Join(c.ColumnSequenceMap, ","),
-		// 	c.DatabaseName,
-		// 	schemaNames,
-		// 	filepath.Join(c.ExportDir, "data", "history.dat"),
-		// 	filepath.Join(c.ExportDir, "data", "schema_history.json"))
-
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
 			c.Password,
@@ -176,16 +154,6 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","))
 
 	case "mysql":
-		// conf = fmt.Sprintf(mysqlSrcConfigTemplate,
-		// 	dataDir,
-		// 	c.SnapshotMode,
-		// 	offsetFile,
-		// 	c.Host, c.Port, c.Username, c.Password,
-		// 	strings.Join(c.TableList, ","),
-		// 	strings.Join(c.ColumnSequenceMap, ","),
-		// 	c.DatabaseName,
-		// 	getDatabaseServerID(),
-		// 	filepath.Join(c.ExportDir, "data", "schema_history.json"))
 		conf = fmt.Sprintf(mysqlConfigTemplate,
 			c.Username,
 			c.Password,

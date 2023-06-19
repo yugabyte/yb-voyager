@@ -64,9 +64,11 @@ func (d *Debezium) Start() error {
 	}
 
 	log.Infof("starting debezium...")
-	// javaOpts := fmt.Sprintf("JAVA_OPTS='-Doracle.net.wallet_location=file:=%s/network/admin -Doracle.net.tns_admin=%s/network/admin'", d.Config.OracleHome, d.Config.OracleHome)
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	d.cmd.Env = os.Environ()
+	// setting ORACLE_HOME so that wallet location and tns_admin are correctly set as
+	// $ORACLE_HOME/network/admin in debezium, which will enable using TNS alias
+	// as well as wallets for SSL.
 	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("ORACLE_HOME=%s", d.Config.OracleHome))
 	err = d.setupLogFile()
 	if err != nil {

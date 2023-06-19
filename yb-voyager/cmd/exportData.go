@@ -77,14 +77,6 @@ func init() {
 	exportDataCmd.Flags().MarkHidden("live-migration")
 }
 
-// sourceDB().ExportData(exportdir, tablelist, columnlist)  (ora2pg/pg_dump/)
-//
-// DebeziumDataExporter(sourceDB).export(exportDir)
-// sourceDB.GetFinalTableList()
-// sourceDB.GetColumnSeqMap()
-// dbzm.Config{}
-// dbzm.Start()
-
 func exportData() {
 	if useDebezium {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
@@ -342,7 +334,7 @@ func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
 		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
 		match := connectionStringRegex.FindStringSubmatch(s.Uri)
 		if match == nil || len(match) != 2 {
-			return "", fmt.Errorf("not able to retrieve connection string for oracle")
+			return "", fmt.Errorf("unexpected URI format. regex matches = %v", match)
 		}
 		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
 		return connectionString, nil
