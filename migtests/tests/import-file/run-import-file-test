@@ -190,6 +190,10 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
 			--file-table-map "t1_null_string_text2.txt:t1_null_string_text2" --null-string "\0"
 
+	# Test importing multiple files to the same table.
+	step "Import data file: foo[123].text --> foo"
+	import_data_file --data-dir ${TEST_DIR} --format text --file-table-map "foo*.text:foo"
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }

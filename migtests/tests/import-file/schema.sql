@@ -117,3 +117,6 @@ create table t1_null_string_text(i int, j timestamp, k bigint, l varchar(30));
 create table t1_null_string_csv2(i int, j timestamp, k bigint, l varchar(30));
 
 create table t1_null_string_text2(i int, j timestamp, k bigint, l varchar(30));
+
+-- Table to test multiple-files-to-single-table import.
+create table foo (k int primary key, v text);
