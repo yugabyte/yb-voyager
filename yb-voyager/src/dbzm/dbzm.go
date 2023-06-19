@@ -64,10 +64,10 @@ func (d *Debezium) Start() error {
 	}
 
 	log.Infof("starting debezium...")
-	javaOpts := fmt.Sprintf("JAVA_OPTS=-Doracle.net.tns_admin=%s/network/admin", d.Config.OracleHome)
+	// javaOpts := fmt.Sprintf("JAVA_OPTS='-Doracle.net.wallet_location=file:=%s/network/admin -Doracle.net.tns_admin=%s/network/admin'", d.Config.OracleHome, d.Config.OracleHome)
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	d.cmd.Env = os.Environ()
-	d.cmd.Env = append(d.cmd.Env, javaOpts)
+	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("ORACLE_HOME=%s", d.Config.OracleHome))
 	err = d.setupLogFile()
 	if err != nil {
 		return fmt.Errorf("Error setting up logging for debezium: %v", err)
