@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -75,6 +76,14 @@ func init() {
 
 	exportDataCmd.Flags().MarkHidden("live-migration")
 }
+
+// sourceDB().ExportData(exportdir, tablelist, columnlist)  (ora2pg/pg_dump/)
+//
+// DebeziumDataExporter(sourceDB).export(exportDir)
+// sourceDB.GetFinalTableList()
+// sourceDB.GetColumnSeqMap()
+// dbzm.Config{}
+// dbzm.Start()
 
 func exportData() {
 	if useDebezium {
@@ -257,6 +266,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for column, sequence := range colToSeqMap {
 		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
 	}
+	uri, err := getConnectionUriForDebezium(source)
+	if err != nil {
+		return fmt.Errorf("failed to generate uri connection string: %v", err)
+	}
 
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
@@ -272,7 +285,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		ColumnList:        dbzmColumnList,
 		ColumnSequenceMap: columnSequenceMap,
 		SnapshotMode:      snapshotMode,
-		Uri:               source.Uri,
+		Uri:               uri,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -321,6 +334,19 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
+}
+
+func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
+	if s.DBType == "oracle" {
+		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
+		match := connectionStringRegex.FindStringSubmatch(s.Uri)
+		if match == nil || len(match) != 2 {
+			return "", fmt.Errorf("not able to retrieve connection string for oracle")
+		}
+		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
+		return connectionString, nil
+	}
+	return s.Uri, nil
 }
 
 func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {

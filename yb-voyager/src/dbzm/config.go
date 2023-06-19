@@ -158,12 +158,7 @@ func (c *Config) String() string {
 		// 	schemaNames,
 		// 	filepath.Join(c.ExportDir, "data", "history.dat"),
 		// 	filepath.Join(c.ExportDir, "data", "schema_history.json"))
-		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
-		match := connectionStringRegex.FindStringSubmatch(c.Uri)
-		if match == nil || len(match) != 2 {
-			panic("not able to retrieve connection string for oracle")
-		}
-		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
+
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
 			c.Password,
@@ -171,7 +166,7 @@ func (c *Config) String() string {
 			offsetFile,
 			strings.Join(c.TableList, ","),
 
-			connectionString,
+			c.Uri,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
