@@ -24,9 +24,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
 	"gocloud.dev/blob/s3blob"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var client *s3.Client
