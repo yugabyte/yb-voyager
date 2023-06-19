@@ -34,6 +34,18 @@ func (ora *Oracle) Connect() error {
 	return err
 }
 
+func (ora *Oracle) Disconnect() {
+	if ora.db == nil {
+		log.Infof("No connection to the source database to close")
+		return
+	}
+
+	err := ora.db.Close()
+	if err != nil {
+		log.Infof("Failed to close connection to the source database: %s", err)
+	}
+}
+
 func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }

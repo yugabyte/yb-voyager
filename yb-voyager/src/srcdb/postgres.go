@@ -35,6 +35,18 @@ func (pg *PostgreSQL) Connect() error {
 	return err
 }
 
+func (pg *PostgreSQL) Disconnect() {
+	if pg.db == nil {
+		log.Infof("No connection to the source database to close")
+		return
+	}
+
+	err := pg.db.Close(context.Background())
+	if err != nil {
+		log.Infof("Failed to close connection to the source database: %s", err)
+	}
+}
+
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
