@@ -43,7 +43,7 @@ func (pg *PostgreSQL) Disconnect() {
 
 	err := pg.db.Close(context.Background())
 	if err != nil {
-		utils.PrintAndLog("Failed to close connection to the source database: %s", err)
+		log.Infof("Failed to close connection to the source database: %s", err)
 	}
 }
 

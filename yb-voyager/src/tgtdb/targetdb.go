@@ -51,7 +51,7 @@ func (tdb *TargetDB) Disconnect() {
 
 	err := tdb.conn.Close(context.Background())
 	if err != nil {
-		utils.PrintAndLog("Failed to close connection to the target database: %s", err)
+		log.Infof("Failed to close connection to the target database: %s", err)
 	}
 }
 

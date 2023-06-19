@@ -42,7 +42,7 @@ func (ora *Oracle) Disconnect() {
 
 	err := ora.db.Close()
 	if err != nil {
-		utils.PrintAndLog("Failed to close connection to the source database: %s", err)
+		log.Infof("Failed to close connection to the source database: %s", err)
 	}
 }
 
