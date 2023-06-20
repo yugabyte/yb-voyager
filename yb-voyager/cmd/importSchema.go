@@ -26,11 +26,11 @@ import (
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var importSchemaCmd = &cobra.Command{
@@ -64,6 +64,8 @@ func importSchema() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
+	defer target.DB().Disconnect()
+
 	target.Schema = strings.ToLower(target.Schema)
 	conn := target.DB().Conn()
 	targetDBVersion := target.DB().GetVersion()

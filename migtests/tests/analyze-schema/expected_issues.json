@@ -417,6 +417,38 @@
         },
         {
             "objectType": "TABLE",
+            "objectName": "anydata_test",
+            "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydata_test (\n\tid numeric,\n\tcontent ANYDATA\n) ;",
+            "suggestion": "Remove the column with AnyData datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anydataset_test",
+            "reason": "AnyDataSet datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydataset_test (\n\tid numeric,\n\tcontent ANYDATASET\n) ;",
+            "suggestion": "Remove the column with AnyDataSet datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anytype_test",
+            "reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anytype_test (\n\tid numeric,\n\tcontent ANYTYPE\n) ;",
+            "suggestion": "Remove the column with AnyType datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "uritype_test",
+            "reason": "URIType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE uritype_test (\n\tid numeric,\n\tcontent URITYPE\n) ;",
+            "suggestion": "Remove the column with URIType datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
             "objectName": "party_profile_part",
             "reason": "ALTER TABLE OF not supported yet.",
             "sqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",

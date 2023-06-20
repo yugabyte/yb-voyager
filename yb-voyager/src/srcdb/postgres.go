@@ -35,6 +35,18 @@ func (pg *PostgreSQL) Connect() error {
 	return err
 }
 
+func (pg *PostgreSQL) Disconnect() {
+	if pg.db == nil {
+		log.Infof("No connection to the source database to close")
+		return
+	}
+
+	err := pg.db.Close(context.Background())
+	if err != nil {
+		log.Infof("Failed to close connection to the source database: %s", err)
+	}
+}
+
 func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
@@ -189,13 +201,12 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.TEXT,
-		TableRowCount: exportedRowCount,
-		Delimiter:     "\t",
-		HasHeader:     false,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.TEXT,
+		DataFileList: getExportedDataFileList(tablesProgressMetadata),
+		Delimiter:    "\t",
+		HasHeader:    false,
+		ExportDir:    exportDir,
 	}
 	dfd.Save()
 }
@@ -232,6 +243,29 @@ func GetAbsPathOfPGCommand(cmd string) (string, error) {
 
 	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
 	return "", err
+}
+
+// GetAllSequences returns all the sequence names in the database for the given schema list
+func (pg *PostgreSQL) GetAllSequences() []string {
+	schemaList := pg.checkSchemasExists()
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	var sequenceNames []string
+	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
+	}
+	defer rows.Close()
+
+	var sequenceName string
+	for rows.Next() {
+		err = rows.Scan(&sequenceName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
+		}
+		sequenceNames = append(sequenceNames, sequenceName)
+	}
+	return sequenceNames
 }
 
 func (pg *PostgreSQL) GetCharset() (string, error) {

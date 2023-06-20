@@ -34,6 +34,18 @@ func (ora *Oracle) Connect() error {
 	return err
 }
 
+func (ora *Oracle) Disconnect() {
+	if ora.db == nil {
+		log.Infof("No connection to the source database to close")
+		return
+	}
+
+	err := ora.db.Close()
+	if err != nil {
+		log.Infof("Failed to close connection to the source database: %s", err)
+	}
+}
+
 func (ora *Oracle) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg", "sqlplus")
 }
@@ -147,13 +159,12 @@ func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList [
 
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFilesForReservedWords(tablesProgressMetadata)
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.SQL,
-		TableRowCount: exportedRowCount,
-		Delimiter:     "\t",
-		HasHeader:     false,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.SQL,
+		DataFileList: getExportedDataFileList(tablesProgressMetadata),
+		Delimiter:    "\t",
+		HasHeader:    false,
+		ExportDir:    exportDir,
 	}
 	dfd.Save()
 
@@ -309,6 +320,10 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[s
 	}
 
 	return columnToSequenceMap
+}
+
+func (ora *Oracle) GetAllSequences() []string {
+	return nil
 }
 
 func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {

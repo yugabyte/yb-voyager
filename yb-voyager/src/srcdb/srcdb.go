@@ -11,6 +11,7 @@ import (
 
 type SourceDB interface {
 	Connect() error
+	Disconnect()
 	GetTableRowCount(tableName string) int64
 	GetTableApproxRowCount(tableName *sqlname.SourceName) int64
 	CheckRequiredToolsAreInstalled()
@@ -26,6 +27,7 @@ type SourceDB interface {
 	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string)
 	IsTablePartition(table *sqlname.SourceName) bool
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
+	GetAllSequences() []string
 }
 
 func newSourceDB(source *Source) SourceDB {

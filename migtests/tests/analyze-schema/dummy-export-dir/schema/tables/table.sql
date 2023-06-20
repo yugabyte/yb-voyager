@@ -176,6 +176,26 @@ CREATE FOREIGN TABLE tbl_f(
 	pid int FOREIGN KEY REFERENCES tbl_p(id)
 );
 
+-- datatype mapping not supported
+CREATE TABLE anydata_test (
+	id numeric,
+	content ANYDATA
+) ;
+
+CREATE TABLE anydataset_test (
+	id numeric,
+	content ANYDATASET
+) ;
+
+CREATE TABLE anytype_test (
+	id numeric,
+	content ANYTYPE
+) ;
+
+CREATE TABLE uritype_test (
+	id numeric,
+	content URITYPE
+) ;
 -- valid
 Alter table only parent_tbl add constraint party_profile_pk primary key (party_profile_id);
 -- alter table not supported

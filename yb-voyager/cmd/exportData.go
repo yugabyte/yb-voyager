@@ -85,7 +85,10 @@ func exportData() {
 	success := exportDataOffline()
 
 	if success {
-		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
+		tableRowCount := map[string]int64{}
+		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
+			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
+		}
 		printExportedRowCount(tableRowCount, useDebezium)
 		callhome.GetPayload(exportDir)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
@@ -106,6 +109,7 @@ func exportDataOffline() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
+	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
@@ -199,7 +203,7 @@ func exportDataOffline() bool {
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SEQUENCE")
+		sequenceList := source.DB().GetAllSequences()
 		for _, seq := range sequenceList {
 			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
 			finalTableList = append(finalTableList, name)
@@ -387,20 +391,31 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
-	tableRowCount := make(map[string]int64)
+	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
+		// TODO: TableName and FilePath must be quoted by debezium plugin.
 		tableName := table.TableName
-		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
+		if (sqlname.IsCaseSensitive(tableName, source.DBType) || sqlname.IsReservedKeyword(tableName)) &&
+			!sqlname.IsQuoted(tableName) {
+			tableName = fmt.Sprintf(`"%s"`, tableName)
 		}
-		tableRowCount[tableName] = table.ExportedRowCountSnapshot
+		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
+			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
+		}
+		fileEntry := &datafile.FileEntry{
+			TableName: tableName,
+			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
+			RowCount:  table.ExportedRowCountSnapshot,
+			FileSize:  -1, // Not available.
+		}
+		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.CSV,
-		TableRowCount: tableRowCount,
-		Delimiter:     ",",
-		HasHeader:     true,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.CSV,
+		Delimiter:    ",",
+		HasHeader:    true,
+		ExportDir:    exportDir,
+		DataFileList: dataFileList,
 	}
 	dfd.Save()
 	return nil
