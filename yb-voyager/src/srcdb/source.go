@@ -323,7 +323,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 		if source.SSLKey != "" {
 			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", "keystore.jks")
 			keyStorePassword := utils.GenerateRandomString(8)
-			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, keyStorePassword, keyStorePath)
+			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, "mysqlclient", keyStorePassword, keyStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
 			}
@@ -333,7 +333,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 		if source.SSLRootCert != "" {
 			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", "truststore.jks")
 			trustStorePassword := utils.GenerateRandomString(8)
-			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, trustStorePassword, trustStorePath)
+			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, "MySQLCACert", trustStorePassword, trustStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
 			}
@@ -341,6 +341,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 			source.SSLTrustStorePassword = trustStorePassword
 		}
 	default:
+		return fmt.Errorf("unsupported db type %s for preparing SSL params for debezium", source.DBType)
 	}
 	return nil
 }

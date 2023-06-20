@@ -32,7 +32,7 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 
 	b, _ := pem.Decode(pkPEM)
 	if b == nil {
-		return nil, fmt.Errorf("could not decode pem key file")
+		return nil, fmt.Errorf("could not decode pem key file. Only PEM encoded keys are supported.")
 	}
 
 	// downstream pgjdbc (used by debezium) expects PKCS8 DER format
@@ -42,7 +42,7 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 	return b.Bytes, nil
 }
 
-func WritePKCS8PrivateKeyCertAsJavaKeystore(sslKeyPath string, sslCertPath string, password string, filepath string) error {
+func WritePKCS8PrivateKeyCertAsJavaKeystore(sslKeyPath string, sslCertPath string, alias string, password string, filepath string) error {
 	ks := keystore.New()
 
 	pkBytes, err := convertPKCS8PrivateKeyPEMtoDER(sslKeyPath)
@@ -64,7 +64,7 @@ func WritePKCS8PrivateKeyCertAsJavaKeystore(sslKeyPath string, sslCertPath strin
 		},
 	}
 
-	err = ks.SetPrivateKeyEntry("mysqlclient", pke, []byte(password))
+	err = ks.SetPrivateKeyEntry(alias, pke, []byte(password))
 	if err != nil {
 		return fmt.Errorf("failed to form keystore: %w", err)
 	}
@@ -75,7 +75,7 @@ func WritePKCS8PrivateKeyCertAsJavaKeystore(sslKeyPath string, sslCertPath strin
 	return nil
 }
 
-func WriteRootCertAsJavaTrustStore(sslRootCertPath string, password string, filepath string) error {
+func WriteRootCertAsJavaTrustStore(sslRootCertPath string, alias string, password string, filepath string) error {
 	ks := keystore.New()
 	certBytes, err := readCertificate(sslRootCertPath)
 	if err != nil {
@@ -89,7 +89,7 @@ func WriteRootCertAsJavaTrustStore(sslRootCertPath string, password string, file
 		},
 	}
 
-	err = ks.SetTrustedCertificateEntry("MySQLCACert", tce)
+	err = ks.SetTrustedCertificateEntry(alias, tce)
 	if err != nil {
 		return fmt.Errorf("failed to form truststore: %w", err)
 	}
