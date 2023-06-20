@@ -10,7 +10,9 @@ EXPECTED_ROW_COUNT = {
  	'test_timezone': 1,
 	'group':5,
 	'check':5,
-	'reserved_column':5
+	'reserved_column':5,
+	'mixed_case_test':6,
+	'case_sensitive_columns':6
 }
 
 def migration_completed_checks(tgt):
