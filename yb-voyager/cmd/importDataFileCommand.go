@@ -170,14 +170,22 @@ func prepareImportFileTasks() []*ImportFileTask {
 	}
 	kvs := strings.Split(fileTableMapping, ",")
 	for i, kv := range kvs {
-		fileName, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
-		filePath := dataStore.Join(dataDir, fileName)
-		task := &ImportFileTask{
-			ID:        i,
-			FilePath:  filePath,
-			TableName: table,
+		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
+		filePaths, err := dataStore.Glob(globPattern)
+		if err != nil {
+			utils.ErrExit("find files matching pattern %q: %v", globPattern, err)
 		}
-		result = append(result, task)
+		if len(filePaths) == 0 {
+			utils.ErrExit("no files found for matching pattern %q", globPattern)
+		}
+		for _, filePath := range filePaths {
+			task := &ImportFileTask{
+				ID:        i,
+				FilePath:  filePath,
+				TableName: table,
+			}
+			result = append(result, task)
+		}
 	}
 	return result
 }

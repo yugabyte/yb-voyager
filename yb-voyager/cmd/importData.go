@@ -539,9 +539,13 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	tableNames := importFileTasksToTableNames(tasks)
 	nonEmptyTableNames := getNonEmptyTables(conn, tableNames)
 	if len(nonEmptyTableNames) > 0 {
-		utils.ErrExit("Following tables are not empty. "+
+		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
 			strings.Join(nonEmptyTableNames, ", "))
+		yes := utils.AskPrompt("Do you want to continue without truncating these tables?")
+		if !yes {
+			utils.ErrExit("Aborting import.")
+		}
 	}
 
 	for _, task := range tasks {
