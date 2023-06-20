@@ -380,12 +380,8 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
 		// TODO: TableName and FilePath must be quoted by debezium plugin.
-		tableName := table.TableName
-		if (sqlname.IsCaseSensitive(tableName, source.DBType) || sqlname.IsReservedKeyword(tableName)) &&
-			!sqlname.IsQuoted(tableName) {
-			tableName = fmt.Sprintf(`"%s"`, tableName)
-		}
-		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
+		tableName := quoteIdentifierIfRequired(table.TableName)
+		if source.DBType == POSTGRESQL && table.SchemaName != "public" {
 			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
 		}
 		fileEntry := &datafile.FileEntry{

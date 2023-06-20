@@ -1032,13 +1032,27 @@ Valid cases requiring column name quoting:
 func quoteColumnNamesIfRequired(csvHeader string) string {
 	columnNames := strings.Split(csvHeader, ",")
 	for i := 0; i < len(columnNames); i++ {
-		columnNames[i] = strings.TrimSpace(columnNames[i])
-		if sqlname.IsReservedKeyword(columnNames[i]) || (sourceDBType == POSTGRESQL && sqlname.IsCaseSensitive(columnNames[i], sourceDBType)) {
-			columnNames[i] = fmt.Sprintf(`"%s"`, columnNames[i])
-		}
+		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
 	}
-
 	return strings.Join(columnNames, ",")
+}
+
+func quoteIdentifierIfRequired(identifier string) string {
+	if sqlname.IsQuoted(identifier) {
+		return identifier
+	}
+	// TODO: Use either sourceDBType or source.DBType throughout the code.
+	// In the export code path source.DBType is used. In the import code path
+	// sourceDBType is used.
+	dbType := source.DBType
+	if dbType == "" {
+		dbType = sourceDBType
+	}
+	if sqlname.IsReservedKeyword(identifier) ||
+		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		return fmt.Sprintf(`"%s"`, identifier)
+	}
+	return identifier
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
