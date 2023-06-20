@@ -1036,13 +1036,14 @@ func quoteIdentifierIfRequired(identifier string) string {
 		return identifier
 	}
 	// TODO: Use either sourceDBType or source.DBType throughout the code.
+	// In the export code path source.DBType is used. In the import code path
+	// sourceDBType is used.
 	dbType := source.DBType
 	if dbType == "" {
 		dbType = sourceDBType
 	}
-	fmt.Printf("dbType: %q, source.DBType: %q, sourceDBType: %q \n", dbType, source.DBType, sourceDBType)
 	if sqlname.IsReservedKeyword(identifier) ||
-		(sourceDBType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier
