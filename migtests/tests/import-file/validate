@@ -7,7 +7,7 @@ def main():
 
 FOO_DATA = set([(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f'), (7, 'g'), (8, 'h'), (9, 'i')])
 FOO2_DATA = FOO_DATA
-FOO3_DATA = set([(8, 'h'), (9, 'i'), (10, 'j'), (11, 'k'), (12, 'l')])
+FOO3_DATA = set([(1, 'a'), (2, 'b'), (3, 'c'), (10, 'j'), (11, 'k'), (12, 'l')])
 
 EXPECTED = {
 	"one_m_rows": 1000000,
