@@ -1040,6 +1040,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 	if dbType == "" {
 		dbType = sourceDBType
 	}
+	fmt.Printf("dbType: %q, source.DBType: %q, sourceDBType: %q \n", dbType, source.DBType, sourceDBType)
 	if sqlname.IsReservedKeyword(identifier) ||
 		(sourceDBType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
