@@ -40,6 +40,8 @@ EXPECTED = {
 	"t1_null_string_text2": 3,
 	"accounts":2000000,
 	"foo": 9,
+	"foo2": 9,
+	"foo3": 5,
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -63,6 +65,8 @@ S3_T1_DATA = S3_TEXT_DATA
 S3_T2_DATA = S3_TEXT_DATA
 S3_CSV_WITH_HEADER_DATA = S3_TEXT_DATA
 FOO_DATA = set([(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f'), (7, 'g'), (8, 'h'), (9, 'i')])
+FOO2_DATA = FOO_DATA
+FOO3_DATA = set([(8, 'h'), (9, 'i'), (10, 'j'), (11, 'k'), (12, 'l')])
 
 TABLE_NAME_DATA_MAP = {
 	"t1_quote_char": T1_TABLE_DATA,
@@ -91,6 +95,8 @@ TABLE_NAME_DATA_MAP = {
 	"test_default_delimiter": TEST_DEFAULT_DELIMITER,
 	"test_default_delimiter_csv": TEST_DEFAULT_DELIMITER,
 	"foo": FOO_DATA,
+	"foo2": FOO2_DATA,
+	"foo3": FOO3_DATA,
 }
 
 def file_import_done_checks(tgt):

@@ -120,3 +120,5 @@ create table t1_null_string_text2(i int, j timestamp, k bigint, l varchar(30));
 
 -- Table to test multiple-files-to-single-table import.
 create table foo (k int primary key, v text);
+create table foo2 (k int primary key, v text);
+create table foo3 (k int primary key, v text);

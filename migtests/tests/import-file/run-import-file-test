@@ -194,6 +194,14 @@ main() {
 	step "Import data file: foo[123].text --> foo"
 	import_data_file --data-dir ${TEST_DIR} --format text --file-table-map "foo*.text:foo"
 
+	step "Import multiple files to the same table. No regex in the file-table-map."
+	import_data_file --data-dir ${TEST_DIR} --format text \
+		--file-table-map "internal/foo3.text:foo2,foo1.text:foo2,foo2.text:foo2"
+
+	step "Import multiple files to the same table. Same filename different path."
+	import_data_file --data-dir ${TEST_DIR} --format text \
+		--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
+
 	step "Run validations."
 	 "${TEST_DIR}/validate"
 }
