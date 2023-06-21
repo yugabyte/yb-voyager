@@ -265,10 +265,12 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		return fmt.Errorf("failed to generate uri connection string: %v", err)
 	}
 	tnsAdmin, err := getTNSAdmin(source)
+	log.Infof("TNSADMIN=%v", tnsAdmin)
 	if err != nil {
 		return fmt.Errorf("failed to get tns admin: %v", err)
 	}
 	oracleJDBCWalletLocationIsSet, err := isOracleJDBCWalletLocationSet(source)
+	log.Infof("oracleJDBCWalletLocationIsSet=%v", oracleJDBCWalletLocationIsSet)
 	if err != nil {
 		return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 	}
@@ -384,7 +386,7 @@ func getTNSAdmin(s srcdb.Source) (string, error) {
 	if present {
 		return tnsAdminEnvVar, nil
 	} else {
-		return filepath.Join(s.OracleHome, "network", "admin"), nil
+		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
 	}
 }
 
