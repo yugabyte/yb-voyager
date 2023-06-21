@@ -17,7 +17,7 @@ func WritePKCS8PrivateKeyPEMasDER(sslKeyPath string, targetSslKeyPath string) er
 		return fmt.Errorf("could not convert private key from PEM to DER: %w", err)
 	}
 
-	err = os.WriteFile(targetSslKeyPath, privateKeyBytes, 0600)
+	err = os.WriteFile(targetSslKeyPath, privateKeyBytes, 0400)
 	if err != nil {
 		return fmt.Errorf("could not write DER key: %w", err)
 	}
@@ -37,7 +37,8 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 
 	// downstream pgjdbc (used by debezium) expects PKCS8 DER format
 	if b.Type != "PRIVATE KEY" {
-		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard. (type=PRIVATE KEY), received type=%s", b.Type)
+		return nil, fmt.Errorf("could not decode pem key file. Expected PKCS8 standard(type=PRIVATE KEY), received type=%s.\n"+
+			"You can use the following command to convert your key to PKCS8 standard - `openssl pkcs8 -topk8 -inform PEM -outform PEM -in <filename> -out <filename> -nocrypt`", b.Type)
 	}
 	return b.Bytes, nil
 }

@@ -299,7 +299,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {
 	case "postgresql":
 		if source.SSLKey != "" {
-			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", "key.der")
+			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", ".key.der")
 			err := dbzm.WritePKCS8PrivateKeyPEMasDER(source.SSLKey, targetSslKeyPath)
 			if err != nil {
 				return fmt.Errorf("could not write private key PEM as DER: %w", err)
@@ -321,22 +321,24 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 			source.SSLMode = "verify_identity"
 		}
 		if source.SSLKey != "" {
-			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", "keystore.jks")
+			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", ".keystore.jks")
 			keyStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, "mysqlclient", keyStorePassword, keyStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
 			}
+			utils.PrintAndLog("Converted SSL key, cert to java keystore. File saved at %s", keyStorePath)
 			source.SSLKeyStore = keyStorePath
 			source.SSLKeyStorePassword = keyStorePassword
 		}
 		if source.SSLRootCert != "" {
-			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", "truststore.jks")
+			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", ".truststore.jks")
 			trustStorePassword := utils.GenerateRandomString(8)
 			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, "MySQLCACert", trustStorePassword, trustStorePath)
 			if err != nil {
 				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
 			}
+			utils.PrintAndLog("Converted SSL root cert to java truststore. File saved at %s", trustStorePath)
 			source.SSLTrustStore = trustStorePath
 			source.SSLTrustStorePassword = trustStorePassword
 		}
