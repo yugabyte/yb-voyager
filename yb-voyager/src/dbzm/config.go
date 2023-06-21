@@ -22,14 +22,15 @@ type Config struct {
 	Username string
 	Password string
 
-	DatabaseName      string
-	SchemaNames       string
-	TableList         []string
-	ColumnSequenceMap []string
-	ColumnList        []string
-	SnapshotMode      string
-	Uri               string
-	OracleHome        string
+	DatabaseName                string
+	SchemaNames                 string
+	TableList                   []string
+	ColumnSequenceMap           []string
+	ColumnList                  []string
+	SnapshotMode                string
+	Uri                         string
+	TNSAdmin                    string
+	OracleJDBCWalletLocationSet bool
 }
 
 var baseConfigTemplate = `

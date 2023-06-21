@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/magiconair/properties"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
@@ -262,6 +264,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	if err != nil {
 		return fmt.Errorf("failed to generate uri connection string: %v", err)
 	}
+	tnsAdmin, err := getTNSAdmin(source)
+	if err != nil {
+		return fmt.Errorf("failed to get tns admin: %v", err)
+	}
+	oracleJDBCWalletLocationIsSet, err := isOracleJDBCWalletLocationSet(source)
+	if err != nil {
+		return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+	}
 
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
@@ -271,14 +281,15 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		Username:     source.User,
 		Password:     source.Password,
 
-		DatabaseName:      source.DBName,
-		SchemaNames:       source.Schema,
-		TableList:         dbzmTableList,
-		ColumnList:        dbzmColumnList,
-		ColumnSequenceMap: columnSequenceMap,
-		SnapshotMode:      snapshotMode,
-		Uri:               uri,
-		OracleHome:        source.GetOracleHome(),
+		DatabaseName:                source.DBName,
+		SchemaNames:                 source.Schema,
+		TableList:                   dbzmTableList,
+		ColumnList:                  dbzmColumnList,
+		ColumnSequenceMap:           columnSequenceMap,
+		SnapshotMode:                snapshotMode,
+		Uri:                         uri,
+		TNSAdmin:                    tnsAdmin,
+		OracleJDBCWalletLocationSet: oracleJDBCWalletLocationIsSet,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -340,6 +351,41 @@ func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
 		return connectionString, nil
 	}
 	return s.Uri, nil
+}
+
+// oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
+// oracle.net.wallet_location=<>
+func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
+	if s.DBType != "oracle" {
+		return false, nil
+	}
+	tnsAdmin, err := getTNSAdmin(s)
+	if err != nil {
+		return false, fmt.Errorf("failed to get tns admin")
+	}
+	ojdbcPropertiesFilePath := filepath.Join(tnsAdmin, "ojdbc.properties")
+	if _, err := os.Stat(ojdbcPropertiesFilePath); errors.Is(err, os.ErrNotExist) {
+		// file does not exist
+		return false, nil
+	}
+	ojdbcProperties := properties.MustLoadFile(ojdbcPropertiesFilePath, properties.UTF8)
+	walletLocationKey := "oracle.net.wallet_location"
+	_, present := ojdbcProperties.Get(walletLocationKey)
+	return present, nil
+}
+
+// https://www.orafaq.com/wiki/TNS_ADMIN
+// default is $ORACLE_HOME/network/admin
+func getTNSAdmin(s srcdb.Source) (string, error) {
+	if s.DBType != "oracle" {
+		return "", nil
+	}
+	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
+	if present {
+		return tnsAdminEnvVar, nil
+	} else {
+		return filepath.Join(s.OracleHome, "network", "admin"), nil
+	}
 }
 
 func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
