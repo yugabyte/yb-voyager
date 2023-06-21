@@ -19,6 +19,12 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 	for key := range tablesMetadata {
 		tableMetadata := tablesMetadata[key]
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
+			// This can happen in case of nested tables in Oracle.
+			log.Infof("File %q does not exist. Not including table %q in the descriptor.",
+				tableMetadata.FinalFilePath, targetTableName)
+			continue
+		}
 		fileEntry := &datafile.FileEntry{
 			FilePath:  filepath.Base(tableMetadata.FinalFilePath),
 			TableName: targetTableName,
