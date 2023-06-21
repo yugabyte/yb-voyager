@@ -32,7 +32,7 @@ func convertPKCS8PrivateKeyPEMtoDER(pemFilePath string) ([]byte, error) {
 
 	b, _ := pem.Decode(pkPEM)
 	if b == nil {
-		return nil, fmt.Errorf("could not decode pem key file. Only PEM encoded keys are supported.")
+		return nil, fmt.Errorf("could not decode pem key file. Only PEM encoded keys are supported")
 	}
 
 	// downstream pgjdbc (used by debezium) expects PKCS8 DER format
