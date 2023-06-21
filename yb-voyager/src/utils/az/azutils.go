@@ -34,13 +34,15 @@ import (
 var client *azblob.Client
 
 func createCredentials() (*azidentity.DefaultAzureCredential, error) {
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	// cred represents the default Oauth token used to authenticate the account in the url.
+	cred, err := azidentity.NewDefaultAzureCredential(nil) 
 	if err != nil {
 		return nil, err
 	}
 	return cred, nil
 }
 
+// creates a client for the account in the url with the default creds.
 func createClientIfNotExists(datadir string) {
 	var err error
 	url, err := url.Parse(datadir)
@@ -58,6 +60,9 @@ func createClientIfNotExists(datadir string) {
 	}
 }
 
+
+// creates a client to access the blob properties for the blob in the container 
+// (or bucket) under the account in the url with the default creds.
 func createContainerClient(url string) (*container.Client, error) {
 	var err error
 	cred, err := createCredentials()
@@ -71,6 +76,8 @@ func createContainerClient(url string) (*container.Client, error) {
 	return containerClient, nil
 }
 
+// check if url is in format
+// https://<account_name>.blob.core.windows.net/<container_name or bucket_name>
 func ValidateObjectURL(datadir string) error {
 	containerUrl, err := url.Parse(datadir)
 	if err != nil {
@@ -83,6 +90,8 @@ func ValidateObjectURL(datadir string) error {
 	service := containerUrl.Host
 	if service == "" {
 		return fmt.Errorf("missing service in azure blob url %v", datadir)
+	} else if !strings.Contains(service, ".blob.") {
+		return fmt.Errorf("invalid service in azure blob url %v", datadir)
 	}
 	return nil
 }
@@ -135,6 +144,7 @@ func GetHeadObject(objectURL string) (*blob.Attributes, error) {
 		return nil, err
 	}
 	ctx := context.Background()
+	// using OpenBucket API to get the attributes of the blob in the container
 	bucket, err := azureblob.OpenBucket(ctx, containerClient, nil)
 	if err != nil {
 		return nil, err
