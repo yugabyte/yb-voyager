@@ -67,11 +67,11 @@ func (d *Debezium) Start() error {
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	d.cmd.Env = os.Environ()
 	// $TNS_ADMIN is used to set jdbc property oracle.net.tns_admin which will enable using TNS alias
-	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("$TNS_ADMIN=%s", d.Config.TNSAdmin))
+	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("TNS_ADMIN=%s", d.Config.TNSAdmin))
 	if !d.Config.OracleJDBCWalletLocationSet {
 		// only specify the default value of this property if it is not already set in $TNS_ADMIN/ojdbc.properties.
 		// This is because the property set in the command seems to take precedence.
-		d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("$JAVA_OPTS=-Doracle.net.wallet_location=file:%s", d.Config.TNSAdmin))
+		d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("JAVA_OPTS=-Doracle.net.wallet_location=file:%s", d.Config.TNSAdmin))
 	}
 	err = d.setupLogFile()
 	if err != nil {
