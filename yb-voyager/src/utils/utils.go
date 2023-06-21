@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -136,11 +137,12 @@ func FileOrFolderExists(path string) bool {
 		if os.IsNotExist(err) {
 			return false
 		} else {
-			panic(err)
+			ErrExit("check if %q exists: %s", path, err)
 		}
 	} else {
 		return true
 	}
+	panic("unreachable")
 }
 
 func CleanDir(dir string) {
@@ -152,21 +154,6 @@ func CleanDir(dir string) {
 			if err != nil {
 				ErrExit("clean dir %q: %s", dir, err)
 			}
-		}
-	}
-}
-
-func ClearMatchingFiles(filePattern string) {
-	log.Infof("Clearing files matching with pattern: %s", filePattern)
-	files, err := filepath.Glob(filePattern)
-	if err != nil {
-		ErrExit("failed to list files matching with the given pattern: %s", err)
-	}
-	for _, file := range files {
-		log.Infof("Removing file: %q", file)
-		err := os.RemoveAll(file)
-		if err != nil {
-			ErrExit("delete file %q: %s", file, err)
 		}
 	}
 }
@@ -277,11 +264,13 @@ func SetDifference(includeList []string, excludeList []string) []string {
 }
 
 func CsvStringToSlice(str string) []string {
-	result := strings.Split(str, ",")
-	for i := 0; i < len(result); i++ {
-		result[i] = strings.TrimSpace(result[i])
+	result := []string{}
+	for _, s := range strings.Split(str, ",") {
+		s = strings.TrimSpace(s)
+		if s != "" {
+			result = append(result, s)
+		}
 	}
-
 	return result
 }
 
@@ -345,3 +334,48 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 	}
 }
 
+func Uniq(slice []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+	for _, entry := range slice {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
+}
+
+func HumanReadableByteCount(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.2f %ciB",
+		float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// https://yourbasic.org/golang/generate-random-string/
+func GenerateRandomString(length int) string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	digits := "0123456789"
+	specials := "~=+%^*/()[]{}/!@#$?|"
+	all := "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		digits + specials
+	buf := make([]byte, length)
+	buf[0] = digits[r.Intn(len(digits))]
+	buf[1] = specials[r.Intn(len(specials))]
+	for i := 2; i < length; i++ {
+		buf[i] = all[r.Intn(len(all))]
+	}
+	r.Shuffle(len(buf), func(i, j int) {
+		buf[i], buf[j] = buf[j], buf[i]
+	})
+	return string(buf)
+}

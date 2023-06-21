@@ -191,13 +191,14 @@ var (
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string) {
 	var issue utils.Issue
+	issue.FilePath = filePath
+	issue.Reason = reason
+	issue.GH = ghIssue
+	issue.Suggestion = suggestion
 	issue.ObjectType = objType
 	issue.ObjectName = objName
-	issue.Reason = reason
 	issue.SqlStatement = sqlStmt
-	issue.FilePath = filePath
-	issue.Suggestion = suggestion
-	issue.GH = ghIssue
+	
 	reportStruct.Issues = append(reportStruct.Issues, issue)
 }
 

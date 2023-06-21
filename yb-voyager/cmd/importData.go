@@ -25,16 +25,15 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unicode"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -46,36 +45,23 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/vbauerster/mpb/v8"
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/tevino/abool/v2"
 )
 
-var splitFileChannelSize = SPLIT_FILE_CHANNEL_SIZE
 var metaInfoDirName = META_INFO_DIR_NAME
-var numLinesInASplit = int64(0)
-var parallelImportJobs = 0
-var Done = abool.New()
-var GenerateSplitsDone = abool.New()
-
+var batchSize = int64(0)
+var parallelism = 0
+var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
 
-type ProgressContainer struct {
-	mu        sync.Mutex
-	container *mpb.Progress
-}
-
-var importProgressContainer ProgressContainer
-var importTables []string
-var allTables []string
 var usePublicIp bool
 var targetEndpoints string
-var copyTableFromCommands = make(map[string]string)
+var copyTableFromCommands = sync.Map{}
 var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
 var enableUpsert bool               // upsert instead of insert for import data
 var disableTransactionalWrites bool // to disable transactional writes for copy command
@@ -86,17 +72,6 @@ const (
 		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
 )
 
-type SplitFileImportTask struct {
-	TableName           string
-	SchemaName          string
-	SplitFilePath       string
-	OffsetStart         int64
-	OffsetEnd           int64
-	TmpConnectionString string
-	SplitNumber         int64
-	Interrupted         bool
-}
-
 var importDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command imports data into YugabyteDB database",
@@ -105,15 +80,60 @@ var importDataCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
 	},
+	Run: importDataCommandFn,
+}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		target.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
-		sqlname.SourceDBType = sourceDBType
-		dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
-		checkExportDataDoneFlag()
-		importData()
-	},
+func importDataCommandFn(cmd *cobra.Command, args []string) {
+	reportProgressInBytes = false
+	target.ImportMode = true
+	checkExportDataDoneFlag()
+	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	sqlname.SourceDBType = sourceDBType
+	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
+	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	importFileTasks := discoverFilesToImport()
+	importFileTasks = applyTableListFilter(importFileTasks)
+	importData(importFileTasks)
+}
+
+type ImportFileTask struct {
+	ID        int
+	FilePath  string
+	TableName string
+}
+
+func discoverFilesToImport() []*ImportFileTask {
+	result := []*ImportFileTask{}
+
+	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		task := &ImportFileTask{
+			ID:        i,
+			FilePath:  fileEntry.FilePath,
+			TableName: fileEntry.TableName,
+		}
+		result = append(result, task)
+	}
+	return result
+}
+
+func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
+	result := []*ImportFileTask{}
+	includeList := utils.CsvStringToSlice(target.TableList)
+	log.Infof("includeList: %v", includeList)
+	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
+	log.Infof("excludeList: %v", excludeList)
+	for _, task := range importFileTasks {
+		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
+			continue
+		}
+		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableName) {
+			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
+			continue
+		}
+		result = append(result, task)
+	}
+	return result
 }
 
 func getYBServers() []*tgtdb.Target {
@@ -205,9 +225,9 @@ func getYBServers() []*tgtdb.Target {
 
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
-		if parallelImportJobs == -1 {
-			parallelImportJobs = 2 * len(targets)
-			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+		if parallelism == -1 {
+			parallelism = 2 * len(targets)
+			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 		}
 		targets = []*tgtdb.Target{&target}
 	} else {
@@ -311,19 +331,20 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 	return cloneConnectionUri
 }
 
-func importData() {
+func importData(importFileTasks []*ImportFileTask) {
 	utils.PrintAndLog("import of data in %q database started", target.DBName)
 	err := target.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
+	defer target.DB().Disconnect()
+
 	target.Schema = strings.ToLower(target.Schema)
 	targetDBVersion := target.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	targets := getYBServers()
 	payload.NodeCount = len(targets)
 
@@ -333,13 +354,13 @@ func importData() {
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
-	if parallelImportJobs == -1 {
-		parallelImportJobs = fetchDefaultParllelJobs(targets)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelImportJobs)
+	if parallelism == -1 {
+		parallelism = fetchDefaultParllelJobs(targets)
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 	}
 
 	params := &tgtdb.ConnectionParams{
-		NumConnections:    parallelImportJobs + 1,
+		NumConnections:    parallelism,
 		ConnUriList:       targetUriList,
 		SessionInitScript: getYBSessionInitScript(),
 	}
@@ -348,22 +369,50 @@ func importData() {
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
-	var parallelism = parallelImportJobs
+
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
 	if target.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
-	if parallelism > SPLIT_FILE_CHANNEL_SIZE {
-		splitFileChannelSize = parallelism + 1
+	var pendingTasks, completedTasks []*ImportFileTask
+	state := NewImportDataState(exportDir)
+	if startClean {
+		cleanImportState(state, importFileTasks)
+		pendingTasks = importFileTasks
+	} else {
+		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
+		if err != nil {
+			utils.ErrExit("Failed to classify tasks: %s", err)
+		}
+		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
-	splitFilesChannel := make(chan *SplitFileImportTask, splitFileChannelSize)
 
-	generateSmallerSplits(splitFilesChannel)
-	go doImport(splitFilesChannel, parallelism, connPool)
-	checkForDone()
-	time.Sleep(time.Second * 2)
+	if len(pendingTasks) == 0 {
+		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
+	} else {
+		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+		poolSize := parallelism * 2
+		progressReporter := NewImportDataProgressReporter(disablePb)
+		for _, task := range pendingTasks {
+			// The code can produce `poolSize` number of batches at a time. But, it can consume only
+			// `parallelism` number of batches at a time.
+			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+
+			totalProgressAmount := getTotalProgressAmount(task)
+			progressReporter.ImportFileStarted(task, totalProgressAmount)
+			importedProgressAmount := getImportedProgressAmount(task, state)
+			progressReporter.AddProgressAmount(task, importedProgressAmount)
+			updateProgressFn := func(progressAmount int64) {
+				progressReporter.AddProgressAmount(task, progressAmount)
+			}
+			importFile(state, task, connPool, updateProgressFn)
+			batchImportPool.Wait()                // Wait for the file import to finish.
+			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+		}
+		time.Sleep(time.Second * 2)
+	}
 	executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
 
@@ -378,17 +427,48 @@ func importData() {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)
 		}
 	}
-	fmt.Printf("\nexiting...\n")
+	fmt.Printf("\nImport data complete.\n")
 }
 
+func getTotalProgressAmount(task *ImportFileTask) int64 {
+	fileEntry := dataFileDescriptor.GetFileEntry(task.FilePath, task.TableName)
+	if fileEntry == nil {
+		utils.ErrExit("entry not found for file %q and table %s", task.FilePath, task.TableName)
+	}
+	if reportProgressInBytes {
+		return fileEntry.FileSize
+	} else {
+		return fileEntry.RowCount
+	}
+}
+
+func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
+	if reportProgressInBytes {
+		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableName)
+		if err != nil {
+			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableName, err)
+		}
+		return byteCount
+	} else {
+		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableName)
+		if err != nil {
+			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableName, err)
+		}
+		return rowCount
+	}
+}
+
+// TODO: Move this to importDataState.go .
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
 		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+			data_file_name VARCHAR(250),
+			batch_number INT,
 			schema_name VARCHAR(250),
-			file_name VARCHAR(250),
+			table_name VARCHAR(250),
 			rows_imported BIGINT,
-			PRIMARY KEY (schema_name, file_name)
+			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`,
 	}
 
@@ -421,132 +501,59 @@ outer:
 	return nil
 }
 
-func checkForDone() {
-	for Done.IsNotSet() {
-		if GenerateSplitsDone.IsSet() {
-			checkPassed := true
-			for _, table := range importTables {
-				inProgressPattern := fmt.Sprintf("%s/%s/data/%s.*.P", exportDir, metaInfoDirName, table)
-				m1, err := filepath.Glob(inProgressPattern)
-				if err != nil {
-					utils.ErrExit("glob %q: %s", inProgressPattern, err)
-				}
-				inCreatedPattern := fmt.Sprintf("%s/%s/data/%s.*.C", exportDir, metaInfoDirName, table)
-				m2, err := filepath.Glob(inCreatedPattern)
-				if err != nil {
-					utils.ErrExit("glob %q: %s", inCreatedPattern, err)
-				}
-
-				if len(m1) > 0 || len(m2) > 0 {
-					checkPassed = false
-					time.Sleep(2 * time.Second)
-					break
-				}
-			}
-			if checkPassed {
-				// once above loop is executed for each table, import is done
-				log.Infof("No in-progress or newly-created splits. Import Done.")
-				Done.Set()
-			}
-		} else {
-			time.Sleep(5 * time.Second)
-		}
+func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
+	tableNames := []string{}
+	for _, t := range tasks {
+		tableNames = append(tableNames, t.TableName)
 	}
+	return utils.Uniq(tableNames)
 }
 
-func generateSmallerSplits(taskQueue chan *SplitFileImportTask) {
-	doneTables, interruptedTables, remainingTables, _ := getTablesToImport()
-
-	log.Infof("doneTables: %s", doneTables)
-	log.Infof("interruptedTables: %s", interruptedTables)
-	log.Infof("remainingTables: %s", remainingTables)
-
-	if target.TableList == "" { //no table-list is given by user
-		importTables = append(interruptedTables, remainingTables...)
-		allTables = append(importTables, doneTables...)
-	} else {
-		allTables = utils.CsvStringToSlice(target.TableList)
-
-		//filter allTables to remove tables in case not present in --table-list flag
-		for _, table := range allTables {
-			//TODO: 'table' can be schema_name.table_name, so split and proceed
-			notDone := true
-			for _, t := range doneTables {
-				if t == table {
-					notDone = false
-					break
-				}
-			}
-
-			if notDone {
-				importTables = append(importTables, table)
-			}
+func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
+	inProgressTasks := []*ImportFileTask{}
+	notStartedTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableName)
+		if err != nil {
+			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
-		if target.VerboseMode {
-			fmt.Printf("given table-list: %v\n", target.TableList)
+		switch fileImportState {
+		case FILE_IMPORT_COMPLETED:
+			completedTasks = append(completedTasks, task)
+		case FILE_IMPORT_IN_PROGRESS:
+			inProgressTasks = append(inProgressTasks, task)
+		case FILE_IMPORT_NOT_STARTED:
+			notStartedTasks = append(notStartedTasks, task)
+		default:
+			return nil, nil, fmt.Errorf("invalid table import state: %s", fileImportState)
 		}
 	}
+	// Start with in-progress tasks, followed by not-started tasks.
+	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
+}
 
-	excludeTableList := utils.CsvStringToSlice(target.ExcludeTableList)
-	importTables = utils.SetDifference(importTables, excludeTableList)
-	allTables = utils.SetDifference(allTables, excludeTableList)
-	sort.Strings(allTables)
-	sort.Strings(importTables)
+func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
+	conn := newTargetConn()
+	defer conn.Close(context.Background())
 
-	log.Infof("allTables: %s", allTables)
-	log.Infof("importTables: %s", importTables)
-
-	if startClean {
-		conn := newTargetConn()
-		defer conn.Close(context.Background())
-		nonEmptyTableNames := getNonEmptyTables(conn, allTables)
-		if len(nonEmptyTableNames) > 0 {
-			utils.ErrExit("Following tables are not empty. "+
-				"TRUNCATE them before importing data with --start-clean.\n%s",
-				strings.Join(nonEmptyTableNames, ", "))
+	tableNames := importFileTasksToTableNames(tasks)
+	nonEmptyTableNames := getNonEmptyTables(conn, tableNames)
+	if len(nonEmptyTableNames) > 0 {
+		utils.PrintAndLog("Following tables are not empty. "+
+			"TRUNCATE them before importing data with --start-clean.\n%s",
+			strings.Join(nonEmptyTableNames, ", "))
+		yes := utils.AskPrompt("Do you want to continue without truncating these tables?")
+		if !yes {
+			utils.ErrExit("Aborting import.")
 		}
+	}
 
-		for _, table := range allTables {
-			tableSplitsPatternStr := fmt.Sprintf("%s.%s", table, SPLIT_INFO_PATTERN)
-			filePattern := filepath.Join(exportDir, "metainfo/data", tableSplitsPatternStr)
-			log.Infof("clearing the generated splits for table %q matching %q pattern", table, filePattern)
-			utils.ClearMatchingFiles(filePattern)
-
-			cmd := fmt.Sprintf(`DELETE FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE file_name LIKE '%s.%%'`, table)
-			res, err := conn.Exec(context.Background(), cmd)
-			if err != nil {
-				utils.ErrExit("remove %q related entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %s", table, err)
-			}
-			log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
+	for _, task := range tasks {
+		err := state.Clean(task.FilePath, task.TableName, conn)
+		if err != nil {
+			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
-
-		importTables = allTables //since all tables needs to imported now
 	}
-
-	if target.VerboseMode {
-		fmt.Printf("all the tables to be imported: %v\n", allTables)
-	}
-
-	if !startClean {
-		fmt.Printf("skipping already imported tables: %s\n", doneTables)
-	}
-
-	if target.VerboseMode {
-		fmt.Printf("tables left to import: %v\n", importTables)
-	}
-
-	if len(importTables) == 0 {
-		fmt.Printf("All the tables are already imported, nothing left to import\n")
-		Done.Set()
-		return
-	} else {
-		fmt.Printf("Preparing to import the tables: %v\n", importTables)
-	}
-
-	//Preparing the tablesProgressMetadata array
-	initializeImportDataStatus(exportDir, importTables)
-
-	go splitDataFiles(importTables, taskQueue)
 }
 
 func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
@@ -569,190 +576,126 @@ func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
 	return result
 }
 
-func splitDataFiles(importTables []string, taskQueue chan *SplitFileImportTask) {
-	log.Infof("Started goroutine: splitDataFiles")
-	for _, t := range importTables {
-		origDataFile := exportDir + "/data/" + t + "_data.sql"
-		extractCopyStmtForTable(t, origDataFile)
-		log.Infof("Start splitting table %q: data-file: %q", t, origDataFile)
+func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool,
+	updateProgressFn func(int64)) {
 
-		log.Infof("Collect all interrupted/remaining splits.")
-		largestCreatedSplitSoFar := int64(0)
-		largestOffsetSoFar := int64(0)
-		fileFullySplit := false
-		pattern := fmt.Sprintf("%s/%s/data/%s.[0-9]*.[0-9]*.[0-9]*.[CPD]", exportDir, metaInfoDirName, t)
-		matches, _ := filepath.Glob(pattern)
+	origDataFile := task.FilePath
+	extractCopyStmtForTable(task.TableName, origDataFile)
+	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
-		doneSplitRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[D]$", t)
-		doneSplitRegexp := regexp.MustCompile(doneSplitRegexStr)
-		splitFileNameRegexStr := fmt.Sprintf(".+/%s\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)\\.[CPD]$", t)
-		splitFileNameRegex := regexp.MustCompile(splitFileNameRegexStr)
-
-		for _, filepath := range matches {
-			submatches := splitFileNameRegex.FindAllStringSubmatch(filepath, -1)
-			for _, match := range submatches {
-				// fmt.Printf("filepath: %s, %v\n", filepath, match)
-				/*
-					offsets are 0-based, while numLines are 1-based
-					offsetStart is the line in original datafile from where current split starts
-					offsetEnd   is the line in original datafile from where next split starts
-				*/
-				splitNum, _ := strconv.ParseInt(match[1], 10, 64)
-				offsetEnd, _ := strconv.ParseInt(match[2], 10, 64)
-				numLines, _ := strconv.ParseInt(match[3], 10, 64)
-				offsetStart := offsetEnd - numLines
-				if splitNum == LAST_SPLIT_NUM {
-					fileFullySplit = true
-				}
-				if splitNum > largestCreatedSplitSoFar {
-					largestCreatedSplitSoFar = splitNum
-				}
-				if offsetEnd > largestOffsetSoFar {
-					largestOffsetSoFar = offsetEnd
-				}
-				if !doneSplitRegexp.MatchString(filepath) {
-					addASplitTask("", t, filepath, splitNum, offsetStart, offsetEnd, true, taskQueue)
-				}
-			}
-		}
-
-		if !fileFullySplit {
-			splitFilesForTable(origDataFile, t, taskQueue, largestCreatedSplitSoFar, largestOffsetSoFar)
-		}
+	err := state.PrepareForFileImport(task.FilePath, task.TableName)
+	if err != nil {
+		utils.ErrExit("preparing for file import: %s", err)
 	}
-	log.Info("All table data files are split.")
-	GenerateSplitsDone.Set()
+	log.Infof("Collect all interrupted/remaining splits.")
+	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableName)
+	if err != nil {
+		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
+	}
+	for _, batch := range pendingBatches {
+		submitBatch(batch, connPool, updateProgressFn)
+	}
+	if !fileFullySplit {
+		splitFilesForTable(state, origDataFile, task.TableName, connPool, lastBatchNumber, lastOffset, updateProgressFn)
+	}
 }
 
-func splitFilesForTable(filePath string, t string, taskQueue chan *SplitFileImportTask, largestSplit int64, largestOffset int64) {
-	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, largestSplit, largestOffset)
-	splitNum := largestSplit + 1
-	currTmpFileName := fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
-	numLinesTaken := largestOffset
-	numLinesInThisSplit := int64(0)
+func splitFilesForTable(state *ImportDataState, filePath string, t string, connPool *tgtdb.ConnectionPool,
+	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64)) {
+	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
+	batchNum := lastBatchNumber + 1
+	numLinesTaken := lastOffset
 
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	reader, err := dataStore.Open(filePath)
 	if err != nil {
 		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
 	}
+
 	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
 		utils.ErrExit("open datafile %q: %v", filePath, err)
 	}
 	defer dataFile.Close()
 
-	sz := 0
-	log.Infof("current temp file: %s", currTmpFileName)
-	outfile, err := os.Create(currTmpFileName)
+	log.Infof("Skipping %d lines from %q", lastOffset, filePath)
+	err = dataFile.SkipLines(lastOffset)
 	if err != nil {
-		utils.ErrExit("create file %q: %s", currTmpFileName, err)
+		utils.ErrExit("skipping line for offset=%d: %v", lastOffset, err)
 	}
 
-	log.Infof("Skipping %d lines from %q", largestOffset, filePath)
-	err = dataFile.SkipLines(largestOffset)
-	if err != nil {
-		utils.ErrExit("skipping line for offset=%d: %v", largestOffset, err)
-	}
-
-	// Create a buffered writer from the file
-	bufferedWriter := bufio.NewWriter(outfile)
-	if dataFileDescriptor.HasHeader {
-		bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
-	}
 	var readLineErr error = nil
 	var line string
-	linesWrittenToBuffer := false
+	var batchWriter *BatchWriter
+	header := ""
+	if dataFileDescriptor.HasHeader {
+		header = dataFile.GetHeader()
+	}
 	for readLineErr == nil {
+
+		if batchWriter == nil {
+			batchWriter = state.NewBatchWriter(filePath, t, batchNum)
+			err := batchWriter.Init()
+			if err != nil {
+				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+			}
+			if header != "" {
+				err = batchWriter.WriteHeader(header)
+				if err != nil {
+					utils.ErrExit("writing header for table %q: %s", t, err)
+				}
+			}
+		}
+
 		line, readLineErr = dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
-			numLinesInThisSplit += 1
 		}
-
-		var length int
-		if linesWrittenToBuffer {
-			bufferedWriter.WriteString("\n")
-			length = len("\n")
-		}
-		bytesWritten, err := bufferedWriter.WriteString(line)
-		length += bytesWritten
-		linesWrittenToBuffer = true
+		err = batchWriter.WriteRecord(line)
 		if err != nil {
-			utils.ErrExit("Write line to %q: %s", outfile.Name(), err)
+			utils.ErrExit("Write to batch %d: %s", batchNum, err)
 		}
-		sz += length
-		if sz >= FOUR_MB {
-			err = bufferedWriter.Flush()
-			if err != nil {
-				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
-			}
-			bufferedWriter.Reset(outfile)
-			sz = 0
-		}
-
-		if numLinesInThisSplit == numLinesInASplit ||
+		if batchWriter.NumRecordsWritten == batchSize ||
 			dataFile.GetBytesRead() >= MAX_SPLIT_SIZE_BYTES ||
 			readLineErr != nil {
 
-			err = bufferedWriter.Flush()
-			if err != nil {
-				utils.ErrExit("flush data in file %q: %s", outfile.Name(), err)
-			}
-			outfile.Close()
-			fileSplitNumber := splitNum
+			isLastBatch := false
 			if readLineErr == io.EOF {
-				fileSplitNumber = LAST_SPLIT_NUM
-				log.Infof("Preparing last split of %q", filePath)
+				isLastBatch = true
 			} else if readLineErr != nil {
 				utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
 			}
 
-			offsetStart := numLinesTaken - numLinesInThisSplit
 			offsetEnd := numLinesTaken
-			splitFile := fmt.Sprintf("%s/%s/data/%s.%d.%d.%d.%d.C",
-				exportDir, metaInfoDirName, t, fileSplitNumber, offsetEnd, numLinesInThisSplit, dataFile.GetBytesRead())
-			log.Infof("Renaming %q to %q", currTmpFileName, splitFile)
-			err = os.Rename(currTmpFileName, splitFile)
+			batch, err := batchWriter.Done(isLastBatch, offsetEnd, dataFile.GetBytesRead())
 			if err != nil {
-				utils.ErrExit("rename %q to %q: %s", currTmpFileName, splitFile, err)
+				utils.ErrExit("finalizing batch %d: %s", batchNum, err)
 			}
+			batchWriter = nil
 			dataFile.ResetBytesRead()
-			addASplitTask("", t, splitFile, splitNum, offsetStart, offsetEnd, false, taskQueue)
+			submitBatch(batch, connPool, updateProgressFn)
 
-			if fileSplitNumber != LAST_SPLIT_NUM {
-				splitNum += 1
-				numLinesInThisSplit = 0
-				linesWrittenToBuffer = false
-				currTmpFileName = fmt.Sprintf("%s/%s/data/%s.%d.tmp", exportDir, metaInfoDirName, t, splitNum)
-				log.Infof("create next temp file: %q", currTmpFileName)
-				outfile, err = os.Create(currTmpFileName)
-				if err != nil {
-					utils.ErrExit("create %q: %s", currTmpFileName, err)
-				}
-				bufferedWriter = bufio.NewWriter(outfile)
-				if dataFileDescriptor.HasHeader {
-					bufferedWriter.WriteString(dataFile.GetHeader() + "\n")
-				}
+			if !isLastBatch {
+				batchNum += 1
 			}
 		}
 	}
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func addASplitTask(schemaName string, tableName string, filepath string, splitNumber int64, offsetStart int64, offsetEnd int64, interrupted bool,
-	taskQueue chan *SplitFileImportTask) {
-	var t SplitFileImportTask
-	t.SchemaName = schemaName
-	t.TableName = tableName
-	t.SplitFilePath = filepath
-	t.SplitNumber = splitNumber
-	t.OffsetStart = offsetStart
-	t.OffsetEnd = offsetEnd
-	t.Interrupted = interrupted
-	taskQueue <- &t
-	log.Infof("Queued an import task: %s", spew.Sdump(t))
+func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool, updateProgressFn func(int64)) {
+	batchImportPool.Go(func() {
+		// There are `poolSize` number of competing go-routines trying to invoke COPY.
+		// But the `connPool` will allow only `parallelism` number of connections to be
+		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
+		doOneImport(batch, connPool)
+		if reportProgressInBytes {
+			updateProgressFn(batch.ByteCount)
+		} else {
+			updateProgressFn(batch.RecordCount)
+		}
+	})
+	log.Infof("Queued batch: %s", spew.Sdump(batch))
 }
 
 func executePostImportDataSqls() {
@@ -763,126 +706,23 @@ func executePostImportDataSqls() {
 	}
 }
 
-func getTablesToImport() ([]string, []string, []string, error) {
-	metaInfoDataDir := filepath.Join(exportDir, metaInfoDirName, "data")
-	exportDataDir := filepath.Join(exportDir, "data")
-	_, err := os.Stat(exportDataDir)
+func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
+	err := batch.MarkPending()
 	if err != nil {
-		utils.ErrExit("Export data dir %s is missing. Exiting.\n", exportDataDir)
+		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
 	}
-	// Collect all the data files
-	dataFilePatern := fmt.Sprintf("%s/*_data.sql", exportDataDir)
-	datafiles, err := filepath.Glob(dataFilePatern)
-	if err != nil {
-		utils.ErrExit("find data files in %q: %s", exportDataDir, err)
-	}
+	log.Infof("Importing %q", batch.FilePath)
 
-	pat := regexp.MustCompile(`.+/(\S+)_data.sql`)
-	var tables []string
-	for _, v := range datafiles {
-		tablenameMatches := pat.FindAllStringSubmatch(v, -1)
-		for _, match := range tablenameMatches {
-			tables = append(tables, match[1]) //ora2pg data files named like TABLE_data.sql
-		}
-	}
-
-	var doneTables []string
-	var interruptedTables []string
-	var remainingTables []string
-	for _, t := range tables {
-
-		donePattern := fmt.Sprintf("%s/%s.%s.D", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		interruptedPattern := fmt.Sprintf("%s/%s.%s.P", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		createdPattern := fmt.Sprintf("%s/%s.%s.C", metaInfoDataDir, t, SPLIT_INFO_PATTERN)
-		lastSplitPattern := fmt.Sprintf("%s/%s.%s.[CPD]", metaInfoDataDir, t, LAST_SPLIT_PATTERN)
-
-		doneMatches, _ := filepath.Glob(donePattern)
-		interruptedMatches, _ := filepath.Glob(interruptedPattern)
-		createdMatches, _ := filepath.Glob(createdPattern)
-		lastSplitMatches, _ := filepath.Glob(lastSplitPattern)
-
-		if len(lastSplitMatches) > 1 {
-			utils.ErrExit("More than one last split is present, which is not valid scenario. last split names are: %v", lastSplitMatches)
-		}
-
-		if len(lastSplitMatches) > 0 && len(createdMatches) == 0 && len(interruptedMatches) == 0 && len(doneMatches) > 0 {
-			doneTables = append(doneTables, t)
-		} else {
-			if (len(createdMatches) > 0 && len(interruptedMatches)+len(doneMatches) == 0) ||
-				(len(createdMatches)+len(interruptedMatches)+len(doneMatches) == 0) {
-				remainingTables = append(remainingTables, t)
-			} else {
-				interruptedTables = append(interruptedTables, t)
-			}
-		}
-	}
-
-	return doneTables, interruptedTables, remainingTables, nil
-}
-
-func doImport(taskQueue chan *SplitFileImportTask, parallelism int, connPool *tgtdb.ConnectionPool) {
-	if Done.IsSet() { //if import is already done, return
-		log.Infof("Done is already set.")
-		return
-	}
-	parallelImportCount := int64(0)
-
-	importProgressContainer = ProgressContainer{
-		container: mpb.New(),
-	}
-	if !disablePb {
-		go importDataStatus()
-	}
-
-	for Done.IsNotSet() {
-		select {
-		case t := <-taskQueue:
-			// fmt.Printf("Got taskfile = %s putting on parallel channel\n", t.SplitFilePath)
-			// parallelImportChannel <- t
-			for parallelImportCount >= int64(parallelism) {
-				time.Sleep(time.Second * 2)
-			}
-			atomic.AddInt64(&parallelImportCount, 1)
-			go doImportInParallel(t, connPool, &parallelImportCount)
-		default:
-			// fmt.Printf("No file sleeping for 2 seconds\n")
-			time.Sleep(2 * time.Second)
-		}
-	}
-
-	importProgressContainer.container.Wait()
-}
-
-func doImportInParallel(t *SplitFileImportTask, connPool *tgtdb.ConnectionPool, parallelImportCount *int64) {
-	doOneImport(t, connPool)
-	atomic.AddInt64(parallelImportCount, -1)
-}
-
-func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
-	log.Infof("Importing %q", task.SplitFilePath)
-	//this is done to signal start progress bar for this table
-	if tablesProgressMetadata[task.TableName].CountLiveRows == -1 {
-		tablesProgressMetadata[task.TableName].CountLiveRows = 0
-	}
-	// Rename the file to .P
-	inProgressFilePath := getInProgressFilePath(task)
-	log.Infof("Renaming file from %q to %q", task.SplitFilePath, inProgressFilePath)
-	err := os.Rename(task.SplitFilePath, inProgressFilePath)
-	if err != nil {
-		utils.ErrExit("rename %q to %q: %s", task.SplitFilePath, inProgressFilePath, err)
-	}
-	file, err := os.Open(inProgressFilePath)
-	if err != nil {
-		utils.ErrExit("open %q: %s", inProgressFilePath, err)
-	}
-
-	copyCommand := getCopyCommand(task.TableName)
+	copyCommand := getCopyCommand(batch.TableName)
 	// copyCommand is empty when there are no rows for that table
 	if copyCommand == "" {
-		markTaskDone(task)
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
+		}
 		return
 	}
-	copyCommand = fmt.Sprintf(copyCommand, (task.OffsetEnd - task.OffsetStart))
+	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
 	log.Infof("COPY command: %s", copyCommand)
 	var rowsAffected int64
 	attempt := 0
@@ -890,34 +730,41 @@ func doOneImport(task *SplitFileImportTask, connPool *tgtdb.ConnectionPool) {
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		var err error
 		attempt++
-		rowsAffected, err = importSplit(conn, task, file, copyCommand)
+		rowsAffected, err = importBatch(conn, batch, copyCommand)
 		if err == nil ||
 			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
 			attempt == COPY_MAX_RETRY_COUNT {
 			return false, err
 		}
-		log.Warnf("COPY FROM file %q: %s", inProgressFilePath, err)
+		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
 		sleepIntervalSec += 10
 		if sleepIntervalSec > MAX_SLEEP_SECOND {
 			sleepIntervalSec = MAX_SLEEP_SECOND
 		}
 		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, inProgressFilePath, attempt)
+			sleepIntervalSec, batch.FilePath, attempt)
 		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 		return true, err
 	}
 	err = connPool.WithConn(copyFn)
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
-		utils.ErrExit("COPY %q FROM file %q: %s", task.TableName, inProgressFilePath, err)
+		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
 	}
-	incrementImportProgressBar(task.TableName, inProgressFilePath)
-	markTaskDone(task)
+	err = batch.MarkDone()
+	if err != nil {
+		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
+	}
 }
 
-func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyCmd string) (rowsAffected int64, err error) {
-	// reset the reader to begin for every call
-	file.Seek(0, io.SeekStart)
+func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int64, err error) {
+	var file *os.File
+	file, err = batch.Open()
+	if err != nil {
+		utils.ErrExit("opening batch %s: %s", batch.FilePath, err)
+	}
+	defer file.Close()
+
 	//setting the schema so that COPY command can acesss the table
 	setTargetSchema(conn)
 
@@ -947,7 +794,7 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 
 	// Check if the split is already imported.
 	var alreadyImported bool
-	alreadyImported, rowsAffected, err = splitIsAlreadyImported(task, tx)
+	alreadyImported, rowsAffected, err = batch.IsAlreadyImported(tx)
 	if err != nil {
 		return 0, err
 	}
@@ -961,60 +808,16 @@ func importSplit(conn *pgx.Conn, task *SplitFileImportTask, file *os.File, copyC
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, task.SplitFilePath)
+			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.FilePath)
 		}
 		return res.RowsAffected(), err
 	}
 
-	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
-	rowsAffected = res.RowsAffected()
-	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task.TableName)
-	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (schema_name, file_name, rows_imported)
-		VALUES ('%s', '%s', %v);`, schemaName, fileName, rowsAffected)
-	_, err = tx.Exec(ctx, cmd)
+	err = batch.RecordEntryInDB(tx, res.RowsAffected())
 	if err != nil {
-		return 0, fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
+		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.FilePath, err)
 	}
-	log.Infof("Inserted (%q, %q, %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo", schemaName, fileName, rowsAffected)
-	return rowsAffected, nil
-}
-
-func splitIsAlreadyImported(task *SplitFileImportTask, tx pgx.Tx) (bool, int64, error) {
-	var rowsImported int64
-	fileName := filepath.Base(getInProgressFilePath(task))
-	schemaName := getTargetSchemaName(task.TableName)
-	query := fmt.Sprintf(
-		"SELECT rows_imported FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo WHERE schema_name = '%s' AND file_name = '%s';",
-		schemaName, fileName)
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
-	if err == nil {
-		log.Infof("%v rows from %q are already imported", rowsImported, fileName)
-		return true, rowsImported, nil
-	}
-	if err == pgx.ErrNoRows {
-		log.Infof("%q is not imported yet", fileName)
-		return false, 0, nil
-	}
-	return false, 0, fmt.Errorf("check if %s is already imported: %w", fileName, err)
-}
-
-func markTaskDone(task *SplitFileImportTask) {
-	inProgressFilePath := getInProgressFilePath(task)
-	doneFilePath := getDoneFilePath(task)
-	log.Infof("Renaming %q => %q", inProgressFilePath, doneFilePath)
-	err := os.Rename(inProgressFilePath, doneFilePath)
-	if err != nil {
-		utils.ErrExit("rename %q => %q: %s", inProgressFilePath, doneFilePath, err)
-	}
-
-	if truncateSplits {
-		err = os.Truncate(doneFilePath, 0)
-		if err != nil {
-			log.Warnf("truncate file %q: %s", doneFilePath, err)
-		}
-	}
+	return res.RowsAffected(), err
 }
 
 func newTargetConn() *pgx.Conn {
@@ -1183,27 +986,12 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
-func getInProgressFilePath(task *SplitFileImportTask) string {
-	path := task.SplitFilePath
-	return path[0:len(path)-1] + "P" // *.C -> *.P
-}
-
-func getDoneFilePath(task *SplitFileImportTask) string {
-	path := task.SplitFilePath
-	return path[0:len(path)-1] + "D" // *.P -> *.D
-}
-
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
 		return parts[0]
 	}
 	return target.Schema // default set to "public"
-}
-
-func incrementImportProgressBar(tableName string, splitFilePath string) {
-	tablesProgressMetadata[tableName].CountLiveRows += getProgressAmount(splitFilePath)
-	log.Infof("Table %q, total rows-copied/progress-made until now %v", tableName, tablesProgressMetadata[tableName].CountLiveRows)
 }
 
 func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
@@ -1244,13 +1032,27 @@ Valid cases requiring column name quoting:
 func quoteColumnNamesIfRequired(csvHeader string) string {
 	columnNames := strings.Split(csvHeader, ",")
 	for i := 0; i < len(columnNames); i++ {
-		columnNames[i] = strings.TrimSpace(columnNames[i])
-		if sqlname.IsReservedKeyword(columnNames[i]) || (sourceDBType == POSTGRESQL && sqlname.IsCaseSensitive(columnNames[i], sourceDBType)) {
-			columnNames[i] = fmt.Sprintf(`"%s"`, columnNames[i])
-		}
+		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
 	}
-
 	return strings.Join(columnNames, ",")
+}
+
+func quoteIdentifierIfRequired(identifier string) string {
+	if sqlname.IsQuoted(identifier) {
+		return identifier
+	}
+	// TODO: Use either sourceDBType or source.DBType throughout the code.
+	// In the export code path source.DBType is used. In the import code path
+	// sourceDBType is used.
+	dbType := source.DBType
+	if dbType == "" {
+		dbType = sourceDBType
+	}
+	if sqlname.IsReservedKeyword(identifier) ||
+		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		return fmt.Sprintf(`"%s"`, identifier)
+	}
+	return identifier
 }
 
 func extractCopyStmtForTable(table string, fileToSearchIn string) {
@@ -1265,7 +1067,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
 	}
 	if stmt != "" {
-		copyTableFromCommands[table] = stmt
+		copyTableFromCommands.Store(table, stmt)
 		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
 		return
 	}
@@ -1312,7 +1114,7 @@ func extractCopyStmtForTable(table string, fileToSearchIn string) {
 		}
 		if copyCommandRegex.MatchString(line) {
 			line = strings.Trim(line, ";") + ` WITH (ROWS_PER_TRANSACTION %v)`
-			copyTableFromCommands[table] = line
+			copyTableFromCommands.Store(table, line)
 			log.Infof("copyTableFromCommand for table %q is %q", table, line)
 			return
 		}
@@ -1346,32 +1148,12 @@ func getParentTable(table string, conn *pgx.Conn) string {
 }
 
 func getCopyCommand(table string) string {
-	if copyCommand, ok := copyTableFromCommands[table]; ok {
-		return copyCommand
+	if copyCommand, ok := copyTableFromCommands.Load(table); ok {
+		return copyCommand.(string)
 	} else {
 		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
-}
-
-func getProgressAmount(filePath string) int64 {
-	splitName := filepath.Base(filePath)
-	parts := strings.Split(splitName, ".")
-
-	var p int64
-	var err error
-	if dataFileDescriptor.TableRowCount != nil { // case of importData where row counts is available
-		p, err = strconv.ParseInt(parts[len(parts)-3], 10, 64)
-	} else { // case of importDataFileCommand where file size is available not row counts
-		p, err = strconv.ParseInt(parts[len(parts)-2], 10, 64)
-	}
-
-	if err != nil {
-		utils.ErrExit("parsing progress amount of file %q: %v", filePath, err)
-	}
-
-	log.Debugf("got progress amount=%d for file %q", p, filePath)
-	return p
 }
 
 func getYBSessionInitScript() []string {
@@ -1452,12 +1234,6 @@ func checkExportDataDoneFlag() {
 	if err != nil {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
-	metaInfoDataDir := fmt.Sprintf("%s/data", metaInfoDir)
-	_, err = os.Stat(metaInfoDataDir)
-	if err != nil {
-		utils.ErrExit("metainfo data dir is missing. Exiting.")
-	}
-
 	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
 	_, err = os.Stat(exportDataDonePath)
 	if err != nil {

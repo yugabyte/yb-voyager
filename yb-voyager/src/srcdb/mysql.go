@@ -31,6 +31,18 @@ func (ms *MySQL) Connect() error {
 	return err
 }
 
+func (ms *MySQL) Disconnect() {
+	if ms.db == nil {
+		log.Infof("No connection to the source database to close")
+		return
+	}
+
+	err := ms.db.Close()
+	if err != nil {
+		log.Infof("Failed to close connection to the source database: %s", err)
+	}
+}
+
 func (ms *MySQL) CheckRequiredToolsAreInstalled() {
 	checkTools("ora2pg")
 }
@@ -139,13 +151,12 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*
 
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFilesForReservedWords(tablesProgressMetadata)
-	exportedRowCount := getExportedRowCount(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.SQL,
-		TableRowCount: exportedRowCount,
-		Delimiter:     "\t",
-		HasHeader:     false,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.SQL,
+		Delimiter:    "\t",
+		HasHeader:    false,
+		ExportDir:    exportDir,
+		DataFileList: getExportedDataFileList(tablesProgressMetadata),
 	}
 	dfd.Save()
 }

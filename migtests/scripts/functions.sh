@@ -263,5 +263,8 @@ import_data_file() {
 		--disable-pb \
 		--send-diagnostics=false \
 		--parallel-jobs 3 \
-		$*
+		$* || {
+			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+			exit 1
+		}
 }

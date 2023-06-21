@@ -88,7 +88,10 @@ func exportData() {
 	success := exportDataOffline()
 
 	if success {
-		tableRowCount := datafile.OpenDescriptor(exportDir).TableRowCount
+		tableRowCount := map[string]int64{}
+		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
+			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
+		}
 		printExportedRowCount(tableRowCount, useDebezium)
 		callhome.GetPayload(exportDir)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
@@ -109,6 +112,7 @@ func exportDataOffline() bool {
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
 	}
+	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
@@ -275,6 +279,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 	}
 
+	err = source.PrepareSSLParamsForDebezium(absExportDir)
+	if err != nil {
+		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
+	}
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -288,10 +296,20 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		TableList:                   dbzmTableList,
 		ColumnList:                  dbzmColumnList,
 		ColumnSequenceMap:           columnSequenceMap,
-		SnapshotMode:                snapshotMode,
 		Uri:                         uri,
 		TNSAdmin:                    tnsAdmin,
 		OracleJDBCWalletLocationSet: oracleJDBCWalletLocationIsSet,
+
+		SSLMode:               source.SSLMode,
+		SSLCertPath:           source.SSLCertPath,
+		SSLKey:                source.SSLKey,
+		SSLRootCert:           source.SSLRootCert,
+		SSLKeyStore:           source.SSLKeyStore,
+		SSLKeyStorePassword:   source.SSLKeyStorePassword,
+		SSLTrustStore:         source.SSLTrustStore,
+		SSLTrustStorePassword: source.SSLTrustStorePassword,
+
+		SnapshotMode: snapshotMode,
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -441,20 +459,27 @@ func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceNam
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
-	tableRowCount := make(map[string]int64)
+	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, table := range status.Tables {
-		tableName := table.TableName
-		if table.SchemaName != "public" && source.DBType == POSTGRESQL {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, table.TableName)
+		// TODO: TableName and FilePath must be quoted by debezium plugin.
+		tableName := quoteIdentifierIfRequired(table.TableName)
+		if source.DBType == POSTGRESQL && table.SchemaName != "public" {
+			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
 		}
-		tableRowCount[tableName] = table.ExportedRowCountSnapshot
+		fileEntry := &datafile.FileEntry{
+			TableName: tableName,
+			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
+			RowCount:  table.ExportedRowCountSnapshot,
+			FileSize:  -1, // Not available.
+		}
+		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:    datafile.CSV,
-		TableRowCount: tableRowCount,
-		Delimiter:     ",",
-		HasHeader:     true,
-		ExportDir:     exportDir,
+		FileFormat:   datafile.CSV,
+		Delimiter:    ",",
+		HasHeader:    true,
+		ExportDir:    exportDir,
+		DataFileList: dataFileList,
 	}
 	dfd.Save()
 	return nil
@@ -537,9 +562,11 @@ func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
+	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
+		utils.CleanDir(sslDir)
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)

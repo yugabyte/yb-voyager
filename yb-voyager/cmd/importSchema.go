@@ -64,6 +64,8 @@ func importSchema() {
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
+	defer target.DB().Disconnect()
+
 	target.Schema = strings.ToLower(target.Schema)
 	conn := target.DB().Conn()
 	targetDBVersion := target.DB().GetVersion()

@@ -10,18 +10,30 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func getExportedRowCount(tablesMetadata map[string]*utils.TableProgressMetadata) map[string]int64 {
-	exportedRowCount := make(map[string]int64)
+func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetadata) []*datafile.FileEntry {
+	fileEntries := make([]*datafile.FileEntry, 0)
 	for key := range tablesMetadata {
 		tableMetadata := tablesMetadata[key]
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		exportedRowCount[targetTableName] = tableMetadata.CountLiveRows
-
+		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
+			// This can happen in case of nested tables in Oracle.
+			log.Infof("File %q does not exist. Not including table %q in the descriptor.",
+				tableMetadata.FinalFilePath, targetTableName)
+			continue
+		}
+		fileEntry := &datafile.FileEntry{
+			FilePath:  filepath.Base(tableMetadata.FinalFilePath),
+			TableName: targetTableName,
+			RowCount:  tableMetadata.CountLiveRows,
+			FileSize:  -1, // Not available.
+		}
+		fileEntries = append(fileEntries, fileEntry)
 	}
-	return exportedRowCount
+	return fileEntries
 }
 
 // Invoked at the end of export schema for Oracle and MySQL to process files containing statments of the type `\i <filename>.sql`, merging them together.

@@ -5,6 +5,9 @@ import yb
 def main():
 	yb.run_checks(file_import_done_checks)
 
+FOO_DATA = set([(1, 'a'), (2, 'b'), (3, 'c'), (4, 'd'), (5, 'e'), (6, 'f'), (7, 'g'), (8, 'h'), (9, 'i')])
+FOO2_DATA = FOO_DATA
+FOO3_DATA = set([(1, 'a'), (2, 'b'), (3, 'c'), (10, 'j'), (11, 'k'), (12, 'l')])
 
 EXPECTED = {
 	"one_m_rows": 1000000,
@@ -39,6 +42,9 @@ EXPECTED = {
 	"t1_null_string_csv2": 3,
 	"t1_null_string_text2": 3,
 	"accounts":2000000,
+	"foo": len(FOO_DATA),
+	"foo2": len(FOO2_DATA),
+	"foo3": len(FOO3_DATA),
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -61,6 +67,7 @@ S3_CSV_DATA = set([(1,2), (3,4), (5,6)])
 S3_T1_DATA = S3_TEXT_DATA
 S3_T2_DATA = S3_TEXT_DATA
 S3_CSV_WITH_HEADER_DATA = S3_TEXT_DATA
+
 
 TABLE_NAME_DATA_MAP = {
 	"t1_quote_char": T1_TABLE_DATA,
@@ -88,6 +95,9 @@ TABLE_NAME_DATA_MAP = {
 	"t1_null_string_text2": T1_NULL_STRING_TEXT,
 	"test_default_delimiter": TEST_DEFAULT_DELIMITER,
 	"test_default_delimiter_csv": TEST_DEFAULT_DELIMITER,
+	"foo": FOO_DATA,
+	"foo2": FOO2_DATA,
+	"foo3": FOO3_DATA,
 }
 
 def file_import_done_checks(tgt):

@@ -79,6 +79,8 @@ main() {
 	}
 
 	ls -l ${EXPORT_DIR}/data
+	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]

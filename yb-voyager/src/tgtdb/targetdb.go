@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/jackc/pgx/v4"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -41,6 +42,17 @@ func (tdb *TargetDB) Connect() error {
 	}
 	tdb.conn = conn
 	return nil
+}
+
+func (tdb *TargetDB) Disconnect() {
+	if tdb.conn == nil {
+		log.Infof("No connection to the target database to close")
+	}
+
+	err := tdb.conn.Close(context.Background())
+	if err != nil {
+		log.Infof("Failed to close connection to the target database: %s", err)
+	}
 }
 
 func (tdb *TargetDB) EnsureConnected() {
