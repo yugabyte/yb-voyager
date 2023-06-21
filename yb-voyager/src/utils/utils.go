@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"net"
 	"net/url"
 	"os"
@@ -357,4 +358,24 @@ func HumanReadableByteCount(bytes int64) string {
 	}
 	return fmt.Sprintf("%.2f %ciB",
 		float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// https://yourbasic.org/golang/generate-random-string/
+func GenerateRandomString(length int) string {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	digits := "0123456789"
+	specials := "~=+%^*/()[]{}/!@#$?|"
+	all := "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		digits + specials
+	buf := make([]byte, length)
+	buf[0] = digits[r.Intn(len(digits))]
+	buf[1] = specials[r.Intn(len(specials))]
+	for i := 2; i < length; i++ {
+		buf[i] = all[r.Intn(len(all))]
+	}
+	r.Shuffle(len(buf), func(i, j int) {
+		buf[i], buf[j] = buf[j], buf[i]
+	})
+	return string(buf)
 }
