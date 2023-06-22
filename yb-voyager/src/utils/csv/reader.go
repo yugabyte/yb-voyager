@@ -49,7 +49,8 @@ func (r *Reader) Close() error {
 	return r.file.Close()
 }
 
-func (r *Reader) Read() (string, error) {
+func (r *Reader) Read() (string, int, error) {
+	skippedByteCount := 0
 retry:
 
 	if len(r.remainingBuf) == 0 {
@@ -60,7 +61,7 @@ retry:
 				// This means that the record is larger than the buffer.
 				err := fmt.Errorf("record larger than %d bytes in file %s (line %d)",
 					len(r.buf), r.fileName, r.lineCount+1)
-				return "", err
+				return "", skippedByteCount, err
 			}
 			// We have some pending bytes from the previous read.
 			// Copy them to the beginning of the buffer.
@@ -74,24 +75,24 @@ retry:
 			if err == io.EOF {
 				r.eof = true
 			} else {
-				return "", fmt.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
+				return "", skippedByteCount, fmt.Errorf("error reading file %s (line %d): %v", r.fileName, r.lineCount, err)
 			}
 		}
 		r.remainingBuf = r.buf[:n] // Consume the valid bytes from the buffer.
 	}
 	if len(r.remainingBuf) == 0 && r.eof {
-		return "", io.EOF
+		return "", skippedByteCount, io.EOF
 	}
 	line, remainingBuf, insideQuotes, err := r.read(r.remainingBuf)
 	if len(remainingBuf) == len(r.remainingBuf) && r.eof {
 		// We have reached the end of the file and there is no newline in the buffer.
 		if insideQuotes {
-			return "", fmt.Errorf("unterminated quoted field in file %s (line: %d)", r.fileName, r.lineCount)
+			return "", skippedByteCount, fmt.Errorf("unterminated quoted field in file %s (line: %d)", r.fileName, r.lineCount)
 		} else {
 			// Return the last line in the file.
 			line = string(r.remainingBuf)
 			r.remainingBuf = r.remainingBuf[:0]
-			return line, nil
+			return line, skippedByteCount, nil
 		}
 	}
 	if err == errEndOfBuffer {
@@ -105,9 +106,10 @@ retry:
 	r.lineCount++
 	if line == "\n" {
 		// Skip empty lines.
+		skippedByteCount += len(line)
 		goto retry
 	}
-	return line, nil
+	return line, skippedByteCount, nil
 }
 
 var errEndOfBuffer = errors.New("end of buffer")

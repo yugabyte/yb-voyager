@@ -27,16 +27,18 @@ import (
 
 type ImportDataProgressReporter struct {
 	sync.Mutex
-	disablePb    bool
-	progress     *mpb.Progress
-	progressBars map[int]*mpb.Bar
+	disablePb           bool
+	progress            *mpb.Progress
+	progressBars        map[int]*mpb.Bar
+	totalProgressAmount map[int]int64
 }
 
 func NewImportDataProgressReporter(disablePb bool) *ImportDataProgressReporter {
 	pr := &ImportDataProgressReporter{
-		disablePb:    disablePb,
-		progress:     mpb.New(),
-		progressBars: make(map[int]*mpb.Bar),
+		disablePb:           disablePb,
+		progress:            mpb.New(),
+		progressBars:        make(map[int]*mpb.Bar),
+		totalProgressAmount: make(map[int]int64),
 	}
 	return pr
 }
@@ -67,6 +69,7 @@ func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, to
 		),
 	)
 	pr.progressBars[task.ID] = bar
+	pr.totalProgressAmount[task.ID] = totalProgressAmount
 }
 
 func (pr *ImportDataProgressReporter) AddProgressAmount(task *ImportFileTask, progressAmount int64) {
@@ -88,5 +91,5 @@ func (pr *ImportDataProgressReporter) FileImportDone(task *ImportFileTask) {
 		return
 	}
 	progressBar := pr.progressBars[task.ID]
-	progressBar.SetTotal(-1, true)
+	progressBar.SetCurrent(pr.totalProgressAmount[task.ID])
 }

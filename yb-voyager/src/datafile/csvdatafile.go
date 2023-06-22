@@ -34,9 +34,10 @@ func (df *CsvDataFile) SkipLines(numLines int64) error {
 func (df *CsvDataFile) NextLine() (string, error) {
 	var line string
 	var err error
+	var skippedByteCount int
 	for {
-		line, err = df.reader.Read()
-		df.bytesRead += int64(len(line))
+		line, skippedByteCount, err = df.reader.Read()
+		df.bytesRead += int64(len(line)) + int64(skippedByteCount)
 		if err != nil {
 			return "", err
 		}
