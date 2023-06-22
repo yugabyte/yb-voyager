@@ -27,15 +27,18 @@ func NewS3DataStore(resourceName string) *S3DataStore {
 
 // Search and return all keys within the bucket matching the giving pattern.
 func (ds *S3DataStore) Glob(pattern string) ([]string, error) {
-	allKeys, err := s3.ListAllObjects(ds.bucketName)
+	objectNames, err := s3.ListAllObjects(ds.bucketName)
 	if err != nil {
 		return nil, err
 	}
-	regexPattern := regexp.MustCompile(strings.Replace(pattern, "*", ".*", -1))
+	pattern = strings.Replace(pattern, "*", ".*", -1)
+	pattern = ds.url.String() + "/" + pattern
+	re := regexp.MustCompile(pattern)
 	var resultSet []string
-	for _, value := range allKeys {
-		if regexPattern.MatchString(value) {
-			resultSet = append(resultSet, ds.url.String()+"/"+value) // Simulate /path/to/data-dir/file behaviour.
+	for _, objectName := range objectNames {
+		objectName = ds.url.String() + "/" + objectName
+		if re.MatchString(objectName) {
+			resultSet = append(resultSet, objectName) // Simulate /path/to/data-dir/file behaviour.
 		}
 	}
 	return resultSet, nil
