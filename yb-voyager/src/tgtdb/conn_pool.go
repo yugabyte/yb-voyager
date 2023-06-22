@@ -48,7 +48,11 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	retry := true
 
 	for retry {
-		conn := <-pool.conns
+		conn, gotIt := <-pool.conns
+		if !gotIt {
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			if err != nil {
