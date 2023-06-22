@@ -60,14 +60,8 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 			}
 		}
 
-		startTime := time.Now()
 		retry, err = fn(conn)
-		elapsed := time.Since(startTime)
-		if elapsed > time.Minute {
-			log.Warnf("Query took %s", elapsed)
-			time.Sleep(10 * time.Second) // Slow down if query took too long.
-		}
-		if err != nil || elapsed > time.Minute {
+		if err != nil {
 			// On err, drop the connection.
 			conn.Close(context.Background())
 			pool.conns <- nil
