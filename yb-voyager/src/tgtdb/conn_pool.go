@@ -50,6 +50,8 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	for retry {
 		conn, gotIt := <-pool.conns
 		if !gotIt {
+			// The following sleep is intentional. It is added so that voyager does not
+			// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
 			time.Sleep(2 * time.Second)
 			continue
 		}
