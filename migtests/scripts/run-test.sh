@@ -68,6 +68,8 @@ main() {
 	# false if exit code of export_data is non-zero
 	export_data || { 
 		# Print debezium.log file if present and exportDataDone flag file is not present
+		echo "Printing ybvoyager.log file"
+		tail -n 100 ${EXPORT_DIR}/logs/yb-voyager.log
 		if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
 		then
 			echo "Printing debezium.log file"
