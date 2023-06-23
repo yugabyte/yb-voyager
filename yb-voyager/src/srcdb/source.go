@@ -346,8 +346,6 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 			source.SSLTrustStore = trustStorePath
 			source.SSLTrustStorePassword = trustStorePassword
 		}
-	default:
-		return fmt.Errorf("unsupported db type %s for preparing SSL params for debezium", source.DBType)
 	}
 	return nil
 }
