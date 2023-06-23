@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
@@ -59,7 +60,11 @@ func OpenDescriptor(exportDir string) *Descriptor {
 
 	// Prefix the export dir to the file paths, if the paths are not absolute.
 	for _, fileEntry := range dfd.DataFileList {
-		if !path.IsAbs(fileEntry.FilePath) {
+		isAbs := path.IsAbs(fileEntry.FilePath) ||
+			strings.HasPrefix(fileEntry.FilePath, "s3://") || // AWS.
+			strings.HasPrefix(fileEntry.FilePath, "gs://") || // GCP.
+			strings.HasPrefix(fileEntry.FilePath, "https://") // Azure.
+		if !isAbs {
 			fileEntry.FilePath = path.Join(exportDir, "data", fileEntry.FilePath)
 		}
 	}
