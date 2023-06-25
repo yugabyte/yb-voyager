@@ -234,7 +234,7 @@ main() {
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
-			--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote_char="'" --escape_char="'"
+			--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
 
 	step "Remove the credentials file for GCS default authentications"
 	rm -rf ~/.config/gcloud/application_default_credentials.json

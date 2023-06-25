@@ -1,5 +1,5 @@
 /*
-Copyright (c) YugaByte, Inc.
+Copyright (c) YugabyteDB, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -45,7 +45,7 @@ func createClientIfNotExists() {
 func ValidateObjectURL(datadir string) error {
 	u, err := url.Parse(datadir)
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing the object of %q: %w", datadir, err)
 	}
 	bucket := u.Host
 	if bucket == "" {
@@ -54,7 +54,7 @@ func ValidateObjectURL(datadir string) error {
 	return nil
 }
 
-func SplitObjectPath(objectPath string) (string, string, error) {
+func splitObjectPath(objectPath string) (string, string, error) {
 	u, err := url.Parse(objectPath)
 	if err != nil {
 		return "", "", err
@@ -70,17 +70,26 @@ func SplitObjectPath(objectPath string) (string, string, error) {
 	return bucket, key, nil
 }
 
-func ListAllObjects(bucket string) ([]string, error) {
+func ListAllObjects(url *url.URL) ([]string, error) {
 	createClientIfNotExists()
-	p := client.Bucket(bucket).Objects(context.Background(), nil)
+	bucket := url.Host
+	key := ""
+	query := &storage.Query{}
+	if url.Path != "" {
+		key = url.Path[1:] //remove initial "/", unable to find object with it
+		query = &storage.Query{Prefix: key}
+	}
+	objectIter := client.Bucket(bucket).Objects(context.Background(), query)
 	var objectNames []string
-	for obj, err := p.Next(); err != iterator.Done; {
-		if err != nil {
-			return nil, err
+	for {
+		attrs, err := objectIter.Next()
+		if err == iterator.Done {
+			break
 		}
-		fmt.Println(obj.Name)
-
-		objectNames = append(objectNames, obj.Name)
+		if err != nil {
+			return objectNames, fmt.Errorf("Bucket(%q).Objects: %w", bucket, err)
+		}
+		objectNames = append(objectNames, attrs.Name)
 	}
 	return objectNames, nil
 }
@@ -88,27 +97,27 @@ func ListAllObjects(bucket string) ([]string, error) {
 func GetObjAttrs(object string) (*storage.ObjectAttrs, error) {
 	var objattrs *storage.ObjectAttrs
 	createClientIfNotExists()
-	bucket, key, err := SplitObjectPath(object)
+	bucket, key, err := splitObjectPath(object)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("split object path of %q: %w", object, err)
 	}
 	objattrs, err = client.Bucket(bucket).Object(key).Attrs(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("attributes of object %q: %w", object, err)
 	}
 	return objattrs, nil
 }
 
 func NewObjectReader(object string) (io.ReadCloser, error) {
 	createClientIfNotExists()
-	bucketName, keyName, err := SplitObjectPath(object)
+	bucketName, keyName, err := splitObjectPath(object)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("split object path of %q: %w", object, err)
 	}
 	objRef := client.Bucket(bucketName).Object(keyName)
 	r, err := objRef.NewReader(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get reader for %q: %w", object, err)
 	}
 	return r, nil
 }

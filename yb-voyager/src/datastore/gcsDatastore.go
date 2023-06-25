@@ -1,3 +1,18 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 // Implementation of the datastore interface for when the relevant data files are hosted on an gcs bucket.
 package datastore
 
@@ -7,6 +22,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -27,15 +43,18 @@ func NewGCSDataStore(resourceName string) *GCSDataStore {
 
 // Search and return all keys within the bucket matching the giving pattern.
 func (ds *GCSDataStore) Glob(pattern string) ([]string, error) {
-	allKeys, err := gcs.ListAllObjects(ds.bucketName)
+	objectNames, err := gcs.ListAllObjects(ds.url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listing all objects of %q: %w", pattern, err)
 	}
-	regexPattern := regexp.MustCompile(strings.Replace(pattern, "*", ".*", -1))
+	pattern = strings.Replace(pattern, "*", ".*", -1)
+	pattern = ds.url.String() + "/" + pattern 
+	re := regexp.MustCompile(pattern)
 	var resultSet []string
-	for _, value := range allKeys {
-		if regexPattern.MatchString(value) {
-			resultSet = append(resultSet, ds.url.String()+"/"+value) // Simulate /path/to/data-dir/file behaviour.
+	for _, objectName := range objectNames {
+		objectName = ds.url.String() + "/" + objectName
+		if re.MatchString(objectName) {
+			resultSet = append(resultSet, objectName) 
 		}
 	}
 	return resultSet, nil
@@ -49,16 +68,9 @@ func (ds *GCSDataStore) AbsolutePath(filePath string) (string, error) {
 func (ds *GCSDataStore) FileSize(filePath string) (int64, error) {
 	objAttrs, err := gcs.GetObjAttrs(filePath)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("get attributes of %q: %w",filePath, err)
 	}
 	return objAttrs.Size, nil
-}
-
-// filepath.Join converts URL (gs://...) to directory-like string (gs:/...).
-func (ds *GCSDataStore) Join(elem ...string) string {
-	finalPath := ""
-	finalPath += strings.Join(elem, "/")
-	return finalPath
 }
 
 func (ds *GCSDataStore) Open(resourceName string) (io.ReadCloser, error) {
