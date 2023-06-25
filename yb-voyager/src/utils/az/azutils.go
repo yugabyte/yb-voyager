@@ -71,7 +71,7 @@ func createContainerClient(url string) (*container.Client, error) {
 	}
 	containerClient, err := container.NewClient(url, cred, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create azure blob container client: %w", err)
 	}
 	return containerClient, nil
 }
@@ -81,7 +81,7 @@ func createContainerClient(url string) (*container.Client, error) {
 func ValidateObjectURL(datadir string) error {
 	containerUrl, err := url.Parse(datadir)
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing the object of %q: %w", datadir, err)
 	}
 	container := containerUrl.Path
 	if container == "" {
@@ -96,34 +96,41 @@ func ValidateObjectURL(datadir string) error {
 	return nil
 }
 
-func SplitObjectPath(objectPath string) (string, string, string, error) {
+func splitObjectPath(objectPath string) (string, string, string, error) {
 	err := ValidateObjectURL(objectPath)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("invalid azure blob url %v: %w", objectPath, err)
 	}
 	objectUrl, err := url.Parse(objectPath)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", fmt.Errorf("parsing the object of %q: %w", objectPath, err)
 	}
 	serviceUrl := objectUrl.Host
 	blobPath := objectUrl.Path[1:]
 	container := strings.Split(blobPath, "/")[0]
-	key := strings.TrimPrefix(blobPath, container)[1:] //remove the first "/"
+	key := ""
+	if len(blobPath) > len(container) {
+		key = strings.TrimPrefix(blobPath, container)[1:] //remove the first "/"
+	}
 	return serviceUrl, container, key, nil
 }
 
 func ListAllObjects(containerURL string) ([]string, error) {
 	createClientIfNotExists(containerURL)
 	var keys []string
-	_, containerName, _, err := SplitObjectPath(containerURL)
+	_, containerName, key, err := splitObjectPath(containerURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("splitting object path of %q: %w", containerURL, err)
 	}
-	pager := client.NewListBlobsFlatPager(containerName, nil)
+	options := &container.ListBlobsFlatOptions{}
+	if key != "" {
+		options = &container.ListBlobsFlatOptions{Prefix: &key,}
+	}
+	pager := client.NewListBlobsFlatPager(containerName, options)
 	for pager.More() {
 		page, err := pager.NextPage(context.Background())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("listing all objects of %q: %w", containerURL, err)
 		}
 		for _, blob := range page.Segment.BlobItems {
 			keys = append(keys, *blob.Name)
@@ -133,40 +140,40 @@ func ListAllObjects(containerURL string) ([]string, error) {
 }
 
 func GetHeadObject(objectURL string) (*blob.Attributes, error) {
-	serviceName, containerName, key, err := SplitObjectPath(objectURL)
+	serviceName, containerName, key, err := splitObjectPath(objectURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("splitting object path of %q: %w", objectURL, err)
 	}
 	url := "https://" + serviceName
 	url = strings.Join([]string{url, containerName}, "/")
 	containerClient, err := createContainerClient(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating container client for %q: %w", url, err)
 	}
 	ctx := context.Background()
 	// using OpenBucket API to get the attributes of the blob in the container
 	bucket, err := azureblob.OpenBucket(ctx, containerClient, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("opening bucket for %q: %w", url, err)
 	}
 	defer bucket.Close()
 	blobAttributes, err := bucket.Attributes(ctx, key)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getting attributes of %q: %w", objectURL, err)
 	}
 	return blobAttributes, nil
 }
 
 func NewObjectReader(objectURL string) (io.ReadCloser, error) {
 	createClientIfNotExists(objectURL)
-	_, containerName, key, err := SplitObjectPath(objectURL)
+	_, containerName, key, err := splitObjectPath(objectURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("splitting object path of %q: %w", objectURL, err)
 	}
 	ctx := context.Background()
 	get, err := client.DownloadStream(ctx, containerName, key, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("downloading stream of %q: %w", objectURL, err)
 	}
 	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{})
 	return retryReader, nil

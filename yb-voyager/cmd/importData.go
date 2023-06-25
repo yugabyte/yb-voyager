@@ -36,10 +36,8 @@ import (
 	"golang.org/x/exp/slices"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/vbauerster/mpb/v8"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/tevino/abool/v2"
 	"github.com/sourcegraph/conc/pool"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
