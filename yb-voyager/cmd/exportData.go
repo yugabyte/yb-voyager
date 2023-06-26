@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/magiconair/properties"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
@@ -33,6 +35,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -261,11 +264,11 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for column, sequence := range colToSeqMap {
 		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
 	}
-
 	err = source.PrepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
 		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
+
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -290,6 +293,20 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 
 		SnapshotMode: snapshotMode,
+	}
+	if source.DBType == "oracle" {
+		config.Uri, err = getConnectionUriForDebezium(source)
+		if err != nil {
+			return fmt.Errorf("failed to generate uri connection string: %v", err)
+		}
+		config.TNSAdmin, err = getTNSAdmin(source)
+		if err != nil {
+			return fmt.Errorf("failed to get tns admin: %w", err)
+		}
+		config.OracleJDBCWalletLocationSet, err = isOracleJDBCWalletLocationSet(source)
+		if err != nil {
+			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+		}
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -338,6 +355,56 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
+}
+
+// source.Uri in case of oracle is a string of the format `user="%s" password="%s" connectString="(DESCRIPTION=(...))`
+// this function extracts the connectString part of the URI, which is what is passed to debezium config.
+func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
+	if s.DBType == "oracle" {
+		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
+		match := connectionStringRegex.FindStringSubmatch(s.Uri)
+		if match == nil || len(match) != 2 {
+			return "", fmt.Errorf("unexpected URI format. regex matches = %v", match)
+		}
+		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
+		return connectionString, nil
+	}
+	return s.Uri, nil
+}
+
+// oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
+// oracle.net.wallet_location=<>
+func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
+	if s.DBType != "oracle" {
+		return false, fmt.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
+	}
+	tnsAdmin, err := getTNSAdmin(s)
+	if err != nil {
+		return false, fmt.Errorf("failed to get tns admin: %w", err)
+	}
+	ojdbcPropertiesFilePath := filepath.Join(tnsAdmin, "ojdbc.properties")
+	if _, err := os.Stat(ojdbcPropertiesFilePath); errors.Is(err, os.ErrNotExist) {
+		// file does not exist
+		return false, nil
+	}
+	ojdbcProperties := properties.MustLoadFile(ojdbcPropertiesFilePath, properties.UTF8)
+	walletLocationKey := "oracle.net.wallet_location"
+	_, present := ojdbcProperties.Get(walletLocationKey)
+	return present, nil
+}
+
+// https://www.orafaq.com/wiki/TNS_ADMIN
+// default is $ORACLE_HOME/network/admin
+func getTNSAdmin(s srcdb.Source) (string, error) {
+	if s.DBType != "oracle" {
+		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
+	}
+	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
+	if present {
+		return tnsAdminEnvVar, nil
+	} else {
+		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
+	}
 }
 
 func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
