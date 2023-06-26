@@ -132,13 +132,17 @@ jobs:
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg/multiple-schemas
 
+    - name: "Set up gcp environment"
+      env:
+        GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
+        GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
+        GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
+      run: migtests/scripts/gcs/create_gcs_credentials_file
+
     - name: "TEST: import-data-file"
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
-        GCS_CLIENT_ID: ${{ secrets.PGUPTA_GCS_CLIENT_ID }}
-        GCS_CLIENT_SECRET: ${{ secrets.PGUPTA_GCS_CLIENT_SECRET }}
-        GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
       run: migtests/tests/import-file/run-import-file-test
 
     - name: "TEST: analyze-schema"
