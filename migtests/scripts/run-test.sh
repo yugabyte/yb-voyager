@@ -67,15 +67,10 @@ main() {
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data || { 
+		# Print yb-voyager.log file if present and exportDataDone flag file is not present
+		print_log_file "yb-voyager.log"
 		# Print debezium.log file if present and exportDataDone flag file is not present
-		if [ -f "${EXPORT_DIR}/logs/debezium.log" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
-		then
-			echo "Printing debezium.log file"
-			tail -n 100 ${EXPORT_DIR}/logs/debezium.log
-		else
-			echo "No debezium.log found."
-		fi	
-		exit 1 #since the TRY block failed
+		print_log_file "debezium.log"
 	}
 
 	ls -l ${EXPORT_DIR}/data
