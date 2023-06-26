@@ -264,21 +264,29 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for column, sequence := range colToSeqMap {
 		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
 	}
-	uri, err := getConnectionUriForDebezium(source)
-	if err != nil {
-		return fmt.Errorf("failed to generate uri connection string: %v", err)
-	}
-	tnsAdmin := getTNSAdmin(source)
-
-	oracleJDBCWalletLocationIsSet, err := isOracleJDBCWalletLocationSet(source)
-	if err != nil {
-		return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
-	}
-
 	err = source.PrepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
 		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
+
+	uri := ""
+	tnsAdmin := ""
+	oracleJDBCWalletLocationIsSet := false
+	if source.DBType == "oracle" {
+		uri, err = getConnectionUriForDebezium(source)
+		if err != nil {
+			return fmt.Errorf("failed to generate uri connection string: %v", err)
+		}
+		tnsAdmin, err = getTNSAdmin(source)
+		if err != nil {
+			return fmt.Errorf("failed to get tns admin: %w", err)
+		}
+		oracleJDBCWalletLocationIsSet, err = isOracleJDBCWalletLocationSet(source)
+		if err != nil {
+			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+		}
+	}
+
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -375,9 +383,12 @@ func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 	if s.DBType != "oracle" {
-		return false, nil
+		return false, fmt.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
 	}
-	tnsAdmin := getTNSAdmin(s)
+	tnsAdmin, err := getTNSAdmin(s)
+	if err != nil {
+		return false, fmt.Errorf("failed to get tns admin: %w", err)
+	}
 	ojdbcPropertiesFilePath := filepath.Join(tnsAdmin, "ojdbc.properties")
 	if _, err := os.Stat(ojdbcPropertiesFilePath); errors.Is(err, os.ErrNotExist) {
 		// file does not exist
@@ -391,15 +402,15 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 
 // https://www.orafaq.com/wiki/TNS_ADMIN
 // default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) string {
+func getTNSAdmin(s srcdb.Source) (string, error) {
 	if s.DBType != "oracle" {
-		return ""
+		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
 	}
 	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
 	if present {
-		return tnsAdminEnvVar
+		return tnsAdminEnvVar, nil
 	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin")
+		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
 	}
 }
 

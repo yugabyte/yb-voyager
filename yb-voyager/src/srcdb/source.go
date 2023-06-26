@@ -346,6 +346,7 @@ func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 			source.SSLTrustStore = trustStorePath
 			source.SSLTrustStorePassword = trustStorePassword
 		}
+	case "oracle":
 	}
 	return nil
 }
