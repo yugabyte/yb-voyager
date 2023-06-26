@@ -22,11 +22,14 @@ type Config struct {
 	Username string
 	Password string
 
-	DatabaseName      string
-	SchemaNames       string
-	TableList         []string
-	ColumnSequenceMap []string
-	ColumnList        []string
+	DatabaseName                string
+	SchemaNames                 string
+	TableList                   []string
+	ColumnSequenceMap           []string
+	ColumnList                  []string
+	Uri                         string
+	TNSAdmin                    string
+	OracleJDBCWalletLocationSet bool
 
 	SSLMode               string
 	SSLCertPath           string
@@ -40,38 +43,40 @@ type Config struct {
 	SnapshotMode string
 }
 
-var baseSrcConfigTemplate = `
+var baseConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
-debezium.sink.type=ybexporter
-debezium.sink.ybexporter.dataDir=%s
-debezium.source.snapshot.mode=%s
-
-debezium.source.offset.storage.file.filename=%s
-
-debezium.source.database.hostname=%s
-debezium.source.database.port=%d
-debezium.source.database.user=%s
-debezium.source.database.password=%s
-debezium.source.table.include.list=%s
-debezium.sink.ybexporter.column_sequence.map=%s
-
-debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
-debezium.source.offset.flush.interval.ms=0
-debezium.source.topic.prefix=yb-voyager
-debezium.source.database.server.name=yb-voyager
-
-debezium.source.interval.handling.mode=string
-
-debezium.source.include.unknown.datatypes=true
-debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*
-
-debezium.source.tombstones.on.delete=false
 quarkus.log.console.json=false
 quarkus.log.level=info
 `
 
-var postgresSrcConfigTemplate = baseSrcConfigTemplate + `
+var baseSrcConfigTemplate = `
+debezium.source.database.user=%s
+debezium.source.database.password=%s
+
+debezium.source.snapshot.mode=%s
+debezium.source.offset.storage.file.filename=%s
+debezium.source.offset.flush.interval.ms=0
+
+debezium.source.table.include.list=%s
+debezium.source.interval.handling.mode=string
+debezium.source.include.unknown.datatypes=true
+debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*
+debezium.source.tombstones.on.delete=false
+
+debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
+debezium.source.topic.prefix=yb-voyager
+debezium.source.database.server.name=yb-voyager
+`
+var baseSinkConfigTemplate = `
+debezium.sink.type=ybexporter
+debezium.sink.ybexporter.dataDir=%s
+debezium.sink.ybexporter.column_sequence.map=%s
+`
+
+var postgresSrcConfigTemplate = `
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
 debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnector
 debezium.source.database.dbname=%s
 debezium.source.schema.include.list=%s
@@ -89,9 +94,15 @@ debezium.source.database.sslpassword=
 debezium.source.database.sslrootcert=%s
 `
 
-var oracleSrcConfigTemplate = baseSrcConfigTemplate + `
+var postgresConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	postgresSrcConfigTemplate +
+	baseSinkConfigTemplate
+
+var oracleSrcConfigTemplate = `
+debezium.source.database.url=%s
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
-debezium.source.database.dbname=%s
+debezium.source.database.dbname=PLACEHOLDER
 #debezium.source.database.pdb.name=ORCLPDB1
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
@@ -102,17 +113,27 @@ debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
 `
 
-var mysqlSrcConfigTemplate = baseSrcConfigTemplate + `
-debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
+var oracleConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	oracleSrcConfigTemplate +
+	baseSinkConfigTemplate
 
+var mysqlSrcConfigTemplate = `
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
 debezium.source.database.include.list=%s
 debezium.source.database.server.id=%d
-
+debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
 
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
 `
+
+var mysqlConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	mysqlSrcConfigTemplate +
+	baseSinkConfigTemplate
 
 var mysqlSSLConfigTemplate = `
 debezium.source.database.ssl.mode=%s
@@ -135,15 +156,19 @@ func (c *Config) String() string {
 	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
-		conf = fmt.Sprintf(postgresSrcConfigTemplate,
-			dataDir,
+		conf = fmt.Sprintf(postgresConfigTemplate,
+			c.Username,
+			c.Password,
 			c.SnapshotMode,
 			offsetFile,
-			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnSequenceMap, ","),
+
+			c.Host, c.Port,
 			c.DatabaseName,
-			schemaNames)
+			schemaNames,
+
+			dataDir,
+			strings.Join(c.ColumnSequenceMap, ","))
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -152,29 +177,36 @@ func (c *Config) String() string {
 		conf = conf + sslConf
 
 	case "oracle":
-		conf = fmt.Sprintf(oracleSrcConfigTemplate,
-			dataDir,
+		conf = fmt.Sprintf(oracleConfigTemplate,
+			c.Username,
+			c.Password,
 			c.SnapshotMode,
 			offsetFile,
-			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnSequenceMap, ","),
-			c.DatabaseName,
+
+			c.Uri,
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
-			filepath.Join(c.ExportDir, "data", "schema_history.json"))
+			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+
+			dataDir,
+			strings.Join(c.ColumnSequenceMap, ","))
 
 	case "mysql":
-		conf = fmt.Sprintf(mysqlSrcConfigTemplate,
-			dataDir,
+		conf = fmt.Sprintf(mysqlConfigTemplate,
+			c.Username,
+			c.Password,
 			c.SnapshotMode,
 			offsetFile,
-			c.Host, c.Port, c.Username, c.Password,
 			strings.Join(c.TableList, ","),
-			strings.Join(c.ColumnSequenceMap, ","),
+
+			c.Host, c.Port,
 			c.DatabaseName,
 			getDatabaseServerID(),
-			filepath.Join(c.ExportDir, "data", "schema_history.json"))
+			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+
+			dataDir,
+			strings.Join(c.ColumnSequenceMap, ","))
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
@@ -186,7 +218,6 @@ func (c *Config) String() string {
 				c.SSLTrustStore,
 				c.SSLTrustStorePassword)
 		}
-
 		conf = conf + sslConf
 	default:
 		panic(fmt.Sprintf("unknown source db type %s", c.SourceDBType))

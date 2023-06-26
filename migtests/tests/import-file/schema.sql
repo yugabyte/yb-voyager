@@ -92,6 +92,31 @@ create table s3_multitable_t1 (i int, j int, k int);
 
 create table s3_multitable_t2 (i int, j int, k int);
 
+create table gcs_text as select * from s3_text;
+
+create table gcs_csv as select * from s3_csv;
+
+create table gcs_csv_with_header as select * from s3_csv_with_header;
+
+create table gcs_multitable_t1 as select * from s3_multitable_t1;
+
+create table gcs_multitable_t2 as select * from s3_multitable_t2;
+
+create table gcs_volume (
+    block bigint NOT NULL,
+    address text NOT NULL,
+    dc_balance bigint DEFAULT 0 NOT NULL,
+    dc_nonce bigint DEFAULT 0 NOT NULL,
+    security_balance bigint DEFAULT 0 NOT NULL,
+    security_nonce bigint DEFAULT 0 NOT NULL,
+    balance bigint DEFAULT 0 NOT NULL,
+    nonce bigint DEFAULT 0 NOT NULL,
+    staked_balance bigint,
+    PRIMARY KEY (block, address)
+);
+
+create table gcs_quote_escape_char1 as select * from t1_quote_escape_char1;
+
 create table test_backspace_char(i bigint, j int, k text);
 
 create table test_backspace_char2(c1 int, c2 text, c3 text, c4 text, c5 bigint, c6 bigint, c7 text, c8 text, c9 boolean);
