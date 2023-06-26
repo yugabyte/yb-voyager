@@ -22,7 +22,6 @@ require (
 	github.com/spf13/viper v1.13.0
 	github.com/stretchr/testify v1.8.1
 	github.com/tebeka/atexit v0.3.0
-	github.com/tevino/abool/v2 v2.0.1
 	github.com/vbauerster/mpb/v8 v8.4.0
 	github.com/yosssi/gohtml v0.0.0-20201013000340-ee4748c638f4
 	gocloud.dev v0.29.0
@@ -32,7 +31,11 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
-require github.com/jmespath/go-jmespath v0.4.0 // indirect
+require (
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+	go.uber.org/atomic v1.10.0 // indirect
+	go.uber.org/multierr v1.9.0 // indirect
+)
 
 require (
 	cloud.google.com/go v0.110.2 // indirect
@@ -76,7 +79,7 @@ require (
 	github.com/jackc/pgproto3/v2 v2.3.1 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20200714003250-2b9c44734f2b // indirect
 	github.com/jackc/pgtype v1.12.0 // indirect
-	github.com/magiconair/properties v1.8.7 // indirect
+	github.com/magiconair/properties v1.8.7
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.17 // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
@@ -96,6 +99,7 @@ require (
 	golang.org/x/crypto v0.7.0 // indirect
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/oauth2 v0.7.0 // indirect
+	golang.org/x/sync v0.2.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect

@@ -1,5 +1,5 @@
 /*
-Copyright (c) YugaByte, Inc.
+Copyright (c) YugabyteDB, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ func reportCase(filePath string, reason string, ghIssue string, suggestion strin
 	issue.ObjectType = objType
 	issue.ObjectName = objName
 	issue.SqlStatement = sqlStmt
-	
+
 	reportStruct.Issues = append(reportStruct.Issues, issue)
 }
 
