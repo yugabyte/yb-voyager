@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 
 	"cloud.google.com/go/storage"
 	"google.golang.org/api/iterator"
@@ -89,7 +90,11 @@ func ListAllObjects(url *url.URL) ([]string, error) {
 		if err != nil {
 			return objectNames, fmt.Errorf("Bucket(%q).Objects: %w", bucket, err)
 		}
-		objectNames = append(objectNames, attrs.Name)
+		objectName := attrs.Name
+		if key != "" {
+			objectName = strings.TrimPrefix(attrs.Name, key)[1:] //remove initial "/"
+		}
+		objectNames = append(objectNames, objectName)
 	}
 	return objectNames, nil
 }
