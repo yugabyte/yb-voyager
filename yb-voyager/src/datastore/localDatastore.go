@@ -39,10 +39,6 @@ func (ds *LocalDataStore) FileSize(filePath string) (int64, error) {
 	return fileInfo.Size(), nil
 }
 
-func (ds *LocalDataStore) Join(elem ...string) string {
-	return filepath.Join(elem...)
-}
-
 func (ds *LocalDataStore) Open(filePath string) (io.ReadCloser, error) {
 	return os.Open(filePath)
 }

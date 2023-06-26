@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -223,6 +224,9 @@ func checkDataDirFlag() {
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
 		s3.ValidateObjectURL(dataDir)
+		return
+	} else if strings.HasPrefix(dataDir, "gs://") {
+		gcs.ValidateObjectURL(dataDir)
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {

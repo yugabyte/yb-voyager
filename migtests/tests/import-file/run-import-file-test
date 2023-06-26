@@ -201,6 +201,39 @@ main() {
 	step "Import multiple files to the same table. Same filename different path."
 	import_data_file --data-dir ${TEST_DIR} --format text \
 		--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
+		
+	# Test import from GCS buckets (text file)
+	step "Import data file from GCS (text): text_test.text -> gcs_text"
+	import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
+			--file-table-map "text_test.text:gcs_text"
+
+	# Test import from GCS buckets (csv file)
+	step "Import data file from GCS (csv): csv_test.csv -> gcs_csv"
+	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
+			--file-table-map "csv_test.csv:gcs_csv"
+
+	# Test multi-table import from GCS buckets
+	step "Import data file from multitable GCS: t1.text-> gcs_multitable_t1, t2.text -> gcs_multitable_t2"
+	import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
+			--file-table-map "t1.text:gcs_multitable_t1,t2.text:gcs_multitable_t2"
+
+	# Test csv with header import from GCS buckets
+	step "Import data file from GCS (csv): csv_with_header_test.csv -> gcs_csv_with_header"
+	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
+			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header
+
+	# Test larger import from GCS buckets
+	step "Import large data file from GCS: volume.csv-> gcs_volume"
+	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
+			--file-table-map "volume.csv:gcs_volume" --has-header --batch-size 10000 --null-string "\N"
+
+	# Test import from GCS buckets with escape/quote characters
+	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
+	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
+			--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
+
+	step "Remove the credentials file for GCS default authentications"
+	rm -rf ~/.config/gcloud/application_default_credentials.json
 
 	step "Run validations."
 	 "${TEST_DIR}/validate"
