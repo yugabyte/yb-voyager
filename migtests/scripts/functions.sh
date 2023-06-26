@@ -269,14 +269,13 @@ import_data_file() {
 		}
 }
 
-print_log_file() {
+tail_log_file() {
 	log_file_name=$1
-	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ] && [ ! -f "${EXPORT_DIR}/metainfo/flags/exportDataDone" ]
+	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]
 	then
 		echo "Printing ${log_file_name} file"
 		tail -n 100 "${EXPORT_DIR}/logs/${log_file_name}"
 	else
 		echo "No ${log_file_name} found."
 	fi	
-	exit 1 #since the TRY block failed
 }
