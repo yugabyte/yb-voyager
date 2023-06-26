@@ -268,13 +268,9 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	if err != nil {
 		return fmt.Errorf("failed to generate uri connection string: %v", err)
 	}
-	tnsAdmin, err := getTNSAdmin(source)
-	log.Infof("TNSADMIN=%v", tnsAdmin)
-	if err != nil {
-		return fmt.Errorf("failed to get tns admin: %v", err)
-	}
+	tnsAdmin := getTNSAdmin(source)
+
 	oracleJDBCWalletLocationIsSet, err := isOracleJDBCWalletLocationSet(source)
-	log.Infof("oracleJDBCWalletLocationIsSet=%v", oracleJDBCWalletLocationIsSet)
 	if err != nil {
 		return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 	}
@@ -360,6 +356,8 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	return nil
 }
 
+// source.Uri in case of oracle is a string of the format `user="%s" password="%s" connectString="(DESCRIPTION=(...))`
+// this function extracts the connectString part of the URI, which is what is passed to debezium config.
 func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
 	if s.DBType == "oracle" {
 		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
@@ -379,10 +377,7 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 	if s.DBType != "oracle" {
 		return false, nil
 	}
-	tnsAdmin, err := getTNSAdmin(s)
-	if err != nil {
-		return false, fmt.Errorf("failed to get tns admin")
-	}
+	tnsAdmin := getTNSAdmin(s)
 	ojdbcPropertiesFilePath := filepath.Join(tnsAdmin, "ojdbc.properties")
 	if _, err := os.Stat(ojdbcPropertiesFilePath); errors.Is(err, os.ErrNotExist) {
 		// file does not exist
@@ -396,15 +391,15 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 
 // https://www.orafaq.com/wiki/TNS_ADMIN
 // default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) (string, error) {
+func getTNSAdmin(s srcdb.Source) string {
 	if s.DBType != "oracle" {
-		return "", nil
+		return ""
 	}
 	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
 	if present {
-		return tnsAdminEnvVar, nil
+		return tnsAdminEnvVar
 	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
+		return filepath.Join(s.GetOracleHome(), "network", "admin")
 	}
 }
 
