@@ -35,7 +35,7 @@ var client *azblob.Client
 
 func createCredentials() (*azidentity.DefaultAzureCredential, error) {
 	// cred represents the default Oauth token used to authenticate the account in the url.
-	cred, err := azidentity.NewDefaultAzureCredential(nil) 
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +60,7 @@ func createClientIfNotExists(datadir string) {
 	}
 }
 
-
-// creates a client to access the blob properties for the blob in the container 
+// creates a client to access the blob properties for the blob in the container
 // (or bucket) under the account in the url with the default creds.
 func createContainerClient(url string) (*container.Client, error) {
 	var err error
@@ -124,7 +123,7 @@ func ListAllObjects(containerURL string) ([]string, error) {
 	}
 	options := &container.ListBlobsFlatOptions{}
 	if key != "" {
-		options = &container.ListBlobsFlatOptions{Prefix: &key,}
+		options = &container.ListBlobsFlatOptions{Prefix: &key}
 	}
 	pager := client.NewListBlobsFlatPager(containerName, options)
 	for pager.More() {
@@ -133,7 +132,11 @@ func ListAllObjects(containerURL string) ([]string, error) {
 			return nil, fmt.Errorf("listing all objects of %q: %w", containerURL, err)
 		}
 		for _, blob := range page.Segment.BlobItems {
-			keys = append(keys, *blob.Name)
+			objectName := *blob.Name
+			if key != "" {
+				objectName = strings.TrimPrefix(objectName, key)[1:] //remove the first "/"
+			}
+			keys = append(keys, objectName)
 		}
 	}
 	return keys, nil
