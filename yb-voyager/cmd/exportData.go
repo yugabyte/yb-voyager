@@ -269,24 +269,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
 
-	uri := ""
-	tnsAdmin := ""
-	oracleJDBCWalletLocationIsSet := false
-	if source.DBType == "oracle" {
-		uri, err = getConnectionUriForDebezium(source)
-		if err != nil {
-			return fmt.Errorf("failed to generate uri connection string: %v", err)
-		}
-		tnsAdmin, err = getTNSAdmin(source)
-		if err != nil {
-			return fmt.Errorf("failed to get tns admin: %w", err)
-		}
-		oracleJDBCWalletLocationIsSet, err = isOracleJDBCWalletLocationSet(source)
-		if err != nil {
-			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
-		}
-	}
-
 	config := &dbzm.Config{
 		SourceDBType: source.DBType,
 		ExportDir:    absExportDir,
@@ -295,14 +277,11 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		Username:     source.User,
 		Password:     source.Password,
 
-		DatabaseName:                source.DBName,
-		SchemaNames:                 source.Schema,
-		TableList:                   dbzmTableList,
-		ColumnList:                  dbzmColumnList,
-		ColumnSequenceMap:           columnSequenceMap,
-		Uri:                         uri,
-		TNSAdmin:                    tnsAdmin,
-		OracleJDBCWalletLocationSet: oracleJDBCWalletLocationIsSet,
+		DatabaseName:      source.DBName,
+		SchemaNames:       source.Schema,
+		TableList:         dbzmTableList,
+		ColumnList:        dbzmColumnList,
+		ColumnSequenceMap: columnSequenceMap,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -314,6 +293,20 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 
 		SnapshotMode: snapshotMode,
+	}
+	if source.DBType == "oracle" {
+		config.Uri, err = getConnectionUriForDebezium(source)
+		if err != nil {
+			return fmt.Errorf("failed to generate uri connection string: %v", err)
+		}
+		config.TNSAdmin, err = getTNSAdmin(source)
+		if err != nil {
+			return fmt.Errorf("failed to get tns admin: %w", err)
+		}
+		config.OracleJDBCWalletLocationSet, err = isOracleJDBCWalletLocationSet(source)
+		if err != nil {
+			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+		}
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
