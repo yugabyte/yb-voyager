@@ -55,10 +55,11 @@ func ValidateObjectURL(datadir string) error {
 	return nil
 }
 
+// TODO: factor out the duplicate code in these packages
 func splitObjectPath(objectPath string) (string, string, error) {
 	u, err := url.Parse(objectPath)
 	if err != nil {
-		return "", "", err
+		return "", "", fmt.Errorf("parse URL %s: %w", objectPath, err)
 	}
 	bucket := u.Host
 	key := u.Path[1:] //remove initial "/", unable to find object with it
@@ -74,11 +75,11 @@ func splitObjectPath(objectPath string) (string, string, error) {
 func ListAllObjects(url *url.URL) ([]string, error) {
 	createClientIfNotExists()
 	bucket := url.Host
-	key := ""
+	prefix := ""
 	query := &storage.Query{}
 	if url.Path != "" {
-		key = url.Path[1:] //remove initial "/", unable to find object with it
-		query = &storage.Query{Prefix: key}
+		prefix = url.Path[1:] //remove initial "/", unable to find object with it
+		query = &storage.Query{Prefix: prefix}
 	}
 	objectIter := client.Bucket(bucket).Objects(context.Background(), query)
 	var objectNames []string
@@ -91,8 +92,8 @@ func ListAllObjects(url *url.URL) ([]string, error) {
 			return objectNames, fmt.Errorf("Bucket(%q).Objects: %w", bucket, err)
 		}
 		objectName := attrs.Name
-		if key != "" {
-			objectName = strings.TrimPrefix(attrs.Name, key)[1:] //remove initial "/"
+		if prefix != "" {
+			objectName = strings.TrimPrefix(attrs.Name, prefix)[1:] //remove initial "/"
 		}
 		objectNames = append(objectNames, objectName)
 	}
@@ -119,8 +120,7 @@ func NewObjectReader(object string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("split object path of %q: %w", object, err)
 	}
-	objRef := client.Bucket(bucketName).Object(keyName)
-	r, err := objRef.NewReader(context.Background())
+	r, err := client.Bucket(bucketName).Object(keyName).NewReader(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("get reader for %q: %w", object, err)
 	}
