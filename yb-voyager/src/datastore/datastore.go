@@ -33,7 +33,7 @@ func NewDataStore(location string) DataStore {
 		return NewS3DataStore(location)
 	  case strings.HasPrefix(location, "gs://"):
 		return NewGCSDataStore(location)
-	  case strings.HasPrefix(location, "https://") 
+	  case strings.HasPrefix(location, "https://"):
 		return NewAzDataStore(location)
 	  default:
 		return NewLocalDataStore(location)
