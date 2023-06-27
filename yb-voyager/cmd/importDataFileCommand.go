@@ -381,16 +381,24 @@ func init() {
 		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
-		"path to the directory contains data files to import into table(s)")
+		"path to the directory contains data files to import into table(s)\n"+
+		"Note: data-dir can be a local directory or a cloud storage URL\n" +
+		"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n" +
+		"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
+		"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
 	err := importDataFileCmd.MarkFlagRequired("data-dir")
 	if err != nil {
 		utils.ErrExit("mark 'data-dir' flag required: %v", err)
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in '--data-dir' to a table in database.\n"+
+		"comma separated list of mapping between file name in '--data-dir' to a table in database\n" +
 			"Note: default will be to import all the files in --data-dir with given format, for eg: table1.csv to import into table1 on target database.")
-
+	
+	err = importDataFileCmd.MarkFlagRequired("file-table-map")
+	if err != nil {
+		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
+	}
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
 			"(Note: only works for csv file type)")
@@ -411,4 +419,7 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
+
+	importDataFileCmd.Flags().MarkHidden("table-list")
+	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
 }
