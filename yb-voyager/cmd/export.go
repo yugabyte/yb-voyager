@@ -21,9 +21,9 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
-	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
