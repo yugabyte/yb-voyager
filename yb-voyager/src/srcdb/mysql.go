@@ -17,8 +17,11 @@ package srcdb
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/go-sql-driver/mysql"
 	log "github.com/sirupsen/logrus"
@@ -284,4 +287,46 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[str
 		}
 	}
 	return columnToSequenceMap
+}
+
+func createTLSConf(source *Source) tls.Config {
+	rootCertPool := x509.NewCertPool()
+	if source.SSLRootCert != "" {
+		pem, err := os.ReadFile(source.SSLRootCert)
+		if err != nil {
+			utils.ErrExit("error in reading SSL Root Certificate: %v", err)
+		}
+
+		if ok := rootCertPool.AppendCertsFromPEM(pem); !ok {
+			utils.ErrExit("Failed to append PEM.")
+		}
+	} else {
+		utils.ErrExit("Root Certificate Needed for verify-ca and verify-full SSL Modes")
+	}
+	clientCert := make([]tls.Certificate, 0, 1)
+
+	if source.SSLCertPath != "" && source.SSLKey != "" {
+		certs, err := tls.LoadX509KeyPair(source.SSLCertPath, source.SSLKey)
+		if err != nil {
+			utils.ErrExit("error in reading and parsing SSL KeyPair: %v", err)
+		}
+
+		clientCert = append(clientCert, certs)
+	}
+
+	if source.SSLMode == "verify-ca" {
+		return tls.Config{
+			RootCAs:            rootCertPool,
+			Certificates:       clientCert,
+			InsecureSkipVerify: true,
+		}
+	} else { //if verify-full
+
+		return tls.Config{
+			RootCAs:            rootCertPool,
+			Certificates:       clientCert,
+			InsecureSkipVerify: false,
+			ServerName:         source.Host,
+		}
+	}
 }

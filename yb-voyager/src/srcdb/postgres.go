@@ -382,3 +382,38 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 
 	return columnToSequenceMap
 }
+
+func generateSSLQueryStringIfNotExists(s *Source) string {
+
+	if s.Uri == "" {
+		SSLQueryString := ""
+		if s.SSLQueryString == "" {
+
+			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
+				SSLQueryString = "sslmode=" + s.SSLMode
+				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
+					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
+					if s.SSLCertPath != "" {
+						SSLQueryString += "&sslcert=" + s.SSLCertPath
+					}
+					if s.SSLKey != "" {
+						SSLQueryString += "&sslkey=" + s.SSLKey
+					}
+					if s.SSLRootCert != "" {
+						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
+					}
+					if s.SSLCRL != "" {
+						SSLQueryString += "&sslcrl=" + s.SSLCRL
+					}
+				}
+			} else {
+				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
+			}
+		} else {
+			SSLQueryString = s.SSLQueryString
+		}
+		return SSLQueryString
+	} else {
+		return ""
+	}
+}
