@@ -33,24 +33,16 @@ import (
 
 var client *azblob.Client
 
-func createCredentials() (*azidentity.DefaultAzureCredential, error) {
-	// cred represents the default Oauth token used to authenticate the account in the url.
-	cred, err := azidentity.NewDefaultAzureCredential(nil)
-	if err != nil {
-		return nil, err
-	}
-	return cred, nil
-}
-
 // creates a client for the account in the url with the default creds.
-func createClientIfNotExists(datadir string) {
+func createClientIfNotExists(dataDir string) {
 	var err error
-	url, err := url.Parse(datadir)
+	url, err := url.Parse(dataDir)
 	if err != nil {
-		utils.ErrExit("parse azure blob url: %w", err)
+		utils.ErrExit("parse azure blob url for dataDir: %w", dataDir, err)
 	}
 	serviceUrl := "https://" + url.Host
-	cred, err := createCredentials()
+	// cred represents the default Oauth token used to authenticate the account in the url.
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		utils.ErrExit("create azure blob shared key credential: %w", err)
 	}
@@ -64,7 +56,8 @@ func createClientIfNotExists(datadir string) {
 // (or bucket) under the account in the url with the default creds.
 func createContainerClient(url string) (*container.Client, error) {
 	var err error
-	cred, err := createCredentials()
+	// cred represents the default Oauth token used to authenticate the account in the url.
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
 		utils.ErrExit("create azure blob shared key credential: %w", err)
 	}
@@ -77,20 +70,20 @@ func createContainerClient(url string) (*container.Client, error) {
 
 // check if url is in format
 // https://<account_name>.blob.core.windows.net/<container_name or bucket_name>
-func ValidateObjectURL(datadir string) error {
-	containerUrl, err := url.Parse(datadir)
+func ValidateObjectURL(dataDir string) error {
+	dataDirUrl, err := url.Parse(dataDir)
 	if err != nil {
-		return fmt.Errorf("parsing the object of %q: %w", datadir, err)
+		return fmt.Errorf("parsing the object of %q: %w", dataDir, err)
 	}
-	container := containerUrl.Path
-	if container == "" {
-		return fmt.Errorf("missing bucket in azure blob url %v", datadir)
+	containerDir := dataDirUrl.Path
+	if containerDir == "" {
+		return fmt.Errorf("missing bucket in azure blob url %v", dataDir)
 	}
-	service := containerUrl.Host
+	service := dataDirUrl.Host
 	if service == "" {
-		return fmt.Errorf("missing service in azure blob url %v", datadir)
+		return fmt.Errorf("missing service in azure blob url %v", dataDir)
 	} else if !strings.Contains(service, ".blob.") {
-		return fmt.Errorf("invalid service in azure blob url %v", datadir)
+		return fmt.Errorf("invalid service in azure blob url %v", dataDir)
 	}
 	return nil
 }
@@ -114,12 +107,12 @@ func splitObjectPath(objectPath string) (string, string, string, error) {
 	return serviceUrl, container, key, nil
 }
 
-func ListAllObjects(containerURL string) ([]string, error) {
-	createClientIfNotExists(containerURL)
+func ListAllObjects(dataDirUrl string) ([]string, error) {
+	createClientIfNotExists(dataDirUrl)
 	var keys []string
-	_, containerName, key, err := splitObjectPath(containerURL)
+	_, containerName, key, err := splitObjectPath(dataDirUrl)
 	if err != nil {
-		return nil, fmt.Errorf("splitting object path of %q: %w", containerURL, err)
+		return nil, fmt.Errorf("splitting object path of %q: %w", dataDirUrl, err)
 	}
 	options := &container.ListBlobsFlatOptions{}
 	if key != "" {
@@ -129,7 +122,7 @@ func ListAllObjects(containerURL string) ([]string, error) {
 	for pager.More() {
 		page, err := pager.NextPage(context.Background())
 		if err != nil {
-			return nil, fmt.Errorf("listing all objects of %q: %w", containerURL, err)
+			return nil, fmt.Errorf("listing all objects of %q: %w", dataDirUrl, err)
 		}
 		for _, blob := range page.Segment.BlobItems {
 			objectName := *blob.Name
@@ -147,8 +140,7 @@ func GetHeadObject(objectURL string) (*blob.Attributes, error) {
 	if err != nil {
 		return nil, fmt.Errorf("splitting object path of %q: %w", objectURL, err)
 	}
-	url := "https://" + serviceName
-	url = strings.Join([]string{url, containerName}, "/")
+	url := fmt.Sprintf("https://%s/%s", serviceName, containerName)
 	containerClient, err := createContainerClient(url)
 	if err != nil {
 		return nil, fmt.Errorf("creating container client for %q: %w", url, err)
@@ -176,7 +168,7 @@ func NewObjectReader(objectURL string) (io.ReadCloser, error) {
 	ctx := context.Background()
 	get, err := client.DownloadStream(ctx, containerName, key, nil)
 	if err != nil {
-		return nil, fmt.Errorf("downloading stream of %q: %w", objectURL, err)
+		return nil, fmt.Errorf("create download stream for %q: %w", objectURL, err)
 	}
 	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{})
 	return retryReader, nil

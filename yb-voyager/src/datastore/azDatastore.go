@@ -29,16 +29,16 @@ import (
 )
 
 type AzDataStore struct {
-	url        *url.URL
-	bucketName string
+	url       	  *url.URL
+	containerName string
 }
 
-func NewAzDataStore(resourceName string) *AzDataStore {
-	url, err := url.Parse(resourceName)
+func NewAzDataStore(dataDir string) *AzDataStore {
+	url, err := url.Parse(dataDir)
 	if err != nil {
-		utils.ErrExit("invalid azure resource URL %v", resourceName)
+		utils.ErrExit("invalid azure resource URL %v", dataDir)
 	}
-	return &AzDataStore{url: url, bucketName: url.Path[1:]}
+	return &AzDataStore{url: url, containerName: url.Path[1:]}
 }
 
 // Search and return all keys within the bucket matching the giving pattern.
@@ -73,22 +73,15 @@ func (ds *AzDataStore) FileSize(filePath string) (int64, error) {
 	return headObject.Size, nil
 }
 
-// filepath.Join joins elements with the "/" path separator.
-func (ds *AzDataStore) Join(elem ...string) string {
-	finalPath := ""
-	finalPath += strings.Join(elem, "/")
-	return finalPath
-}
-
 // Open the file at the given path for reading.
-func (ds *AzDataStore) Open(resourceName string) (io.ReadCloser, error) {
-	if strings.HasPrefix(resourceName, "https://") {
-		return az.NewObjectReader(resourceName)
+func (ds *AzDataStore) Open(objectPath string) (io.ReadCloser, error) {
+	if strings.HasPrefix(objectPath, "https://") {
+		return az.NewObjectReader(objectPath)
 	}
-	// if resourceName is hidden underneath a symlink for az blobs...
-	objectPath, err := os.Readlink(resourceName)
+	// if objectPath is hidden underneath a symlink for az blobs...
+	objectPath, err := os.Readlink(objectPath)
 	if err != nil {
-		utils.ErrExit("unable to resolve symlink %v to gcs resource: %w", resourceName, err)
+		utils.ErrExit("unable to resolve symlink %v to gcs resource: %w", objectPath, err)
 	}
 	return az.NewObjectReader(objectPath)
 }
