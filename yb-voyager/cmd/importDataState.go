@@ -287,12 +287,16 @@ func (s *ImportDataState) getTableStateDir(tableName string) string {
 
 func (s *ImportDataState) getFileStateDir(filePath, tableName string) string {
 	// NOTE: filePath must be absolute.
-	hash := computePathHash(filePath)
+	hash := computePathHash(filePath, s.exportDir)
 	baseName := filepath.Base(filePath)
 	return fmt.Sprintf("%s/file::%s::%s", s.getTableStateDir(tableName), baseName, hash)
 }
 
-func computePathHash(filePath string) string {
+func computePathHash(filePath, exportDir string) string {
+	// If filePath starts with exportDir, then this is a case of
+	// import files output by the `export data` command. Stripping the exportDir
+	// from the filePath makes the code independent from the exportDir.
+	filePath = strings.TrimPrefix(filePath, exportDir)
 	hash := sha1.New()
 	hash.Write([]byte(filePath))
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
