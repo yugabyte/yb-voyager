@@ -53,7 +53,7 @@ var (
 
 var importDataFileCmd = &cobra.Command{
 	Use:   "file",
-	Short: "This command imports data from given files into YugabyteDB database",
+	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		reportProgressInBytes = true
@@ -381,7 +381,7 @@ func init() {
 		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
-		"path to the directory contains data files to import into table(s)\n"+
+		"path to the directory which contains data files to import into table(s)\n"+
 		"Note: data-dir can be a local directory or a cloud storage URL\n" +
 		"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n" +
 		"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
@@ -392,8 +392,7 @@ func init() {
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in '--data-dir' to a table in database\n" +
-			"Note: default will be to import all the files in --data-dir with given format, for eg: table1.csv to import into table1 on target database.")
+		"comma separated list of mapping between file name in '--data-dir' to a table in database")
 	
 	err = importDataFileCmd.MarkFlagRequired("file-table-map")
 	if err != nil {
