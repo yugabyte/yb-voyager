@@ -30,7 +30,6 @@ import (
 
 type AzDataStore struct {
 	url       	  *url.URL
-	containerName string
 }
 
 func NewAzDataStore(dataDir string) *AzDataStore {
@@ -38,7 +37,7 @@ func NewAzDataStore(dataDir string) *AzDataStore {
 	if err != nil {
 		utils.ErrExit("invalid azure resource URL %v", dataDir)
 	}
-	return &AzDataStore{url: url, containerName: url.Path[1:]}
+	return &AzDataStore{url: url}
 }
 
 // Search and return all keys within the bucket matching the giving pattern.

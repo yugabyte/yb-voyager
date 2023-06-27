@@ -38,7 +38,7 @@ func createClientIfNotExists(dataDir string) {
 	var err error
 	url, err := url.Parse(dataDir)
 	if err != nil {
-		utils.ErrExit("parse azure blob url for dataDir: %w", dataDir, err)
+		utils.ErrExit("parse azure blob url for dataDir %s: %w", dataDir, err)
 	}
 	serviceUrl := "https://" + url.Host
 	// cred represents the default Oauth token used to authenticate the account in the url.
@@ -170,6 +170,6 @@ func NewObjectReader(objectURL string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create download stream for %q: %w", objectURL, err)
 	}
-	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{})
+	retryReader := get.NewRetryReader(ctx, &azblob.RetryReaderOptions{MaxRetries: 10})
 	return retryReader, nil
 }
