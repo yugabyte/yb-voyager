@@ -43,7 +43,7 @@ func NewS3DataStore(resourceName string) *S3DataStore {
 
 // Search and return all keys within the bucket matching the giving pattern.
 func (ds *S3DataStore) Glob(pattern string) ([]string, error) {
-	objectNames, err := s3.ListAllObjects(ds.bucketName)
+	objectNames, err := s3.ListAllObjects(ds.url.String())
 	if err != nil {
 		return nil, fmt.Errorf("listing all objects of %q: %w", pattern, err)
 	}
