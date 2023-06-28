@@ -93,7 +93,8 @@ func ListAllObjects(url *url.URL) ([]string, error) {
 		}
 		objectName := attrs.Name
 		if prefix != "" {
-			objectName = strings.TrimPrefix(attrs.Name, prefix)[1:] //remove initial "/"
+			objectName = strings.TrimPrefix(attrs.Name, prefix)
+			objectName = strings.TrimPrefix(objectName, "/") //remove initial "/"
 		}
 		objectNames = append(objectNames, objectName)
 	}

@@ -17,19 +17,19 @@ limitations under the License.
 package datastore
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"os"
-	"strings"
-	"fmt"
 	"regexp"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 )
 
 type AzDataStore struct {
-	url       	  *url.URL
+	url *url.URL
 }
 
 func NewAzDataStore(dataDir string) *AzDataStore {
@@ -67,7 +67,7 @@ func (ds *AzDataStore) AbsolutePath(filePath string) (string, error) {
 func (ds *AzDataStore) FileSize(filePath string) (int64, error) {
 	headObject, err := az.GetHeadObject(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("get head of object %q: %w",filePath, err)
+		return 0, fmt.Errorf("get head of object %q: %w", filePath, err)
 	}
 	return headObject.Size, nil
 }
