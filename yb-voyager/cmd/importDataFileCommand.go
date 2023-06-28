@@ -29,8 +29,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -86,9 +86,6 @@ func prepareForImportDataCmd() {
 		escapeCharBytes := []byte(escapeChar)
 		dataFileDescriptor.EscapeChar = escapeCharBytes[0]
 	}
-	// `import data status` depends on the saved descriptor file for the file-sizes.
-	// Can't get rid of it until we extract the file-size info out of descriptor file.
-	dataFileDescriptor.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	prepareCopyCommands()
@@ -386,10 +383,10 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory which contains data files to import into table(s)\n"+
-		"Note: data-dir can be a local directory or a cloud storage URL\n" +
-		"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n" +
-		"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
-		"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
+			"Note: data-dir can be a local directory or a cloud storage URL\n"+
+			"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n"+
+			"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
+			"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
 	err := importDataFileCmd.MarkFlagRequired("data-dir")
 	if err != nil {
 		utils.ErrExit("mark 'data-dir' flag required: %v", err)
@@ -397,7 +394,7 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
 		"comma separated list of mapping between file name in '--data-dir' to a table in database")
-	
+
 	err = importDataFileCmd.MarkFlagRequired("file-table-map")
 	if err != nil {
 		utils.ErrExit("mark 'file-table-map' flag required: %v", err)

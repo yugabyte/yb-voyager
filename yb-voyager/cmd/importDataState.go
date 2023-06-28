@@ -193,6 +193,22 @@ func (s *ImportDataState) GetImportedByteCount(filePath, tableName string) (int6
 	return result, nil
 }
 
+func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, error) {
+	tableNames, err := s.discoverTableNames()
+	if err != nil {
+		return nil, fmt.Errorf("error while discovering table names: %w", err)
+	}
+	result := make(map[string][]string)
+	for _, tableName := range tableNames {
+		fileNames, err := s.discoverTableFiles(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error while discovering file paths for table %q: %w", tableName, err)
+		}
+		result[tableName] = fileNames
+	}
+	return result, nil
+}
+
 func (s *ImportDataState) NewBatchWriter(filePath, tableName string, batchNumber int64) *BatchWriter {
 	return &BatchWriter{
 		state:       s,
@@ -299,6 +315,41 @@ func computePathHash(filePath, exportDir string) string {
 	hash := sha1.New()
 	hash.Write([]byte(filePath))
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
+}
+
+func (s *ImportDataState) discoverTableNames() ([]string, error) {
+	// Find directories in the `stateDir` whose name starts with "table::"
+	dirEntries, err := os.ReadDir(s.stateDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
+	}
+	result := []string{}
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() && strings.HasPrefix(dirEntry.Name(), "table::") {
+			result = append(result, dirEntry.Name()[len("table::"):])
+		}
+	}
+	return result, nil
+}
+
+func (s *ImportDataState) discoverTableFiles(tableName string) ([]string, error) {
+	tableStateDir := s.getTableStateDir(tableName)
+	dirEntries, err := os.ReadDir(tableStateDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %q: %s", tableStateDir, err)
+	}
+	result := []string{}
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() && strings.HasPrefix(dirEntry.Name(), "file::") {
+			symLinkPath := filepath.Join(tableStateDir, dirEntry.Name(), "link")
+			targetPath, err := os.Readlink(symLinkPath)
+			if err != nil {
+				return nil, fmt.Errorf("read link %q: %s", symLinkPath, err)
+			}
+			result = append(result, targetPath)
+		}
+	}
+	return result, nil
 }
 
 //============================================================================
