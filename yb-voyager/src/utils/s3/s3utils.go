@@ -102,6 +102,7 @@ func ListAllObjects(dataDir string) ([]string, error) {
 			objectName := *obj.Key
 			if prefix != "" {
 				objectName = strings.TrimPrefix(objectName, prefix)
+				objectName = strings.TrimPrefix(objectName, "/") //remove initial "/"
 			}
 			objectNames = append(objectNames, objectName)
 		}

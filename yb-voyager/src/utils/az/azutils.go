@@ -127,7 +127,8 @@ func ListAllObjects(dataDirUrl string) ([]string, error) {
 		for _, blob := range page.Segment.BlobItems {
 			objectName := *blob.Name
 			if key != "" {
-				objectName = strings.TrimPrefix(objectName, key)[1:] //remove the first "/"
+				objectName = strings.TrimPrefix(objectName, key)
+				objectName = strings.TrimPrefix(objectName, "/") //remove the first "/"
 			}
 			keys = append(keys, objectName)
 		}
