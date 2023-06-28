@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -114,15 +115,14 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	}
 	for tableName, filePaths := range tableToFilesMapping {
 		for _, filePath := range filePaths {
-			fi, err := os.Stat(filePath)
+			fileSize, err := datastore.NewDataStore(filePath).FileSize(filePath)
 			if err != nil {
-				return nil, fmt.Errorf("stat file %q: %w", filePath, err)
+				return nil, fmt.Errorf("get file size of %q: %w", filePath, err)
 			}
-
 			dataFileDescriptor.DataFileList = append(dataFileDescriptor.DataFileList, &datafile.FileEntry{
 				FilePath:  filePath,
 				TableName: tableName,
-				FileSize:  fi.Size(),
+				FileSize:  fileSize,
 				RowCount:  -1,
 			})
 		}
