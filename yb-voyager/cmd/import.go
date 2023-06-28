@@ -105,7 +105,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 		"target SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"delete all existing schema objects before importing schema. Delete all existing data before importing the data")
+		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
 
 	cmd.Flags().BoolVar(&target.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
