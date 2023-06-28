@@ -195,6 +195,26 @@ export_schema() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
+	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
+	then
+		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
+	then
+		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+	fi
+	
 	yb-voyager export schema ${args} $*
 }
 
@@ -220,6 +240,28 @@ export_data() {
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
 	fi
+
+	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
+	then
+		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
+	then
+		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+	fi
+
+	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
+	then
+		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+	fi
+
+
 	yb-voyager export data ${args} $*
 }
 
