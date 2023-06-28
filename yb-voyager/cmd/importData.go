@@ -33,12 +33,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"golang.org/x/exp/slices"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -48,6 +48,12 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+// The _v2 is appended in the table name so that the import code doesn't
+// try to use the similar table created by the voyager 1.3 and earlier.
+// Voyager 1.4 uses import data state format that is incompatible from
+// the earlier versions.
+const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
 
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
@@ -461,14 +467,14 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
 	cmds := []string{
 		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
-		`CREATE TABLE IF NOT EXISTS ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			data_file_name VARCHAR(250),
 			batch_number INT,
 			schema_name VARCHAR(250),
 			table_name VARCHAR(250),
 			rows_imported BIGINT,
 			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
-		);`,
+		);`, BATCH_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
