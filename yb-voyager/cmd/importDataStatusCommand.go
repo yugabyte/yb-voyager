@@ -105,10 +105,49 @@ func runImportDataStatusCmd() error {
 	return nil
 }
 
+func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
+	var dataFileDescriptor datafile.Descriptor
+
+	tableToFilesMapping, err := state.DiscoverTableToFilesMapping()
+	if err != nil {
+		return nil, fmt.Errorf("discover table to files mapping: %w", err)
+	}
+	for tableName, filePaths := range tableToFilesMapping {
+		for _, filePath := range filePaths {
+			fi, err := os.Stat(filePath)
+			if err != nil {
+				return nil, fmt.Errorf("stat file %q: %w", filePath, err)
+			}
+
+			dataFileDescriptor.DataFileList = append(dataFileDescriptor.DataFileList, &datafile.FileEntry{
+				FilePath:  filePath,
+				TableName: tableName,
+				FileSize:  fi.Size(),
+				RowCount:  -1,
+			})
+		}
+	}
+	return &dataFileDescriptor, nil
+}
+
 func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
+	var err error
+	var dataFileDescriptor *datafile.Descriptor
+
 	state := NewImportDataState(exportDir)
-	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+	if utils.FileOrFolderExists(dataFileDescriptorPath) {
+		// Case of `import data` command where row counts are available.
+		dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	} else {
+		// Case of `import data file` command where row counts are not available.
+		// Use file sizes for progress reporting.
+		dataFileDescriptor, err = prepareDummyDescriptor(state)
+		if err != nil {
+			return nil, fmt.Errorf("prepare dummy descriptor: %w", err)
+		}
+	}
 
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		var totalCount, importedCount int64
