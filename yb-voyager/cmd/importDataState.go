@@ -156,15 +156,14 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	// Delete all entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo for this table.
+	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
 	schemaName := getTargetSchemaName(tableName)
-	metaInfoTableName := "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo"
 	cmd := fmt.Sprintf(
 		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		metaInfoTableName, filePath, schemaName, tableName)
+		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
 	res, err := conn.Exec(context.Background(), cmd)
 	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, metaInfoTableName, err)
+		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
 	}
 	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	return nil
@@ -473,10 +472,9 @@ func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
 	var rowsImported int64
 	schemaName := getTargetSchemaName(batch.TableName)
 	query := fmt.Sprintf(
-		"SELECT rows_imported "+
-			"FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo "+
+		"SELECT rows_imported FROM %s "+
 			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.FilePath)
@@ -490,18 +488,18 @@ func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
 }
 
 func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
-	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
+	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (data_file_name, batch_number, schema_name, table_name, rows_imported)
+		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
 		VALUES ('%s', %d, '%s', '%s', %v);`,
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
 	_, err := tx.Exec(context.Background(), cmd)
 	if err != nil {
-		return fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
+		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
 	}
-	log.Infof("Inserted ('%s', %d, '%s', '%s', %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo",
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+	log.Infof("Inserted ('%s', %d, '%s', '%s', %v) in %s",
+		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected, BATCH_METADATA_TABLE_NAME)
 	return nil
 }
 
