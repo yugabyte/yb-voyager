@@ -57,6 +57,11 @@ do
 			do
 				exported_vars="${exported_vars} -e $var"
 			done
+			s3_vol="-v ${HOME}/.aws:/root/.aws"
+		elif [[ $data_dir == 'gs://'* ]]
+		then 
+			# map gcp credentials directory
+			gcp_vol="-v ${HOME}/.config/gcloud:/root/.config/gcloud"
 		else 
 			# If the data-dir is not an S3 bucket
 			# If the OS is macOS
@@ -82,7 +87,7 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
