@@ -52,7 +52,7 @@ do
 		# If the data-dir is an S3 bucket
 		if [[ $data_dir == 's3://'* ]]
 		then 
-			Capture exported variables for aws
+			# Capture exported variables for aws
 			for var in $(env | grep -E '^AWS_') 
 			do
 				exported_vars="${exported_vars} -e $var"
