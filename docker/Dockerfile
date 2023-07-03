@@ -10,6 +10,7 @@ RUN apt-get update && \
     apt-get install -y ./yb-apt-repo_1.0.0_all.deb && \
     apt-get update && \
     apt-get upgrade -y binutils && \
+    curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
     mkdir -p /opt/yb-voyager && \
     apt-get install -y yb-voyager && \
     rm -rf /yb-apt-repo_1.0.0_all.deb && \
