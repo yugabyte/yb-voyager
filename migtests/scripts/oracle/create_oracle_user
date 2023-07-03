@@ -5,8 +5,19 @@
 source migtests/scripts/oracle/env.sh
 source migtests/scripts/functions.sh
 
+# cat > oracle-create-user.sql << EOF
+# CREATE USER ybvoyager IDENTIFIED BY password;
+# EOF
+
 cat > oracle-create-user.sql << EOF
-CREATE USER ybvoyager IDENTIFIED BY password;
+SELECT COUNT(*) 
+INTO V_count 
+from ALL_USERS 
+where username = 'ybvoyager'
+
+IF v_count = 0 THEN
+  CREATE USER ybvoyager IDENTIFIED BY password;
+END IF;
 EOF
 
 run_sqlplus_as_sys ${SOURCE_DB_NAME} "oracle-create-user.sql"
