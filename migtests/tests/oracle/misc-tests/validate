@@ -11,7 +11,7 @@ EXPECTED_ROW_COUNT = {
 	'group':5,
 	'check':5,
 	'reserved_column':5,
-	'Mixed_Case_Table_Name_Test':6,
+	'mixed_case_table_name_test':6,
 	'case_sensitive_columns':6
 }
 
