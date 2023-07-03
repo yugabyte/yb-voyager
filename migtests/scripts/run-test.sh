@@ -103,6 +103,10 @@ main() {
 	then
 		 "${TEST_DIR}/validate"
 	fi
+
+	step "Clean up"
+	rm -rf "${EXPORT_DIR}/*"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
 main
