@@ -10,14 +10,15 @@ source migtests/scripts/functions.sh
 # EOF
 
 cat > oracle-create-user.sql << EOF
-SELECT COUNT(*) 
-INTO V_count 
-from ALL_USERS 
-where username = 'ybvoyager'
-
-IF v_count = 0 THEN
-  CREATE USER ybvoyager IDENTIFIED BY password;
-END IF;
+declare
+userexist integer;
+begin
+  select count(*) into userexist from dba_users where username='YBVOYAGER';
+  if (userexist = 0) then
+    execute immediate 'CREATE USER ybvoyager IDENTIFIED BY password';
+  end if;
+end;
+/
 EOF
 
 run_sqlplus_as_sys ${SOURCE_DB_NAME} "oracle-create-user.sql"
