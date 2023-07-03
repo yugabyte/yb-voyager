@@ -87,7 +87,8 @@ main() {
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Import schema."
-	import_schema
+	# retrying
+	for i in {1..5}; do import_schema && break || sleep 15; done
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	step "Import data."
