@@ -14,7 +14,7 @@ EXPECTED_ROW_COUNT = {
 	'audit': 4,
 	'recipients': 1,    
 	'session_log': 0,
-	'Mixed_Case_Test': 5
+	'Mixed_Case_Table_Name_Test': 5
 }
 
 def check_validations_per_schema(tgt,schema_name):
