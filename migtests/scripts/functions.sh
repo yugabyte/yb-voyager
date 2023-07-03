@@ -343,7 +343,8 @@ function with_backoff {
 
   while [[ $attempt < $max_attempts ]]
   do
-    "$@"
+    sleep $((RANDOM % 10))
+	"$@"
     exitCode=$?
 
     if [[ $exitCode == 0 ]]

@@ -83,19 +83,19 @@ main() {
 	fi
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+	with_backoff run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	with_backoff run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Import schema."
 	# backoff with random delay
-	with_backoff sleep $((RANDOM % 10)) && import_schema
+	with_backoff import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	step "Import data."
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data --refresh-mviews
+	with_backoff import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
