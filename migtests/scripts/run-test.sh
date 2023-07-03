@@ -91,22 +91,20 @@ main() {
 	flock -x $FD
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-	flock -u $FD
+	
 
 	step "Import schema."
-	flock -x $FD
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
-	flock -u $FD
 
 	step "Import data."
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	flock -x $FD
 	import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
+	sleep 10
 	flock -u $FD
 
 	step "Run validations."
