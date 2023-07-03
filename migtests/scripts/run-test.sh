@@ -104,7 +104,6 @@ main() {
 	import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
-	sleep 10
 	flock -u $FD
 
 	step "Run validations."
