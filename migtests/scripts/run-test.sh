@@ -27,6 +27,11 @@ source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
 
+# lock for ybdb schema imports
+ME=`basename "$0"`;
+LCK="/tmp/${ME}.LCK";
+exec {FD}<>$LCK
+
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}	
@@ -83,21 +88,26 @@ main() {
 	fi
 
 	step "Create target database."
-	with_backoff run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	with_backoff run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+	flock -x $FD
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+	flock -u $FD
 
 	step "Import schema."
-	# backoff with random delay
-	with_backoff import_schema
+	flock -x $FD
+	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
+	flock -u $FD
 
 	step "Import data."
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	with_backoff import_schema --post-import-data --refresh-mviews
+	flock -x $FD
+	import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
+	flock -u $FD
 
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]
