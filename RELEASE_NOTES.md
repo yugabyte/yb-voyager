@@ -8,45 +8,45 @@ Included here are the release notes for the [YugabyteDB Voyager](https://docs.yu
 
 #### Key enhancements:
 
-- `import data file` can now import multiple files to a same table. Moreover, glob expression can be provided in the `--file-table-map` to specify multiple files to be imported in a same table.
+- The `import data file` command now supports importing multiple files to the same table. Moreover, glob expressions can be provided in the `--file-table-map` argument to specify multiple files to be imported into the same table.
 
-- In addition to the AWS S3, `import data file` now supports directly importing objects (CSV/TEXT files) stored in GCS and Azure Blob Store. You can specify GCS and Azure Blob Store "directories" by prefixing them with `gs://` and `https://`.
+- In addition to AWS S3, `import data file` now supports directly importing objects (CSV/TEXT files) stored in GCS and Azure Blob Storage. You can specify GCS and Azure Blob Storage "directories" by prefixing them with `gs://` and `https://`.
 
-- When using the "fast data export" mode, Voyager can now connect to the source databases using SSL.
+- When using the [accelerated data export](https://docs.yugabyte.com/preview/migrate/migrate-steps/#accelerate-data-export-for-mysql-and-oracle), Voyager can now connect to the source databases using SSL.
 
-- `analyze-schema` command now reports unsupported data types.
+- The `analyze-schema` command now reports unsupported data types.
 
-- `--file-opts` CLI argument is now deprecated. Use the newly introduced `--escape-char` and `--quote-char` options.
+- The `--file-opts` CLI argument is now deprecated. Use the new [--escape-char](https://docs.yugabyte.com/preview/migrate/reference/yb-voyager-cli/#escape-char) and [--quote-char](https://docs.yugabyte.com/preview/migrate/reference/yb-voyager-cli/#quote-char) options.
 
 #### Bug fixes:
 
-- If a CSV file had empty lines in it, `import data status` used to continue reporting the import status as `MIGRATING` even though the import is complete and successful. This issue is now fixed.
+- Fixed the issue where, if a CSV file had empty lines, `import data status` would continue reporting the import status as MIGRATING even though the import was completed and successful.
 
-- Explicitly close the source/target database connections when voyager is exiting.
+- yb-voyager now explicitly closes the source/target database connections when exiting.
 
-- The `import data file` command now uses tab (`\t`) instead of comma (`,`) as the default delimiter when importing TEXT formatted files.
+- The `import data file` command now uses tab (\t) instead of comma (,) as the default delimiter when importing TEXT formatted files.
 
 #### Known issues:
 
-- Compared to earlier releases, Voyager 1.4 uses different and incompatible structure to represent import data state. And hence, Voyager 1.4 cannot "continue" a data import operation that was started by Voyager 1.3 or lower.
+- Compared to earlier releases, Voyager v1.4 uses a different and incompatible structure to represent the import data state. As a result, Voyager v1.4 can't "continue" a data import operation that was started using Voyager v1.3 or earlier.
 
 ## v1.3 - May 30, 2023
 
 ##### Key enhancements
 
-- Export data for MySQL and Oracle is now 2-4x faster. You can use the env var `BETA_FAST_DATA_EXPORT=1` to leverage this performance improvement. Most features such as migrating partitioned tables, sequences, etc are supported in this mode. Please refer to the [documentation](https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details. Note that for PostgreSQL, the default mode (pg_dump) is faster, and hence, this flag is not recommended to be used.
+- Export data for MySQL and Oracle is now 2-4x faster. To leverage this performance improvement, set the environment variable BETA_FAST_DATA_EXPORT=1. Most features, such as migrating partitioned tables, sequences, and so on, are supported in this mode. Refer to [Export data](https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details.
 
-- Added support for characters such as backspace(`\b`) in quote and escape character with `--file-opts` in import data file.
+- Added support for characters such as backspace(\b) in quote and escape character with [--file-opts](https://docs.yugabyte.com/preview/migrate/reference/yb-voyager-cli/#file-opts) in import data file.
 
-- Added ability to specify null value string in `import data file` command with a `--null-string` flag.
+- Added ability to specify null value string in import data file.
 
-- During `export data`, `yb-voyager` can now explicitly inform you of any unsupported datatypes, and requests for permission to ignore them.
+- During export data, yb-voyager can now explicitly inform you of any unsupported datatypes, and requests for permission to ignore them.
 
 ##### Bug fixes
 
-- [[5976]](https://github.com/yugabyte/yugabyte-db/issues/16576), `yb-voyager` can now parse `CREATE TABLE` DDL having complex check constraints.
+- yb-voyager can now parse `CREATE TABLE` statements that have complex check constraints.
 
-- `import data file` command with AWS S3 now works when yb-voyager is installed via Docker.
+- Import data file with AWS S3 now works when yb-voyager is installed via Docker.
 
 ## v1.2 - April 3, 2023
 
