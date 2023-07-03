@@ -2,6 +2,9 @@
 source migtests/scripts/postgresql/env.sh
 source migtests/scripts/functions.sh
 
-cmd="CREATE USER ${SOURCE_DB_USER} PASSWORD '${SOURCE_DB_PASSWORD}';"
-run_psql "postgres" "${cmd}"
-	
+cat > pg-create-user.sql << EOF
+SELECT 'CREATE USER ${SOURCE_DB_USER} PASSWORD ''${SOURCE_DB_PASSWORD}'''
+WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${SOURCE_DB_USER}')\gexec
+EOF
+
+psql_import_file "postgres" "pg-create-user.sql"

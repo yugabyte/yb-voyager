@@ -2,5 +2,9 @@
 source migtests/scripts/yugabytedb/env.sh
 source migtests/scripts/functions.sh
 
-cmd="CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD '${TARGET_DB_PASSWORD}';"
-run_ysql "yugabyte" "${cmd}"
+cat > yb-create-user.sql << EOF
+SELECT 'CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD ''${TARGET_DB_PASSWORD}'''
+WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${TARGET_DB_USER}')\gexec
+EOF
+
+ysql_import_file "yugabyte" "yb-create-user.sql"
