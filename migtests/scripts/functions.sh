@@ -336,6 +336,7 @@ tail_log_file() {
 #
 # Beware of set -e killing your whole script!
 function with_backoff {
+  set +e
   local max_attempts=${ATTEMPTS-5}
   local timeout=${TIMEOUT-1}
   local attempt=0
@@ -362,6 +363,6 @@ function with_backoff {
   then
     echo "You've failed me for the last time! ($@)" 1>&2
   fi
-
+  set -e 
   return $exitCode
 }
