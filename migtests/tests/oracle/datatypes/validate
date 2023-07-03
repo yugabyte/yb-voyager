@@ -38,14 +38,8 @@ EXPECTED_SUM_OF_COLUMN = {
 	}
 }
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
-	EXPECTED_SUM_OF_COLUMN = {
-	'numeric_types': {
-		'num_val': '260.580264',
-		'float_val': '236.0018',
-		'bin_float_val': '1.361128e+29',
-		'bin_double_val': '5.39307940458693e+108'
-	}
-}
+	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
+
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
 		'num_val': 'numeric',
