@@ -37,7 +37,7 @@ jobs:
     
     - name: Fetch and unpack debezium-server
       run: |
-        dist_name=debezium-server-latest
+        dist_name=debezium-server-aneesh_text_format
         wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${dist_name}.tar.gz"
         sudo mkdir -p /opt/yb-voyager
         sudo tar -xvzf "${dist_name}.tar.gz" -C /opt/yb-voyager/
