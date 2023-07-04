@@ -45,6 +45,12 @@ type TargetConf struct {
 	ImportObjects        string
 	ExcludeImportObjects string
 	dbVersion            string
+
+	TargetEndpoints            string
+	UsePublicIP                bool
+	EnableUpsert               bool
+	DisableTransactionalWrites bool
+	Parallelism                int
 }
 
 func (t *TargetConf) Clone() *TargetConf {

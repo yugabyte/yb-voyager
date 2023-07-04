@@ -21,11 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -63,19 +61,9 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-
-var usePublicIp bool
-var targetEndpoints string
 var copyTableFromCommands = sync.Map{}
-var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
-var enableUpsert bool               // upsert instead of insert for import data
-var disableTransactionalWrites bool // to disable transactional writes for copy command
-var truncateSplits bool             // to truncate *.D splits after import
 
-const (
-	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
-		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
-)
+var truncateSplits bool // to truncate *.D splits after import
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -144,202 +132,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
-func getYBServers() []*tgtdb.TargetConf {
-	var tconfs []*tgtdb.TargetConf
-
-	if targetEndpoints != "" {
-		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
-		utils.PrintIfTrue(msg, tconf.VerboseMode)
-		log.Infof(msg)
-
-		ybServers := utils.CsvStringToSlice(targetEndpoints)
-		for _, ybServer := range ybServers {
-			clone := tconf.Clone()
-
-			if strings.Contains(ybServer, ":") {
-				clone.Host = strings.Split(ybServer, ":")[0]
-				var err error
-				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
-
-				if err != nil {
-					utils.ErrExit("error in parsing useYbServers flag: %v", err)
-				}
-			} else {
-				clone.Host = ybServer
-			}
-
-			clone.Uri = getCloneConnectionUri(clone)
-			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTargetConf(clone))
-			tconfs = append(tconfs, clone)
-		}
-	} else {
-		loadBalancerUsed = true
-		url := tconf.GetConnectionUri()
-		conn, err := pgx.Connect(context.Background(), url)
-		if err != nil {
-			utils.ErrExit("Unable to connect to database: %v", err)
-		}
-		defer conn.Close(context.Background())
-
-		rows, err := conn.Query(context.Background(), GET_YB_SERVERS_QUERY)
-		if err != nil {
-			utils.ErrExit("error in query rows from yb_servers(): %v", err)
-		}
-		defer rows.Close()
-
-		var hostPorts []string
-		for rows.Next() {
-			clone := tconf.Clone()
-			var host, nodeType, cloud, region, zone, public_ip string
-			var port, num_conns int
-			if err := rows.Scan(&host, &port, &num_conns,
-				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
-			}
-
-			// check if given host is one of the server in cluster
-			if loadBalancerUsed {
-				if isSeedTargetHost(host, public_ip) {
-					loadBalancerUsed = false
-				}
-			}
-
-			if usePublicIp {
-				if public_ip != "" {
-					clone.Host = public_ip
-				} else {
-					var msg string
-					if host == "" {
-						msg = fmt.Sprintf("public ip is not available for host: %s."+
-							"Refer to help for more details for how to enable public ip.", host)
-					} else {
-						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
-							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
-					}
-					utils.ErrExit(msg)
-				}
-			} else {
-				clone.Host = host
-			}
-
-			clone.Port = port
-			clone.Uri = getCloneConnectionUri(clone)
-			tconfs = append(tconfs, clone)
-
-			hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
-		}
-		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
-	}
-
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		utils.PrintAndLog(LB_WARN_MSG)
-		if parallelism == -1 {
-			parallelism = 2 * len(tconfs)
-			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
-		}
-		tconfs = []*tgtdb.TargetConf{&tconf}
-	} else {
-		tconfs = testAndFilterYbServers(tconfs)
-	}
-	return tconfs
-}
-
-func fetchDefaultParllelJobs(tconfs []*tgtdb.TargetConf) int {
-	totalCores := 0
-	targetCores := 0
-	for _, tconf := range tconfs {
-		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{tconf.Uri})[0])
-		conn, err := pgx.Connect(context.Background(), tconf.Uri)
-		if err != nil {
-			log.Warnf("Unable to reach target while querying cores: %v", err)
-			return len(tconfs) * 2
-		}
-		defer conn.Close(context.Background())
-
-		cmd := "CREATE TEMP TABLE yb_voyager_cores(num_cores int);"
-		_, err = conn.Exec(context.Background(), cmd)
-		if err != nil {
-			log.Warnf("Unable to create tables on target DB: %v", err)
-			return len(tconfs) * 2
-		}
-
-		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
-		_, err = conn.Exec(context.Background(), cmd)
-		if err != nil {
-			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{tconf.Uri}), err)
-			return len(tconfs) * 2
-		}
-
-		cmd = "SELECT num_cores FROM yb_voyager_cores;"
-		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
-			log.Warnf("Error while running query %s: %v", cmd, err)
-			return len(tconfs) * 2
-		}
-		totalCores += targetCores
-	}
-	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
-		return 3
-	}
-	return totalCores / 2
-}
-
-// this function will check the reachability to each of the nodes and returns list of ones which are reachable
-func testAndFilterYbServers(tconfs []*tgtdb.TargetConf) []*tgtdb.TargetConf {
-	var availableTargets []*tgtdb.TargetConf
-
-	for _, tconf := range tconfs {
-		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTargetConf(tconf)))
-		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
-		if err != nil {
-			utils.PrintAndLog("unable to use yb-server %q: %v", tconf.Host, err)
-		} else {
-			availableTargets = append(availableTargets, tconf)
-			conn.Close(context.Background())
-		}
-	}
-
-	if len(availableTargets) == 0 {
-		utils.ErrExit("no yb servers available for data import")
-	}
-	return availableTargets
-}
-
-func isSeedTargetHost(names ...string) bool {
-	var allIPs []string
-	for _, name := range names {
-		if name != "" {
-			allIPs = append(allIPs, utils.LookupIP(name)...)
-		}
-	}
-
-	seedHostIPs := utils.LookupIP(tconf.Host)
-	for _, seedHostIP := range seedHostIPs {
-		if slices.Contains(allIPs, seedHostIP) {
-			log.Infof("Target.Host=%s matched with one of ips in %v\n", seedHostIP, allIPs)
-			return true
-		}
-	}
-	return false
-}
-
-func getCloneConnectionUri(clone *tgtdb.TargetConf) string {
-	var cloneConnectionUri string
-	if clone.Uri == "" {
-		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
-		cloneConnectionUri = clone.GetConnectionUri()
-	} else {
-		targetConnectionUri, err := url.Parse(clone.Uri)
-		if err == nil {
-			targetConnectionUri.Host = fmt.Sprintf("%s:%d", clone.Host, clone.Port)
-			cloneConnectionUri = fmt.Sprint(targetConnectionUri)
-		} else {
-			panic(err)
-		}
-	}
-	return cloneConnectionUri
-}
-
 func importData(importFileTasks []*ImportFileTask) {
+	payload := callhome.GetPayload(exportDir)
+
+	tconf.Schema = strings.ToLower(tconf.Schema)
+
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {
@@ -347,34 +144,17 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	tconf.Schema = strings.ToLower(tconf.Schema)
+	err = tdb.InitConnPool()
+	if err != nil {
+		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
+	}
+
 	targetDBVersion := tdb.GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
-
-	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
-	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
-	tconfs := getYBServers()
-	payload.NodeCount = len(tconfs)
+	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
-	var targetUriList []string
-	for _, tconf := range tconfs {
-		targetUriList = append(targetUriList, tconf.Uri)
-	}
-	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
-
-	if parallelism == -1 {
-		parallelism = fetchDefaultParllelJobs(tconfs)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
-	}
-
-	params := &tgtdb.ConnectionParams{
-		NumConnections:    parallelism,
-		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(),
-	}
-	connPool := tgtdb.NewConnectionPool(params)
-	err = createVoyagerSchemaOnTarget(connPool)
+	err = createVoyagerSchemaOnTarget(tdb.ConnPool())
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
@@ -384,7 +164,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if tconf.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
-
+	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -402,7 +182,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		poolSize := parallelism * 2
+		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
 			// The code can produce `poolSize` number of batches at a time. But, it can consume only
@@ -416,7 +196,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			updateProgressFn := func(progressAmount int64) {
 				progressReporter.AddProgressAmount(task, progressAmount)
 			}
-			importFile(state, task, connPool, updateProgressFn)
+			importFile(state, task, tdb.ConnPool(), updateProgressFn)
 			batchImportPool.Wait()                // Wait for the file import to finish.
 			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 		}
@@ -431,7 +211,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		if sourceDBType == POSTGRESQL {
 			targetSchema = ""
 		}
-		err = streamChanges(connPool, targetSchema)
+		err = streamChanges(tdb.ConnPool(), targetSchema)
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)
 		}
@@ -1163,78 +943,6 @@ func getCopyCommand(table string) string {
 		log.Infof("No COPY command for table %q", table)
 	}
 	return "" // no-op
-}
-
-func getYBSessionInitScript() []string {
-	var sessionVars []string
-	if checkSessionVariableSupport(SET_CLIENT_ENCODING_TO_UTF8) {
-		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
-	}
-	if checkSessionVariableSupport(SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
-		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
-	}
-
-	if enableUpsert {
-		// upsert_mode parameters was introduced later than yb_disable_transactional writes in yb releases
-		// hence if upsert_mode is supported then its safe to assume yb_disable_transactional_writes is already there
-		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
-			sessionVars = append(sessionVars, SET_YB_ENABLE_UPSERT_MODE)
-			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
-			if disableTransactionalWrites {
-				if checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
-					sessionVars = append(sessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
-				} else {
-					disableTransactionalWrites = false
-				}
-			}
-		} else {
-			log.Infof("Falling back to transactional inserts of batches during data import")
-		}
-	}
-
-	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
-	if !utils.FileOrFolderExists(sessionVarsPath) {
-		log.Infof("YBSessionInitScript: %v\n", sessionVars)
-		return sessionVars
-	}
-
-	varsFile, err := os.Open(sessionVarsPath)
-	if err != nil {
-		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
-		log.Infof("YBSessionInitScript: %v\n", sessionVars)
-		return sessionVars
-	}
-	defer varsFile.Close()
-	fileScanner := bufio.NewScanner(varsFile)
-
-	var curLine string
-	for fileScanner.Scan() {
-		curLine = strings.TrimSpace(fileScanner.Text())
-		if curLine != "" && checkSessionVariableSupport(curLine) {
-			sessionVars = append(sessionVars, curLine)
-		}
-	}
-	log.Infof("YBSessionInitScript: %v\n", sessionVars)
-	return sessionVars
-}
-
-func checkSessionVariableSupport(sqlStmt string) bool {
-	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
-	if err != nil {
-		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
-	}
-	defer conn.Close(context.Background())
-
-	_, err = conn.Exec(context.Background(), sqlStmt)
-	if err != nil {
-		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
-			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
-		} else {
-			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
-		}
-	}
-
-	return err == nil
 }
 
 func checkExportDataDoneFlag() {
