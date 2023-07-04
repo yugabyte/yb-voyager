@@ -159,7 +159,7 @@ func setImportTableListFlag() {
 	for _, task := range importFileTasks {
 		tableList[task.TableName] = true
 	}
-	target.TableList = strings.Join(maps.Keys(tableList), ",")
+	tconf.TableList = strings.Join(maps.Keys(tableList), ",")
 }
 
 func prepareImportFileTasks() []*ImportFileTask {

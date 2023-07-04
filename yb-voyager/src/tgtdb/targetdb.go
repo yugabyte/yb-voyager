@@ -28,12 +28,12 @@ import (
 
 type TargetDB struct {
 	sync.Mutex
-	target *Target
-	conn   *pgx.Conn
+	tconf *TargetConf
+	conn  *pgx.Conn
 }
 
-func newTargetDB(target *Target) *TargetDB {
-	return &TargetDB{target: target}
+func newTargetDB(tconf *TargetConf) *TargetDB {
+	return &TargetDB{tconf: tconf}
 }
 
 // TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
@@ -51,7 +51,7 @@ func (tdb *TargetDB) Connect() error {
 	}
 	tdb.Mutex.Lock()
 	defer tdb.Mutex.Unlock()
-	connStr := tdb.target.GetConnectionUri()
+	connStr := tdb.tconf.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return fmt.Errorf("connect to target db: %s", err)
@@ -79,17 +79,17 @@ func (tdb *TargetDB) EnsureConnected() {
 }
 
 func (tdb *TargetDB) GetVersion() string {
-	if tdb.target.dbVersion != "" {
-		return tdb.target.dbVersion
+	if tdb.tconf.dbVersion != "" {
+		return tdb.tconf.dbVersion
 	}
 
 	tdb.EnsureConnected()
 	tdb.Mutex.Lock()
 	defer tdb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.target.dbVersion)
+	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.tconf.dbVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return tdb.target.dbVersion
+	return tdb.tconf.dbVersion
 }
