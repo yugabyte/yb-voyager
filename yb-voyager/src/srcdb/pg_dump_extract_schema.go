@@ -30,6 +30,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var pgDumpArgs PgDumpArgs
+
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string) {
 	fmt.Printf("exporting the schema %10s", "")
 	go utils.Wait("done\n", "")
@@ -39,14 +41,12 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs := fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --extension "*" --load-via-partition-root`,
-		source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
-	if !source.CommentsOnObjects {
-		pgDumpArgs = fmt.Sprintf(`%s --no-comments`, pgDumpArgs)
-	}
+	pgDumpArgs.Schema = source.Schema
+	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
+	args := source.getPgDumpSchemaArgs()
 	os.Setenv("PGPASSWORD", source.Password)
 	defer os.Unsetenv("PGPASSWORD")
-	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
+	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
