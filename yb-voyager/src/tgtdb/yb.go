@@ -36,6 +36,14 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return &TargetYugabyteDB{tconf: tconf}
 }
 
+func (yb *TargetYugabyteDB) Init() error {
+	return yb.connect()
+}
+
+func (yb *TargetYugabyteDB) Finalize() {
+	yb.disconnect()
+}
+
 // TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
 func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
 	if yb.conn == nil {
@@ -44,7 +52,7 @@ func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
 	return yb.conn
 }
 
-func (yb *TargetYugabyteDB) Connect() error {
+func (yb *TargetYugabyteDB) connect() error {
 	if yb.conn != nil {
 		// Already connected.
 		return nil
@@ -60,7 +68,7 @@ func (yb *TargetYugabyteDB) Connect() error {
 	return nil
 }
 
-func (yb *TargetYugabyteDB) Disconnect() {
+func (yb *TargetYugabyteDB) disconnect() {
 	if yb.conn == nil {
 		log.Infof("No connection to the target database to close")
 	}
@@ -72,7 +80,7 @@ func (yb *TargetYugabyteDB) Disconnect() {
 }
 
 func (yb *TargetYugabyteDB) EnsureConnected() {
-	err := yb.Connect()
+	err := yb.connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}

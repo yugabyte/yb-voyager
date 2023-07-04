@@ -338,11 +338,11 @@ func getCloneConnectionUri(clone *tgtdb.TargetConf) string {
 
 func importData(importFileTasks []*ImportFileTask) {
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Connect()
+	err := tdb.Init()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
+		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
-	defer tdb.Disconnect()
+	defer tdb.Finalize()
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
 	targetDBVersion := tdb.GetVersion()
