@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/jackc/pgx/v4"
@@ -36,7 +37,7 @@ import (
 type TargetYugabyteDB struct {
 	sync.Mutex
 	tconf    *TargetConf
-	conn     *pgx.Conn
+	conn_    *pgx.Conn
 	connPool *ConnectionPool
 }
 
@@ -54,37 +55,55 @@ func (yb *TargetYugabyteDB) Finalize() {
 
 // TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
 func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
-	if yb.conn == nil {
+	if yb.conn_ == nil {
 		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
 	}
-	return yb.conn
+	return yb.conn_
+}
+
+func (yb *TargetYugabyteDB) reconnect() error {
+	yb.Mutex.Lock()
+	defer yb.Mutex.Unlock()
+
+	var err error
+	yb.disconnect()
+	for attempt := 1; attempt < 5; attempt++ {
+		err = yb.connect()
+		if err == nil {
+			return nil
+		}
+		log.Infof("Failed to reconnect to the target database: %s", err)
+		time.Sleep(time.Duration(attempt*2) * time.Second)
+		// Retry.
+	}
+	return fmt.Errorf("reconnect to target db: %w", err)
 }
 
 func (yb *TargetYugabyteDB) connect() error {
-	if yb.conn != nil {
+	if yb.conn_ != nil {
 		// Already connected.
 		return nil
 	}
-	yb.Mutex.Lock()
-	defer yb.Mutex.Unlock()
 	connStr := yb.tconf.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		return fmt.Errorf("connect to target db: %s", err)
+		return fmt.Errorf("connect to target db: %w", err)
 	}
-	yb.conn = conn
+	yb.conn_ = conn
 	return nil
 }
 
 func (yb *TargetYugabyteDB) disconnect() {
-	if yb.conn == nil {
-		log.Infof("No connection to the target database to close")
+	if yb.conn_ == nil {
+		// Already disconnected.
+		return
 	}
 
-	err := yb.conn.Close(context.Background())
+	err := yb.conn_.Close(context.Background())
 	if err != nil {
 		log.Infof("Failed to close connection to the target database: %s", err)
 	}
+	yb.conn_ = nil
 }
 
 func (yb *TargetYugabyteDB) EnsureConnected() {
@@ -103,7 +122,7 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	yb.Mutex.Lock()
 	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.conn.QueryRow(context.Background(), query).Scan(&yb.tconf.dbVersion)
+	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.dbVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
@@ -134,10 +153,57 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	return nil
 }
 
+// The _v2 is appended in the table name so that the import code doesn't
+// try to use the similar table created by the voyager 1.3 and earlier.
+// Voyager 1.4 uses import data state format that is incompatible from
+// the earlier versions.
+const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
+
+func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
+	cmds := []string{
+		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			data_file_name VARCHAR(250),
+			batch_number INT,
+			schema_name VARCHAR(250),
+			table_name VARCHAR(250),
+			rows_imported BIGINT,
+			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
+		);`, BATCH_METADATA_TABLE_NAME),
+	}
+
+	maxAttempts := 12
+	var err error
+outer:
+	for _, cmd := range cmds {
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			log.Infof("Executing on target: [%s]", cmd)
+			conn := yb.Conn()
+			_, err = conn.Exec(context.Background(), cmd)
+			if err == nil {
+				// No error. Move on to the next command.
+				continue outer
+			}
+			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
+			time.Sleep(5 * time.Second)
+			err = yb.reconnect()
+			if err != nil {
+				break
+			}
+		}
+		if err != nil {
+			return fmt.Errorf("create ybvoyager schema on target: %w", err)
+		}
+	}
+	return nil
+}
+
 // TODO Do not export this method. This is temporary--until we refactor all target db access.
 func (yb *TargetYugabyteDB) ConnPool() *ConnectionPool {
 	return yb.connPool
 }
+
+//==============================================================================
 
 const (
 	LB_WARN_MSG = "--target-db-host is a load balancer IP which will be used to create connections for data import.\n" +
