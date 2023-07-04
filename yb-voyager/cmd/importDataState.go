@@ -28,7 +28,12 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
+)
+
+const (
+	BATCH_METADATA_TABLE_NAME = tgtdb.BATCH_METADATA_TABLE_NAME
 )
 
 /*

@@ -47,12 +47,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// The _v2 is appended in the table name so that the import code doesn't
-// try to use the similar table created by the voyager 1.3 and earlier.
-// Voyager 1.4 uses import data state format that is incompatible from
-// the earlier versions.
-const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
-
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var parallelism = 0
@@ -154,7 +148,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	payload.TargetDBVersion = targetDBVersion
 	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
-	err = createVoyagerSchemaOnTarget(tdb.ConnPool())
+	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
@@ -245,49 +239,6 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 		}
 		return rowCount
 	}
-}
-
-// TODO: Move this to importDataState.go .
-func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
-	cmds := []string{
-		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			data_file_name VARCHAR(250),
-			batch_number INT,
-			schema_name VARCHAR(250),
-			table_name VARCHAR(250),
-			rows_imported BIGINT,
-			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
-		);`, BATCH_METADATA_TABLE_NAME),
-	}
-
-	maxAttempts := 12
-	var conn *pgx.Conn
-	var err error
-outer:
-	for _, cmd := range cmds {
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			log.Infof("Executing on target: [%s]", cmd)
-			if conn == nil {
-				conn = newTargetConn()
-			}
-			_, err = conn.Exec(context.Background(), cmd)
-			if err == nil {
-				continue outer
-			}
-			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
-			time.Sleep(5 * time.Second)
-			conn.Close(context.Background())
-			conn = nil
-		}
-		if err != nil {
-			return fmt.Errorf("create ybvoyager schema on target: %w", err)
-		}
-	}
-	if conn != nil {
-		conn.Close(context.Background())
-	}
-	return nil
 }
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
