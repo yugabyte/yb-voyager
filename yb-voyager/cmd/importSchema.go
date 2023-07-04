@@ -62,11 +62,11 @@ var flagRefreshMViews bool
 
 func importSchema() {
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Connect()
+	err := tdb.Init()
 	if err != nil {
-		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
+		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
-	defer tdb.Disconnect()
+	defer tdb.Finalize()
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
 	conn := tdb.Conn()
