@@ -643,7 +643,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			if err != nil {
 				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
 			}
-			if header != "" && dataFileDescriptor.FileFormat == "csv" {
+			if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
 				err = batchWriter.WriteHeader(header)
 				if err != nil {
 					utils.ErrExit("writing header for table %q: %s", t, err)
