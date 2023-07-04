@@ -30,6 +30,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -60,15 +61,16 @@ var importObjectsInStraightOrder bool
 var flagRefreshMViews bool
 
 func importSchema() {
-	err := tconf.DB().Connect()
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
-	defer tconf.DB().Disconnect()
+	defer tdb.Disconnect()
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
-	conn := tconf.DB().Conn()
-	targetDBVersion := tconf.DB().GetVersion()
+	conn := tdb.Conn()
+	targetDBVersion := tdb.GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)

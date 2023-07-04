@@ -26,70 +26,70 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type TargetDB struct {
+type TargetYugabyteDB struct {
 	sync.Mutex
 	tconf *TargetConf
 	conn  *pgx.Conn
 }
 
-func newTargetDB(tconf *TargetConf) *TargetDB {
-	return &TargetDB{tconf: tconf}
+func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
+	return &TargetYugabyteDB{tconf: tconf}
 }
 
 // TODO We should not export `Conn`. This is temporary--until we refactor all target db access.
-func (tdb *TargetDB) Conn() *pgx.Conn {
-	if tdb.conn == nil {
+func (yb *TargetYugabyteDB) Conn() *pgx.Conn {
+	if yb.conn == nil {
 		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
 	}
-	return tdb.conn
+	return yb.conn
 }
 
-func (tdb *TargetDB) Connect() error {
-	if tdb.conn != nil {
+func (yb *TargetYugabyteDB) Connect() error {
+	if yb.conn != nil {
 		// Already connected.
 		return nil
 	}
-	tdb.Mutex.Lock()
-	defer tdb.Mutex.Unlock()
-	connStr := tdb.tconf.GetConnectionUri()
+	yb.Mutex.Lock()
+	defer yb.Mutex.Unlock()
+	connStr := yb.tconf.GetConnectionUri()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
 		return fmt.Errorf("connect to target db: %s", err)
 	}
-	tdb.conn = conn
+	yb.conn = conn
 	return nil
 }
 
-func (tdb *TargetDB) Disconnect() {
-	if tdb.conn == nil {
+func (yb *TargetYugabyteDB) Disconnect() {
+	if yb.conn == nil {
 		log.Infof("No connection to the target database to close")
 	}
 
-	err := tdb.conn.Close(context.Background())
+	err := yb.conn.Close(context.Background())
 	if err != nil {
 		log.Infof("Failed to close connection to the target database: %s", err)
 	}
 }
 
-func (tdb *TargetDB) EnsureConnected() {
-	err := tdb.Connect()
+func (yb *TargetYugabyteDB) EnsureConnected() {
+	err := yb.Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
 }
 
-func (tdb *TargetDB) GetVersion() string {
-	if tdb.tconf.dbVersion != "" {
-		return tdb.tconf.dbVersion
+func (yb *TargetYugabyteDB) GetVersion() string {
+	if yb.tconf.dbVersion != "" {
+		return yb.tconf.dbVersion
 	}
 
-	tdb.EnsureConnected()
-	tdb.Mutex.Lock()
-	defer tdb.Mutex.Unlock()
+	yb.EnsureConnected()
+	yb.Mutex.Lock()
+	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := tdb.conn.QueryRow(context.Background(), query).Scan(&tdb.tconf.dbVersion)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&yb.tconf.dbVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return tdb.tconf.dbVersion
+	return yb.tconf.dbVersion
 }

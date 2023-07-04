@@ -45,21 +45,11 @@ type TargetConf struct {
 	ImportObjects        string
 	ExcludeImportObjects string
 	dbVersion            string
-
-	db *TargetDB
 }
 
 func (t *TargetConf) Clone() *TargetConf {
 	clone := *t
-	clone.db = nil
 	return &clone
-}
-
-func (t *TargetConf) DB() *TargetDB {
-	if t.db == nil {
-		t.db = newTargetDB(t)
-	}
-	return t.db
 }
 
 func (t *TargetConf) GetConnectionUri() string {
