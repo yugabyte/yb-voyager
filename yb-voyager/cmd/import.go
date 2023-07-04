@@ -64,7 +64,7 @@ func validateImportFlags(cmd *cobra.Command) {
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
 	validateTargetSchemaFlag()
 	// For beta2.0 release (and onwards until further notice)
-	if disableTransactionalWrites {
+	if tconf.DisableTransactionalWrites {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(batchSize)
@@ -126,23 +126,23 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"list of tables to import data")
 	cmd.Flags().Int64Var(&batchSize, "batch-size", DEFAULT_BATCH_SIZE,
 		"maximum number of rows in each batch generated during import.")
-	cmd.Flags().IntVar(&parallelism, "parallel-jobs", -1,
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster")
-	cmd.Flags().BoolVar(&enableUpsert, "enable-upsert", true,
+	cmd.Flags().BoolVar(&tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")
-	cmd.Flags().BoolVar(&usePublicIp, "use-public-ip", false,
+	cmd.Flags().BoolVar(&tconf.UsePublicIP, "use-public-ip", false,
 		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
 			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
-	cmd.Flags().StringVar(&targetEndpoints, "target-endpoints", "",
+	cmd.Flags().StringVar(&tconf.TargetEndpoints, "target-endpoints", "",
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
-	cmd.Flags().BoolVar(&disableTransactionalWrites, "disable-transactional-writes", false,
+	cmd.Flags().BoolVar(&tconf.DisableTransactionalWrites, "disable-transactional-writes", false,
 		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
