@@ -340,17 +340,18 @@ func getCloneConnectionUri(clone *tgtdb.TargetConf) string {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
-	err := tconf.DB().Connect()
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
-	defer tconf.DB().Disconnect()
+	defer tdb.Disconnect()
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
-	targetDBVersion := tconf.DB().GetVersion()
+	targetDBVersion := tdb.GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
+	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
 	tconfs := getYBServers()
