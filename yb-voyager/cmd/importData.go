@@ -49,7 +49,6 @@ import (
 
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
-var parallelism = 0
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
@@ -150,11 +149,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	log.Infof("parallelism=%v", parallelism)
-	payload.ParallelJobs = parallelism
-	if tconf.VerboseMode {
-		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
-	}
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
