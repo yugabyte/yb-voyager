@@ -90,7 +90,7 @@ var importDataCmd = &cobra.Command{
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
-	target.ImportMode = true
+	tconf.ImportMode = true
 	checkExportDataDoneFlag()
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	sqlname.SourceDBType = sourceDBType
@@ -126,9 +126,9 @@ func discoverFilesToImport() []*ImportFileTask {
 
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
-	includeList := utils.CsvStringToSlice(target.TableList)
+	includeList := utils.CsvStringToSlice(tconf.TableList)
 	log.Infof("includeList: %v", includeList)
-	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
+	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
@@ -144,17 +144,17 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
-func getYBServers() []*tgtdb.Target {
-	var targets []*tgtdb.Target
+func getYBServers() []*tgtdb.TargetConf {
+	var tconfs []*tgtdb.TargetConf
 
 	if targetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
-		utils.PrintIfTrue(msg, target.VerboseMode)
+		utils.PrintIfTrue(msg, tconf.VerboseMode)
 		log.Infof(msg)
 
 		ybServers := utils.CsvStringToSlice(targetEndpoints)
 		for _, ybServer := range ybServers {
-			clone := target.Clone()
+			clone := tconf.Clone()
 
 			if strings.Contains(ybServer, ":") {
 				clone.Host = strings.Split(ybServer, ":")[0]
@@ -169,12 +169,12 @@ func getYBServers() []*tgtdb.Target {
 			}
 
 			clone.Uri = getCloneConnectionUri(clone)
-			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTarget(clone))
-			targets = append(targets, clone)
+			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTargetConf(clone))
+			tconfs = append(tconfs, clone)
 		}
 	} else {
 		loadBalancerUsed = true
-		url := target.GetConnectionUri()
+		url := tconf.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
 			utils.ErrExit("Unable to connect to database: %v", err)
@@ -189,7 +189,7 @@ func getYBServers() []*tgtdb.Target {
 
 		var hostPorts []string
 		for rows.Next() {
-			clone := target.Clone()
+			clone := tconf.Clone()
 			var host, nodeType, cloud, region, zone, public_ip string
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
@@ -224,7 +224,7 @@ func getYBServers() []*tgtdb.Target {
 
 			clone.Port = port
 			clone.Uri = getCloneConnectionUri(clone)
-			targets = append(targets, clone)
+			tconfs = append(tconfs, clone)
 
 			hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
 		}
@@ -234,25 +234,25 @@ func getYBServers() []*tgtdb.Target {
 	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
 		utils.PrintAndLog(LB_WARN_MSG)
 		if parallelism == -1 {
-			parallelism = 2 * len(targets)
+			parallelism = 2 * len(tconfs)
 			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 		}
-		targets = []*tgtdb.Target{&target}
+		tconfs = []*tgtdb.TargetConf{&tconf}
 	} else {
-		targets = testAndFilterYbServers(targets)
+		tconfs = testAndFilterYbServers(tconfs)
 	}
-	return targets
+	return tconfs
 }
 
-func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
+func fetchDefaultParllelJobs(tconfs []*tgtdb.TargetConf) int {
 	totalCores := 0
 	targetCores := 0
-	for _, target := range targets {
-		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{target.Uri})[0])
-		conn, err := pgx.Connect(context.Background(), target.Uri)
+	for _, tconf := range tconfs {
+		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{tconf.Uri})[0])
+		conn, err := pgx.Connect(context.Background(), tconf.Uri)
 		if err != nil {
 			log.Warnf("Unable to reach target while querying cores: %v", err)
-			return len(targets) * 2
+			return len(tconfs) * 2
 		}
 		defer conn.Close(context.Background())
 
@@ -260,20 +260,20 @@ func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
 			log.Warnf("Unable to create tables on target DB: %v", err)
-			return len(targets) * 2
+			return len(tconfs) * 2
 		}
 
 		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
-			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{target.Uri}), err)
-			return len(targets) * 2
+			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{tconf.Uri}), err)
+			return len(tconfs) * 2
 		}
 
 		cmd = "SELECT num_cores FROM yb_voyager_cores;"
 		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
 			log.Warnf("Error while running query %s: %v", cmd, err)
-			return len(targets) * 2
+			return len(tconfs) * 2
 		}
 		totalCores += targetCores
 	}
@@ -284,16 +284,16 @@ func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
 }
 
 // this function will check the reachability to each of the nodes and returns list of ones which are reachable
-func testAndFilterYbServers(targets []*tgtdb.Target) []*tgtdb.Target {
-	var availableTargets []*tgtdb.Target
+func testAndFilterYbServers(tconfs []*tgtdb.TargetConf) []*tgtdb.TargetConf {
+	var availableTargets []*tgtdb.TargetConf
 
-	for _, target := range targets {
-		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTarget(target)))
-		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	for _, tconf := range tconfs {
+		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTargetConf(tconf)))
+		conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 		if err != nil {
-			utils.PrintAndLog("unable to use yb-server %q: %v", target.Host, err)
+			utils.PrintAndLog("unable to use yb-server %q: %v", tconf.Host, err)
 		} else {
-			availableTargets = append(availableTargets, target)
+			availableTargets = append(availableTargets, tconf)
 			conn.Close(context.Background())
 		}
 	}
@@ -312,7 +312,7 @@ func isSeedTargetHost(names ...string) bool {
 		}
 	}
 
-	seedHostIPs := utils.LookupIP(target.Host)
+	seedHostIPs := utils.LookupIP(tconf.Host)
 	for _, seedHostIP := range seedHostIPs {
 		if slices.Contains(allIPs, seedHostIP) {
 			log.Infof("Target.Host=%s matched with one of ips in %v\n", seedHostIP, allIPs)
@@ -322,7 +322,7 @@ func isSeedTargetHost(names ...string) bool {
 	return false
 }
 
-func getCloneConnectionUri(clone *tgtdb.Target) string {
+func getCloneConnectionUri(clone *tgtdb.TargetConf) string {
 	var cloneConnectionUri string
 	if clone.Uri == "" {
 		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
@@ -340,30 +340,30 @@ func getCloneConnectionUri(clone *tgtdb.Target) string {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	utils.PrintAndLog("import of data in %q database started", target.DBName)
-	err := target.DB().Connect()
+	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
+	err := tconf.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the target DB: %s", err)
 	}
-	defer target.DB().Disconnect()
+	defer tconf.DB().Disconnect()
 
-	target.Schema = strings.ToLower(target.Schema)
-	targetDBVersion := target.DB().GetVersion()
+	tconf.Schema = strings.ToLower(tconf.Schema)
+	targetDBVersion := tconf.DB().GetVersion()
 	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)
 	payload.TargetDBVersion = targetDBVersion
-	targets := getYBServers()
-	payload.NodeCount = len(targets)
+	tconfs := getYBServers()
+	payload.NodeCount = len(tconfs)
 
 	var targetUriList []string
-	for _, t := range targets {
-		targetUriList = append(targetUriList, t.Uri)
+	for _, tconf := range tconfs {
+		targetUriList = append(targetUriList, tconf.Uri)
 	}
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if parallelism == -1 {
-		parallelism = fetchDefaultParllelJobs(targets)
+		parallelism = fetchDefaultParllelJobs(tconfs)
 		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
 	}
 
@@ -380,7 +380,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	log.Infof("parallelism=%v", parallelism)
 	payload.ParallelJobs = parallelism
-	if target.VerboseMode {
+	if tconf.VerboseMode {
 		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
 	}
 
@@ -426,7 +426,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	if liveMigration {
 		fmt.Println("streaming changes to target DB...")
-		targetSchema := target.Schema
+		targetSchema := tconf.Schema
 		if sourceDBType == POSTGRESQL {
 			targetSchema = ""
 		}
@@ -829,7 +829,7 @@ func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int
 }
 
 func newTargetConn() *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
@@ -841,24 +841,24 @@ func newTargetConn() *pgx.Conn {
 }
 
 func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || target.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
 		// For PG, schema name is already included in the object name.
 		// No need to set schema if importing in the default schema.
 		return
 	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", target.Schema)
+		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
 	}
 
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
 	}
 
 	if sourceDBType == ORACLE && enableOrafce {
@@ -881,7 +881,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
-	log.Infof("Execute SQL file %q on target %q", file, target.Host)
+	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
 	defer func() {
 		if conn != nil {
@@ -929,7 +929,7 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
-	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmt)
+	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
@@ -970,7 +970,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
 			// "already exists" error. Ignore the error.
-			if target.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
+			if tconf.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
 				err = nil
 			}
 		}
@@ -982,7 +982,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
-			if target.ContinueOnError {
+			if tconf.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 				errString := "/*\n" + err.Error() + "\n*/\n"
 				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
@@ -999,7 +999,7 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
-	return target.Schema // default set to "public"
+	return tconf.Schema // default set to "public"
 }
 
 func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
@@ -1218,7 +1218,7 @@ func getYBSessionInitScript() []string {
 }
 
 func checkSessionVariableSupport(sqlStmt string) bool {
-	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
 		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
 	}

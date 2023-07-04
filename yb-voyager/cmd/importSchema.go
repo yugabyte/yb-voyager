@@ -42,7 +42,7 @@ var importSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		target.ImportMode = true
+		tconf.ImportMode = true
 		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 		importSchema()
 	},
@@ -60,15 +60,15 @@ var importObjectsInStraightOrder bool
 var flagRefreshMViews bool
 
 func importSchema() {
-	err := target.DB().Connect()
+	err := tconf.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to target YB cluster: %s", err)
 	}
-	defer target.DB().Disconnect()
+	defer tconf.DB().Disconnect()
 
-	target.Schema = strings.ToLower(target.Schema)
-	conn := target.DB().Conn()
-	targetDBVersion := target.DB().GetVersion()
+	tconf.Schema = strings.ToLower(tconf.Schema)
+	conn := tconf.DB().Conn()
+	targetDBVersion := tconf.DB().GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)
@@ -237,23 +237,23 @@ func getDDLStmts(objType string) []sqlInfo {
 
 func createTargetSchemas(conn *pgx.Conn) {
 	var targetSchemas []string
-	target.Schema = strings.ToLower(strings.Trim(target.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
+	tconf.Schema = strings.ToLower(strings.Trim(tconf.Schema, "\"")) //trim case sensitivity quotes if needed, convert to lowercase
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
 		source = srcdb.Source{DBType: sourceDBType}
 		targetSchemas = utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "SCHEMA")
 	case "oracle": // ORACLE PACKAGEs are exported as SCHEMAs
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, target.Schema)
+		targetSchemas = append(targetSchemas, tconf.Schema)
 		targetSchemas = append(targetSchemas, utils.GetObjectNameListFromReport(analyzeSchemaInternal(), "PACKAGE")...)
 	case "mysql":
 		source = srcdb.Source{DBType: sourceDBType}
-		targetSchemas = append(targetSchemas, target.Schema)
+		targetSchemas = append(targetSchemas, tconf.Schema)
 
 	}
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
-	utils.PrintAndLog("schemas to be present in target database %q: %v\n", target.DBName, targetSchemas)
+	utils.PrintAndLog("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
 
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
@@ -279,19 +279,19 @@ func createTargetSchemas(conn *pgx.Conn) {
 	}
 
 	if sourceDBType != POSTGRESQL { // with the new schema list flag, pg_dump takes care of all schema creation DDLs
-		schemaExists := checkIfTargetSchemaExists(conn, target.Schema)
-		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", target.Schema)
+		schemaExists := checkIfTargetSchemaExists(conn, tconf.Schema)
+		createSchemaQuery := fmt.Sprintf("CREATE SCHEMA %s", tconf.Schema)
 		/* --target-db-schema(or target.Schema) flag valid for Oracle & MySQL
 		only create target.Schema, other required schemas are created via .sql files */
 		if !schemaExists {
-			utils.PrintAndLog("creating schema '%s' in target database...", target.Schema)
+			utils.PrintAndLog("creating schema '%s' in target database...", tconf.Schema)
 			_, err := conn.Exec(context.Background(), createSchemaQuery)
 			if err != nil {
-				utils.ErrExit("Failed to create %q schema in the target DB: %s", target.Schema, err)
+				utils.ErrExit("Failed to create %q schema in the target DB: %s", tconf.Schema, err)
 			}
 		}
 
-		if target.Schema == YUGABYTEDB_DEFAULT_SCHEMA &&
+		if tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA &&
 			!utils.AskPrompt("do you really want to import into 'public' schema") {
 			utils.ErrExit("User selected not to import in the `public` schema. Exiting.")
 		}

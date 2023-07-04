@@ -231,7 +231,7 @@ func reportSummary() {
 		utils.ErrExit("unable to load migration info: %s", err)
 	}
 
-	if !target.ImportMode { // this info is available only if we are exporting from source
+	if !tconf.ImportMode { // this info is available only if we are exporting from source
 		reportStruct.Summary.DBName = miginfo.SourceDBName
 		reportStruct.Summary.SchemaName = miginfo.SourceDBSchema
 		reportStruct.Summary.DBVersion = miginfo.SourceDBVersion
