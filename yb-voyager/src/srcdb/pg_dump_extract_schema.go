@@ -41,7 +41,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs.Schema = source.Schema
+	pgDumpArgs.Schema = fmt.Sprintf(`"%s"`, source.Schema)
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
 	args := source.getPgDumpSchemaArgs()
 	os.Setenv("PGPASSWORD", source.Password)
