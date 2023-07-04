@@ -643,7 +643,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			if err != nil {
 				utils.ErrExit("initializing batch writer for table %q: %s", t, err)
 			}
-			if header != "" {
+			if header != "" && dataFileDescriptor.FileFormat == "csv" {
 				err = batchWriter.WriteHeader(header)
 				if err != nil {
 					utils.ErrExit("writing header for table %q: %s", t, err)
@@ -1024,7 +1024,7 @@ func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (st
 	defer df.Close()
 	columnNames := quoteColumnNamesIfRequired(df.GetHeader())
 	stmt := fmt.Sprintf(
-		`COPY %s(%s) FROM STDIN WITH (FORMAT CSV, DELIMITER ',', HEADER, ROWS_PER_TRANSACTION %%v);`,
+		`COPY %s(%s) FROM STDIN WITH (FORMAT TEXT, DELIMITER E'\t', ROWS_PER_TRANSACTION %%v);`,
 		tableName, columnNames)
 	return stmt, nil
 }
@@ -1034,8 +1034,8 @@ Valid cases requiring column name quoting:
 1. ReservedKeyWords in case of any source database type
 2. CaseSensitive column names in case of PostgreSQL(Oracle and MySQL columns are exported as case-insensitive by ora2pg)
 */
-func quoteColumnNamesIfRequired(csvHeader string) string {
-	columnNames := strings.Split(csvHeader, ",")
+func quoteColumnNamesIfRequired(txtHeader string) string {
+	columnNames := strings.Split(txtHeader, "\t")
 	for i := 0; i < len(columnNames); i++ {
 		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
 	}
