@@ -164,16 +164,10 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
-	schemaName := getTargetSchemaName(tableName)
-	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
-	res, err := conn.Exec(context.Background(), cmd)
+	err = tdb.CleanFileImportState(filePath, tableName)
 	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
 	}
-	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	return nil
 }
 
