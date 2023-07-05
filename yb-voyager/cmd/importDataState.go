@@ -155,7 +155,7 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
+func (s *ImportDataState) Clean(filePath string, tableName string) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
 	fileStateDir := s.getFileStateDir(filePath, tableName)
 	log.Infof("Removing %q.", fileStateDir)

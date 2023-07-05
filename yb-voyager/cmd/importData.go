@@ -264,9 +264,6 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 }
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
-
 	tableNames := importFileTasksToTableNames(tasks)
 	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
@@ -280,7 +277,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 
 	for _, task := range tasks {
-		err := state.Clean(task.FilePath, task.TableName, conn)
+		err := state.Clean(task.FilePath, task.TableName)
 		if err != nil {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
