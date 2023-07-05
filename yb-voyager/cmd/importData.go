@@ -1024,7 +1024,7 @@ func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (st
 	defer df.Close()
 	columnNames := quoteColumnNamesIfRequired(df.GetHeader())
 	stmt := fmt.Sprintf(
-		`COPY %s(%s) FROM STDIN WITH (FORMAT TEXT, DELIMITER E'\t', ROWS_PER_TRANSACTION %%v);`,
+		`COPY %s(%s) FROM STDIN WITH (FORMAT TEXT, ROWS_PER_TRANSACTION %%v);`,
 		tableName, columnNames)
 	return stmt, nil
 }
