@@ -18,7 +18,6 @@ package cmd
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +30,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -417,7 +415,6 @@ func executePostImportDataSqls() {
 }
 
 func doOneImport(batch *Batch) {
-	connPool := tdb.ConnPool()
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
@@ -435,17 +432,13 @@ func doOneImport(batch *Batch) {
 	}
 	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
 	log.Infof("COPY command: %s", copyCommand)
+
 	var rowsAffected int64
-	attempt := 0
 	sleepIntervalSec := 0
-	copyFn := func(conn *pgx.Conn) (bool, error) {
-		var err error
-		attempt++
-		rowsAffected, err = importBatch(conn, batch, copyCommand)
-		if err == nil ||
-			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
-			attempt == COPY_MAX_RETRY_COUNT {
-			return false, err
+	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
+		rowsAffected, err = tdb.ImportBatch(batch, copyCommand)
+		if err == nil || tdb.IsNonRetryableCopyError(err) {
+			break
 		}
 		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
 		sleepIntervalSec += 10
@@ -455,9 +448,7 @@ func doOneImport(batch *Batch) {
 		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
 			sleepIntervalSec, batch.FilePath, attempt)
 		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-		return true, err
 	}
-	err = connPool.WithConn(copyFn)
 	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
 	if err != nil {
 		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
@@ -466,69 +457,6 @@ func doOneImport(batch *Batch) {
 	if err != nil {
 		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
 	}
-}
-
-func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int64, err error) {
-	var file *os.File
-	file, err = batch.Open()
-	if err != nil {
-		utils.ErrExit("opening batch %s: %s", batch.FilePath, err)
-	}
-	defer file.Close()
-
-	//setting the schema so that COPY command can acesss the table
-	setTargetSchema(conn)
-
-	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
-	ctx := context.Background()
-	var tx pgx.Tx
-	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return 0, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() {
-		var err2 error
-		if err != nil {
-			err2 = tx.Rollback(ctx)
-			if err2 != nil {
-				rowsAffected = 0
-				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
-			}
-		} else {
-			err2 = tx.Commit(ctx)
-			if err2 != nil {
-				rowsAffected = 0
-				err = fmt.Errorf("commit txn: %w", err2)
-			}
-		}
-	}()
-
-	// Check if the split is already imported.
-	var alreadyImported bool
-	alreadyImported, rowsAffected, err = batch.IsAlreadyImported(tx)
-	if err != nil {
-		return 0, err
-	}
-	if alreadyImported {
-		return rowsAffected, nil
-	}
-
-	// Import the split using COPY command.
-	var res pgconn.CommandTag
-	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCmd)
-	if err != nil {
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.FilePath)
-		}
-		return res.RowsAffected(), err
-	}
-
-	err = batch.RecordEntryInDB(tx, res.RowsAffected())
-	if err != nil {
-		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.FilePath, err)
-	}
-	return res.RowsAffected(), err
 }
 
 func newTargetConn() *pgx.Conn {
