@@ -64,7 +64,7 @@ main() {
 	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
-		--has-header --batch-size 1000
+		--has-header --batch-size 1000 --parallel-jobs 2
 
 	step "Export-dir clean up"
 	rm -rf "${EXPORT_DIR}/*"
@@ -72,7 +72,7 @@ main() {
 	# Test for --has-header with --batch-size for a table having bigint and varchar columns
 	step "Import data file: accounts_2m_data.sql -> accounts"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
-			--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
+			--file-table-map "accounts_2m_data.sql:accounts" --parallel-jobs 2 --has-header --batch-size 10000 --null-string "\N"
 		
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}/*"
