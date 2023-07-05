@@ -89,6 +89,7 @@ func (yb *TargetYugabyteDB) connect() error {
 	if err != nil {
 		return fmt.Errorf("connect to target db: %w", err)
 	}
+	yb.setTargetSchema(conn)
 	yb.conn_ = conn
 	return nil
 }
@@ -196,6 +197,26 @@ outer:
 		}
 	}
 	return nil
+}
+
+func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
+	result := []string{}
+
+	for _, table := range tables {
+		log.Infof("Checking if table %q is empty.", table)
+		tmp := false
+		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
+		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
+		if err == pgx.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+		}
+		result = append(result, table)
+	}
+	log.Infof("non empty tables: %v", result)
+	return result
 }
 
 // TODO Do not export this method. This is temporary--until we refactor all target db access.
@@ -484,4 +505,32 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	}
 
 	return err == nil
+}
+
+func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
+	checkSchemaExistsQuery := fmt.Sprintf(
+		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
+		yb.tconf.Schema)
+	var cntSchemaName int
+
+	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
+	} else if cntSchemaName == 0 {
+		utils.ErrExit("schema '%s' does not exist in target", yb.tconf.Schema)
+	}
+
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
+	_, err := conn.Exec(context.Background(), setSchemaQuery)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
+	}
+
+	// append oracle schema in the search_path for orafce
+	// It is okay even if the schema does not exist in the target.
+	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
+	_, err = conn.Exec(context.Background(), updateSearchPath)
+	if err != nil {
+		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+	}
+
 }
