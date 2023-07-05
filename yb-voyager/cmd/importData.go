@@ -268,7 +268,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	defer conn.Close(context.Background())
 
 	tableNames := importFileTasksToTableNames(tasks)
-	nonEmptyTableNames := getNonEmptyTables(conn, tableNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -285,26 +285,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
 	}
-}
-
-func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
-	result := []string{}
-
-	for _, table := range tables {
-		log.Infof("Checking if table %q is empty.", table)
-		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
-		err := conn.QueryRow(context.Background(), stmt).Scan(&tmp)
-		if err == pgx.ErrNoRows {
-			continue
-		}
-		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
-		}
-		result = append(result, table)
-	}
-	log.Infof("non empty tables: %v", result)
-	return result
 }
 
 func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool,
@@ -563,6 +543,7 @@ func newTargetConn() *pgx.Conn {
 	return conn
 }
 
+// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
 func setTargetSchema(conn *pgx.Conn) {
 	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
 		// For PG, schema name is already included in the object name.

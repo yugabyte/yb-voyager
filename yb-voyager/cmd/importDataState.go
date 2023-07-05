@@ -48,7 +48,10 @@ type ImportDataState struct {
 }
 
 func NewImportDataState(exportDir string) *ImportDataState {
-	return &ImportDataState{exportDir: exportDir, stateDir: filepath.Join(exportDir, "metainfo", "import_data_state")}
+	return &ImportDataState{
+		exportDir: exportDir,
+		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state"),
+	}
 }
 
 func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error {
