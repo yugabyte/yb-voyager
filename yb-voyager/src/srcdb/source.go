@@ -337,7 +337,7 @@ func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
 }
 
 func (source *Source) getPgDumpSchemaArgsFromFile() string {
-	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
+	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini")
 	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
 		return ""
 	}
@@ -382,7 +382,7 @@ func (source *Source) getPgDumpSchemaArgsFromFile() string {
 }
 
 func (source *Source) getPgDumpDataArgsFromFile() string {
-	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
+	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini")
 	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
 		return ""
 	}

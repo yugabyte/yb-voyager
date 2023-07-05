@@ -490,7 +490,7 @@ create_base_ora2pg_conf_file() {
 }
 
 create_pg_dump_args_file() {
-	args_file_name="/etc/yb-voyager/pg-dump-args.ini"
+	args_file_name="/etc/yb-voyager/pg_dump-args.ini"
 	sudo mkdir -p /etc/yb-voyager
 	if [ -f "$args_file_name" ]
 	then
@@ -499,14 +499,14 @@ create_pg_dump_args_file() {
 		sudo mv ${args_file_name} ${backup_file_name}
 		output "Overwriting ${args_file_name}. Existing contents are backed up in ${backup_file_name}"
 	fi
-	output "Installing the latest pg-dump-args.ini"
+	output "Installing the latest pg_dump-args.ini"
 
 	if [ "${VERSION}" == "latest" ]
 	then
-		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg-dump-args.ini
+		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
 	else
 		pushd `git rev-parse --show-toplevel` > /dev/null
-		sudo cp ./yb-voyager/src/srcdb/data/pg-dump-args.ini $args_file_name
+		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
 		popd > /dev/null
 	fi	
 }
