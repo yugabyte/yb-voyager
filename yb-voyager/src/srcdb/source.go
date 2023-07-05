@@ -206,9 +206,21 @@ type Ora2pgConfig struct {
 type PgDumpArgs struct {
 	Schema             string
 	SchemaTempFilePath string
+	ExtensionPattern   string
 	TablesListPattern  string
 	DataDirPath        string
+	DataFormat         string
 	ParallelJobs       string
+	NoComments         string
+
+	// default values from template file will be taken
+	SchemaOnly           string
+	NoOwner              string
+	NoPrivileges         string
+	NoTablespaces        string
+	LoadViaPartitionRoot string
+	DataOnly             string
+	NoBlobs              string
 }
 
 func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
@@ -324,69 +336,18 @@ func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
 	return DSN
 }
 
-func (source *Source) getPgDumpSchemaArgs() string {
-	argsTmplStr := "--schema-only --schema={{ .Schema }} --no-owner --file={{ .SchemaTempFilePath }} " +
-		"--no-privileges --no-tablespaces --extension \"*\" --load-via-partition-root "
-	if !source.CommentsOnObjects {
-		argsTmplStr += ` --no-comments`
+func (source *Source) getPgDumpSchemaArgsFromFile() string {
+	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
+	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
+		return ""
 	}
-
-	pgDumpArgsFile := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
-	if utils.FileOrFolderExists(pgDumpArgsFile) {
-		log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFile)
-		iniData, err := ini.Load(pgDumpArgsFile)
-		if err != nil {
-			utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
-		}
-		section := iniData.Section("schema")
-		argsTmplStr = ""
-		for _, key := range section.Keys() {
-			if key.Value() == "true" || key.Value() == "false" {
-				argsTmplStr += fmt.Sprintf(" %s", key.Name())
-			} else {
-				argsTmplStr += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
-			}
-		}
-	}
-
-	tmpl, err := template.New("pg_dump_args").Parse(argsTmplStr)
+	log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFilePath)
+	pgDumpArgsFile, err := os.ReadFile(pgDumpArgsFilePath)
 	if err != nil {
-		utils.ErrExit("Error while parsing pg_dump schema arguments: %v", err)
+		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
 	}
 
-	var output bytes.Buffer
-	err = tmpl.Execute(&output, pgDumpArgs)
-	if err != nil {
-		utils.ErrExit("Error while preparing pg_dump schema arguments: %v", err)
-	}
-
-	return output.String()
-}
-
-func (source *Source) getPgDumpDataArgs() string {
-	argsTmplStr := "--data-only --no-blobs --no-owner --compress=0 --table={{ .TablesListPattern }} " +
-		"--format=d --file={{ .DataDirPath }} --jobs={{ .ParallelJobs }} --no-privileges " +
-		"--no-tablespaces --load-via-partition-root"
-
-	pgDumpArgsFile := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
-	if utils.FileOrFolderExists(pgDumpArgsFile) {
-		log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFile)
-		iniData, err := ini.Load(pgDumpArgsFile)
-		if err != nil {
-			utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
-		}
-		section := iniData.Section("data")
-		argsTmplStr = ""
-		for _, key := range section.Keys() {
-			if key.Value() == "true" || key.Value() == "false" {
-				argsTmplStr += fmt.Sprintf(" %s", key.Name())
-			} else {
-				argsTmplStr += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
-			}
-		}
-	}
-
-	tmpl, err := template.New("pg_dump_args").Parse(argsTmplStr)
+	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
 	if err != nil {
 		utils.ErrExit("Error while parsing pg_dump data arguments: %v", err)
 	}
@@ -397,7 +358,69 @@ func (source *Source) getPgDumpDataArgs() string {
 		utils.ErrExit("Error while preparing pg_dump data arguments: %v", err)
 	}
 
-	return output.String()
+	iniData, err := ini.Load(output.Bytes())
+	if err != nil {
+		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
+	}
+	section := iniData.Section("schema")
+	args := ""
+	for _, key := range section.Keys() {
+		if key.Value() == "false" {
+			continue
+		}
+		if key.Value() == "true" {
+			args += fmt.Sprintf(" %s", key.Name())
+		} else {
+			if key.Name() == "--schema" {
+				args += fmt.Sprintf(` --schema="%s"`, key.Value())
+			} else {
+				args += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
+			}
+		}
+	}
+	return args
+}
+
+func (source *Source) getPgDumpDataArgsFromFile() string {
+	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg-dump-args.ini")
+	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
+		return ""
+	}
+	log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFilePath)
+	pgDumpArgsFile, err := os.ReadFile(pgDumpArgsFilePath)
+	if err != nil {
+		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
+	}
+
+	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
+	if err != nil {
+		utils.ErrExit("Error while parsing pg_dump data arguments: %v", err)
+	}
+
+	var output bytes.Buffer
+	err = tmpl.Execute(&output, pgDumpArgs)
+	if err != nil {
+		utils.ErrExit("Error while preparing pg_dump data arguments: %v", err)
+	}
+
+	iniData, err := ini.Load(output.Bytes())
+	if err != nil {
+		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
+	}
+	section := iniData.Section("data")
+	args := ""
+	for _, key := range section.Keys() {
+		if key.Value() == "false" {
+			continue
+		}
+		if key.Value() == "true" {
+			args += fmt.Sprintf(" %s", key.Name())
+		} else {
+			args += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
+		}
+	}
+
+	return args
 }
 
 func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {

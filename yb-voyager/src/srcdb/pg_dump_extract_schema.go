@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/fatih/color"
@@ -41,9 +42,20 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs.Schema = fmt.Sprintf(`"%s"`, source.Schema)
+	pgDumpArgs.Schema = source.Schema
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
-	args := source.getPgDumpSchemaArgs()
+	pgDumpArgs.NoComments = strconv.FormatBool(!source.CommentsOnObjects)
+	pgDumpArgs.ExtensionPattern = `"*"`
+
+	args := source.getPgDumpSchemaArgsFromFile()
+	if args == "" {
+		args = fmt.Sprintf(`--schema-only --schema "%s" --no-owner -f %s --no-privileges --no-tablespaces --extension "*" --load-via-partition-root`,
+			source.Schema, filepath.Join(exportDir, "temp", "schema.sql"))
+		if !source.CommentsOnObjects {
+			args = fmt.Sprintf(`%s --no-comments`, args)
+		}
+	}
+
 	os.Setenv("PGPASSWORD", source.Password)
 	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)

@@ -44,7 +44,14 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs.DataDirPath = filepath.Join(exportDir, "data")
 	pgDumpArgs.TablesListPattern = createTableListPatterns(tableList)
 	pgDumpArgs.ParallelJobs = strconv.Itoa(source.NumConnections)
-	args := source.getPgDumpDataArgs()
+	pgDumpArgs.DataFormat = "directory"
+
+	args := source.getPgDumpDataArgsFromFile()
+	if args == "" {
+		args = fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
+			pgDumpArgs.TablesListPattern, pgDumpArgs.DataDirPath, source.NumConnections)
+	}
+
 	os.Setenv("PGPASSWORD", source.Password)
 	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
@@ -59,7 +66,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		log.Infof("%s", outbuf.String())
 	}
 	if err != nil {
-		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/logs/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
@@ -119,7 +126,6 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 
 func createTableListPatterns(tableList []*sqlname.SourceName) string {
 	var tableListPattern string
-
 	for _, table := range tableList {
 		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted)
 	}
