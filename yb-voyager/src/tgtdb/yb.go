@@ -219,6 +219,20 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
 	return result
 }
 
+func (yb *TargetYugabyteDB) CleanFileImportState(filePath, tableName string) error {
+	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
+	schemaName := yb.getTargetSchemaName(tableName)
+	cmd := fmt.Sprintf(
+		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
+		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
+	res, err := yb.Conn().Exec(context.Background(), cmd)
+	if err != nil {
+		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+	}
+	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
+	return nil
+}
+
 // TODO Do not export this method. This is temporary--until we refactor all target db access.
 func (yb *TargetYugabyteDB) ConnPool() *ConnectionPool {
 	return yb.connPool
@@ -533,4 +547,12 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
 		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
 	}
 
+}
+
+func (yb *TargetYugabyteDB) getTargetSchemaName(tableName string) string {
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		return parts[0]
+	}
+	return yb.tconf.Schema // default set to "public"
 }

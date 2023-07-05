@@ -698,6 +698,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+// TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
