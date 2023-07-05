@@ -60,14 +60,14 @@ main() {
 	step "Export-dir clean up"
 	rm -rf "${EXPORT_DIR}/*"
 
-	# # Test for multiple table files import
-	# step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-	# 	--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
-	# 	--has-header --batch-size 1000
+	# Test for multiple table files import
+	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
+		--has-header --batch-size 1000
 
-	# step "Export-dir clean up"
-	# rm -rf "${EXPORT_DIR}/*"
+	step "Export-dir clean up"
+	rm -rf "${EXPORT_DIR}/*"
 
 	# # Test for --has-header with --batch-size for a table having bigint and varchar columns
 	# step "Import data file: accounts_2m_data.sql -> accounts"
@@ -203,30 +203,30 @@ main() {
 		--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
 
 ################################################################################################################
-	# # Test import from s3 (text file)
-	# step "Import data file from S3 (text): text_test.text -> s3_text"
-	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-	# 		--file-table-map "text_test.text:s3_text"
+	# Test import from s3 (text file)
+	step "Import data file from S3 (text): text_test.text -> s3_text"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "text_test.text:s3_text"
 
-	# # Test import from s3 (csv)
-	# step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
-	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-	# 		--file-table-map "csv_test.csv:s3_csv"
+	# Test import from s3 (csv)
+	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
+	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+			--file-table-map "csv_test.csv:s3_csv"
 	
-	# # Test multi-table import from s3
-	# step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
-	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-	# 		--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
+	# Test multi-table import from s3
+	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
 
-	# # Test csv with header import from s3
-	# step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
-	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-	# 		--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
+	# Test csv with header import from s3
+	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
+	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
 
-	# # Test larger import from s3
-	# step "Import large data file from S3: volume.text-> s3_volume"
-	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-	# 		--file-table-map "volume_test:s3_volume"
+	# Test larger import from s3
+	step "Import large data file from S3: volume.text-> s3_volume"
+	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+			--file-table-map "volume_test:s3_volume"
 
 #######################################################################################################################
 		
