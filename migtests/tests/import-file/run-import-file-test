@@ -69,14 +69,13 @@ main() {
 	step "Export-dir clean up"
 	rm -rf "${EXPORT_DIR}/*"
 
-	# # Test for --has-header with --batch-size for a table having bigint and varchar columns
-	# step "Import data file: accounts_2m_data.sql -> accounts"
-	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
-	# 		--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
+	# Test for --has-header with --batch-size for a table having bigint and varchar columns
+	step "Import data file: accounts_2m_data.sql -> accounts"
+	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
+			--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
 		
-	# step "Clean up"
-	# rm -rf "${EXPORT_DIR}/*"
-	# run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	step "Clean up"
+	rm -rf "${EXPORT_DIR}/*"
 
 	# step "Create target database."
 	# run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
