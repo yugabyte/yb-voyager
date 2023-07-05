@@ -46,9 +46,3 @@ var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
-
-var NonRetryCopyErrors = []string{
-	"Sending too long RPC message",
-	"invalid input syntax",
-	"violates unique constraint",
-}
