@@ -396,7 +396,7 @@ func submitBatch(batch *Batch, updateProgressFn func(int64)) {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		doOneImport(batch)
+		importBatch(batch)
 		if reportProgressInBytes {
 			updateProgressFn(batch.ByteCount)
 		} else {
@@ -414,7 +414,7 @@ func executePostImportDataSqls() {
 	}
 }
 
-func doOneImport(batch *Batch) {
+func importBatch(batch *Batch) {
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
