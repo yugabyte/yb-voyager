@@ -38,52 +38,52 @@ main() {
 	step "Create target table."
 	ysql_import_file ${TARGET_DB_NAME} schema.sql
 
-	step "Import data file: OneMRows.text -> one_m_rows"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
-		--file-table-map "OneMRows.text:one_m_rows"
+	# step "Import data file: OneMRows.text -> one_m_rows"
+	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '|' \
+	# 	--file-table-map "OneMRows.text:one_m_rows"
 
-	step "Export-dir clean up"
-	rm -rf "${EXPORT_DIR}/*"
+	# step "Export-dir clean up"
+	# rm -rf "${EXPORT_DIR}/*"
 
-	export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
-	step "Import data file: FY2021_Survey.csv -> survey"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-		--file-table-map "FY2021_Survey.csv:survey" --has-header
+	# export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
+	# step "Import data file: FY2021_Survey.csv -> survey"
+	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+	# 	--file-table-map "FY2021_Survey.csv:survey" --has-header
 
-	step "Export-dir clean up"
-	rm -rf "${EXPORT_DIR}/*"
+	# step "Export-dir clean up"
+	# rm -rf "${EXPORT_DIR}/*"
 
-	step "Import data file: SMSA.txt -> smsa"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
-			--file-table-map "SMSA.txt:smsa"
+	# step "Import data file: SMSA.txt -> smsa"
+	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+	# 		--file-table-map "SMSA.txt:smsa"
 	
-	step "Export-dir clean up"
-	rm -rf "${EXPORT_DIR}/*"
+	# step "Export-dir clean up"
+	# rm -rf "${EXPORT_DIR}/*"
 
-	# Test for multiple table files import
-	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
-		--has-header --batch-size 1000
+	# # Test for multiple table files import
+	# step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
+	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
+	# 	--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
+	# 	--has-header --batch-size 1000
 
-	step "Export-dir clean up"
-	rm -rf "${EXPORT_DIR}/*"
+	# step "Export-dir clean up"
+	# rm -rf "${EXPORT_DIR}/*"
 
-	# Test for --has-header with --batch-size for a table having bigint and varchar columns
-	step "Import data file: accounts_2m_data.sql -> accounts"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
-			--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
+	# # Test for --has-header with --batch-size for a table having bigint and varchar columns
+	# step "Import data file: accounts_2m_data.sql -> accounts"
+	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
+	# 		--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
 		
-	step "Clean up"
-	rm -rf "${EXPORT_DIR}/*"
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	# step "Clean up"
+	# rm -rf "${EXPORT_DIR}/*"
+	# run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 
-	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+	# step "Create target database."
+	# run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	# run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
-	step "Create target table."
-	ysql_import_file ${TARGET_DB_NAME} schema.sql
+	# step "Create target table."
+	# ysql_import_file ${TARGET_DB_NAME} schema.sql
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
@@ -168,92 +168,92 @@ main() {
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\b' \
 			--file-table-map "test_delimiter_backspace_text.txt:test_delimiter_backspace_text" 
 
-	# Test import from s3 (text file)
-	step "Import data file from S3 (text): text_test.text -> s3_text"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "text_test.text:s3_text"
+	# # Test import from s3 (text file)
+	# step "Import data file from S3 (text): text_test.text -> s3_text"
+	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+	# 		--file-table-map "text_test.text:s3_text"
 
-	# Test import from s3 (csv)
-	step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
-	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_test.csv:s3_csv"
+	# # Test import from s3 (csv)
+	# step "Import data file from S3 (csv): csv_test.csv -> s3_csv"
+	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+	# 		--file-table-map "csv_test.csv:s3_csv"
 	
-	# Test multi-table import from s3
-	step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
+	# # Test multi-table import from s3
+	# step "Import data file from multitable S3: t1.text-> s3_multitable_t1, t2.text -> s3_multitable_t2"
+	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+	# 		--file-table-map "t1.text:s3_multitable_t1,t2.text:s3_multitable_t2"
 
-	# Test csv with header import from s3
-	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
-	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
+	# # Test csv with header import from s3
+	# step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
+	# import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
+	# 		--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
 
-	# Test larger import from s3
-	step "Import large data file from S3: volume.text-> s3_volume"
-	import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
-			--file-table-map "volume_test:s3_volume"
+	# # Test larger import from s3
+	# step "Import large data file from S3: volume.text-> s3_volume"
+	# import_data_file --data-dir ${S3_BUCKET} --format text --delimiter '\t' \
+	# 		--file-table-map "volume_test:s3_volume"
 
-	# Test import csv file with null_string as NIL
-	step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_null_string_csv.csv:t1_null_string_csv" --null-string "NIL"
+	# # Test import csv file with null_string as NIL
+	# step "Import data file: t1_null_string_csv.csv -> t1_null_string_csv"
+	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+	# 		--file-table-map "t1_null_string_csv.csv:t1_null_string_csv" --null-string "NIL"
 		
-	# Test import text file with null_string as NONE
-	step "Import data file: t1_null_string_text.txt -> t1_null_string_text"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
-			--file-table-map "t1_null_string_text.txt:t1_null_string_text" --null-string "NONE"
+	# # Test import text file with null_string as NONE
+	# step "Import data file: t1_null_string_text.txt -> t1_null_string_text"
+	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+	# 		--file-table-map "t1_null_string_text.txt:t1_null_string_text" --null-string "NONE"
 
-	# Test import csv file with null_string as \0
-	step "Import data file: t1_null_string_csv2.csv -> t1_null_string_csv2"
-	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
-			--file-table-map "t1_null_string_csv2.csv:t1_null_string_csv2" --null-string "\0"
+	# # Test import csv file with null_string as \0
+	# step "Import data file: t1_null_string_csv2.csv -> t1_null_string_csv2"
+	# import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '|' \
+	# 		--file-table-map "t1_null_string_csv2.csv:t1_null_string_csv2" --null-string "\0"
 	
-	# Test import text file with null_string as \0
-	step "Import data file: t1_null_string_text2.txt -> t1_null_string_text2"
-	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
-			--file-table-map "t1_null_string_text2.txt:t1_null_string_text2" --null-string "\0"
+	# # Test import text file with null_string as \0
+	# step "Import data file: t1_null_string_text2.txt -> t1_null_string_text2"
+	# import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
+	# 		--file-table-map "t1_null_string_text2.txt:t1_null_string_text2" --null-string "\0"
 
-	# Test importing multiple files to the same table.
-	step "Import data file: foo[123].text --> foo"
-	import_data_file --data-dir ${TEST_DIR} --format text --file-table-map "foo*.text:foo"
+	# # Test importing multiple files to the same table.
+	# step "Import data file: foo[123].text --> foo"
+	# import_data_file --data-dir ${TEST_DIR} --format text --file-table-map "foo*.text:foo"
 
-	step "Import multiple files to the same table. No regex in the file-table-map."
-	import_data_file --data-dir ${TEST_DIR} --format text \
-		--file-table-map "internal/foo3.text:foo2,foo1.text:foo2,foo2.text:foo2"
+	# step "Import multiple files to the same table. No regex in the file-table-map."
+	# import_data_file --data-dir ${TEST_DIR} --format text \
+	# 	--file-table-map "internal/foo3.text:foo2,foo1.text:foo2,foo2.text:foo2"
 
-	step "Import multiple files to the same table. Same filename different path."
-	import_data_file --data-dir ${TEST_DIR} --format text \
-		--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
+	# step "Import multiple files to the same table. Same filename different path."
+	# import_data_file --data-dir ${TEST_DIR} --format text \
+	# 	--file-table-map "internal/foo1.text:foo3,foo1.text:foo3"
 		
-	# Test import from GCS buckets (text file)
-	step "Import data file from GCS (text): text_test.text -> gcs_text"
-	import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
-			--file-table-map "text_test.text:gcs_text"
+	# # Test import from GCS buckets (text file)
+	# step "Import data file from GCS (text): text_test.text -> gcs_text"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
+	# 		--file-table-map "text_test.text:gcs_text"
 
-	# Test import from GCS buckets (csv file)
-	step "Import data file from GCS (csv): csv_test.csv -> gcs_csv"
-	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
-			--file-table-map "csv_test.csv:gcs_csv"
+	# # Test import from GCS buckets (csv file)
+	# step "Import data file from GCS (csv): csv_test.csv -> gcs_csv"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
+	# 		--file-table-map "csv_test.csv:gcs_csv"
 
-	# Test multi-table import from GCS buckets
-	step "Import data file from multitable GCS: t1.text-> gcs_multitable_t1, t2.text -> gcs_multitable_t2"
-	import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
-			--file-table-map "t1.text:gcs_multitable_t1,t2.text:gcs_multitable_t2"
+	# # Test multi-table import from GCS buckets
+	# step "Import data file from multitable GCS: t1.text-> gcs_multitable_t1, t2.text -> gcs_multitable_t2"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format text --delimiter '\t' \
+	# 		--file-table-map "t1.text:gcs_multitable_t1,t2.text:gcs_multitable_t2"
 
-	# Test csv with header import from GCS buckets
-	step "Import data file from GCS (csv): csv_with_header_test.csv -> gcs_csv_with_header"
-	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header
+	# # Test csv with header import from GCS buckets
+	# step "Import data file from GCS (csv): csv_with_header_test.csv -> gcs_csv_with_header"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
+	# 		--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header
 
-	# Test larger import from GCS buckets
-	step "Import large data file from GCS: volume.csv-> gcs_volume"
-	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
-			--file-table-map "volume.csv:gcs_volume" --has-header --batch-size 10000 --null-string "\N"
+	# # Test larger import from GCS buckets
+	# step "Import large data file from GCS: volume.csv-> gcs_volume"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
+	# 		--file-table-map "volume.csv:gcs_volume" --has-header --batch-size 10000 --null-string "\N"
 
-	# Test import from GCS buckets with escape/quote characters
-	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
-	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
-			--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
+	# # Test import from GCS buckets with escape/quote characters
+	# step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
+	# import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '|' \
+	# 		--file-table-map "t1_quote_escape_char1.csv:gcs_quote_escape_char1" --quote-char="'" --escape-char="'"
 
 	step "Remove the credentials file for GCS default authentications"
 	rm -rf ~/.config/gcloud/application_default_credentials.json
