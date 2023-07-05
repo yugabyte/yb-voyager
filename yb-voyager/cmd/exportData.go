@@ -474,7 +474,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.CSV,
+		FileFormat:   datafile.TEXT,
 		Delimiter:    ",",
 		HasHeader:    true,
 		ExportDir:    exportDir,

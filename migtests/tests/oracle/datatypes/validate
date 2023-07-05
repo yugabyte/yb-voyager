@@ -19,8 +19,6 @@ EXPECTED_ROW_COUNT = {
 	'varray_table':17,
 	'blob_type': 0
 }
-if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
-	EXPECTED_ROW_COUNT['long_type'] = 2 # https://yugabyte.atlassian.net/browse/DB-5929	
 
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
