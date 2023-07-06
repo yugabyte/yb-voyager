@@ -282,10 +282,25 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
+func getImportBatchArgsProto(tableName string) *tgtdb.ImportBatchArgs {
+	columns := dataFileDescriptor.TableNameToExportedColumns[tableName]
+	return &tgtdb.ImportBatchArgs{
+		TableName:  tableName,
+		Columns:    columns,
+		FileFormat: dataFileDescriptor.FileFormat,
+		Delimiter:  dataFileDescriptor.Delimiter,
+		HasHeader:  dataFileDescriptor.HasHeader,
+		QuoteChar:  dataFileDescriptor.QuoteChar,
+		EscapeChar: dataFileDescriptor.EscapeChar,
+		NullString: nullString,
+	}
+}
+
 func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
 	extractCopyStmtForTable(task.TableName, origDataFile)
+	importBatchArgsProto := getImportBatchArgsProto(task.TableName)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableName)
@@ -298,15 +313,15 @@ func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn f
 		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
 	}
 	for _, batch := range pendingBatches {
-		submitBatch(batch, updateProgressFn)
+		submitBatch(batch, updateProgressFn, importBatchArgsProto)
 	}
 	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, task.TableName, lastBatchNumber, lastOffset, updateProgressFn)
+		splitFilesForTable(state, origDataFile, task.TableName, lastBatchNumber, lastOffset, updateProgressFn, importBatchArgsProto)
 	}
 }
 
 func splitFilesForTable(state *ImportDataState, filePath string, t string,
-	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64)) {
+	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
 	batchNum := lastBatchNumber + 1
 	numLinesTaken := lastOffset
@@ -378,7 +393,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			}
 			batchWriter = nil
 			dataFile.ResetBytesRead()
-			submitBatch(batch, updateProgressFn)
+			submitBatch(batch, updateProgressFn, importBatchArgsProto)
 
 			if !isLastBatch {
 				batchNum += 1
@@ -388,12 +403,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func submitBatch(batch *Batch, updateProgressFn func(int64)) {
+func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		importBatch(batch)
+		importBatch(batch, importBatchArgsProto)
 		if reportProgressInBytes {
 			updateProgressFn(batch.ByteCount)
 		} else {
@@ -411,7 +426,7 @@ func executePostImportDataSqls() {
 	}
 }
 
-func importBatch(batch *Batch) {
+func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
@@ -430,10 +445,14 @@ func importBatch(batch *Batch) {
 	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
 	log.Infof("COPY command: %s", copyCommand)
 
+	importBatchArgs := *importBatchArgsProto
+	importBatchArgs.FilePath = batch.FilePath
+	importBatchArgs.RowsPerTransaction = int(batch.OffsetEnd - batch.OffsetStart)
+
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, copyCommand)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}

@@ -242,19 +242,18 @@ type Batch interface {
 	GetCommandToRecordEntryInDB(rowsAffected int64) string
 }
 
-// TODO: Replace `copyCommand` with `ImportBatchArgs` struct.
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, copyCommand string) (int64, error) {
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
-		rowsAffected, err = yb.importBatch(conn, batch, copyCommand)
+		rowsAffected, err = yb.importBatch(conn, batch, args)
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, copyCommand string) (rowsAffected int64, err error) {
+func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
 	var file *os.File
 	file, err = batch.Open()
 	if err != nil {
@@ -301,6 +300,8 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, copyCommand
 
 	// Import the split using COPY command.
 	var res pgconn.CommandTag
+	copyCommand := args.GetYBCopyStatement()
+	log.Infof("Executing COPY command: [%s]", copyCommand) // XXX Remove this log message.
 	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
 		var pgerr *pgconn.PgError
@@ -321,6 +322,7 @@ var NonRetryCopyErrors = []string{
 	"Sending too long RPC message",
 	"invalid input syntax",
 	"violates unique constraint",
+	"syntax error at",
 }
 
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
