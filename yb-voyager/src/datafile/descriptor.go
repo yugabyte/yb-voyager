@@ -54,6 +54,7 @@ type Descriptor struct {
 	ExportDir                  string              `json:"-"`
 	QuoteChar                  byte                `json:"QuoteChar,omitempty"`
 	EscapeChar                 byte                `json:"EscapeChar,omitempty"`
+	NullString                 string              `json:"NullString,omitempty"`
 	DataFileList               []*FileEntry        `json:"FileList"`
 	TableNameToExportedColumns map[string][]string `json:"TableNameToExportedColumns"`
 }
