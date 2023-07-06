@@ -61,6 +61,8 @@ var importObjectsInStraightOrder bool
 var flagRefreshMViews bool
 
 func importSchema() {
+	tconf.Schema = strings.ToLower(tconf.Schema)
+
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
 	if err != nil {
@@ -68,9 +70,12 @@ func importSchema() {
 	}
 	defer tdb.Finalize()
 
-	tconf.Schema = strings.ToLower(tconf.Schema)
-	conn := tdb.Conn()
-	targetDBVersion := tdb.GetVersion()
+	ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("The target DB must be YugabyteDB")
+	}
+	conn := ybdb.Conn()
+	targetDBVersion := ybdb.GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)
