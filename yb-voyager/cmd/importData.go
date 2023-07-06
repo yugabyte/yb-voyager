@@ -284,10 +284,14 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 
 func getImportBatchArgsProto(tableName string) *tgtdb.ImportBatchArgs {
 	columns := dataFileDescriptor.TableNameToExportedColumns[tableName]
+	fileFormat := dataFileDescriptor.FileFormat
+	if fileFormat == "sql" {
+		fileFormat = "text"
+	}
 	return &tgtdb.ImportBatchArgs{
 		TableName:  tableName,
 		Columns:    columns,
-		FileFormat: dataFileDescriptor.FileFormat,
+		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,
 		HasHeader:  dataFileDescriptor.HasHeader,
 		QuoteChar:  dataFileDescriptor.QuoteChar,
