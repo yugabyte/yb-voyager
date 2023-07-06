@@ -77,6 +77,7 @@ func prepareForImportDataCmd() {
 		Delimiter:    delimiter,
 		HasHeader:    hasHeader,
 		ExportDir:    exportDir,
+		NullString:   nullString,
 	}
 	if quoteChar != "" {
 		quoteCharBytes := []byte(quoteChar)

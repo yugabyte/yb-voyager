@@ -54,11 +54,18 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 		options = append(options, fmt.Sprintf("DELIMITER E'%c'", []rune(args.Delimiter)[0]))
 	}
 	if args.QuoteChar != 0 {
-		// TODO: confirm if the following cast to string is correct.
-		options = append(options, fmt.Sprintf("QUOTE E'%s'", string(args.QuoteChar)))
+		quoteChar := string(args.QuoteChar)
+		if quoteChar == `'` || quoteChar == `\` {
+			quoteChar = `\` + quoteChar
+		}
+		options = append(options, fmt.Sprintf("QUOTE E'%s'", quoteChar))
 	}
 	if args.EscapeChar != 0 {
-		options = append(options, fmt.Sprintf("ESCAPE E'%s'", string(args.EscapeChar)))
+		escapeChar := string(args.EscapeChar)
+		if escapeChar == `'` || escapeChar == `\` {
+			escapeChar = `\` + escapeChar
+		}
+		options = append(options, fmt.Sprintf("ESCAPE E'%s'", escapeChar))
 	}
 	if args.NullString != "" {
 		options = append(options, fmt.Sprintf("NULL '%s'", args.NullString))

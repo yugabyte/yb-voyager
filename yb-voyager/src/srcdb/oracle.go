@@ -180,6 +180,7 @@ func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMeta
 		Delimiter:                  "\t",
 		HasHeader:                  false,
 		ExportDir:                  exportDir,
+		NullString:                 `\N`,
 		TableNameToExportedColumns: getOra2pgExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
 	dfd.Save()

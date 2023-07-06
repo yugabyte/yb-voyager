@@ -224,6 +224,7 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 		Delimiter:                  "\t",
 		HasHeader:                  false,
 		ExportDir:                  exportDir,
+		NullString:                 `\N`,
 		TableNameToExportedColumns: pg.getExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
 

@@ -171,6 +171,7 @@ func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetada
 		Delimiter:                  "\t",
 		HasHeader:                  false,
 		ExportDir:                  exportDir,
+		NullString:                 `\N`,
 		DataFileList:               getExportedDataFileList(tablesProgressMetadata),
 		TableNameToExportedColumns: getOra2pgExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
