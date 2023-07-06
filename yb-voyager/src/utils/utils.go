@@ -379,3 +379,24 @@ func GenerateRandomString(length int) string {
 	})
 	return string(buf)
 }
+
+func ForEachLineInFile(filePath string, callback func(line string) bool) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		cont := callback(scanner.Text())
+		if !cont {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading file %s: %v", filePath, err)
+	}
+	return nil
+}
