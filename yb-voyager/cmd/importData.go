@@ -303,6 +303,7 @@ func getImportBatchArgsProto(tableName string) *tgtdb.ImportBatchArgs {
 func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
+	// TODO: Remove the following call to extractCopyStmtForTable().
 	extractCopyStmtForTable(task.TableName, origDataFile)
 	importBatchArgsProto := getImportBatchArgsProto(task.TableName)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
@@ -437,18 +438,6 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	}
 	log.Infof("Importing %q", batch.FilePath)
 
-	copyCommand := getCopyCommand(batch.TableName)
-	// copyCommand is empty when there are no rows for that table
-	if copyCommand == "" {
-		err = batch.MarkDone()
-		if err != nil {
-			utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
-		}
-		return
-	}
-	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
-	log.Infof("COPY command: %s", copyCommand)
-
 	importBatchArgs := *importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
 	importBatchArgs.RowsPerTransaction = int(batch.OffsetEnd - batch.OffsetStart)
@@ -469,9 +458,9 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 			sleepIntervalSec, batch.FilePath, attempt)
 		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 	}
-	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
+	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
+		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableName, err)
 	}
 	err = batch.MarkDone()
 	if err != nil {
