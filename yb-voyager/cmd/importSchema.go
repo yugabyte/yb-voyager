@@ -30,7 +30,6 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -63,19 +62,18 @@ var flagRefreshMViews bool
 func importSchema() {
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB: %s", err)
+		utils.ErrExit("Unable to connect to target YugabyteDB database: %v", err)
 	}
-	defer tdb.Finalize()
+	defer conn.Close(context.Background())
 
-	ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		utils.ErrExit("The target DB must be YugabyteDB")
+	targetDBVersion := ""
+	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
+	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
+	if err != nil {
+		utils.ErrExit("get target db version: %s", err)
 	}
-	conn := ybdb.Conn()
-	targetDBVersion := ybdb.GetVersion()
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	payload := callhome.GetPayload(exportDir)
