@@ -34,8 +34,7 @@ var enableOrafce bool
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
 
-// TODO tdb should be an interface, not a concrete type.
-var tdb *tgtdb.TargetYugabyteDB
+var tdb tgtdb.TargetDB
 
 var importCmd = &cobra.Command{
 	Use:   "import",
