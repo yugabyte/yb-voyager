@@ -285,13 +285,32 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-func getImportBatchArgsProto(tableName string) *tgtdb.ImportBatchArgs {
-	columns := dataFileDescriptor.TableNameToExportedColumns[tableName]
+func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
+	var columns []string
+	if dataFileDescriptor.TableNameToExportedColumns != nil {
+		columns = dataFileDescriptor.TableNameToExportedColumns[tableName]
+	} else if dataFileDescriptor.HasHeader {
+		// File is either exported from debezium OR this is `import data file` case.
+		reader, err := dataStore.Open(filePath)
+		if err != nil {
+			utils.ErrExit("datastore.Open %q: %v", filePath, err)
+		}
+		df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
+		if err != nil {
+			utils.ErrExit("opening datafile %q: %v", filePath, err)
+		}
+		columns = strings.Split(df.GetHeader(), dataFileDescriptor.Delimiter)
+		df.Close()
+	}
+	for i, column := range columns {
+		columns[i] = quoteIdentifierIfRequired(strings.TrimSpace(column))
+	}
+	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 	if fileFormat == "sql" {
 		fileFormat = "text"
 	}
-	return &tgtdb.ImportBatchArgs{
+	importBatchArgsProto := &tgtdb.ImportBatchArgs{
 		TableName:  tableName,
 		Columns:    columns,
 		FileFormat: fileFormat,
@@ -301,14 +320,14 @@ func getImportBatchArgsProto(tableName string) *tgtdb.ImportBatchArgs {
 		EscapeChar: dataFileDescriptor.EscapeChar,
 		NullString: nullString,
 	}
+	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
+	return importBatchArgsProto
 }
 
 func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
-	// TODO: Remove the following call to extractCopyStmtForTable().
-	extractCopyStmtForTable(task.TableName, origDataFile)
-	importBatchArgsProto := getImportBatchArgsProto(task.TableName)
+	importBatchArgsProto := getImportBatchArgsProto(task.TableName, task.FilePath)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableName)
