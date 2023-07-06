@@ -251,16 +251,12 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName))
 	}
 	tocFilePath := filepath.Join(exportDir, "data", "toc.dat")
-	err := utils.ForEachLineInFile(tocFilePath, func(line string) bool {
-		matches := re.FindStringSubmatch(line)
-		if len(matches) > 0 {
-			columnsList = strings.Split(matches[1], ",")
-			for i, column := range columnsList {
-				columnsList[i] = strings.TrimSpace(column)
-			}
-			return false // stop reading file
+	err := utils.ForEachMatchingLineInFile(tocFilePath, re, func(matches []string) bool {
+		columnsList = strings.Split(matches[1], ",")
+		for i, column := range columnsList {
+			columnsList[i] = strings.TrimSpace(column)
 		}
-		return true
+		return false // stop reading file
 	})
 	if err != nil {
 		utils.ErrExit("error in reading toc file: %v\n", err)
