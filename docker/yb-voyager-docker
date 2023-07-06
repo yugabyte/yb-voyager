@@ -90,12 +90,18 @@ do
     i=$(( $i + 1))
 done
 
+# Map .mysql directory
+mysql_vol="-v ${HOME}/.mysql:/root/.mysql"
+
+# Map .postgresql directory
+postgresql_vol="-v ${HOME}/.postgresql:/root/.postgresql"
+
 if [ -t 1 ] 
 then 
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${mysql_vol} ${postgresql_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
