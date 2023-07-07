@@ -34,6 +34,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TargetYugabyteDB struct {
@@ -301,7 +302,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	// Import the split using COPY command.
 	var res pgconn.CommandTag
 	copyCommand := args.GetYBCopyStatement()
-	log.Infof("Executing COPY command: [%s]", copyCommand) // XXX Remove this log message.
+	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
 		var pgerr *pgconn.PgError
@@ -316,6 +317,67 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 	}
 	return res.RowsAffected(), err
+}
+
+func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+	schemaName := yb.tconf.Schema
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		schemaName = parts[0]
+		tableName = parts[1]
+	}
+	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("get list of table attributes: %w", err)
+	}
+	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+
+	result := make([]string, len(columns))
+	for i, colName := range columns {
+		if colName[0] == '"' && colName[len(colName)-1] == '"' {
+			colName = colName[1 : len(colName)-1]
+		}
+		switch true {
+		// TODO: Move sqlname.IsReservedKeyword() in this file.
+		case sqlname.IsReservedKeyword(colName):
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case colName == strings.ToLower(colName): // Name is all lowercase.
+			result[i] = colName
+		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
+			result[i] = strings.ToLower(colName)
+		default:
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+		}
+	}
+	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	return result, nil
+}
+
+func (yb *TargetYugabyteDB) getListOfTableAttributes(schemaName, tableName string) ([]string, error) {
+	var result []string
+	if tableName[0] == '"' {
+		// Remove the double quotes around the table name.
+		tableName = tableName[1 : len(tableName)-1]
+	}
+	query := fmt.Sprintf(
+		`SELECT column_name FROM information_schema.columns WHERE table_schema = '%s' AND table_name ILIKE '%s'`,
+		schemaName, tableName)
+	rows, err := yb.Conn().Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("run [%s] on target: %w", query, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var colName string
+		err = rows.Scan(&colName)
+		if err != nil {
+			return nil, fmt.Errorf("scan column name: %w", err)
+		}
+		result = append(result, colName)
+	}
+	return result, nil
 }
 
 var NonRetryCopyErrors = []string{
