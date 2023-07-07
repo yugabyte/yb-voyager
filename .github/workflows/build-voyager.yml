@@ -1,0 +1,42 @@
+name: Create Release
+
+on:
+  create:
+    tags:
+      - 'yb-voyager/v*' # Trigger on any tag starting with 'yb-voyager/v'
+
+jobs:
+  build:
+    name: Build Binary
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.19
+
+      - name: Build Binary
+        run: go build -o yb-voyager/yb-voyager ./yb-voyager
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload Binary
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./yb-voyager/yb-voyager
+          asset_name: yb-voyager
+          asset_content_type: application/octet-stream
