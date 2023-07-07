@@ -42,3 +42,23 @@ func (t *TailReader) Read(p []byte) (n int, err error) {
 		time.Sleep(1 * time.Second)
 	}
 }
+
+func (t *TailReader) ReadLine() ([]byte, error) {
+	// read line by line
+	buf := make([]byte, 0, 4096)
+	for {
+		b := make([]byte, 1)
+		_, err := t.Read(b)
+		if err != nil {
+			return buf, err
+		}
+		if b[0] == '\n' {
+			break
+		}
+		buf = append(buf, b[0])
+		if string(buf) == `\.` {
+			return buf, io.EOF
+		}
+	}
+	return buf, nil
+}

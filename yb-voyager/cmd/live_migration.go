@@ -19,6 +19,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -106,31 +107,42 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 //==================================================================================
 
 func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
-	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
-	log.Infof("Streaming changes from %s", queueFilePath)
-	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
-	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
-	}
-	defer file.Close()
-
-	r := utils.NewTailReader(file)
-	dec := json.NewDecoder(r)
-	log.Infof("Waiting for changes in %s", queueFilePath)
-	// TODO: Batch the changes.
-	for dec.More() {
-		var event Event
-		err := dec.Decode(&event)
+	// stream changes from queue segments one by one
+	for i := int64(0); ; i++ {
+		queueFileName := fmt.Sprintf("queue.json.%d", i)
+		queueFilePath := filepath.Join(exportDir, "data", "cdc", queueFileName)
+		log.Infof("Streaming changes from %s", queueFilePath)
+		file, err := os.OpenFile(queueFilePath, os.O_RDONLY, 0640)
 		if err != nil {
-			return fmt.Errorf("error decoding change: %v", err)
+			return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
 		}
+		defer file.Close()
 
-		err = handleEvent(connPool, &event, targetSchema)
-		if err != nil {
-			return fmt.Errorf("error handling event: %v", err)
+		r := utils.NewTailReader(file)
+		log.Infof("Waiting for changes in %s", queueFilePath)
+
+		for {
+			line, err := r.ReadLine()
+			utils.PrintAndLog("Read line: %s", line)
+			if string(line) == `\.` && err == io.EOF {
+				log.Infof("Reached end of file %s", queueFilePath)
+				break
+			} else if err != nil {
+				return fmt.Errorf("error reading line from file %s: %v", queueFilePath, err)
+			}
+
+			var event Event
+			err = json.Unmarshal(line, &event)
+			if err != nil {
+				return fmt.Errorf("error decoding change: %v", err)
+			}
+
+			err = handleEvent(connPool, &event, targetSchema)
+			if err != nil {
+				return fmt.Errorf("error handling event: %v", err)
+			}
 		}
 	}
-	return nil
 }
 
 func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
