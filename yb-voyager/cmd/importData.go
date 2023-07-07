@@ -16,13 +16,11 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -39,7 +37,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -670,49 +667,6 @@ func getTargetSchemaName(tableName string) string {
 	return tconf.Schema // default set to "public"
 }
 
-func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
-	if err != nil {
-		return "", err
-	}
-	if status == nil {
-		// export_status.json is not present. This is the case of Offline migration.
-		// The data is exported using pg_dump or ora2pg.
-		return "", nil
-	}
-
-	dfd := datafile.OpenDescriptor(exportDir)
-	reader, err := dataStore.Open(dataFilePath)
-	if err != nil {
-		utils.ErrExit("preparing reader to find copy command %q: %v", dataFilePath, err)
-	}
-
-	df, err := datafile.NewDataFile(dataFilePath, reader, dfd)
-	if err != nil {
-		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
-	}
-	defer df.Close()
-	columnNames := quoteColumnNamesIfRequired(df.GetHeader())
-	stmt := fmt.Sprintf(
-		`COPY %s(%s) FROM STDIN WITH (FORMAT TEXT, ROWS_PER_TRANSACTION %%v);`,
-		tableName, columnNames)
-	return stmt, nil
-}
-
-/*
-Valid cases requiring column name quoting:
-1. ReservedKeyWords in case of any source database type
-2. CaseSensitive column names in case of PostgreSQL(Oracle and MySQL columns are exported as case-insensitive by ora2pg)
-*/
-func quoteColumnNamesIfRequired(txtHeader string) string {
-	columnNames := strings.Split(txtHeader, "\t")
-	for i := 0; i < len(columnNames); i++ {
-		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
-	}
-	return strings.Join(columnNames, ",")
-}
-
 func quoteIdentifierIfRequired(identifier string) string {
 	if sqlname.IsQuoted(identifier) {
 		return identifier
@@ -729,107 +683,6 @@ func quoteIdentifierIfRequired(identifier string) string {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier
-}
-
-func extractCopyStmtForTable(table string, fileToSearchIn string) {
-	if getCopyCommand(table) != "" {
-		return
-	}
-	// When snapshot is exported by Debezium, the data files are in CSV format,
-	// irrespective of the source database type.
-	stmt, err := findCopyCommandForDebeziumExportedFiles(table, fileToSearchIn)
-	// If the export_status.json file is not present, the err will be nil and stmt will be empty.
-	if err != nil {
-		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
-	}
-	if stmt != "" {
-		copyTableFromCommands.Store(table, stmt)
-		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
-		return
-	}
-	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
-	var copyCommandRegex *regexp.Regexp
-	if sourceDBType == "postgresql" {
-		// find the line from toc.txt file
-		fileToSearchIn = exportDir + "/data/toc.txt"
-
-		conn := newTargetConn()
-		defer conn.Close(context.Background())
-
-		parentTable := getParentTable(table, conn)
-		tableInCopyRegex := table
-		if parentTable != "" { // needed to find COPY command for table partitions
-			tableInCopyRegex = parentTable
-		}
-		if len(strings.Split(tableInCopyRegex, ".")) == 1 {
-			// happens only when table is in public schema, use public schema with table name for regexp
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
-		} else {
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
-		}
-		log.Infof("parentTable=%s for table=%s", parentTable, table)
-	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
-		// For oracle, there is only unique COPY per datafile
-		// In case of table partitions, parent table name is used in COPY
-		copyCommandRegex = regexp.MustCompile(`(?i)COPY .*[\s]+\(.*\) FROM STDIN`)
-	}
-
-	file, err := os.Open(fileToSearchIn)
-	if err != nil {
-		utils.ErrExit("could not open file during extraction of copy stmt from file %q: %v", fileToSearchIn, err)
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	for {
-		line, err := utils.Readline(reader)
-		if err == io.EOF { // EOF will mean NO COPY command
-			return
-		} else if err != nil {
-			utils.ErrExit("error while readline for extraction of copy stmt from file %q: %v", fileToSearchIn, err)
-		}
-		if copyCommandRegex.MatchString(line) {
-			line = strings.Trim(line, ";") + ` WITH (ROWS_PER_TRANSACTION %v)`
-			copyTableFromCommands.Store(table, line)
-			log.Infof("copyTableFromCommand for table %q is %q", table, line)
-			return
-		}
-	}
-}
-
-// get the parent table if its a partitioned table in yugabytedb
-// also covers the case when the partitions are further subpartitioned to multiple levels
-func getParentTable(table string, conn *pgx.Conn) string {
-	var parentTable string
-	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table)
-
-	var currentParentTable string
-	err := conn.QueryRow(context.Background(), query).Scan(&currentParentTable)
-	if err != pgx.ErrNoRows && err != nil {
-		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
-	}
-
-	if len(currentParentTable) == 0 {
-		return ""
-	} else {
-		parentTable = getParentTable(currentParentTable, conn)
-		if len(parentTable) == 0 {
-			parentTable = currentParentTable
-		}
-	}
-
-	return parentTable
-}
-
-func getCopyCommand(table string) string {
-	if copyCommand, ok := copyTableFromCommands.Load(table); ok {
-		return copyCommand.(string)
-	} else {
-		log.Infof("No COPY command for table %q", table)
-	}
-	return "" // no-op
 }
 
 func checkExportDataDoneFlag() {
