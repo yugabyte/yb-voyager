@@ -16,10 +16,17 @@ limitations under the License.
 package dbzm
 
 import (
+	"encoding/base64"
+	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"math"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -179,4 +186,173 @@ func (d *Debezium) Stop() error {
 		log.Info("Stopped debezium.")
 	}
 	return nil
+}
+
+// TODO : refactor this to an interface for different targetDBs
+type VariableScaleDecimal struct {
+	Scale int64
+	Value string
+}
+
+func TransformValue(columnSchema Schema, columnValue string) (string, error) {
+	logicalType := columnSchema.ColDbzSchema.Name
+	if logicalType != "" {
+		switch logicalType {
+		case "io.debezium.time.Date":
+			epochDays, err := strconv.ParseUint(columnValue, 10, 64)
+			fmt.Printf("epochDays: %v", epochDays)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch seconds: %v", err)
+			}
+			epochSecs := epochDays * 24 * 60 * 60
+			return time.Unix(int64(epochSecs), 0).Local().Format(time.DateOnly), nil
+		case "io.debezium.time.Timestamp":
+			epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch milliseconds: %v", err)
+			}
+			epochSecs := epochMilliSecs / 1000
+			return time.Unix(epochSecs, 0).Local().Format(time.DateTime), nil
+		case "io.debezium.time.MicroTimestamp":
+			epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch microseconds: %v", err)
+			}
+			epochSeconds := epochMicroSecs / 1000000
+			epochNanos := (epochMicroSecs % 1000000) * 1000
+			microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano))
+			if err != nil {
+				return columnValue, err
+			}
+			return strings.TrimSuffix(microTimeStamp.String(), " +0000 UTC"), nil
+		case "io.debezium.time.NanoTimestamp":
+			epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch nanoseconds: %v", err)
+			}
+			epochSeconds := epochNanoSecs / 1000000000
+			epochNanos := epochNanoSecs % 1000000000
+			nanoTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano))
+			if err != nil {
+				return columnValue, err
+			}
+			return strings.TrimSuffix(nanoTimeStamp.String(), " +0000 UTC"), nil
+		case "io.debezium.time.Time":
+			epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch milliseconds: %v", err)
+			}
+			epochSecs := epochMilliSecs / 1000
+			return time.Unix(epochSecs, 0).Local().Format(time.TimeOnly), nil
+		case "io.debezium.time.MicroTime":
+			epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing epoch microseconds: %v", err)
+			}
+			epochSeconds := epochMicroSecs / 1000000
+			epochNanos := (epochMicroSecs % 1000000) * 1000
+			MICRO_TIME_FORMAT := "15:04:05.000000"
+			return time.Unix(epochSeconds, epochNanos).Local().Format(MICRO_TIME_FORMAT), nil
+		case "io.debezium.data.Bits":
+			bytes, err := base64.StdEncoding.DecodeString(columnValue)
+			fmt.Printf("bytes: %v", bytes)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error decoding variable scale decimal in base64: %v", err)
+			}
+			var data uint64
+			if len(bytes) >= 8 {
+				data = binary.LittleEndian.Uint64(bytes[:8])
+			} else {
+				for i, b := range bytes {
+					data |= uint64(b) << (8 * i)
+				}
+			}
+			return fmt.Sprintf("%b", data), nil
+		case "io.debezium.data.geometry.Point":
+			// TODO: figure out if we want to represent it as a postgres native point or postgis geometry point.
+		case "io.debezium.data.geometry.Geometry":
+		case "io.debezium.data.geometry.Geography":
+			//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
+		case "org.apache.kafka.connect.data.Decimal":
+			return columnValue, nil //to skip it to be transformed by BYTES case
+		case "io.debezium.data.VariableScaleDecimal":
+			variableScaleDecimal := VariableScaleDecimal{}
+			err := json.Unmarshal([]byte(columnValue), &variableScaleDecimal)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error parsing variable scale decimal: %v", err)
+			}
+			data, err := base64.StdEncoding.DecodeString(variableScaleDecimal.Value)
+			if err != nil {
+				return columnValue, fmt.Errorf("Error decoding variable scale decimal in base64: %v", err)
+			}
+			var value int32
+			for idx, b := range data {
+				i := len(data) - idx - 1
+				value |= int32(b) << (8 * i)
+			}
+			scale := math.Pow(10, float64(variableScaleDecimal.Scale))
+			// Convert the int32 value to the decimal value
+			var decimal float64
+			if value < 0 { //neg decimal case
+				value = -value
+				decimal = float64(value) / scale
+				decimal = -decimal
+			} else {
+				decimal = float64(value) / scale
+			}
+			decimalData := new(big.Float).SetFloat64(decimal)
+			return decimalData.String(), nil
+		}
+	}
+
+	dbzSchemaType := columnSchema.ColDbzSchema.Type
+	switch dbzSchemaType {
+	case "BYTES":
+		//decode base64 string to bytes
+		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
+		if err != nil {
+			return columnValue, fmt.Errorf("Error decoding base64 string: %v", err)
+		}
+		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
+		hexString := `\\x` //extra backslash is needed to escape the backslash in the hex string
+		for _, b := range decodedBytes {
+			hexString += fmt.Sprintf("%02x", b)
+		}
+		return string(hexString), nil
+	case "MAP":
+		mapValue := make(map[string]interface{})
+		err := json.Unmarshal([]byte(columnValue), &mapValue)
+		if err != nil {
+			return columnValue, fmt.Errorf("Error parsing map: %v", err)
+		}
+		var transformedMapValue string
+		for key, value := range mapValue {
+			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
+		}
+		return strings.TrimSuffix(transformedMapValue, ","), nil //remove last comma
+	}
+	return columnValue, nil
+}
+
+func TransformDataRow(dataRow string, tableSchema TableSchema) (string, error) {
+	columnValues := strings.Split(dataRow, "\t")
+	var transformedValues []string
+	for i, columnValue := range columnValues {
+		columnSchema := tableSchema.Columns[i]
+		if columnValue != "\\N" {
+			fmt.Printf("columnValue: %v\n", columnValue)
+			transformedValue, err := TransformValue(columnSchema, columnValue)
+			if err != nil {
+				return dataRow, err
+			}
+			fmt.Printf("transformedValue: %v\n", transformedValue)
+			transformedValues = append(transformedValues, transformedValue)
+		} else {
+			transformedValues = append(transformedValues, columnValue)
+		}
+
+	}
+	fmt.Printf("transformedValues: %v\n", transformedValues)
+	transformedRow := strings.Join(transformedValues, "\t")
+	return transformedRow, nil
 }

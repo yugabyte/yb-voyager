@@ -659,6 +659,13 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
 		}
+		if line != "" && utils.FileOrFolderExists(filepath.Join(exportDir, "data", "export_status.json")) {
+			tableSchema := dbzm.FetchSchema(batchWriter.tableName, exportDir)
+			line, err = dbzm.TransformDataRow(line, tableSchema)
+			if err != nil {
+				utils.ErrExit("transforming line for table %q: %s", t, err)
+			}
+		}
 		err = batchWriter.WriteRecord(line)
 		if err != nil {
 			utils.ErrExit("Write to batch %d: %s", batchNum, err)
@@ -1037,8 +1044,8 @@ Valid cases requiring column name quoting:
 1. ReservedKeyWords in case of any source database type
 2. CaseSensitive column names in case of PostgreSQL(Oracle and MySQL columns are exported as case-insensitive by ora2pg)
 */
-func quoteColumnNamesIfRequired(txtHeader string) string {
-	columnNames := strings.Split(txtHeader, "\t")
+func quoteColumnNamesIfRequired(csvHeader string) string {
+	columnNames := strings.Split(csvHeader, ",")
 	for i := 0; i < len(columnNames); i++ {
 		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
 	}
