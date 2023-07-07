@@ -15,6 +15,7 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []string) []string
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
+	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	// TODO: ConnPool() is a temporary method. It should eventually be removed.
 	ConnPool() *ConnectionPool
 }

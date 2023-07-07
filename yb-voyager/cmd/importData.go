@@ -296,23 +296,27 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		if err != nil {
 			utils.ErrExit("opening datafile %q: %v", filePath, err)
 		}
-		columns = strings.Split(df.GetHeader(), dataFileDescriptor.Delimiter)
+		header := df.GetHeader()
+		columns = strings.Split(header, dataFileDescriptor.Delimiter)
+		log.Infof("read header from file %q: %s", filePath, header)
+		log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 		df.Close()
 	}
-	for i, column := range columns {
-		columns[i] = quoteIdentifierIfRequired(strings.TrimSpace(column))
+	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
+	if err != nil {
+		utils.ErrExit("if required quote column names: %s", err)
 	}
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
-	if fileFormat == "sql" {
-		fileFormat = "text"
+	if fileFormat == datafile.SQL {
+		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
 		TableName:  tableName,
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,
-		HasHeader:  dataFileDescriptor.HasHeader,
+		HasHeader:  dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
 		QuoteChar:  dataFileDescriptor.QuoteChar,
 		EscapeChar: dataFileDescriptor.EscapeChar,
 		NullString: nullString,
