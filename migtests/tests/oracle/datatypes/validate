@@ -35,6 +35,7 @@ EXPECTED_SUM_OF_COLUMN = {
 		'num_neg_s': '546.99'
 	}
 }
+# This variation is required due to the differentiation in exported values for binary types via ora2pg and dbzm 
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
 
