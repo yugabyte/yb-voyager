@@ -541,6 +541,18 @@ func renameDbzmExportedDataFiles() error {
 		if err != nil {
 			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
 		}
+
+		//rename table schema file as well
+		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
+		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", tableName+"_schema.json")
+		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
+			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", status.Tables[i].SchemaName+"."+tableName+"_schema.json")
+		}
+		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
+		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to rename dbzm exported table schema file: %w", err)
+		}
 	}
 	return nil
 }

@@ -71,6 +71,7 @@ var loadBalancerUsed bool           // specifies whether load balancer is used i
 var enableUpsert bool               // upsert instead of insert for import data
 var disableTransactionalWrites bool // to disable transactional writes for copy command
 var truncateSplits bool             // to truncate *.D splits after import
+var tableNameToSchema map[string]dbzm.TableSchema
 
 const (
 	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
@@ -401,6 +402,14 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+		if utils.FileOrFolderExists(filepath.Join(exportDir, "data", "export_status.json")) {
+			tableList := importFileTasksToTableNames(pendingTasks)
+			tableNameToSchema = make(map[string]dbzm.TableSchema)
+			for _, table := range tableList {
+				tableSchema := dbzm.FetchSchema(table, exportDir)
+				tableNameToSchema[table] = tableSchema
+			}
+		}
 		poolSize := parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -660,8 +669,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			numLinesTaken += 1
 		}
 		if line != "" && utils.FileOrFolderExists(filepath.Join(exportDir, "data", "export_status.json")) {
-			tableSchema := dbzm.FetchSchema(batchWriter.tableName, exportDir)
-			line, err = dbzm.TransformDataRow(line, tableSchema)
+			line, err = dbzm.TransformDataRow(line, tableNameToSchema[batchWriter.tableName])
 			if err != nil {
 				utils.ErrExit("transforming line for table %q: %s", t, err)
 			}
