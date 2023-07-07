@@ -43,9 +43,9 @@ EXPECTED_TABLE_SUM['schema1'] = {
 }
 
 def migration_completed_checks_per_schema(tgt, schema):
-    print("check for schema: {schema}")
+    print("check for schema: ", schema)
     table_list = tgt.get_table_names(schema)
-    print("table_list:", table_list)
+    print("table_list: ", table_list)
     assert len(table_list) == 5
     
     got_row_count = tgt.row_count_of_all_tables(schema)
@@ -68,7 +68,7 @@ def migration_completed_checks_per_schema(tgt, schema):
     assert insert_query_chk_error == False
     
     
-    SELECT_ID_QUERY = f"select id from {schema}.sequence_check3 where name = 'Yugabyte'";
+    SELECT_ID_QUERY = f"select id from {schema}.sequence_check3 where name = 'Yugabyte';"
     id_returned = tgt.execute_query(SELECT_ID_QUERY)
     expected_id = EXPECTED_ROW_COUNT[schema]['sequence_check3'] + 1
     print(f"for sequence_check3, Id returned- {id_returned} and expected id - {expected_id}")

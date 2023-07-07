@@ -7,6 +7,15 @@ def main():
 
 EXPECTED_M_VIEW = ["employee_mv_immediate"]
 
+EXPECTED_ROW_COUNT = {
+	'view_table1': 10,
+	'view_table2': 9,
+	'v1': 6,
+	'v2': 9,
+	'v3': 9,
+	'whitespace view':10
+}
+
 #=============================================================================
 
 def migration_completed_checks(tgt):
@@ -20,6 +29,15 @@ def migration_completed_checks(tgt):
 	mv_row_count = tgt.get_row_count("employee_mv_immediate")
 	print("MVIEW row count: {}".format(mv_row_count))
 	assert mv_row_count == 12
+
+	view_list = tgt.get_objects_of_type("VIEW", "public")
+	print("view_list:", view_list)
+	assert len(view_list) == 5
+
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		count = tgt.get_row_count(table_name, "public")
+		print(f"table_name: {table_name}, row_count: {count}")
+		assert row_count == count
 	
 if __name__ == "__main__":
 	main()
