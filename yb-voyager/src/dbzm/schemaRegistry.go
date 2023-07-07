@@ -50,7 +50,7 @@ type TableSchema struct {
 }
 
 func FetchSchema(tableName string, exportDir string) TableSchema {
-	fmt.Printf("Fetching schema for table %s", tableName)
+	// fmt.Printf("Fetching schema for table %s", tableName)
 	schemaFileName := fmt.Sprintf("%s_schema.json", tableName)
 	schemaFilePath := filepath.Join(exportDir, "data", "schemas", schemaFileName)
 	schemaFile, err := os.Open(schemaFilePath)
@@ -63,7 +63,6 @@ func FetchSchema(tableName string, exportDir string) TableSchema {
 	if err != nil {
 		utils.ErrExit("Failed to decode schema file %s: %v", schemaFilePath, err)
 	}
-	fmt.Printf("Parameters: %v\n", tableSchema.Columns[0].ColDbzSchema.Parameters)
 	return tableSchema
 
 }

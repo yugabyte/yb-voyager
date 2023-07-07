@@ -20,8 +20,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"math"
-	"math/big"
+	// "math"
+	// "math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,6 +30,7 @@ import (
 	"syscall"
 	"time"
 
+	// "github.com/shopspring/decimal"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -273,35 +274,11 @@ func TransformValue(columnSchema Schema, columnValue string) (string, error) {
 		case "io.debezium.data.geometry.Geometry":
 		case "io.debezium.data.geometry.Geography":
 			//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
+			return columnValue, nil
 		case "org.apache.kafka.connect.data.Decimal":
-			return columnValue, nil //to skip it to be transformed by BYTES case
+			return columnValue, nil //handled in exporter plugin
 		case "io.debezium.data.VariableScaleDecimal":
-			variableScaleDecimal := VariableScaleDecimal{}
-			err := json.Unmarshal([]byte(columnValue), &variableScaleDecimal)
-			if err != nil {
-				return columnValue, fmt.Errorf("Error parsing variable scale decimal: %v", err)
-			}
-			data, err := base64.StdEncoding.DecodeString(variableScaleDecimal.Value)
-			if err != nil {
-				return columnValue, fmt.Errorf("Error decoding variable scale decimal in base64: %v", err)
-			}
-			var value int32
-			for idx, b := range data {
-				i := len(data) - idx - 1
-				value |= int32(b) << (8 * i)
-			}
-			scale := math.Pow(10, float64(variableScaleDecimal.Scale))
-			// Convert the int32 value to the decimal value
-			var decimal float64
-			if value < 0 { //neg decimal case
-				value = -value
-				decimal = float64(value) / scale
-				decimal = -decimal
-			} else {
-				decimal = float64(value) / scale
-			}
-			decimalData := new(big.Float).SetFloat64(decimal)
-			return decimalData.String(), nil
+			return columnValue, nil //handled in exporter plugin
 		}
 	}
 
@@ -340,19 +317,19 @@ func TransformDataRow(dataRow string, tableSchema TableSchema) (string, error) {
 	for i, columnValue := range columnValues {
 		columnSchema := tableSchema.Columns[i]
 		if columnValue != "\\N" {
-			fmt.Printf("columnValue: %v\n", columnValue)
+			// fmt.Printf("columnValue: %v\n", columnValue)
 			transformedValue, err := TransformValue(columnSchema, columnValue)
 			if err != nil {
 				return dataRow, err
 			}
-			fmt.Printf("transformedValue: %v\n", transformedValue)
+			// fmt.Printf("transformedValue: %v\n", transformedValue)
 			transformedValues = append(transformedValues, transformedValue)
 		} else {
 			transformedValues = append(transformedValues, columnValue)
 		}
 
 	}
-	fmt.Printf("transformedValues: %v\n", transformedValues)
+	// fmt.Printf("transformedValues: %v\n", transformedValues)
 	transformedRow := strings.Join(transformedValues, "\t")
 	return transformedRow, nil
 }
