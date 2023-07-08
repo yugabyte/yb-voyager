@@ -136,8 +136,9 @@ func prepareCopyCommands() {
 				if err != nil {
 					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
 				}
+				columns := strings.Join(strings.Split(df.GetHeader(), delimiter), ",")
 				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
+					table, columns, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
 				df.Close()
 			} else {
 				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
