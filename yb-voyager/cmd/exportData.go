@@ -173,11 +173,6 @@ func exportDataOffline() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
-		err = renameDbzmExportedDataFiles()
-		if err != nil {
-			log.Errorf("Failed to rename dbzm exported data files: %v", err)
-			return false
-		}
 		err = createResumeSequencesFile()
 		if err != nil {
 			log.Errorf("Failed to create resume sequences files: %v", err)
@@ -432,6 +427,10 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 	}
 	log.Infof("snapshot export is complete.")
+	err = renameDbzmExportedDataFiles()
+	if err != nil {
+		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
+	}
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
 	}

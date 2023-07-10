@@ -195,7 +195,7 @@ type VariableScaleDecimal struct {
 	Value string
 }
 
-func TransformValue(columnSchema Schema, columnValue string) (string, error) {
+func TransformValue(columnSchema Schema, columnValue string, isStreamingMode bool) (string, error) {
 	logicalType := columnSchema.ColDbzSchema.Name
 	if logicalType != "" {
 		switch logicalType {
@@ -291,11 +291,17 @@ func TransformValue(columnSchema Schema, columnValue string) (string, error) {
 			return columnValue, fmt.Errorf("Error decoding base64 string: %v", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
-		hexString := `\\x` //extra backslash is needed to escape the backslash in the hex string
+		hexString := ""
 		for _, b := range decodedBytes {
 			hexString += fmt.Sprintf("%02x", b)
 		}
-		return string(hexString), nil
+		hexValue := ""
+		if isStreamingMode {
+			hexValue = fmt.Sprintf("\\x%s", hexString) // in insert statement no need of escaping the backslash as it is single quoted value
+		} else {
+			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash
+		}
+		return string(hexValue), nil
 	case "MAP":
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
@@ -318,7 +324,7 @@ func TransformDataRow(dataRow string, tableSchema TableSchema) (string, error) {
 		columnSchema := tableSchema.Columns[i]
 		if columnValue != "\\N" {
 			// fmt.Printf("columnValue: %v\n", columnValue)
-			transformedValue, err := TransformValue(columnSchema, columnValue)
+			transformedValue, err := TransformValue(columnSchema, columnValue, false)
 			if err != nil {
 				return dataRow, err
 			}

@@ -26,16 +26,17 @@ import (
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Event struct {
-	Op         string            `json:"op"`
-	SchemaName string            `json:"schema_name"`
-	TableName  string            `json:"table_name"`
-	Key        map[string]string `json:"key"`
-	Fields     map[string]string `json:"fields"`
+	Op         string                 `json:"op"`
+	SchemaName string                 `json:"schema_name"`
+	TableName  string                 `json:"table_name"`
+	Key        map[string]interface{} `json:"key"`
+	Fields     map[string]interface{} `json:"fields"` 
 }
 
 func (e *Event) GetSQLStmt(targetSchema string) string {
@@ -64,7 +65,11 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		columnList = append(columnList, column)
-		valueList = append(valueList, value)
+		if value == "NULL" {
+			valueList = append(valueList, fmt.Sprintf("%v", value)) //no need to stringify NULL
+		} else {
+			valueList = append(valueList, fmt.Sprintf("'%v'", value))
+		}
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
@@ -79,12 +84,12 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 	}
 	var setClauses []string
 	for column, value := range event.Fields {
-		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
+		setClauses = append(setClauses, fmt.Sprintf("%s = '%s'", column, value))
 	}
 	setClause := strings.Join(setClauses, ", ")
 	var whereClauses []string
 	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
@@ -97,7 +102,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	}
 	var whereClauses []string
 	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
@@ -120,6 +125,7 @@ func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 	// TODO: Batch the changes.
 	for dec.More() {
 		var event Event
+		dec.UseNumber()
 		err := dec.Decode(&event)
 		if err != nil {
 			return fmt.Errorf("error decoding change: %v", err)
@@ -135,6 +141,27 @@ func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 
 func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
 	log.Debugf("Handling event: %v", event)
+	tableName := event.TableName
+	if sourceDBType == "postgresql" && event.SchemaName != "public" {
+		tableName = event.SchemaName + "." + event.TableName
+	}
+	tableSchema := dbzm.FetchSchema(tableName, exportDir)
+	columnToSchema := make(map[string]dbzm.Schema)
+	for _, columnSchema := range tableSchema.Columns {
+		columnToSchema[columnSchema.ColName] = columnSchema
+	}
+	for column, value := range event.Fields {
+		if value == nil {
+			value = "NULL"
+		} else {
+			var err error
+			value, err = dbzm.TransformValue(columnToSchema[column], fmt.Sprintf("%v", value), true)
+			if err != nil {
+				return fmt.Errorf("error transforming value: %v", err)
+			}
+		}
+		event.Fields[column] = value
+	}
 	stmt := event.GetSQLStmt(targetSchema)
 	log.Debug(stmt)
 	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
