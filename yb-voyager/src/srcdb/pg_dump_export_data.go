@@ -46,12 +46,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs.ParallelJobs = strconv.Itoa(source.NumConnections)
 	pgDumpArgs.DataFormat = "directory"
 
-	args := source.getPgDumpDataArgsFromFile()
-	if args == "" {
-		args = fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
-			pgDumpArgs.TablesListPattern, pgDumpArgs.DataDirPath, source.NumConnections)
-	}
-
+	args := getPgDumpArgsFromFile("data")
 	os.Setenv("PGPASSWORD", source.Password)
 	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)

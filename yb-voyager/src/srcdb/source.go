@@ -28,7 +28,6 @@ import (
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/ini.v1"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -334,93 +333,6 @@ func (source *Source) extrapolateDSNfromSSLParams(DSN string) string {
 	}
 
 	return DSN
-}
-
-func (source *Source) getPgDumpSchemaArgsFromFile() string {
-	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini")
-	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
-		return ""
-	}
-	log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFilePath)
-	pgDumpArgsFile, err := os.ReadFile(pgDumpArgsFilePath)
-	if err != nil {
-		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
-	}
-
-	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
-	if err != nil {
-		utils.ErrExit("Error while parsing pg_dump data arguments: %v", err)
-	}
-
-	var output bytes.Buffer
-	err = tmpl.Execute(&output, pgDumpArgs)
-	if err != nil {
-		utils.ErrExit("Error while preparing pg_dump data arguments: %v", err)
-	}
-
-	iniData, err := ini.Load(output.Bytes())
-	if err != nil {
-		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
-	}
-	section := iniData.Section("schema")
-	args := ""
-	for _, key := range section.Keys() {
-		if key.Value() == "false" {
-			continue
-		}
-		if key.Value() == "true" {
-			args += fmt.Sprintf(" %s", key.Name())
-		} else {
-			if key.Name() == "--schema" {
-				args += fmt.Sprintf(` --schema="%s"`, key.Value())
-			} else {
-				args += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
-			}
-		}
-	}
-	return args
-}
-
-func (source *Source) getPgDumpDataArgsFromFile() string {
-	pgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini")
-	if !utils.FileOrFolderExists(pgDumpArgsFilePath) {
-		return ""
-	}
-	log.Infof("Using pg_dump arguments file: %s", pgDumpArgsFilePath)
-	pgDumpArgsFile, err := os.ReadFile(pgDumpArgsFilePath)
-	if err != nil {
-		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
-	}
-
-	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
-	if err != nil {
-		utils.ErrExit("Error while parsing pg_dump data arguments: %v", err)
-	}
-
-	var output bytes.Buffer
-	err = tmpl.Execute(&output, pgDumpArgs)
-	if err != nil {
-		utils.ErrExit("Error while preparing pg_dump data arguments: %v", err)
-	}
-
-	iniData, err := ini.Load(output.Bytes())
-	if err != nil {
-		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
-	}
-	section := iniData.Section("data")
-	args := ""
-	for _, key := range section.Keys() {
-		if key.Value() == "false" {
-			continue
-		}
-		if key.Value() == "true" {
-			args += fmt.Sprintf(" %s", key.Name())
-		} else {
-			args += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
-		}
-	}
-
-	return args
 }
 
 func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
