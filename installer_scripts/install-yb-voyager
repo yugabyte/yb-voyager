@@ -211,7 +211,10 @@ install_debezium_server() {
 	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
 	# delete contents of /opt/yb-voyager/debezium-server if exists. 
 	# This is done to ensure that older version jars are not left behind in the lib dir.
-	if [ -d /opt/yb-voyager/debezium-server ]; then sudo rm -Rf /opt/yb-voyager/debezium-server; fi
+	if [ -d /opt/yb-voyager/debezium-server ]
+	then 
+		sudo rm -Rf /opt/yb-voyager/debezium-server
+	fi
 	# extract to /opt/yb-voyager/debezium-server
 	sudo mkdir -p /opt/yb-voyager
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
