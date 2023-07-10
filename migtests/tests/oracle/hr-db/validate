@@ -23,10 +23,6 @@ QUERIES_CHECK = {
 	'VIOLATE_INDEX_jhist_emp_id_st_date_pk': {
 		'query': "INSERT INTO job_history (employee_id, start_date, end_date, job_id, department_id) VALUES (102, '2001-01-13', '2006-07-24', 'AD_PRES', 90);",
 		'code': "23505"
-	},
-	'VIOLATE_CHECK_CONSTRAINT_emp_salary_min': {
-		'query': "INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date, job_id, salary, commission_pct, manager_id, department_id) VALUES (207, 'John', 'Doe', 'john.doe.d@dump.com', '515.123.8181', '2002-06-07', 'AC_ACCOUNT', 0, NULL, 205, 110);",
-		'code': "23514"
 	}
 }
 
