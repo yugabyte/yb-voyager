@@ -16,8 +16,7 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	// TODO: ConnPool() is a temporary method. It should eventually be removed.
-	ConnPool() *ConnectionPool
+	ExecuteBatch(batch []*Event) error
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
