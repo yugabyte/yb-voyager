@@ -391,9 +391,30 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
-// TODO Do not export this method. This is temporary--until we refactor all target db access.
-func (yb *TargetYugabyteDB) ConnPool() *ConnectionPool {
-	return yb.connPool
+func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
+	if len(batch) > 1 {
+		return fmt.Errorf("batching not yet supported for yugabyte")
+	}
+	event := batch[0]
+	// TODO: What should be targetSchema if sourceDBType is PG?
+	stmt := event.GetSQLStmt(yb.tconf.Schema)
+	log.Debug(stmt)
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		tag, err := conn.Exec(context.Background(), stmt)
+		if err != nil {
+			log.Errorf("Error executing stmt: %v", err)
+		}
+		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+		return false, err
+	})
+	// Idempotency considerations:
+	// Note: Assuming PK column value is not changed via UPDATEs
+	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
+	// successful even if the row already exists.
+	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
+	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
+
+	return err
 }
 
 //==============================================================================
