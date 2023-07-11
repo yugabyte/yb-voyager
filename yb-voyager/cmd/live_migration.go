@@ -22,7 +22,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -107,42 +110,101 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 //==================================================================================
 
 func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
-	// stream changes from queue segments one by one
-	for i := int64(0); ; i++ {
-		queueFileName := fmt.Sprintf("queue.json.%d", i)
-		queueFilePath := filepath.Join(exportDir, "data", "cdc", queueFileName)
-		log.Infof("Streaming changes from %s", queueFilePath)
-		file, err := os.OpenFile(queueFilePath, os.O_RDONLY, 0640)
-		if err != nil {
-			return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
-		}
-		defer file.Close()
-
-		r := utils.NewTailReader(file)
-		log.Infof("Waiting for changes in %s", queueFilePath)
-
-		for {
-			line, err := r.ReadLine()
-			utils.PrintAndLog("Read line: %s", line)
-			if string(line) == `\.` && err == io.EOF {
-				log.Infof("Reached end of file %s", queueFilePath)
-				break
-			} else if err != nil {
-				return fmt.Errorf("error reading line from file %s: %v", queueFilePath, err)
-			}
-
-			var event Event
-			err = json.Unmarshal(line, &event)
-			if err != nil {
-				return fmt.Errorf("error decoding change: %v", err)
-			}
-
-			err = handleEvent(connPool, &event, targetSchema)
-			if err != nil {
-				return fmt.Errorf("error handling event: %v", err)
-			}
-		}
+	cdcDirPath := filepath.Join(exportDir, "data", "cdc")
+	archiveDirPath := filepath.Join(exportDir, "data", "cdc", "archive")
+	err := os.MkdirAll(archiveDirPath, 0755)
+	if err != nil {
+		return fmt.Errorf("error creating archive dir: %v", err)
 	}
+
+	// keep looking for segments continuously
+	// and stream changes from segments one by one in sequence
+	for {
+		dirEntries, err := os.ReadDir(cdcDirPath)
+		if err != nil {
+			return fmt.Errorf("error reading cdc dir: %v", err)
+		}
+
+		var queueSegmentFiles []string
+		for _, dirEntry := range dirEntries {
+			if !dirEntry.IsDir() && strings.HasSuffix(dirEntry.Name(), ".ndjson") {
+				queueSegmentFiles = append(queueSegmentFiles, dirEntry.Name())
+			}
+		}
+
+		// sort files by segment number
+		sort.Slice(queueSegmentFiles, func(i, j int) bool {
+			segNumIdx := len("queue.")
+			len1 := len(queueSegmentFiles[i])
+			len2 := len(queueSegmentFiles[j])
+
+			segNum1, err := strconv.ParseInt(queueSegmentFiles[i][segNumIdx:len1-7], 10, 64)
+			if err != nil {
+				utils.ErrExit("error parsing segment file name for segNum1: %v", err)
+			}
+
+			segNum2, err := strconv.ParseInt(queueSegmentFiles[j][segNumIdx:len2-7], 10, 64)
+			if err != nil {
+				utils.ErrExit("error parsing segment file name for segNum2: %v", err)
+			}
+
+			return segNum1 < segNum2
+		})
+
+		// walk through the segment files in cdc dir
+		for _, queueSegmentFile := range queueSegmentFiles {
+			queueFilePath := filepath.Join(cdcDirPath, queueSegmentFile)
+			log.Infof("streaming changes from %s", queueFilePath)
+			err = streamChangesFromFile(connPool, queueFilePath, targetSchema)
+			if err != nil {
+				return fmt.Errorf("error streaming changes from %s: %v", queueSegmentFile, err)
+			}
+
+			// move queue file to archive directory once streamed
+			archivePath := filepath.Join(archiveDirPath, filepath.Base(queueSegmentFile))
+			err = os.Rename(queueFilePath, archivePath)
+			if err != nil {
+				return fmt.Errorf("error archiving file %s: %v", queueFilePath, err)
+			}
+		}
+		time.Sleep(time.Second * 2)
+	}
+}
+
+func streamChangesFromFile(connPool *tgtdb.ConnectionPool, path string, targetSchema string) error {
+	file, err := os.OpenFile(path, os.O_RDONLY, 0640)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", path, err)
+	}
+	defer file.Close()
+
+	eventsCount := int64(0)
+	r := utils.NewTailReader(file)
+	for {
+		line, err := r.ReadLine()
+		if string(line) == `\.` && err == io.EOF {
+			log.Infof("reached end of file %s", path)
+			break
+		} else if err != nil {
+			return fmt.Errorf("error reading line from file %s: %v", path, err)
+		}
+
+		var event Event
+		err = json.Unmarshal(line, &event)
+		if err != nil {
+			return fmt.Errorf("error decoding change: %v", err)
+		}
+
+		err = handleEvent(connPool, &event, targetSchema)
+		if err != nil {
+			return fmt.Errorf("error handling event: %v", err)
+		}
+		eventsCount++
+	}
+	// TODO: remove this line once we have status commands
+	utils.PrintAndLog("Processed %d events from %s", eventsCount, filepath.Base(path))
+
+	return nil
 }
 
 func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
@@ -157,9 +219,9 @@ func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema stri
 		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
 		return false, err
 	})
-	// Idempotency considerations:
+	// Idempotency considerations(considering tables with PK):
 	// Note: Assuming PK column value is not changed via UPDATEs
-	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
+	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be
 	// successful even if the row already exists.
 	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
