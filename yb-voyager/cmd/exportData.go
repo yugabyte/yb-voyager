@@ -156,7 +156,10 @@ func exportDataOffline() bool {
 	if len(finalTableList) == 0 {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()
-		dfd := datafile.Descriptor{ExportDir: exportDir}
+		dfd := datafile.Descriptor{
+			ExportDir: exportDir,
+			DataFileList: make([]*datafile.FileEntry, 0),
+		}
 		dfd.Save()
 		os.Exit(0)
 	}
