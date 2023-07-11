@@ -51,8 +51,8 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		if key.Value() == "false" {
 			continue
 		}
-		arg := fmt.Sprintf(` --%s`, key.Name())
-		if len(key.Name()) == 1 {
+		arg := fmt.Sprintf(` --%s`, key.Name()) // long option
+		if len(key.Name()) == 1 {               // short option
 			arg = fmt.Sprintf(` -%s`, key.Name())
 		}
 		if key.Value() == "true" {
