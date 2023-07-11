@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	log "github.com/sirupsen/logrus"
@@ -45,20 +46,25 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
 	}
 	section := iniData.Section(sectionToRead)
-	args := ""
+	var args strings.Builder
 	for _, key := range section.Keys() {
 		if key.Value() == "false" {
 			continue
-		} else if key.Value() == "true" {
-			args += fmt.Sprintf(" %s", key.Name())
-		} else {
-			// value is comma separated schema names which need to be quoted
-			if key.Name() == "--schema" {
-				args += fmt.Sprintf(` --schema="%s"`, key.Value())
-			} else {
-				args += fmt.Sprintf(" %s=%s", key.Name(), key.Value())
-			}
 		}
+		arg := fmt.Sprintf(` --%s`, key.Name())
+		if len(key.Name()) == 1 {
+			arg = fmt.Sprintf(` -%s`, key.Name())
+		}
+		if key.Value() == "true" {
+			// no value to specify
+		} else if key.Name() == "schema" {
+			// value is comma separated schema names which need to be quoted
+			arg += fmt.Sprintf(`="%s"`, key.Value())
+		} else {
+			arg += fmt.Sprintf(`=%s`, key.Value())
+		}
+
+		args.WriteString(arg)
 	}
-	return args
+	return args.String()
 }
