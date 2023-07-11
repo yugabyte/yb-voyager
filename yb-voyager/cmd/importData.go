@@ -109,6 +109,9 @@ type ImportFileTask struct {
 
 func discoverFilesToImport() []*ImportFileTask {
 	result := []*ImportFileTask{}
+	if dataFileDescriptor.DataFileList == nil {
+		utils.ErrExit("It looks like the data is exported using older version of Voyager. Please use matching version to import the data.")
+	}
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
 		task := &ImportFileTask{
