@@ -100,7 +100,7 @@ main() {
 	imp_pid=$!
 
 	step "Inserting new events"
-	run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} delta
+	run_file delta.sql
 
 	sleep 20
 
