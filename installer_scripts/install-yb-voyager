@@ -115,7 +115,7 @@ centos_main() {
 	$YUM which wget git gcc make 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
 	$YUM postgresql14 1>&2
-
+	create_pg_dump_args_file
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -144,6 +144,7 @@ ubuntu_main() {
 
 	install_golang linux
 	ubuntu_install_postgres
+	create_pg_dump_args_file
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -172,6 +173,7 @@ macos_main() {
 	check_java
 	macos_install_brew
 	macos_install_pg_dump
+	create_pg_dump_args_file
 	brew install wget
 	install_golang darwin
 	install_debezium_server
@@ -493,6 +495,27 @@ create_base_ora2pg_conf_file() {
 	fi 
 }
 
+create_pg_dump_args_file() {
+	args_file_name="/etc/yb-voyager/pg_dump-args.ini"
+	sudo mkdir -p /etc/yb-voyager
+	if [ -f "$args_file_name" ]
+	then
+		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
+		backup_file_name="${args_file_name}.${curr_date}"
+		sudo mv ${args_file_name} ${backup_file_name}
+		output "Overwriting ${args_file_name}. Existing contents are backed up in ${backup_file_name}"
+	fi
+	output "Installing the latest pg_dump-args.ini"
+
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
+	else
+		pushd `git rev-parse --show-toplevel` > /dev/null
+		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
+		popd > /dev/null
+	fi	
+}
 
 #=============================================================================
 # CENTOS
