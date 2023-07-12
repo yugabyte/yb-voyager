@@ -26,7 +26,7 @@ source ${TEST_DIR}/env.sh
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 source ${SCRIPTS}/yugabytedb/env.sh
 
-source ${SCRIPTS}/live-functions.sh
+source ${SCRIPTS}/functions.sh
 
 main() {
 
@@ -76,32 +76,35 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data || { 
+	export_data --live-migration || { 
 		tail_log_file "yb-voyager.log"
 		tail_log_file "debezium.log"
 		exit 1
 	} &
 
+	# Storing the pid for the export data command
 	exp_pid=$!
 
-	sleep 30
+	# Waiting for snapshot to complete
+	( tail -f -n0 ${EXPORT_DIR}/logs/yb-voyager.log & ) | grep -q "snapshot export is complete"
+
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
-	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data &
-	
+	import_data --live-migration &
+
+	# Storing the pid for the import data command
 	imp_pid=$!
 
-	sleep 20
-
-	echo "Inserting new events"
+	step "Inserting new events"
 	run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} delta
 
 	sleep 20
 
+	step "Shutting down exporter and importer"
 	kill_process -${exp_pid}
 	kill_process -${imp_pid}
 
