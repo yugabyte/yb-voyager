@@ -202,6 +202,26 @@ type Ora2pgConfig struct {
 	ModifyStruct     string
 }
 
+type PgDumpArgs struct {
+	Schema             string
+	SchemaTempFilePath string
+	ExtensionPattern   string
+	TablesListPattern  string
+	DataDirPath        string
+	DataFormat         string
+	ParallelJobs       string
+	NoComments         string
+
+	// default values from template file will be taken
+	SchemaOnly           string
+	NoOwner              string
+	NoPrivileges         string
+	NoTablespaces        string
+	LoadViaPartitionRoot string
+	DataOnly             string
+	NoBlobs              string
+}
+
 func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
 	conf := &Ora2pgConfig{}
 	conf.OracleDSN = source.getSourceDSN()
