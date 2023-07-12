@@ -335,3 +335,19 @@ kill_process() {
 	to_be_killed=$1
 	kill -9 ${to_be_killed}
 }
+
+run_file() {
+	file_name=$1
+	if [ "${SOURCE_DB_TYPE}" = "mysql" ]
+	then
+		run_mysql ${SOURCE_DB_NAME} "SOURCE ${file_name};"
+	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]
+	then
+		run_psql ${SOURCE_DB_NAME} "\i ${file_name};"
+	elif [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${file_name}
+	else
+		echo "Invalid source database."
+	fi
+}
