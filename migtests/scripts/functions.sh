@@ -263,6 +263,7 @@ export_data() {
 
 
 	yb-voyager export data ${args} $*
+
 }
 
 analyze_schema() {
@@ -274,30 +275,33 @@ analyze_schema() {
 }
 
 import_schema() {
-	yb-voyager import schema --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--target-db-schema ${TARGET_DB_SCHEMA} \
-		--yes \
-		--send-diagnostics=false \
-		$*
+	args="--export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME} 
+		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--yes
+		--send-diagnostics=false
+		"
+		yb-voyager import schema ${args} $*
 }
 
 import_data() {
-	yb-voyager import data --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--target-db-schema ${TARGET_DB_SCHEMA} \
-		--disable-pb \
-		--send-diagnostics=false \
+	args="
+	 --export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME} 
+		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--disable-pb
+		--send-diagnostics=false 
 		--start-clean
-		$*
+		"
+		yb-voyager import data ${args} $*
 }
 
 import_data_file() {
@@ -325,4 +329,9 @@ tail_log_file() {
 	else
 		echo "No ${log_file_name} found."
 	fi	
+}
+
+kill_process() {
+	to_be_killed=$1
+	kill -9 ${to_be_killed}
 }
