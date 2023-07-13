@@ -13,6 +13,7 @@ VERSION="latest"
 # This needs to be changed to the latest debezium release tag
 DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.4.0"}
 DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.4.0"}
+VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.5.0"}
 
 # the hash corresponds to the yb-voyager/v1.4.0 tag
 YB_VOYAGER_GIT_HASH="a21fa577f599be2367aa5e8886760b41b48701fc" 
@@ -127,7 +128,7 @@ centos_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
-	install_yb_voyager
+	install_yb_voyager linux 
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -156,7 +157,7 @@ ubuntu_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
-	install_yb_voyager
+	install_yb_voyager linux
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -175,7 +176,7 @@ macos_main() {
 	brew install wget
 	install_golang darwin
 	install_debezium_server
-	install_yb_voyager
+	install_yb_voyager darwin
 	create_yb_session_vars_file
 	update_bashrc
 }
@@ -314,11 +315,26 @@ update_yb_voyager_bashrc() {
 
 
 install_yb_voyager() {
+	os=$1
 	output "Installing yb-voyager:${VERSION}."
 	if [ "${VERSION}" == "latest" ]
 	then
-		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
-		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
+		if [ "$os" == "linux" ]
+		then
+			binary_name="voyager-linux-amd64"
+		elif [ "$os" == "darwin" ]
+		then
+			arch="$(uname -m)"
+			if [ "${arch}" == "arm64" ]
+			then
+				binary_name="voyager-darwin-arm64"
+			else
+				binary_name="voyager-darwin-amd64"
+			fi
+		fi
+
+		wget https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager%2Fv${VOYAGER_RELEASE_TAG}/${binary_name} 1>&2
+		sudo mv -f "${binary_name}" /usr/local/bin/yb-voyager
 		return
 	fi
 

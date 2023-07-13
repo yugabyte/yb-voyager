@@ -1,0 +1,46 @@
+name: Create yb-voyager binary
+
+on:
+  create:
+    tags:
+      - 'yb-voyager/v*' # Trigger on any tag starting with 'yb-voyager/v'
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.20"
+
+      - name: Build Binary
+        run: |
+          cd yb-voyager
+          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+            GOOS=linux GOARCH=amd64 go build -o voyager-linux-amd64
+          elif [ ${{ matrix.os }} == "macos-latest" ]; then
+            CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o voyager-darwin-amd64
+            CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o voyager-darwin-arm64
+          fi
+
+      - name: Upload Binary to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./yb-voyager/voyager-linux-amd64
+            ./yb-voyager/voyager-darwin-amd64
+            ./yb-voyager/voyager-darwin-arm64
+          repo_token: ${{ github.token }}
+          overwrite: true
+        
