@@ -16,10 +16,8 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -28,30 +26,58 @@ import (
 )
 
 func streamChanges() error {
-	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
-	log.Infof("Streaming changes from %s", queueFilePath)
-	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
-	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
-	}
-	defer file.Close()
-
-	r := utils.NewTailReader(file)
-	dec := json.NewDecoder(r)
-	log.Infof("Waiting for changes in %s", queueFilePath)
-	// TODO: Batch the changes.
-	for dec.More() {
-		var event tgtdb.Event
-		err := dec.Decode(&event)
+	eventQueue := tgtdb.NewEventQueue(exportDir)
+	log.Infof("Streaming changes from %s", eventQueue.QueueDirPath)
+	for { // continuously get next segments to stream
+		segments, err := eventQueue.GetNextSegments()
+		log.Infof("got %d segments to stream", len(segments))
 		if err != nil {
-			return fmt.Errorf("error decoding change: %v", err)
+			return err
 		}
 
-		err = handleEvent(&event)
+		if segments == nil {
+			utils.PrintAndLog("no segments to stream. Sleeping for 2 second.")
+			time.Sleep(2 * time.Second)
+			continue
+		}
+
+		for _, segment := range segments {
+			err := streamChangesForSegment(segment)
+			if err != nil {
+				return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
+			}
+		}
+	}
+}
+
+func streamChangesForSegment(segment *tgtdb.EventQueueSegment) error {
+	err := segment.Open()
+	if err != nil {
+		return err
+	}
+	defer segment.Close()
+	log.Infof("streaming changes for segment %s", segment.FilePath)
+	for !segment.IsProcessed() {
+		event, err := segment.NextEvent()
+		if err != nil {
+			return err
+		}
+
+		if event == nil && segment.IsProcessed() {
+			break
+		}
+
+		err = handleEvent(event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
 	}
+
+	err = segment.MarkProcessed()
+	if err != nil {
+		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
+	}
+	log.Infof("segment %s is completed and marked as processed", segment.FilePath)
 	return nil
 }
 
