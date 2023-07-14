@@ -27,7 +27,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
 )
 
 type EventQueue struct {
@@ -43,7 +42,7 @@ func NewEventQueue(exportDir string) *EventQueue {
 // GetNextSegments returns the next segments to process, in order.
 func (eq *EventQueue) GetNextSegments() ([]*EventQueueSegment, error) {
 	log.Infof("Getting next segments to process from %s", eq.QueueDirPath)
-	reSegmentName := regexp.MustCompile("queue.[0-9]+.ndjson")
+	reSegmentName := regexp.MustCompile("queue.[0-9]+.ndjson$")
 	dirEntries, err := os.ReadDir(eq.QueueDirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir %s: %w", eq.QueueDirPath, err)
@@ -81,7 +80,7 @@ type EventQueueSegment struct {
 	reader     *utils.TailReader
 }
 
-var EOFMarker = []byte(`\.`)
+var EOFMarker = `\.`
 
 func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
 	return &EventQueueSegment{
@@ -114,7 +113,8 @@ func (eqs *EventQueueSegment) NextEvent() (*Event, error) {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
 	}
 
-	if slices.Equal(line, EOFMarker) && err == io.EOF {
+	if string(line) == EOFMarker && err == io.EOF {
+		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
 		eqs.processed = true
 		return nil, nil
 	}

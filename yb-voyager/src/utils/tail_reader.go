@@ -55,7 +55,7 @@ func (t *TailReader) ReadLine() ([]byte, error) {
 			return bytes, nil
 		}
 		bytes = append(bytes, b[0])
-		if string(bytes) == `\. ` {
+		if string(bytes) == `\.` {
 			return bytes, io.EOF
 		}
 	}

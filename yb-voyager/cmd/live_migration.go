@@ -22,7 +22,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 func streamChanges() error {
@@ -36,7 +35,7 @@ func streamChanges() error {
 		}
 
 		if segments == nil {
-			utils.PrintAndLog("no segments to stream. Sleeping for 2 second.")
+			log.Info("no segments to stream. Sleeping for 2 second.")
 			time.Sleep(2 * time.Second)
 			continue
 		}
