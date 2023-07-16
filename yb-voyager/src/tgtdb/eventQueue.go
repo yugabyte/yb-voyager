@@ -29,20 +29,26 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const (
+	QUEUE_DIR_NAME               = "queue"
+	QUEUE_SEGMENT_FILE_NAME      = "segment"
+	QUEUE_SEGMENT_FILE_EXTENSION = "ndjson"
+)
+
 type EventQueue struct {
 	QueueDirPath string
 }
 
 func NewEventQueue(exportDir string) *EventQueue {
 	return &EventQueue{
-		QueueDirPath: filepath.Join(exportDir, "data", "cdc"),
+		QueueDirPath: filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
 	}
 }
 
 // GetNextSegments returns the next segments to process, in order.
 func (eq *EventQueue) GetNextSegments() ([]*EventQueueSegment, error) {
 	log.Infof("Getting next segments to process from %s", eq.QueueDirPath)
-	reSegmentName := regexp.MustCompile("queue.[0-9]+.ndjson$")
+	reSegmentName := regexp.MustCompile(fmt.Sprintf("%s.[0-9]+.%s$", QUEUE_SEGMENT_FILE_NAME, QUEUE_SEGMENT_FILE_EXTENSION))
 	dirEntries, err := os.ReadDir(eq.QueueDirPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read dir %s: %w", eq.QueueDirPath, err)
@@ -58,7 +64,7 @@ func (eq *EventQueue) GetNextSegments() ([]*EventQueueSegment, error) {
 	for _, segmentPath := range segmentPaths {
 		segmentFileName := filepath.Base(segmentPath)
 		var segmentNum int64
-		_, err := fmt.Sscanf(segmentFileName, "queue.%d.ndjson", &segmentNum)
+		_, err := fmt.Sscanf(segmentFileName, QUEUE_SEGMENT_FILE_NAME+".%d."+QUEUE_SEGMENT_FILE_EXTENSION, &segmentNum)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse segment number from %s: %w", segmentFileName, err)
 		}
