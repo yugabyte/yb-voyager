@@ -478,7 +478,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:   datafile.TEXT,
-		Delimiter:    ",",
+		Delimiter:    "\t",
 		HasHeader:    true,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,

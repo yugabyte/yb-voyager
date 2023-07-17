@@ -22,7 +22,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type Target struct {
+type TargetConf struct {
 	Host                 string
 	Port                 int
 	User                 string
@@ -46,23 +46,19 @@ type Target struct {
 	ExcludeImportObjects string
 	dbVersion            string
 
-	db *TargetDB
+	TargetEndpoints            string
+	UsePublicIP                bool
+	EnableUpsert               bool
+	DisableTransactionalWrites bool
+	Parallelism                int
 }
 
-func (t *Target) Clone() *Target {
+func (t *TargetConf) Clone() *TargetConf {
 	clone := *t
-	clone.db = nil
 	return &clone
 }
 
-func (t *Target) DB() *TargetDB {
-	if t.db == nil {
-		t.db = newTargetDB(t)
-	}
-	return t.db
-}
-
-func (t *Target) GetConnectionUri() string {
+func (t *TargetConf) GetConnectionUri() string {
 	if t.Uri == "" {
 		hostAndPort := fmt.Sprintf("%s:%d", t.Host, t.Port)
 		targetUrl := &url.URL{
@@ -80,7 +76,7 @@ func (t *Target) GetConnectionUri() string {
 }
 
 // this function is only triggered when t.Uri==""
-func generateSSLQueryStringIfNotExists(t *Target) string {
+func generateSSLQueryStringIfNotExists(t *TargetConf) string {
 	SSLQueryString := ""
 	if t.SSLMode == "" {
 		t.SSLMode = "prefer"
@@ -113,9 +109,9 @@ func generateSSLQueryStringIfNotExists(t *Target) string {
 	return SSLQueryString
 }
 
-func GetRedactedTarget(t *Target) *Target {
-	redactedTarget := *t
-	redactedTarget.Uri = utils.GetRedactedURLs([]string{t.Uri})[0]
-	redactedTarget.Password = "XXX"
-	return &redactedTarget
+func GetRedactedTargetConf(t *TargetConf) *TargetConf {
+	redacted := *t
+	redacted.Uri = utils.GetRedactedURLs([]string{t.Uri})[0]
+	redacted.Password = "XXX"
+	return &redacted
 }
