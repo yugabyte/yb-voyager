@@ -22,7 +22,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
@@ -49,7 +48,6 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var copyTableFromCommands = sync.Map{}
 
 var truncateSplits bool // to truncate *.D splits after import
 
