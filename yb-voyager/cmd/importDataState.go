@@ -528,7 +528,7 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	return query
 }
 
-func (batch *Batch) GetCommandToRecordEntryInDB(rowsAffected int64) string {
+func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(

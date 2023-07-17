@@ -236,13 +236,6 @@ func (yb *TargetYugabyteDB) CleanFileImportState(filePath, tableName string) err
 	return nil
 }
 
-type Batch interface {
-	Open() (*os.File, error)
-	GetFilePath() string
-	GetQueryIsBatchAlreadyImported() string
-	GetCommandToRecordEntryInDB(rowsAffected int64) string
-}
-
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error) {
 	var rowsAffected int64
 	var err error
@@ -752,7 +745,7 @@ func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool
 }
 
 func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected int64) error {
-	cmd := batch.GetCommandToRecordEntryInDB(rowsAffected)
+	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
 	_, err := tx.Exec(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)

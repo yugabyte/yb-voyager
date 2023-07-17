@@ -459,7 +459,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 
 	importBatchArgs := *importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = int(batch.OffsetEnd - batch.OffsetStart)
+	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
 
 	var rowsAffected int64
 	sleepIntervalSec := 0

@@ -236,6 +236,8 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 
 	result := make(map[string][]string)
 	for _, tableMetadata := range tablesMetadata {
+		// TODO: Use tableMetadata.TableName instead of parsing the file name.
+		// We need a new method in sqlname.SourceName that returns MaybeQuoted and MaybeQualified names.
 		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		result[tableName] = pg.getExportedColumnsListForTable(exportDir, tableName)
 	}
