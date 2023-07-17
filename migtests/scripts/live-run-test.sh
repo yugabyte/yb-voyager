@@ -85,9 +85,11 @@ main() {
 	# Storing the pid for the export data command
 	exp_pid=$!
 
-	# Waiting for snapshot to complete
-	( tail -f -n0 ${EXPORT_DIR}/logs/yb-voyager.log & ) | grep -q "snapshot export is complete"
+	# Killing the export process in case of failure
+	trap "kill_process -${exp_pid}" SIGINT SIGTERM EXIT
 
+	# Waiting for snapshot to complete
+	( tail -f -n0 ${EXPORT_DIR}/logs/yb-voyager.log &) | timeout 100 grep -q "snapshot export is complete"
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
@@ -99,24 +101,35 @@ main() {
 	# Storing the pid for the import data command
 	imp_pid=$!
 
+	# Updating the trap command to include the importer
+	trap "kill_process -${exp_pid} && kill_process -${imp_pid}" SIGINT SIGTERM EXIT
+
+	sleep 30 
+	
+	step "Run snapshot validations."
+	"${TEST_DIR}/snapvalidate"
+
 	step "Inserting new events"
 	run_file delta.sql
 
-	sleep 20
+	sleep 30
 
 	step "Shutting down exporter and importer"
 	kill_process -${exp_pid}
 	kill_process -${imp_pid}
+
+	# Resetting the trap command
+	trap - SIGINT SIGTERM EXIT
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data --refresh-mviews
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
-	step "Run validations."
+	step "Run final validations."
 	if [ -x "${TEST_DIR}/validate" ]
 	then
-		 "${TEST_DIR}/validate"
+	"${TEST_DIR}/validate"
 	fi
 
 	step "Clean up"
