@@ -313,6 +313,29 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 }
 
 func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+	result := make([]string, len(columns))
+	// FAST PATH.
+	fastPathSuccessful := true
+	for i, colName := range columns {
+		if strings.ToLower(colName) == colName {
+			if sqlname.IsReservedKeyword(colName) && colName[0:1] != `"` {
+				result[i] = fmt.Sprintf(`"%s"`, colName)
+			} else {
+				result[i] = colName
+			}
+		} else {
+			// Go to slow path.
+			log.Infof("column name (%s) is not all lower-case. Going to slow path.", colName)
+			result = make([]string, len(columns))
+			fastPathSuccessful = false
+			break
+		}
+	}
+	if fastPathSuccessful {
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		return result, nil
+	}
+	// SLOW PATH.
 	schemaName := yb.tconf.Schema
 	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
@@ -325,7 +348,6 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 	}
 	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
 
-	result := make([]string, len(columns))
 	for i, colName := range columns {
 		if colName[0] == '"' && colName[len(colName)-1] == '"' {
 			colName = colName[1 : len(colName)-1]
