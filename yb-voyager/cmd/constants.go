@@ -19,7 +19,6 @@ const (
 	FOUR_MB                      = 4 * 1024 * 1024
 	META_INFO_DIR_NAME           = "metainfo"
 	NEWLINE                      = '\n'
-	GET_YB_SERVERS_QUERY         = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
 	ORACLE_DEFAULT_PORT          = 1521
 	MYSQL_DEFAULT_PORT           = 3306
 	POSTGRES_DEFAULT_PORT        = 5432
@@ -41,23 +40,9 @@ const (
 	SCHEMA_VERSION_MISMATCH_ERR  = "Query error: schema version mismatch for table"
 )
 
-// import session parameters
-const (
-	SET_CLIENT_ENCODING_TO_UTF8           = "SET client_encoding TO 'UTF8'"
-	SET_SESSION_REPLICATE_ROLE_TO_REPLICA = "SET session_replication_role TO replica" //Disable triggers or fkeys constraint checks.
-	SET_YB_ENABLE_UPSERT_MODE             = "SET yb_enable_upsert_mode to true"
-	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
-)
-
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
-}
-
-var NonRetryCopyErrors = []string{
-	"Sending too long RPC message",
-	"invalid input syntax",
-	"violates unique constraint",
 }

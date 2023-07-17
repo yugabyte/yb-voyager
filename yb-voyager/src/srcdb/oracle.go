@@ -175,11 +175,13 @@ func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList [
 func (ora *Oracle) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFilesForReservedWords(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.SQL,
-		DataFileList: getExportedDataFileList(tablesProgressMetadata),
-		Delimiter:    "\t",
-		HasHeader:    false,
-		ExportDir:    exportDir,
+		FileFormat:                 datafile.SQL,
+		DataFileList:               getExportedDataFileList(tablesProgressMetadata),
+		Delimiter:                  "\t",
+		HasHeader:                  false,
+		ExportDir:                  exportDir,
+		NullString:                 `\N`,
+		TableNameToExportedColumns: getOra2pgExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
 	dfd.Save()
 

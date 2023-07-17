@@ -118,12 +118,12 @@ func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
 
 func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {
 	var finalImportObjectList []string
-	excludeObjectList := utils.CsvStringToSlice(target.ExcludeImportObjects)
+	excludeObjectList := utils.CsvStringToSlice(tconf.ExcludeImportObjects)
 	for i, item := range excludeObjectList {
 		excludeObjectList[i] = strings.ToUpper(item)
 	}
-	if target.ImportObjects != "" {
-		includeObjectList := utils.CsvStringToSlice(target.ImportObjects)
+	if tconf.ImportObjects != "" {
+		includeObjectList := utils.CsvStringToSlice(tconf.ImportObjects)
 		for i, item := range includeObjectList {
 			includeObjectList[i] = strings.ToUpper(item)
 		}

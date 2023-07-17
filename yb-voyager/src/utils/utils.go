@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -378,4 +379,35 @@ func GenerateRandomString(length int) string {
 		buf[i], buf[j] = buf[j], buf[i]
 	})
 	return string(buf)
+}
+
+func ForEachMatchingLineInFile(filePath string, re *regexp.Regexp, callback func(matches []string) bool) error {
+	return ForEachLineInFile(filePath, func(line string) bool {
+		matches := re.FindStringSubmatch(line)
+		if len(matches) > 0 {
+			return callback(matches)
+		}
+		return true // Continue with next line.
+	})
+}
+
+func ForEachLineInFile(filePath string, callback func(line string) bool) error {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		cont := callback(scanner.Text())
+		if !cont {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading file %s: %v", filePath, err)
+	}
+	return nil
 }

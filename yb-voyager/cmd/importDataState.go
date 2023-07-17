@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"bufio"
-	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -26,9 +25,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
+)
+
+const (
+	BATCH_METADATA_TABLE_NAME = tgtdb.BATCH_METADATA_TABLE_NAME
 )
 
 /*
@@ -43,7 +46,10 @@ type ImportDataState struct {
 }
 
 func NewImportDataState(exportDir string) *ImportDataState {
-	return &ImportDataState{exportDir: exportDir, stateDir: filepath.Join(exportDir, "metainfo", "import_data_state")}
+	return &ImportDataState{
+		exportDir: exportDir,
+		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state"),
+	}
 }
 
 func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error {
@@ -147,7 +153,7 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
+func (s *ImportDataState) Clean(filePath string, tableName string) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
 	fileStateDir := s.getFileStateDir(filePath, tableName)
 	log.Infof("Removing %q.", fileStateDir)
@@ -156,16 +162,10 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
-	schemaName := getTargetSchemaName(tableName)
-	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
-	res, err := conn.Exec(context.Background(), cmd)
+	err = tdb.CleanFileImportState(filePath, tableName)
 	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
 	}
-	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	return nil
 }
 
@@ -519,39 +519,27 @@ func (batch *Batch) MarkDone() error {
 	return nil
 }
 
-func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
-	var rowsImported int64
+func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	schemaName := getTargetSchemaName(batch.TableName)
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
 			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
 		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
-	if err == nil {
-		log.Infof("%v rows from %q are already imported", rowsImported, batch.FilePath)
-		return true, rowsImported, nil
-	}
-	if err == pgx.ErrNoRows {
-		log.Infof("%q is not imported yet", batch.FilePath)
-		return false, 0, nil
-	}
-	return false, 0, fmt.Errorf("check if %s is already imported: %w", batch.FilePath, err)
+	return query
 }
 
-func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
+func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
 		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
 		VALUES ('%s', %d, '%s', '%s', %v);`,
 		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
-	_, err := tx.Exec(context.Background(), cmd)
-	if err != nil {
-		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
-	}
-	log.Infof("Inserted ('%s', %d, '%s', '%s', %v) in %s",
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected, BATCH_METADATA_TABLE_NAME)
-	return nil
+	return cmd
+}
+
+func (batch *Batch) GetFilePath() string {
+	return batch.FilePath
 }
 
 func (batch *Batch) getInProgressFilePath() string {
