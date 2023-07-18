@@ -16,7 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -28,23 +31,20 @@ func streamChanges() error {
 	eventQueue := tgtdb.NewEventQueue(exportDir)
 	log.Infof("Streaming changes from %s", eventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
-		segments, err := eventQueue.GetNextSegments()
-		log.Infof("got %d segments to stream", len(segments))
+		segment, err := eventQueue.GetNextSegment()
+		log.Infof("Got next segment to stream: %v", segment)
 		if err != nil {
+			if segment == nil && errors.Is(err, os.ErrNotExist) {
+				log.Info("no segment to stream. Sleeping for 2 second.")
+				time.Sleep(2 * time.Second)
+				continue
+			}
 			return err
 		}
 
-		if segments == nil {
-			log.Info("no segments to stream. Sleeping for 2 second.")
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		for _, segment := range segments {
-			err := streamChangesForSegment(segment)
-			if err != nil {
-				return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
-			}
+		err = streamChangesForSegment(segment)
+		if err != nil {
+			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
@@ -72,11 +72,9 @@ func streamChangesForSegment(segment *tgtdb.EventQueueSegment) error {
 		}
 	}
 
-	err = segment.MarkProcessed()
-	if err != nil {
-		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
-	}
-	log.Infof("segment %s is completed and marked as processed", segment.FilePath)
+	log.Infof("finished streaming changes for segment %s", segment.FilePath)
+	// TODO: printing this line until some user stats are available.
+	fmt.Printf("finished streaming changes for segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 

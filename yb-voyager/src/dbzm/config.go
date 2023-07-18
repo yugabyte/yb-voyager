@@ -126,6 +126,7 @@ debezium.source.database.history.file.filename=%s
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
 debezium.source.include.schema.changes=false
+#debezium.sink.ybexporter.queueSegmentMaxBytes=10485760 # 10MB
 `
 
 var oracleConfigTemplate = baseConfigTemplate +

@@ -22,8 +22,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
-	"sort"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -36,46 +34,30 @@ const (
 )
 
 type EventQueue struct {
-	QueueDirPath string
+	QueueDirPath       string
+	SegmentNumToStream int64
 }
 
 func NewEventQueue(exportDir string) *EventQueue {
 	return &EventQueue{
-		QueueDirPath: filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
+		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
+		SegmentNumToStream: 0,
 	}
 }
 
-// GetNextSegments returns the next segments to process, in order.
-func (eq *EventQueue) GetNextSegments() ([]*EventQueueSegment, error) {
-	log.Infof("Getting next segments to process from %s", eq.QueueDirPath)
-	reSegmentName := regexp.MustCompile(fmt.Sprintf("%s.[0-9]+.%s$", QUEUE_SEGMENT_FILE_NAME, QUEUE_SEGMENT_FILE_EXTENSION))
-	dirEntries, err := os.ReadDir(eq.QueueDirPath)
+// GetNextSegment returns the next segment to process
+func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
+	log.Infof("Getting next segment to process from %s", eq.QueueDirPath)
+
+	segmentFilePath := filepath.Join(eq.QueueDirPath, fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION))
+	_, err := os.Stat(segmentFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read dir %s: %w", eq.QueueDirPath, err)
-	}
-	var segmentPaths []string
-	for _, dirEntry := range dirEntries {
-		if !dirEntry.IsDir() && reSegmentName.MatchString(dirEntry.Name()) {
-			segmentPaths = append(segmentPaths, filepath.Join(eq.QueueDirPath, dirEntry.Name()))
-		}
+		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
 	}
 
-	segments := make([]*EventQueueSegment, 0, len(segmentPaths))
-	for _, segmentPath := range segmentPaths {
-		segmentFileName := filepath.Base(segmentPath)
-		var segmentNum int64
-		_, err := fmt.Sscanf(segmentFileName, QUEUE_SEGMENT_FILE_NAME+".%d."+QUEUE_SEGMENT_FILE_EXTENSION, &segmentNum)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse segment number from %s: %w", segmentFileName, err)
-		}
-		segments = append(segments, NewEventQueueSegment(segmentPath, segmentNum))
-	}
-
-	sort.Slice(segments, func(i, j int) bool {
-		return segments[i].SegmentNum < segments[j].SegmentNum
-	})
-
-	return segments, nil
+	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	eq.SegmentNumToStream++
+	return segment, nil
 }
 
 type EventQueueSegment struct {
@@ -134,17 +116,4 @@ func (eqs *EventQueueSegment) NextEvent() (*Event, error) {
 
 func (eqs *EventQueueSegment) IsProcessed() bool {
 	return eqs.processed
-}
-
-func (eqs *EventQueueSegment) MarkProcessed() error {
-	if !eqs.processed {
-		return fmt.Errorf("cannot mark segment %s as processed before reading all events", eqs.FilePath)
-	}
-
-	processedFilePath := fmt.Sprintf("%s.processed", eqs.FilePath)
-	err := os.Rename(eqs.FilePath, processedFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to rename %s to %s: %w", eqs.FilePath, processedFilePath, err)
-	}
-	return nil
 }
