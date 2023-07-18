@@ -43,8 +43,7 @@ jobs:
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-linux-amd64-package/base-ora2pg.conf
             touch voyager-linux-amd64-package/ybSessionVariables.sql
             tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64-package
-          elif [ ${{ matrix.os }} == "macos-latest" ]; then
-          
+          elif [ ${{ matrix.os }} == "macos-latest" ]; then   
             mkdir voyager-darwin-amd64-package
             mv voyager-darwin-amd64 voyager-darwin-amd64-package
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-darwin-amd64-package/base-ora2pg.conf
