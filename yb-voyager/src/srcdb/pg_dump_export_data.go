@@ -22,7 +22,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -33,22 +36,20 @@ import (
 func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
 	defer utils.WaitGroup.Done()
 
-	dataDirPath := exportDir + "/data"
-
-	tableListPatterns := createTableListPatterns(tableList)
-
-	// Using pgdump for exporting data in directory format.
-
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
 	}
 
-	pgDumpArgs := fmt.Sprintf(`--no-blobs --data-only --no-owner --compress=0 %s -Fd --file %s --jobs %d --no-privileges --no-tablespaces --load-via-partition-root`,
-		tableListPatterns, dataDirPath, source.NumConnections)
+	pgDumpArgs.DataDirPath = filepath.Join(exportDir, "data")
+	pgDumpArgs.TablesListPattern = createTableListPatterns(tableList)
+	pgDumpArgs.ParallelJobs = strconv.Itoa(source.NumConnections)
+	pgDumpArgs.DataFormat = "directory"
+
+	args := getPgDumpArgsFromFile("data")
 	os.Setenv("PGPASSWORD", source.Password)
 	defer os.Unsetenv("PGPASSWORD")
-	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, pgDumpArgs)
+	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
@@ -60,7 +61,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		log.Infof("%s", outbuf.String())
 	}
 	if err != nil {
-		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/yb-voyager.log'.\n", err, exportDir)
+		fmt.Printf("pg_dump failed to start exporting data with error: %v. For more details check '%s/logs/yb-voyager.log'.\n", err, exportDir)
 		log.Infof("pg_dump failed to start exporting data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
@@ -69,7 +70,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	exportDataStart <- true
 
 	// Parsing the main toc.dat file in parallel.
-	go parseAndCreateTocTextFile(dataDirPath)
+	go parseAndCreateTocTextFile(pgDumpArgs.DataDirPath)
 
 	// Wait for pg_dump to complete before renaming of data files.
 	err = proc.Wait()
@@ -120,12 +121,11 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 
 func createTableListPatterns(tableList []*sqlname.SourceName) string {
 	var tableListPattern string
-
 	for _, table := range tableList {
-		tableListPattern += fmt.Sprintf("-t '%s' ", table.Qualified.MinQuoted)
+		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted)
 	}
 
-	return tableListPattern
+	return strings.TrimPrefix(tableListPattern, "--table=")
 }
 
 func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

@@ -16,16 +16,11 @@ limitations under the License.
 package cmd
 
 import (
-	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -33,7 +28,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -49,34 +43,18 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-// The _v2 is appended in the table name so that the import code doesn't
-// try to use the similar table created by the voyager 1.3 and earlier.
-// Voyager 1.4 uses import data state format that is incompatible from
-// the earlier versions.
-const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
-
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
-var parallelism = 0
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-
-var usePublicIp bool
-var targetEndpoints string
 var copyTableFromCommands = sync.Map{}
-var loadBalancerUsed bool           // specifies whether load balancer is used in front of yb servers
-var enableUpsert bool               // upsert instead of insert for import data
-var disableTransactionalWrites bool // to disable transactional writes for copy command
-var truncateSplits bool             // to truncate *.D splits after import
 var tableNameToSchema map[string]dbzm.TableSchema
-
-const (
-	LB_WARN_MSG = "Warning: Based on internal anaylsis, --target-db-host is identified as a load balancer IP which will be used to create connections for data import.\n" +
-		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
-)
+var truncateSplits bool // to truncate *.D splits after import
+var TableToValueConverterFns map[string][]func(string) (string, error)
+var valueConverterSuite map[string]func(string) (string, error)
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -91,7 +69,7 @@ var importDataCmd = &cobra.Command{
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
-	target.ImportMode = true
+	tconf.ImportMode = true
 	checkExportDataDoneFlag()
 	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
 	sqlname.SourceDBType = sourceDBType
@@ -127,9 +105,9 @@ func discoverFilesToImport() []*ImportFileTask {
 
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
-	includeList := utils.CsvStringToSlice(target.TableList)
+	includeList := utils.CsvStringToSlice(tconf.TableList)
 	log.Infof("includeList: %v", includeList)
-	excludeList := utils.CsvStringToSlice(target.ExcludeTableList)
+	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
@@ -145,246 +123,34 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
-func getYBServers() []*tgtdb.Target {
-	var targets []*tgtdb.Target
-
-	if targetEndpoints != "" {
-		msg := fmt.Sprintf("given yb-servers for import data: %q\n", targetEndpoints)
-		utils.PrintIfTrue(msg, target.VerboseMode)
-		log.Infof(msg)
-
-		ybServers := utils.CsvStringToSlice(targetEndpoints)
-		for _, ybServer := range ybServers {
-			clone := target.Clone()
-
-			if strings.Contains(ybServer, ":") {
-				clone.Host = strings.Split(ybServer, ":")[0]
-				var err error
-				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
-
-				if err != nil {
-					utils.ErrExit("error in parsing useYbServers flag: %v", err)
-				}
-			} else {
-				clone.Host = ybServer
-			}
-
-			clone.Uri = getCloneConnectionUri(clone)
-			log.Infof("using yb server for import data: %+v", tgtdb.GetRedactedTarget(clone))
-			targets = append(targets, clone)
-		}
-	} else {
-		loadBalancerUsed = true
-		url := target.GetConnectionUri()
-		conn, err := pgx.Connect(context.Background(), url)
-		if err != nil {
-			utils.ErrExit("Unable to connect to database: %v", err)
-		}
-		defer conn.Close(context.Background())
-
-		rows, err := conn.Query(context.Background(), GET_YB_SERVERS_QUERY)
-		if err != nil {
-			utils.ErrExit("error in query rows from yb_servers(): %v", err)
-		}
-		defer rows.Close()
-
-		var hostPorts []string
-		for rows.Next() {
-			clone := target.Clone()
-			var host, nodeType, cloud, region, zone, public_ip string
-			var port, num_conns int
-			if err := rows.Scan(&host, &port, &num_conns,
-				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
-			}
-
-			// check if given host is one of the server in cluster
-			if loadBalancerUsed {
-				if isSeedTargetHost(host, public_ip) {
-					loadBalancerUsed = false
-				}
-			}
-
-			if usePublicIp {
-				if public_ip != "" {
-					clone.Host = public_ip
-				} else {
-					var msg string
-					if host == "" {
-						msg = fmt.Sprintf("public ip is not available for host: %s."+
-							"Refer to help for more details for how to enable public ip.", host)
-					} else {
-						msg = fmt.Sprintf("public ip is not available for host: %s but private ip are available. "+
-							"Either refer to help for how to enable public ip or remove --use-public-up flag and restart the import", host)
-					}
-					utils.ErrExit(msg)
-				}
-			} else {
-				clone.Host = host
-			}
-
-			clone.Port = port
-			clone.Uri = getCloneConnectionUri(clone)
-			targets = append(targets, clone)
-
-			hostPorts = append(hostPorts, fmt.Sprintf("%s:%v", host, port))
-		}
-		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
-	}
-
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		utils.PrintAndLog(LB_WARN_MSG)
-		if parallelism == -1 {
-			parallelism = 2 * len(targets)
-			utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
-		}
-		targets = []*tgtdb.Target{&target}
-	} else {
-		targets = testAndFilterYbServers(targets)
-	}
-	return targets
-}
-
-func fetchDefaultParllelJobs(targets []*tgtdb.Target) int {
-	totalCores := 0
-	targetCores := 0
-	for _, target := range targets {
-		log.Infof("Determining CPU core count on: %s", utils.GetRedactedURLs([]string{target.Uri})[0])
-		conn, err := pgx.Connect(context.Background(), target.Uri)
-		if err != nil {
-			log.Warnf("Unable to reach target while querying cores: %v", err)
-			return len(targets) * 2
-		}
-		defer conn.Close(context.Background())
-
-		cmd := "CREATE TEMP TABLE yb_voyager_cores(num_cores int);"
-		_, err = conn.Exec(context.Background(), cmd)
-		if err != nil {
-			log.Warnf("Unable to create tables on target DB: %v", err)
-			return len(targets) * 2
-		}
-
-		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
-		_, err = conn.Exec(context.Background(), cmd)
-		if err != nil {
-			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{target.Uri}), err)
-			return len(targets) * 2
-		}
-
-		cmd = "SELECT num_cores FROM yb_voyager_cores;"
-		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
-			log.Warnf("Error while running query %s: %v", cmd, err)
-			return len(targets) * 2
-		}
-		totalCores += targetCores
-	}
-	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
-		return 3
-	}
-	return totalCores / 2
-}
-
-// this function will check the reachability to each of the nodes and returns list of ones which are reachable
-func testAndFilterYbServers(targets []*tgtdb.Target) []*tgtdb.Target {
-	var availableTargets []*tgtdb.Target
-
-	for _, target := range targets {
-		log.Infof("testing server: %s\n", spew.Sdump(tgtdb.GetRedactedTarget(target)))
-		conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
-		if err != nil {
-			utils.PrintAndLog("unable to use yb-server %q: %v", target.Host, err)
-		} else {
-			availableTargets = append(availableTargets, target)
-			conn.Close(context.Background())
-		}
-	}
-
-	if len(availableTargets) == 0 {
-		utils.ErrExit("no yb servers available for data import")
-	}
-	return availableTargets
-}
-
-func isSeedTargetHost(names ...string) bool {
-	var allIPs []string
-	for _, name := range names {
-		if name != "" {
-			allIPs = append(allIPs, utils.LookupIP(name)...)
-		}
-	}
-
-	seedHostIPs := utils.LookupIP(target.Host)
-	for _, seedHostIP := range seedHostIPs {
-		if slices.Contains(allIPs, seedHostIP) {
-			log.Infof("Target.Host=%s matched with one of ips in %v\n", seedHostIP, allIPs)
-			return true
-		}
-	}
-	return false
-}
-
-func getCloneConnectionUri(clone *tgtdb.Target) string {
-	var cloneConnectionUri string
-	if clone.Uri == "" {
-		//fallback to constructing the URI from individual parameters. If URI was not set for target, then its other necessary parameters must be non-empty (or default values)
-		cloneConnectionUri = clone.GetConnectionUri()
-	} else {
-		targetConnectionUri, err := url.Parse(clone.Uri)
-		if err == nil {
-			targetConnectionUri.Host = fmt.Sprintf("%s:%d", clone.Host, clone.Port)
-			cloneConnectionUri = fmt.Sprint(targetConnectionUri)
-		} else {
-			panic(err)
-		}
-	}
-	return cloneConnectionUri
-}
-
 func importData(importFileTasks []*ImportFileTask) {
-	utils.PrintAndLog("import of data in %q database started", target.DBName)
-	err := target.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
-	}
-	defer target.DB().Disconnect()
-
-	target.Schema = strings.ToLower(target.Schema)
-	targetDBVersion := target.DB().GetVersion()
-	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
-
 	payload := callhome.GetPayload(exportDir)
+
+	tconf.Schema = strings.ToLower(tconf.Schema)
+
+	tdb = tgtdb.NewTargetDB(&tconf)
+	err := tdb.Init()
+	if err != nil {
+		utils.ErrExit("Failed to initialize the target DB: %s", err)
+	}
+	defer tdb.Finalize()
+
+	err = tdb.InitConnPool()
+	if err != nil {
+		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
+	}
+
+	targetDBVersion := tdb.GetVersion()
+	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 	payload.TargetDBVersion = targetDBVersion
-	targets := getYBServers()
-	payload.NodeCount = len(targets)
+	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
-	var targetUriList []string
-	for _, t := range targets {
-		targetUriList = append(targetUriList, t.Uri)
-	}
-	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
-
-	if parallelism == -1 {
-		parallelism = fetchDefaultParllelJobs(targets)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", parallelism)
-	}
-
-	params := &tgtdb.ConnectionParams{
-		NumConnections:    parallelism,
-		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(),
-	}
-	connPool := tgtdb.NewConnectionPool(params)
-	err = createVoyagerSchemaOnTarget(connPool)
+	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	log.Infof("parallelism=%v", parallelism)
-	payload.ParallelJobs = parallelism
-	if target.VerboseMode {
-		fmt.Printf("Number of parallel imports jobs at a time: %d\n", parallelism)
-	}
-
+	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -397,20 +163,47 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
+	valueConverterSuite = tdb.GetValueConverterSuite(false)
+	TableToValueConverterFns = make(map[string][]func(string) (string, error))
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+		//prepare the value converters for this table in case of debezium
 		if utils.FileOrFolderExists(filepath.Join(exportDir, "data", "export_status.json")) {
-			tableList := importFileTasksToTableNames(pendingTasks)
-			tableNameToSchema = make(map[string]dbzm.TableSchema)
-			for _, table := range tableList {
-				tableSchema := dbzm.FetchSchema(table, exportDir)
-				tableNameToSchema[table] = tableSchema
+			for _, task := range pendingTasks {
+				table := task.TableName
+				tableSchema := dbzm.GetTableSchema(table, exportDir)
+				reader, err := dataStore.Open(task.FilePath)
+				if err != nil {
+					utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+				}
+				df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
+				if err != nil {
+					utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+				}
+				header := df.GetHeader()
+				columnNames := strings.Split(header, dataFileDescriptor.Delimiter)
+				columnToConverterFn := make([]func(string) (string, error), len(columnNames))
+				for idx, columnName := range columnNames {
+					colSchema := tableSchema.GetColumnSchema(columnName)
+					logicalType := colSchema.ColDbzSchema.Name
+					schemaType := colSchema.ColDbzSchema.Type
+					if valueConverterSuite[logicalType] != nil {
+						columnToConverterFn[idx] = valueConverterSuite[logicalType]
+					} else if valueConverterSuite[schemaType] != nil {
+						columnToConverterFn[idx] = valueConverterSuite[schemaType]
+					} else {
+						columnToConverterFn[idx] = func(value string) (string, error) {
+							return value, nil
+						}
+					}
+				}
+				TableToValueConverterFns[table] = columnToConverterFn
 			}
 		}
-		poolSize := parallelism * 2
+		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
 			// The code can produce `poolSize` number of batches at a time. But, it can consume only
@@ -424,7 +217,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			updateProgressFn := func(progressAmount int64) {
 				progressReporter.AddProgressAmount(task, progressAmount)
 			}
-			importFile(state, task, connPool, updateProgressFn)
+			importFile(state, task, updateProgressFn)
 			batchImportPool.Wait()                // Wait for the file import to finish.
 			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 		}
@@ -435,11 +228,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	if liveMigration {
 		fmt.Println("streaming changes to target DB...")
-		targetSchema := target.Schema
-		if sourceDBType == POSTGRESQL {
-			targetSchema = ""
-		}
-		err = streamChanges(connPool, targetSchema)
+		err = streamChanges()
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)
 		}
@@ -475,49 +264,6 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	}
 }
 
-// TODO: Move this to importDataState.go .
-func createVoyagerSchemaOnTarget(connPool *tgtdb.ConnectionPool) error {
-	cmds := []string{
-		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			data_file_name VARCHAR(250),
-			batch_number INT,
-			schema_name VARCHAR(250),
-			table_name VARCHAR(250),
-			rows_imported BIGINT,
-			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
-		);`, BATCH_METADATA_TABLE_NAME),
-	}
-
-	maxAttempts := 12
-	var conn *pgx.Conn
-	var err error
-outer:
-	for _, cmd := range cmds {
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			log.Infof("Executing on target: [%s]", cmd)
-			if conn == nil {
-				conn = newTargetConn()
-			}
-			_, err = conn.Exec(context.Background(), cmd)
-			if err == nil {
-				continue outer
-			}
-			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
-			time.Sleep(5 * time.Second)
-			conn.Close(context.Background())
-			conn = nil
-		}
-		if err != nil {
-			return fmt.Errorf("create ybvoyager schema on target: %w", err)
-		}
-	}
-	if conn != nil {
-		conn.Close(context.Background())
-	}
-	return nil
-}
-
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
 	for _, t := range tasks {
@@ -550,11 +296,8 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 }
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
-	conn := newTargetConn()
-	defer conn.Close(context.Background())
-
 	tableNames := importFileTasksToTableNames(tasks)
-	nonEmptyTableNames := getNonEmptyTables(conn, tableNames)
+	nonEmptyTableNames := tdb.GetNonEmptyTables(tableNames)
 	if len(nonEmptyTableNames) > 0 {
 		utils.PrintAndLog("Following tables are not empty. "+
 			"TRUNCATE them before importing data with --start-clean.\n%s",
@@ -566,38 +309,60 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 
 	for _, task := range tasks {
-		err := state.Clean(task.FilePath, task.TableName, conn)
+		err := state.Clean(task.FilePath, task.TableName)
 		if err != nil {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
 	}
 }
 
-func getNonEmptyTables(conn *pgx.Conn, tables []string) []string {
-	result := []string{}
-
-	for _, table := range tables {
-		log.Infof("Checking if table %q is empty.", table)
-		tmp := false
-		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
-		err := conn.QueryRow(context.Background(), stmt).Scan(&tmp)
-		if err == pgx.ErrNoRows {
-			continue
-		}
+func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
+	var columns []string
+	if dataFileDescriptor.TableNameToExportedColumns != nil {
+		columns = dataFileDescriptor.TableNameToExportedColumns[tableName]
+	} else if dataFileDescriptor.HasHeader {
+		// File is either exported from debezium OR this is `import data file` case.
+		reader, err := dataStore.Open(filePath)
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("datastore.Open %q: %v", filePath, err)
 		}
-		result = append(result, table)
+		df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
+		if err != nil {
+			utils.ErrExit("opening datafile %q: %v", filePath, err)
+		}
+		header := df.GetHeader()
+		columns = strings.Split(header, dataFileDescriptor.Delimiter)
+		log.Infof("read header from file %q: %s", filePath, header)
+		log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
+		df.Close()
 	}
-	log.Infof("non empty tables: %v", result)
-	return result
+	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
+	if err != nil {
+		utils.ErrExit("if required quote column names: %s", err)
+	}
+	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
+	fileFormat := dataFileDescriptor.FileFormat
+	if fileFormat == datafile.SQL {
+		fileFormat = datafile.TEXT
+	}
+	importBatchArgsProto := &tgtdb.ImportBatchArgs{
+		TableName:  tableName,
+		Columns:    columns,
+		FileFormat: fileFormat,
+		Delimiter:  dataFileDescriptor.Delimiter,
+		HasHeader:  dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:  dataFileDescriptor.QuoteChar,
+		EscapeChar: dataFileDescriptor.EscapeChar,
+		NullString: nullString,
+	}
+	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
+	return importBatchArgsProto
 }
 
-func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.ConnectionPool,
-	updateProgressFn func(int64)) {
+func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
-	extractCopyStmtForTable(task.TableName, origDataFile)
+	importBatchArgsProto := getImportBatchArgsProto(task.TableName, task.FilePath)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableName, origDataFile)
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableName)
@@ -610,15 +375,15 @@ func importFile(state *ImportDataState, task *ImportFileTask, connPool *tgtdb.Co
 		utils.ErrExit("recovering state for table %q: %s", task.TableName, err)
 	}
 	for _, batch := range pendingBatches {
-		submitBatch(batch, connPool, updateProgressFn)
+		submitBatch(batch, updateProgressFn, importBatchArgsProto)
 	}
 	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, task.TableName, connPool, lastBatchNumber, lastOffset, updateProgressFn)
+		splitFilesForTable(state, origDataFile, task.TableName, lastBatchNumber, lastOffset, updateProgressFn, importBatchArgsProto)
 	}
 }
 
-func splitFilesForTable(state *ImportDataState, filePath string, t string, connPool *tgtdb.ConnectionPool,
-	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64)) {
+func splitFilesForTable(state *ImportDataState, filePath string, t string,
+	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
 	batchNum := lastBatchNumber + 1
 	numLinesTaken := lastOffset
@@ -669,7 +434,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			numLinesTaken += 1
 		}
 		if line != "" && utils.FileOrFolderExists(filepath.Join(exportDir, "data", "export_status.json")) {
-			line, err = dbzm.TransformDataRow(line, tableNameToSchema[batchWriter.tableName])
+			line, err = tdb.TransformDataRow(line, TableToValueConverterFns[batchWriter.tableName])
 			if err != nil {
 				utils.ErrExit("transforming line for table %q: %s", t, err)
 			}
@@ -696,7 +461,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 			}
 			batchWriter = nil
 			dataFile.ResetBytesRead()
-			submitBatch(batch, connPool, updateProgressFn)
+			submitBatch(batch, updateProgressFn, importBatchArgsProto)
 
 			if !isLastBatch {
 				batchNum += 1
@@ -706,12 +471,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string, connP
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func submitBatch(batch *Batch, connPool *tgtdb.ConnectionPool, updateProgressFn func(int64)) {
+func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		doOneImport(batch, connPool)
+		importBatch(batch, importBatchArgsProto)
 		if reportProgressInBytes {
 			updateProgressFn(batch.ByteCount)
 		} else {
@@ -729,35 +494,23 @@ func executePostImportDataSqls() {
 	}
 }
 
-func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
+func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	err := batch.MarkPending()
 	if err != nil {
 		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
 	}
 	log.Infof("Importing %q", batch.FilePath)
 
-	copyCommand := getCopyCommand(batch.TableName)
-	// copyCommand is empty when there are no rows for that table
-	if copyCommand == "" {
-		err = batch.MarkDone()
-		if err != nil {
-			utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
-		}
-		return
-	}
-	copyCommand = fmt.Sprintf(copyCommand, (batch.OffsetEnd - batch.OffsetStart))
-	log.Infof("COPY command: %s", copyCommand)
+	importBatchArgs := *importBatchArgsProto
+	importBatchArgs.FilePath = batch.FilePath
+	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+
 	var rowsAffected int64
-	attempt := 0
 	sleepIntervalSec := 0
-	copyFn := func(conn *pgx.Conn) (bool, error) {
-		var err error
-		attempt++
-		rowsAffected, err = importBatch(conn, batch, copyCommand)
-		if err == nil ||
-			utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error()) ||
-			attempt == COPY_MAX_RETRY_COUNT {
-			return false, err
+	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs)
+		if err == nil || tdb.IsNonRetryableCopyError(err) {
+			break
 		}
 		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
 		sleepIntervalSec += 10
@@ -767,12 +520,10 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
 			sleepIntervalSec, batch.FilePath, attempt)
 		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-		return true, err
 	}
-	err = connPool.WithConn(copyFn)
-	log.Infof("%q => %d rows affected", copyCommand, rowsAffected)
+	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("COPY %q FROM file %q: %s", batch.TableName, batch.FilePath, err)
+		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableName, err)
 	}
 	err = batch.MarkDone()
 	if err != nil {
@@ -780,71 +531,8 @@ func doOneImport(batch *Batch, connPool *tgtdb.ConnectionPool) {
 	}
 }
 
-func importBatch(conn *pgx.Conn, batch *Batch, copyCmd string) (rowsAffected int64, err error) {
-	var file *os.File
-	file, err = batch.Open()
-	if err != nil {
-		utils.ErrExit("opening batch %s: %s", batch.FilePath, err)
-	}
-	defer file.Close()
-
-	//setting the schema so that COPY command can acesss the table
-	setTargetSchema(conn)
-
-	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
-	ctx := context.Background()
-	var tx pgx.Tx
-	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return 0, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer func() {
-		var err2 error
-		if err != nil {
-			err2 = tx.Rollback(ctx)
-			if err2 != nil {
-				rowsAffected = 0
-				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
-			}
-		} else {
-			err2 = tx.Commit(ctx)
-			if err2 != nil {
-				rowsAffected = 0
-				err = fmt.Errorf("commit txn: %w", err2)
-			}
-		}
-	}()
-
-	// Check if the split is already imported.
-	var alreadyImported bool
-	alreadyImported, rowsAffected, err = batch.IsAlreadyImported(tx)
-	if err != nil {
-		return 0, err
-	}
-	if alreadyImported {
-		return rowsAffected, nil
-	}
-
-	// Import the split using COPY command.
-	var res pgconn.CommandTag
-	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCmd)
-	if err != nil {
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.FilePath)
-		}
-		return res.RowsAffected(), err
-	}
-
-	err = batch.RecordEntryInDB(tx, res.RowsAffected())
-	if err != nil {
-		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.FilePath, err)
-	}
-	return res.RowsAffected(), err
-}
-
 func newTargetConn() *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
+	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
@@ -855,25 +543,26 @@ func newTargetConn() *pgx.Conn {
 	return conn
 }
 
+// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
 func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || target.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
+	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
 		// For PG, schema name is already included in the object name.
 		// No need to set schema if importing in the default schema.
 		return
 	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", target.Schema)
+	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, target.Host, err)
+		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", target.Schema)
+		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
 	}
 
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", target.Schema)
+	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, target.Host, err)
+		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
 	}
 
 	if sourceDBType == ORACLE && enableOrafce {
@@ -896,7 +585,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
-	log.Infof("Execute SQL file %q on target %q", file, target.Host)
+	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
 	defer func() {
 		if conn != nil {
@@ -944,7 +633,7 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 
 func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string) error {
 	var err error
-	log.Infof("On %s run query:\n%s\n", target.Host, sqlInfo.formattedStmt)
+	log.Infof("On %s run query:\n%s\n", tconf.Host, sqlInfo.formattedStmt)
 	for retryCount := 0; retryCount <= DDL_MAX_RETRY_COUNT; retryCount++ {
 		if retryCount > 0 { // Not the first iteration.
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
@@ -985,7 +674,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
 			// "already exists" error. Ignore the error.
-			if target.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
+			if tconf.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
 				err = nil
 			}
 		}
@@ -997,7 +686,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		} else {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
 			color.Red(fmt.Sprintf("%s\n", err.Error()))
-			if target.ContinueOnError {
+			if tconf.ContinueOnError {
 				log.Infof("appending stmt to failedSqlStmts list: %s\n", utils.GetSqlStmtToPrint(sqlInfo.stmt))
 				errString := "/*\n" + err.Error() + "\n*/\n"
 				failedSqlStmts = append(failedSqlStmts, errString+sqlInfo.formattedStmt)
@@ -1009,55 +698,13 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+// TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
 		return parts[0]
 	}
-	return target.Schema // default set to "public"
-}
-
-func findCopyCommandForDebeziumExportedFiles(tableName, dataFilePath string) (string, error) {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
-	if err != nil {
-		return "", err
-	}
-	if status == nil {
-		// export_status.json is not present. This is the case of Offline migration.
-		// The data is exported using pg_dump or ora2pg.
-		return "", nil
-	}
-
-	dfd := datafile.OpenDescriptor(exportDir)
-	reader, err := dataStore.Open(dataFilePath)
-	if err != nil {
-		utils.ErrExit("preparing reader to find copy command %q: %v", dataFilePath, err)
-	}
-
-	df, err := datafile.NewDataFile(dataFilePath, reader, dfd)
-	if err != nil {
-		utils.ErrExit("opening datafile %q to prepare copy command: %v", err)
-	}
-	defer df.Close()
-	columnNames := quoteColumnNamesIfRequired(df.GetHeader())
-	stmt := fmt.Sprintf(
-		`COPY %s(%s) FROM STDIN WITH (FORMAT TEXT, ROWS_PER_TRANSACTION %%v);`,
-		tableName, columnNames)
-	return stmt, nil
-}
-
-/*
-Valid cases requiring column name quoting:
-1. ReservedKeyWords in case of any source database type
-2. CaseSensitive column names in case of PostgreSQL(Oracle and MySQL columns are exported as case-insensitive by ora2pg)
-*/
-func quoteColumnNamesIfRequired(txtHeader string) string {
-	columnNames := strings.Split(txtHeader, "\t")
-	for i := 0; i < len(columnNames); i++ {
-		columnNames[i] = quoteIdentifierIfRequired(strings.TrimSpace(columnNames[i]))
-	}
-	return strings.Join(columnNames, ",")
+	return tconf.Schema // default set to "public"
 }
 
 func quoteIdentifierIfRequired(identifier string) string {
@@ -1076,179 +723,6 @@ func quoteIdentifierIfRequired(identifier string) string {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier
-}
-
-func extractCopyStmtForTable(table string, fileToSearchIn string) {
-	if getCopyCommand(table) != "" {
-		return
-	}
-	// When snapshot is exported by Debezium, the data files are in CSV format,
-	// irrespective of the source database type.
-	stmt, err := findCopyCommandForDebeziumExportedFiles(table, fileToSearchIn)
-	// If the export_status.json file is not present, the err will be nil and stmt will be empty.
-	if err != nil {
-		utils.ErrExit("could not extract copy statement for table %q: %v", table, err)
-	}
-	if stmt != "" {
-		copyTableFromCommands.Store(table, stmt)
-		log.Infof("copyTableFromCommand for table %q is %q", table, stmt)
-		return
-	}
-	// pg_dump and ora2pg always have columns - "COPY table (col1, col2) FROM STDIN"
-	var copyCommandRegex *regexp.Regexp
-	if sourceDBType == "postgresql" {
-		// find the line from toc.txt file
-		fileToSearchIn = exportDir + "/data/toc.txt"
-
-		conn := newTargetConn()
-		defer conn.Close(context.Background())
-
-		parentTable := getParentTable(table, conn)
-		tableInCopyRegex := table
-		if parentTable != "" { // needed to find COPY command for table partitions
-			tableInCopyRegex = parentTable
-		}
-		if len(strings.Split(tableInCopyRegex, ".")) == 1 {
-			// happens only when table is in public schema, use public schema with table name for regexp
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
-		} else {
-			copyCommandRegex = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\(.*\) FROM STDIN`, tableInCopyRegex))
-		}
-		log.Infof("parentTable=%s for table=%s", parentTable, table)
-	} else if sourceDBType == "oracle" || sourceDBType == "mysql" {
-		// For oracle, there is only unique COPY per datafile
-		// In case of table partitions, parent table name is used in COPY
-		copyCommandRegex = regexp.MustCompile(`(?i)COPY .*[\s]+\(.*\) FROM STDIN`)
-	}
-
-	file, err := os.Open(fileToSearchIn)
-	if err != nil {
-		utils.ErrExit("could not open file during extraction of copy stmt from file %q: %v", fileToSearchIn, err)
-	}
-	defer file.Close()
-
-	reader := bufio.NewReader(file)
-	for {
-		line, err := utils.Readline(reader)
-		if err == io.EOF { // EOF will mean NO COPY command
-			return
-		} else if err != nil {
-			utils.ErrExit("error while readline for extraction of copy stmt from file %q: %v", fileToSearchIn, err)
-		}
-		if copyCommandRegex.MatchString(line) {
-			line = strings.Trim(line, ";") + ` WITH (ROWS_PER_TRANSACTION %v)`
-			copyTableFromCommands.Store(table, line)
-			log.Infof("copyTableFromCommand for table %q is %q", table, line)
-			return
-		}
-	}
-}
-
-// get the parent table if its a partitioned table in yugabytedb
-// also covers the case when the partitions are further subpartitioned to multiple levels
-func getParentTable(table string, conn *pgx.Conn) string {
-	var parentTable string
-	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
-	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
-	WHERE c.oid = '%s'::regclass::oid`, table)
-
-	var currentParentTable string
-	err := conn.QueryRow(context.Background(), query).Scan(&currentParentTable)
-	if err != pgx.ErrNoRows && err != nil {
-		utils.ErrExit("Error in querying parent tablename for table=%s: %v", table, err)
-	}
-
-	if len(currentParentTable) == 0 {
-		return ""
-	} else {
-		parentTable = getParentTable(currentParentTable, conn)
-		if len(parentTable) == 0 {
-			parentTable = currentParentTable
-		}
-	}
-
-	return parentTable
-}
-
-func getCopyCommand(table string) string {
-	if copyCommand, ok := copyTableFromCommands.Load(table); ok {
-		return copyCommand.(string)
-	} else {
-		log.Infof("No COPY command for table %q", table)
-	}
-	return "" // no-op
-}
-
-func getYBSessionInitScript() []string {
-	var sessionVars []string
-	if checkSessionVariableSupport(SET_CLIENT_ENCODING_TO_UTF8) {
-		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
-	}
-	if checkSessionVariableSupport(SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
-		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
-	}
-
-	if enableUpsert {
-		// upsert_mode parameters was introduced later than yb_disable_transactional writes in yb releases
-		// hence if upsert_mode is supported then its safe to assume yb_disable_transactional_writes is already there
-		if checkSessionVariableSupport(SET_YB_ENABLE_UPSERT_MODE) {
-			sessionVars = append(sessionVars, SET_YB_ENABLE_UPSERT_MODE)
-			// 	SET_YB_DISABLE_TRANSACTIONAL_WRITES is used only with & if upsert_mode is supported
-			if disableTransactionalWrites {
-				if checkSessionVariableSupport(SET_YB_DISABLE_TRANSACTIONAL_WRITES) {
-					sessionVars = append(sessionVars, SET_YB_DISABLE_TRANSACTIONAL_WRITES)
-				} else {
-					disableTransactionalWrites = false
-				}
-			}
-		} else {
-			log.Infof("Falling back to transactional inserts of batches during data import")
-		}
-	}
-
-	sessionVarsPath := "/etc/yb-voyager/ybSessionVariables.sql"
-	if !utils.FileOrFolderExists(sessionVarsPath) {
-		log.Infof("YBSessionInitScript: %v\n", sessionVars)
-		return sessionVars
-	}
-
-	varsFile, err := os.Open(sessionVarsPath)
-	if err != nil {
-		utils.PrintAndLog("Unable to open %s : %v. Using default values.", sessionVarsPath, err)
-		log.Infof("YBSessionInitScript: %v\n", sessionVars)
-		return sessionVars
-	}
-	defer varsFile.Close()
-	fileScanner := bufio.NewScanner(varsFile)
-
-	var curLine string
-	for fileScanner.Scan() {
-		curLine = strings.TrimSpace(fileScanner.Text())
-		if curLine != "" && checkSessionVariableSupport(curLine) {
-			sessionVars = append(sessionVars, curLine)
-		}
-	}
-	log.Infof("YBSessionInitScript: %v\n", sessionVars)
-	return sessionVars
-}
-
-func checkSessionVariableSupport(sqlStmt string) bool {
-	conn, err := pgx.Connect(context.Background(), target.GetConnectionUri())
-	if err != nil {
-		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
-	}
-	defer conn.Close(context.Background())
-
-	_, err = conn.Exec(context.Background(), sqlStmt)
-	if err != nil {
-		if !strings.Contains(err.Error(), "unrecognized configuration parameter") {
-			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
-		} else {
-			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
-		}
-	}
-
-	return err == nil
 }
 
 func checkExportDataDoneFlag() {

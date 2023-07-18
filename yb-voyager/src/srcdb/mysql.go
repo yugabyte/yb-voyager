@@ -167,11 +167,13 @@ func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*
 func (ms *MySQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFilesForReservedWords(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.SQL,
-		Delimiter:    "\t",
-		HasHeader:    false,
-		ExportDir:    exportDir,
-		DataFileList: getExportedDataFileList(tablesProgressMetadata),
+		FileFormat:                 datafile.SQL,
+		Delimiter:                  "\t",
+		HasHeader:                  false,
+		ExportDir:                  exportDir,
+		NullString:                 `\N`,
+		DataFileList:               getExportedDataFileList(tablesProgressMetadata),
+		TableNameToExportedColumns: getOra2pgExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
 	dfd.Save()
 }

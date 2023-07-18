@@ -49,7 +49,7 @@ type TableSchema struct {
 	Columns []Schema `json:"columns"`
 }
 
-func FetchSchema(tableName string, exportDir string) TableSchema {
+func GetTableSchema(tableName string, exportDir string) TableSchema {
 	schemaFileName := fmt.Sprintf("%s_schema.json", tableName)
 	schemaFilePath := filepath.Join(exportDir, "data", "schemas", schemaFileName)
 	schemaFile, err := os.Open(schemaFilePath)
@@ -64,4 +64,13 @@ func FetchSchema(tableName string, exportDir string) TableSchema {
 	}
 	return tableSchema
 
+}
+
+func(ts *TableSchema) GetColumnSchema (columnName string) Schema {
+	for _, colSchema := range ts.Columns {
+		if colSchema.ColName == columnName {
+			return colSchema
+		}
+	}
+	return Schema{}
 }

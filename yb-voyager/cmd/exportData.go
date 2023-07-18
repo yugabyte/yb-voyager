@@ -193,7 +193,7 @@ func exportDataOffline() bool {
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 			utils.ErrExit("yb-voyager encountered internal error. "+
-				"Check %s/yb-voyager.log for more details.", exportDir)
+				"Check %s/logs/yb-voyager.log for more details.", exportDir)
 		}
 	}()
 
@@ -477,7 +477,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 	}
 	dfd := datafile.Descriptor{
 		FileFormat:   datafile.TEXT,
-		Delimiter:    ",",
+		Delimiter:    "\t",
 		HasHeader:    true,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,

@@ -16,14 +16,11 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -31,86 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type Event struct {
-	Op         string                 `json:"op"`
-	SchemaName string                 `json:"schema_name"`
-	TableName  string                 `json:"table_name"`
-	Key        map[string]interface{} `json:"key"`
-	Fields     map[string]interface{} `json:"fields"` 
-}
-
-func (e *Event) GetSQLStmt(targetSchema string) string {
-	switch e.Op {
-	case "c":
-		return e.getInsertStmt(targetSchema)
-	case "u":
-		return e.getUpdateStmt(targetSchema)
-	case "d":
-		return e.getDeleteStmt(targetSchema)
-	default:
-		panic("unknown op: " + e.Op)
-	}
-}
-
-const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
-const updateTemplate = "UPDATE %s SET %s WHERE %s;"
-const deleteTemplate = "DELETE FROM %s WHERE %s;"
-
-func (event *Event) getInsertStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	columnList := make([]string, 0, len(event.Fields))
-	valueList := make([]string, 0, len(event.Fields))
-	for column, value := range event.Fields {
-		columnList = append(columnList, column)
-		if value == "NULL" {
-			valueList = append(valueList, fmt.Sprintf("%v", value)) //no need to stringify NULL
-		} else {
-			valueList = append(valueList, fmt.Sprintf("'%v'", value))
-		}
-	}
-	columns := strings.Join(columnList, ", ")
-	values := strings.Join(valueList, ", ")
-	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
-	return stmt
-}
-
-func (event *Event) getUpdateStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	var setClauses []string
-	for column, value := range event.Fields {
-		setClauses = append(setClauses, fmt.Sprintf("%s = '%s'", column, value))
-	}
-	setClause := strings.Join(setClauses, ", ")
-	var whereClauses []string
-	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
-	}
-	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
-}
-
-func (event *Event) getDeleteStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	var whereClauses []string
-	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
-	}
-	whereClause := strings.Join(whereClauses, " AND ")
-	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
-}
-
-//==================================================================================
-
-func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
+func streamChanges() error {
 	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
 	log.Infof("Streaming changes from %s", queueFilePath)
 	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
@@ -118,20 +36,20 @@ func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
 	}
 	defer file.Close()
-
+    valueConverterSuite = tdb.GetValueConverterSuite(true)
 	r := utils.NewTailReader(file)
 	dec := json.NewDecoder(r)
 	log.Infof("Waiting for changes in %s", queueFilePath)
 	// TODO: Batch the changes.
 	for dec.More() {
-		var event Event
 		dec.UseNumber()
+		var event tgtdb.Event
 		err := dec.Decode(&event)
 		if err != nil {
 			return fmt.Errorf("error decoding change: %v", err)
 		}
 
-		err = handleEvent(connPool, &event, targetSchema)
+		err = handleEvent(&event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -139,45 +57,46 @@ func streamChanges(connPool *tgtdb.ConnectionPool, targetSchema string) error {
 	return nil
 }
 
-func handleEvent(connPool *tgtdb.ConnectionPool, event *Event, targetSchema string) error {
+func handleEvent(event *tgtdb.Event) error {
 	log.Debugf("Handling event: %v", event)
 	tableName := event.TableName
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
 		tableName = event.SchemaName + "." + event.TableName
 	}
-	tableSchema := dbzm.FetchSchema(tableName, exportDir)
-	columnToSchema := make(map[string]dbzm.Schema)
-	for _, columnSchema := range tableSchema.Columns {
-		columnToSchema[columnSchema.ColName] = columnSchema
+	// preparing value converters for the streaming mode
+	tableSchema := dbzm.GetTableSchema(tableName, exportDir)
+	columnToConverterFn := make(map[string]func(string) (string, error))
+	for _, column := range tableSchema.Columns {
+		logicalType := column.ColDbzSchema.Name
+		schemaType := column.ColDbzSchema.Type
+		if valueConverterSuite[logicalType] != nil {
+			columnToConverterFn[column.ColName] = valueConverterSuite[logicalType]
+		} else if valueConverterSuite[schemaType] != nil {
+			columnToConverterFn[column.ColName] = valueConverterSuite[schemaType]
+		} else {
+			columnToConverterFn[column.ColName] = func(value string) (string, error) {
+				return value, nil
+			}
+		}
 	}
 	for column, value := range event.Fields {
+		var columnValue string
 		if value == nil {
-			value = "NULL"
+			columnValue = "NULL"
 		} else {
 			var err error
-			value, err = dbzm.TransformValue(columnToSchema[column], fmt.Sprintf("%v", value), true)
+			columnValue = fmt.Sprintf("%v", value)
+			columnValue, err = columnToConverterFn[column](columnValue)
 			if err != nil {
 				return fmt.Errorf("error transforming value: %v", err)
 			}
 		}
-		event.Fields[column] = value
+		event.Fields[column] = columnValue
 	}
-	stmt := event.GetSQLStmt(targetSchema)
-	log.Debug(stmt)
-	err := connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tag, err := conn.Exec(context.Background(), stmt)
-		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
-		}
-		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
-		return false, err
-	})
-	// Idempotency considerations:
-	// Note: Assuming PK column value is not changed via UPDATEs
-	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
-	// successful even if the row already exists.
-	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
-	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
-
-	return err
+	batch := []*tgtdb.Event{event}
+	err := tdb.ExecuteBatch(batch)
+	if err != nil {
+		return fmt.Errorf("error executing batch: %v", err)
+	}
+	return nil
 }
