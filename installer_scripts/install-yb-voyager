@@ -536,6 +536,7 @@ centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
 	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
 	$YUM \
+		${OIC_URL}/oracle-instantclient-tools-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm \
@@ -560,6 +561,7 @@ ubuntu_install_postgres() {
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
 	sudo apt-get -y install alien 1>&2
+	ubuntu_install_oic oracle-instantclient-tools
 	ubuntu_install_oic oracle-instantclient-basic
 	ubuntu_install_oic oracle-instantclient-devel
 	ubuntu_install_oic oracle-instantclient-jdbc

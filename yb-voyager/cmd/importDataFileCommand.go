@@ -89,7 +89,6 @@ func prepareForImportDataCmd() {
 	}
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
-	prepareCopyCommands()
 	setImportTableListFlag()
 	createExportDataDoneFlag()
 }
@@ -114,45 +113,6 @@ func getFileSizeInfo() []*datafile.FileEntry {
 	}
 
 	return dataFileList
-}
-
-func prepareCopyCommands() {
-	log.Infof("preparing copy commands for the tables to import")
-	for _, task := range importFileTasks {
-		filePath := task.FilePath
-		table := task.TableName
-		// Skip the loop body if the `table` entry is already present in the copyTableFromCommands map.
-		// TODO: Calculate the copy commands per file and not per table.
-		if _, ok := copyTableFromCommands.Load(table); ok {
-			continue
-		}
-		cmd := ""
-		if fileFormat == datafile.CSV {
-			if hasHeader {
-				reader, err := dataStore.Open(filePath)
-				if err != nil {
-					utils.ErrExit("preparing reader for copy commands on file %q: %v", filePath, err)
-				}
-				df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
-				if err != nil {
-					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
-				}
-				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
-				df.Close()
-			} else {
-				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
-					table, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
-			}
-		} else if fileFormat == datafile.TEXT {
-			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
-				table, fileFormat, []rune(delimiter)[0], nullString)
-		} else {
-			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
-		}
-		cmd += ` ROWS_PER_TRANSACTION %v)`
-		copyTableFromCommands.Store(table, cmd)
-	}
 }
 
 func setImportTableListFlag() {

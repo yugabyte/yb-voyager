@@ -798,13 +798,12 @@ func (yb *TargetYugabyteDB) TransformDataRow(dataRow string, columnToConverterFn
 }
 
 func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[string]func(string) (string, error) {
-	var converterValueSuite map[string]func(string) (string, error)
-	converterValueSuite = make(map[string]func(string) (string, error))
+	converterValueSuite := make(map[string]func(string) (string, error))
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		fmt.Printf("epochDays: %v", epochDays)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch seconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		return time.Unix(int64(epochSecs), 0).Local().Format(time.DateOnly), nil
@@ -812,7 +811,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.time.Timestamp"] = func(columnValue string) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch milliseconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		return time.Unix(epochSecs, 0).Local().Format(time.DateTime), nil
@@ -820,7 +819,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.time.MicroTimestamp"] = func(columnValue string) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch microseconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
@@ -833,7 +832,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.time.NanoTimestamp"] = func(columnValue string) (string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch nanoseconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
@@ -846,7 +845,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.time.Time"] = func(columnValue string) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch milliseconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		return time.Unix(epochSecs, 0).Local().Format(time.TimeOnly), nil
@@ -854,7 +853,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.time.MicroTime"] = func(columnValue string) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing epoch microseconds: %v", err)
+			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
@@ -864,7 +863,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	converterValueSuite["io.debezium.data.Bits"] = func(columnValue string) (string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error decoding variable scale decimal in base64: %v", err)
+			return columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
 		}
 		var data uint64
 		if len(bytes) >= 8 {
@@ -878,11 +877,11 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 	}
 	converterValueSuite["io.debezium.data.geometry.Point"] = func(columnValue string) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.
-		return columnValue, nil 
+		return columnValue, nil
 	}
 	converterValueSuite["io.debezium.data.geometry.Geometry"] = func(columnValue string) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis geometry point.
-		return columnValue, nil 
+		return columnValue, nil
 	}
 	converterValueSuite["io.debezium.data.geometry.Geography"] = func(columnValue string) (string, error) {
 		//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
@@ -898,7 +897,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
-			return columnValue, fmt.Errorf("Error decoding base64 string: %v", err)
+			return columnValue, fmt.Errorf("decoding base64 string: %v", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
 		hexString := ""
@@ -917,7 +916,7 @@ func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[str
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("Error parsing map: %v", err)
+			return columnValue, fmt.Errorf("parsing map: %v", err)
 		}
 		var transformedMapValue string
 		for key, value := range mapValue {
