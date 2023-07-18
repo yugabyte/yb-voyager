@@ -34,13 +34,23 @@ jobs:
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o voyager-darwin-arm64
           fi
 
+      - name: Archive the files
+        run: |
+          cd yb-voyager
+          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+            tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64
+          elif [ ${{ matrix.os }} == "macos-latest" ]; then
+            tar -czvf voyager-darwin-amd64.tar.gz voyager-darwin-amd64
+            tar -czvf voyager-darwin-arm64.tar.gz voyager-darwin-arm64
+          fi
+
       - name: Upload Binary to Release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./yb-voyager/voyager-linux-amd64
-            ./yb-voyager/voyager-darwin-amd64
-            ./yb-voyager/voyager-darwin-arm64
+            ./yb-voyager/voyager-linux-amd64.tar.gz
+            ./yb-voyager/voyager-darwin-amd64.tar.gz
+            ./yb-voyager/voyager-darwin-arm64.tar.gz
           repo_token: ${{ github.token }}
           overwrite: true
         

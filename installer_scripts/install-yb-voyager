@@ -13,7 +13,6 @@ VERSION="latest"
 # This needs to be changed to the latest debezium release tag
 DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.4.0"}
 DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.4.0"}
-VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.5.0"}
 
 # the hash corresponds to the yb-voyager/v1.4.0 tag
 YB_VOYAGER_GIT_HASH="a21fa577f599be2367aa5e8886760b41b48701fc" 
@@ -116,7 +115,7 @@ centos_main() {
 	$YUM which wget git gcc make 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
 	$YUM postgresql14 1>&2
-
+	create_pg_dump_args_file
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -128,7 +127,7 @@ centos_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
-	install_yb_voyager linux 
+	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -145,6 +144,7 @@ ubuntu_main() {
 
 	install_golang linux
 	ubuntu_install_postgres
+	create_pg_dump_args_file
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -157,7 +157,7 @@ ubuntu_main() {
 		create_base_ora2pg_conf_file
 	fi
 	install_debezium_server
-	install_yb_voyager linux
+	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
 
@@ -173,10 +173,11 @@ macos_main() {
 	check_java
 	macos_install_brew
 	macos_install_pg_dump
+	create_pg_dump_args_file
 	brew install wget
 	install_golang darwin
 	install_debezium_server
-	install_yb_voyager darwin
+	install_yb_voyager
 	create_yb_session_vars_file
 	update_bashrc
 }
@@ -210,7 +211,13 @@ install_debezium_server() {
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
-	# move to /opt/yb-voyager/debezium-server
+	# delete contents of /opt/yb-voyager/debezium-server if exists. 
+	# This is done to ensure that older version jars are not left behind in the lib dir.
+	if [ -d /opt/yb-voyager/debezium-server ]
+	then 
+		sudo rm -Rf /opt/yb-voyager/debezium-server
+	fi
+	# extract to /opt/yb-voyager/debezium-server
 	sudo mkdir -p /opt/yb-voyager
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
@@ -315,26 +322,11 @@ update_yb_voyager_bashrc() {
 
 
 install_yb_voyager() {
-	os=$1
 	output "Installing yb-voyager:${VERSION}."
 	if [ "${VERSION}" == "latest" ]
 	then
-		if [ "$os" == "linux" ]
-		then
-			binary_name="voyager-linux-amd64"
-		elif [ "$os" == "darwin" ]
-		then
-			arch="$(uname -m)"
-			if [ "${arch}" == "arm64" ]
-			then
-				binary_name="voyager-darwin-arm64"
-			else
-				binary_name="voyager-darwin-amd64"
-			fi
-		fi
-
-		wget https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager%2Fv${VOYAGER_RELEASE_TAG}/${binary_name} 1>&2
-		sudo mv -f "${binary_name}" /usr/local/bin/yb-voyager
+		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
+		sudo mv -f $HOME/go/bin/yb-voyager /usr/local/bin
 		return
 	fi
 
@@ -503,6 +495,27 @@ create_base_ora2pg_conf_file() {
 	fi 
 }
 
+create_pg_dump_args_file() {
+	args_file_name="/etc/yb-voyager/pg_dump-args.ini"
+	sudo mkdir -p /etc/yb-voyager
+	if [ -f "$args_file_name" ]
+	then
+		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
+		backup_file_name="${args_file_name}.${curr_date}"
+		sudo mv ${args_file_name} ${backup_file_name}
+		output "Overwriting ${args_file_name}. Existing contents are backed up in ${backup_file_name}"
+	fi
+	output "Installing the latest pg_dump-args.ini"
+
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
+	else
+		pushd `git rev-parse --show-toplevel` > /dev/null
+		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
+		popd > /dev/null
+	fi	
+}
 
 #=============================================================================
 # CENTOS
@@ -523,6 +536,7 @@ centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
 	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
 	$YUM \
+		${OIC_URL}/oracle-instantclient-tools-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm \
@@ -547,6 +561,7 @@ ubuntu_install_postgres() {
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
 	sudo apt-get -y install alien 1>&2
+	ubuntu_install_oic oracle-instantclient-tools
 	ubuntu_install_oic oracle-instantclient-basic
 	ubuntu_install_oic oracle-instantclient-devel
 	ubuntu_install_oic oracle-instantclient-jdbc
