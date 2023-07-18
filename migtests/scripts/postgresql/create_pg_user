@@ -3,7 +3,7 @@ source migtests/scripts/postgresql/env.sh
 source migtests/scripts/functions.sh
 
 cat > pg-create-user.sql << EOF
-SELECT 'CREATE USER ${SOURCE_DB_USER} PASSWORD ''${SOURCE_DB_PASSWORD}'' REPLICATION LOGIN'
+SELECT 'CREATE USER ${SOURCE_DB_USER} WITH SUPERUSER PASSWORD ''${SOURCE_DB_PASSWORD}'''
 WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${SOURCE_DB_USER}')\gexec
 EOF
 
