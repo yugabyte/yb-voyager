@@ -130,6 +130,7 @@ debezium.source.schema.history.internal.skip.unparseable.ddl=true
 debezium.source.schema.history.internal.store.only.captured.tables.ddl=true
 debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
 debezium.source.include.schema.changes=false
+#debezium.sink.ybexporter.queueSegmentMaxBytes=10485760 # 10MB
 `
 
 var oracleSrcPDBConfigTemplate = `

@@ -424,7 +424,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
 	})
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
-	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hece the insert will be
+	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be
 	// successful even if the row already exists.
 	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.

@@ -16,42 +16,65 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 func streamChanges() error {
-	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
-	log.Infof("Streaming changes from %s", queueFilePath)
-	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
-	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
-	}
-	defer file.Close()
-
-	r := utils.NewTailReader(file)
-	dec := json.NewDecoder(r)
-	log.Infof("Waiting for changes in %s", queueFilePath)
-	// TODO: Batch the changes.
-	for dec.More() {
-		var event tgtdb.Event
-		err := dec.Decode(&event)
+	eventQueue := tgtdb.NewEventQueue(exportDir)
+	log.Infof("Streaming changes from %s", eventQueue.QueueDirPath)
+	for { // continuously get next segments to stream
+		segment, err := eventQueue.GetNextSegment()
+		log.Infof("Got next segment to stream: %v", segment)
 		if err != nil {
-			return fmt.Errorf("error decoding change: %v", err)
+			if segment == nil && errors.Is(err, os.ErrNotExist) {
+				log.Info("no segment to stream. Sleeping for 2 second.")
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			return err
 		}
 
-		err = handleEvent(&event)
+		err = streamChangesForSegment(segment)
+		if err != nil {
+			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
+		}
+	}
+}
+
+func streamChangesForSegment(segment *tgtdb.EventQueueSegment) error {
+	err := segment.Open()
+	if err != nil {
+		return err
+	}
+	defer segment.Close()
+	log.Infof("streaming changes for segment %s", segment.FilePath)
+	for !segment.IsProcessed() {
+		event, err := segment.NextEvent()
+		if err != nil {
+			return err
+		}
+
+		if event == nil && segment.IsProcessed() {
+			break
+		}
+
+		err = handleEvent(event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
 	}
+
+	log.Infof("finished streaming changes for segment %s", segment.FilePath)
+	// TODO: printing this line until some user stats are available.
+	fmt.Printf("finished streaming changes for segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 

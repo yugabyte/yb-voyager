@@ -1,0 +1,119 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package tgtdb
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+)
+
+const (
+	QUEUE_DIR_NAME               = "queue"
+	QUEUE_SEGMENT_FILE_NAME      = "segment"
+	QUEUE_SEGMENT_FILE_EXTENSION = "ndjson"
+)
+
+type EventQueue struct {
+	QueueDirPath       string
+	SegmentNumToStream int64
+}
+
+func NewEventQueue(exportDir string) *EventQueue {
+	return &EventQueue{
+		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
+		SegmentNumToStream: 0,
+	}
+}
+
+// GetNextSegment returns the next segment to process
+func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
+	log.Infof("Getting next segment to process from %s", eq.QueueDirPath)
+
+	segmentFilePath := filepath.Join(eq.QueueDirPath, fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION))
+	_, err := os.Stat(segmentFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
+	}
+
+	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	eq.SegmentNumToStream++
+	return segment, nil
+}
+
+type EventQueueSegment struct {
+	FilePath   string
+	SegmentNum int64 // 0-based
+	processed  bool
+	file       *os.File
+	reader     *utils.TailReader
+}
+
+var EOFMarker = `\.`
+
+func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
+	return &EventQueueSegment{
+		FilePath:   filePath,
+		SegmentNum: segmentNum,
+		processed:  false,
+	}
+}
+
+func (eqs *EventQueueSegment) Open() error {
+	file, err := os.OpenFile(eqs.FilePath, os.O_RDONLY, 0640)
+	if err != nil {
+		return fmt.Errorf("failed to open segment file %s: %w", eqs.FilePath, err)
+	}
+	eqs.file = file
+	eqs.reader = utils.NewTailReader(file)
+	return nil
+}
+
+func (eqs *EventQueueSegment) Close() error {
+	return eqs.file.Close()
+}
+
+// ReadEvent reads an event from the segment file.
+// Waits until an event is available.
+func (eqs *EventQueueSegment) NextEvent() (*Event, error) {
+	var event Event
+	line, err := eqs.reader.ReadLine()
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
+	}
+
+	if string(line) == EOFMarker && err == io.EOF {
+		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
+		eqs.processed = true
+		return nil, nil
+	}
+
+	err = json.Unmarshal(line, &event)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal json event %s: %w", string(line), err)
+	}
+	return &event, nil
+}
+
+func (eqs *EventQueueSegment) IsProcessed() bool {
+	return eqs.processed
+}
