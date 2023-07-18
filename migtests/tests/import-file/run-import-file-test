@@ -33,7 +33,7 @@ main() {
 
 	step "Unzip the data file."
 	[ -f OneMRows.text ] || gunzip -c OneMRows.text.gz > OneMRows.text
-	[ -f accounts_2m_data.sql ] || gunzip -c accounts.zip > accounts_2m_data.sql
+	[ -f accounts_data.csv ] || gunzip -c accounts.zip > accounts_data.csv
 
 	step "Create target table."
 	ysql_import_file ${TARGET_DB_NAME} schema.sql
@@ -58,9 +58,9 @@ main() {
 		--has-header --batch-size 1000
 
 	# Test for --has-header with --batch-size for a table having bigint and varchar columns
-	step "Import data file: accounts_2m_data.sql -> accounts"
+	step "Import data file: accounts_data.csv -> accounts"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
-			--file-table-map "accounts_2m_data.sql:accounts" --has-header --batch-size 10000 --null-string "\N"
+			--file-table-map "accounts_data.csv:accounts" --has-header --batch-size 10000 --null-string "\N"
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
@@ -138,7 +138,7 @@ main() {
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\b' \
-			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace" 
+			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header
 
 	# Test for txt file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace_text.txt -> test_delimiter_backspace_text"
