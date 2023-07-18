@@ -37,11 +37,24 @@ jobs:
       - name: Archive the files
         run: |
           cd yb-voyager
+          cp ./src/srcdb/data/sample-ora2pg.conf
           if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
-            tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64
+            mkdir voyager-linux-amd64-package
+            mv voyager-linux-amd64 voyager-linux-amd64-package
+            cp ./src/srcdb/data/sample-ora2pg.conf voyager-linux-amd64-package/base-ora2pg.conf
+            touch voyager-linux-amd64-package/ybSessionVariables.sql
+            tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64-package
           elif [ ${{ matrix.os }} == "macos-latest" ]; then
-            tar -czvf voyager-darwin-amd64.tar.gz voyager-darwin-amd64
-            tar -czvf voyager-darwin-arm64.tar.gz voyager-darwin-arm64
+            mkdir voyager-darwin-amd64-package
+            mv voyager-darwin-amd64 voyager-darwin-amd64-package
+            cp ./src/srcdb/data/sample-ora2pg.conf voyager-darwin-amd64-package/base-ora2pg.conf
+            touch voyager-darwin-amd64-package/ybSessionVariables.sql
+            tar -czvf voyager-darwin-amd64.tar.gz voyager-darwin-amd64-package
+            mkdir voyager-darwin-arm64-package
+            mv voyager-darwin-arm64 voyager-darwin-arm64-package
+            cp ./src/srcdb/data/sample-ora2pg.conf voyager-darwin-arm64-package/base-ora2pg.conf
+            touch voyager-darwin-arm64-package/ybSessionVariables.sql
+            tar -czvf voyager-darwin-arm64.tar.gz voyager-darwin-arm64-package
           fi
 
       - name: Upload Binary to Release
