@@ -28,28 +28,27 @@ import (
 )
 
 func streamChanges() error {
-	eventQueue := tgtdb.NewEventQueue(exportDir)
-	log.Infof("Streaming changes from %s", eventQueue.QueueDirPath)
+	eventQueue := NewEventQueue(exportDir)
+	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
-		log.Infof("Got next segment to stream: %v", segment)
+		log.Infof("got next segment to stream: %v", segment)
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
-				log.Info("no segment to stream. Sleeping for 2 second.")
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			return err
+			return fmt.Errorf("error getting next segment to stream: %v", err)
 		}
 
-		err = streamChangesForSegment(segment)
+		err = streamChangesFromSegment(segment)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
 
-func streamChangesForSegment(segment *tgtdb.EventQueueSegment) error {
+func streamChangesFromSegment(segment *EventQueueSegment) error {
 	err := segment.Open()
 	if err != nil {
 		return err

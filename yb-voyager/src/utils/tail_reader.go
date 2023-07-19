@@ -34,29 +34,14 @@ func (t *TailReader) Read(p []byte) (n int, err error) {
 	for {
 		n, err = t.r.Read(p)
 		if n > 0 {
+			if err == io.EOF {
+				return n, nil
+			}
 			return n, err
 		}
 		if err != io.EOF {
 			return 0, err
 		}
 		time.Sleep(1 * time.Second)
-	}
-}
-
-func (t *TailReader) ReadLine() ([]byte, error) {
-	var bytes []byte
-	for {
-		b := make([]byte, 1)
-		_, err := t.Read(b)
-		if err != nil {
-			return bytes, err
-		}
-		if b[0] == '\n' {
-			return bytes, nil
-		}
-		bytes = append(bytes, b[0])
-		if string(bytes) == `\.` {
-			return bytes, io.EOF
-		}
 	}
 }

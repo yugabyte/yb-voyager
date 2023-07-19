@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package tgtdb
+package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -47,7 +48,7 @@ func NewEventQueue(exportDir string) *EventQueue {
 
 // GetNextSegment returns the next segment to process
 func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
-	log.Infof("Getting next segment to process from %s", eq.QueueDirPath)
+	log.Infof("getting next segment to process from %s", eq.QueueDirPath)
 
 	segmentFilePath := filepath.Join(eq.QueueDirPath, fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION))
 	_, err := os.Stat(segmentFilePath)
@@ -65,10 +66,13 @@ type EventQueueSegment struct {
 	SegmentNum int64 // 0-based
 	processed  bool
 	file       *os.File
-	reader     *utils.TailReader
+	scanner    *bufio.Scanner
+	buffer     []byte // buffer for scanning from file
 }
 
 var EOFMarker = `\.`
+
+const ONE_KB = 1024
 
 func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
 	return &EventQueueSegment{
@@ -84,7 +88,8 @@ func (eqs *EventQueueSegment) Open() error {
 		return fmt.Errorf("failed to open segment file %s: %w", eqs.FilePath, err)
 	}
 	eqs.file = file
-	eqs.reader = utils.NewTailReader(file)
+	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file))
+	eqs.scanner.Buffer(eqs.buffer, 100*ONE_KB)
 	return nil
 }
 
@@ -94,14 +99,17 @@ func (eqs *EventQueueSegment) Close() error {
 
 // ReadEvent reads an event from the segment file.
 // Waits until an event is available.
-func (eqs *EventQueueSegment) NextEvent() (*Event, error) {
-	var event Event
-	line, err := eqs.reader.ReadLine()
-	if err != nil && err != io.EOF {
+func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
+	var event tgtdb.Event
+	// false return value is handled below by Err()
+	_ = eqs.scanner.Scan()
+	// scanner.Err() never returns EOF error
+	line, err := eqs.scanner.Bytes(), eqs.scanner.Err()
+	if err != nil {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
 	}
 
-	if string(line) == EOFMarker && err == io.EOF {
+	if string(line) == EOFMarker {
 		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
 		eqs.processed = true
 		return nil, nil
