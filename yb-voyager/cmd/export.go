@@ -249,7 +249,7 @@ func validateOracleParams() {
 			utils.PrintAndLog("Using CDB SID for export.")
 		}
 		if source.DBName == "" {
-			utils.ErrExit(`Error: When using Container DB setup, specify PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)
+			utils.ErrExit(`Error: When using Container DB setup, specifying PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)
 		}
 	}
 
