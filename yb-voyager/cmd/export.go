@@ -76,6 +76,12 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
+	cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",
+		"[For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database.")
+
+	cmd.Flags().StringVar(&source.CDBTNSAlias, "oracle-cdb-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database.. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
 			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
@@ -228,6 +234,23 @@ func validateOracleParams() {
 		source.DBSid = ""
 	} else if source.DBSid != "" {
 		utils.PrintAndLog("Using SID for export.")
+	}
+	if source.IsOracleCDBSetup() {
+		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
+		if source.CDBTNSAlias != "" {
+			//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
+			utils.PrintAndLog("Using CDB TNS Alias for export.")
+			source.CDBName = ""
+			source.CDBSid = ""
+		} else if source.CDBName != "" {
+			utils.PrintAndLog("Using CDB Name for export.")
+			source.CDBSid = ""
+		} else if source.DBSid != "" {
+			utils.PrintAndLog("Using CDB SID for export.")
+		}
+		if source.DBName == "" {
+			utils.ErrExit(`Error: When using Container DB setup, specify PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)
+		}
 	}
 
 }
