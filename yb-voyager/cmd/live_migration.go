@@ -71,9 +71,9 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 		}
 	}
 
-	log.Infof("finished streaming changes for segment %s", segment.FilePath)
+	log.Infof("finished streaming changes from segment %s", segment.FilePath)
 	// TODO: printing this line until some user stats are available.
-	fmt.Printf("finished streaming changes for segment %s\n", filepath.Base(segment.FilePath))
+	fmt.Printf("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 
