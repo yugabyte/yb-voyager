@@ -1,9 +1,13 @@
 name: Create yb-voyager binary
 
 on:
+  # Trigger on any tag starting with 'yb-voyager/v'
   create:
     tags:
-      - 'yb-voyager/v*' # Trigger on any tag starting with 'yb-voyager/v'
+      - 'yb-voyager/v*'
+  # Manual Trigger
+  workflow_dispatch:
+    inputs: 
 
 jobs:
   build:
@@ -28,7 +32,7 @@ jobs:
         run: |
           cd yb-voyager
           if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
-            GOOS=linux GOARCH=amd64 go build -o voyager-linux-amd64
+            GOOS=linux GOARCH=amd64 go build -o yb-voyager-linux-amd64
           elif [ ${{ matrix.os }} == "macos-latest" ]; then
             CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o yb-voyager-darwin-amd64
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o yb-voyager-darwin-arm64
