@@ -36,7 +36,7 @@ func streamChanges() error {
 		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
 	}
 	defer file.Close()
-    valueConverterSuite = tdb.GetValueConverterSuite(true)
+    valueConverterSuite = tdb.GetDebeziumValueConverterSuite(true)
 	r := utils.NewTailReader(file)
 	dec := json.NewDecoder(r)
 	log.Infof("Waiting for changes in %s", queueFilePath)
@@ -65,19 +65,9 @@ func handleEvent(event *tgtdb.Event) error {
 	}
 	// preparing value converters for the streaming mode
 	tableSchema := dbzm.GetTableSchema(tableName, exportDir)
-	columnToConverterFn := make(map[string]func(string) (string, error))
+	columnToSchema := make(map[string]dbzm.Schema)
 	for _, column := range tableSchema.Columns {
-		logicalType := column.ColDbzSchema.Name
-		schemaType := column.ColDbzSchema.Type
-		if valueConverterSuite[logicalType] != nil {
-			columnToConverterFn[column.ColName] = valueConverterSuite[logicalType]
-		} else if valueConverterSuite[schemaType] != nil {
-			columnToConverterFn[column.ColName] = valueConverterSuite[schemaType]
-		} else {
-			columnToConverterFn[column.ColName] = func(value string) (string, error) {
-				return value, nil
-			}
-		}
+		columnToSchema[column.ColName] = column
 	}
 	for column, value := range event.Fields {
 		var columnValue string
@@ -86,7 +76,7 @@ func handleEvent(event *tgtdb.Event) error {
 		} else {
 			var err error
 			columnValue = fmt.Sprintf("%v", value)
-			columnValue, err = columnToConverterFn[column](columnValue)
+			columnValue, err = dbzm.TransformValue(columnValue, columnToSchema[column], valueConverterSuite)
 			if err != nil {
 				return fmt.Errorf("error transforming value: %v", err)
 			}

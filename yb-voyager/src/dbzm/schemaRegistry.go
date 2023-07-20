@@ -26,17 +26,8 @@ import (
 
 type DbzSchema struct {
 	Type         string            `json:"type"`
-	Optional     bool              `json:"optional"`
-	DefaultValue interface{}       `json:"defaultValue"`
-	Fields       []Schema          `json:"fields"`
-	FieldsByName map[string]Schema `json:"fieldsByName"`
-	KeySchema    interface{}       `json:"keySchema"`
-	ValueSchema  interface{}       `json:"valueSchema"`
 	Name         string            `json:"name"`
-	Version      int64             `json:"version"`
-	Doc          string            `json:"doc"`
-	Parameters   map[string]string `json:"parameters"`
-	Hash         string            `json:"hash"`
+	// Not decoding the rest of the fields for now.
 }
 
 type Schema struct {
@@ -73,4 +64,18 @@ func(ts *TableSchema) GetColumnSchema (columnName string) Schema {
 		}
 	}
 	return Schema{}
+}
+
+func TransformValue(value string, colSchema Schema, valueConverterSuite map[string]func(string) (string, error)) (string, error ) {
+	fmt.Printf("Transforming value %s for column %s\n", value, colSchema.ColName)
+	fmt.Printf("%v",valueConverterSuite)
+	logicalType := colSchema.ColDbzSchema.Name
+	schemaType := colSchema.ColDbzSchema.Type
+	if valueConverterSuite[logicalType] != nil {
+		return valueConverterSuite[logicalType](value)
+	} else if valueConverterSuite[schemaType] != nil {
+		return valueConverterSuite[schemaType](value)
+	} else {
+		return value, nil
+	}
 }

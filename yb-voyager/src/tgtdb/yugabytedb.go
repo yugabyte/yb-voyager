@@ -778,26 +778,8 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func (yb *TargetYugabyteDB) TransformDataRow(dataRow string, columnToConverterFn []func(string) (string, error)) (string, error) {
-	columnValues := strings.Split(dataRow, "\t")
-	var transformedValues []string
-	for i, columnValue := range columnValues {
-		if columnValue != "\\N" {
-			fn := columnToConverterFn[i]
-			transformedValue, err := fn(columnValue)
-			if err != nil {
-				return dataRow, err
-			}
-			transformedValues = append(transformedValues, transformedValue)
-		} else {
-			transformedValues = append(transformedValues, columnValue)
-		}
-	}
-	transformedRow := strings.Join(transformedValues, "\t")
-	return transformedRow, nil
-}
 
-func (yb *TargetYugabyteDB) GetValueConverterSuite(isStreamingMode bool) map[string]func(string) (string, error) {
+func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool) map[string]func(string) (string, error) {
 	converterValueSuite := make(map[string]func(string) (string, error))
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
