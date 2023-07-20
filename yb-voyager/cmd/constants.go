@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 const (
+	ONE_KB                       = 1024
 	FOUR_MB                      = 4 * 1024 * 1024
 	META_INFO_DIR_NAME           = "metainfo"
 	NEWLINE                      = '\n'

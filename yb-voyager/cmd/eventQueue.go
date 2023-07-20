@@ -72,8 +72,6 @@ type EventQueueSegment struct {
 
 var EOFMarker = `\.`
 
-const ONE_KB = 1024
-
 func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
 	return &EventQueueSegment{
 		FilePath:   filePath,
@@ -89,7 +87,10 @@ func (eqs *EventQueueSegment) Open() error {
 	}
 	eqs.file = file
 	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file))
-	eqs.scanner.Buffer(eqs.buffer, 100*ONE_KB)
+
+	// providing buffer to scanner for scanning
+	eqs.buffer = make([]byte, 0, 100*ONE_KB)
+	eqs.scanner.Buffer(eqs.buffer, cap(eqs.buffer))
 	return nil
 }
 
@@ -101,9 +102,10 @@ func (eqs *EventQueueSegment) Close() error {
 // Waits until an event is available.
 func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	var event tgtdb.Event
-	// false return value is handled below by Err()
+
+	// Scan() return false in case of error but it is handled below by Err()
 	_ = eqs.scanner.Scan()
-	// scanner.Err() never returns EOF error
+	// scanner.Err() returns nil when EOF error
 	line, err := eqs.scanner.Bytes(), eqs.scanner.Err()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
