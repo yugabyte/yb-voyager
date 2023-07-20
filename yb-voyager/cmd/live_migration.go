@@ -64,6 +64,19 @@ func handleEvent(event *tgtdb.Event) error {
 		tableName = event.SchemaName + "." + event.TableName
 	}
 	// preparing value converters for the streaming mode
+	err := transformEventKeyFields(event, tableName)
+	if err != nil {
+		return fmt.Errorf("error transforming event key fields: %v", err)
+	}
+	batch := []*tgtdb.Event{event}
+	err = tdb.ExecuteBatch(batch)
+	if err != nil {
+		return fmt.Errorf("error executing batch: %v", err)
+	}
+	return nil
+}
+
+func transformEventKeyFields(event *tgtdb.Event, tableName string) error {
 	tableSchema := dbzm.GetTableSchema(tableName, exportDir)
 	columnToSchema := make(map[string]dbzm.Schema)
 	for _, column := range tableSchema.Columns {
@@ -83,10 +96,19 @@ func handleEvent(event *tgtdb.Event) error {
 		}
 		event.Fields[column] = columnValue
 	}
-	batch := []*tgtdb.Event{event}
-	err := tdb.ExecuteBatch(batch)
-	if err != nil {
-		return fmt.Errorf("error executing batch: %v", err)
+	for column, value := range event.Key {
+		var columnValue string
+		if value == nil {
+			columnValue = "NULL"
+		} else {
+			var err error
+			columnValue = fmt.Sprintf("%v", value)
+			columnValue, err = dbzm.TransformValue(columnValue, columnToSchema[column], valueConverterSuite)
+			if err != nil {
+				return fmt.Errorf("error transforming value: %v", err)
+			}
+		}
+		event.Key[column] = columnValue
 	}
 	return nil
 }

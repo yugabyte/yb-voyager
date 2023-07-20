@@ -50,7 +50,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                                         // to truncate *.D splits after import
-var TableToValueConverterFns map[string][]dbzm.Schema           // map of table name to list of value converter functions for each columnIndex
+var TableToColumnSchemas map[string][]dbzm.Schema           // map of table name to column schemas for each columnIndex
 var valueConverterSuite map[string]func(string) (string, error) //map of schemaTypes to value converter functions
 var isDebeziumExport bool
 
@@ -162,7 +162,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 	valueConverterSuite = tdb.GetDebeziumValueConverterSuite(false)
-	TableToValueConverterFns = make(map[string][]dbzm.Schema)
+	TableToColumnSchemas = make(map[string][]dbzm.Schema)
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -170,7 +170,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 		//prepare the value converters for this table in case of debezium
 		if isDebeziumExport {
-			prepareValueConverters(pendingTasks)
+			prepareValueConvertersPerTable(pendingTasks)
 		}
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
@@ -403,7 +403,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			numLinesTaken += 1
 		}
 		if line != "" && isDebeziumExport {
-			line, err = transformDataRow(line, TableToValueConverterFns[batchWriter.tableName])
+			line, err = transformDataRow(line, TableToColumnSchemas[batchWriter.tableName])
 			if err != nil {
 				utils.ErrExit("transforming line for table %q: %s", t, err)
 			}
@@ -676,7 +676,7 @@ func getTargetSchemaName(tableName string) string {
 	return tconf.Schema // default set to "public"
 }
 
-func prepareValueConverters(tasks []*ImportFileTask) {
+func prepareValueConvertersPerTable(tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		table := task.TableName
 		tableSchema := dbzm.GetTableSchema(table, exportDir)
@@ -695,7 +695,7 @@ func prepareValueConverters(tasks []*ImportFileTask) {
 			colSchema := tableSchema.GetColumnSchema(columnName)
 			columnToSchema[idx] = colSchema
 		}
-		TableToValueConverterFns[table] = columnToSchema
+		TableToColumnSchemas[table] = columnToSchema
 	}
 }
 
@@ -704,8 +704,7 @@ func transformDataRow(dataRow string, columnToSchema []dbzm.Schema) (string, err
 	var transformedValues []string
 	for i, columnValue := range columnValues {
 		if columnValue != "\\N" {
-			colSchema := columnToSchema[i]
-			transformedValue, err := dbzm.TransformValue(columnValue, colSchema, valueConverterSuite)
+			transformedValue, err := dbzm.TransformValue(columnValue, columnToSchema[i], valueConverterSuite)
 			if err != nil {
 				return dataRow, err
 			}

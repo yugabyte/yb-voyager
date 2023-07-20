@@ -782,7 +782,6 @@ func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool)
 	converterValueSuite := make(map[string]func(string) (string, error))
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
-		fmt.Printf("epochDays: %v", epochDays)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
@@ -804,7 +803,7 @@ func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
-		microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano))
+		microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano)) //TODO: check if proper format for Micro can work
 		if err != nil {
 			return columnValue, err
 		}
