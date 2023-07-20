@@ -88,6 +88,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 `
 
 var postgresSrcConfigTemplate = `
@@ -130,7 +131,6 @@ debezium.source.schema.history.internal.skip.unparseable.ddl=true
 debezium.source.schema.history.internal.store.only.captured.tables.ddl=true
 debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
 debezium.source.include.schema.changes=false
-#debezium.sink.ybexporter.queueSegmentMaxBytes=10485760
 `
 
 var oracleSrcPDBConfigTemplate = `
@@ -177,6 +177,16 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
+	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
+	if err != nil {
+		// defaults to 1GB
+		log.Infof("QUEUE_SEGMENT_MAX_BYTES not set, defaulting to 1GB")
+		queueSegmentMaxBytes = 1073741824
+	} else {
+		log.Infof("QUEUE_SEGMENT_MAX_BYTES: %d", queueSegmentMaxBytes)
+	}
+
 	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
@@ -192,7 +202,8 @@ func (c *Config) String() string {
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","))
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -214,7 +225,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","))
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
@@ -234,7 +246,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","))
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
