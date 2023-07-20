@@ -17,6 +17,10 @@ DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.4.0"}
 # the hash corresponds to the yb-voyager/v1.4.0 tag
 YB_VOYAGER_GIT_HASH="a21fa577f599be2367aa5e8886760b41b48701fc" 
 
+# this is temp variable to be used to get the pg_dump-args.ini file from the correct branch
+# TODO: remove this on release and use the YB_VOYAGER_GIT_HASH variable
+YB_VOYAGER_GIT_HASH_FOR_PG_DUMP_ARG_FILE="f04f3da26e0d196cd57fde7c5f153dd4b54b6f87"
+
 ONLY_PG="false"
 
 trap on_exit EXIT
@@ -509,7 +513,7 @@ create_pg_dump_args_file() {
 
 	if [ "${VERSION}" == "latest" ]
 	then
-		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
+		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_FOR_PG_DUMP_ARG_FILE/yb-voyager/src/srcdb/data/pg_dump-args.ini
 	else
 		pushd `git rev-parse --show-toplevel` > /dev/null
 		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
