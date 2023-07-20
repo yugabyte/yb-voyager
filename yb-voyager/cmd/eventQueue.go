@@ -48,9 +48,8 @@ func NewEventQueue(exportDir string) *EventQueue {
 
 // GetNextSegment returns the next segment to process
 func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
-	log.Infof("getting next segment to process from %s", eq.QueueDirPath)
-
-	segmentFilePath := filepath.Join(eq.QueueDirPath, fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION))
+	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
+	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
 	_, err := os.Stat(segmentFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
@@ -89,7 +88,7 @@ func (eqs *EventQueueSegment) Open() error {
 	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file))
 
 	// providing buffer to scanner for scanning
-	eqs.buffer = make([]byte, 0, 100*ONE_KB)
+	eqs.buffer = make([]byte, 0, 100*KB)
 	eqs.scanner.Buffer(eqs.buffer, cap(eqs.buffer))
 	return nil
 }

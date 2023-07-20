@@ -32,7 +32,6 @@ func streamChanges() error {
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
-		log.Infof("got next segment to stream: %v", segment)
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
 				time.Sleep(2 * time.Second)
@@ -40,6 +39,7 @@ func streamChanges() error {
 			}
 			return fmt.Errorf("error getting next segment to stream: %v", err)
 		}
+		log.Infof("got next segment to stream: %v", segment)
 
 		err = streamChangesFromSegment(segment)
 		if err != nil {
