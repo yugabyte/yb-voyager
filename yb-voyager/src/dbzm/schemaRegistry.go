@@ -25,8 +25,8 @@ import (
 )
 
 type DbzSchema struct {
-	Type         string            `json:"type"`
-	Name         string            `json:"name"`
+	Type string `json:"type"`
+	Name string `json:"name"`
 	// Not decoding the rest of the fields for now.
 }
 
@@ -57,25 +57,11 @@ func GetTableSchema(tableName string, exportDir string) TableSchema {
 
 }
 
-func(ts *TableSchema) GetColumnSchema (columnName string) Schema {
+func (ts *TableSchema) GetColumnSchema(columnName string) Schema {
 	for _, colSchema := range ts.Columns {
 		if colSchema.ColName == columnName {
 			return colSchema
 		}
 	}
 	return Schema{}
-}
-
-func TransformValue(value string, colSchema Schema, valueConverterSuite map[string]func(string) (string, error)) (string, error ) {
-	fmt.Printf("Transforming value %s for column %s\n", value, colSchema.ColName)
-	fmt.Printf("%v",valueConverterSuite)
-	logicalType := colSchema.ColDbzSchema.Name
-	schemaType := colSchema.ColDbzSchema.Type
-	if valueConverterSuite[logicalType] != nil {
-		return valueConverterSuite[logicalType](value)
-	} else if valueConverterSuite[schemaType] != nil {
-		return valueConverterSuite[schemaType](value)
-	} else {
-		return value, nil
-	}
 }

@@ -778,7 +778,6 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool) map[string]func(string) (string, error) {
 	converterValueSuite := make(map[string]func(string) (string, error))
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string) (string, error) {

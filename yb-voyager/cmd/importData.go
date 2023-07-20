@@ -49,9 +49,9 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                                                // to truncate *.D splits after import
-var TableToValueConverterFns map[string][]dbzm.Schema // map of table name to list of value converter functions for each columnIndex
-var valueConverterSuite map[string]func(string) (string, error)        //map of schemaTypes to value converter functions
+var truncateSplits bool                                         // to truncate *.D splits after import
+var TableToValueConverterFns map[string][]dbzm.Schema           // map of table name to list of value converter functions for each columnIndex
+var valueConverterSuite map[string]func(string) (string, error) //map of schemaTypes to value converter functions
 var isDebeziumExport bool
 
 var importDataCmd = &cobra.Command{
@@ -123,7 +123,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-    isDebeziumExport = usingDebeziumForDataExport()
+	isDebeziumExport = usingDebeziumForDataExport()
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
