@@ -34,7 +34,10 @@ func (t *TailReader) Read(p []byte) (n int, err error) {
 	for {
 		n, err = t.r.Read(p)
 		if n > 0 {
-			return n, nil
+			if err == io.EOF {
+				return n, nil
+			}
+			return n, err
 		}
 		if err != io.EOF {
 			return 0, err

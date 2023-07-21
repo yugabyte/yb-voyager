@@ -377,7 +377,7 @@ func (bw *BatchWriter) Init() error {
 		return fmt.Errorf("create file %q: %s", currTmpFileName, err)
 	}
 	bw.outFile = outFile
-	bw.w = bufio.NewWriterSize(outFile, FOUR_MB)
+	bw.w = bufio.NewWriterSize(outFile, 4*MB)
 	return nil
 }
 
