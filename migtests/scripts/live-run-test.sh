@@ -23,7 +23,14 @@ export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
-source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+
+if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+then
+	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
+else
+	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+fi
+
 source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
@@ -46,8 +53,13 @@ main() {
 	./init-db
 
 	step "Grant source database user permissions"
-	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
-
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		grant_permissions ${ORACLE_CDB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA} 
+	else
+		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+	fi
+	
 	step "Export schema."
 	export_schema
 	find ${EXPORT_DIR}/schema -name '*.sql' -printf "'%p'\n"| xargs grep -wh CREATE

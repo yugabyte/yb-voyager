@@ -113,36 +113,14 @@ grant_user_permission_oracle(){
 	db_name=$1
 	db_schema=$2
 
-	cat > oracle-inputs.sql << EOF
-	GRANT CONNECT TO ybvoyager;
-	GRANT SELECT_CATALOG_ROLE TO ybvoyager;
-	GRANT SELECT ANY DICTIONARY TO ybvoyager;
-	GRANT SELECT ON SYS.ARGUMENT$ TO ybvoyager;
-	BEGIN
-    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type = 'TYPE') LOOP
-       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'."'||R.object_name||'" to ybvoyager';
-   		END LOOP;
-	END;
-	/
-	BEGIN
-    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','SYNONYM','MATERIALIZED VIEW')) LOOP
-        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to ybvoyager';
-  		END LOOP;
-	END;
-	/
-	BEGIN
-		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type ='TABLE' MINUS SELECT owner, table_name from all_nested_tables where owner = UPPER('${db_schema}')) LOOP
-			EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to  ybvoyager';
-		END LOOP;
-	END;
-	/
-	/*
-	Extra steps required to enable Debezium export
-	*/
-	GRANT FLASHBACK ANY TABLE TO ybvoyager;
-EOF
-	
-	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
+	if [ "${db_name}" = "ORCLCDB" ]
+	then
+		cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
+	else
+		cp ${SCRIPTS}/oracle/offline-grants.sql oracle-inputs.sql
+	fi	
+	 
+	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"	
 }
 
 grant_permissions() {
@@ -263,6 +241,10 @@ export_data() {
 		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
 	fi
 
+	if [ "${ORACLE_CDB_NAME}" != "" ]
+	then
+		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
+	fi
 
 	yb-voyager export data ${args} $*
 
