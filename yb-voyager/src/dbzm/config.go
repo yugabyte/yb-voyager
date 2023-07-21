@@ -213,7 +213,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","))
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
