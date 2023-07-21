@@ -43,7 +43,7 @@ jobs:
         docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
         docker restart ${{ job.services.postgres.id }}
         sleep 10
-      if: matrix.BETA_FAST_DATA_EXPORT == 1
+#      if: matrix.BETA_FAST_DATA_EXPORT == 1
 
     - name: Install python3 and psycopg2
       run: |
@@ -92,6 +92,9 @@ jobs:
       run: |
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+
+    - name: "TEST: pg-dvdrental"
+      run: migtests/scripts/live-run-test.sh pg/live-test
 
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg/dvdrental 

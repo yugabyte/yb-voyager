@@ -93,6 +93,8 @@ grant_user_permission_mysql() {
     # Extra steps required to enable Debezium export 
 		"GRANT FLUSH_TABLES ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT REPLICATION CLIENT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+	#Extra Grants for live migration
+		"GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 	)
 
 	for command in "${commands[@]}"; do
@@ -103,7 +105,7 @@ grant_user_permission_mysql() {
 	# run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	# For older versions
-	run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+	#run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 
 }
 
@@ -111,36 +113,41 @@ grant_user_permission_oracle(){
 	db_name=$1
 	db_schema=$2
 
-	cat > oracle-inputs.sql << EOF
-	GRANT CONNECT TO ybvoyager;
-	GRANT SELECT_CATALOG_ROLE TO ybvoyager;
-	GRANT SELECT ANY DICTIONARY TO ybvoyager;
-	GRANT SELECT ON SYS.ARGUMENT$ TO ybvoyager;
-	BEGIN
-    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type = 'TYPE') LOOP
-       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'."'||R.object_name||'" to ybvoyager';
-   		END LOOP;
-	END;
-	/
-	BEGIN
-    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','SYNONYM','MATERIALIZED VIEW')) LOOP
-        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to ybvoyager';
-  		END LOOP;
-	END;
-	/
-	BEGIN
-		FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type ='TABLE' MINUS SELECT owner, table_name from all_nested_tables where owner = UPPER('${db_schema}')) LOOP
-			EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to  ybvoyager';
-		END LOOP;
-	END;
-	/
-	/*
-	Extra steps required to enable Debezium export
-	*/
-	GRANT FLASHBACK ANY TABLE TO ybvoyager;
+	if [ "${db_name}" = "ORCLCDB" ]
+	then
+		cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
+	else
+		cat > oracle-inputs.sql << EOF
+		GRANT CONNECT TO ybvoyager;
+		GRANT SELECT_CATALOG_ROLE TO ybvoyager;
+		GRANT SELECT ANY DICTIONARY TO ybvoyager;
+		GRANT SELECT ON SYS.ARGUMENT$ TO ybvoyager;
+		BEGIN
+	    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type = 'TYPE') LOOP
+	       		EXECUTE IMMEDIATE 'grant execute on '||R.owner||'."'||R.object_name||'" to ybvoyager';
+	   		END LOOP;
+		END;
+		/
+		BEGIN
+	    	FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type in ('VIEW','SEQUENCE','TABLE PARTITION','SYNONYM','MATERIALIZED VIEW')) LOOP
+	        	EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to ybvoyager';
+	  		END LOOP;
+		END;
+		/
+		BEGIN
+			FOR R IN (SELECT owner, object_name FROM all_objects WHERE owner=UPPER('${db_schema}') and object_type ='TABLE' MINUS SELECT owner, table_name from all_nested_tables where owner = UPPER('${db_schema}')) LOOP
+				EXECUTE IMMEDIATE 'grant select on '||R.owner||'."'||R.object_name||'" to  ybvoyager';
+			END LOOP;
+		END;
+		/
+		/*
+		Extra steps required to enable Debezium export
+		*/
+		GRANT FLASHBACK ANY TABLE TO ybvoyager;
 EOF
-	
-	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
+	fi	
+	 
+	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"	
 }
 
 grant_permissions() {
@@ -261,8 +268,13 @@ export_data() {
 		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
 	fi
 
+	if [ "${ORACLE_CDB_NAME}" != "" ]
+	then
+		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
+	fi
 
 	yb-voyager export data ${args} $*
+
 }
 
 analyze_schema() {
@@ -274,30 +286,33 @@ analyze_schema() {
 }
 
 import_schema() {
-	yb-voyager import schema --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--target-db-schema ${TARGET_DB_SCHEMA} \
-		--yes \
-		--send-diagnostics=false \
-		$*
+	args="--export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME} 
+		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--yes
+		--send-diagnostics=false
+		"
+		yb-voyager import schema ${args} $*
 }
 
 import_data() {
-	yb-voyager import data --export-dir ${EXPORT_DIR} \
-		--target-db-host ${TARGET_DB_HOST} \
-		--target-db-port ${TARGET_DB_PORT} \
-		--target-db-user ${TARGET_DB_USER} \
-		--target-db-password ${TARGET_DB_PASSWORD:-''} \
-		--target-db-name ${TARGET_DB_NAME} \
-		--target-db-schema ${TARGET_DB_SCHEMA} \
-		--disable-pb \
-		--send-diagnostics=false \
+	args="
+	 --export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME} 
+		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--disable-pb
+		--send-diagnostics=false 
 		--start-clean
-		$*
+		"
+		yb-voyager import data ${args} $*
 }
 
 import_data_file() {
@@ -325,4 +340,25 @@ tail_log_file() {
 	else
 		echo "No ${log_file_name} found."
 	fi	
+}
+
+kill_process() {
+	to_be_killed=$1
+	kill -9 ${to_be_killed}
+}
+
+run_file() {
+	file_name=$1
+	if [ "${SOURCE_DB_TYPE}" = "mysql" ]
+	then
+		run_mysql ${SOURCE_DB_NAME} "SOURCE ${file_name};"
+	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]
+	then
+		run_psql ${SOURCE_DB_NAME} "\i ${file_name};"
+	elif [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${file_name}
+	else
+		echo "Invalid source database."
+	fi
 }

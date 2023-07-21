@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+
+import os
+import yb
+import collections
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_ROW_COUNT = {
+	'x':5
+}
+
+EXPECTED_DATA_TYPES = {
+	'x': {
+		'id': 'numeric'
+	}
+}
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+#=============================================================================
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
+ 
+	print(fetched_datatypes_schema)
+	for table_name, columns in fetched_datatypes_schema.items():
+		print(f"table_name: {table_name} ---- ")
+		for column_name, datatype in columns.items():
+			print(f"column_name: {column_name}, datatype: {datatype}")
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
+
+	
+if __name__ == "__main__":
+	main()
