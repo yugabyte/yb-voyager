@@ -186,3 +186,34 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 		}
 	}
 }
+
+func getOra2pgExportedColumnsMap(exportDir string, tablesMetadata map[string]*utils.TableProgressMetadata) map[string][]string {
+
+	result := make(map[string][]string)
+	for _, tableMetadata := range tablesMetadata {
+		if tableMetadata.CountLiveRows == 0 {
+			continue
+		}
+		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		result[tableName] = getOra2pgExportedColumnsListForTable(exportDir, tableName, tableMetadata.FinalFilePath)
+	}
+	return result
+}
+
+func getOra2pgExportedColumnsListForTable(exportDir, tableName, filePath string) []string {
+	var columnsList []string
+
+	re := regexp.MustCompile(`(?i)COPY .*[\s]+\((.*)\) FROM STDIN`)
+	err := utils.ForEachMatchingLineInFile(filePath, re, func(matches []string) bool {
+		columnsList = strings.Split(matches[1], ",")
+		for i, column := range columnsList {
+			columnsList[i] = strings.TrimSpace(column)
+		}
+		return false // stop reading file
+	})
+	if err != nil {
+		utils.ErrExit("error in reading file %q: %v", filePath, err)
+	}
+	log.Infof("columns list for table %s: %v", tableName, columnsList)
+	return columnsList
+}

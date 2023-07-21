@@ -125,6 +125,9 @@ debezium.source.database.history=io.debezium.relational.history.FileDatabaseHist
 debezium.source.database.history.file.filename=%s
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
+debezium.source.schema.history.internal.skip.unparseable.ddl=true
+debezium.source.schema.history.internal.store.only.captured.tables.ddl=true
+debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
 debezium.source.include.schema.changes=false
 `
 

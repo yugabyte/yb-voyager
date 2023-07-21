@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"net/url"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
@@ -217,13 +219,53 @@ func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableLis
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.TEXT,
-		DataFileList: getExportedDataFileList(tablesProgressMetadata),
-		Delimiter:    "\t",
-		HasHeader:    false,
-		ExportDir:    exportDir,
+		FileFormat:                 datafile.TEXT,
+		DataFileList:               getExportedDataFileList(tablesProgressMetadata),
+		Delimiter:                  "\t",
+		HasHeader:                  false,
+		ExportDir:                  exportDir,
+		NullString:                 `\N`,
+		TableNameToExportedColumns: pg.getExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
+
 	dfd.Save()
+}
+
+func (pg *PostgreSQL) getExportedColumnsMap(
+	exportDir string, tablesMetadata map[string]*utils.TableProgressMetadata) map[string][]string {
+
+	result := make(map[string][]string)
+	for _, tableMetadata := range tablesMetadata {
+		// TODO: Use tableMetadata.TableName instead of parsing the file name.
+		// We need a new method in sqlname.SourceName that returns MaybeQuoted and MaybeQualified names.
+		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
+		result[tableName] = pg.getExportedColumnsListForTable(exportDir, tableName)
+	}
+	return result
+}
+
+func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string) []string {
+	var columnsList []string
+	var re *regexp.Regexp
+	if len(strings.Split(tableName, ".")) == 1 {
+		// happens only when table is in public schema, use public schema with table name for regexp
+		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\((.*)\) FROM STDIN`, tableName))
+	} else {
+		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName))
+	}
+	tocFilePath := filepath.Join(exportDir, "data", "toc.dat")
+	err := utils.ForEachMatchingLineInFile(tocFilePath, re, func(matches []string) bool {
+		columnsList = strings.Split(matches[1], ",")
+		for i, column := range columnsList {
+			columnsList[i] = strings.TrimSpace(column)
+		}
+		return false // stop reading file
+	})
+	if err != nil {
+		utils.ErrExit("error in reading toc file: %v\n", err)
+	}
+	log.Infof("columns list for table %s: %v", tableName, columnsList)
+	return columnsList
 }
 
 // Given a PG command name ("pg_dump", "pg_restore"), find absolute path of

@@ -11,11 +11,15 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.3.0"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.3.0"}
+DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.4.0"}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.4.0"}
 
-# the hash corresponds to the yb-voyager/v1.3.0 tag
-YB_VOYAGER_GIT_HASH="b783beaffe9fc2c2852ffa89e0a9d9bcae15ed5e" # this is one commit later than v1.3.0 tag commit
+# the hash corresponds to the yb-voyager/v1.4.0 tag
+YB_VOYAGER_GIT_HASH="a21fa577f599be2367aa5e8886760b41b48701fc" 
+
+# this is temp variable to be used to get the pg_dump-args.ini file from the correct branch
+# TODO: remove this on release and use the YB_VOYAGER_GIT_HASH variable
+YB_VOYAGER_GIT_HASH_FOR_PG_DUMP_ARG_FILE="f04f3da26e0d196cd57fde7c5f153dd4b54b6f87"
 
 ONLY_PG="false"
 
@@ -115,7 +119,7 @@ centos_main() {
 	$YUM which wget git gcc make 1>&2
 	$YUM https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
 	$YUM postgresql14 1>&2
-
+	create_pg_dump_args_file
 	install_golang linux
 	if [ $ONLY_PG == "false" ] ; then
 		$YUM perl perl-DBI perl-App-cpanminus 1>&2
@@ -144,6 +148,7 @@ ubuntu_main() {
 
 	install_golang linux
 	ubuntu_install_postgres
+	create_pg_dump_args_file
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
@@ -172,6 +177,7 @@ macos_main() {
 	check_java
 	macos_install_brew
 	macos_install_pg_dump
+	create_pg_dump_args_file
 	brew install wget
 	install_golang darwin
 	install_debezium_server
@@ -209,7 +215,13 @@ install_debezium_server() {
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
-	# move to /opt/yb-voyager/debezium-server
+	# delete contents of /opt/yb-voyager/debezium-server if exists. 
+	# This is done to ensure that older version jars are not left behind in the lib dir.
+	if [ -d /opt/yb-voyager/debezium-server ]
+	then 
+		sudo rm -Rf /opt/yb-voyager/debezium-server
+	fi
+	# extract to /opt/yb-voyager/debezium-server
 	sudo mkdir -p /opt/yb-voyager
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
@@ -487,6 +499,27 @@ create_base_ora2pg_conf_file() {
 	fi 
 }
 
+create_pg_dump_args_file() {
+	args_file_name="/etc/yb-voyager/pg_dump-args.ini"
+	sudo mkdir -p /etc/yb-voyager
+	if [ -f "$args_file_name" ]
+	then
+		curr_date=$(date "+%Y.%m.%d-%H.%M.%S")
+		backup_file_name="${args_file_name}.${curr_date}"
+		sudo mv ${args_file_name} ${backup_file_name}
+		output "Overwriting ${args_file_name}. Existing contents are backed up in ${backup_file_name}"
+	fi
+	output "Installing the latest pg_dump-args.ini"
+
+	if [ "${VERSION}" == "latest" ]
+	then
+		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH_FOR_PG_DUMP_ARG_FILE/yb-voyager/src/srcdb/data/pg_dump-args.ini
+	else
+		pushd `git rev-parse --show-toplevel` > /dev/null
+		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
+		popd > /dev/null
+	fi	
+}
 
 #=============================================================================
 # CENTOS
@@ -507,6 +540,7 @@ centos_install_oracle_instant_clients() {
 	output "Installing Oracle instant clients."
 	OIC_URL="https://download.oracle.com/otn_software/linux/instantclient/215000"
 	$YUM \
+		${OIC_URL}/oracle-instantclient-tools-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-basic-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-devel-21.5.0.0.0-1.x86_64.rpm \
 		${OIC_URL}/oracle-instantclient-jdbc-21.5.0.0.0-1.x86_64.rpm \
@@ -531,6 +565,7 @@ ubuntu_install_postgres() {
 ubuntu_install_oracle_instant_clients() {
 	output "Installing Oracle Instant Clients."
 	sudo apt-get -y install alien 1>&2
+	ubuntu_install_oic oracle-instantclient-tools
 	ubuntu_install_oic oracle-instantclient-basic
 	ubuntu_install_oic oracle-instantclient-devel
 	ubuntu_install_oic oracle-instantclient-jdbc

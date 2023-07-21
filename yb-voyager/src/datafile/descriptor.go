@@ -48,13 +48,15 @@ type FileEntry struct {
 }
 
 type Descriptor struct {
-	FileFormat   string       `json:"FileFormat"`
-	Delimiter    string       `json:"Delimiter"`
-	HasHeader    bool         `json:"HasHeader"`
-	ExportDir    string       `json:"-"`
-	QuoteChar    byte         `json:"QuoteChar,omitempty"`
-	EscapeChar   byte         `json:"EscapeChar,omitempty"`
-	DataFileList []*FileEntry `json:"FileList"`
+	FileFormat                 string              `json:"FileFormat"`
+	Delimiter                  string              `json:"Delimiter"`
+	HasHeader                  bool                `json:"HasHeader"`
+	ExportDir                  string              `json:"-"`
+	QuoteChar                  byte                `json:"QuoteChar,omitempty"`
+	EscapeChar                 byte                `json:"EscapeChar,omitempty"`
+	NullString                 string              `json:"NullString,omitempty"`
+	DataFileList               []*FileEntry        `json:"FileList"`
+	TableNameToExportedColumns map[string][]string `json:"TableNameToExportedColumns"`
 }
 
 func OpenDescriptor(exportDir string) *Descriptor {

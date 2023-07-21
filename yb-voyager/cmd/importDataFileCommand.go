@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/s3"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -53,7 +54,7 @@ var (
 
 var importDataFileCmd = &cobra.Command{
 	Use:   "file",
-	Short: "This command imports data from given files into YugabyteDB database",
+	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		reportProgressInBytes = true
@@ -76,6 +77,7 @@ func prepareForImportDataCmd() {
 		Delimiter:    delimiter,
 		HasHeader:    hasHeader,
 		ExportDir:    exportDir,
+		NullString:   nullString,
 	}
 	if quoteChar != "" {
 		quoteCharBytes := []byte(quoteChar)
@@ -85,12 +87,8 @@ func prepareForImportDataCmd() {
 		escapeCharBytes := []byte(escapeChar)
 		dataFileDescriptor.EscapeChar = escapeCharBytes[0]
 	}
-	// `import data status` depends on the saved descriptor file for the file-sizes.
-	// Can't get rid of it until we extract the file-size info out of descriptor file.
-	dataFileDescriptor.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
-	prepareCopyCommands()
 	setImportTableListFlag()
 	createExportDataDoneFlag()
 }
@@ -117,51 +115,12 @@ func getFileSizeInfo() []*datafile.FileEntry {
 	return dataFileList
 }
 
-func prepareCopyCommands() {
-	log.Infof("preparing copy commands for the tables to import")
-	for _, task := range importFileTasks {
-		filePath := task.FilePath
-		table := task.TableName
-		// Skip the loop body if the `table` entry is already present in the copyTableFromCommands map.
-		// TODO: Calculate the copy commands per file and not per table.
-		if _, ok := copyTableFromCommands.Load(table); ok {
-			continue
-		}
-		cmd := ""
-		if fileFormat == datafile.CSV {
-			if hasHeader {
-				reader, err := dataStore.Open(filePath)
-				if err != nil {
-					utils.ErrExit("preparing reader for copy commands on file %q: %v", filePath, err)
-				}
-				df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
-				if err != nil {
-					utils.ErrExit("opening datafile %q to prepare copy command: %v", filePath, err)
-				}
-				cmd = fmt.Sprintf(`COPY %s(%s) FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', HEADER, NULL '%s',`,
-					table, df.GetHeader(), fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
-				df.Close()
-			} else {
-				cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', ESCAPE E'%s', QUOTE E'%s', NULL '%s',`,
-					table, fileFormat, []rune(delimiter)[0], escapeChar, quoteChar, nullString)
-			}
-		} else if fileFormat == datafile.TEXT {
-			cmd = fmt.Sprintf(`COPY %s FROM STDIN WITH (FORMAT %s, DELIMITER E'%c', NULL '%s',`,
-				table, fileFormat, []rune(delimiter)[0], nullString)
-		} else {
-			panic(fmt.Sprintf("File Type %q not implemented\n", fileFormat))
-		}
-		cmd += ` ROWS_PER_TRANSACTION %v)`
-		copyTableFromCommands.Store(table, cmd)
-	}
-}
-
 func setImportTableListFlag() {
 	tableList := map[string]bool{}
 	for _, task := range importFileTasks {
 		tableList[task.TableName] = true
 	}
-	target.TableList = strings.Join(maps.Keys(tableList), ",")
+	tconf.TableList = strings.Join(maps.Keys(tableList), ",")
 }
 
 func prepareImportFileTasks() []*ImportFileTask {
@@ -227,6 +186,9 @@ func checkDataDirFlag() {
 		return
 	} else if strings.HasPrefix(dataDir, "gs://") {
 		gcs.ValidateObjectURL(dataDir)
+		return
+	} else if strings.HasPrefix(dataDir, "https://") {
+		az.ValidateObjectURL(dataDir)
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {
@@ -381,16 +343,23 @@ func init() {
 		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
-		"path to the directory contains data files to import into table(s)")
+		"path to the directory which contains data files to import into table(s)\n"+
+			"Note: data-dir can be a local directory or a cloud storage URL\n"+
+			"\tfor AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>\n"+
+			"\tfor GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>\n"+
+			"\tfor Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>")
 	err := importDataFileCmd.MarkFlagRequired("data-dir")
 	if err != nil {
 		utils.ErrExit("mark 'data-dir' flag required: %v", err)
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in '--data-dir' to a table in database.\n"+
-			"Note: default will be to import all the files in --data-dir with given format, for eg: table1.csv to import into table1 on target database.")
+		"comma separated list of mapping between file name in '--data-dir' to a table in database")
 
+	err = importDataFileCmd.MarkFlagRequired("file-table-map")
+	if err != nil {
+		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
+	}
 	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
 			"(Note: only works for csv file type)")
@@ -411,4 +380,7 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
+
+	importDataFileCmd.Flags().MarkHidden("table-list")
+	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
 }

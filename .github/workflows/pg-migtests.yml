@@ -10,7 +10,7 @@ jobs:
   run-pg-migration-tests:
     strategy:
       matrix:
-        version: [2.14.9.0-b23,2.17.3.0-b152,2.16.4.0-b32,2.18.0.0-b65]
+        version: [2.14.10.2-b1,2.17.3.0-b152,2.16.5.0-b24,2.18.1.0-b84]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -115,7 +115,7 @@ jobs:
     # Fixed in 2.17.1.0-b368
     - name: "TEST: pg-partitions-with-indexes"
       run: migtests/scripts/run-test.sh pg/partitions-with-indexes
-      if: matrix.version != '2.16.4.0-b32'
+      if: matrix.version != '2.16.5.0-b24'
 
     - name: "TEST: pg-views-and-rules"
       run: migtests/scripts/run-test.sh pg/views-and-rules

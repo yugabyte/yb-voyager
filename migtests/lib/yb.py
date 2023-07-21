@@ -111,7 +111,7 @@ class PostgresDB:
 			cur.execute(f"{query}")
 		except Exception as error:
 			self.conn.rollback()
-			return error_code == int(error.pgcode)
+			return error_code == str(error.pgcode)
 		return False
 
 	def get_functions_count(self, schema_name="public") -> int:

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -54,7 +55,7 @@ func ValidateObjectURL(datadir string) error {
 	return nil
 }
 
-func SplitObjectPath(objectPath string) (string, string, error) {
+func splitObjectPath(objectPath string) (string, string, error) {
 	u, err := url.Parse(objectPath)
 	if err != nil {
 		return "", "", err
@@ -70,12 +71,23 @@ func SplitObjectPath(objectPath string) (string, string, error) {
 	return bucket, key, nil
 }
 
-func ListAllObjects(bucket string) ([]string, error) {
+func ListAllObjects(dataDir string) ([]string, error) {
 	createClientIfNotExists()
+	dataDirUrl, err := url.Parse(dataDir)
+	if err != nil {
+		return nil, fmt.Errorf("parsing the object of %q: %w", dataDir, err)
+	}
+	bucket := dataDirUrl.Host
+	prefix := ""
+	if dataDirUrl.Path != "" {
+		prefix = dataDirUrl.Path[1:] //remove initial "/"
+	}
 	// Use paginator, default list objects API has a fetch limit.
-	p := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
-		Bucket: &bucket,
-	})
+	query := &s3.ListObjectsV2Input{Bucket: &bucket}
+	if prefix != "" {
+		query.Prefix = &prefix
+	}
+	p := s3.NewListObjectsV2Paginator(client, query)
 
 	var i int
 	var objectNames []string
@@ -87,7 +99,12 @@ func ListAllObjects(bucket string) ([]string, error) {
 		}
 		// Log the objects found
 		for _, obj := range page.Contents {
-			objectNames = append(objectNames, *obj.Key)
+			objectName := *obj.Key
+			if prefix != "" {
+				objectName = strings.TrimPrefix(objectName, prefix)
+				objectName = strings.TrimPrefix(objectName, "/") //remove initial "/"
+			}
+			objectNames = append(objectNames, objectName)
 		}
 	}
 	return objectNames, nil
@@ -95,7 +112,7 @@ func ListAllObjects(bucket string) ([]string, error) {
 
 func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 	createClientIfNotExists()
-	bucket, key, err := SplitObjectPath(object)
+	bucket, key, err := splitObjectPath(object)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +129,7 @@ func GetHeadObject(object string) (*s3.HeadObjectOutput, error) {
 
 func NewObjectReader(object string) (io.ReadCloser, error) {
 	createClientIfNotExists()
-	bucketName, keyName, err := SplitObjectPath(object)
+	bucketName, keyName, err := splitObjectPath(object)
 	if err != nil {
 		return nil, err
 	}

@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
@@ -127,10 +126,14 @@ func validateExportDirFlag() {
 	}
 	if !utils.FileOrFolderExists(exportDir) {
 		utils.ErrExit("export-dir %q doesn't exists.\n", exportDir)
-	} else if exportDir == "." {
-		fmt.Println("Note: Using current working directory as export directory")
 	} else {
-		exportDir = strings.TrimRight(exportDir, "/")
+		var err error
+		exportDir, err = filepath.Abs(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to get absolute path for export-dir %q: %v\n", exportDir, err)
+		}
+		exportDir = filepath.Clean(exportDir)
+		fmt.Printf("Note: Using %q as export directory\n", exportDir)
 	}
 }
 

@@ -32,8 +32,8 @@ main() {
 	rm -rf ${EXPORT_DIR}	
 	echo "Creating export-dir in the parent test directory"
 	mkdir -p ${EXPORT_DIR}
-	echo "Assigning permissions to the export-dir to execute init-db script"
-	chmod +x ${TEST_DIR}/init-db
+	echo "Assigning permissions to the export-dir to execute init-db, cleanup-db scripts"
+	chmod +x ${TEST_DIR}/init-db ${TEST_DIR}/cleanup-db
 
 	step "START: ${TEST_NAME}"
 	print_env
@@ -103,6 +103,11 @@ main() {
 	then
 		 "${TEST_DIR}/validate"
 	fi
+
+	step "Clean up"
+	./cleanup-db
+	rm -rf "${EXPORT_DIR}/*"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
 main

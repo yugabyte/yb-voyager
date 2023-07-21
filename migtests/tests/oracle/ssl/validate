@@ -14,7 +14,7 @@ EXPECTED_ROW_COUNT = {
 EXPECTED_DATA_TYPES = {
 	'test_simple': {
 		'id': 'numeric',
-		'val': 'character precision'
+		'val': 'character varying'
 	},
 }
 

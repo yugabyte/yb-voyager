@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"bufio"
-	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -26,9 +25,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
+)
+
+const (
+	BATCH_METADATA_TABLE_NAME = tgtdb.BATCH_METADATA_TABLE_NAME
 )
 
 /*
@@ -43,7 +46,10 @@ type ImportDataState struct {
 }
 
 func NewImportDataState(exportDir string) *ImportDataState {
-	return &ImportDataState{exportDir: exportDir, stateDir: filepath.Join(exportDir, "metainfo", "import_data_state")}
+	return &ImportDataState{
+		exportDir: exportDir,
+		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state"),
+	}
 }
 
 func (s *ImportDataState) PrepareForFileImport(filePath, tableName string) error {
@@ -147,7 +153,7 @@ func (s *ImportDataState) Recover(filePath, tableName string) ([]*Batch, int64, 
 	return pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, nil
 }
 
-func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Conn) error {
+func (s *ImportDataState) Clean(filePath string, tableName string) error {
 	log.Infof("Cleaning import data state for table %q.", tableName)
 	fileStateDir := s.getFileStateDir(filePath, tableName)
 	log.Infof("Removing %q.", fileStateDir)
@@ -156,17 +162,10 @@ func (s *ImportDataState) Clean(filePath string, tableName string, conn *pgx.Con
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	// Delete all entries from ybvoyager_metadata.ybvoyager_import_data_batches_metainfo for this table.
-	schemaName := getTargetSchemaName(tableName)
-	metaInfoTableName := "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo"
-	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		metaInfoTableName, filePath, schemaName, tableName)
-	res, err := conn.Exec(context.Background(), cmd)
+	err = tdb.CleanFileImportState(filePath, tableName)
 	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, metaInfoTableName, err)
+		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
 	}
-	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
 	return nil
 }
 
@@ -190,6 +189,22 @@ func (s *ImportDataState) GetImportedByteCount(filePath, tableName string) (int6
 	result := int64(0)
 	for _, batch := range batches {
 		result += batch.ByteCount
+	}
+	return result, nil
+}
+
+func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, error) {
+	tableNames, err := s.discoverTableNames()
+	if err != nil {
+		return nil, fmt.Errorf("error while discovering table names: %w", err)
+	}
+	result := make(map[string][]string)
+	for _, tableName := range tableNames {
+		fileNames, err := s.discoverTableFiles(tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error while discovering file paths for table %q: %w", tableName, err)
+		}
+		result[tableName] = fileNames
 	}
 	return result, nil
 }
@@ -287,15 +302,54 @@ func (s *ImportDataState) getTableStateDir(tableName string) string {
 
 func (s *ImportDataState) getFileStateDir(filePath, tableName string) string {
 	// NOTE: filePath must be absolute.
-	hash := computePathHash(filePath)
+	hash := computePathHash(filePath, s.exportDir)
 	baseName := filepath.Base(filePath)
 	return fmt.Sprintf("%s/file::%s::%s", s.getTableStateDir(tableName), baseName, hash)
 }
 
-func computePathHash(filePath string) string {
+func computePathHash(filePath, exportDir string) string {
+	// If filePath starts with exportDir, then this is a case of
+	// import files output by the `export data` command. Stripping the exportDir
+	// from the filePath makes the code independent from the exportDir.
+	filePath = strings.TrimPrefix(filePath, exportDir)
 	hash := sha1.New()
 	hash.Write([]byte(filePath))
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
+}
+
+func (s *ImportDataState) discoverTableNames() ([]string, error) {
+	// Find directories in the `stateDir` whose name starts with "table::"
+	dirEntries, err := os.ReadDir(s.stateDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %q: %s", s.stateDir, err)
+	}
+	result := []string{}
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() && strings.HasPrefix(dirEntry.Name(), "table::") {
+			result = append(result, dirEntry.Name()[len("table::"):])
+		}
+	}
+	return result, nil
+}
+
+func (s *ImportDataState) discoverTableFiles(tableName string) ([]string, error) {
+	tableStateDir := s.getTableStateDir(tableName)
+	dirEntries, err := os.ReadDir(tableStateDir)
+	if err != nil {
+		return nil, fmt.Errorf("read dir %q: %s", tableStateDir, err)
+	}
+	result := []string{}
+	for _, dirEntry := range dirEntries {
+		if dirEntry.IsDir() && strings.HasPrefix(dirEntry.Name(), "file::") {
+			symLinkPath := filepath.Join(tableStateDir, dirEntry.Name(), "link")
+			targetPath, err := os.Readlink(symLinkPath)
+			if err != nil {
+				return nil, fmt.Errorf("read link %q: %s", symLinkPath, err)
+			}
+			result = append(result, targetPath)
+		}
+	}
+	return result, nil
 }
 
 //============================================================================
@@ -465,40 +519,27 @@ func (batch *Batch) MarkDone() error {
 	return nil
 }
 
-func (batch *Batch) IsAlreadyImported(tx pgx.Tx) (bool, int64, error) {
-	var rowsImported int64
+func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	schemaName := getTargetSchemaName(batch.TableName)
 	query := fmt.Sprintf(
-		"SELECT rows_imported "+
-			"FROM ybvoyager_metadata.ybvoyager_import_data_batches_metainfo "+
+		"SELECT rows_imported FROM %s "+
 			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
-	if err == nil {
-		log.Infof("%v rows from %q are already imported", rowsImported, batch.FilePath)
-		return true, rowsImported, nil
-	}
-	if err == pgx.ErrNoRows {
-		log.Infof("%q is not imported yet", batch.FilePath)
-		return false, 0, nil
-	}
-	return false, 0, fmt.Errorf("check if %s is already imported: %w", batch.FilePath, err)
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+	return query
 }
 
-func (batch *Batch) RecordEntryInDB(tx pgx.Tx, rowsAffected int64) error {
-	// Record an entry in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo, that the split is imported.
+func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
+	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
-		`INSERT INTO ybvoyager_metadata.ybvoyager_import_data_batches_metainfo (data_file_name, batch_number, schema_name, table_name, rows_imported)
+		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
 		VALUES ('%s', %d, '%s', '%s', %v);`,
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
-	_, err := tx.Exec(context.Background(), cmd)
-	if err != nil {
-		return fmt.Errorf("insert into ybvoyager_metadata.ybvoyager_import_data_batches_metainfo: %w", err)
-	}
-	log.Infof("Inserted ('%s', %d, '%s', '%s', %v) in ybvoyager_metadata.ybvoyager_import_data_batches_metainfo",
-		batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
-	return nil
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+	return cmd
+}
+
+func (batch *Batch) GetFilePath() string {
+	return batch.FilePath
 }
 
 func (batch *Batch) getInProgressFilePath() string {
