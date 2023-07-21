@@ -21,7 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 type DbzSchema struct {
@@ -40,20 +40,20 @@ type TableSchema struct {
 	Columns []Schema `json:"columns"`
 }
 
-func GetTableSchema(tableName string, exportDir string) TableSchema {
+func GetTableSchema(tableName string, exportDir string) (TableSchema, error) {
 	schemaFileName := fmt.Sprintf("%s_schema.json", tableName)
 	schemaFilePath := filepath.Join(exportDir, "data", "schemas", schemaFileName)
 	schemaFile, err := os.Open(schemaFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to open schema file %s: %v", schemaFilePath, err)
+		return TableSchema{}, fmt.Errorf("Failed to open schema file %s: %v", schemaFilePath, err)
 	}
 	defer schemaFile.Close()
 	var tableSchema TableSchema
 	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
 	if err != nil {
-		utils.ErrExit("Failed to decode schema file %s: %v", schemaFilePath, err)
+		return TableSchema{}, fmt.Errorf("Failed to decode schema file %s: %v", schemaFilePath, err)
 	}
-	return tableSchema
+	return tableSchema, nil
 
 }
 
@@ -64,4 +64,51 @@ func (ts *TableSchema) GetColumnSchema(columnName string) Schema {
 		}
 	}
 	return Schema{}
+}
+
+func (dbzs *DbzSchema) GetConverterFn(valueConverterSuite map[string]tgtdb.ConverterFn) tgtdb.ConverterFn {
+	logicalType := dbzs.Name
+	schemaType := dbzs.Type
+	if valueConverterSuite[logicalType] != nil {
+		return valueConverterSuite[logicalType]
+	} else if valueConverterSuite[schemaType] != nil {
+		return valueConverterSuite[schemaType]
+	}
+	return func(v string) (string, error) { return v, nil }
+}
+
+//===========================================================
+
+type SchemaRegistry struct {
+	exportDir string
+}
+
+func NewSchemaRegistry(exportDir string) *SchemaRegistry {
+	return &SchemaRegistry{exportDir: exportDir}
+}
+
+func (sreg *SchemaRegistry) GetColumnSchemas(tableName string, columnNames []string) ([]Schema, error) {
+	tableSchema, err := GetTableSchema(tableName, sreg.exportDir)
+	if err != nil {
+		return nil, err
+	}
+	columnToSchema := make([]Schema, len(columnNames))
+	for idx, columnName := range columnNames {
+		colSchema := tableSchema.GetColumnSchema(columnName)
+		columnToSchema[idx] = colSchema
+	}
+	return columnToSchema, nil
+}
+
+func (sreg *SchemaRegistry) GetColumnSchema(tableName, columnName string) (Schema, error) {
+	tableSchema, err := GetTableSchema(tableName, sreg.exportDir)
+	if err != nil {
+		return Schema{}, err
+	}
+	for _, colSchema := range tableSchema.Columns {
+		if colSchema.ColName == columnName {
+			return colSchema, nil
+		}
+	}
+	return Schema{}, nil
 }

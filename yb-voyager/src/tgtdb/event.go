@@ -63,7 +63,6 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
-	fmt.Println(stmt)
 	return stmt
 }
 

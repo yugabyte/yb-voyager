@@ -778,8 +778,9 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool) map[string]func(string) (string, error) {
-	converterValueSuite := make(map[string]func(string) (string, error))
+
+func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(snapshotMode bool) map[string]ConverterFn {
+	converterValueSuite := make(map[string]ConverterFn)
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
@@ -885,10 +886,10 @@ func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(isStreamingMode bool)
 			hexString += fmt.Sprintf("%02x", b)
 		}
 		hexValue := ""
-		if isStreamingMode {
-			hexValue = fmt.Sprintf("\\x%s", hexString) // in insert statement no need of escaping the backslash as it is single quoted value
-		} else {
+		if snapshotMode {
 			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash
+		} else {
+			hexValue = fmt.Sprintf("\\x%s", hexString) // in insert statement no need of escaping the backslash as it is single quoted value
 		}
 		return string(hexValue), nil
 	}

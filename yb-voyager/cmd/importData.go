@@ -49,10 +49,10 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                                         // to truncate *.D splits after import
-var TableToColumnSchemas map[string][]dbzm.Schema           // map of table name to column schemas for each columnIndex
-var valueConverterSuite map[string]func(string) (string, error) //map of schemaTypes to value converter functions
+var truncateSplits bool                    // to truncate *.D splits after import
+var TableToColumnNames map[string][]string // map of table name to columnNames
 var isDebeziumExport bool
+var valueConverter dbzm.ValueConverter
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -123,7 +123,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-	isDebeziumExport = usingDebeziumForDataExport()
+	isDebeziumExport = utils.IsDebeziumForDataExport(exportDir)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -132,7 +132,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-
+	valueConverter = dbzm.NewValueConverter(exportDir, tdb, true) //snapshot valueConverter
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
@@ -161,16 +161,15 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
-	valueConverterSuite = tdb.GetDebeziumValueConverterSuite(false)
-	TableToColumnSchemas = make(map[string][]dbzm.Schema)
+	TableToColumnNames = make(map[string][]string)
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		//prepare the value converters for this table in case of debezium
+		//prepare the tableToColumns map in case of debezium
 		if isDebeziumExport {
-			prepareValueConvertersPerTable(pendingTasks)
+			prepareTableToColumns(pendingTasks)
 		}
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
@@ -403,7 +402,8 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			numLinesTaken += 1
 		}
 		if line != "" && isDebeziumExport {
-			line, err = transformDataRow(line, TableToColumnSchemas[batchWriter.tableName])
+			table := batchWriter.tableName
+			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line)
 			if err != nil {
 				utils.ErrExit("transforming line for table %q: %s", t, err)
 			}
@@ -676,10 +676,9 @@ func getTargetSchemaName(tableName string) string {
 	return tconf.Schema // default set to "public"
 }
 
-func prepareValueConvertersPerTable(tasks []*ImportFileTask) {
+func prepareTableToColumns(tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		table := task.TableName
-		tableSchema := dbzm.GetTableSchema(table, exportDir)
 		reader, err := dataStore.Open(task.FilePath)
 		if err != nil {
 			utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
@@ -690,31 +689,8 @@ func prepareValueConvertersPerTable(tasks []*ImportFileTask) {
 		}
 		header := df.GetHeader()
 		columnNames := strings.Split(header, dataFileDescriptor.Delimiter)
-		columnToSchema := make([]dbzm.Schema, len(columnNames))
-		for idx, columnName := range columnNames {
-			colSchema := tableSchema.GetColumnSchema(columnName)
-			columnToSchema[idx] = colSchema
-		}
-		TableToColumnSchemas[table] = columnToSchema
+		TableToColumnNames[table] = columnNames
 	}
-}
-
-func transformDataRow(dataRow string, columnToSchema []dbzm.Schema) (string, error) {
-	columnValues := strings.Split(dataRow, "\t")
-	var transformedValues []string
-	for i, columnValue := range columnValues {
-		if columnValue != "\\N" {
-			transformedValue, err := dbzm.TransformValue(columnValue, columnToSchema[i], valueConverterSuite)
-			if err != nil {
-				return dataRow, err
-			}
-			transformedValues = append(transformedValues, transformedValue)
-		} else {
-			transformedValues = append(transformedValues, columnValue)
-		}
-	}
-	transformedRow := strings.Join(transformedValues, "\t")
-	return transformedRow, nil
 }
 
 func quoteIdentifierIfRequired(identifier string) string {

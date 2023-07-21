@@ -36,7 +36,7 @@ func streamChanges() error {
 		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
 	}
 	defer file.Close()
-    valueConverterSuite = tdb.GetDebeziumValueConverterSuite(true)
+	valueConverter = dbzm.NewValueConverter(exportDir, tdb, false) //streaming valueConverter
 	r := utils.NewTailReader(file)
 	dec := json.NewDecoder(r)
 	log.Infof("Waiting for changes in %s", queueFilePath)
@@ -64,7 +64,7 @@ func handleEvent(event *tgtdb.Event) error {
 		tableName = event.SchemaName + "." + event.TableName
 	}
 	// preparing value converters for the streaming mode
-	err := transformEventKeyFields(event, tableName)
+	err := valueConverter.ConvertEvent(event, tableName)
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
@@ -72,43 +72,6 @@ func handleEvent(event *tgtdb.Event) error {
 	err = tdb.ExecuteBatch(batch)
 	if err != nil {
 		return fmt.Errorf("error executing batch: %v", err)
-	}
-	return nil
-}
-
-func transformEventKeyFields(event *tgtdb.Event, tableName string) error {
-	tableSchema := dbzm.GetTableSchema(tableName, exportDir)
-	columnToSchema := make(map[string]dbzm.Schema)
-	for _, column := range tableSchema.Columns {
-		columnToSchema[column.ColName] = column
-	}
-	for column, value := range event.Fields {
-		var columnValue string
-		if value == nil {
-			columnValue = "NULL"
-		} else {
-			var err error
-			columnValue = fmt.Sprintf("%v", value)
-			columnValue, err = dbzm.TransformValue(columnValue, columnToSchema[column], valueConverterSuite)
-			if err != nil {
-				return fmt.Errorf("error transforming value: %v", err)
-			}
-		}
-		event.Fields[column] = columnValue
-	}
-	for column, value := range event.Key {
-		var columnValue string
-		if value == nil {
-			columnValue = "NULL"
-		} else {
-			var err error
-			columnValue = fmt.Sprintf("%v", value)
-			columnValue, err = dbzm.TransformValue(columnValue, columnToSchema[column], valueConverterSuite)
-			if err != nil {
-				return fmt.Errorf("error transforming value: %v", err)
-			}
-		}
-		event.Key[column] = columnValue
 	}
 	return nil
 }
