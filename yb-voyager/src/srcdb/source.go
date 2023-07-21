@@ -40,9 +40,12 @@ type Source struct {
 	User                  string
 	Password              string
 	DBName                string
+	CDBName               string
 	DBSid                 string
+	CDBSid                string
 	OracleHome            string
 	TNSAlias              string
+	CDBTNSAlias           string
 	Schema                string
 	SSLMode               string
 	SSLCertPath           string
@@ -78,6 +81,10 @@ func (s *Source) GetOracleHome() string {
 	} else {
 		return "/usr/lib/oracle/21/client64"
 	}
+}
+
+func (s *Source) IsOracleCDBSetup() bool {
+	return (s.CDBName != "" || s.CDBTNSAlias != "" || s.CDBSid != "")
 }
 
 func parseSSLString(source *Source) {

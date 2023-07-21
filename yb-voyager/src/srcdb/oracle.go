@@ -148,20 +148,25 @@ func (ora *Oracle) getConnectionUri() string {
 		return source.Uri
 	}
 
-	switch true {
-	case source.DBSid != "":
-		source.Uri = fmt.Sprintf(`user="%s" password="%s" connectString="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))"`,
-			source.User, source.Password, source.Host, source.Port, source.DBSid)
-
-	case source.TNSAlias != "":
-		source.Uri = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, source.User, source.Password, source.TNSAlias)
-
-	case source.DBName != "":
-		source.Uri = fmt.Sprintf(`user="%s" password="%s" connectString="(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))"`,
-			source.User, source.Password, source.Host, source.Port, source.DBName)
-	}
-
+	connectionString := GetOracleConnectionString(source.Host, source.Port, source.DBName, source.DBSid, source.TNSAlias)
+	source.Uri = fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, source.User, source.Password, connectionString)
 	return source.Uri
+}
+
+func GetOracleConnectionString(host string, port int, dbname string, dbsid string, tnsalias string) string {
+	switch true {
+	case dbsid != "":
+		return fmt.Sprintf(`(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))`,
+			host, port, dbsid)
+
+	case tnsalias != "":
+		return tnsalias
+
+	case dbname != "":
+		return fmt.Sprintf(`(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))`,
+			host, port, dbname)
+	}
+	return ""
 }
 
 func (ora *Oracle) ExportSchema(exportDir string) {
