@@ -1,3 +1,6 @@
+CREATE TABLESPACE logminer_tbs DATAFILE '/opt/oracle/oradata/ORCLCDB/logminer_tbs.dbf'
+    SIZE 25M REUSE AUTOEXTEND ON MAXSIZE UNLIMITED;
+
 CREATE USER c##ybvoyager IDENTIFIED BY password
     DEFAULT TABLESPACE logminer_tbs
     QUOTA UNLIMITED ON logminer_tbs
