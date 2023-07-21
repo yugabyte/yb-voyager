@@ -38,6 +38,7 @@ type Config struct {
 	Password string
 
 	DatabaseName                string
+	PDBName                     string
 	SchemaNames                 string
 	TableList                   []string
 	ColumnSequenceMap           []string
@@ -131,6 +132,10 @@ debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
 debezium.source.include.schema.changes=false
 `
 
+var oracleSrcPDBConfigTemplate = `
+debezium.source.database.pdb.name=%s
+`
+
 var oracleConfigTemplate = baseConfigTemplate +
 	baseSrcConfigTemplate +
 	oracleSrcConfigTemplate +
@@ -209,6 +214,10 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","))
+		if c.PDBName != "" {
+			// cdb setup.
+			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
+		}
 
 	case "mysql":
 		conf = fmt.Sprintf(mysqlConfigTemplate,
