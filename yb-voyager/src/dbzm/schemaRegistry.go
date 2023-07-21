@@ -45,13 +45,13 @@ func GetTableSchema(tableName string, exportDir string) (TableSchema, error) {
 	schemaFilePath := filepath.Join(exportDir, "data", "schemas", schemaFileName)
 	schemaFile, err := os.Open(schemaFilePath)
 	if err != nil {
-		return TableSchema{}, fmt.Errorf("Failed to open schema file %s: %v", schemaFilePath, err)
+		return TableSchema{}, fmt.Errorf("failed to open schema file %s: %v", schemaFilePath, err)
 	}
 	defer schemaFile.Close()
 	var tableSchema TableSchema
 	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
 	if err != nil {
-		return TableSchema{}, fmt.Errorf("Failed to decode schema file %s: %v", schemaFilePath, err)
+		return TableSchema{}, fmt.Errorf("failed to decode schema file %s: %v", schemaFilePath, err)
 	}
 	return tableSchema, nil
 

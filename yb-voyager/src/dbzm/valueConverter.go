@@ -40,11 +40,11 @@ func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, snapshotMode bool) 
 
 type NoOpValueConverter struct{}
 
-func (_ *NoOpValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
+func (nvc *NoOpValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
 	return row, nil
 }
 
-func (_ *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
+func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
 	return nil
 }
 
@@ -99,7 +99,7 @@ func (conv *DebeziumValueConverter) getConverterFnCache(tableName string, column
 			return nil, err
 		}
 		result = make([]tgtdb.ConverterFn, len(columnNames))
-		for i, _ := range columnNames {
+		for i := range columnNames {
 			schema := colSchemas[i]
 			result[i] = schema.ColDbzSchema.GetConverterFn(conv.valueConverterSuite)
 		}
@@ -128,10 +128,13 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]in
 		}
 		columnValue := fmt.Sprintf("%v", value)
 		colSchema, err := conv.schemaRegistry.GetColumnSchema(tableName, column)
+		if err != nil {
+			return fmt.Errorf("fetch column schema: %v",err)
+		}
 		converterFn := colSchema.ColDbzSchema.GetConverterFn(conv.valueConverterSuite)
 		columnValue, err = converterFn(columnValue)
 		if err != nil {
-			return err
+			return fmt.Errorf("converting value: %v",err)
 		}
 		m[column] = columnValue
 	}
