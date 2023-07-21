@@ -77,13 +77,13 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
 	cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",
-		"[For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database.")
+		"[For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database. Note: This is only required for live migration.")
 
 	cmd.Flags().StringVar(&source.CDBSid, "oracle-cdb-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) of the Container Database that you wish to use while exporting data from Oracle instances")
+		"[For Oracle Only] Oracle System Identifier (SID) of the Container Database that you wish to use while exporting data from Oracle instances.  Note: This is only required for live migration.")
 
 	cmd.Flags().StringVar(&source.CDBTNSAlias, "oracle-cdb-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases. Note: This is only required for live migration.")
 
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
