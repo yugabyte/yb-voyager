@@ -461,7 +461,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
