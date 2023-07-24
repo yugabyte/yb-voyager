@@ -112,10 +112,17 @@ grant_user_permission_mysql() {
 grant_user_permission_oracle(){
 	db_name=$1
 	db_schema=$2
+	pdb_name="ORCLPDB1"
 
 	if [ "${db_name}" = "ORCLCDB" ]
 	then
+		cat > create-tablespace.sql << EOF
+		CREATE TABLESPACE logminer_tbs DATAFILE '/opt/oracle/oradata/ORCLCDB/ORCLPDB1/logminer_tbs.dbf'
+    	SIZE 25M REUSE AUTOEXTEND ON MAXSIZE UNLIMITED;
+EOF
 		cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
+		run_sqlplus_as_sys ${pdb_name} "create-tablespace.sql"
+		run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
 	else
 		cat > oracle-inputs.sql << EOF
 		GRANT CONNECT TO ybvoyager;
@@ -145,9 +152,8 @@ grant_user_permission_oracle(){
 		*/
 		GRANT FLASHBACK ANY TABLE TO ybvoyager;
 EOF
-	fi	
-	 
 	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"	
+	fi
 }
 
 grant_permissions() {
