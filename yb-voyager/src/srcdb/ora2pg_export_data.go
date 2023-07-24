@@ -41,7 +41,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	for _, tableName := range tableNameList {
 		tableList = append(tableList, tableName.ObjectName.Unquoted)
 	}
-	conf := source.getDefaultOra2pgConfig()
+	conf := getDefaultOra2pgConfig(source)
 	conf.DisablePartition = "1"
 	conf.Allow = fmt.Sprintf("TABLE%v", tableList)
 	// providing column list for tables having unsupported column types
@@ -54,7 +54,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 		conf.ModifyStruct += fmt.Sprintf("%s(%s) ", tableName.ObjectName.Unquoted, strings.Join(columnList, ","))
 	}
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
-	source.PopulateOra2pgConfigFile(configFilePath, conf)
+	populateOra2pgConfigFile(configFilePath, conf)
 
 	tempDirPath := filepath.Join(exportDir, "temp", "ora2pg_temp_dir")
 	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header -T %s",

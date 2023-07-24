@@ -14,6 +14,26 @@ import (
 	"gopkg.in/ini.v1"
 )
 
+type PgDumpArgs struct {
+	Schema             string
+	SchemaTempFilePath string
+	ExtensionPattern   string
+	TablesListPattern  string
+	DataDirPath        string
+	DataFormat         string
+	ParallelJobs       string
+	NoComments         string
+
+	// default values from template file will be taken
+	SchemaOnly           string
+	NoOwner              string
+	NoPrivileges         string
+	NoTablespaces        string
+	LoadViaPartitionRoot string
+	DataOnly             string
+	NoBlobs              string
+}
+
 var pgDumpArgs PgDumpArgs
 
 //go:embed data/pg_dump-args.ini
