@@ -123,7 +123,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-	isDebeziumExport = utils.IsDebeziumForDataExport(exportDir)
+	isDebeziumExport = dbzm.IsDebeziumForDataExport(exportDir)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -132,7 +132,10 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-	valueConverter = dbzm.NewValueConverter(exportDir, tdb, true) //snapshot valueConverter
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, true) //snapshot valueConverter
+	if err != nil {
+		utils.ErrExit("Failed to create value converter: %s", err)
+	}
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)

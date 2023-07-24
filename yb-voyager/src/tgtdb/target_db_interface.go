@@ -37,7 +37,7 @@ type TargetDB interface {
 }
 
 //value converter Function type 
-type ConverterFn func(v string) (string, error)
+type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {
 	Open() (*os.File, error)

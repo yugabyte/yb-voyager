@@ -36,7 +36,7 @@ var exportDataStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
 		var err error
-		useDebezium = utils.IsDebeziumForDataExport(exportDir)
+		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
 			err = runExportDataStatusCmdDbzm()
 		} else {

@@ -24,8 +24,8 @@ type Event struct {
 	Op         string                 `json:"op"`
 	SchemaName string                 `json:"schema_name"`
 	TableName  string                 `json:"table_name"`
-	Key        map[string]interface{} `json:"key"`
-	Fields     map[string]interface{} `json:"fields"` 
+	Key        map[string]string `json:"key"`
+	Fields     map[string]string `json:"fields"` 
 }
 
 func (e *Event) GetSQLStmt(targetSchema string) string {
@@ -54,11 +54,11 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		columnList = append(columnList, column)
-		if value == "NULL" {
+		// if value == "NULL" {
 			valueList = append(valueList, fmt.Sprintf("%v", value)) //no need to stringify NULL
-		} else {
-			valueList = append(valueList, fmt.Sprintf("'%v'", value))
-		}
+		// } else {
+			// valueList = append(valueList, fmt.Sprintf("'%v'", value))
+		// }
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
@@ -73,12 +73,12 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 	}
 	var setClauses []string
 	for column, value := range event.Fields {
-		setClauses = append(setClauses, fmt.Sprintf("%s = '%s'", column, value))
+		setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	setClause := strings.Join(setClauses, ", ")
 	var whereClauses []string
 	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
@@ -91,7 +91,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	}
 	var whereClauses []string
 	for column, value := range event.Key {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = '%s'", column, value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, value))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)

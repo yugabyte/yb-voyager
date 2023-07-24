@@ -36,7 +36,10 @@ func streamChanges() error {
 		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
 	}
 	defer file.Close()
-	valueConverter = dbzm.NewValueConverter(exportDir, tdb, false) //streaming valueConverter
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, false) //streaming valueConverter
+	if err != nil {
+		return fmt.Errorf("error creating value converter: %v", err)
+	}
 	r := utils.NewTailReader(file)
 	dec := json.NewDecoder(r)
 	log.Infof("Waiting for changes in %s", queueFilePath)

@@ -19,7 +19,6 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -413,14 +412,3 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	return nil
 }
 
-func IsDebeziumForDataExport(exportDir string) bool {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
-	_, err := os.Stat(exportStatusFilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		ErrExit("checking if debezium is being used as exporting tool: %s\n", err)
-	}
-	return true
-}
