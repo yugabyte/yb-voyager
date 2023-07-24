@@ -778,7 +778,6 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(snapshotMode bool) map[string]ConverterFn {
 	converterValueSuite := make(map[string]ConverterFn)
 	converterValueSuite["io.debezium.time.Date"] = func(columnValue string, formatIfRequired bool) (string, error) {
@@ -862,7 +861,7 @@ func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(snapshotMode bool) ma
 		timeValue := time.Unix(epochSeconds, epochNanos).Local().Format(MICRO_TIME_FORMAT)
 		if formatIfRequired {
 			timeValue = fmt.Sprintf("'%s'", timeValue)
-		} 
+		}
 		return timeValue, nil
 	}
 	converterValueSuite["io.debezium.data.Bits"] = func(columnValue string, formatIfRequired bool) (string, error) {
@@ -914,7 +913,7 @@ func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite(snapshotMode bool) ma
 			hexString += fmt.Sprintf("%02x", b)
 		}
 		hexValue := ""
-		if formatIfRequired { 
+		if formatIfRequired {
 			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
 		} else {
 			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash

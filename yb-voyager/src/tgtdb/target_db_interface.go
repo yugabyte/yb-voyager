@@ -36,7 +36,7 @@ type TargetDB interface {
 	GetDebeziumValueConverterSuite(isStreamingMode bool) map[string]ConverterFn
 }
 
-//value converter Function type 
+// value converter Function type
 type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {

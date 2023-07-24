@@ -140,9 +140,9 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]st
 		if converterFn == nil {
 			converterFn = func(v string, formatIfRequired bool) (string, error) { return v, nil }
 		}
-		columnValue, err = converterFn(columnValue, false)
+		columnValue, err = converterFn(columnValue, true)
 		if err != nil {
-			return fmt.Errorf("error while converting %s.%s of type %s in event[]: %w", tableName, column, *colType, err)// TODO - add event id	
+			return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, *colType, err) // TODO - add event id in log msg
 		}
 		m[column] = columnValue
 	}

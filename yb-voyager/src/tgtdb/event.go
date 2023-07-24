@@ -54,11 +54,7 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		columnList = append(columnList, column)
-		// if value == "NULL" {
-			valueList = append(valueList, fmt.Sprintf("%v", value)) //no need to stringify NULL
-		// } else {
-			// valueList = append(valueList, fmt.Sprintf("'%v'", value))
-		// }
+		valueList = append(valueList, fmt.Sprintf("%v", value))
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")

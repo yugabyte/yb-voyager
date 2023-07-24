@@ -49,7 +49,7 @@ func (ts *TableSchema) getColumnType(columnName string) *string {
 			} else {
 				return &colSchema.Schema.Type
 			}
-			
+
 		}
 	}
 	log.Warnf("Column %s not found in table schema %v", columnName, ts)
@@ -59,13 +59,13 @@ func (ts *TableSchema) getColumnType(columnName string) *string {
 //===========================================================
 
 type SchemaRegistry struct {
-	exportDir string
+	exportDir     string
 	tableToSchema map[string]*TableSchema
 }
 
 func NewSchemaRegistry(exportDir string) *SchemaRegistry {
 	return &SchemaRegistry{
-		exportDir: exportDir,
+		exportDir:     exportDir,
 		tableToSchema: make(map[string]*TableSchema),
 	}
 }
