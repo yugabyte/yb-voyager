@@ -93,8 +93,6 @@ grant_user_permission_mysql() {
     # Extra steps required to enable Debezium export 
 		"GRANT FLUSH_TABLES ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 		"GRANT REPLICATION CLIENT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
-	#Extra Grants for live migration
-		"GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 	)
 
 	for command in "${commands[@]}"; do
@@ -105,7 +103,7 @@ grant_user_permission_mysql() {
 	# run_mysql ${db_name} "GRANT SHOW_ROUTINE  ON *.* TO 'ybvoyager'@'${SOURCE_DB_HOST}';"
 
 	# For older versions
-	#run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
+	run_mysql ${db_name} "GRANT SELECT ON *.* TO '${SOURCE_DB_USER}'@'${SOURCE_DB_HOST}';"
 
 }
 
@@ -145,7 +143,7 @@ EOF
 
 }
 
-grant_live_user_permission_oracle() {
+grant_permissions_for_live_migration_oracle() {
 	cdb_name=$1
 	pdb_name=$2
 
@@ -355,7 +353,7 @@ kill_process() {
 	kill -9 ${to_be_killed}
 }
 
-run_file() {
+run_sql_file() {
 	file_name=$1
 	if [ "${SOURCE_DB_TYPE}" = "mysql" ]
 	then

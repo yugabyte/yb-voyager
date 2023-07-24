@@ -8,7 +8,7 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'x':3
+	'x':5
 }
 
 EXPECTED_DATA_TYPES = {

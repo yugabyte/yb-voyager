@@ -55,7 +55,7 @@ main() {
 	step "Grant source database user permissions"
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
-		grant_live_user_permission_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
 	else
 		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 	fi
@@ -119,10 +119,10 @@ main() {
 	sleep 30 
 	
 	step "Run snapshot validations."
-	"${TEST_DIR}/snapvalidate"
+	"${TEST_DIR}/validate"
 
 	step "Inserting new events"
-	run_file delta.sql
+	run_sql_file delta.sql
 
 	sleep 2m
 
@@ -139,9 +139,9 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	if [ -x "${TEST_DIR}/validate" ]
+	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validate"
+	"${TEST_DIR}/validateAfterChanges"
 	fi
 
 	step "Clean up"

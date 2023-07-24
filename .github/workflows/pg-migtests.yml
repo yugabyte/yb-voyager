@@ -93,9 +93,6 @@ jobs:
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: pg-live-test"
-      run: migtests/scripts/live-run-test.sh pg/live-test
-
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg/dvdrental 
 
@@ -159,4 +156,11 @@ jobs:
 
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce
+
+    - name: Create the live migration user
+      run: | 
+        psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
+
+    - name: "TEST: pg-live-test"
+      run: migtests/scripts/live-run-test.sh pg/live-test
 
