@@ -16,7 +16,8 @@ limitations under the License.
 package cmd
 
 const (
-	FOUR_MB                      = 4 * 1024 * 1024
+	KB                           = 1024
+	MB                           = 1024 * 1024
 	META_INFO_DIR_NAME           = "metainfo"
 	NEWLINE                      = '\n'
 	ORACLE_DEFAULT_PORT          = 1521

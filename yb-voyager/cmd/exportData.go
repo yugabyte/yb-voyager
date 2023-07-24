@@ -157,7 +157,7 @@ func exportDataOffline() bool {
 		fmt.Println("no tables present to export, exiting...")
 		createExportDataDoneFlag()
 		dfd := datafile.Descriptor{
-			ExportDir: exportDir,
+			ExportDir:    exportDir,
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
@@ -293,10 +293,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		SnapshotMode: snapshotMode,
 	}
 	if source.DBType == "oracle" {
-		config.Uri, err = getConnectionUriForDebezium(source)
-		if err != nil {
-			return fmt.Errorf("failed to generate uri connection string: %v", err)
+		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
+		if source.IsOracleCDBSetup() {
+			// uri = cdb uri
+			connectionString := srcdb.GetOracleConnectionString(source.Host, source.Port, source.CDBName, source.CDBSid, source.CDBTNSAlias)
+			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
+			config.PDBName = source.DBName
+		} else {
+			connectionString := srcdb.GetOracleConnectionString(source.Host, source.Port, source.DBName, source.DBSid, source.TNSAlias)
+			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
 		}
+
 		config.TNSAdmin, err = getTNSAdmin(source)
 		if err != nil {
 			return fmt.Errorf("failed to get tns admin: %w", err)
@@ -353,21 +360,6 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 	log.Info("Debezium exited normally.")
 	return nil
-}
-
-// source.Uri in case of oracle is a string of the format `user="%s" password="%s" connectString="(DESCRIPTION=(...))`
-// this function extracts the connectString part of the URI, which is what is passed to debezium config.
-func getConnectionUriForDebezium(s srcdb.Source) (string, error) {
-	if s.DBType == "oracle" {
-		connectionStringRegex := regexp.MustCompile(`.*connectString="(?P<connectString>.*)".*`)
-		match := connectionStringRegex.FindStringSubmatch(s.Uri)
-		if match == nil || len(match) != 2 {
-			return "", fmt.Errorf("unexpected URI format. regex matches = %v", match)
-		}
-		connectionString := fmt.Sprintf("jdbc:oracle:thin:@%s", match[1])
-		return connectionString, nil
-	}
-	return s.Uri, nil
 }
 
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as

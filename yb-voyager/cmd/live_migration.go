@@ -16,47 +16,69 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 func streamChanges() error {
-	queueFilePath := filepath.Join(exportDir, "data", "queue.json")
-	log.Infof("Streaming changes from %s", queueFilePath)
-	file, err := os.OpenFile(queueFilePath, os.O_CREATE, 0640)
-	if err != nil {
-		return fmt.Errorf("error opening file %s: %v", queueFilePath, err)
+	eventQueue := NewEventQueue(exportDir)
+	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
+	for { // continuously get next segments to stream
+		segment, err := eventQueue.GetNextSegment()
+		if err != nil {
+			if segment == nil && errors.Is(err, os.ErrNotExist) {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+			return fmt.Errorf("error getting next segment to stream: %v", err)
+		}
+		log.Infof("got next segment to stream: %v", segment)
+
+		err = streamChangesFromSegment(segment)
+		if err != nil {
+			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
+		}
 	}
-	defer file.Close()
+}
+
+func streamChangesFromSegment(segment *EventQueueSegment) error {
+	err := segment.Open()
+	if err != nil {
+		return err
+	}
+	defer segment.Close()
+	log.Infof("streaming changes for segment %s", segment.FilePath)
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, false) //streaming valueConverter
 	if err != nil {
 		return fmt.Errorf("error creating value converter: %v", err)
 	}
-	r := utils.NewTailReader(file)
-	dec := json.NewDecoder(r)
-	log.Infof("Waiting for changes in %s", queueFilePath)
-	// TODO: Batch the changes.
-	for dec.More() {
-		dec.UseNumber()
-		var event tgtdb.Event
-		err := dec.Decode(&event)
+	for !segment.IsProcessed() {
+		event, err := segment.NextEvent()
 		if err != nil {
-			return fmt.Errorf("error decoding change: %v", err)
+			return err
 		}
 
-		err = handleEvent(&event)
+		if event == nil && segment.IsProcessed() {
+			break
+		}
+
+		err = handleEvent(event)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
 	}
+
+	log.Infof("finished streaming changes from segment %s", segment.FilePath)
+	// TODO: printing this line until some user stats are available.
+	fmt.Printf("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 
