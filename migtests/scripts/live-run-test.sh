@@ -124,7 +124,7 @@ main() {
 	step "Inserting new events"
 	run_file delta.sql
 
-	sleep 30
+	sleep 2m
 
 	step "Shutting down exporter and importer"
 	kill_process -${exp_pid}
