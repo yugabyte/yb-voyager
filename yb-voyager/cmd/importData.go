@@ -183,7 +183,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	executePostImportDataSqls()
+	// executePostImportDataSqls()
 	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {

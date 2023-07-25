@@ -191,8 +191,8 @@ outer:
 			}
 			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
 			time.Sleep(5 * time.Second)
-			err = yb.reconnect()
-			if err != nil {
+			err2 := yb.reconnect()
+			if err2 != nil {
 				break
 			}
 		}
@@ -754,7 +754,7 @@ func (yb *TargetYugabyteDB) getTargetSchemaName(tableName string) string {
 
 func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
 	var rowsImported int64
-	query := batch.GetQueryIsBatchAlreadyImported()
+	query := batch.GetQueryIsBatchAlreadyImported(yb.tconf.TargetDBType)
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.GetFilePath())
@@ -768,7 +768,7 @@ func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool
 }
 
 func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected int64) error {
-	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
+	cmd := batch.GetQueryToRecordEntryInDB(yb.tconf.TargetDBType, rowsAffected)
 	_, err := tx.Exec(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)

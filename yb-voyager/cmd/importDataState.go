@@ -519,27 +519,47 @@ func (batch *Batch) MarkDone() error {
 	return nil
 }
 
-func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
+func (batch *Batch) GetQueryIsBatchAlreadyImported(TargetDBType string) string {
 	schemaName := getTargetSchemaName(batch.TableName)
-	query := fmt.Sprintf(
-		"SELECT rows_imported FROM %s "+
-			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
-		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+	var query string
+	if TargetDBType == "oracle" {
+		query = fmt.Sprintf(
+			"SELECT rows_imported FROM %s "+
+				"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
+			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+	} else {
+		query = fmt.Sprintf(
+			"SELECT rows_imported FROM %s "+
+				"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
+			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+	}
 	return query
 }
 
-func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
+func (batch *Batch) GetQueryToRecordEntryInDB(TargetDBType string, rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
-	cmd := fmt.Sprintf(
-		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
-		VALUES ('%s', %d, '%s', '%s', %v);`,
-		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+	var cmd string
+	if TargetDBType == "oracle" {
+		cmd = fmt.Sprintf(
+			`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
+			VALUES ('%s', %d, '%s', '%s', %v)`,
+			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+	} else {
+		cmd = fmt.Sprintf(
+			`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
+			VALUES ('%s', %d, '%s', '%s', %v);`,
+			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+	}
 	return cmd
 }
 
 func (batch *Batch) GetFilePath() string {
 	return batch.FilePath
+}
+
+func (batch *Batch) GetTableName() string {
+	return batch.TableName
 }
 
 func (batch *Batch) getInProgressFilePath() string {

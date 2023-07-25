@@ -45,8 +45,9 @@ const (
 type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
-	GetQueryIsBatchAlreadyImported() string
-	GetQueryToRecordEntryInDB(rowsAffected int64) string
+	GetTableName() string
+	GetQueryIsBatchAlreadyImported(string) string
+	GetQueryToRecordEntryInDB(targetDBType string, rowsAffected int64) string
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
@@ -106,10 +107,10 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) GetSqlLdrControlFile() string {
+func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 	var columns string
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
-	return fmt.Sprintf("LOAD DATA\nINFILE '%s'\nAPPEND\nINTO TABLE %s\nFIELDS TERMINATED BY '\t'\n%s", args.FilePath, args.TableName, columns)
+	return fmt.Sprintf("LOAD DATA\nINFILE '%s'\nAPPEND\nINTO TABLE %s\nREENABLE DISABLED_CONSTRAINTS\nFIELDS TERMINATED BY '\\t'\n%s", args.FilePath, schema+"."+args.TableName, columns)
 }
