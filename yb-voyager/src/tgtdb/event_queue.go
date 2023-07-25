@@ -73,17 +73,13 @@ func newTargetEventQueuePartition(partitionNo int) *TargetEventQueuePartition {
 }
 
 func (teqp *TargetEventQueuePartition) InsertEvent(e *Event) {
-	utils.PrintAndLog("inserting into partition %v, event=%v", teqp.partitionNo, e)
 	*teqp.buffer = append(*teqp.buffer, e)
-	// utils.PrintAndLog("inserted into partition buffer, now of length=%v", len(*teqp.buffer))
 	teqp.generateBatchFromBufferIfRequired()
 }
 
 // TODO: time based batch generation as well.
 func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired() {
-	// utils.PrintAndLog("generating batch: len buffer = %v", len(*teqp.buffer))
 	if len(*teqp.buffer) >= MAX_EVENTS_PER_BATCH {
-		// utils.PrintAndLog("Creating batch of events")
 		// generate batch from buffer
 		// TODO: create a concrete struct for an event batch
 		eventBatch := *teqp.buffer
@@ -91,12 +87,9 @@ func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired() {
 		newBuffer := make([]*Event, 0)
 		teqp.buffer = &newBuffer
 		utils.PrintAndLog("Created batch of events %v", eventBatch)
-	} else {
-		utils.PrintAndLog("Not reached batch limit yet =%v", len(*teqp.buffer))
 	}
 }
 
 func (teqp *TargetEventQueuePartition) GetNextBatch() []*Event {
-	// get from channel
 	return <-teqp.eventBatchQueue
 }

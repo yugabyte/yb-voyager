@@ -41,7 +41,7 @@ func (processor *TargetEventQueueProcessor) Start() {
 				utils.PrintAndLog("processing batch from partition %v : %v", p, nextEventBatch)
 				err := processor.tgtDB.ExecuteBatch(nextEventBatch)
 				if err != nil {
-					utils.ErrExit("error in executing batch target: %w", err)
+					utils.ErrExit("error in executing batch on target: %w", err)
 				}
 			}
 		}

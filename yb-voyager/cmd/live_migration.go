@@ -82,13 +82,6 @@ func streamChangesFromSegment(segment *SourceEventQueueSegment, teq *tgtdb.Targe
 
 func handleEvent(event *tgtdb.Event, teq *tgtdb.TargetEventQueue) error {
 	log.Debugf("Handling event: %v", event)
-
 	teq.InsertEvent(event)
-	// TODO: Convert values in the event to make it suitable for target DB.
-	// batch := []*tgtdb.Event{event}
-	// err := tdb.ExecuteBatch(batch)
-	// if err != nil {
-	// 	return fmt.Errorf("error executing batch: %v", err)
-	// }
 	return nil
 }
