@@ -424,7 +424,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
 			return false, err
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 		}
 	}
 
