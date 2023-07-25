@@ -104,5 +104,10 @@ func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired() {
 }
 
 func (teqp *TargetEventQueuePartition) GetNextBatch() []*Event {
-	return <-teqp.eventBatchQueue
+	select {
+	case eventBatch := <-teqp.eventBatchQueue:
+		return eventBatch
+	default:
+		return nil
+	}
 }

@@ -38,6 +38,9 @@ func (processor *TargetEventQueueProcessor) Start() {
 		for {
 			for p := 0; p < NUM_PARTITIONS; p++ {
 				nextEventBatch := processor.queue.GetNextBatchFromPartition(p)
+				if nextEventBatch == nil {
+					continue
+				}
 				utils.PrintAndLog("processing batch from partition %v : %v", p, nextEventBatch)
 				err := processor.tgtDB.ExecuteBatch(nextEventBatch)
 				if err != nil {
