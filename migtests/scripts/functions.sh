@@ -350,7 +350,7 @@ tail_log_file() {
 
 kill_process() {
 	to_be_killed=$1
-	kill -9 ${to_be_killed}
+	kill -15 ${to_be_killed}
 }
 
 run_sql_file() {

@@ -157,6 +157,7 @@ jobs:
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce
 
+# Placeholder for now so that a basic test can run
     - name: Create the live migration user
       run: | 
         psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
