@@ -71,6 +71,9 @@ func validateImportFlags(cmd *cobra.Command) {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
+		"type of the target database (oracle, mysql, postgresql)")
+
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
@@ -84,10 +87,19 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server")
 
-	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
+	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
+	cmd.Flags().StringVar(&tconf.DBSid, "target-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
+
+	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
+	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.

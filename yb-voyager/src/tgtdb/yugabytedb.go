@@ -161,11 +161,12 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // try to use the similar table created by the voyager 1.3 and earlier.
 // Voyager 1.4 uses import data state format that is incompatible from
 // the earlier versions.
-const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
+const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
+const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
-		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
+		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			data_file_name VARCHAR(250),
 			batch_number INT,
@@ -236,7 +237,7 @@ func (yb *TargetYugabyteDB) CleanFileImportState(filePath, tableName string) err
 	return nil
 }
 
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error) {
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
