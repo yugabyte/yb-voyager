@@ -45,7 +45,7 @@ func (teq *TargetEventQueue) InsertEvent(e *Event) {
 }
 
 func (teq *TargetEventQueue) getPartitionNoForEvent(e *Event) int {
-	// TODO: use a hash
+	// TODO: use a hash on the event.
 	return 0
 }
 
@@ -79,6 +79,7 @@ func (teqp *TargetEventQueuePartition) InsertEvent(e *Event) {
 	teqp.generateBatchFromBufferIfRequired()
 }
 
+// TODO: time based batch generation as well.
 func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired() {
 	// utils.PrintAndLog("generating batch: len buffer = %v", len(*teqp.buffer))
 	if len(*teqp.buffer) >= MAX_EVENTS_PER_BATCH {
