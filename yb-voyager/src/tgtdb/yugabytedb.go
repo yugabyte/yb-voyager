@@ -407,21 +407,39 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	if len(batch) > 1 {
-		return fmt.Errorf("batching not yet supported for yugabyte")
-	}
-	event := batch[0]
-	// TODO: What should be targetSchema if sourceDBType is PG?
-	stmt := event.GetSQLStmt(yb.tconf.Schema)
-	log.Debug(stmt)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tag, err := conn.Exec(context.Background(), stmt)
+	// if len(batch) > 1 {
+	// 	return fmt.Errorf("batching not yet supported for yugabyte")
+	// }
+	var err error
+	for i := 0; i < len(batch); i++ {
+		event := batch[i]
+		stmt := event.GetSQLStmt(yb.tconf.Schema)
+		log.Debug(stmt)
+		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			tag, err := conn.Exec(context.Background(), stmt)
+			if err != nil {
+				log.Errorf("Error executing stmt: %v", err)
+			}
+			utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+			return false, err
+		})
 		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
+			return err
 		}
-		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
-		return false, err
-	})
+	}
+
+	// event := batch[0]
+	// TODO: What should be targetSchema if sourceDBType is PG?
+	// stmt := event.GetSQLStmt(yb.tconf.Schema)
+	// log.Debug(stmt)
+	// err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+	// 	tag, err := conn.Exec(context.Background(), stmt)
+	// 	if err != nil {
+	// 		log.Errorf("Error executing stmt: %v", err)
+	// 	}
+	// 	utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+	// 	return false, err
+	// })
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

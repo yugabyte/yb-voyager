@@ -16,7 +16,7 @@ limitations under the License.
 package tgtdb
 
 import (
-	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var NUM_PARTITIONS = 1
@@ -41,7 +41,7 @@ func (teq *TargetEventQueue) GetNumPartitions() int {
 func (teq *TargetEventQueue) InsertEvent(e *Event) {
 	partitionNoToInsert := teq.getPartitionNoForEvent(e)
 	teq.partitions[partitionNoToInsert].InsertEvent(e)
-	log.Debugf("Inserted event %v into partition %v", e, partitionNoToInsert)
+	utils.PrintAndLog("Inserted event %v into partition %v", e, partitionNoToInsert)
 }
 
 func (teq *TargetEventQueue) getPartitionNoForEvent(e *Event) int {
@@ -53,7 +53,8 @@ func (teq *TargetEventQueue) GetNextBatchFromPartition(partitionNo int) []*Event
 	return teq.partitions[partitionNo].GetNextBatch()
 }
 
-var MAX_EVENTS_PER_BATCH = 1
+var MAX_EVENTS_PER_BATCH = 2
+var MAX_BATCHES_IN_QUEUE = 100
 
 type TargetEventQueuePartition struct {
 	partitionNo     int
@@ -62,26 +63,35 @@ type TargetEventQueuePartition struct {
 }
 
 func newTargetEventQueuePartition(partitionNo int) *TargetEventQueuePartition {
-	eventBatchChannel := make(chan []*Event)
+	eventBatchChannel := make(chan []*Event, MAX_BATCHES_IN_QUEUE)
+	newBuffer := make([]*Event, 0)
 	return &TargetEventQueuePartition{
 		partitionNo:     partitionNo,
 		eventBatchQueue: eventBatchChannel,
+		buffer:          &newBuffer,
 	}
 }
 
 func (teqp *TargetEventQueuePartition) InsertEvent(e *Event) {
-	*teqp.buffer = (append(*teqp.buffer, e))
+	utils.PrintAndLog("inserting into partition %v, event=%v", teqp.partitionNo, e)
+	*teqp.buffer = append(*teqp.buffer, e)
+	// utils.PrintAndLog("inserted into partition buffer, now of length=%v", len(*teqp.buffer))
+	teqp.generateBatchFromBufferIfRequired()
 }
 
-func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired(e *Event) {
+func (teqp *TargetEventQueuePartition) generateBatchFromBufferIfRequired() {
+	// utils.PrintAndLog("generating batch: len buffer = %v", len(*teqp.buffer))
 	if len(*teqp.buffer) >= MAX_EVENTS_PER_BATCH {
+		// utils.PrintAndLog("Creating batch of events")
 		// generate batch from buffer
 		// TODO: create a concrete struct for an event batch
 		eventBatch := *teqp.buffer
 		teqp.eventBatchQueue <- eventBatch
 		newBuffer := make([]*Event, 0)
 		teqp.buffer = &newBuffer
-		log.Debugf("Created batch of events %v", eventBatch)
+		utils.PrintAndLog("Created batch of events %v", eventBatch)
+	} else {
+		utils.PrintAndLog("Not reached batch limit yet =%v", len(*teqp.buffer))
 	}
 }
 

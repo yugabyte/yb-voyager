@@ -15,7 +15,7 @@ limitations under the License.
 */
 package tgtdb
 
-import log "github.com/sirupsen/logrus"
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 
 type PartitionedBatchedEventQueue interface {
 	GetNextBatchFromPartition(partitionNo int) []*Event
@@ -32,12 +32,18 @@ func NewTargetEventQueueProcessor(tgtDB TargetDB, teq *TargetEventQueue) *Target
 }
 
 func (processor *TargetEventQueueProcessor) Start() {
+	// return
 	go func() {
 		// TODO: parallelize
-		for p := 0; p < NUM_PARTITIONS; p++ {
-			nextEventBatch := processor.queue.GetNextBatchFromPartition(p)
-			log.Debugf("processing batch from partition %v : %v", p, nextEventBatch)
-			processor.tgtDB.ExecuteBatch(nextEventBatch)
+		for {
+			for p := 0; p < NUM_PARTITIONS; p++ {
+				nextEventBatch := processor.queue.GetNextBatchFromPartition(p)
+				utils.PrintAndLog("processing batch from partition %v : %v", p, nextEventBatch)
+				err := processor.tgtDB.ExecuteBatch(nextEventBatch)
+				if err != nil {
+					utils.ErrExit("error in executing batch target: %w", err)
+				}
+			}
 		}
 	}()
 }
