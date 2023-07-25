@@ -34,20 +34,20 @@ const (
 	QUEUE_SEGMENT_FILE_EXTENSION = "ndjson"
 )
 
-type EventQueue struct {
+type SourceEventQueue struct {
 	QueueDirPath       string
 	SegmentNumToStream int64
 }
 
-func NewEventQueue(exportDir string) *EventQueue {
-	return &EventQueue{
+func NewSourceEventQueue(exportDir string) *SourceEventQueue {
+	return &SourceEventQueue{
 		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
 		SegmentNumToStream: 0,
 	}
 }
 
 // GetNextSegment returns the next segment to process
-func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
+func (eq *SourceEventQueue) GetNextSegment() (*SourceEventQueueSegment, error) {
 	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
 	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
 	_, err := os.Stat(segmentFilePath)
@@ -55,12 +55,12 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
 	}
 
-	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	segment := NewSourceEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
 	eq.SegmentNumToStream++
 	return segment, nil
 }
 
-type EventQueueSegment struct {
+type SourceEventQueueSegment struct {
 	FilePath   string
 	SegmentNum int64 // 0-based
 	processed  bool
@@ -71,15 +71,15 @@ type EventQueueSegment struct {
 
 var EOFMarker = `\.`
 
-func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
-	return &EventQueueSegment{
+func NewSourceEventQueueSegment(filePath string, segmentNum int64) *SourceEventQueueSegment {
+	return &SourceEventQueueSegment{
 		FilePath:   filePath,
 		SegmentNum: segmentNum,
 		processed:  false,
 	}
 }
 
-func (eqs *EventQueueSegment) Open() error {
+func (eqs *SourceEventQueueSegment) Open() error {
 	file, err := os.OpenFile(eqs.FilePath, os.O_RDONLY, 0640)
 	if err != nil {
 		return fmt.Errorf("failed to open segment file %s: %w", eqs.FilePath, err)
@@ -93,13 +93,13 @@ func (eqs *EventQueueSegment) Open() error {
 	return nil
 }
 
-func (eqs *EventQueueSegment) Close() error {
+func (eqs *SourceEventQueueSegment) Close() error {
 	return eqs.file.Close()
 }
 
 // ReadEvent reads an event from the segment file.
 // Waits until an event is available.
-func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
+func (eqs *SourceEventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	var event tgtdb.Event
 
 	// Scan() return false in case of error but it is handled below by Err()
@@ -123,6 +123,6 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	return &event, nil
 }
 
-func (eqs *EventQueueSegment) IsProcessed() bool {
+func (eqs *SourceEventQueueSegment) IsProcessed() bool {
 	return eqs.processed
 }

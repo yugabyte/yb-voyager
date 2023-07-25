@@ -28,10 +28,13 @@ import (
 )
 
 func streamChanges() error {
-	eventQueue := NewEventQueue(exportDir)
-	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
+	sourceEventQueue := NewSourceEventQueue(exportDir)
+	targetEventQueue := tgtdb.NewTargetEventQueue()
+	targetEventQueueProcessor := tgtdb.NewTargetEventQueueProcessor(tdb, targetEventQueue)
+	targetEventQueueProcessor.Start()
+	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
-		segment, err := eventQueue.GetNextSegment()
+		segment, err := sourceEventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
 				time.Sleep(2 * time.Second)
@@ -41,14 +44,14 @@ func streamChanges() error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment)
+		err = streamChangesFromSegment(segment, targetEventQueue)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment) error {
+func streamChangesFromSegment(segment *SourceEventQueueSegment, teq *tgtdb.TargetEventQueue) error {
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -65,7 +68,7 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 			break
 		}
 
-		err = handleEvent(event)
+		err = handleEvent(event, teq)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
@@ -77,14 +80,15 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 	return nil
 }
 
-func handleEvent(event *tgtdb.Event) error {
+func handleEvent(event *tgtdb.Event, teq *tgtdb.TargetEventQueue) error {
 	log.Debugf("Handling event: %v", event)
 
+	teq.InsertEvent(event)
 	// TODO: Convert values in the event to make it suitable for target DB.
-	batch := []*tgtdb.Event{event}
-	err := tdb.ExecuteBatch(batch)
-	if err != nil {
-		return fmt.Errorf("error executing batch: %v", err)
-	}
+	// batch := []*tgtdb.Event{event}
+	// err := tdb.ExecuteBatch(batch)
+	// if err != nil {
+	// 	return fmt.Errorf("error executing batch: %v", err)
+	// }
 	return nil
 }
