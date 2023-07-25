@@ -294,6 +294,7 @@ import_data() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
 		--target-db-schema ${TARGET_DB_SCHEMA} \
+		--target-db-type "postgres" \
 		--disable-pb \
 		--send-diagnostics=false \
 		--start-clean
