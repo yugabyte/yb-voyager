@@ -16,10 +16,12 @@ limitations under the License.
 package tgtdb
 
 import (
+	"hash/fnv"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var NUM_PARTITIONS = 1
+var NUM_PARTITIONS = 64
 
 type TargetEventQueue struct {
 	numPartitions int
@@ -41,12 +43,23 @@ func (teq *TargetEventQueue) GetNumPartitions() int {
 func (teq *TargetEventQueue) InsertEvent(e *Event) {
 	partitionNoToInsert := teq.getPartitionNoForEvent(e)
 	teq.partitions[partitionNoToInsert].InsertEvent(e)
-	utils.PrintAndLog("Inserted event %v into partition %v", e, partitionNoToInsert)
+	utils.PrintAndLog("Inserted event %+v into partition %v", e, partitionNoToInsert)
 }
 
 func (teq *TargetEventQueue) getPartitionNoForEvent(e *Event) int {
-	// TODO: use a hash on the event.
-	return 0
+	return int(teq.getEventHash(e) % (uint64(teq.numPartitions)))
+}
+
+func (teq *TargetEventQueue) getEventHash(e *Event) uint64 {
+	delimiter := "-"
+	stringToBeHashed := e.SchemaName + delimiter + e.TableName
+	for _, value := range e.Key {
+		stringToBeHashed += delimiter + value
+	}
+	hash := fnv.New64a()
+	hash.Write([]byte(stringToBeHashed))
+	hashValue := hash.Sum64()
+	return hashValue
 }
 
 func (teq *TargetEventQueue) GetNextBatchFromPartition(partitionNo int) []*Event {
