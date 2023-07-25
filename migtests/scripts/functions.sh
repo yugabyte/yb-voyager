@@ -351,6 +351,7 @@ tail_log_file() {
 kill_process() {
 	to_be_killed=$1
 	kill -15 ${to_be_killed}
+	sleep 1m
 }
 
 run_sql_file() {
