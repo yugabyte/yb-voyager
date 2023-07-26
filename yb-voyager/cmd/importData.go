@@ -283,25 +283,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 }
 
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
-	var columns []string
-	if dataFileDescriptor.TableNameToExportedColumns != nil {
-		columns = dataFileDescriptor.TableNameToExportedColumns[tableName]
-	} else if dataFileDescriptor.HasHeader {
-		// File is either exported from debezium OR this is `import data file` case.
-		reader, err := dataStore.Open(filePath)
-		if err != nil {
-			utils.ErrExit("datastore.Open %q: %v", filePath, err)
-		}
-		df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
-		if err != nil {
-			utils.ErrExit("opening datafile %q: %v", filePath, err)
-		}
-		header := df.GetHeader()
-		columns = strings.Split(header, dataFileDescriptor.Delimiter)
-		log.Infof("read header from file %q: %s", filePath, header)
-		log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
-		df.Close()
-	}
+	columns := TableToColumnNames[tableName]
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
@@ -677,17 +659,26 @@ func getTargetSchemaName(tableName string) string {
 func prepareTableToColumns(tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		table := task.TableName
-		reader, err := dataStore.Open(task.FilePath)
-		if err != nil {
-			utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+		var columns []string
+		if dataFileDescriptor.TableNameToExportedColumns != nil {
+			columns = dataFileDescriptor.TableNameToExportedColumns[table]
+		} else if dataFileDescriptor.HasHeader {
+			// File is either exported from debezium OR this is `import data file` case.
+			reader, err := dataStore.Open(task.FilePath)
+			if err != nil {
+				utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+			}
+			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
+			if err != nil {
+				utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+			}
+			header := df.GetHeader()
+			columns = strings.Split(header, dataFileDescriptor.Delimiter)
+			log.Infof("read header from file %q: %s", task.FilePath, header)
+			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
+			df.Close()
 		}
-		df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
-		if err != nil {
-			utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
-		}
-		header := df.GetHeader()
-		columnNames := strings.Split(header, dataFileDescriptor.Delimiter)
-		TableToColumnNames[table] = columnNames
+		TableToColumnNames[table] = columns
 	}
 }
 

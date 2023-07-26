@@ -952,10 +952,6 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func populateValueConverterSuite(){
-
-	
-}
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
 	return ybValueConverterSuite
 }
