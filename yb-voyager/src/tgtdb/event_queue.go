@@ -66,8 +66,8 @@ func (teq *TargetEventQueue) GetNextBatchFromPartition(partitionNo int) []*Event
 	return teq.partitions[partitionNo].GetNextBatch()
 }
 
-var MAX_EVENTS_PER_BATCH = 2
-var MAX_BATCHES_IN_QUEUE = 100
+var MAX_EVENTS_PER_BATCH = 1000
+var MAX_BATCHES_IN_QUEUE = 100000
 
 type TargetEventQueuePartition struct {
 	partitionNo     int
