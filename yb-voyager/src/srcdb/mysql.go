@@ -332,3 +332,7 @@ func createTLSConf(source *Source) tls.Config {
 		}
 	}
 }
+
+func (ms *MySQL) GetServers() []string {
+	return []string{ms.source.Host}
+}

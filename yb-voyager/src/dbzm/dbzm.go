@@ -42,18 +42,32 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution() error {
+func findDebeziumDistribution(sourceDBType string) error { 
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		possiblePaths := []string{
-			"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/opt/yb-voyager/debezium-server"}
-		for _, path := range possiblePaths {
-			if utils.FileOrFolderExists(path) {
-				DEBEZIUM_DIST_DIR = path
-				break
+		var possiblePaths []string
+		if sourceDBType == "yugabytedb" {
+			possiblePaths = []string{
+				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
+				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
+				"/opt/yb-voyager/debezium-server/debezium-server-fall-forward"}
+			for _, path := range possiblePaths {
+				if utils.FileOrFolderExists(path) {
+					DEBEZIUM_DIST_DIR = path
+					break
+				}
+			}
+		} else {
+			possiblePaths = []string{
+				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
+				"/opt/yb-voyager/debezium-server"}
+			for _, path := range possiblePaths {
+				if utils.FileOrFolderExists(path) {
+					DEBEZIUM_DIST_DIR = path
+					break
+				}
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {
@@ -69,7 +83,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution()
+	err := findDebeziumDistribution(d.Config.SourceDBType)
 	if err != nil {
 		return err
 	}

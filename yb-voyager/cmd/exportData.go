@@ -294,8 +294,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		SSLKeyStorePassword:   source.SSLKeyStorePassword,
 		SSLTrustStore:         source.SSLTrustStore,
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
-
-		SnapshotMode: snapshotMode,
+		SnapshotMode:          snapshotMode,
 	}
 	if source.DBType == "oracle" {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
@@ -317,6 +316,9 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		if err != nil {
 			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
+	} else if source.DBType == "yugabytedb" {
+		config.YBServers = source.DB().GetServers()
+		config.StreamID = srcdb.GetStreamID()
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)

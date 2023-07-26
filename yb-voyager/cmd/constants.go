@@ -29,6 +29,7 @@ const (
 	ORACLE                       = "oracle"
 	MYSQL                        = "mysql"
 	POSTGRESQL                   = "postgresql"
+	YUGABYTEDB                   = "yugabytedb"
 	LAST_SPLIT_NUM               = 0
 	SPLIT_INFO_PATTERN           = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN           = "0.[0-9]*.[0-9]*.[0-9]*"
@@ -41,9 +42,10 @@ const (
 	SCHEMA_VERSION_MISMATCH_ERR  = "Query error: schema version mismatch for table"
 )
 
-var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
+var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }

@@ -108,7 +108,7 @@ func parseSSLString(source *Source) {
 
 func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {
-	case "postgresql":
+	case "postgresql", "yugabytedb": //TODO test for yugabytedb
 		if source.SSLKey != "" {
 			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", ".key.der")
 			err := dbzm.WritePKCS8PrivateKeyPEMasDER(source.SSLKey, targetSslKeyPath)

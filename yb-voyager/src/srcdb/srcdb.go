@@ -43,12 +43,15 @@ type SourceDB interface {
 	IsTablePartition(table *sqlname.SourceName) bool
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 	GetAllSequences() []string
+	GetServers() []string
 }
 
 func newSourceDB(source *Source) SourceDB {
 	switch source.DBType {
 	case "postgresql":
 		return newPostgreSQL(source)
+	case "yugabytedb":
+		return newYugabyteDB(source)
 	case "mysql":
 		return newMySQL(source)
 	case "oracle":
