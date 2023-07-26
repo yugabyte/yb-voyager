@@ -27,9 +27,9 @@ type ValueConverter interface {
 	ConvertEvent(ev *tgtdb.Event, table string) error
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, snapshotMode bool) (ValueConverter, error) {
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb, snapshotMode)
+		return NewDebeziumValueConverter(exportDir, tdb)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -53,22 +53,20 @@ type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
 	valueConverterSuite map[string]tgtdb.ConverterFn
 	converterFnCache    map[string][]tgtdb.ConverterFn
-	snapshotMode        bool
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, snapshotMode bool) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
 	schemaRegistry := NewSchemaRegistry(exportDir)
 	err := schemaRegistry.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite(snapshotMode)
+	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
 		converterFnCache:    map[string][]tgtdb.ConverterFn{},
-		snapshotMode:        snapshotMode,
 	}, nil
 }
 
@@ -79,15 +77,15 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	}
 	columnValues := strings.Split(row, "\t")
 	for i, columnValue := range columnValues {
-		if columnValue != "\\N" {
-			transformedValue, err := converterFns[i](columnValue, false)
-			if err != nil {
-				return "", fmt.Errorf("converting value: %w", err)
-			}
-			columnValues[i] = transformedValue
-		} else {
+		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
 			columnValues[i] = columnValue
+			continue
 		}
+		transformedValue, err := converterFns[i](columnValue, false)
+		if err != nil {
+			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableName, i, columnValue, err)
+		}
+		columnValues[i] = transformedValue
 	}
 	return strings.Join(columnValues, "\t"), nil
 }
@@ -97,7 +95,7 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 	if result == nil {
 		colTypes, err := conv.schemaRegistry.GetColumnTypes(tableName, columnNames)
 		if err != nil {
-			return nil, fmt.Errorf("fetching column schemas: %w", err)
+			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
 		result = make([]tgtdb.ConverterFn, len(columnNames))
 		for i := range columnNames {
@@ -105,7 +103,7 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 			if conv.valueConverterSuite[colType] != nil {
 				result[i] = conv.valueConverterSuite[colType]
 			} else {
-				result[i] = func(v string, formatIfRequired bool) (string, error) { return v, nil }
+				result[i] = nil
 			}
 		}
 		conv.converterFnCache[tableName] = result
@@ -116,18 +114,18 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
 	err := conv.convertMap(table, ev.Key)
 	if err != nil {
-		return fmt.Errorf("convert event fields: %w", err)
+		return fmt.Errorf("convert event key: %w", err)
 	}
 	err = conv.convertMap(table, ev.Fields)
 	if err != nil {
-		return fmt.Errorf("convert event keys: %w", err)
+		return fmt.Errorf("convert event fields: %w", err)
 	}
 	return nil
 }
 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]string) error {
 	for column, value := range m {
-		if value == "" {
+		if value == "" { //TODO : handles update case where value is empty
 			m[column] = "NULL"
 			continue
 		}
@@ -136,13 +134,12 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]st
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		converterFn := conv.valueConverterSuite[*colType]
-		if converterFn == nil {
-			converterFn = func(v string, formatIfRequired bool) (string, error) { return v, nil }
-		}
-		columnValue, err = converterFn(columnValue, true)
-		if err != nil {
-			return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, *colType, err) // TODO - add event id in log msg
+		converterFn := conv.valueConverterSuite[colType]
+		if converterFn != nil {
+			columnValue, err = converterFn(columnValue, true)
+			if err != nil {
+				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
+			}
 		}
 		m[column] = columnValue
 	}

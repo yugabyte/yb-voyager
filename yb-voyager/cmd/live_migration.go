@@ -24,7 +24,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
@@ -56,7 +55,6 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 	}
 	defer segment.Close()
 	log.Infof("streaming changes for segment %s", segment.FilePath)
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, false) //streaming valueConverter
 	if err != nil {
 		return fmt.Errorf("error creating value converter: %v", err)
 	}

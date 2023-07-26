@@ -33,7 +33,7 @@ type TargetDB interface {
 	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(batch []*Event) error
-	GetDebeziumValueConverterSuite(isStreamingMode bool) map[string]ConverterFn
+	GetDebeziumValueConverterSuite() map[string]ConverterFn
 }
 
 // value converter Function type

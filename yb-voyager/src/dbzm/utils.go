@@ -25,6 +25,6 @@ import (
 
 
 func IsDebeziumForDataExport(exportDir string) bool {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
+	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	return utils.FileOrFolderExists(exportStatusFilePath)
 }

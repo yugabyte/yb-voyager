@@ -22,7 +22,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	log "github.com/sirupsen/logrus"
 )
 
 type ColumnSchema struct {
@@ -41,47 +40,50 @@ type TableSchema struct {
 	Columns []Column `json:"columns"`
 }
 
-func (ts *TableSchema) getColumnType(columnName string) *string {
+func (ts *TableSchema) getColumnType(columnName string) (string, error) {
 	for _, colSchema := range ts.Columns {
 		if colSchema.Name == columnName {
 			if colSchema.Schema.Name != "" {
-				return &colSchema.Schema.Name
+				return colSchema.Schema.Name, nil
 			} else {
-				return &colSchema.Schema.Type
+				return colSchema.Schema.Type, nil
 			}
 
 		}
 	}
-	log.Warnf("Column %s not found in table schema %v", columnName, ts)
-	return nil
+	return "", fmt.Errorf("Column %s not found in table schema %v", columnName, ts)
 }
 
 //===========================================================
 
 type SchemaRegistry struct {
 	exportDir     string
-	tableToSchema map[string]*TableSchema
+	tableNameToSchema map[string]*TableSchema
 }
 
 func NewSchemaRegistry(exportDir string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:     exportDir,
-		tableToSchema: make(map[string]*TableSchema),
+		tableNameToSchema: make(map[string]*TableSchema),
 	}
 }
 
 func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string) ([]string, error) {
-	tableSchema := sreg.tableToSchema[tableName]
-	columnToTypes := make([]string, len(columnNames))
+	tableSchema := sreg.tableNameToSchema[tableName]
+	columnTypes := make([]string, len(columnNames))
 	for idx, columnName := range columnNames {
-		columnToTypes[idx] = *tableSchema.getColumnType(columnName)
+		var err error
+		columnTypes[idx], err = tableSchema.getColumnType(columnName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableName, columnName, err)
+		}
 	}
-	return columnToTypes, nil
+	return columnTypes, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (*string, error) {
-	tableSchema := sreg.tableToSchema[tableName]
-	return tableSchema.getColumnType(columnName), nil
+func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string, error) {
+	tableSchema := sreg.tableNameToSchema[tableName]
+	return tableSchema.getColumnType(columnName)
 }
 
 func (sreg *SchemaRegistry) Init() error {
@@ -94,16 +96,16 @@ func (sreg *SchemaRegistry) Init() error {
 		schemaFilePath := filepath.Join(schemaDir, schemaFile.Name())
 		schemaFile, err := os.Open(schemaFilePath)
 		if err != nil {
-			return fmt.Errorf("failed to open ColumnSchema file %s: %w", schemaFilePath, err)
+			return fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
 		}
 		defer schemaFile.Close()
 		var tableSchema TableSchema
 		err = json.NewDecoder(schemaFile).Decode(&tableSchema)
 		if err != nil {
-			return fmt.Errorf("failed to decode ColumnSchema file %s: %w", schemaFilePath, err)
+			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
 		table := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
-		sreg.tableToSchema[table] = &tableSchema
+		sreg.tableNameToSchema[table] = &tableSchema
 	}
 	return nil
 }

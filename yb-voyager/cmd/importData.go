@@ -51,7 +51,6 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                    // to truncate *.D splits after import
 var TableToColumnNames map[string][]string // map of table name to columnNames
-var isDebeziumExport bool
 var valueConverter dbzm.ValueConverter
 
 var importDataCmd = &cobra.Command{
@@ -123,7 +122,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-	isDebeziumExport = dbzm.IsDebeziumForDataExport(exportDir)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -132,7 +130,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, true) //snapshot valueConverter
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}
@@ -170,10 +168,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		//prepare the tableToColumns map in case of debezium
-		if isDebeziumExport {
-			prepareTableToColumns(pendingTasks)
-		}
+		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -404,7 +399,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
 		}
-		if line != "" && isDebeziumExport {
+		if line != "" {
 			table := batchWriter.tableName
 			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line)
 			if err != nil {
