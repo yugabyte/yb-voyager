@@ -30,7 +30,7 @@ import (
 func streamChanges() error {
 	sourceEventQueue := NewSourceEventQueue(exportDir)
 	targetEventQueue := tgtdb.NewTargetEventQueue()
-	targetEventQueueProcessor := tgtdb.NewTargetEventQueueProcessor(tdb, targetEventQueue)
+	targetEventQueueProcessor := tgtdb.NewTargetEventQueueProcessor(tdb, targetEventQueue, 4)
 	targetEventQueueProcessor.Start()
 	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
 	for { // continuously get next segments to stream

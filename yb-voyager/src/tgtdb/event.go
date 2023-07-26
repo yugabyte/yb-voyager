@@ -28,6 +28,11 @@ type Event struct {
 	Fields     map[string]string `json:"fields"`
 }
 
+func (e *Event) String() string {
+	return fmt.Sprintf("Event{op=%v, schema=%v, table=%v, key=%v, fields=%v}",
+		e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+}
+
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":
