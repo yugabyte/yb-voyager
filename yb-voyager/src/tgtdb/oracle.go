@@ -333,7 +333,6 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	}
 	defer sqlldrLogFile.Close()
 
-	// Run sqlldr
 	// fmt.Println("Running sqlldr for file: ", sqlldrControlFilePath)
 	// Extract the values from the connection string
 	connectionString := db.getConnectionUri(db.tconf)
@@ -403,23 +402,16 @@ func (db *TargetOracleDB) recordEntryInDB(tx *sql.Tx, batch Batch, rowsAffected 
 }
 
 func getRowsAffected(logFilePath string) (int64, error) {
-	// Open the log file
 	logFile, err := os.Open(logFilePath)
 	if err != nil {
 		return 0, err
 	}
 	defer logFile.Close()
-
-	// Create a regular expression to match the rows affected information
 	re := regexp.MustCompile(`(\d+) Rows successfully loaded.`)
-
-	// Read the log file line by line
 	scanner := bufio.NewScanner(logFile)
 	for scanner.Scan() {
 		line := scanner.Text()
-		// Check if the line matches the regular expression
 		if matches := re.FindStringSubmatch(line); len(matches) > 1 {
-			// Extract the number of rows affected from the regular expression match
 			rowsAffected, err := strconv.ParseInt(matches[1], 10, 64)
 			if err != nil {
 				return 0, err
