@@ -43,10 +43,10 @@ type TableSchema struct {
 func (ts *TableSchema) getColumnType(columnName string) (string, error) {
 	for _, colSchema := range ts.Columns {
 		if colSchema.Name == columnName {
-			if colSchema.Schema.Name != "" {
+			if colSchema.Schema.Name != "" { // in case Kafka speicfic type which start with io.debezium...
 				return colSchema.Schema.Name, nil
 			} else {
-				return colSchema.Schema.Type, nil
+				return colSchema.Schema.Type, nil // in case of Primitive types e.g. BYTES/STRING..
 			}
 
 		}
@@ -104,7 +104,6 @@ func (sreg *SchemaRegistry) Init() error {
 		if err != nil {
 			return fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
 		}
-		defer schemaFile.Close()
 		var tableSchema TableSchema
 		err = json.NewDecoder(schemaFile).Decode(&tableSchema)
 		if err != nil {
@@ -112,6 +111,7 @@ func (sreg *SchemaRegistry) Init() error {
 		}
 		table := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
 		sreg.tableNameToSchema[table] = &tableSchema
+		schemaFile.Close()
 	}
 	return nil
 }

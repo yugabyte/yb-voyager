@@ -50,7 +50,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                    // to truncate *.D splits after import
-var TableToColumnNames map[string][]string // map of table name to columnNames
+var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
 
 var importDataCmd = &cobra.Command{
@@ -162,7 +162,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
-	TableToColumnNames = make(map[string][]string)
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")

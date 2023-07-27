@@ -52,7 +52,7 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error
 type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
 	valueConverterSuite map[string]tgtdb.ConverterFn
-	converterFnCache    map[string][]tgtdb.ConverterFn
+	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
@@ -97,13 +97,8 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
 		result = make([]tgtdb.ConverterFn, len(columnNames))
-		for i := range columnNames {
-			colType := colTypes[i]
-			if conv.valueConverterSuite[colType] != nil {
-				result[i] = conv.valueConverterSuite[colType]
-			} else {
-				result[i] = nil
-			}
+		for i, colType := range colTypes {
+			result[i] = conv.valueConverterSuite[colType]
 		}
 		conv.converterFnCache[tableName] = result
 	}
