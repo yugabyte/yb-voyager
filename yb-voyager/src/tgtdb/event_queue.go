@@ -23,7 +23,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var NUM_PARTITIONS = 4
+var NUM_PARTITIONS = 64
+var MAX_EVENTS_PER_BATCH = 10000
+var MAX_TIME_PER_BATCH = 2000 //ms
+var MAX_BATCHES_IN_QUEUE = 2
 
 type TargetEventQueue struct {
 	numPartitions int
@@ -67,10 +70,6 @@ func (teq *TargetEventQueue) getEventHash(e *Event) uint64 {
 func (teq *TargetEventQueue) GetNextBatchFromPartition(partitionNo int) []*Event {
 	return teq.partitions[partitionNo].GetNextBatch()
 }
-
-var MAX_EVENTS_PER_BATCH = 10000
-var MAX_TIME_PER_BATCH = 2000 //ms
-var MAX_BATCHES_IN_QUEUE = 2
 
 type TargetEventQueuePartition struct {
 	partitionNo          int
