@@ -33,7 +33,11 @@ type TargetDB interface {
 	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(batch []*Event) error
+	GetDebeziumValueConverterSuite() map[string]ConverterFn
 }
+
+// value converter Function type
+type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {
 	Open() (*os.File, error)

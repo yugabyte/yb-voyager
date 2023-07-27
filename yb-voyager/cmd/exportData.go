@@ -173,11 +173,6 @@ func exportDataOffline() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
-		err = renameDbzmExportedDataFiles()
-		if err != nil {
-			log.Errorf("Failed to rename dbzm exported data files: %v", err)
-			return false
-		}
 		err = createResumeSequencesFile()
 		if err != nil {
 			log.Errorf("Failed to create resume sequences files: %v", err)
@@ -424,6 +419,10 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 	}
 	log.Infof("snapshot export is complete.")
+	err = renameDbzmExportedDataFiles()
+	if err != nil {
+		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
+	}
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
 	}
@@ -532,6 +531,18 @@ func renameDbzmExportedDataFiles() error {
 		err = os.Rename(oldFilePath, newFilePath)
 		if err != nil {
 			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
+		}
+
+		//rename table schema file as well
+		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
+		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", tableName+"_schema.json")
+		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
+			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", status.Tables[i].SchemaName+"."+tableName+"_schema.json")
+		}
+		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
+		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
+		if err != nil {
+			return fmt.Errorf("failed to rename dbzm exported table schema file: %w", err)
 		}
 	}
 	return nil
