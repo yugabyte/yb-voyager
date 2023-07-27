@@ -233,6 +233,7 @@ func (db *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, export
 
 func (db *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 	var err error
+	var conn *sql.Conn
 	if db.conn_ == nil {
 		err = db.reconnect()
 		if err != nil {
@@ -241,7 +242,7 @@ func (db *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 	}
 	retry := true
 	for retry {
-		conn, err := db.conn_.Conn(context.Background())
+		conn, err = db.conn_.Conn(context.Background())
 		if err != nil {
 			return fmt.Errorf("get connection from target db: %w", err)
 		}
@@ -330,7 +331,7 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	if err != nil {
 		return 0, fmt.Errorf("create sqlldr log file %q: %w", sqlldrLogFilePath, err)
 	}
-	sqlldrLogFile.Close()
+	defer sqlldrLogFile.Close()
 
 	// Run sqlldr
 	// fmt.Println("Running sqlldr for file: ", sqlldrControlFilePath)
@@ -343,7 +344,8 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	// Format the Oracle connection string
 	oracleConnectionString := fmt.Sprintf("%s/%s@\"%s\"", user, password, connectString)
 	// Extract the values from the connection string
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE PARALLEL=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 	// fmt.Println("Args: ", sqlldrArgs)
 
 	cmd := exec.Command("sqlldr", sqlldrArgs)
@@ -355,6 +357,21 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	err = cmd.Run()
 	log.Infof("sqlldr output: %s", outbuf.String())
 	log.Errorf("sqlldr error: %s", errbuf.String())
+
+	// find ORA-00001: unique constraint * violated in log file
+	pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
+	scanner := bufio.NewScanner(sqlldrLogFile)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if pattern.MatchString(line) {
+			err = db.recordEntryInDB(tx, batch, rowsAffected)
+			if err != nil {
+				err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+			}
+			return 0, err
+		}
+	}
+
 	var err2 error
 	rowsAffected, err2 = getRowsAffected(sqlldrLogFilePath)
 	if err2 != nil {
