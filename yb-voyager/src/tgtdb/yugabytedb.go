@@ -416,11 +416,11 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
 		stmt := event.GetSQLStmt(yb.tconf.Schema)
 		log.Debug(stmt)
 		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			tag, err := conn.Exec(context.Background(), stmt)
+			_, err := conn.Exec(context.Background(), stmt)
 			if err != nil {
 				log.Errorf("Error executing stmt: %v", err)
 			}
-			utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+			// utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
 			return false, err
 		})
 		if err != nil {

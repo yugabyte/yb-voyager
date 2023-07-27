@@ -74,8 +74,9 @@ func (worker *TargetEventQueueWorker) Work() {
 		if nextEventBatch == nil {
 			continue
 		}
-		utils.PrintAndLog("worker: %v: processing batch from partition %v : %+v", worker.workerNo, worker.partitionNo, nextEventBatch)
+		// utils.PrintAndLog("worker: %v: processing batch from partition %v : %v", worker.workerNo, worker.partitionNo, len(nextEventBatch))
 		err := worker.tgtDB.ExecuteBatch(nextEventBatch)
+		utils.PrintAndLog("worker : %v executed batch of events %v", worker.workerNo, len(nextEventBatch))
 		if err != nil {
 			utils.ErrExit("error in executing batch on target: %w", err)
 		}

@@ -17,12 +17,13 @@ package tgtdb
 
 import (
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var NUM_PARTITIONS = 64
+var NUM_PARTITIONS = 4
 
 type TargetEventQueue struct {
 	numPartitions int
@@ -44,7 +45,7 @@ func (teq *TargetEventQueue) GetNumPartitions() int {
 func (teq *TargetEventQueue) InsertEvent(e *Event) {
 	partitionNoToInsert := teq.getPartitionNoForEvent(e)
 	teq.partitions[partitionNoToInsert].InsertEvent(e)
-	utils.PrintAndLog("Inserted event %+v into partition %v", e, partitionNoToInsert)
+	// utils.PrintAndLog("Inserted event %+v into partition %v", e, partitionNoToInsert)
 }
 
 func (teq *TargetEventQueue) getPartitionNoForEvent(e *Event) int {
@@ -67,8 +68,8 @@ func (teq *TargetEventQueue) GetNextBatchFromPartition(partitionNo int) []*Event
 	return teq.partitions[partitionNo].GetNextBatch()
 }
 
-var MAX_EVENTS_PER_BATCH = 1000
-var MAX_TIME_PER_BATCH = 1000 //ms
+var MAX_EVENTS_PER_BATCH = 10000
+var MAX_TIME_PER_BATCH = 2000 //ms
 var MAX_BATCHES_IN_QUEUE = 2
 
 type TargetEventQueuePartition struct {
@@ -76,6 +77,7 @@ type TargetEventQueuePartition struct {
 	buffer               *[]*Event
 	eventBatchQueue      chan []*Event
 	lastBatchCreatedTime int64 //timestamp epoch
+	bufferAccess         sync.Mutex
 }
 
 func newTargetEventQueuePartition(partitionNo int) *TargetEventQueuePartition {
@@ -91,8 +93,10 @@ func newTargetEventQueuePartition(partitionNo int) *TargetEventQueuePartition {
 }
 
 func (teqp *TargetEventQueuePartition) InsertEvent(e *Event) {
+	teqp.bufferAccess.Lock()
 	*teqp.buffer = append(*teqp.buffer, e)
 	teqp.generateBatchIfSizeThresholdMet()
+	teqp.bufferAccess.Unlock()
 }
 
 // TODO: time based batch generation as well.
@@ -105,15 +109,13 @@ func (teqp *TargetEventQueuePartition) generateBatchIfSizeThresholdMet() {
 func (teqp *TargetEventQueuePartition) generateBatchIfTimeThresholdMet() {
 	for {
 		time.Sleep(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond)
+		teqp.bufferAccess.Lock()
 		if len(*teqp.buffer) == 0 {
 			// nothing to batch yet
 			continue
 		}
-		if teqp.lastBatchCreatedTime == 0 {
-			// no batch created yet
-			continue
-		}
 		teqp.generateBatchFromBuffer()
+		teqp.bufferAccess.Unlock()
 	}
 }
 
@@ -123,7 +125,7 @@ func (teqp *TargetEventQueuePartition) generateBatchFromBuffer() {
 	newBuffer := make([]*Event, 0)
 	teqp.buffer = &newBuffer
 	teqp.lastBatchCreatedTime = time.Now().UnixMilli()
-	utils.PrintAndLog("Created batch of events %v", eventBatch)
+	utils.PrintAndLog("partition: %v - Created batch of events %v", teqp.partitionNo, len(eventBatch))
 }
 
 func (teqp *TargetEventQueuePartition) GetNextBatch() []*Event {
