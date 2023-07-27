@@ -207,8 +207,7 @@ func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
 }
 
 func (yb *YugabyteDB) ExportSchema(exportDir string) {
-	yb.checkSchemasExists()
-	pgdumpExtractSchema(yb.source, yb.getConnectionUriWithoutPassword(), exportDir)
+	panic("not implemented")
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
@@ -391,15 +390,12 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 }
 
 func GetStreamID() string {
-	return "0de626643b9a4137a05c8502bf80b48b" //TODO: create stream id for db using yb-admin client 
- // TODO: see if 4hr retention period can cause any issue then need to recreate stream id
- //yb-admin needs leader host in master_addresses flag, so need to get leader host from master_addresses flag
- //implement getYBServers's host ips for yb-admin
-
-
+	return "25eb4bb5da1541f8be6bb1a4c473971a" 
+	//TODO: create stream id for db using yb-admin client 
+ 	//TODO: see if 4hr retention period can cause any issue then need to recreate stream id
 }
 
-func (yb *YugabyteDB) GetServers() []string {
+func (yb *YugabyteDB) GetServers() string {
 	var ybServers []string
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
 
@@ -414,7 +410,7 @@ func (yb *YugabyteDB) GetServers() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for yb_servers: %v\n", err)
 		}
-		ybServers = append(ybServers, ybServer)
+		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer)) //TODO: check if master port is configurable?
 	}
-	return ybServers
+	return strings.Join(ybServers, ",")
 }

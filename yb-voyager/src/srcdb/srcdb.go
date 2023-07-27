@@ -43,7 +43,7 @@ type SourceDB interface {
 	IsTablePartition(table *sqlname.SourceName) bool
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 	GetAllSequences() []string
-	GetServers() []string
+	GetServers() string
 }
 
 func newSourceDB(source *Source) SourceDB {

@@ -56,7 +56,7 @@ type Config struct {
 	SSLTrustStore         string
 	SSLTrustStorePassword string
 	StreamID              string
-	YBServers             []string
+	YBServers             string
 	SnapshotMode          string
 }
 
@@ -89,6 +89,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 `
 
 //debezium.sink.ybexporter.queueSegmentMaxBytes=%d`
@@ -181,7 +182,7 @@ debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
 debezium.source.database.streamid=%s
-debezium.source.database.master.addresses=%s:7100
+debezium.source.database.master.addresses=%s
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_source_converter
@@ -243,18 +244,19 @@ func (c *Config) String() string {
 			c.Host, c.Port,
 			c.DatabaseName,
 			c.StreamID,
-			c.Host, //master addresses need to be all yb_Servers over here as CDC needs a leader node address to connect to.
+			c.YBServers,
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","))
-		// queueSegmentMaxBytes)
-		// sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
-		// 	c.SSLMode,
-		// 	c.SSLCertPath,
-		// 	c.SSLKey,
-		// 	c.SSLRootCert)
-		// conf = conf + sslConf //TODO SSL for yugabytedb
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
+		if c.SSLCertPath != "" {
+			conf += fmt.Sprintf(postgresSSLConfigTemplate,
+				c.SSLMode,
+				c.SSLCertPath,
+				c.SSLKey,
+				c.SSLRootCert)
+		} //TODO SSL for yugabytedb
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
