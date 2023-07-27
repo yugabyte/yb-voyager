@@ -70,6 +70,9 @@ func NewSchemaRegistry(exportDir string) *SchemaRegistry {
 
 func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string) ([]string, error) {
 	tableSchema := sreg.tableNameToSchema[tableName]
+	if tableSchema == nil {
+		return nil, fmt.Errorf("table %s not found in schema registry", tableName)
+	}
 	columnTypes := make([]string, len(columnNames))
 	for idx, columnName := range columnNames {
 		var err error
@@ -83,6 +86,9 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []strin
 
 func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string, error) {
 	tableSchema := sreg.tableNameToSchema[tableName]
+	if tableSchema == nil {
+		return "", fmt.Errorf("table %s not found in schema registry", tableName)
+	}
 	return tableSchema.getColumnType(columnName)
 }
 

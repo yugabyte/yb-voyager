@@ -16,7 +16,6 @@ limitations under the License.
 package dbzm
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -79,7 +78,6 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	columnValues := strings.Split(row, "\t")
 	for i, columnValue := range columnValues {
 		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
-			columnValues[i] = columnValue
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false)
@@ -124,26 +122,25 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) 
 	return nil
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]sql.NullString) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string) error {
 	for column, value := range m {
-		if !value.Valid {
-			m[column] = sql.NullString{String: "NULL", Valid: true}
+		if value == nil {
+			*m[column] = "NULL"
 			continue
 		}
-		columnValue := value
+		columnValue := *value
 		colType, err := conv.schemaRegistry.GetColumnType(tableName, column)
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			value, err := converterFn(columnValue.String, true)
-			columnValue = sql.NullString{String: value, Valid: true}
+			columnValue, err = converterFn(columnValue, true)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
 		}
-		m[column] = columnValue
+		m[column] = &columnValue
 	}
 	return nil
 }

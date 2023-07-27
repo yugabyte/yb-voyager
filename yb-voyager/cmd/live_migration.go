@@ -55,9 +55,6 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 	}
 	defer segment.Close()
 	log.Infof("streaming changes for segment %s", segment.FilePath)
-	if err != nil {
-		return fmt.Errorf("error creating value converter: %v", err)
-	}
 	for !segment.IsProcessed() {
 		event, err := segment.NextEvent()
 		if err != nil {
