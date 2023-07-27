@@ -22,65 +22,62 @@ type PartitionedBatchedEventQueue interface {
 	GetNumPartitions() int
 }
 
-type TargetEventQueueProcessor struct {
-	tgtDB      TargetDB
-	queue      PartitionedBatchedEventQueue
-	numWorkers int
-	workers    []*TargetEventQueueWorker
+type TargetEventQueueConsumer struct {
+	tgtDB   TargetDB
+	queue   PartitionedBatchedEventQueue
+	workers []*TargetEventQueueWorker
 }
 
-func NewTargetEventQueueProcessor(tgtDB TargetDB, teq *TargetEventQueue, numWorkers int) *TargetEventQueueProcessor {
-	teqp := &TargetEventQueueProcessor{tgtDB: tgtDB, queue: teq, numWorkers: numWorkers}
-	for i := 0; i < numWorkers; i++ {
-		worker := NewTargetEventQueueWorker(tgtDB, teq, i)
-		teqp.workers = append(teqp.workers, worker)
+func NewTargetEventQueueConsumer(tgtDB TargetDB, teq *TargetEventQueue) *TargetEventQueueConsumer {
+	teqc := &TargetEventQueueConsumer{tgtDB: tgtDB, queue: teq}
+	numPartitions := teq.GetNumPartitions()
+	for p := 0; p < numPartitions; p++ {
+		worker := NewTargetEventQueueWorker(tgtDB, teq, p, p)
+		teqc.workers = append(teqc.workers, worker)
 	}
-	return teqp
+	return teqc
 }
 
-func (processor *TargetEventQueueProcessor) Start() {
-	processor.assignPartitionsToWorkers()
-	for _, worker := range processor.workers {
+func (consumer *TargetEventQueueConsumer) Start() {
+	for _, worker := range consumer.workers {
 		go worker.Work()
 	}
 }
 
-func (processor *TargetEventQueueProcessor) assignPartitionsToWorkers() {
-	numPartitions := processor.queue.GetNumPartitions()
-	for p := 0; p < numPartitions; p++ {
-		assignedWorkerNo := p % processor.numWorkers
-		processor.workers[assignedWorkerNo].AssignPartition(p)
-		utils.PrintAndLog("assigning partition %v to worker num %v", p, assignedWorkerNo)
-	}
-}
+// func (processor *TargetEventQueueProcessor) assignPartitionsToWorkers() {
+// 	numPartitions := processor.queue.GetNumPartitions()
+// 	for p := 0; p < numPartitions; p++ {
+// 		assignedWorkerNo := p % processor.numWorkers
+// 		processor.workers[assignedWorkerNo].AssignPartition(p)
+// 		utils.PrintAndLog("assigning partition %v to worker num %v", p, assignedWorkerNo)
+// 	}
+// }
 
 type TargetEventQueueWorker struct {
-	workerNo   int
-	partitions []int
-	tgtDB      TargetDB
-	queue      PartitionedBatchedEventQueue
+	workerNo    int
+	partitionNo int
+	tgtDB       TargetDB
+	queue       PartitionedBatchedEventQueue
 }
 
-func NewTargetEventQueueWorker(tgtDB TargetDB, teq *TargetEventQueue, workerNo int) *TargetEventQueueWorker {
-	return &TargetEventQueueWorker{tgtDB: tgtDB, queue: teq, workerNo: workerNo}
+func NewTargetEventQueueWorker(tgtDB TargetDB, teq *TargetEventQueue, workerNo int, partitionNo int) *TargetEventQueueWorker {
+	return &TargetEventQueueWorker{tgtDB: tgtDB, queue: teq, workerNo: workerNo, partitionNo: partitionNo}
 }
 
-func (worker *TargetEventQueueWorker) AssignPartition(p int) {
-	worker.partitions = append(worker.partitions, p)
-}
+// func (worker *TargetEventQueueWorker) AssignPartition(p int) {
+// 	worker.partitions = append(worker.partitions, p)
+// }
 
 func (worker *TargetEventQueueWorker) Work() {
 	for {
-		for _, partition := range worker.partitions {
-			nextEventBatch := worker.queue.GetNextBatchFromPartition(partition)
-			if nextEventBatch == nil {
-				continue
-			}
-			utils.PrintAndLog("worker: %v: processing batch from partition %v : %+v", worker.workerNo, partition, nextEventBatch)
-			err := worker.tgtDB.ExecuteBatch(nextEventBatch)
-			if err != nil {
-				utils.ErrExit("error in executing batch on target: %w", err)
-			}
+		nextEventBatch := worker.queue.GetNextBatchFromPartition(worker.partitionNo)
+		if nextEventBatch == nil {
+			continue
+		}
+		utils.PrintAndLog("worker: %v: processing batch from partition %v : %+v", worker.workerNo, worker.partitionNo, nextEventBatch)
+		err := worker.tgtDB.ExecuteBatch(nextEventBatch)
+		if err != nil {
+			utils.ErrExit("error in executing batch on target: %w", err)
 		}
 	}
 }
