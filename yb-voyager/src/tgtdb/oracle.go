@@ -290,7 +290,6 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 		}
 	}()
 
-	// Check if split is already imported
 	var alreadyImported bool
 	alreadyImported, rowsAffected, err = db.isBatchAlreadyImported(tx, batch)
 	if err != nil {
@@ -306,10 +305,8 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	batchName := pathElements[len(pathElements)-1]
 	tableName := batch.GetTableName()
 
-	// Import the split using sqldr
 	sqlldrControlFileContent := args.GetSqlLdrControlFile(db.tconf.Schema)
-	// Create sqlldr control file at export-dir/sqlldr
-	// Create folder if it does not exist
+
 	if _, err := os.Stat(fmt.Sprintf("%s/sqlldr", exportDir)); os.IsNotExist(err) {
 		os.Mkdir(fmt.Sprintf("%s/sqlldr", exportDir), 0755)
 	}
@@ -324,7 +321,7 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	if err != nil {
 		return 0, fmt.Errorf("write sqlldr control file %q: %w", sqlldrControlFilePath, err)
 	}
-	// Create log file
+
 	sqlldrLogFileName := fmt.Sprintf("%s-%s.log", tableName, batchName)
 	sqlldrLogFilePath := fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrLogFileName)
 	sqlldrLogFile, err := os.Create(sqlldrLogFilePath)
@@ -334,15 +331,12 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	defer sqlldrLogFile.Close()
 
 	// fmt.Println("Running sqlldr for file: ", sqlldrControlFilePath)
-	// Extract the values from the connection string
 	connectionString := db.getConnectionUri(db.tconf)
 	user := getValue(connectionString, "user")
 	password := getValue(connectionString, "password")
 	connectString := getValue(connectionString, "connectString")
 
-	// Format the Oracle connection string
 	oracleConnectionString := fmt.Sprintf("%s/%s@\"%s\"", user, password, connectString)
-	// Extract the values from the connection string
 
 	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 	// fmt.Println("Args: ", sqlldrArgs)
@@ -382,7 +376,6 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 		return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
 	}
 
-	// Insert the split metadata into ${BATCH_METADATA_TABLE_NAME}
 	err = db.recordEntryInDB(tx, batch, rowsAffected)
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
@@ -420,7 +413,6 @@ func getRowsAffected(logFilePath string) (int64, error) {
 		}
 	}
 
-	// If no match found, return an error
 	return 0, fmt.Errorf("Rows affected not found in the log file")
 }
 
@@ -430,7 +422,7 @@ func getValue(connectionString, key string) string {
 		return ""
 	}
 
-	startIndex += len(key) + 2 // Move to the starting quote
+	startIndex += len(key) + 2
 	endIndex := strings.Index(connectionString[startIndex:], "\"")
 
 	return connectionString[startIndex : startIndex+endIndex]
@@ -452,7 +444,6 @@ func (db *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool,
 }
 
 func (db *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
-	// Set the target schema.
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
 		strings.ToUpper(db.tconf.Schema))
