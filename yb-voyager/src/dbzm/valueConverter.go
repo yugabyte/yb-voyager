@@ -16,6 +16,7 @@ limitations under the License.
 package dbzm
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -123,20 +124,21 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) 
 	return nil
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]string) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]sql.NullString) error {
 	for column, value := range m {
-		if value == "" { //TODO : handles update case where value is empty
-			m[column] = "NULL"
+		if !value.Valid {
+			m[column] = sql.NullString{String: "NULL", Valid: true}
 			continue
 		}
-		columnValue := fmt.Sprintf("%v", value)
+		columnValue := value
 		colType, err := conv.schemaRegistry.GetColumnType(tableName, column)
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, true)
+			value, err := converterFn(columnValue.String, true)
+			columnValue = sql.NullString{String: value, Valid: true}
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
