@@ -114,6 +114,11 @@ func (teqp *TargetEventQueuePartition) generateBatchIfTimeThresholdMet() {
 			teqp.bufferAccess.Unlock()
 			continue
 		}
+		if len(teqp.eventBatchQueue) == cap(teqp.eventBatchQueue) {
+			// batch queue is full. no point batching yet.
+			teqp.bufferAccess.Unlock()
+			continue
+		}
 		teqp.generateBatchFromBuffer()
 		teqp.bufferAccess.Unlock()
 	}
