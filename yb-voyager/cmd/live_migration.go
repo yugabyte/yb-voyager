@@ -82,6 +82,16 @@ func streamChangesFromSegment(segment *SourceEventQueueSegment, teq *tgtdb.Targe
 
 func handleEvent(event *tgtdb.Event, teq *tgtdb.TargetEventQueue) error {
 	log.Debugf("Handling event: %v", event)
-	teq.InsertEvent(event)
+
+	tableName := event.TableName
+	if sourceDBType == "postgresql" && event.SchemaName != "public" {
+		tableName = event.SchemaName + "." + event.TableName
+	}
+	// preparing value converters for the streaming mode
+	err := valueConverter.ConvertEvent(event, tableName)
+	if err != nil {
+		return fmt.Errorf("error transforming event key fields: %v", err)
+	}
+  teq.InsertEvent(event)
 	return nil
 }

@@ -19,6 +19,7 @@ require (
 	github.com/jackc/pgx/v4 v4.17.2
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/nightlyone/lockfile v1.0.0
+	github.com/shopspring/decimal v1.2.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/spf13/cobra v1.6.1
 	github.com/spf13/viper v1.13.0

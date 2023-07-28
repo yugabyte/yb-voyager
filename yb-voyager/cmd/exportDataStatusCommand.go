@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -38,7 +36,7 @@ var exportDataStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
 		var err error
-		useDebezium = usingDebeziumForDataExport()
+		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
 			err = runExportDataStatusCmdDbzm()
 		} else {
@@ -181,16 +179,4 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		fmt.Println(table)
 		fmt.Print("\n")
 	}
-}
-
-func usingDebeziumForDataExport() bool {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json") //checking if this file exists to determine if debezium is being used
-	_, err := os.Stat(exportStatusFilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		utils.ErrExit("checking if debezium is being used as exporting tool: %s\n", err)
-	}
-	return true
 }
