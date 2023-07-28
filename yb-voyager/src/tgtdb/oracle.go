@@ -200,9 +200,9 @@ func (db *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
 	result := []string{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %s is empty", table)
+		log.Infof("Checking if table %s.%s is empty", db.tconf.Schema, table)
 		tmp := false
-		stmt := fmt.Sprintf("SELECT 1 FROM %s WHERE ROWNUM <= 1", table)
+		stmt := fmt.Sprintf("SELECT 1 FROM %s.%s WHERE ROWNUM <= 1", db.tconf.Schema, table)
 		err := db.conn_.QueryRow(stmt).Scan(&tmp)
 		if err != nil {
 			log.Errorf("Failed to check if table %s is empty: %v", table, err)
@@ -350,6 +350,10 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	err = cmd.Run()
 	log.Infof("sqlldr output: %s", outbuf.String())
 	log.Errorf("sqlldr error: %s", errbuf.String())
+	rowsAffected, err = getRowsAffected(outbuf.String())
+	if err != nil {
+		return 0, fmt.Errorf("get rows affected from sqlldr output: %w", err)
+	}
 
 	// find ORA-00001: unique constraint * violated in log file
 	pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
@@ -365,12 +369,6 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 		}
 	}
 
-	var err2 error
-	rowsAffected, err2 = getRowsAffected(sqlldrLogFilePath)
-	if err2 != nil {
-		err2 = fmt.Errorf("error parsing log file: %v", err)
-		return 0, err2
-	}
 	if err != nil {
 		// fmt.Printf("Error running sqlldr: %v\n", err)
 		return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
@@ -394,26 +392,13 @@ func (db *TargetOracleDB) recordEntryInDB(tx *sql.Tx, batch Batch, rowsAffected 
 	return nil
 }
 
-func getRowsAffected(logFilePath string) (int64, error) {
-	logFile, err := os.Open(logFilePath)
-	if err != nil {
-		return 0, err
+func getRowsAffected(outbuf string) (int64, error) {
+	regex := regexp.MustCompile(`Load completed - logical record count (\d+).`)
+	matches := regex.FindStringSubmatch(outbuf)
+	if len(matches) < 2 {
+		return 0, fmt.Errorf("no rows affected found in the sqlldr output")
 	}
-	defer logFile.Close()
-	re := regexp.MustCompile(`(\d+) Rows successfully loaded.`)
-	scanner := bufio.NewScanner(logFile)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if matches := re.FindStringSubmatch(line); len(matches) > 1 {
-			rowsAffected, err := strconv.ParseInt(matches[1], 10, 64)
-			if err != nil {
-				return 0, err
-			}
-			return rowsAffected, nil
-		}
-	}
-
-	return 0, fmt.Errorf("Rows affected not found in the log file")
+	return strconv.ParseInt(matches[1], 10, 64)
 }
 
 func getValue(connectionString, key string) string {
