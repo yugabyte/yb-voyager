@@ -110,7 +110,12 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 	var columns string
 	if len(args.Columns) > 0 {
-		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+		columnsSlice := make([]string, 0, 2*len(args.Columns))
+		for _, col := range args.Columns {
+			// Add the column name and the NULLIF clause after it
+			columnsSlice = append(columnsSlice, fmt.Sprintf("%s NULLIF %s='\\N'", col, col))
+		}
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
 	}
 	return fmt.Sprintf("LOAD DATA\nINFILE '%s'\nAPPEND\nINTO TABLE %s\nREENABLE DISABLED_CONSTRAINTS\nFIELDS TERMINATED BY '\\t'\n%s", args.FilePath, schema+"."+args.TableName, columns)
 }

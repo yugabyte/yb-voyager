@@ -72,7 +72,7 @@ func validateImportFlags(cmd *cobra.Command) {
 
 func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
-		"type of the target database (oracle, mysql, postgresql)")
+		"type of the target database (oracle, mysql, yugabytedb)")
 
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")

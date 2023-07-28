@@ -183,7 +183,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	// executePostImportDataSqls()
+	if tconf.TargetDBType == YUGABYTEDB {
+		executePostImportDataSqls() // TODO: it needs to be abstracted out in targetDB interface
+	}
 	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {

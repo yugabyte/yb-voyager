@@ -29,6 +29,7 @@ const (
 	ORACLE                       = "oracle"
 	MYSQL                        = "mysql"
 	POSTGRESQL                   = "postgresql"
+	YUGABYTEDB                   = "yugabytedb"
 	LAST_SPLIT_NUM               = 0
 	SPLIT_INFO_PATTERN           = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN           = "0.[0-9]*.[0-9]*.[0-9]*"

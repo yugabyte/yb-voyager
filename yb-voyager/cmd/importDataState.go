@@ -521,17 +521,13 @@ func (batch *Batch) MarkDone() error {
 
 func (batch *Batch) GetQueryIsBatchAlreadyImported(TargetDBType string) string {
 	schemaName := getTargetSchemaName(batch.TableName)
-	var query string
-	if TargetDBType == "oracle" {
-		query = fmt.Sprintf(
-			"SELECT rows_imported FROM %s "+
-				"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
-			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
-	} else {
-		query = fmt.Sprintf(
-			"SELECT rows_imported FROM %s "+
-				"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
-			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+	query := fmt.Sprintf(
+		"SELECT rows_imported FROM %s "+
+			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+
+	if TargetDBType == YUGABYTEDB {
+		query = query + ";"
 	}
 	return query
 }
@@ -539,17 +535,13 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported(TargetDBType string) string {
 func (batch *Batch) GetQueryToRecordEntryInDB(TargetDBType string, rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
-	var cmd string
-	if TargetDBType == "oracle" {
-		cmd = fmt.Sprintf(
-			`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
+	cmd := fmt.Sprintf(
+		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
 			VALUES ('%s', %d, '%s', '%s', %v)`,
-			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
-	} else {
-		cmd = fmt.Sprintf(
-			`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
-			VALUES ('%s', %d, '%s', '%s', %v);`,
-			BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+
+	if TargetDBType == YUGABYTEDB {
+		cmd = cmd + ";"
 	}
 	return cmd
 }

@@ -104,7 +104,7 @@ func (db *TargetOracleDB) getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
-	return db.tconf.Schema // default set to "public"
+	return db.tconf.Schema
 }
 
 func (db *TargetOracleDB) CleanFileImportState(filePath, tableName string) error {
@@ -300,9 +300,6 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	}
 
 	// fmt.Printf("Importing table path: %s \n", batch.GetFilePath())
-	filePath := batch.GetFilePath()
-	pathElements := strings.Split(filePath, "/")
-	batchName := pathElements[len(pathElements)-1]
 	tableName := batch.GetTableName()
 
 	sqlldrControlFileContent := args.GetSqlLdrControlFile(db.tconf.Schema)
@@ -310,7 +307,7 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	if _, err := os.Stat(fmt.Sprintf("%s/sqlldr", exportDir)); os.IsNotExist(err) {
 		os.Mkdir(fmt.Sprintf("%s/sqlldr", exportDir), 0755)
 	}
-	sqlldrControlFileName := fmt.Sprintf("%s-%s.ctl", tableName, batchName)
+	sqlldrControlFileName := fmt.Sprintf("%s.ctl", tableName)
 	sqlldrControlFilePath := fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrControlFileName)
 	sqlldrControlFile, err := os.Create(sqlldrControlFilePath)
 	if err != nil {
@@ -322,7 +319,7 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 		return 0, fmt.Errorf("write sqlldr control file %q: %w", sqlldrControlFilePath, err)
 	}
 
-	sqlldrLogFileName := fmt.Sprintf("%s-%s.log", tableName, batchName)
+	sqlldrLogFileName := fmt.Sprintf("%s.log", tableName)
 	sqlldrLogFilePath := fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrLogFileName)
 	sqlldrLogFile, err := os.Create(sqlldrLogFilePath)
 	if err != nil {
@@ -350,27 +347,27 @@ func (db *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportB
 	err = cmd.Run()
 	log.Infof("sqlldr output: %s", outbuf.String())
 	log.Errorf("sqlldr error: %s", errbuf.String())
-	rowsAffected, err = getRowsAffected(outbuf.String())
-	if err != nil {
+	var err2 error
+	rowsAffected, err2 = getRowsAffected(outbuf.String())
+	if err2 != nil {
 		return 0, fmt.Errorf("get rows affected from sqlldr output: %w", err)
 	}
 
-	// find ORA-00001: unique constraint * violated in log file
-	pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
-	scanner := bufio.NewScanner(sqlldrLogFile)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if pattern.MatchString(line) {
-			err = db.recordEntryInDB(tx, batch, rowsAffected)
-			if err != nil {
-				err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
-			}
-			return 0, err
-		}
-	}
-
 	if err != nil {
-		// fmt.Printf("Error running sqlldr: %v\n", err)
+		// find ORA-00001: unique constraint * violated in log file
+		pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
+		scanner := bufio.NewScanner(sqlldrLogFile)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if pattern.MatchString(line) {
+				err = db.recordEntryInDB(tx, batch, rowsAffected)
+				if err != nil {
+					err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+				}
+				return 0, err
+			}
+		}
+
 		return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
 	}
 
