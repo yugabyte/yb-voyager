@@ -39,25 +39,6 @@ EXPECTED_SUM_OF_COLUMN = {
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
 
-EXPECTED_SUM_OF_COLUMN = {
-	'numeric_types': {
-		'num_val': '260.580264',
-		'float_val': '236.0018',
-		'bin_float_val': '1.361127976e+29',
-		'bin_double_val': '5.39307940458693e+108'
-	},
-	'number_ps': {
-		'num_val': '123.89',
-		'num_3': '402',
-		'num_p_s': '5.79',
-		'num_s_p': '0.0000012',
-		'num_neg_s': '546.99'
-	}
-}
-# This variation is required due to the differentiation in exported values for binary types via ora2pg and dbzm 
-if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
-	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
-
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
 		'num_val': 'numeric',
@@ -169,7 +150,7 @@ def migration_completed_checks(tgt):
 			'bin_double_val': [None,0.0, 1.79769313486231e+108],
 			'float_val':[None, 0.0, -2.0, 0.0009, 120.0]
 		},
-		'0':{
+		None :{
 			'num_val': [None, 13,0.000012, 123.79, 0.00012],
 			'bin_float_val': [None, 1.17549001e-38, 3.40281994e+28],
 			'bin_double_val': [None, 0.0, 1.79769313486231e+108],
