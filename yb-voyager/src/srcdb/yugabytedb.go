@@ -16,10 +16,12 @@ limitations under the License.
 package srcdb
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -28,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -388,11 +391,44 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 
 	return columnToSequenceMap
 }
+const (
+	YUGABYTEDB_DIR = "<yugabytedb_dir>" //TODO: change it with yugabytedb installation directory
+)
+func GetYugabyteDBStreamID(config *dbzm.Config) (string, error) {
+	
+	ybAdminClient := fmt.Sprintf("%s/bin/yb-admin", YUGABYTEDB_DIR)
 
-func GetStreamID() string {
-	return "25eb4bb5da1541f8be6bb1a4c473971a" 
-	//TODO: create stream id for db using yb-admin client 
- 	//TODO: see if 4hr retention period can cause any issue then need to recreate stream id
+	ybAdminCmd := fmt.Sprintf("%s --master_addresses %s create_change_data_stream ysql.%s IMPLICIT ALL",ybAdminClient, config.YBServers, config.DatabaseName)
+
+	if config.SSLRootCert != "" {
+		ybAdminCmd += fmt.Sprintf(" --certs_dir_name %s", filepath.Dir(config.SSLRootCert))
+	}
+
+	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", ybAdminCmd)
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+	err := cmd.Start()
+	if err != nil {
+		log.Infof("Failed to start command: %s, error: %s", ybAdminCmd, err)
+		return "", err
+	}
+	err = cmd.Wait()
+	if err != nil {
+		log.Infof("Failed to wait for command: %s , error: %s", ybAdminCmd, err)
+		return "", err
+	}
+	if outbuf.String() != "" {
+		log.Infof("%s", outbuf.String())
+	}
+	//output of yb-admin command - CDC Stream ID: <stream_id>
+	rgx := regexp.MustCompile(`CDC Stream ID: ([a-zA-Z0-9]+)`)
+	matches := rgx.FindStringSubmatch(outbuf.String())
+	if len(matches) != 2 {
+		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,ybAdminCmd ,outbuf.String())
+	}
+	return matches[1], nil
 }
 
 func (yb *YugabyteDB) GetServers() string {
@@ -410,7 +446,7 @@ func (yb *YugabyteDB) GetServers() string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for yb_servers: %v\n", err)
 		}
-		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer)) //TODO: check if master port is configurable?
+		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer))
 	}
 	return strings.Join(ybServers, ",")
 }

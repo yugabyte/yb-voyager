@@ -197,6 +197,11 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 	yugabyteSrcConfigTemplate +
 	baseSinkConfigTemplate
 
+var yugabyteSSLConfigTemplate = `
+debezium.source.database.sslrootcert=%s
+`
+//TODO SSL for yugabytedb
+
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
@@ -250,11 +255,8 @@ func (c *Config) String() string {
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes)
-		if c.SSLCertPath != "" {
-			conf += fmt.Sprintf(postgresSSLConfigTemplate,
-				c.SSLMode,
-				c.SSLCertPath,
-				c.SSLKey,
+		if c.SSLRootCert != "" {
+			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
 		} //TODO SSL for yugabytedb
 	case "oracle":
