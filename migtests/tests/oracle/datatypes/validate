@@ -41,35 +41,42 @@ if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
+		'id': 'numeric',
 		'num_val': 'numeric',
 		'bin_float_val': 'double precision',
 		'bin_double_val': 'double precision',
 		'float_val': 'double precision'
 	},
 	'date_time_types': {
+		'id': 'numeric',
 		'ts_tz_value': 'timestamp with time zone',
 		'timestamp_val': 'timestamp without time zone',
 		'ts_tz_lt_value': 'timestamp with time zone',
 		'date_val': 'timestamp without time zone'
 	},
 	'interval_types': {
+		'id': 'numeric',
 		'int_y_m': 'interval',
 		'int_d_s': 'interval'
 	},
 	'char_types': {
+		'id': 'numeric',
 		'address_2': 'character',
 		'address_3': 'character',
 		'address': 'character varying',
 		'emp_name': 'character varying'
 	},
 	'long_type': {
+		'id': 'numeric',
 		'long_value': 'text'
 	},
 	'raw_type': {
+		'id': 'numeric',
 		'long_raw_value': 'bytea',
 		'raw_value': 'bytea'
 	},
 	'number_ps': {
+		'id': 'numeric',
 		'num_neg_s': 'numeric',
 		'num_p_s': 'numeric',
 		'num_val': 'numeric',
