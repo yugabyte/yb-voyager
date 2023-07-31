@@ -456,6 +456,10 @@ func (db *TargetOracleDB) InitConnPool() error {
 	return nil
 }
 
+func (db *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
+	return nil
+}
+
 func (db *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {
 	if tconf.Uri != "" {
 		return tconf.Uri

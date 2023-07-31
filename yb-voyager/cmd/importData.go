@@ -49,7 +49,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                    // to truncate *.D splits after import
+var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
 
@@ -72,6 +72,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
@@ -81,6 +82,24 @@ type ImportFileTask struct {
 	ID        int
 	FilePath  string
 	TableName string
+}
+
+func quoteTableNameIfRequired() {
+	if tconf.TargetDBType != ORACLE {
+		return
+	}
+	for _, fileEntry := range dataFileDescriptor.DataFileList {
+		if sqlname.IsQuoted(fileEntry.TableName) {
+			return
+		}
+		if sqlname.IsReservedKeyword(fileEntry.TableName) ||
+			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
+			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
+			dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
+			delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+			fileEntry.TableName = newTableName
+		}
+	}
 }
 
 func discoverFilesToImport() []*ImportFileTask {
@@ -140,7 +159,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	targetDBVersion := tdb.GetVersion()
-	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
+
+	if tconf.TargetDBType == YUGABYTEDB {
+		fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
+	} else {
+		fmt.Printf("Target DB version: %s\n", targetDBVersion)
+	}
 	payload.TargetDBVersion = targetDBVersion
 	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
@@ -167,7 +191,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -386,7 +410,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			table := batchWriter.tableName
 			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten + 1 , t, filePath, err)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
 		}
 		err = batchWriter.WriteRecord(line)
