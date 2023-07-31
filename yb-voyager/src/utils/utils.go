@@ -411,3 +411,4 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	}
 	return nil
 }
+
