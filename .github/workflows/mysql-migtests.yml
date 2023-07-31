@@ -114,4 +114,4 @@ jobs:
         mysql -uroot -proot -e 'GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'ybvoyager'@'127.0.0.1';'      
 
     - name: "TEST: mysql-live-migration"
-      run: migtests/scripts/live-run-test.sh mysql/live-test
+      run: migtests/scripts/live-migration-run-test.sh mysql/live-test

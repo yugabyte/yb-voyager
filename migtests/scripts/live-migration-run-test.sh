@@ -101,7 +101,7 @@ main() {
 	trap "kill_process -${exp_pid}" SIGINT SIGTERM EXIT
 
 	# Waiting for snapshot to complete
-	( tail -f -n0 ${EXPORT_DIR}/logs/yb-voyager.log &) | timeout 100 grep -q "snapshot export is complete"
+	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
