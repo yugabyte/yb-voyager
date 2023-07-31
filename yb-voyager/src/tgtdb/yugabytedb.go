@@ -209,7 +209,8 @@ var ybValueConverterSuite = map[string]ConverterFn{
 	},
 	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			return fmt.Sprintf("'%s'", columnValue), nil
+			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
+			return fmt.Sprintf("'%s'", formattedColumnValue), nil
 		} else {
 			return columnValue, nil
 		}
