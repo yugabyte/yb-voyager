@@ -46,7 +46,8 @@ type TargetYugabyteDB struct {
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
 }
-var ybValueConverterSuite = map[string]ConverterFn {
+
+var ybValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
@@ -175,7 +176,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"BYTES":func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -215,7 +216,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	},
 	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue) 
+			columnValue = fmt.Sprintf("'%s'", columnValue)
 		}
 		return columnValue, nil
 	},
@@ -584,21 +585,38 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	if len(batch) > 1 {
-		return fmt.Errorf("batching not yet supported for yugabyte")
-	}
-	event := batch[0]
-	// TODO: What should be targetSchema if sourceDBType is PG?
-	stmt := event.GetSQLStmt(yb.tconf.Schema)
-	log.Debug(stmt)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tag, err := conn.Exec(context.Background(), stmt)
+	var err error
+	for i := 0; i < len(batch); i++ {
+		event := batch[i]
+		stmt := event.GetSQLStmt(yb.tconf.Schema)
+		log.Debug(stmt)
+		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			_, err := conn.Exec(context.Background(), stmt)
+			if err != nil {
+				log.Errorf("Error executing stmt: %v", err)
+			}
+			// utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+			return false, err
+		})
 		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
+			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 		}
-		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
-		return false, err
-	})
+	}
+	// if len(batch) > 1 {
+	// 	return fmt.Errorf("batching not yet supported for yugabyte")
+	// }
+	// event := batch[0]
+	// // TODO: What should be targetSchema if sourceDBType is PG?
+	// stmt := event.GetSQLStmt(yb.tconf.Schema)
+	// log.Debug(stmt)
+	// err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+	// 	tag, err := conn.Exec(context.Background(), stmt)
+	// 	if err != nil {
+	// 		log.Errorf("Error executing stmt: %v", err)
+	// 	}
+	// 	log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
+	// 	return false, err
+	// })
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

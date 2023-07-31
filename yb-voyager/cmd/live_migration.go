@@ -39,9 +39,14 @@ func streamChanges() error {
 	sourceEventQueue := NewSourceEventQueue(exportDir)
 	// setup target channels
 	var targetEventChans []chan *tgtdb.Event
-	targetEventChans = make([]chan *tgtdb.Event, NUM_TARGET_EVENT_CHANNELS)
+
+	// targetEventChans = make([]chan *tgtdb.Event, NUM_TARGET_EVENT_CHANNELS)
 	var eventProcessingDoneChans []chan bool
-	eventProcessingDoneChans = make([]chan bool, NUM_TARGET_EVENT_CHANNELS)
+	for i := range targetEventChans {
+		targetEventChans[i] = make(chan *tgtdb.Event)
+		eventProcessingDoneChans[i] = make(chan bool)
+	}
+	// eventProcessingDoneChans = make([]chan bool, NUM_TARGET_EVENT_CHANNELS)
 	// start target event channel processors
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
 		go process_events_from_target_channel(targetEventChans[i], eventProcessingDoneChans[i])
@@ -128,6 +133,7 @@ func insertIntoTargetEventChan(e *tgtdb.Event, targetEventChans []chan *tgtdb.Ev
 
 	// insert into channel
 	chanNo := int(hashValue % (uint64(NUM_TARGET_EVENT_CHANNELS)))
+	utils.PrintAndLog("inserting event %v into channel %v", e, chanNo)
 	targetEventChans[chanNo] <- e
 }
 
@@ -155,6 +161,7 @@ func process_events_from_target_channel(targetEventChan chan *tgtdb.Event, done 
 			continue
 		}
 		// ready to process batch
+		utils.PrintAndLog("executing events %v", len(batch))
 		err := tdb.ExecuteBatch(batch)
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
