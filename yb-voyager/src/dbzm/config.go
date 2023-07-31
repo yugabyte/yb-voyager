@@ -82,8 +82,8 @@ debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.
 debezium.source.tombstones.on.delete=false
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
-debezium.source.topic.prefix=tutorial
-debezium.source.database.server.name=tutorial
+debezium.source.topic.prefix=yb-voyager
+debezium.source.database.server.name=yb-voyager
 `
 var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
@@ -91,8 +91,6 @@ debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 `
-
-//debezium.sink.ybexporter.queueSegmentMaxBytes=%d`
 
 var postgresSrcConfigTemplate = `
 debezium.source.database.hostname=%s
@@ -200,7 +198,6 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 var yugabyteSSLConfigTemplate = `
 debezium.source.database.sslrootcert=%s
 `
-//TODO SSL for yugabytedb
 
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
@@ -258,7 +255,7 @@ func (c *Config) String() string {
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
-		} //TODO SSL for yugabytedb
+		} //TODO test SSL for other methods for yugabytedb
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,

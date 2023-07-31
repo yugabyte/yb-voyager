@@ -28,3 +28,4 @@ func IsDebeziumForDataExport(exportDir string) bool {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	return utils.FileOrFolderExists(exportStatusFilePath)
 }
+

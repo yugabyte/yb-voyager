@@ -52,22 +52,16 @@ func findDebeziumDistribution(sourceDBType string) error {
 				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
 				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
 				"/opt/yb-voyager/debezium-server/debezium-server-fall-forward"}
-			for _, path := range possiblePaths {
-				if utils.FileOrFolderExists(path) {
-					DEBEZIUM_DIST_DIR = path
-					break
-				}
-			}
 		} else {
 			possiblePaths = []string{
 				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
 				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
 				"/opt/yb-voyager/debezium-server"}
-			for _, path := range possiblePaths {
-				if utils.FileOrFolderExists(path) {
-					DEBEZIUM_DIST_DIR = path
-					break
-				}
+		}
+		for _, path := range possiblePaths {
+			if utils.FileOrFolderExists(path) {
+				DEBEZIUM_DIST_DIR = path
+				break
 			}
 		}
 		if DEBEZIUM_DIST_DIR == "" {

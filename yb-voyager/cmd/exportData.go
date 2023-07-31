@@ -313,10 +313,24 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		}
 	} else if source.DBType == "yugabytedb" {
 		config.YBServers = source.DB().GetServers()
-		config.StreamID, err = srcdb.GetYugabyteDBStreamID(config)
-		if err != nil {
-			return fmt.Errorf("failed to get stream id: %w", err)
+		if startClean {
+			config.StreamID, err = srcdb.GetYugabyteDBStreamID(config)
+			if err != nil {
+				return fmt.Errorf("failed to get stream id: %w", err)
+			}
+		} else {
+			streamIDFilePath := filepath.Join(exportDir, "metainfo", "streamid.txt")
+			if utils.FileOrFolderExists(streamIDFilePath) {
+				file, err := os.ReadFile(streamIDFilePath)
+				if err != nil {
+					return fmt.Errorf("failed to read stream id file: %w", err)
+				}
+				config.StreamID = string(file)
+			} else {
+				return fmt.Errorf("stream id not found at %s", streamIDFilePath)
+			}
 		}
+
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)

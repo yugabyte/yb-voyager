@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -391,11 +392,13 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 
 	return columnToSequenceMap
 }
-const (
-	YUGABYTEDB_DIR = "<yugabytedb_dir>" //TODO: change it with yugabytedb installation directory
+var (
+	YUGABYTEDB_DIR = "" //TODO: change it with yugabytedb installation directory
 )
 func GetYugabyteDBStreamID(config *dbzm.Config) (string, error) {
-	
+	if YUGABYTEDB_DIR == "" {
+		YUGABYTEDB_DIR = os.Getenv("YUGABYTEDB_DIR")
+	}
 	ybAdminClient := fmt.Sprintf("%s/bin/yb-admin", YUGABYTEDB_DIR)
 
 	ybAdminCmd := fmt.Sprintf("%s --master_addresses %s create_change_data_stream ysql.%s IMPLICIT ALL",ybAdminClient, config.YBServers, config.DatabaseName)
@@ -428,13 +431,24 @@ func GetYugabyteDBStreamID(config *dbzm.Config) (string, error) {
 	if len(matches) != 2 {
 		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,ybAdminCmd ,outbuf.String())
 	}
-	return matches[1], nil
+	streamID := matches[1]
+	//save streamID in a file
+	streamIDFile := filepath.Join(config.ExportDir, "metainfo", "streamid.txt")
+	file, err := os.Create(streamIDFile)
+	if err != nil {
+		return "", fmt.Errorf(" creating file: %s, error: %s", streamIDFile, err)
+	}
+	defer file.Close()
+	_, err = file.WriteString(streamID)
+	if err != nil {
+		return "", fmt.Errorf(" writing to file: %s, error: %s", streamIDFile, err)
+	}
+	return streamID, nil
 }
 
 func (yb *YugabyteDB) GetServers() string {
 	var ybServers []string
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
-
 	rows, err := yb.db.Query(context.Background(), YB_SERVERS_QUERY)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for yb_servers: %v\n", YB_SERVERS_QUERY, err)
