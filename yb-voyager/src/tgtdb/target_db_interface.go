@@ -121,5 +121,13 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 		}
 		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
 	}
-	return fmt.Sprintf("LOAD DATA\nINFILE '%s'\nAPPEND\nINTO TABLE %s\nREENABLE DISABLED_CONSTRAINTS\nFIELDS TERMINATED BY '\\t'\n%s", args.FilePath, schema+"."+args.TableName, columns)
+
+	configTemplate := `LOAD DATA
+INFILE '%s'
+APPEND
+INTO TABLE %s
+REENABLE DISABLED_CONSTRAINTS
+FIELDS TERMINATED BY '%s'
+%s`
+	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, "\\t", columns)
 }

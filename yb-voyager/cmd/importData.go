@@ -305,6 +305,14 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
 	}
+
+	sqlldrDir := filepath.Join(exportDir, "sqlldr")
+	if utils.FileOrFolderExists(sqlldrDir) {
+		err := os.RemoveAll(sqlldrDir)
+		if err != nil {
+			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
+		}
+	}
 }
 
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
