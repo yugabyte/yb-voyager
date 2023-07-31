@@ -33,6 +33,7 @@ type TargetDB interface {
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(batch []*Event) error
+	GetDebeziumValueConverterSuite() map[string]ConverterFn
 }
 
 const (
@@ -41,6 +42,9 @@ const (
 	POSTGRESQL = "postgresql"
 	YUGABYTEDB = "yugabytedb"
 )
+
+// value converter Function type
+type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {
 	Open() (*os.File, error)

@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -48,8 +49,9 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-
-var truncateSplits bool // to truncate *.D splits after import
+var truncateSplits bool                    // to truncate *.D splits after import
+var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
+var valueConverter dbzm.ValueConverter
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -120,7 +122,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -129,7 +130,10 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
+	if err != nil {
+		utils.ErrExit("Failed to create value converter: %s", err)
+	}
 	err = tdb.InitConnPool()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
@@ -163,6 +167,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -279,25 +284,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 }
 
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
-	var columns []string
-	if dataFileDescriptor.TableNameToExportedColumns != nil {
-		columns = dataFileDescriptor.TableNameToExportedColumns[tableName]
-	} else if dataFileDescriptor.HasHeader {
-		// File is either exported from debezium OR this is `import data file` case.
-		reader, err := dataStore.Open(filePath)
-		if err != nil {
-			utils.ErrExit("datastore.Open %q: %v", filePath, err)
-		}
-		df, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
-		if err != nil {
-			utils.ErrExit("opening datafile %q: %v", filePath, err)
-		}
-		header := df.GetHeader()
-		columns = strings.Split(header, dataFileDescriptor.Delimiter)
-		log.Infof("read header from file %q: %s", filePath, header)
-		log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
-		df.Close()
-	}
+	columns := TableToColumnNames[tableName]
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
@@ -394,6 +381,13 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
 			numLinesTaken += 1
+		}
+		if line != "" {
+			table := batchWriter.tableName
+			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			if err != nil {
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten + 1 , t, filePath, err)
+			}
 		}
 		err = batchWriter.WriteRecord(line)
 		if err != nil {
@@ -661,6 +655,32 @@ func getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	return tconf.Schema // default set to "public"
+}
+
+func prepareTableToColumns(tasks []*ImportFileTask) {
+	for _, task := range tasks {
+		table := task.TableName
+		var columns []string
+		if dataFileDescriptor.TableNameToExportedColumns != nil {
+			columns = dataFileDescriptor.TableNameToExportedColumns[table]
+		} else if dataFileDescriptor.HasHeader {
+			// File is either exported from debezium OR this is `import data file` case.
+			reader, err := dataStore.Open(task.FilePath)
+			if err != nil {
+				utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+			}
+			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
+			if err != nil {
+				utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+			}
+			header := df.GetHeader()
+			columns = strings.Split(header, dataFileDescriptor.Delimiter)
+			log.Infof("read header from file %q: %s", task.FilePath, header)
+			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
+			df.Close()
+		}
+		TableToColumnNames[table] = columns
+	}
 }
 
 func quoteIdentifierIfRequired(identifier string) string {

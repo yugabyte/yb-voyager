@@ -39,25 +39,6 @@ EXPECTED_SUM_OF_COLUMN = {
 if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
 
-EXPECTED_SUM_OF_COLUMN = {
-	'numeric_types': {
-		'num_val': '260.580264',
-		'float_val': '236.0018',
-		'bin_float_val': '1.361127976e+29',
-		'bin_double_val': '5.39307940458693e+108'
-	},
-	'number_ps': {
-		'num_val': '123.89',
-		'num_3': '402',
-		'num_p_s': '5.79',
-		'num_s_p': '0.0000012',
-		'num_neg_s': '546.99'
-	}
-}
-# This variation is required due to the differentiation in exported values for binary types via ora2pg and dbzm 
-if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
-	EXPECTED_SUM_OF_COLUMN['numeric_types']['bin_float_val'] = '1.361128e+29' 
-
 EXPECTED_DATA_TYPES = {
 	'numeric_types': {
 		'num_val': 'numeric',
@@ -161,5 +142,83 @@ def migration_completed_checks(tgt):
 			print(f"column_name: {column}, sum: {col_sum}")
 			assert sum == str(col_sum)
 	
+	print("Validating values for numeric_types table")
+	COLUMNS_NUMERIC_TYPES = {
+		'1':{
+			'num_val': [None, 13,0.000012, 123.79, 0.00012],
+			'bin_float_val': [None, 3.40282e+28, 1.17549e-38],
+			'bin_double_val': [None,0.0, 1.79769313486231e+108],
+			'float_val':[None, 0.0, -2.0, 0.0009, 120.0]
+		},
+		None :{
+			'num_val': [None, 13,0.000012, 123.79, 0.00012],
+			'bin_float_val': [None, 1.17549001e-38, 3.40281994e+28],
+			'bin_double_val': [None, 0.0, 1.79769313486231e+108],
+			'float_val':[None, 0.0, -2.0, 0.0009, 120.0]
+		}
+	}
+	for column, expected_distinct_values in COLUMNS_NUMERIC_TYPES[os.environ.get("BETA_FAST_DATA_EXPORT")].items():
+		distinct_values = tgt.get_distinct_values__of_column_of_table("numeric_types", column, "public")
+		for value in distinct_values:
+			distinct_values[distinct_values.index(value)] = float(value) if value is not None else value
+		print(f"distinct_values for {column} column: {distinct_values}")
+		assert set(distinct_values) == set(expected_distinct_values)
+	
+	print("Validating values for date_time_types table")
+	COLUMNS_DATE_TIME_TYPES = {
+		'ts_tz_lt_value': [None, '2020-10-25 01:30:00+00:00', '2020-10-25 04:30:00+00:00', '2020-10-24 21:00:00+00:00'],
+	}
+
+	for column, expected_distinct_values in COLUMNS_DATE_TIME_TYPES.items():
+		distinct_values = tgt.get_distinct_values__of_column_of_table("date_time_types", column, "public")
+		for value in distinct_values:
+			distinct_values[distinct_values.index(value)] = str(value) if value is not None else value
+		print(f"distinct_values for {column} column: {distinct_values}")
+		assert set(distinct_values) == set(expected_distinct_values)
+	
+	print("Validating values for interval_types table")
+	COLUMNS_INTERVAL_TYPES = {
+		'int_y_m': ['425 days, 0:00:00', '150 days, 0:00:00', '-515 days, 0:00:00'],
+		'int_d_s': ['-1 day, 23:34:00', '3 days, 2:25:45.120000', '0:00:00', '24 days, 23:34:05.878667']
+	}
+
+	if os.environ.get("BETA_FAST_DATA_EXPORT") == '1': #facing different values for int_d_s in ora2pg n dbzm needs testing (todo)
+		for column, expected_distinct_values in COLUMNS_INTERVAL_TYPES.items():
+			distinct_values = tgt.get_distinct_values__of_column_of_table("interval_types", column, "public")
+			for value in distinct_values:
+				distinct_values[distinct_values.index(value)] = str(value) if value is not None else value
+			print(f"distinct_values for {column} column: {distinct_values}")
+			assert set(distinct_values) == set(expected_distinct_values)
+
+	print("Validating values for raw_type table")
+	COLUMNS_RAW_TYPE = {
+		'long_raw_value': [None, '7fffffff16', 'ffffffff'],
+		'raw_value': [None, '7fffffff16', 'ffffffff']
+	}
+
+	if os.environ.get("BETA_FAST_DATA_EXPORT") == '1': #facing different values for long_raw_value in ora2pg n dbzm needs testing (todo)
+		for column, expected_distinct_values in COLUMNS_RAW_TYPE.items():
+			distinct_values = tgt.get_distinct_values__of_column_of_table("raw_type", column, "public")
+			for value in distinct_values:
+				distinct_values[distinct_values.index(value)] = value.hex() if value is not None else value
+			print(f"distinct_values for {column} column: {distinct_values}")
+			assert set(distinct_values) == set(expected_distinct_values)
+
+	print("Validating values for number_ps table")
+	COLUMNS_NUMBER_PS = {
+		'num_neg_s': [546.99],
+		'num_p_s': [5.79],
+		'num_val': [123.89],
+		'num_s_p': [1.2e-06],
+		'num_3': [402.0]
+	}
+
+	for column, expected_distinct_values in COLUMNS_NUMBER_PS.items():
+		distinct_values = tgt.get_distinct_values__of_column_of_table("number_ps", column, "public")
+		for value in distinct_values:
+			distinct_values[distinct_values.index(value)] = float(value) if value is not None else value
+		print(f"distinct_values for {column} column: {distinct_values}")
+		assert distinct_values == expected_distinct_values
+
 if __name__ == "__main__":
 	main()
