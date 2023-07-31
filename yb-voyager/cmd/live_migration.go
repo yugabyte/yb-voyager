@@ -42,9 +42,9 @@ func streamChanges() error {
 
 	// targetEventChans = make([]chan *tgtdb.Event, NUM_TARGET_EVENT_CHANNELS)
 	var eventProcessingDoneChans []chan bool
-	for i := range targetEventChans {
-		targetEventChans[i] = make(chan *tgtdb.Event)
-		eventProcessingDoneChans[i] = make(chan bool)
+	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
+		targetEventChans = append(targetEventChans, make(chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE))
+		eventProcessingDoneChans = append(eventProcessingDoneChans, make(chan bool))
 	}
 	// eventProcessingDoneChans = make([]chan bool, NUM_TARGET_EVENT_CHANNELS)
 	// start target event channel processors
@@ -133,7 +133,7 @@ func insertIntoTargetEventChan(e *tgtdb.Event, targetEventChans []chan *tgtdb.Ev
 
 	// insert into channel
 	chanNo := int(hashValue % (uint64(NUM_TARGET_EVENT_CHANNELS)))
-	utils.PrintAndLog("inserting event %v into channel %v", e, chanNo)
+	// utils.PrintAndLog("inserting event %v into channel %v", e, chanNo)
 	targetEventChans[chanNo] <- e
 }
 
@@ -141,31 +141,35 @@ func process_events_from_target_channel(targetEventChan chan *tgtdb.Event, done 
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
-		for {
+		batchReady := false
+		for !batchReady {
 			// read from channel until MAX_EVENTS_PER_BATCH or MAX_TIME_PER_BATCH
 			select {
 			case event := <-targetEventChan:
+				// utils.PrintAndLog("read event %v from channel", event)
 				if event == END_OF_SOURCE_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
-					break
+					batchReady = true
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
-					break
+					utils.PrintAndLog("reached max events per batch")
+					batchReady = true
 				}
 			case <-time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond):
-				break
+				utils.PrintAndLog("reached max time per batch")
+				batchReady = true
 			}
 		}
 		if len(batch) == 0 {
 			continue
 		}
 		// ready to process batch
-		utils.PrintAndLog("executing events %v", len(batch))
 		err := tdb.ExecuteBatch(batch)
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
 		}
+		utils.PrintAndLog("executed events %v", len(batch))
 	}
 	done <- true
 }
