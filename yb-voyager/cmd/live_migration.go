@@ -31,7 +31,7 @@ import (
 
 var NUM_TARGET_EVENT_CHANNELS = 64
 var TARGET_EVENT_CHANNEL_SIZE = 2000 // has to be > MAX_EVENTS_PER_BATCH
-var MAX_EVENTS_PER_BATCH = 1000
+var MAX_EVENTS_PER_BATCH = 100
 var MAX_TIME_PER_BATCH = 2000 //ms
 var END_OF_SOURCE_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 
@@ -49,7 +49,7 @@ func streamChanges() error {
 	// eventProcessingDoneChans = make([]chan bool, NUM_TARGET_EVENT_CHANNELS)
 	// start target event channel processors
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
-		go process_events_from_target_channel(targetEventChans[i], eventProcessingDoneChans[i])
+		go process_events_from_target_channel(i, targetEventChans[i], eventProcessingDoneChans[i])
 	}
 
 	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
@@ -137,7 +137,7 @@ func insertIntoTargetEventChan(e *tgtdb.Event, targetEventChans []chan *tgtdb.Ev
 	targetEventChans[chanNo] <- e
 }
 
-func process_events_from_target_channel(targetEventChan chan *tgtdb.Event, done chan bool) {
+func process_events_from_target_channel(i int, targetEventChan chan *tgtdb.Event, done chan bool) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -153,11 +153,11 @@ func process_events_from_target_channel(targetEventChan chan *tgtdb.Event, done 
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
-					utils.PrintAndLog("reached max events per batch")
+					// utils.PrintAndLog("reached max events per batch")
 					batchReady = true
 				}
 			case <-time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond):
-				utils.PrintAndLog("reached max time per batch")
+				// utils.PrintAndLog("reached max time per batch")
 				batchReady = true
 			}
 		}
@@ -169,7 +169,7 @@ func process_events_from_target_channel(targetEventChan chan *tgtdb.Event, done 
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
 		}
-		utils.PrintAndLog("executed events %v", len(batch))
+		utils.PrintAndLog("worker: %v: executed events %v", i, len(batch))
 	}
 	done <- true
 }
