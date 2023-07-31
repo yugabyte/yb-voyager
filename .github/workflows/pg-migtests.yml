@@ -162,6 +162,6 @@ jobs:
       run: | 
         psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
 
-    - name: "TEST: pg-live-test"
-      run: migtests/scripts/live-migration-run-test.sh pg/live-test
+    - name: "TEST: pg-live-migration-test"
+      run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
 

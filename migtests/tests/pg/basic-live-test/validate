@@ -13,7 +13,15 @@ EXPECTED_ROW_COUNT = {
 
 EXPECTED_DATA_TYPES = {
 	'x': {
-		'id': 'numeric'
+		'id': 'numeric',
+		'id2': 'numeric'
+	}
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'x': {
+		'id': '6',
+		'id2': '9'
 	}
 }
 
@@ -33,6 +41,12 @@ def migration_completed_checks(tgt):
 			print(f"column_name: {column_name}, datatype: {datatype}")
 			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
-	
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
 if __name__ == "__main__":
 	main()
