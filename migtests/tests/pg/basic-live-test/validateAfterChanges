@@ -13,8 +13,8 @@ EXPECTED_ROW_COUNT = {
 
 EXPECTED_DATA_TYPES = {
 	'x': {
-		'id': 'numeric',
-		'id2': 'numeric'
+		'id': 'integer',
+		'id2': 'integer'
 	}
 }
 
