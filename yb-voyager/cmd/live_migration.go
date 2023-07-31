@@ -27,8 +27,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
+var NUM_TARGET_EVENT_CHANNELS = 64
+var TARGET_EVENT_CHANNEL_SIZE = 1000
+
 func streamChanges() error {
-	eventQueue := NewEventQueue(exportDir)
+	eventQueue := NewSourceEventQueue(exportDir)
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
@@ -48,7 +51,11 @@ func streamChanges() error {
 	}
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment) error {
+func initTargetEventChannels() {
+	targetEventChannels = make([]chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE)
+}
+
+func streamChangesFromSegment(segment *SourceEventQueueSegment) error {
 	err := segment.Open()
 	if err != nil {
 		return err
