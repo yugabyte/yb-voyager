@@ -305,7 +305,6 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 		return rowsAffected, nil
 	}
 
-	// fmt.Printf("Importing table path: %s \n", batch.GetFilePath())
 	tableName := batch.GetTableName()
 
 	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema)
@@ -336,7 +335,6 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 	defer sqlldrLogFile.Close()
 
-	// fmt.Println("Running sqlldr for file: ", sqlldrControlFilePath)
 	user := tdb.tconf.User
 	password := tdb.tconf.Password
 	connectString := tdb.getConnectionString(tdb.tconf)
@@ -344,14 +342,12 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	oracleConnectionString := fmt.Sprintf("%s/%s@\"%s\"", user, password, connectString)
 
 	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
-	// fmt.Println("Args: ", sqlldrArgs)
 
 	cmd := exec.Command("sqlldr", sqlldrArgs)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	cmd.Stdout = &outbuf
 	cmd.Stderr = &errbuf
-	// fmt.Printf("cmd: %v\n", cmd)
 	err = cmd.Run()
 	if outbuf.String() != "" {
 		log.Infof("sqlldr output: %s", outbuf.String())
