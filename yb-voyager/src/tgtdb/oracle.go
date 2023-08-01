@@ -306,7 +306,6 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 
 	tableName := batch.GetTableName()
-
 	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema)
 
 	if _, err := os.Stat(fmt.Sprintf("%s/sqlldr", exportDir)); os.IsNotExist(err) {
@@ -338,25 +337,24 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	user := tdb.tconf.User
 	password := tdb.tconf.Password
 	connectString := tdb.getConnectionString(tdb.tconf)
-
-	oracleConnectionString := fmt.Sprintf("%s/%s@\"%s\"", user, password, connectString)
-
+	oracleConnectionString := fmt.Sprintf("%s@\"%s\"", user, connectString)
 	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
-	cmd := exec.Command("sqlldr", sqlldrArgs)
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-	err = cmd.Run()
-	if outbuf.String() != "" {
-		log.Infof("sqlldr output: %s", outbuf.String())
+	var outbuf string
+	var errbuf string
+	outbuf, errbuf, err = tdb.runSqlLdr(oracleConnectionString, sqlldrArgs, password)
+
+	if outbuf == "" && errbuf == "" && err != nil {
+		return 0, fmt.Errorf("run sqlldr: %w", err)
 	}
-	if errbuf.String() != "" {
-		log.Errorf("sqlldr error: %s", errbuf.String())
+	if outbuf != "" {
+		log.Infof("sqlldr output: %s", outbuf)
+	}
+	if errbuf != "" {
+		log.Errorf("sqlldr error: %s", errbuf)
 	}
 	var err2 error
-	rowsAffected, err2 = getRowsAffected(outbuf.String())
+	rowsAffected, err2 = getRowsAffected(outbuf)
 	if err2 != nil {
 		return 0, fmt.Errorf("get rows affected from sqlldr output: %w", err)
 	}
@@ -385,6 +383,34 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 
 	return rowsAffected, err
+}
+
+func (tdb *TargetOracleDB) runSqlLdr(oracleConnectionString string, sqlldrArgs string, password string) (outbufStr string, errbufStr string, err error) {
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
+	cmd := exec.Command("sqlldr", sqlldrArgs)
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return "", "", fmt.Errorf("get stdin pipe for sqlldr: %w", err)
+	}
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+
+	err = cmd.Start()
+	if err != nil {
+		return "", "", fmt.Errorf("start sqlldr: %w", err)
+	}
+	_, err = stdinPipe.Write([]byte(fmt.Sprintf("%s\n", password)))
+	if err != nil {
+		return "", "", fmt.Errorf("write password to sqlldr: %w", err)
+	}
+	err = stdinPipe.Close()
+	if err != nil {
+		return "", "", fmt.Errorf("close stdin pipe for sqlldr: %w", err)
+	}
+	err = cmd.Wait()
+
+	return outbuf.String(), errbuf.String(), err
 }
 
 func (tdb *TargetOracleDB) recordEntryInDB(tx *sql.Tx, batch Batch, rowsAffected int64) error {
