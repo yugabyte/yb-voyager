@@ -251,9 +251,9 @@ func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 		retry, err = fn(tdb.conn)
 		if err != nil {
 			// On err, drop the connection.
-			err = tdb.conn.Close()
-			if err != nil {
-				log.Errorf("Failed to close connection to the target database: %v", err)
+			err2 := tdb.conn.Close()
+			if err2 != nil {
+				log.Errorf("Failed to close connection to the target database: %v", err2)
 			}
 		}
 		time.Sleep(5 * time.Second)
@@ -361,6 +361,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 		return 0, fmt.Errorf("get rows affected from sqlldr output: %w", err)
 	}
 
+	ignoreError := false
 	if err != nil {
 		// find ORA-00001: unique constraint * violated in log file
 		pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
@@ -368,15 +369,14 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 		for scanner.Scan() {
 			line := scanner.Text()
 			if pattern.MatchString(line) {
-				err = tdb.recordEntryInDB(tx, batch, rowsAffected)
-				if err != nil {
-					err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
-				}
-				return 0, err
+				ignoreError = true
+				break
 			}
 		}
 
-		return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
+		if !ignoreError {
+			return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
+		}
 	}
 
 	err = tdb.recordEntryInDB(tx, batch, rowsAffected)
