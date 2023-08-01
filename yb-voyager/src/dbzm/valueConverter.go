@@ -120,6 +120,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string) error {
 	for column, value := range m {
 		if value == nil {
+			m[column] = new(string)
 			*m[column] = "NULL"
 			continue
 		}
