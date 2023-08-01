@@ -129,8 +129,8 @@ func (event *Event) getInsertParams() []interface{} {
 			params = append(params, nil)
 			continue
 		}
-		// unquotedValue := strings.Trim(*value, `'"`)
-		params = append(params, *value)
+		unquotedValue := strings.Trim(*value, `'"`)
+		params = append(params, unquotedValue)
 	}
 	// fmt.Printf("sorted keys: %v\n", keys)
 	// fmt.Printf("params: %v\n", params)
