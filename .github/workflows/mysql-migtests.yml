@@ -107,3 +107,11 @@ jobs:
 
     - name: "TEST: mysql-reserved-words"
       run: migtests/scripts/run-test.sh mysql/reserved-words
+
+# Placeholder for now so that a basic test can run
+    - name: Create the live migration user
+      run: |
+        mysql -uroot -proot -e 'GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'ybvoyager'@'127.0.0.1';'      
+
+    - name: "TEST: mysql-live-migration-test"
+      run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
