@@ -18,6 +18,7 @@ package srcdb
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -45,6 +46,9 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
 		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
+		
+		os.Setenv("ORA2PG_PASSWD", source.Password)
+		defer os.Unsetenv("ORA2PG_PASSWD")
 
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {

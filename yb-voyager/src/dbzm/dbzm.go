@@ -78,7 +78,8 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return err
 	}
-
+    os.Setenv("DEBEZIUM_SOURCE_DATABASE_PASSWORD", d.Config.Password)
+	defer os.Unsetenv("DEBEZIUM_SOURCE_DATABASE_PASSWORD")
 	log.Infof("starting debezium...")
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	d.cmd.Env = os.Environ()

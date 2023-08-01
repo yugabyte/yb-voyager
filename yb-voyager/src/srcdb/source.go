@@ -199,7 +199,6 @@ type Ora2pgConfig struct {
 	OracleDSN        string
 	OracleUser       string
 	OracleHome       string
-	OraclePWD        string
 	Schema           string
 	ParallelTables   string
 	UseOrafce        string
@@ -234,7 +233,6 @@ func (source *Source) getDefaultOra2pgConfig() *Ora2pgConfig {
 	conf.OracleDSN = source.getSourceDSN()
 	conf.OracleUser = source.User
 	conf.ParallelTables = strconv.Itoa(source.NumConnections)
-	conf.OraclePWD = source.Password
 	conf.DisablePartition = "0"
 
 	conf.OracleHome = source.GetOracleHome()
