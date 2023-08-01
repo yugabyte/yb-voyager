@@ -20,8 +20,8 @@ EXPECTED_DATA_TYPES = {
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
-		'id': '18',
-		'id2': '43'
+		'id': '15',
+		'id2': '20'
 	}
 }
 
