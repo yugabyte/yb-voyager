@@ -46,7 +46,8 @@ type TargetYugabyteDB struct {
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
 }
-var ybValueConverterSuite = map[string]ConverterFn {
+
+var ybValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
@@ -175,7 +176,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"BYTES":func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -215,7 +216,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	},
 	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue) 
+			columnValue = fmt.Sprintf("'%s'", columnValue)
 		}
 		return columnValue, nil
 	},
@@ -583,22 +584,43 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
-func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	if len(batch) > 1 {
-		return fmt.Errorf("batching not yet supported for yugabyte")
-	}
-	event := batch[0]
-	// TODO: What should be targetSchema if sourceDBType is PG?
-	stmt := event.GetSQLStmt(yb.tconf.Schema)
-	log.Debug(stmt)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tag, err := conn.Exec(context.Background(), stmt)
-		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
+func (yb *TargetYugabyteDB) ExecuteBatch(events []*Event) error {
+	log.Infof("executing batch of %d events", len(events))
+	stmtsToPrepare := make(map[string]string)
+	batch := pgx.Batch{}
+	// processing batch to convert events into prepared statements
+	for _, event := range events {
+		// TODO: What should be targetSchema if sourceDBType is PG?
+		stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
+		log.Debugf("appending to batch stmt: %s", stmt)
+		if _, ok := stmtsToPrepare[event.GetPreparedStmtName()]; !ok {
+			stmtsToPrepare[event.GetPreparedStmtName()] = stmt
 		}
-		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
-		return false, err
+		batch.Queue(event.GetPreparedStmtName(), event.GetParams()...)
+	}
+
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		for name, stmt := range stmtsToPrepare {
+			log.Debugf("preparing stmt: %s\n", stmt)
+			// conn.Prepare() is idempotent; returns if stmt already exists
+			_, err := conn.Prepare(context.Background(), name, stmt)
+			if err != nil {
+				return false, fmt.Errorf("prepare stmt: %w", err)
+			}
+		}
+
+		// TODO(future): use an explicit transaction to update metainfo tables for resuming
+		br := conn.SendBatch(context.Background(), &batch)
+		defer br.Close()
+		for i := 0; i < len(events); i++ {
+			res, err := br.Exec()
+			if err != nil {
+				return false, fmt.Errorf("error while checking query result(%s): %w", res.String(), err)
+			}
+		}
+		return false, nil
 	})
+
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

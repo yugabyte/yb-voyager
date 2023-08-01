@@ -412,3 +412,11 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	return nil
 }
 
+func SortMapKeys(m map[string]*string) []string {
+	var keys []string
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}

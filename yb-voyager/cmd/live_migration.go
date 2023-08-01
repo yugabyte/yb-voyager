@@ -35,12 +35,14 @@ func streamChanges() error {
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
 				time.Sleep(2 * time.Second)
-				continue
+				// continue
+				// TODO: temporary, remove this once test is done
+				fmt.Printf("no more segments to stream, exiting...\n")
+				os.Exit(1)
 			}
 			return fmt.Errorf("error getting next segment to stream: %v", err)
 		}
 		log.Infof("got next segment to stream: %v", segment)
-
 		err = streamChangesFromSegment(segment)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
@@ -54,6 +56,8 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 		return err
 	}
 	defer segment.Close()
+
+	var events []*tgtdb.Event
 	log.Infof("streaming changes for segment %s", segment.FilePath)
 	for !segment.IsProcessed() {
 		event, err := segment.NextEvent()
@@ -62,12 +66,20 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 		}
 
 		if event == nil && segment.IsProcessed() {
+			err = handleEvents(events)
+			if err != nil {
+				return fmt.Errorf("error executing batch: %v", err)
+			}
 			break
 		}
 
-		err = handleEvent(event)
-		if err != nil {
-			return fmt.Errorf("error handling event: %v", err)
+		events = append(events, event)
+		if len(events) >= int(batchSize) {
+			err = handleEvents(events)
+			if err != nil {
+				return fmt.Errorf("error executing batch: %v", err)
+			}
+			events = nil
 		}
 	}
 
@@ -77,21 +89,25 @@ func streamChangesFromSegment(segment *EventQueueSegment) error {
 	return nil
 }
 
-func handleEvent(event *tgtdb.Event) error {
-	log.Debugf("Handling event: %v", event)
-	tableName := event.TableName
-	if sourceDBType == "postgresql" && event.SchemaName != "public" {
-		tableName = event.SchemaName + "." + event.TableName
+func handleEvents(events []*tgtdb.Event) error {
+	for i := 0; i < len(events); i++ {
+		tableName := events[i].TableName
+		if sourceDBType == "postgresql" && events[i].SchemaName != "public" {
+			tableName = events[i].SchemaName + "." + events[i].TableName
+		}
+
+		// preparing value converters for the streaming mode
+		err := valueConverter.ConvertEvent(events[i], tableName)
+		if err != nil {
+			return fmt.Errorf("error transforming event key fields: %v", err)
+		}
 	}
-	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName)
-	if err != nil {
-		return fmt.Errorf("error transforming event key fields: %v", err)
-	}
-	batch := []*tgtdb.Event{event}
-	err = tdb.ExecuteBatch(batch)
+
+	timer := time.Now()
+	err := tdb.ExecuteBatch(events)
 	if err != nil {
 		return fmt.Errorf("error executing batch: %v", err)
 	}
+	log.Infof("succesfully executed batch of %d events in %v", len(events), time.Since(timer))
 	return nil
 }
