@@ -251,11 +251,10 @@ func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 			}
 
 			if attempt < maxAttempts {
-				log.Warnf("Connection pool is bus. Sleeping for 2 seconds: %s", err)
+				log.Warnf("Connection pool is busy. Sleeping for 2 seconds: %s", err)
 				time.Sleep(5 * time.Second)
 				continue
 			}
-
 		}
 
 		if conn == nil {
@@ -480,6 +479,14 @@ func (tdb *TargetOracleDB) ExecuteBatch(batch []*Event) error {
 }
 
 func (tdb *TargetOracleDB) InitConnPool() error {
+	if tdb.tconf.Parallelism == -1 {
+		tdb.tconf.Parallelism = 1
+		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", tdb.tconf.Parallelism)
+	} else {
+		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
+	}
+
+	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
 	return nil
 }
 
