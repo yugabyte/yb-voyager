@@ -42,7 +42,7 @@ func streamChanges() error {
 	var processingDoneChans []chan bool
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
 		evChans = append(evChans, make(chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE))
-		processingDoneChans = append(processingDoneChans, make(chan bool))
+		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
 	// start target event channel processors
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
