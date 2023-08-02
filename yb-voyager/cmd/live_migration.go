@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var NUM_TARGET_EVENT_CHANNELS = 64
+var NUM_TARGET_EVENT_CHANNELS = 512
 var TARGET_EVENT_CHANNEL_SIZE = 2000 // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH = 100
 var MAX_TIME_PER_BATCH = 2000 //ms
@@ -37,19 +37,16 @@ var END_OF_SOURCE_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_se
 
 func streamChanges() error {
 	sourceEventQueue := NewSourceEventQueue(exportDir)
-	// setup target channels
-	var targetEventChans []chan *tgtdb.Event
-
-	// targetEventChans = make([]chan *tgtdb.Event, NUM_TARGET_EVENT_CHANNELS)
-	var eventProcessingDoneChans []chan bool
+	// setup target event channels
+	var evChans []chan *tgtdb.Event
+	var processingDoneChans []chan bool
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
-		targetEventChans = append(targetEventChans, make(chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE))
-		eventProcessingDoneChans = append(eventProcessingDoneChans, make(chan bool))
+		evChans = append(evChans, make(chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE))
+		processingDoneChans = append(processingDoneChans, make(chan bool))
 	}
-	// eventProcessingDoneChans = make([]chan bool, NUM_TARGET_EVENT_CHANNELS)
 	// start target event channel processors
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
-		go process_events_from_target_channel(i, targetEventChans[i], eventProcessingDoneChans[i])
+		go processEvents(i, evChans[i], processingDoneChans[i])
 	}
 
 	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
@@ -64,14 +61,14 @@ func streamChanges() error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, targetEventChans)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
 
-func streamChangesFromSegment(segment *SourceEventQueueSegment, targetEventChans []chan *tgtdb.Event) error {
+func streamChangesFromSegment(segment *SourceEventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool) error {
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -88,24 +85,26 @@ func streamChangesFromSegment(segment *SourceEventQueueSegment, targetEventChans
 			break
 		}
 
-		err = handleEvent(event, targetEventChans)
+		err = handleEvent(event, evChans)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)
 		}
 	}
 
-	log.Infof("finished streaming changes from segment %s", segment.FilePath)
-	// send end of segment marker on all target channels
 	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
-		targetEventChans[i] <- END_OF_SOURCE_QUEUE_SEGMENT_EVENT
+		evChans[i] <- END_OF_SOURCE_QUEUE_SEGMENT_EVENT
+	}
+
+	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
+		<-processingDoneChans[i]
 	}
 
 	// TODO: printing this line until some user stats are available.
-	fmt.Printf("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
+	utils.PrintAndLog("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 
-func handleEvent(event *tgtdb.Event, targetEventChans []chan *tgtdb.Event) error {
+func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	log.Debugf("Handling event: %v", event)
 	tableName := event.TableName
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
@@ -116,11 +115,11 @@ func handleEvent(event *tgtdb.Event, targetEventChans []chan *tgtdb.Event) error
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
-	insertIntoTargetEventChan(event, targetEventChans)
+	insertIntoTargetEventChan(event, evChans)
 	return nil
 }
 
-func insertIntoTargetEventChan(e *tgtdb.Event, targetEventChans []chan *tgtdb.Event) {
+func insertIntoTargetEventChan(e *tgtdb.Event, evChans []chan *tgtdb.Event) {
 	// hash event
 	delimiter := "-"
 	stringToBeHashed := e.SchemaName + delimiter + e.TableName
@@ -131,13 +130,11 @@ func insertIntoTargetEventChan(e *tgtdb.Event, targetEventChans []chan *tgtdb.Ev
 	hash.Write([]byte(stringToBeHashed))
 	hashValue := hash.Sum64()
 
-	// insert into channel
 	chanNo := int(hashValue % (uint64(NUM_TARGET_EVENT_CHANNELS)))
-	// utils.PrintAndLog("inserting event %v into channel %v", e, chanNo)
-	targetEventChans[chanNo] <- e
+	evChans[chanNo] <- e
 }
 
-func process_events_from_target_channel(i int, targetEventChan chan *tgtdb.Event, done chan bool) {
+func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -145,19 +142,16 @@ func process_events_from_target_channel(i int, targetEventChan chan *tgtdb.Event
 		for !batchReady {
 			// read from channel until MAX_EVENTS_PER_BATCH or MAX_TIME_PER_BATCH
 			select {
-			case event := <-targetEventChan:
-				// utils.PrintAndLog("read event %v from channel", event)
+			case event := <-evChan:
 				if event == END_OF_SOURCE_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
 					batchReady = true
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
-					// utils.PrintAndLog("reached max events per batch")
 					batchReady = true
 				}
 			case <-time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond):
-				// utils.PrintAndLog("reached max time per batch")
 				batchReady = true
 			}
 		}
