@@ -393,43 +393,43 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	return columnToSequenceMap
 }
 var (
-	YUGABYTEDB_DIR = "" //TODO: change it with yugabytedb installation directory
+	YB_CLIENT_WRAPPER_JAR = "/opt/yb-voyager/yb-client-wrapper.jar" //TODO: change it with jar installation directory
 )
 func GetYugabyteDBStreamID(config *dbzm.Config) (string, error) {
-	if YUGABYTEDB_DIR == "" {
-		YUGABYTEDB_DIR = os.Getenv("YUGABYTEDB_DIR")
-	}
-	ybAdminClient := fmt.Sprintf("%s/bin/yb-admin", YUGABYTEDB_DIR)
-
-	ybAdminCmd := fmt.Sprintf("%s --master_addresses %s create_change_data_stream ysql.%s IMPLICIT ALL",ybAdminClient, config.YBServers, config.DatabaseName)
+	
+	tableName := strings.Split(config.TableList[0], ".")[1] //any table name in the database is required by yb-client createCDCStream(...) API 
+	command := fmt.Sprintf("java -jar %s -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBServers, tableName, config.DatabaseName)  
 
 	if config.SSLRootCert != "" {
-		ybAdminCmd += fmt.Sprintf(" --certs_dir_name %s", filepath.Dir(config.SSLRootCert))
+		command += fmt.Sprintf(" -ssl_cert_file %s", config.SSLRootCert)
 	}
 
-	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", ybAdminCmd)
+	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", command)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	cmd.Stdout = &outbuf
 	cmd.Stderr = &errbuf
 	err := cmd.Start()
 	if err != nil {
-		log.Infof("Failed to start command: %s, error: %s", ybAdminCmd, err)
+		if outbuf.String() != "" {
+			log.Infof("Output of the command %s: %s", command, outbuf.String())
+		}
+		log.Infof("Failed to start command: %s, error: %s", command, err)
 		return "", err
 	}
 	err = cmd.Wait()
 	if err != nil {
-		log.Infof("Failed to wait for command: %s , error: %s", ybAdminCmd, err)
+		if outbuf.String() != "" {
+			log.Infof("Output of the command %s: %s", command, outbuf.String())
+		}
+		log.Infof("Failed to wait for command: %s , error: %s", command, err)
 		return "", err
-	}
-	if outbuf.String() != "" {
-		log.Infof("%s", outbuf.String())
 	}
 	//output of yb-admin command - CDC Stream ID: <stream_id>
 	rgx := regexp.MustCompile(`CDC Stream ID: ([a-zA-Z0-9]+)`)
 	matches := rgx.FindStringSubmatch(outbuf.String())
 	if len(matches) != 2 {
-		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,ybAdminCmd ,outbuf.String())
+		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,command ,outbuf.String())
 	}
 	streamID := matches[1]
 	//save streamID in a file
