@@ -130,7 +130,7 @@ func hashEvent(e *tgtdb.Event) int {
 	hash.Write([]byte(e.SchemaName + e.TableName))
 
 	keyColumns := make([]string, 0)
-	for k, _ := range e.Key {
+	for k := range e.Key {
 		keyColumns = append(keyColumns, k)
 	}
 
