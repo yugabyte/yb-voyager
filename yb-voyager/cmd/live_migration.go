@@ -30,11 +30,18 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var NUM_TARGET_EVENT_CHANNELS = 512
-var TARGET_EVENT_CHANNEL_SIZE = 2000 // has to be > MAX_EVENTS_PER_BATCH
-var MAX_EVENTS_PER_BATCH = 100
-var MAX_TIME_PER_BATCH = 2000 //ms
+var NUM_TARGET_EVENT_CHANNELS int
+var TARGET_EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
+var MAX_EVENTS_PER_BATCH int
+var MAX_TIME_PER_BATCH int //ms
 var END_OF_SOURCE_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+
+func init() {
+	NUM_TARGET_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_TARGET_EVENT_CHANNELS", 512)
+	TARGET_EVENT_CHANNEL_SIZE = utils.GetEnvAsInt("TARGET_EVENT_CHANNEL_SIZE", 2000)
+	MAX_EVENTS_PER_BATCH = utils.GetEnvAsInt("MAX_EVENTS_PER_BATCH", 100)
+	MAX_TIME_PER_BATCH = utils.GetEnvAsInt("MAX_TIME_PER_BATCH", 2000)
+}
 
 func streamChanges() error {
 	sourceEventQueue := NewSourceEventQueue(exportDir)

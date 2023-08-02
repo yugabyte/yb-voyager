@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -412,3 +413,15 @@ func ForEachLineInFile(filePath string, callback func(line string) bool) error {
 	return nil
 }
 
+func GetEnvAsInt(key string, fallback int) int {
+	valueStr, exists := os.LookupEnv(key)
+	if !exists {
+		return fallback
+	}
+	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
+	if err != nil {
+		log.Warnf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		return fallback
+	}
+	return int(valueInt)
+}
