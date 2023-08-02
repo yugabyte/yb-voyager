@@ -145,6 +145,7 @@ func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
 		batchReady := false
+		timeThreshold := time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond)
 		for !batchReady {
 			// read from channel until MAX_EVENTS_PER_BATCH or MAX_TIME_PER_BATCH
 			select {
@@ -157,7 +158,7 @@ func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
 					batchReady = true
 				}
-			case <-time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond):
+			case <-timeThreshold:
 				batchReady = true
 			}
 		}
