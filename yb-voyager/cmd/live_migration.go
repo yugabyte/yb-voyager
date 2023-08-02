@@ -21,6 +21,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -115,23 +116,28 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
-	insertIntoTargetEventChan(event, evChans)
+
+	h := hashEvent(event)
+	evChans[h] <- event
 	return nil
 }
 
-func insertIntoTargetEventChan(e *tgtdb.Event, evChans []chan *tgtdb.Event) {
-	// hash event
-	delimiter := "-"
-	stringToBeHashed := e.SchemaName + delimiter + e.TableName
-	for _, value := range e.Key {
-		stringToBeHashed += delimiter + *value
-	}
+// Returns a hash value between 0..NUM_TARGET_EVENT_CHANNELS
+func hashEvent(e *tgtdb.Event) int {
 	hash := fnv.New64a()
-	hash.Write([]byte(stringToBeHashed))
-	hashValue := hash.Sum64()
+	hash.Write([]byte(e.SchemaName + e.TableName))
 
-	chanNo := int(hashValue % (uint64(NUM_TARGET_EVENT_CHANNELS)))
-	evChans[chanNo] <- e
+	keyColumns := make([]string, 0)
+	for k, _ := range e.Key {
+		keyColumns = append(keyColumns, k)
+	}
+
+	// sort to ensure input to hash is consistent.
+	sort.Strings(keyColumns)
+	for _, k := range keyColumns {
+		hash.Write([]byte(*e.Key[k]))
+	}
+	return int(hash.Sum64() % (uint64(NUM_TARGET_EVENT_CHANNELS)))
 }
 
 func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
