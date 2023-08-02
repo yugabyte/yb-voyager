@@ -420,7 +420,7 @@ func GetEnvAsInt(key string, fallback int) int {
 	}
 	valueInt, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
-		log.Warnf("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
+		PrintAndLog("Couldn't interpret env var %v=%v. Defaulting to %v", key, valueStr, fallback)
 		return fallback
 	}
 	return int(valueInt)
