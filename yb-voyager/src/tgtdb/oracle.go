@@ -239,26 +239,32 @@ func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, expor
 
 func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 	var err error
-	if tdb.conn == nil {
-		err = tdb.reconnect()
-		if err != nil {
-			return err
-		}
-	}
 	retry := true
-	for retry {
-		tdb.reconnect()
-		retry, err = fn(tdb.conn)
-		if err != nil {
-			// On err, drop the connection.
-			err2 := tdb.conn.Close()
-			if err2 != nil {
-				log.Errorf("Failed to close connection to the target database: %v", err2)
-			}
-		}
-		time.Sleep(5 * time.Second)
-	}
 
+	for retry {
+		var maxAttempts = 5
+		var conn *sql.Conn
+		for attempt := 1; attempt <= maxAttempts; attempt++ {
+			conn, err = tdb.oraDB.Conn(context.Background())
+			if err == nil {
+				break
+			}
+
+			if attempt < maxAttempts {
+				log.Warnf("Connection pool is bus. Sleeping for 2 seconds: %s", err)
+				time.Sleep(5 * time.Second)
+				continue
+			}
+
+		}
+
+		if conn == nil {
+			return fmt.Errorf("failed to get connection from target db: %w", err)
+		}
+
+		defer conn.Close()
+		retry, err = fn(conn)
+	}
 	return err
 }
 
@@ -429,18 +435,6 @@ func getRowsAffected(outbuf string) (int64, error) {
 		return 0, fmt.Errorf("no rows affected found in the sqlldr output")
 	}
 	return strconv.ParseInt(matches[1], 10, 64)
-}
-
-func getValue(connectionString, key string) string {
-	startIndex := strings.Index(connectionString, key)
-	if startIndex == -1 {
-		return ""
-	}
-
-	startIndex += len(key) + 2
-	endIndex := strings.Index(connectionString[startIndex:], "\"")
-
-	return connectionString[startIndex : startIndex+endIndex]
 }
 
 func (tdb *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool, int64, error) {
