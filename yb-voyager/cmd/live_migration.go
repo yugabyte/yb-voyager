@@ -45,10 +45,6 @@ func streamChanges() error {
 		evChans = append(evChans, make(chan *tgtdb.Event, TARGET_EVENT_CHANNEL_SIZE))
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
-	// start target event channel processors
-	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
-		go processEvents(i, evChans[i], processingDoneChans[i])
-	}
 
 	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
@@ -75,6 +71,12 @@ func streamChangesFromSegment(segment *SourceEventQueueSegment, evChans []chan *
 		return err
 	}
 	defer segment.Close()
+
+	// start target event channel processors
+	for i := 0; i < NUM_TARGET_EVENT_CHANNELS; i++ {
+		go processEvents(i, evChans[i], processingDoneChans[i])
+	}
+
 	log.Infof("streaming changes for segment %s", segment.FilePath)
 	for !segment.IsProcessed() {
 		event, err := segment.NextEvent()
@@ -153,6 +155,7 @@ func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 				if event == END_OF_SOURCE_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
 					batchReady = true
+					break
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
