@@ -146,29 +146,28 @@ func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
-		batchReady := false
 		timeThreshold := time.After(time.Duration(MAX_TIME_PER_BATCH) * time.Millisecond)
-		for !batchReady {
+	Batching:
+		for {
 			// read from channel until MAX_EVENTS_PER_BATCH or MAX_TIME_PER_BATCH
 			select {
 			case event := <-evChan:
 				if event == END_OF_SOURCE_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
-					batchReady = true
-					break
+					break Batching
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
-					batchReady = true
+					break Batching
 				}
 			case <-timeThreshold:
-				batchReady = true
+				break Batching
 			}
 		}
+
 		if len(batch) == 0 {
 			continue
 		}
-		// ready to process batch
 		err := tdb.ExecuteBatch(batch)
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
