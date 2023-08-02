@@ -596,7 +596,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
 			if err != nil {
 				log.Errorf("Error executing stmt: %v", err)
 			}
-			// utils.PrintAndLog("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
 			return false, err
 		})
 		if err != nil {
