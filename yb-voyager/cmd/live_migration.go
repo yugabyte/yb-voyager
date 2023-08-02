@@ -149,7 +149,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_TARGET_EVENT_CHANNELS)))
 }
 
-func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, done chan bool) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -179,7 +179,7 @@ func processEvents(i int, evChan chan *tgtdb.Event, done chan bool) {
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
 		}
-		utils.PrintAndLog("worker: %v: executed events %v", i, len(batch))
+		log.Debugf("processEvents from channel %v: Executed Batch of size - %v", chanNo, len(batch))
 	}
 	done <- true
 }
