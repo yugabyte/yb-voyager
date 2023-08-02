@@ -46,7 +46,8 @@ type TargetYugabyteDB struct {
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
 }
-var ybValueConverterSuite = map[string]ConverterFn {
+
+var ybValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
@@ -175,7 +176,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"BYTES":func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -215,7 +216,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	},
 	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue) 
+			columnValue = fmt.Sprintf("'%s'", columnValue)
 		}
 		return columnValue, nil
 	},
@@ -226,7 +227,21 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 }
 
 func (yb *TargetYugabyteDB) Init() error {
-	return yb.connect()
+	err := yb.connect()
+	if err != nil {
+		return err
+	}
+
+	checkSchemaExistsQuery := fmt.Sprintf(
+		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
+		yb.tconf.Schema)
+	var cntSchemaName int
+	if err = yb.conn_.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
+	} else if cntSchemaName == 0 {
+		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
+	}
+	return err
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -370,6 +385,7 @@ outer:
 			time.Sleep(5 * time.Second)
 			err2 := yb.reconnect()
 			if err2 != nil {
+				log.Warnf("Failed to reconnect to the target database: %s", err2)
 				break
 			}
 		}
@@ -496,7 +512,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 	fastPathSuccessful := true
 	for i, colName := range columns {
 		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeyword(colName) && colName[0:1] != `"` {
+			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
 				result[i] = fmt.Sprintf(`"%s"`, colName)
 			} else {
 				result[i] = colName
@@ -532,7 +548,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		}
 		switch true {
 		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeyword(colName):
+		case sqlname.IsReservedKeywordPG(colName):
 			result[i] = fmt.Sprintf(`"%s"`, colName)
 		case colName == strings.ToLower(colName): // Name is all lowercase.
 			result[i] = colName
@@ -894,17 +910,6 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
-	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
-		yb.tconf.Schema)
-	var cntSchemaName int
-
-	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", yb.tconf.Schema)
-	}
-
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
@@ -931,7 +936,7 @@ func (yb *TargetYugabyteDB) getTargetSchemaName(tableName string) string {
 
 func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
 	var rowsImported int64
-	query := batch.GetQueryIsBatchAlreadyImported(yb.tconf.TargetDBType)
+	query := batch.GetQueryIsBatchAlreadyImported()
 	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.GetFilePath())
@@ -945,7 +950,7 @@ func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool
 }
 
 func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected int64) error {
-	cmd := batch.GetQueryToRecordEntryInDB(yb.tconf.TargetDBType, rowsAffected)
+	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
 	_, err := tx.Exec(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)

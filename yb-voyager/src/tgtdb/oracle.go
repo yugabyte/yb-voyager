@@ -17,12 +17,10 @@ package tgtdb
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -30,6 +28,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -47,7 +46,7 @@ func newTargetOracleDB(tconf *TargetConf) TargetDB {
 func (tdb *TargetOracleDB) connect() error {
 	conn, err := tdb.oraDB.Conn(context.Background())
 	if err != nil {
-		return fmt.Errorf("get connection from target db: %w", err)
+		return fmt.Errorf("connect to target db: %w", err)
 	}
 	tdb.setTargetSchema(conn)
 	tdb.conn = conn
@@ -61,7 +60,21 @@ func (tdb *TargetOracleDB) Init() error {
 	}
 	tdb.oraDB = db
 
-	return tdb.connect()
+	err = tdb.connect()
+	if err != nil {
+		return err
+	}
+
+	checkSchemaExistsQuery := fmt.Sprintf(
+		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
+		strings.ToUpper(tdb.tconf.Schema))
+	var cntSchemaName int
+	if err = tdb.conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
+	} else if cntSchemaName == 0 {
+		err = fmt.Errorf("schema '%s' does not exist in target", tdb.tconf.Schema)
+	}
+	return err
 }
 
 func (tdb *TargetOracleDB) disconnect() {
@@ -87,7 +100,7 @@ func (tdb *TargetOracleDB) reconnect() error {
 		if err == nil {
 			return nil
 		}
-		log.Infof("Failed to reconnect to the target database: %s", err)
+		log.Warnf("Attempt %d: Failed to reconnect to the target database: %s", attempt, err)
 		time.Sleep(time.Duration(attempt*2) * time.Second)
 		// Retry.
 	}
@@ -208,13 +221,13 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
 
 	for _, table := range tables {
 		log.Infof("Checking if table %s.%s is empty", tdb.tconf.Schema, table)
-		tmp := false
-		stmt := fmt.Sprintf("SELECT 1 FROM %s.%s WHERE ROWNUM <= 1", tdb.tconf.Schema, table)
-		err := tdb.conn.QueryRowContext(context.Background(), stmt).Scan(&tmp)
+		rowCount := 0
+		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s.%s", tdb.tconf.Schema, table)
+		err := tdb.conn.QueryRowContext(context.Background(), stmt).Scan(&rowCount)
 		if err != nil {
 			utils.ErrExit("run query %q on target: %s", stmt, err)
 		}
-		if tmp {
+		if rowCount > 0 {
 			result = append(result, table)
 		}
 	}
@@ -252,7 +265,7 @@ func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 
 			if attempt < maxAttempts {
 				log.Warnf("Connection pool is busy. Sleeping for 2 seconds: %s", err)
-				time.Sleep(5 * time.Second)
+				time.Sleep(2 * time.Second)
 				continue
 			}
 		}
@@ -261,8 +274,12 @@ func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 			return fmt.Errorf("failed to get connection from target db: %w", err)
 		}
 
-		defer conn.Close()
 		retry, err = fn(conn)
+		conn.Close()
+
+		if retry {
+			time.Sleep(2 * time.Second)
+		}
 	}
 	return err
 }
@@ -313,29 +330,21 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	tableName := batch.GetTableName()
 	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema)
 
-	if _, err := os.Stat(fmt.Sprintf("%s/sqlldr", exportDir)); os.IsNotExist(err) {
-		err = os.Mkdir(fmt.Sprintf("%s/sqlldr", exportDir), 0755)
-		if err != nil {
-			return 0, fmt.Errorf("create sqlldr directory %q: %w", fmt.Sprintf("%s/sqlldr", exportDir), err)
-		}
-	}
-	sqlldrControlFileName := fmt.Sprintf("%s.ctl", tableName)
-	sqlldrControlFilePath := fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrControlFileName)
-	sqlldrControlFile, err := os.Create(sqlldrControlFilePath)
+	err = sqlldr.CreateSqlldrDir(exportDir)
 	if err != nil {
-		return 0, fmt.Errorf("create sqlldr control file %q: %w", sqlldrControlFilePath, err)
+		return 0, err
 	}
-	defer sqlldrControlFile.Close()
-	_, err = sqlldrControlFile.WriteString(sqlldrConfig)
+	var sqlldrControlFilePath string
+	sqlldrControlFilePath, err = sqlldr.CreateSqlldrControlFile(exportDir, tableName, sqlldrConfig)
 	if err != nil {
-		return 0, fmt.Errorf("write sqlldr control file %q: %w", sqlldrControlFilePath, err)
+		return 0, err
 	}
 
-	sqlldrLogFileName := fmt.Sprintf("%s.log", tableName)
-	sqlldrLogFilePath := fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrLogFileName)
-	sqlldrLogFile, err := os.Create(sqlldrLogFilePath)
+	var sqlldrLogFilePath string
+	var sqlldrLogFile *os.File
+	sqlldrLogFilePath, sqlldrLogFile, err = sqlldr.CreateSqlldrLogFile(exportDir, tableName)
 	if err != nil {
-		return 0, fmt.Errorf("create sqlldr log file %q: %w", sqlldrLogFilePath, err)
+		return 0, err
 	}
 	defer sqlldrLogFile.Close()
 
@@ -347,17 +356,13 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 
 	var outbuf string
 	var errbuf string
-	outbuf, errbuf, err = tdb.runSqlLdr(oracleConnectionString, sqlldrArgs, password)
+	outbuf, errbuf, err = sqlldr.RunSqlldr(sqlldrArgs, password)
 
 	if outbuf == "" && errbuf == "" && err != nil {
+		// for error related to the stdinPipe of created while running sqlldr
 		return 0, fmt.Errorf("run sqlldr: %w", err)
 	}
-	if outbuf != "" {
-		log.Infof("sqlldr output: %s", outbuf)
-	}
-	if errbuf != "" {
-		log.Errorf("sqlldr error: %s", errbuf)
-	}
+
 	var err2 error
 	rowsAffected, err2 = getRowsAffected(outbuf)
 	if err2 != nil {
@@ -366,6 +371,8 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 
 	ignoreError := false
 	if err != nil {
+		log.Infof("sqlldr out:\n%s", outbuf)
+		log.Errorf("sqlldr error:\n%s", errbuf)
 		// find ORA-00001: unique constraint * violated in log file
 		pattern := regexp.MustCompile(`ORA-00001: unique constraint \(.+?\) violated`)
 		scanner := bufio.NewScanner(sqlldrLogFile)
@@ -390,36 +397,8 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	return rowsAffected, err
 }
 
-func (tdb *TargetOracleDB) runSqlLdr(oracleConnectionString string, sqlldrArgs string, password string) (outbufStr string, errbufStr string, err error) {
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	cmd := exec.Command("sqlldr", sqlldrArgs)
-	stdinPipe, err := cmd.StdinPipe()
-	if err != nil {
-		return "", "", fmt.Errorf("get stdin pipe for sqlldr: %w", err)
-	}
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-
-	err = cmd.Start()
-	if err != nil {
-		return "", "", fmt.Errorf("start sqlldr: %w", err)
-	}
-	_, err = stdinPipe.Write([]byte(fmt.Sprintf("%s\n", password)))
-	if err != nil {
-		return "", "", fmt.Errorf("write password to sqlldr: %w", err)
-	}
-	err = stdinPipe.Close()
-	if err != nil {
-		return "", "", fmt.Errorf("close stdin pipe for sqlldr: %w", err)
-	}
-	err = cmd.Wait()
-
-	return outbuf.String(), errbuf.String(), err
-}
-
 func (tdb *TargetOracleDB) recordEntryInDB(tx *sql.Tx, batch Batch, rowsAffected int64) error {
-	cmd := batch.GetQueryToRecordEntryInDB(tdb.tconf.TargetDBType, rowsAffected)
+	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
 	_, err := tx.ExecContext(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
@@ -431,14 +410,14 @@ func getRowsAffected(outbuf string) (int64, error) {
 	regex := regexp.MustCompile(`Load completed - logical record count (\d+).`)
 	matches := regex.FindStringSubmatch(outbuf)
 	if len(matches) < 2 {
-		return 0, fmt.Errorf("no rows affected found in the sqlldr output")
+		return 0, fmt.Errorf("RowsAffected not found in the sqlldr output")
 	}
 	return strconv.ParseInt(matches[1], 10, 64)
 }
 
 func (tdb *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool, int64, error) {
 	var rowsImported int64
-	query := batch.GetQueryIsBatchAlreadyImported(tdb.tconf.TargetDBType)
+	query := batch.GetQueryIsBatchAlreadyImported()
 	err := tx.QueryRowContext(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.GetFilePath())
@@ -452,17 +431,6 @@ func (tdb *TargetOracleDB) isBatchAlreadyImported(tx *sql.Tx, batch Batch) (bool
 }
 
 func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
-	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
-		strings.ToUpper(tdb.tconf.Schema))
-	var cntSchemaName int
-
-	if err := conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", tdb.tconf.Schema)
-	}
-
 	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schema)
 	_, err := conn.ExecContext(context.Background(), setSchemaQuery)
 	if err != nil {

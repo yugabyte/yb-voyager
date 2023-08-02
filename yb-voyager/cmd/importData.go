@@ -92,7 +92,7 @@ func quoteTableNameIfRequired() {
 		if sqlname.IsQuoted(fileEntry.TableName) {
 			return
 		}
-		if sqlname.IsReservedKeyword(fileEntry.TableName) ||
+		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
 			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
 			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
 			dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
@@ -163,7 +163,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if tconf.TargetDBType == YUGABYTEDB {
 		fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
 	} else {
-		fmt.Printf("Target DB version: %s\n", targetDBVersion)
+		fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
 	}
 	payload.TargetDBVersion = targetDBVersion
 	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
@@ -726,7 +726,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 	if dbType == "" {
 		dbType = sourceDBType
 	}
-	if sqlname.IsReservedKeyword(identifier) ||
+	if sqlname.IsReservedKeywordPG(identifier) ||
 		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}

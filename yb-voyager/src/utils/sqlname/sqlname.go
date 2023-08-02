@@ -210,7 +210,7 @@ func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
 	case YUGABYTE, POSTGRESQL:
-		if IsAllLowercase(objectName) && !IsReservedKeyword(objectName) {
+		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
@@ -218,7 +218,7 @@ func minQuote(objectName, sourceDBType string) string {
 	case MYSQL:
 		return objectName
 	case ORACLE:
-		if IsAllUppercase(objectName) && !IsReservedKeyword(objectName) {
+		if IsAllUppercase(objectName) && !IsReservedKeywordOracle(objectName) {
 			return objectName
 		} else {
 			return `"` + objectName + `"`
@@ -269,6 +269,44 @@ var PgReservedKeywords = []string{"all", "analyse", "analyze", "and", "any", "ar
 	"session_user", "some", "symmetric", "table", "then", "to", "trailing", "true",
 	"union", "unique", "user", "using", "variadic", "when", "where", "window", "with"}
 
-func IsReservedKeyword(word string) bool {
+var OracleReservedKeywords = []string{
+	"ACCESS", "ADD", "ADMIN", "AFTER", "ALL", "ALTER", "ANALYZE", "AND", "ANY", "ARCHIVE",
+	"ARCHIVELOG", "ARRAYLEN", "AS", "ASC", "AUTHORIZATION", "AVG", "BACKUP", "BECOME",
+	"BEFORE", "BEGIN", "BETWEEN", "BLOCK", "BODY", "BY", "CACHE", "CANCEL", "CASCADE",
+	"CHANGE", "CHAR", "CHECK", "CHECKPOINT", "CLOSE", "CLUSTER", "COBOL", "COLUMN",
+	"COMMENT", "COMMIT", "COMPILE", "COMPRESS", "CONNECT", "CONSTRAINT", "CONSTRAINTS",
+	"CONTENTS", "CONTINUE", "CONTROLFILE", "COUNT", "CREATE", "CURRENT", "CYCLE", "DATAFILE",
+	"DATABASE", "DATE", "DECIMAL", "DECLARE", "DEFAULT", "DEFERRABLE", "DELETE", "DESC",
+	"DISABLE", "DISTINCT", "DISTRIBUTE", "DROP", "DUMP", "EACH", "ELSE", "ENABLE",
+	"END", "ESCAPE", "EXCEPT", "EXCEPTIONS", "EXCLUSIVE", "EXEC", "EXECUTE", "EXISTS",
+	"EXIT", "EXTERNALLY", "EXTRACT", "FAILED", "FETCH", "FLOAT", "FOR", "FORCE",
+	"FOREIGN", "FOUND", "FROM", "FUNCTION", "GOTO", "GRANT", "GROUP", "GROUPS", "HAVING",
+	"IDENTIFIED", "IMMEDIATE", "INCLUDING", "INCREMENT", "INDEX", "INDICATOR", "INITIAL",
+	"INITRANS", "INSERT", "INSTANCE", "INT", "INTEGER", "INTERSECT", "INTO", "IS", "KEY",
+	"LAYER", "LEVEL", "LIKE", "LINK", "LISTS", "LOCK", "LOGFILE", "LONG", "MANAGE", "MANUAL",
+	"MAX", "MAXDATAFILES", "MAXEXTENTS", "MAXINSTANCES", "MAXLOGFILES", "MAXLOGHISTORY",
+	"MAXLOGMEMBERS", "MAXTRANS", "MAXVALUE", "MIN", "MINEXTENTS", "MINUS", "MINVALUE",
+	"MODE", "MODIFY", "MODULE", "MOUNT", "NEXT", "NOARCHIVELOG", "NOCACHE", "NOCOMPRESS",
+	"NOCYCLE", "NOORDER", "NORESETLOGS", "NORMAL", "NOT", "NOTFOUND", "NOWAIT", "NULL",
+	"NUMBER", "NUMERIC", "OFF", "OFFLINE", "ON", "ONLINE", "ONLY", "OPEN", "OPTION",
+	"OR", "ORDER", "OWN", "PACKAGE", "PARALLEL", "PCTFREE", "PCTINCREASE", "PCTUSED",
+	"PLAN", "PLI", "POOL", "PRIOR", "PRIVILEGES", "PROCEDURE", "PUBLIC", "RAW", "RBA",
+	"READ", "REAL", "RECOVER", "REFERENCES", "REFERENCING", "RELEASE", "RENAME",
+	"RESOURCE", "RESTRICTED", "RETURN", "REUSE", "REVOKE", "ROLE", "ROLES", "ROLLBACK",
+	"ROW", "ROWID", "ROWLABEL", "ROWNUM", "ROWS", "SCHEMA", "SCN", "SECTION", "SEGMENT",
+	"SELECT", "SEQUENCE", "SESSION", "SET", "SHARE", "SHARED", "SIZE", "SMALLINT", "SNAPSHOT",
+	"SOME", "SORT", "SQL", "SQLBUF", "SQLCODE", "SQLERROR", "SQLSTATE", "START", "STATEMENT_ID",
+	"STATISTICS", "STOP", "STORAGE", "SUCCESSFUL", "SWITCH", "SYNONYM", "SYSDATE", "SYSTEM",
+	"TABLE", "TABLES", "TABLESPACE", "TEMPORARY", "THEN", "THREAD", "TIME", "TO", "TRACING",
+	"TRIGGER", "TRIGGERS", "TRUNCATE", "UID", "UNION", "UNIQUE", "UNTIL", "UPDATE", "USE", "USER",
+	"VALIDATE", "VALUES", "VARCHAR", "VARCHAR2", "VIEW", "WHEN", "WHENEVER", "WHERE", "WHILE",
+	"WITH", "WORK", "WRITE",
+}
+
+func IsReservedKeywordPG(word string) bool {
 	return slices.Contains(PgReservedKeywords, word)
+}
+
+func IsReservedKeywordOracle(word string) bool {
+	return slices.Contains(OracleReservedKeywords, word)
 }

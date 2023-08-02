@@ -50,8 +50,8 @@ type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
 	GetTableName() string
-	GetQueryIsBatchAlreadyImported(string) string
-	GetQueryToRecordEntryInDB(targetDBType string, rowsAffected int64) string
+	GetQueryIsBatchAlreadyImported() string
+	GetQueryToRecordEntryInDB(rowsAffected int64) string
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
@@ -114,7 +114,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 	var columns string
 	if len(args.Columns) > 0 {
-		columnsSlice := make([]string, 0, 2*len(args.Columns))
+		columnsSlice := make([]string, 0, len(args.Columns))
 		for _, col := range args.Columns {
 			// Add the column name and the NULLIF clause after it
 			columnsSlice = append(columnsSlice, fmt.Sprintf("%s NULLIF %s='\\N'", col, col))
