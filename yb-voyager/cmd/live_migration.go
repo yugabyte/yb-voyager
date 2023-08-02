@@ -44,7 +44,7 @@ func init() {
 }
 
 func streamChanges() error {
-	sourceEventQueue := NewSourceEventQueue(exportDir)
+	eventQueue := NewEventQueue(exportDir)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
 	var processingDoneChans []chan bool
@@ -53,9 +53,9 @@ func streamChanges() error {
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
 
-	log.Infof("streaming changes from %s", sourceEventQueue.QueueDirPath)
+	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for { // continuously get next segments to stream
-		segment, err := sourceEventQueue.GetNextSegment()
+		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
 				time.Sleep(2 * time.Second)
@@ -72,7 +72,7 @@ func streamChanges() error {
 	}
 }
 
-func streamChangesFromSegment(segment *SourceEventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool) error {
+func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool) error {
 	err := segment.Open()
 	if err != nil {
 		return err
