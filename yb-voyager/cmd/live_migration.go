@@ -44,6 +44,11 @@ func init() {
 }
 
 func streamChanges() error {
+	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo()
+	if err != nil {
+		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
+	}
+
 	eventQueue := NewEventQueue(exportDir)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
@@ -65,14 +70,14 @@ func streamChanges() error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool) error {
+func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]map[string]interface{}) error {
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -81,7 +86,15 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 	// start target event channel processors
 	for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-		go processEvents(i, evChans[i], processingDoneChans[i])
+		var chanLastAppliedVsn int64 = -1 // default to allow all events
+		chanMetaInfo, exists := eventChannelsMetaInfo[i]
+		if exists {
+			lastAppliedVsn, lastAppliedVsnExists := chanMetaInfo["lastAppliedVsn"]
+			if lastAppliedVsnExists {
+				chanLastAppliedVsn = lastAppliedVsn.(int64)
+			}
+		}
+		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i])
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
@@ -149,7 +162,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
-func processEvents(chanNo int, evChan chan *tgtdb.Event, done chan bool) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -162,6 +175,10 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, done chan bool) {
 				if event == END_OF_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
 					break Batching
+				}
+				if event.Vsn <= lastAppliedVsn {
+					utils.PrintAndLog("ignoreing event %v as vsn <= %v", event, lastAppliedVsn)
+					continue
 				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
