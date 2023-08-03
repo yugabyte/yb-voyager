@@ -90,7 +90,7 @@ func quoteTableNameIfRequired() {
 	}
 	for _, fileEntry := range dataFileDescriptor.DataFileList {
 		if sqlname.IsQuoted(fileEntry.TableName) {
-			return
+			continue
 		}
 		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
 			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
