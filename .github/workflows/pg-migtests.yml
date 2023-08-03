@@ -43,7 +43,7 @@ jobs:
         docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
         docker restart ${{ job.services.postgres.id }}
         sleep 10
-      if: matrix.BETA_FAST_DATA_EXPORT == 1
+#      if: matrix.BETA_FAST_DATA_EXPORT == 1
 
     - name: Install python3 and psycopg2
       run: |
@@ -57,14 +57,8 @@ jobs:
         yes | ./install-yb-voyager --install-from-local-source --only-pg-support
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-    
-    - name: Fetch and unpack debezium-server
-      run: |
-        dist_name=debezium-server-latest
-        wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${dist_name}.tar.gz"
-        sudo mkdir -p /opt/yb-voyager
-        sudo tar -xvzf "${dist_name}.tar.gz" -C /opt/yb-voyager/
-        rm "${dist_name}".tar.gz
+        DEBEZIUM_VERSION: latest
+        DEBEZIUM_RELEASE_TAG: voyager-debezium
 
     - name: Test PostgreSQL Connection
       run: |
@@ -156,4 +150,12 @@ jobs:
 
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce
+
+# Placeholder for now so that a basic test can run
+    - name: Create the live migration user
+      run: | 
+        psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
+
+    - name: "TEST: pg-live-migration-test"
+      run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
 
