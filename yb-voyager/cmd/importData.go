@@ -160,11 +160,8 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	targetDBVersion := tdb.GetVersion()
 
-	if tconf.TargetDBType == YUGABYTEDB {
-		fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
-	} else {
-		fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
-	}
+	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
+
 	payload.TargetDBVersion = targetDBVersion
 	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
