@@ -46,7 +46,8 @@ type TargetYugabyteDB struct {
 	conn_    *pgx.Conn
 	connPool *ConnectionPool
 }
-var ybValueConverterSuite = map[string]ConverterFn {
+
+var ybValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
@@ -175,7 +176,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"BYTES":func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -215,7 +216,7 @@ var ybValueConverterSuite = map[string]ConverterFn {
 	},
 	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue) 
+			columnValue = fmt.Sprintf("'%s'", columnValue)
 		}
 		return columnValue, nil
 	},
@@ -339,6 +340,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // Voyager 1.4 uses import data state format that is incompatible from
 // the earlier versions.
 const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
+const EVENT_CHANNELS_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -351,6 +353,9 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			channel_no INT PRIMARY KEY,
+			last_applied_vsn BIGINT);`, EVENT_CHANNELS_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -377,6 +382,27 @@ outer:
 		}
 	}
 	return nil
+}
+
+// returns map{chanNo : map{k:v, k:v}}
+// TODO: return a proper struct for each channel instead of map[string]interface{}
+func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]map[string]interface{}, error) {
+	metainfo := map[int]map[string]interface{}{}
+
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
+	rows, err := yb.Conn().Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to query meta info for channels: %w", err)
+	}
+	var chanNo int
+	var lastAppliedVsn int64
+	for rows.Next() {
+		rows.Scan(&chanNo, &lastAppliedVsn)
+		metainfo[chanNo] = map[string]interface{}{
+			"lastAppliedVsn": lastAppliedVsn,
+		}
+	}
+	return metainfo, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
