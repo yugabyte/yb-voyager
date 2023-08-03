@@ -35,13 +35,18 @@ jobs:
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
     
-    - name: Fetch and unpack debezium-server
+    # - name: Fetch and unpack debezium-server
+    #   run: |
+    #     dist_name=debezium-server-latest
+    #     wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${dist_name}.tar.gz"
+    #     sudo mkdir -p /opt/yb-voyager
+    #     sudo tar -xvzf "${dist_name}.tar.gz" -C /opt/yb-voyager/
+    #     rm "${dist_name}".tar.gz
+
+    - name: Install Debezium
       run: |
-        dist_name=debezium-server-latest
-        wget -nv "https://github.com/yugabyte/debezium/releases/download/voyager-debezium/${dist_name}.tar.gz"
-        sudo mkdir -p /opt/yb-voyager
-        sudo tar -xvzf "${dist_name}.tar.gz" -C /opt/yb-voyager/
-        rm "${dist_name}".tar.gz
+        cd migtests/scripts
+        yes | ./build-and-install-yb-voyager-debezium
 
     - name: Start MySQL
       run: |
