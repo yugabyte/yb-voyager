@@ -22,6 +22,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
+var NULL_STRING string = "NULL"
+
 type ValueConverter interface {
 	ConvertRow(tableName string, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table string) error
@@ -120,7 +122,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string) error {
 	for column, value := range m {
 		if value == nil {
-			*m[column] = "NULL"
+			m[column] = &NULL_STRING
 			continue
 		}
 		columnValue := *value
