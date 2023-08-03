@@ -209,7 +209,8 @@ var ybValueConverterSuite = map[string]ConverterFn{
 	},
 	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
-			return fmt.Sprintf("'%s'", columnValue), nil
+			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
+			return fmt.Sprintf("'%s'", formattedColumnValue), nil
 		} else {
 			return columnValue, nil
 		}
@@ -610,21 +611,22 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	if len(batch) > 1 {
-		return fmt.Errorf("batching not yet supported for yugabyte")
-	}
-	event := batch[0]
-	// TODO: What should be targetSchema if sourceDBType is PG?
-	stmt := event.GetSQLStmt(yb.tconf.Schema)
-	log.Debug(stmt)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tag, err := conn.Exec(context.Background(), stmt)
+	var err error
+	for i := 0; i < len(batch); i++ {
+		event := batch[i]
+		stmt := event.GetSQLStmt(yb.tconf.Schema)
+		log.Debug(stmt)
+		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			_, err := conn.Exec(context.Background(), stmt)
+			if err != nil {
+				log.Errorf("Error executing stmt: %v", err)
+			}
+			return false, err
+		})
 		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
+			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 		}
-		log.Debugf("Executed stmt [ %s ]: rows affected => %v", stmt, tag.RowsAffected())
-		return false, err
-	})
+	}
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be
