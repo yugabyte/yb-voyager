@@ -11,7 +11,7 @@ YUM="sudo yum install -y -q"
 # Remember to update the S3 repo with the correct version of pre-biult debezium-server, if any change in these values.
 DEBEZIUM_VERSION="2.2.0-SNAPSHOT"
 if [ -z "$DEBEZIUM_REF" ]; then
-	DEBEZIUM_REF="8d2043e631eca4e527963b4a8f2f364a2c355f1b"
+	DEBEZIUM_REF="6f4ed32316acf4891184a1fd6f8bac0dfae1bf9c"
 fi
 
 
@@ -221,7 +221,7 @@ check_java() {
 		else
 			JAVAC_BINARY="$JAVA_HOME/bin/javac"
 		fi
-        MIN_REQUIRED_MAJOR_VERSION='17'
+        MIN_REQUIRED_MAJOR_VERSION='11'
 		JDK_MAJOR_VER=$(${JAVAC_BINARY} -version | awk '{print $2}' | cut -d '.' -f1)
 
         if ([ -n "$JDK_MAJOR_VER" ] && (( 10#${JDK_MAJOR_VER} >= 10#${MIN_REQUIRED_MAJOR_VERSION} )) ) #integer compare of versions.
