@@ -35,6 +35,7 @@ jobs:
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
         DEBEZIUM_VERSION: latest
+        DEBEZIUM_RELEASE_TAG: voyager-debezium
 
     - name: Start MySQL
       run: |
