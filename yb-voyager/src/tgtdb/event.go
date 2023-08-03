@@ -29,6 +29,15 @@ type Event struct {
 	Fields     map[string]*string `json:"fields"`
 }
 
+type EventBatch struct {
+	Events []*Event
+	ChanNo int
+}
+
+func (eb EventBatch) GetLastVsn() int64 {
+	return eb.Events[len(eb.Events)-1].Vsn
+}
+
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":

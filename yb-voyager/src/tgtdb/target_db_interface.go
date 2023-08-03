@@ -32,7 +32,7 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(batch []*Event) error
+	ExecuteBatch(batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
 	GetEventChannelsMetaInfo() (map[int]map[string]interface{}, error)
 }

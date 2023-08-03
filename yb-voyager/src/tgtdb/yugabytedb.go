@@ -610,10 +610,11 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
-func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
+func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
+	// utils.PrintAndLog("HELLO")
 	var err error
-	for i := 0; i < len(batch); i++ {
-		event := batch[i]
+	for i := 0; i < len(batch.Events); i++ {
+		event := batch.Events[i]
 		stmt := event.GetSQLStmt(yb.tconf.Schema)
 		log.Debug(stmt)
 		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
@@ -626,6 +627,20 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
 		if err != nil {
 			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 		}
+	}
+	// utils.PrintAndLog("BYE")
+	importStateQuery := fmt.Sprintf(`INSERT into %s VALUES (%d, %d);`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.ChanNo, batch.GetLastVsn())
+	// utils.PrintAndLog("running %s", importStateQuery)
+
+	err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		_, err := conn.Exec(context.Background(), importStateQuery)
+		if err != nil {
+			log.Errorf("Error executing stmt: %v", err)
+		}
+		return false, err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
 	}
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
