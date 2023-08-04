@@ -324,7 +324,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		HasHeader:  dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
 		QuoteChar:  dataFileDescriptor.QuoteChar,
 		EscapeChar: dataFileDescriptor.EscapeChar,
-		NullString: nullString,
+		NullString: dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
