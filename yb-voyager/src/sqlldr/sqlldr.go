@@ -32,8 +32,8 @@ func CreateSqlldrDir(exportDir string) error {
 	return nil
 }
 
-func CreateSqlldrControlFile(exportDir string, tableName string, sqlldrConfig string) (sqlldrControlFilePath string, err error) {
-	sqlldrControlFileName := fmt.Sprintf("%s.ctl", tableName)
+func CreateSqlldrControlFile(exportDir string, tableName string, sqlldrConfig string, fileName string) (sqlldrControlFilePath string, err error) {
+	sqlldrControlFileName := fmt.Sprintf("%s-%s.ctl", tableName, fileName)
 	sqlldrControlFilePath = fmt.Sprintf("%s/sqlldr/%s", exportDir, sqlldrControlFileName)
 	sqlldrControlFile, err := os.Create(sqlldrControlFilePath)
 	if err != nil {

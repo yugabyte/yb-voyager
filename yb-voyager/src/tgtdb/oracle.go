@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -329,13 +330,14 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 
 	tableName := batch.GetTableName()
 	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema)
+	fileName := filepath.Base(batch.GetFilePath())
 
 	err = sqlldr.CreateSqlldrDir(exportDir)
 	if err != nil {
 		return 0, err
 	}
 	var sqlldrControlFilePath string
-	sqlldrControlFilePath, err = sqlldr.CreateSqlldrControlFile(exportDir, tableName, sqlldrConfig)
+	sqlldrControlFilePath, err = sqlldr.CreateSqlldrControlFile(exportDir, tableName, sqlldrConfig, fileName)
 	if err != nil {
 		return 0, err
 	}

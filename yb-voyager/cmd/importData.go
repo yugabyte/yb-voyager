@@ -95,8 +95,10 @@ func quoteTableNameIfRequired() {
 		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
 			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
 			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
-			dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
-			delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+			if dataFileDescriptor.TableNameToExportedColumns != nil {
+				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
+				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+			}
 			fileEntry.TableName = newTableName
 		}
 	}
