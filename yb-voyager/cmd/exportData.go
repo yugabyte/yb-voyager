@@ -314,7 +314,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	} else if source.DBType == "yugabytedb" {
 		config.YBServers = source.DB().GetServers()
 		if startClean {
-			config.StreamID, err = srcdb.GetYugabyteDBStreamID(config)
+			config.StreamID, err = dbzm.GetYugabyteDBStreamID(*config)
 			if err != nil {
 				return fmt.Errorf("failed to get stream id: %w", err)
 			}

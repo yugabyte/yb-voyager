@@ -16,13 +16,10 @@ limitations under the License.
 package srcdb
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
 	"net/url"
-	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -31,7 +28,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -391,59 +387,6 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	}
 
 	return columnToSequenceMap
-}
-var (
-	YB_CLIENT_WRAPPER_JAR = "/opt/yb-voyager/yb-client-wrapper.jar" //TODO: change it with jar installation directory
-)
-func GetYugabyteDBStreamID(config *dbzm.Config) (string, error) {
-	
-	tableName := strings.Split(config.TableList[0], ".")[1] //any table name in the database is required by yb-client createCDCStream(...) API 
-	command := fmt.Sprintf("java -jar %s -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBServers, tableName, config.DatabaseName)  
-
-	if config.SSLRootCert != "" {
-		command += fmt.Sprintf(" -ssl_cert_file %s", config.SSLRootCert)
-	}
-
-	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", command)
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-	err := cmd.Start()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to start command: %s, error: %s", command, err)
-		return "", err
-	}
-	err = cmd.Wait()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to wait for command: %s , error: %s", command, err)
-		return "", err
-	}
-	//output of yb-admin command - CDC Stream ID: <stream_id>
-	rgx := regexp.MustCompile(`CDC Stream ID: ([a-zA-Z0-9]+)`)
-	matches := rgx.FindStringSubmatch(outbuf.String())
-	if len(matches) != 2 {
-		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,command ,outbuf.String())
-	}
-	streamID := matches[1]
-	//save streamID in a file
-	streamIDFile := filepath.Join(config.ExportDir, "metainfo", "streamid.txt")
-	file, err := os.Create(streamIDFile)
-	if err != nil {
-		return "", fmt.Errorf(" creating file: %s, error: %s", streamIDFile, err)
-	}
-	defer file.Close()
-	_, err = file.WriteString(streamID)
-	if err != nil {
-		return "", fmt.Errorf(" writing to file: %s, error: %s", streamIDFile, err)
-	}
-	return streamID, nil
 }
 
 func (yb *YugabyteDB) GetServers() string {
