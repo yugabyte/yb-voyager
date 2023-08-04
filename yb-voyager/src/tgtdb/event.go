@@ -18,7 +18,9 @@ package tgtdb
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -31,17 +33,26 @@ type Event struct {
 	Fields     map[string]*string `json:"fields"`
 }
 
+var cachePreparedStmt = sync.Map{}
+
 func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
+	if stmt, ok := cachePreparedStmt.Load(e.GetPreparedStmtName()); ok {
+		return stmt.(string)
+	}
+	var ps string
 	switch e.Op {
 	case "c":
-		return e.getPreparedInsertStmt(targetSchema)
+		ps = e.getPreparedInsertStmt(targetSchema)
 	case "u":
-		return e.getPreparedUpdateStmt(targetSchema)
+		ps = e.getPreparedUpdateStmt(targetSchema)
 	case "d":
-		return e.getPreparedDeleteStmt(targetSchema)
+		ps = e.getPreparedDeleteStmt(targetSchema)
 	default:
 		panic("unknown op: " + e.Op)
 	}
+
+	cachePreparedStmt.Store(e.GetPreparedStmtName(), ps)
+	return ps
 }
 
 func (e *Event) GetParams() []interface{} {
@@ -129,11 +140,12 @@ func (event *Event) getInsertParams() []interface{} {
 			params = append(params, nil)
 			continue
 		}
-		unquotedValue := strings.Trim(*value, `'"`)
+		unquotedValue, err := strconv.Unquote(*value)
+		if err != nil {
+			unquotedValue = *value
+		}
 		params = append(params, unquotedValue)
 	}
-	// fmt.Printf("sorted keys: %v\n", keys)
-	// fmt.Printf("params: %v\n", params)
 	return params
 }
 
@@ -146,7 +158,10 @@ func (event *Event) getUpdateParams() []interface{} {
 			params = append(params, nil)
 			continue
 		}
-		unquotedValue := strings.Trim(*value, `'"`)
+		unquotedValue, err := strconv.Unquote(*value)
+		if err != nil {
+			unquotedValue = *value
+		}
 		params = append(params, unquotedValue)
 	}
 
@@ -157,7 +172,10 @@ func (event *Event) getUpdateParams() []interface{} {
 			params = append(params, nil)
 			continue
 		}
-		unquotedValue := strings.Trim(*value, `'"`)
+		unquotedValue, err := strconv.Unquote(*value)
+		if err != nil {
+			unquotedValue = *value
+		}
 		params = append(params, unquotedValue)
 	}
 	return params
@@ -172,7 +190,10 @@ func (event *Event) getDeleteParams() []interface{} {
 			params = append(params, nil)
 			continue
 		}
-		unquotedValue := strings.Trim(*value, `'"`)
+		unquotedValue, err := strconv.Unquote(*value)
+		if err != nil {
+			unquotedValue = *value
+		}
 		params = append(params, unquotedValue)
 	}
 	return params

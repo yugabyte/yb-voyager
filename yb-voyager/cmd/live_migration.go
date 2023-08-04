@@ -58,10 +58,8 @@ func streamChanges() error {
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
-				// time.Sleep(2 * time.Second)
-				// continue
-				utils.PrintAndLog("No segments to stream. Exiting...")
-				os.Exit(0)
+				time.Sleep(2 * time.Second)
+				continue
 			}
 			return fmt.Errorf("error getting next segment to stream: %v", err)
 		}
