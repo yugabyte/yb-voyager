@@ -628,7 +628,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
 			event := batch.Events[i]
 			stmt := event.GetSQLStmt(yb.tconf.Schema)
 			log.Debug(stmt)
-			// err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 			_, err := tx.Exec(context.Background(), stmt)
 			if err != nil {
 				log.Errorf("Error executing stmt: %v", err)
@@ -652,36 +651,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
 		return fmt.Errorf("error executing batch: %w", err)
 	}
 
-	// for i := 0; i < len(batch.Events); i++ {
-	// 	event := batch.Events[i]
-	// 	stmt := event.GetSQLStmt(yb.tconf.Schema)
-	// 	log.Debug(stmt)
-	// 	err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-	// 		_, err := conn.Exec(context.Background(), stmt)
-	// 		if err != nil {
-	// 			log.Errorf("Error executing stmt: %v", err)
-	// 		}
-	// 		return false, err
-	// 	})
-	// 	if err != nil {
-	// 		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
-	// 	}
-
-	// }
-
-	// importStateQuery := fmt.Sprintf(`SELECT upsert_event_channel_metainfo(%d, %d);`, batch.ChanNo, batch.GetLastVsn())
-	// // utils.PrintAndLog("running %s", importStateQuery)
-
-	// err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-	// 	_, err := conn.Exec(context.Background(), importStateQuery)
-	// 	if err != nil {
-	// 		log.Errorf("Error executing stmt: %v", err)
-	// 	}
-	// 	return false, err
-	// })
-	// if err != nil {
-	// 	return fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
-	// }
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

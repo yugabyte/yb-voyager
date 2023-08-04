@@ -138,7 +138,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
-	utils.PrintAndLog("inserted %v into chan %v", event, h)
 	return nil
 }
 
@@ -175,7 +174,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					break Batching
 				}
 				if event.Vsn <= lastAppliedVsn {
-					utils.PrintAndLog("worker chan - %v: ignoreing event %v as vsn <= %v", chanNo, event, lastAppliedVsn)
 					continue
 				}
 				batch = append(batch, event)
