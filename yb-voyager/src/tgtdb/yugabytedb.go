@@ -395,13 +395,13 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(numChans int, truncate boo
 				return false, fmt.Errorf("error executing stmt - %v: %w", truncateStmt, err)
 			}
 		}
-		// if there are >0 rows, then already been inited.
+		// if there are >0 rows, then skip because already been inited.
 		rowsStmt := fmt.Sprintf(
 			"SELECT count(*) FROM %s", EVENT_CHANNELS_METADATA_TABLE_NAME)
 		var rows int
 		err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rows)
 		if err != nil {
-			fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+			return false, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
 		}
 		if rows > 0 {
 			return false, nil
