@@ -138,6 +138,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
+	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
 }
 
@@ -174,6 +175,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					break Batching
 				}
 				if event.Vsn <= lastAppliedVsn {
+					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
 					continue
 				}
 				batch = append(batch, event)
