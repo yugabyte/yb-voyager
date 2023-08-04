@@ -425,7 +425,7 @@ func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]EventChannelMeta
 	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
 	rows, err := yb.Conn().Query(context.Background(), query)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to query meta info for channels: %w", err)
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
 	}
 
 	for rows.Next() {
