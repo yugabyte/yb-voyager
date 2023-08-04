@@ -49,7 +49,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                    // to truncate *.D splits after import
+var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
 
@@ -106,6 +106,30 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	log.Infof("includeList: %v", includeList)
 	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
+
+	allTables := make([]string, 0, len(importFileTasks))
+	for _, task := range importFileTasks {
+		allTables = append(allTables, task.TableName)
+	}
+	slices.Sort(allTables)
+	log.Infof("allTables: %v", allTables)
+
+	checkUnknownTableNames := func(tableNames []string, listName string) {
+		unknownTableNames := make([]string, 0)
+		for _, tableName := range tableNames {
+			if !slices.Contains(allTables, tableName) {
+				unknownTableNames = append(unknownTableNames, tableName)
+			}
+		}
+		if len(unknownTableNames) > 0 {
+			utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
+			utils.PrintAndLog("Valid table names are: %v", allTables)
+			utils.ErrExit("Table names are case-sensitive. Please fix the table names in the %s list and retry.", listName)
+		}
+	}
+	checkUnknownTableNames(includeList, "include")
+	checkUnknownTableNames(excludeList, "exclude")
+
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
@@ -167,7 +191,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -384,7 +408,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			table := batchWriter.tableName
 			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten + 1 , t, filePath, err)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
 		}
 		err = batchWriter.WriteRecord(line)
