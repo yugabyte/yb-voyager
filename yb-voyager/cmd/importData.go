@@ -49,7 +49,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                    // to truncate *.D splits after import
+var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
 
@@ -148,6 +148,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
+	err = tdb.InitEventChannelsMetaInfo(NUM_EVENT_CHANNELS, startClean)
+	if err != nil {
+		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
@@ -167,7 +171,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -384,7 +388,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			table := batchWriter.tableName
 			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten + 1 , t, filePath, err)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
 		}
 		err = batchWriter.WriteRecord(line)

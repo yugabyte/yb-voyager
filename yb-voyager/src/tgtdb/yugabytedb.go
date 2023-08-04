@@ -395,6 +395,39 @@ outer:
 	return nil
 }
 
+func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(numChans int, truncate bool) error {
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		if truncate {
+			truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
+			_, err := conn.Exec(context.Background(), truncateStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", truncateStmt, err)
+			}
+		}
+		// if there are >0 rows, then already been inited.
+		rowsStmt := fmt.Sprintf(
+			"SELECT count(*) FROM %s", EVENT_CHANNELS_METADATA_TABLE_NAME)
+		var rows int
+		err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rows)
+		if err != nil {
+			fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+		}
+		if rows > 0 {
+			return false, nil
+		}
+
+		for c := 0; c < numChans; c++ {
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES (%d, -1);", EVENT_CHANNELS_METADATA_TABLE_NAME, c)
+			_, err := conn.Exec(context.Background(), insertStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			}
+		}
+		return false, nil
+	})
+	return err
+}
+
 func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]EventChannelMetaInfo, error) {
 	metainfo := map[int]EventChannelMetaInfo{}
 

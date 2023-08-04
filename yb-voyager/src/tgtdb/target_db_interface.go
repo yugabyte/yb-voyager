@@ -35,6 +35,7 @@ type TargetDB interface {
 	ExecuteBatch(batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
 	GetEventChannelsMetaInfo() (map[int]EventChannelMetaInfo, error)
+	InitEventChannelsMetaInfo(numChans int, truncate bool) error
 }
 
 // value converter Function type
