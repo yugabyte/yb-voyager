@@ -586,22 +586,42 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	var err error
-	for i := 0; i < len(batch); i++ {
-		event := batch[i]
-		stmt := event.GetSQLStmt(yb.tconf.Schema)
-		log.Debug(stmt)
-		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			_, err := conn.Exec(context.Background(), stmt)
-			if err != nil {
-				log.Errorf("Error executing stmt: %v", err)
-			}
-			return false, err
-		})
-		if err != nil {
-			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+	log.Infof("executing batch of %d events", len(batch))
+	stmtsToPrepare := make(map[string]string)
+	ybBatch := pgx.Batch{}
+	// processing batch to convert events into prepared statements
+	for _, event := range batch {
+		// TODO: What should be targetSchema if sourceDBType is PG?
+		stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
+		log.Debugf("appending to batch stmt: %s", stmt)
+		if _, ok := stmtsToPrepare[event.GetPreparedStmtName()]; !ok {
+			stmtsToPrepare[event.GetPreparedStmtName()] = stmt
 		}
+		ybBatch.Queue(event.GetPreparedStmtName(), event.GetParams()...)
 	}
+
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		for name, stmt := range stmtsToPrepare {
+			log.Debugf("preparing stmt: %s\n", stmt)
+			// conn.Prepare() is idempotent; returns if stmt already exists
+			_, err := conn.Prepare(context.Background(), name, stmt)
+			if err != nil {
+				return false, fmt.Errorf("prepare stmt: %w", err)
+			}
+		}
+
+		// TODO(future): use an explicit transaction to update metainfo tables for resuming
+		br := conn.SendBatch(context.Background(), &ybBatch)
+		defer br.Close()
+		for i := 0; i < len(batch); i++ {
+			res, err := br.Exec()
+			if err != nil {
+				return false, fmt.Errorf("error while checking query result(%s): %w", res.String(), err)
+			}
+		}
+		return false, nil
+	})
+
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

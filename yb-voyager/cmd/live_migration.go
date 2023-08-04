@@ -58,8 +58,10 @@ func streamChanges() error {
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && errors.Is(err, os.ErrNotExist) {
-				time.Sleep(2 * time.Second)
-				continue
+				// time.Sleep(2 * time.Second)
+				// continue
+				utils.PrintAndLog("No segments to stream. Exiting...")
+				os.Exit(0)
 			}
 			return fmt.Errorf("error getting next segment to stream: %v", err)
 		}
@@ -176,11 +178,14 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, done chan bool) {
 		if len(batch) == 0 {
 			continue
 		}
+
+		start := time.Now()
 		err := tdb.ExecuteBatch(batch)
 		if err != nil {
 			utils.ErrExit("error executing batch: %v", err)
 		}
-		log.Debugf("processEvents from channel %v: Executed Batch of size - %v", chanNo, len(batch))
+		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time - %g seconds",
+			chanNo, len(batch), time.Since(start).Seconds())
 	}
 	done <- true
 }
