@@ -342,6 +342,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // the earlier versions.
 const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo"
+const EVENT_CHANNELS_UPSERT_FUNC_NAME = "ybvoyager_metadata.upsert_event_channel_metainfo"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -357,7 +358,7 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			channel_no INT PRIMARY KEY,
 			last_applied_vsn BIGINT);`, EVENT_CHANNELS_METADATA_TABLE_NAME),
-		fmt.Sprintf(`CREATE OR REPLACE FUNCTION upsert_event_channel_metainfo(channel_no_val INT, last_applied_vsn_val BIGINT) RETURNS VOID AS $$ 
+		fmt.Sprintf(`CREATE OR REPLACE FUNCTION %s(channel_no_val INT, last_applied_vsn_val BIGINT) RETURNS VOID AS $$ 
 		DECLARE 
 		BEGIN 
 			UPDATE %s SET last_applied_vsn = last_applied_vsn_val WHERE channel_no = channel_no_val; 
@@ -365,7 +366,7 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			INSERT INTO %s values (channel_no_val, last_applied_vsn_val); 
 			END IF; 
 		END; 
-		$$ LANGUAGE 'plpgsql';`, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME),
+		$$ LANGUAGE 'plpgsql';`, EVENT_CHANNELS_UPSERT_FUNC_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -634,7 +635,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
 				return false, fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 			}
 		}
-		importStateQuery := fmt.Sprintf(`SELECT upsert_event_channel_metainfo(%d, %d);`, batch.ChanNo, batch.GetLastVsn())
+		importStateQuery := fmt.Sprintf(`SELECT %s(%d, %d);`, EVENT_CHANNELS_UPSERT_FUNC_NAME, batch.ChanNo, batch.GetLastVsn())
 		_, err = tx.Exec(context.Background(), importStateQuery)
 		if err != nil {
 			log.Errorf("Error executing stmt: %v", err)
