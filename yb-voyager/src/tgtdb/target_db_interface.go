@@ -34,7 +34,7 @@ type TargetDB interface {
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
-	GetEventChannelsMetaInfo() (map[int]map[string]interface{}, error)
+	GetEventChannelsMetaInfo() (map[int]EventChannelMetaInfo, error)
 }
 
 // value converter Function type

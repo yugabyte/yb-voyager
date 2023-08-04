@@ -394,23 +394,19 @@ outer:
 	return nil
 }
 
-// returns map{chanNo : map{k:v, k:v}}
-// TODO: return a proper struct for each channel instead of map[string]interface{}
-func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]map[string]interface{}, error) {
-	metainfo := map[int]map[string]interface{}{}
+func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]EventChannelMetaInfo, error) {
+	metainfo := map[int]EventChannelMetaInfo{}
 
 	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
 	rows, err := yb.Conn().Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to query meta info for channels: %w", err)
 	}
-	var chanNo int
-	var lastAppliedVsn int64
+
 	for rows.Next() {
-		rows.Scan(&chanNo, &lastAppliedVsn)
-		metainfo[chanNo] = map[string]interface{}{
-			"lastAppliedVsn": lastAppliedVsn,
-		}
+		var chanMetaInfo EventChannelMetaInfo
+		rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
+		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
 	}
 	return metainfo, nil
 }

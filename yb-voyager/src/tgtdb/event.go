@@ -34,15 +34,6 @@ func (e *Event) String() string {
 		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
 }
 
-type EventBatch struct {
-	Events []*Event
-	ChanNo int
-}
-
-func (eb EventBatch) GetLastVsn() int64 {
-	return eb.Events[len(eb.Events)-1].Vsn
-}
-
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":
@@ -106,4 +97,18 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
+}
+
+type EventBatch struct {
+	Events []*Event
+	ChanNo int
+}
+
+func (eb EventBatch) GetLastVsn() int64 {
+	return eb.Events[len(eb.Events)-1].Vsn
+}
+
+type EventChannelMetaInfo struct {
+	ChanNo         int
+	LastAppliedVsn int64
 }

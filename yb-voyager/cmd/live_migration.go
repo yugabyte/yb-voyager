@@ -77,7 +77,7 @@ func streamChanges() error {
 	}
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]map[string]interface{}) error {
+func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo) error {
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -89,10 +89,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		var chanLastAppliedVsn int64 = -1 // default to allow all events
 		chanMetaInfo, exists := eventChannelsMetaInfo[i]
 		if exists {
-			lastAppliedVsn, lastAppliedVsnExists := chanMetaInfo["lastAppliedVsn"]
-			if lastAppliedVsnExists {
-				chanLastAppliedVsn = lastAppliedVsn.(int64)
-			}
+			chanLastAppliedVsn = chanMetaInfo.LastAppliedVsn
 		}
 		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i])
 	}
