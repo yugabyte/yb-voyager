@@ -342,7 +342,6 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // the earlier versions.
 const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo"
-const EVENT_CHANNELS_UPSERT_FUNC_NAME = "ybvoyager_metadata.upsert_event_channel_metainfo"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -641,10 +640,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
-
-	var err error
-
-	err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), pgx.TxOptions{})
 		if err != nil {
 			return false, fmt.Errorf("error creating tx: %w", err)

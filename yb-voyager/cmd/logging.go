@@ -70,7 +70,6 @@ func InitLogging(logDir string, disableLogging bool) {
 	redactPasswordFromArgs()
 	log.Infof("Args: %v", os.Args)
 	log.Infof("\n%s", getVersionInfo())
-	log.SetLevel(log.TraceLevel)
 }
 
 func redactPasswordFromArgs() {
