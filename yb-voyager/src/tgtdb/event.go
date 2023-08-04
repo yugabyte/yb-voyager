@@ -29,6 +29,11 @@ type Event struct {
 	Fields     map[string]*string `json:"fields"`
 }
 
+func (e *Event) String() string {
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+}
+
 type EventBatch struct {
 	Events []*Event
 	ChanNo int

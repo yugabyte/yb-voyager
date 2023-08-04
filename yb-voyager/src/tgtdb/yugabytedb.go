@@ -357,6 +357,15 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			channel_no INT PRIMARY KEY,
 			last_applied_vsn BIGINT);`, EVENT_CHANNELS_METADATA_TABLE_NAME),
+		fmt.Sprintf(`CREATE OR REPLACE FUNCTION upsert_event_channel_metainfo(channel_no_val INT, last_applied_vsn_val BIGINT) RETURNS VOID AS $$ 
+		DECLARE 
+		BEGIN 
+			UPDATE %s SET last_applied_vsn = last_applied_vsn_val WHERE channel_no = channel_no_val; 
+			IF NOT FOUND THEN 
+			INSERT INTO %s values (channel_no_val, last_applied_vsn_val); 
+			END IF; 
+		END; 
+		$$ LANGUAGE 'plpgsql';`, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -611,37 +620,72 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
-	// utils.PrintAndLog("HELLO")
+
 	var err error
-	for i := 0; i < len(batch.Events); i++ {
-		event := batch.Events[i]
-		stmt := event.GetSQLStmt(yb.tconf.Schema)
-		log.Debug(stmt)
-		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			_, err := conn.Exec(context.Background(), stmt)
-			if err != nil {
-				log.Errorf("Error executing stmt: %v", err)
-			}
-			return false, err
-		})
-		if err != nil {
-			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
-		}
-	}
-	// utils.PrintAndLog("BYE")
-	importStateQuery := fmt.Sprintf(`INSERT into %s VALUES (%d, %d);`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.ChanNo, batch.GetLastVsn())
-	// utils.PrintAndLog("running %s", importStateQuery)
 
 	err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		_, err := conn.Exec(context.Background(), importStateQuery)
+		tx, err := conn.BeginTx(context.Background(), pgx.TxOptions{})
+		if err != nil {
+			return false, fmt.Errorf("error creating tx: %w", err)
+		}
+		for i := 0; i < len(batch.Events); i++ {
+			event := batch.Events[i]
+			stmt := event.GetSQLStmt(yb.tconf.Schema)
+			log.Debug(stmt)
+			// err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			_, err := tx.Exec(context.Background(), stmt)
+			if err != nil {
+				log.Errorf("Error executing stmt: %v", err)
+				return false, fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+			}
+		}
+		importStateQuery := fmt.Sprintf(`SELECT upsert_event_channel_metainfo(%d, %d);`, batch.ChanNo, batch.GetLastVsn())
+		_, err = tx.Exec(context.Background(), importStateQuery)
 		if err != nil {
 			log.Errorf("Error executing stmt: %v", err)
+			return false, fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
+		}
+		if err == nil {
+			tx.Commit(context.Background())
+		} else {
+			tx.Rollback(context.Background())
 		}
 		return false, err
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
+		return fmt.Errorf("error executing batch: %w", err)
 	}
+
+	// for i := 0; i < len(batch.Events); i++ {
+	// 	event := batch.Events[i]
+	// 	stmt := event.GetSQLStmt(yb.tconf.Schema)
+	// 	log.Debug(stmt)
+	// 	err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+	// 		_, err := conn.Exec(context.Background(), stmt)
+	// 		if err != nil {
+	// 			log.Errorf("Error executing stmt: %v", err)
+	// 		}
+	// 		return false, err
+	// 	})
+	// 	if err != nil {
+	// 		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+	// 	}
+
+	// }
+
+	// importStateQuery := fmt.Sprintf(`SELECT upsert_event_channel_metainfo(%d, %d);`, batch.ChanNo, batch.GetLastVsn())
+	// // utils.PrintAndLog("running %s", importStateQuery)
+
+	// err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+	// 	_, err := conn.Exec(context.Background(), importStateQuery)
+	// 	if err != nil {
+	// 		log.Errorf("Error executing stmt: %v", err)
+	// 	}
+	// 	return false, err
+	// })
+	// if err != nil {
+	// 	return fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
+	// }
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be
