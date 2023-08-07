@@ -86,7 +86,7 @@ func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	success := exportDataOffline()
-	err := RetrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

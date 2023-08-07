@@ -86,10 +86,12 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 	// start target event channel processors
 	for i := 0; i < NUM_EVENT_CHANNELS; i++ {
-		var chanLastAppliedVsn int64 = -1 // default to allow all events
+		var chanLastAppliedVsn int64
 		chanMetaInfo, exists := eventChannelsMetaInfo[i]
 		if exists {
 			chanLastAppliedVsn = chanMetaInfo.LastAppliedVsn
+		} else {
+			return fmt.Errorf("Unable to find channel meta info for channel - %v", i)
 		}
 		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i])
 	}

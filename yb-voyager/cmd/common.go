@@ -297,7 +297,8 @@ func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
 	return nil
 }
 
-func RetrieveMigrationUUID(exportDir string) error {
+// sets the global variable migrationUUID after retrieving it from exportDir
+func retrieveMigrationUUID(exportDir string) error {
 	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
 	if err != nil {
 		return fmt.Errorf("failed to read file :%w", err)

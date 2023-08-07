@@ -79,7 +79,7 @@ func exportSchema() {
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err = RetrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
