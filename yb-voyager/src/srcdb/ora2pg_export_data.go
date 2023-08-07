@@ -60,12 +60,10 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	exportDataCommandString := fmt.Sprintf("ora2pg -q -t COPY -P %d -o data.sql -b %s/data -c %s --no_header -T %s",
 		source.NumConnections, exportDir, configFilePath, tempDirPath)
 
-	os.Setenv("ORA2PG_PASSWD", source.Password)
-	defer os.Unsetenv("ORA2PG_PASSWD")
 	//Exporting all the tables in the schema
 	log.Infof("Executing command: %s", exportDataCommandString)
 	exportDataCommand := exec.CommandContext(ctx, "/bin/bash", "-c", exportDataCommandString)
-
+    exportDataCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	exportDataCommand.Stdout = &outbuf
