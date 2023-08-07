@@ -399,7 +399,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 		}
 		// if there are >0 rows, then skip because already been inited.
 		rowsStmt := fmt.Sprintf(
-			"SELECT count(*) FROM %s", EVENT_CHANNELS_METADATA_TABLE_NAME)
+			"SELECT count(*) FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 		var rows int
 		err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rows)
 		if err != nil {
@@ -643,11 +643,26 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		tx, err := conn.BeginTx(context.Background(), pgx.TxOptions{})
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		ctx := context.Background()
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
 			return false, fmt.Errorf("error creating tx: %w", err)
 		}
+		defer func() {
+			var err2 error
+			if err != nil {
+				err2 = tx.Rollback(ctx)
+				if err2 != nil {
+					err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
+				}
+			} else {
+				err2 = tx.Commit(ctx)
+				if err2 != nil {
+					err = fmt.Errorf("commit txn: %w", err2)
+				}
+			}
+		}()
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
 			stmt := event.GetSQLStmt(yb.tconf.Schema)
@@ -659,15 +674,11 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			}
 		}
 		importStateQuery := fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d;`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.GetLastVsn(), migrationUUID, batch.ChanNo)
-		_, err = tx.Exec(context.Background(), importStateQuery)
-		if err != nil {
-			log.Errorf("Error executing stmt: %v", err)
-			return false, fmt.Errorf("failed to update state on target db via query-%s: %w", importStateQuery, err)
-		}
-		if err == nil {
-			tx.Commit(context.Background())
-		} else {
-			tx.Rollback(context.Background())
+		res, err := tx.Exec(context.Background(), importStateQuery)
+		res.RowsAffected()
+		if err != nil || res.RowsAffected() == 0 {
+			log.Errorf("Error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v", importStateQuery, err, res.RowsAffected())
 		}
 		return false, err
 	})
