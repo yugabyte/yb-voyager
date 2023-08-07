@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -355,8 +356,10 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			channel_no INT PRIMARY KEY,
-			last_applied_vsn BIGINT);`, EVENT_CHANNELS_METADATA_TABLE_NAME),
+			migration_uuid uuid,
+			channel_no INT,
+			last_applied_vsn BIGINT,
+			PRIMARY KEY (migration_uuid, channel_no));`, EVENT_CHANNELS_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -385,13 +388,13 @@ outer:
 	return nil
 }
 
-func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(numChans int, truncate bool) error {
+func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error {
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		if truncate {
-			truncateStmt := fmt.Sprintf("TRUNCATE TABLE %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
-			_, err := conn.Exec(context.Background(), truncateStmt)
+		if startClean {
+			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+			_, err := conn.Exec(context.Background(), startCleanStmt)
 			if err != nil {
-				return false, fmt.Errorf("error executing stmt - %v: %w", truncateStmt, err)
+				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
 			}
 		}
 		// if there are >0 rows, then skip because already been inited.
@@ -407,7 +410,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(numChans int, truncate boo
 		}
 
 		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES (%d, -1);", EVENT_CHANNELS_METADATA_TABLE_NAME, c)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1);", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
 			_, err := conn.Exec(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -418,10 +421,10 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(numChans int, truncate boo
 	return err
 }
 
-func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo() (map[int]EventChannelMetaInfo, error) {
+func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
 	metainfo := map[int]EventChannelMetaInfo{}
 
-	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s;", EVENT_CHANNELS_METADATA_TABLE_NAME)
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	rows, err := yb.Conn().Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
@@ -639,7 +642,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
-func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
+func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), pgx.TxOptions{})
 		if err != nil {
@@ -655,7 +658,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(batch EventBatch) error {
 				return false, fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 			}
 		}
-		importStateQuery := fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where channel_no=%d;`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.GetLastVsn(), batch.ChanNo)
+		importStateQuery := fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d;`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.GetLastVsn(), migrationUUID, batch.ChanNo)
 		_, err = tx.Exec(context.Background(), importStateQuery)
 		if err != nil {
 			log.Errorf("Error executing stmt: %v", err)

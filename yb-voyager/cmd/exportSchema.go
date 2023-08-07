@@ -79,10 +79,14 @@ func exportSchema() {
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	err = RetrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
 	source.DB().ExportSchema(exportDir)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
-	payload := callhome.GetPayload(exportDir)
+	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.SourceDBType = source.DBType
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)

@@ -60,6 +60,10 @@ var importObjectsInStraightOrder bool
 var flagRefreshMViews bool
 
 func importSchema() {
+	err := RetrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
@@ -76,7 +80,7 @@ func importSchema() {
 	}
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
-	payload := callhome.GetPayload(exportDir)
+	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.TargetDBVersion = targetDBVersion
 
 	if !flagPostImportData {

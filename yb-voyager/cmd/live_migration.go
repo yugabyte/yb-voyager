@@ -44,7 +44,7 @@ func init() {
 }
 
 func streamChanges() error {
-	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo()
+	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
@@ -191,7 +191,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if len(batch) == 0 {
 			continue
 		}
-		err := tdb.ExecuteBatch(tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
+		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
 		if err != nil {
 			utils.ErrExit("error executing batch: %w", err)
 		}
