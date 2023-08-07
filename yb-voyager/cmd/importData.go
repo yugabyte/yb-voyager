@@ -52,6 +52,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
+var maxSplitSizeBytes int64
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -146,6 +147,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
+	maxSplitSizeBytes = tdb.MaxBatchSizeInBytes()
 	err := tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
@@ -425,7 +427,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			utils.ErrExit("Write to batch %d: %s", batchNum, err)
 		}
 		if batchWriter.NumRecordsWritten == batchSize ||
-			dataFile.GetBytesRead() >= MAX_SPLIT_SIZE_BYTES ||
+			dataFile.GetBytesRead() >= maxSplitSizeBytes ||
 			readLineErr != nil {
 
 			isLastBatch := false

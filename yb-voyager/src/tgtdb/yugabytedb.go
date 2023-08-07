@@ -961,3 +961,7 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
 	return ybValueConverterSuite
 }
+
+func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
+	return 200 * 1024 * 1024 // 200 MB
+}

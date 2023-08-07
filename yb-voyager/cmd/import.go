@@ -240,7 +240,7 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if numLinesInASplit > 20000 {
+	if numLinesInASplit > DEFAULT_BATCH_SIZE {
 		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, DEFAULT_BATCH_SIZE)
 	}
 }

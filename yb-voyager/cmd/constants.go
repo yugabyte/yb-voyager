@@ -35,8 +35,7 @@ const (
 	LAST_SPLIT_PATTERN           = "0.[0-9]*.[0-9]*.[0-9]*"
 	COPY_MAX_RETRY_COUNT         = 10
 	MAX_SLEEP_SECOND             = 60
-	MAX_SPLIT_SIZE_BYTES         = 200 * 1024 * 1024
-	DEFAULT_BATCH_SIZE           = 20000
+	DEFAULT_BATCH_SIZE           = 1000000
 	INDEX_RETRY_COUNT            = 5
 	DDL_MAX_RETRY_COUNT          = 5
 	SCHEMA_VERSION_MISMATCH_ERR  = "Query error: schema version mismatch for table"

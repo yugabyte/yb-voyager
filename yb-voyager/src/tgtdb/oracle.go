@@ -488,3 +488,7 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 
 	return connectString
 }
+
+func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
+	return 2 * 1024 * 1024 * 1024 // 2GB
+}
