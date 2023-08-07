@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"syscall"
 
@@ -193,6 +194,10 @@ func validateTargetSchemaFlag() {
 
 func validateTargetPassword(cmd *cobra.Command) {
 	if cmd.Flags().Changed("target-db-password") {
+		return
+	}
+	if os.Getenv("TARGET_DB_PASSWORD") != "" {
+		tconf.Password = os.Getenv("TARGET_DB_PASSWORD")
 		return
 	}
 	fmt.Print("Password to connect to target:")

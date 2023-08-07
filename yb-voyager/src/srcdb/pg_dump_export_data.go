@@ -47,13 +47,12 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs.DataFormat = "directory"
 
 	args := getPgDumpArgsFromFile("data")
-	os.Setenv("PGPASSWORD", source.Password)
-	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
 	proc := exec.CommandContext(ctx, "/bin/bash", "-c", cmd)
+	proc.Env = append(os.Environ(), "PGPASSWORD="+source.Password)
 	proc.Stderr = &outbuf
 	proc.Stdout = &errbuf
 	err = proc.Start()

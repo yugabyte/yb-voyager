@@ -262,6 +262,10 @@ func validateSourcePassword(cmd *cobra.Command) {
 	if cmd.Flags().Changed("source-db-password") {
 		return
 	}
+	if os.Getenv("SOURCE_DB_PASSWORD") != "" {
+		source.Password = os.Getenv("SOURCE_DB_PASSWORD")
+		return
+	}
 	fmt.Print("Password to connect to source:")
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {

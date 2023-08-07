@@ -68,7 +68,6 @@ quarkus.log.level=info
 
 var baseSrcConfigTemplate = `
 debezium.source.database.user=%s
-debezium.source.database.password=%s
 
 debezium.source.snapshot.mode=%s
 debezium.source.offset.storage.file.filename=%s
@@ -202,7 +201,6 @@ func (c *Config) String() string {
 	case "postgresql":
 		conf = fmt.Sprintf(postgresConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),
@@ -224,7 +222,6 @@ func (c *Config) String() string {
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),
@@ -245,7 +242,6 @@ func (c *Config) String() string {
 	case "mysql":
 		conf = fmt.Sprintf(mysqlConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),
