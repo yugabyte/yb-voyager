@@ -49,6 +49,7 @@ func init() {
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
+	validateTargetDBType()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 	if tconf.TableList != "" && tconf.ExcludeTableList != "" {
@@ -72,7 +73,7 @@ func validateImportFlags(cmd *cobra.Command) {
 
 func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
-		"type of the target database (oracle, mysql, yugabytedb)")
+		"type of the target database (oracle, yugabytedb)")
 
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
@@ -135,7 +136,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"list of tables to exclude while importing data (ignored if --table-list is used)")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
-	cmd.Flags().Int64Var(&batchSize, "batch-size", DEFAULT_BATCH_SIZE,
+	cmd.Flags().Int64Var(&batchSize, "batch-size", -1,
 		"maximum number of rows in each batch generated during import.")
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+
@@ -183,7 +184,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
 	cmd.Flags().BoolVar(&flagRefreshMViews, "refresh-mviews", false,
-		"If set, refreshes the materialised views on target during post import data phase (default false")
+		"If set, refreshes the materialised views on target during post import data phase (default false)")
 	cmd.Flags().BoolVar(&enableOrafce, "enable-orafce", true,
 		"true - to enable Orafce extension on target(if source db type is Oracle)")
 }
@@ -240,7 +241,34 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if numLinesInASplit > DEFAULT_BATCH_SIZE {
-		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, DEFAULT_BATCH_SIZE)
+	if batchSize == -1 {
+		if tconf.TargetDBType == ORACLE {
+			batchSize = DEFAULT_BATCH_SIZE_ORACLE
+		} else {
+			batchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+		}
+		return
+	}
+
+	var defaultBatchSize int64
+	if tconf.TargetDBType == ORACLE {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
+	} else {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+	}
+
+	if numLinesInASplit > defaultBatchSize {
+		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
+	}
+}
+
+func validateTargetDBType() {
+	if tconf.TargetDBType == "" {
+		utils.ErrExit("Error: required flag \"target-db-type\" not set")
+	}
+
+	tconf.TargetDBType = strings.ToLower(tconf.TargetDBType)
+	if !slices.Contains(supportedTargetDBTypes, tconf.TargetDBType) {
+		utils.ErrExit("Error: Invalid target-db-type: %q. Supported target db types are: %s", tconf.TargetDBType, supportedTargetDBTypes)
 	}
 }

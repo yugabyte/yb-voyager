@@ -241,6 +241,9 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error) {
+	tdb.Lock()
+	defer tdb.Unlock()
+
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *sql.Conn) (bool, error) {
