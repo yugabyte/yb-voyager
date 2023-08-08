@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -31,6 +32,7 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -261,6 +263,10 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
 	}
 
+	err = createAndInitMetaDBIfRequired(exportDir)
+	if err != nil {
+		utils.ErrExit("could not create and init meta db: %w", err)
+	}
 	// log.Debugf("Created a project directory...")
 }
 
@@ -305,6 +311,53 @@ func retrieveMigrationUUID(exportDir string) error {
 	}
 	migrationUUID = uuid.MustParse(string(uuidBytes))
 	utils.PrintAndLog("migrationID: %s", migrationUUID)
+	return nil
+}
+
+func createAndInitMetaDBIfRequired(exportDir string) error {
+	metaDBPath := filepath.Join(exportDir, "metainfo", "meta.db")
+	if utils.FileOrFolderExists(metaDBPath) {
+		// already created and initied.
+		return nil
+	}
+	err := createMetaDBFile(metaDBPath)
+	if err != nil {
+		return err
+	}
+	err = initMetaDB(metaDBPath)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func createMetaDBFile(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("not able to create meta db file :%w", err)
+	}
+	err = f.Close()
+	if err != nil {
+		return fmt.Errorf("error while closing meta db file: %w", err)
+	}
+	return nil
+}
+
+func initMetaDB(path string) error {
+	conn, err := sql.Open("sqlite3", path)
+	if err != nil {
+		return fmt.Errorf("error while opening meta db :%w", err)
+	}
+	cmds := []string{
+		fmt.Sprintf(`CREATE TABLE queue_segment_meta (segment_no INTEGER, size_committed INTEGER);`),
+	}
+	for _, cmd := range cmds {
+		_, err = conn.Exec(cmd)
+		if err != nil {
+			return fmt.Errorf("error while initializating meta db with query-%s :%w", cmd, err)
+		}
+		log.Infof("Executed query on meta db - %s", cmd)
+	}
 	return nil
 }
 
