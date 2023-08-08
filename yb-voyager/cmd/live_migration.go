@@ -91,7 +91,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		if exists {
 			chanLastAppliedVsn = chanMetaInfo.LastAppliedVsn
 		} else {
-			return fmt.Errorf("Unable to find channel meta info for channel - %v", i)
+			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
 		}
 		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i])
 	}
@@ -195,7 +195,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
 		if err != nil {
-			utils.ErrExit("error executing batch: %w", err)
+			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %v", chanNo, len(batch))
 	}

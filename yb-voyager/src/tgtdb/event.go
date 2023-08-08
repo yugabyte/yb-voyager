@@ -21,10 +21,10 @@ import (
 )
 
 type Event struct {
+	Vsn        int64              `json:"vsn"` // Voyager Sequence Number
 	Op         string             `json:"op"`
 	SchemaName string             `json:"schema_name"`
 	TableName  string             `json:"table_name"`
-	Vsn        int64              `json:"vsn"`
 	Key        map[string]*string `json:"key"`
 	Fields     map[string]*string `json:"fields"`
 }
