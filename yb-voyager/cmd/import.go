@@ -78,7 +78,7 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", YUGABYTEDB_YSQL_DEFAULT_PORT,
+	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
 		"port on which the YugabyteDB YSQL API is running")
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
@@ -190,6 +190,14 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 }
 
 func validateTargetPortRange() {
+	if tconf.Port == -1 {
+		if tconf.TargetDBType == ORACLE {
+			tconf.Port = ORACLE_DEFAULT_PORT
+		} else if tconf.TargetDBType == YUGABYTEDB {
+			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
+		}
+	}
+
 	if tconf.Port < 0 || tconf.Port > 65535 {
 		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", tconf.Port)
 	}
