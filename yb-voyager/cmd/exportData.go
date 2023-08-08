@@ -579,6 +579,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {

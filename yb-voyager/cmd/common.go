@@ -41,6 +41,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var (
+	QUEUE_SEGMENT_META_TABLE_NAME = "queue_segment_meta"
+)
+
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
@@ -314,8 +318,12 @@ func retrieveMigrationUUID(exportDir string) error {
 	return nil
 }
 
+func getMetaDBPath(exportDir string) string {
+	return filepath.Join(exportDir, "metainfo", "meta.db")
+}
+
 func createAndInitMetaDBIfRequired(exportDir string) error {
-	metaDBPath := filepath.Join(exportDir, "metainfo", "meta.db")
+	metaDBPath := getMetaDBPath(exportDir)
 	if utils.FileOrFolderExists(metaDBPath) {
 		// already created and initied.
 		return nil
@@ -349,7 +357,7 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE queue_segment_meta (segment_no INTEGER, size_committed INTEGER);`),
+		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER, size_committed INTEGER);`, QUEUE_SEGMENT_META_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -357,6 +365,22 @@ func initMetaDB(path string) error {
 			return fmt.Errorf("error while initializating meta db with query-%s :%w", cmd, err)
 		}
 		log.Infof("Executed query on meta db - %s", cmd)
+	}
+	return nil
+}
+
+func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
+	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return fmt.Errorf("error while opening meta db :%w", err)
+	}
+	for _, tableName := range tableNames {
+		query := fmt.Sprintf(`DELETE FROM %s;`, tableName)
+		_, err = conn.Exec(query)
+		if err != nil {
+			return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+		log.Infof("Executed query on meta db - %s", query)
 	}
 	return nil
 }
