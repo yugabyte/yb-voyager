@@ -46,7 +46,7 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution(sourceDBType string) error { 
+func findDebeziumDistribution(sourceDBType string) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
@@ -76,14 +76,14 @@ func findDebeziumDistribution(sourceDBType string) error {
 	return nil
 }
 
-func GetYugabyteDBStreamID(config Config) (string, error) {
+func GenerateAndStoreYBStreamID(config Config) (string, error) {
 	err := findDebeziumDistribution(config.SourceDBType)
 	if err != nil {
 		return "", fmt.Errorf("error in finding debezium distribution: %s", err)
 	}
 	YB_CLIENT_WRAPPER_JAR := fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR) //$DEBEZIUM_DIST/yb-client-cdc-stream-wrapper.jar
-	tableName := strings.Split(config.TableList[0], ".")[1] //any table name in the database is required by yb-client createCDCStream(...) API 
-	command := fmt.Sprintf("java -jar %s -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBServers, tableName, config.DatabaseName)  
+	tableName := strings.Split(config.TableList[0], ".")[1]                                        //any table name in the database is required by yb-client createCDCStream(...) API
+	command := fmt.Sprintf("java -jar %s -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBServers, tableName, config.DatabaseName)
 
 	if config.SSLRootCert != "" {
 		command += fmt.Sprintf(" -ssl_cert_file %s", config.SSLRootCert)
@@ -114,11 +114,11 @@ func GetYugabyteDBStreamID(config Config) (string, error) {
 	rgx := regexp.MustCompile(`CDC Stream ID: ([a-zA-Z0-9]+)`)
 	matches := rgx.FindStringSubmatch(outbuf.String())
 	if len(matches) != 2 {
-		return "", fmt.Errorf("error in parsing output of command: %s, output: %s" ,command ,outbuf.String())
+		return "", fmt.Errorf("error in parsing output of command: %s, output: %s", command, outbuf.String())
 	}
 	streamID := matches[1]
 	//save streamID in a file
-	streamIDFile := filepath.Join(config.ExportDir, "metainfo", "streamid.txt")
+	streamIDFile := filepath.Join(config.ExportDir, "metainfo", "yb_cdc_stream_id.txt")
 	file, err := os.Create(streamIDFile)
 	if err != nil {
 		return "", fmt.Errorf(" creating file: %s, error: %s", streamIDFile, err)
@@ -129,6 +129,19 @@ func GetYugabyteDBStreamID(config Config) (string, error) {
 		return "", fmt.Errorf(" writing to file: %s, error: %s", streamIDFile, err)
 	}
 	return streamID, nil
+}
+
+func ReadYBStreamID(exportDir string) (string, error) {
+	streamIDFilePath := filepath.Join(exportDir, "metainfo", "yb_cdc_stream_id.txt")
+	if utils.FileOrFolderExists(streamIDFilePath) {
+		file, err := os.ReadFile(streamIDFilePath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read stream id file: %w", err)
+		}
+		return string(file), nil
+	}
+	return "", fmt.Errorf("yugabytedb cdc stream id not found at %s. Please use --start-clean to start the streaming", streamIDFilePath)
+
 }
 
 func NewDebezium(config *Config) *Debezium {
@@ -246,8 +259,4 @@ func (d *Debezium) Stop() error {
 		log.Info("Stopped debezium.")
 	}
 	return nil
-}
-
-func Init(){
- 
 }

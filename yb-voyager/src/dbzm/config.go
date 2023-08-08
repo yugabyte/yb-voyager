@@ -55,7 +55,7 @@ type Config struct {
 	SSLKeyStorePassword   string
 	SSLTrustStore         string
 	SSLTrustStorePassword string
-	StreamID              string
+	YBStreamID            string
 	YBServers             string
 	SnapshotMode          string
 }
@@ -187,7 +187,6 @@ debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.transforms=unwrap
 debezium.source.transforms.unwrap.type=io.debezium.connector.yugabytedb.transforms.PGCompatible
-debezium.source.transforms.extract.drop.tombstones=false
 `
 
 var yugabyteConfigTemplate = baseConfigTemplate +
@@ -245,7 +244,7 @@ func (c *Config) String() string {
 
 			c.Host, c.Port,
 			c.DatabaseName,
-			c.StreamID,
+			c.YBStreamID,
 			c.YBServers,
 			schemaNames,
 
