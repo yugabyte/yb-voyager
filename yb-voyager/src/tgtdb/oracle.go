@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -215,6 +216,16 @@ outer:
 		}
 	}
 	return nil
+}
+
+func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error {
+	// Not implemented
+	return nil
+}
+
+func (tdb *TargetOracleDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
+	// Not implemented
+	return nil, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
@@ -447,7 +458,8 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 	return columns, nil
 }
 
-func (tdb *TargetOracleDB) ExecuteBatch(batch []*Event) error {
+func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
+	// Not implemented
 	return nil
 }
 
