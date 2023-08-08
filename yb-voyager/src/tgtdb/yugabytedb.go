@@ -407,7 +407,7 @@ outer:
 func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error {
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		if startClean {
-			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 			res, err := conn.Exec(context.Background(), startCleanStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
@@ -416,7 +416,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 		}
 		// if there are >0 rows, then skip because already been inited.
 		rowsStmt := fmt.Sprintf(
-			"SELECT count(*) FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+			"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 		var rowCount int
 		err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
 		if err != nil {
@@ -428,7 +428,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 		}
 
 		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1);", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
 			_, err := conn.Exec(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -443,7 +443,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
 	metainfo := map[int]EventChannelMetaInfo{}
 
-	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	rows, err := yb.Conn().Query(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
@@ -678,17 +678,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			log.Debug(stmt)
 			_, err := tx.Exec(context.Background(), stmt)
 			if err != nil {
-				log.Errorf("Error executing stmt: %v", err)
-				return false, fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+				log.Errorf("error executing stmt: %v", err)
+				return false, fmt.Errorf("error executing stmt %q: %w", stmt, err)
 			}
 		}
-		importStateQuery := fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d;`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.GetLastVsn(), migrationUUID, batch.ChanNo)
-		res, err := tx.Exec(context.Background(), importStateQuery)
+		updateStateQuery := batch.GetQueryToUpdateStateInDB(migrationUUID)
+		res, err := tx.Exec(context.Background(), updateStateQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
-			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v", importStateQuery, err, res.RowsAffected())
+			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v",
+				updateStateQuery, err, res.RowsAffected())
 		}
-		log.Debugf("Updated event channel meta info with query = %s; rows Affected = %d", importStateQuery, res.RowsAffected())
+		log.Debugf("Updated event channel meta info with query = %s; rows Affected = %d", updateStateQuery, res.RowsAffected())
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
