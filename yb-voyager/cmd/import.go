@@ -70,7 +70,7 @@ func validateImportFlags(cmd *cobra.Command) {
 	}
 	validateBatchSizeFlag(batchSize)
 	validateTargetPassword(cmd)
-	setDefaultTargetSchema()
+
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
