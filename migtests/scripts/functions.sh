@@ -299,6 +299,7 @@ import_schema() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
 		--target-db-name ${TARGET_DB_NAME} 
 		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--target-db-type "yugabytedb"
 		--yes
 		--send-diagnostics=false
 		"
@@ -313,7 +314,8 @@ import_data() {
 		--target-db-user ${TARGET_DB_USER} 
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
 		--target-db-name ${TARGET_DB_NAME} 
-		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--target-db-schema ${TARGET_DB_SCHEMA}
+    	--target-db-type "yugabytedb"
 		--disable-pb
 		--send-diagnostics=false 
 		--start-clean
@@ -326,8 +328,10 @@ import_data_file() {
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
+		--target-db-schema "public" \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
+		--target-db-type "yugabytedb" \
 		--disable-pb \
 		--send-diagnostics=false \
 		--parallel-jobs 3 \

@@ -68,7 +68,6 @@ quarkus.log.level=info
 
 var baseSrcConfigTemplate = `
 debezium.source.database.user=%s
-debezium.source.database.password=%s
 
 debezium.source.snapshot.mode=%s
 debezium.source.offset.storage.file.filename=%s
@@ -116,6 +115,7 @@ var postgresConfigTemplate = baseConfigTemplate +
 	postgresSrcConfigTemplate +
 	baseSinkConfigTemplate
 
+// ref for perf tuning - https://debezium.io/blog/2023/06/29/debezium-oracle-series-part-3/
 var oracleSrcConfigTemplate = `
 debezium.source.database.url=%s
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
@@ -131,6 +131,15 @@ debezium.source.schema.history.internal.skip.unparseable.ddl=true
 debezium.source.schema.history.internal.store.only.captured.tables.ddl=true
 debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
 debezium.source.include.schema.changes=false
+debezium.source.log.mining.batch.size.min=10000
+debezium.source.log.mining.batch.size.max=100000
+debezium.source.log.mining.batch.size.default=10000
+debezium.source.log.mining.query.filter.mode=in
+debezium.source.log.mining.sleep.time.default.ms=200
+debezium.source.log.mining.sleep.time.max.ms=400
+debezium.source.max.batch.size=10000
+debezium.source.max.queue.size=50000
+debezium.source.query.fetch.size=10000
 `
 
 var oracleSrcPDBConfigTemplate = `
@@ -192,7 +201,6 @@ func (c *Config) String() string {
 	case "postgresql":
 		conf = fmt.Sprintf(postgresConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),
@@ -214,7 +222,6 @@ func (c *Config) String() string {
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),
@@ -235,7 +242,6 @@ func (c *Config) String() string {
 	case "mysql":
 		conf = fmt.Sprintf(mysqlConfigTemplate,
 			c.Username,
-			c.Password,
 			c.SnapshotMode,
 			offsetFile,
 			strings.Join(c.TableList, ","),

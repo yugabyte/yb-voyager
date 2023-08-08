@@ -116,7 +116,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string
 			fileName := strings.Trim(parts[0], ";") + ".dat"
 			schemaName := parts[5]
 			tableName := parts[6]
-			if nameContainsCapitalLetter(tableName) || sqlname.IsReservedKeyword(tableName) {
+			if nameContainsCapitalLetter(tableName) || sqlname.IsReservedKeywordPG(tableName) {
 				// Surround the table name with double quotes.
 				tableName = fmt.Sprintf("\"%s\"", tableName)
 			}
