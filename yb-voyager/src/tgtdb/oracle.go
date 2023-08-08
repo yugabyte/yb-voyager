@@ -102,10 +102,6 @@ func (tdb *TargetOracleDB) disconnect() {
 	tdb.conn = nil
 }
 
-func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
-	return oraValueConverterSuite
-}
-
 func (tdb *TargetOracleDB) reconnect() error {
 	tdb.Mutex.Lock()
 	defer tdb.Mutex.Unlock()
@@ -515,6 +511,10 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
 	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism)
 	return nil
+}
+
+func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
+	return oraValueConverterSuite
 }
 
 func (tdb *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {
