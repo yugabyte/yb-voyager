@@ -47,9 +47,9 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 	}
 }
 
-const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
-const updateTemplate = "UPDATE %s SET %s WHERE %s;"
-const deleteTemplate = "DELETE FROM %s WHERE %s;"
+const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
+const updateTemplate = "UPDATE %s SET %s WHERE %s"
+const deleteTemplate = "DELETE FROM %s WHERE %s"
 
 func (event *Event) getInsertStmt(targetSchema string) string {
 	tableName := event.SchemaName + "." + event.TableName

@@ -34,6 +34,17 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var oraValueConverterSuite = map[string]ConverterFn{
+	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
+		if formatIfRequired {
+			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
+			return fmt.Sprintf("'%s'", formattedColumnValue), nil
+		} else {
+			return columnValue, nil
+		}
+	},
+}
+
 type TargetOracleDB struct {
 	sync.Mutex
 	tconf *TargetConf
@@ -89,6 +100,10 @@ func (tdb *TargetOracleDB) disconnect() {
 		log.Errorf("Failed to close connection to the target database: %v", err)
 	}
 	tdb.conn = nil
+}
+
+func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
+	return oraValueConverterSuite
 }
 
 func (tdb *TargetOracleDB) reconnect() error {
@@ -458,8 +473,35 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 	return columns, nil
 }
 
-func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
-	// Not implemented
+// execute all events sequentially one by one in a single transaction
+func (tdb *TargetOracleDB) ExecuteBatch(batch []*Event) error {
+	// TODO: figure out how to avoid round trips to Oracle DB
+	log.Infof("executing batch of %d events", len(batch))
+	conn, err := tdb.oraDB.Conn(context.Background())
+	start := time.Now()
+	if err != nil {
+		return fmt.Errorf("get connection waited(%d): %w", time.Since(start).Milliseconds(), err)
+	}
+	defer conn.Close()
+
+	tx, err := conn.BeginTx(context.Background(), nil)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	for _, event := range batch {
+		stmt := event.GetSQLStmt(tdb.tconf.Schema)
+		_, err = tx.Exec(stmt)
+		if err != nil {
+			return fmt.Errorf("execute query %q: %w", stmt, err)
+		}
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
 	return nil
 }
 
@@ -470,12 +512,8 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	} else {
 		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
 	}
-
 	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
-	return nil
-}
-
-func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
+	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism)
 	return nil
 }
 
