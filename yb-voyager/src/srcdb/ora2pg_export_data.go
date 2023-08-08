@@ -167,7 +167,7 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 	log.Infof("renaming data files for tables with reserved words in them")
 	for _, tableProgressMetadata := range tablesProgressMetadata {
 		tblNameUnquoted := tableProgressMetadata.TableName.ObjectName.Unquoted
-		if !sqlname.IsReservedKeyword(tblNameUnquoted) {
+		if !sqlname.IsReservedKeywordPG(tblNameUnquoted) {
 			continue
 		}
 

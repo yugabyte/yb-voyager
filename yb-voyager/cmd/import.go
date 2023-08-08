@@ -50,6 +50,7 @@ func init() {
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
+	validateTargetDBType()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 	if tconf.TableList != "" && tconf.ExcludeTableList != "" {
@@ -72,10 +73,13 @@ func validateImportFlags(cmd *cobra.Command) {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
+		"type of the target database (oracle, yugabytedb)")
+
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", YUGABYTEDB_YSQL_DEFAULT_PORT,
+	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
 		"port on which the YugabyteDB YSQL API is running")
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
@@ -85,10 +89,19 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server")
 
-	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", YUGABYTEDB_DEFAULT_DATABASE,
+	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", YUGABYTEDB_DEFAULT_SCHEMA,
+	cmd.Flags().StringVar(&tconf.DBSid, "target-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
+
+	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
+	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
@@ -124,7 +137,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"list of tables to exclude while importing data (ignored if --table-list is used)")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
-	cmd.Flags().Int64Var(&batchSize, "batch-size", DEFAULT_BATCH_SIZE,
+	cmd.Flags().Int64Var(&batchSize, "batch-size", -1,
 		"maximum number of rows in each batch generated during import.")
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+
@@ -172,12 +185,20 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
 	cmd.Flags().BoolVar(&flagRefreshMViews, "refresh-mviews", false,
-		"If set, refreshes the materialised views on target during post import data phase (default false")
+		"If set, refreshes the materialised views on target during post import data phase (default false)")
 	cmd.Flags().BoolVar(&enableOrafce, "enable-orafce", true,
 		"true - to enable Orafce extension on target(if source db type is Oracle)")
 }
 
 func validateTargetPortRange() {
+	if tconf.Port == -1 {
+		if tconf.TargetDBType == ORACLE {
+			tconf.Port = ORACLE_DEFAULT_PORT
+		} else if tconf.TargetDBType == YUGABYTEDB {
+			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
+		}
+	}
+
 	if tconf.Port < 0 || tconf.Port > 65535 {
 		utils.ErrExit("Invalid port number %d. Valid range is 0-65535", tconf.Port)
 	}
@@ -233,7 +254,34 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if numLinesInASplit > 20000 {
-		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, DEFAULT_BATCH_SIZE)
+	if batchSize == -1 {
+		if tconf.TargetDBType == ORACLE {
+			batchSize = DEFAULT_BATCH_SIZE_ORACLE
+		} else {
+			batchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+		}
+		return
+	}
+
+	var defaultBatchSize int64
+	if tconf.TargetDBType == ORACLE {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
+	} else {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+	}
+
+	if numLinesInASplit > defaultBatchSize {
+		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
+	}
+}
+
+func validateTargetDBType() {
+	if tconf.TargetDBType == "" {
+		utils.ErrExit("Error: required flag \"target-db-type\" not set")
+	}
+
+	tconf.TargetDBType = strings.ToLower(tconf.TargetDBType)
+	if !slices.Contains(supportedTargetDBTypes, tconf.TargetDBType) {
+		utils.ErrExit("Error: Invalid target-db-type: %q. Supported target db types are: %s", tconf.TargetDBType, supportedTargetDBTypes)
 	}
 }

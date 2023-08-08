@@ -228,7 +228,21 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 }
 
 func (yb *TargetYugabyteDB) Init() error {
-	return yb.connect()
+	err := yb.connect()
+	if err != nil {
+		return err
+	}
+
+	checkSchemaExistsQuery := fmt.Sprintf(
+		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
+		yb.tconf.Schema)
+	var cntSchemaName int
+	if err = yb.conn_.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
+	} else if cntSchemaName == 0 {
+		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
+	}
+	return err
 }
 
 func (yb *TargetYugabyteDB) Finalize() {
@@ -340,11 +354,12 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // try to use the similar table created by the voyager 1.3 and earlier.
 // Voyager 1.4 uses import data state format that is incompatible from
 // the earlier versions.
-const BATCH_METADATA_TABLE_NAME = "ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2"
+const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
+const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
-		"CREATE SCHEMA IF NOT EXISTS ybvoyager_metadata",
+		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			data_file_name VARCHAR(250),
 			batch_number INT,
@@ -369,8 +384,9 @@ outer:
 			}
 			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
 			time.Sleep(5 * time.Second)
-			err = yb.reconnect()
-			if err != nil {
+			err2 := yb.reconnect()
+			if err2 != nil {
+				log.Warnf("Failed to reconnect to the target database: %s", err2)
 				break
 			}
 		}
@@ -415,7 +431,7 @@ func (yb *TargetYugabyteDB) CleanFileImportState(filePath, tableName string) err
 	return nil
 }
 
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error) {
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
@@ -497,7 +513,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 	fastPathSuccessful := true
 	for i, colName := range columns {
 		if strings.ToLower(colName) == colName {
-			if sqlname.IsReservedKeyword(colName) && colName[0:1] != `"` {
+			if sqlname.IsReservedKeywordPG(colName) && colName[0:1] != `"` {
 				result[i] = fmt.Sprintf(`"%s"`, colName)
 			} else {
 				result[i] = colName
@@ -533,7 +549,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		}
 		switch true {
 		// TODO: Move sqlname.IsReservedKeyword() in this file.
-		case sqlname.IsReservedKeyword(colName):
+		case sqlname.IsReservedKeywordPG(colName):
 			result[i] = fmt.Sprintf(`"%s"`, colName)
 		case colName == strings.ToLower(colName): // Name is all lowercase.
 			result[i] = colName
@@ -896,17 +912,6 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 }
 
 func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
-	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
-		yb.tconf.Schema)
-	var cntSchemaName int
-
-	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", yb.tconf.Schema)
-	}
-
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
@@ -957,4 +962,8 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
 	return ybValueConverterSuite
+}
+
+func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
+	return 200 * 1024 * 1024 // 200 MB
 }

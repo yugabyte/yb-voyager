@@ -523,8 +523,9 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	schemaName := getTargetSchemaName(batch.TableName)
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
-			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s';",
+			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
 		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+
 	return query
 }
 
@@ -533,13 +534,18 @@ func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
 		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
-		VALUES ('%s', %d, '%s', '%s', %v);`,
+			VALUES ('%s', %d, '%s', '%s', %v)`,
 		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+
 	return cmd
 }
 
 func (batch *Batch) GetFilePath() string {
 	return batch.FilePath
+}
+
+func (batch *Batch) GetTableName() string {
+	return batch.TableName
 }
 
 func (batch *Batch) getInProgressFilePath() string {

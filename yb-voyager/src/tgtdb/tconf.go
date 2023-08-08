@@ -23,6 +23,7 @@ import (
 )
 
 type TargetConf struct {
+	TargetDBType         string
 	Host                 string
 	Port                 int
 	User                 string
@@ -35,6 +36,9 @@ type TargetConf struct {
 	SSLRootCert          string
 	SSLCRL               string
 	SSLQueryString       string
+	DBSid                string
+	TNSAlias             string
+	OracleHome           string
 	Uri                  string
 	ContinueOnError      bool
 	IgnoreIfExists       bool
