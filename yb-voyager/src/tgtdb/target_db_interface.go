@@ -118,7 +118,7 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 		columnsSlice := make([]string, 0, len(args.Columns))
 		for _, col := range args.Columns {
 			// Add the column name and the NULLIF clause after it
-			columnsSlice = append(columnsSlice, fmt.Sprintf("%s NULLIF %s='\\\\N'", col, col))
+			columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
 		}
 		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
 	}
