@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type TargetDB interface {
@@ -32,8 +34,10 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(batch []*Event) error
+	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
+	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
+	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
 	MaxBatchSizeInBytes() int64
 }
 

@@ -21,11 +21,17 @@ import (
 )
 
 type Event struct {
-	Op         string                    `json:"op"`
-	SchemaName string                    `json:"schema_name"`
-	TableName  string                    `json:"table_name"`
+	Vsn        int64              `json:"vsn"` // Voyager Sequence Number
+	Op         string             `json:"op"`
+	SchemaName string             `json:"schema_name"`
+	TableName  string             `json:"table_name"`
 	Key        map[string]*string `json:"key"`
 	Fields     map[string]*string `json:"fields"`
+}
+
+func (e *Event) String() string {
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
 }
 
 func (e *Event) GetSQLStmt(targetSchema string) string {
@@ -91,4 +97,18 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
+}
+
+type EventBatch struct {
+	Events []*Event
+	ChanNo int
+}
+
+func (eb EventBatch) GetLastVsn() int64 {
+	return eb.Events[len(eb.Events)-1].Vsn
+}
+
+type EventChannelMetaInfo struct {
+	ChanNo         int
+	LastAppliedVsn int64
 }

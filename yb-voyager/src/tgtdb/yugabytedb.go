@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -356,6 +357,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // the earlier versions.
 const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
 const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
+const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -368,6 +370,11 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			migration_uuid uuid,
+			channel_no INT,
+			last_applied_vsn BIGINT,
+			PRIMARY KEY (migration_uuid, channel_no));`, EVENT_CHANNELS_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -395,6 +402,62 @@ outer:
 		}
 	}
 	return nil
+}
+
+func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error {
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		if startClean {
+			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+			res, err := conn.Exec(context.Background(), startCleanStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
+			}
+			log.Infof("deleted existing channels meta info using query %s; rows affected = %d", startCleanStmt, res.RowsAffected())
+		}
+		// if there are >0 rows, then skip because already been inited.
+		rowsStmt := fmt.Sprintf(
+			"SELECT count(*) FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+		var rowCount int
+		err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
+		if err != nil {
+			return false, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+		}
+		if rowCount > 0 {
+			log.Info("event channels meta info already created. Skipping init.")
+			return false, nil
+		}
+
+		for c := 0; c < numChans; c++ {
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1);", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
+			_, err := conn.Exec(context.Background(), insertStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			}
+			log.Infof("created channels meta info: %s;", insertStmt)
+		}
+		return false, nil
+	})
+	return err
+}
+
+func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
+	metainfo := map[int]EventChannelMetaInfo{}
+
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s';", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	rows, err := yb.Conn().Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+
+	for rows.Next() {
+		var chanMetaInfo EventChannelMetaInfo
+		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
+	}
+	return metainfo, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
@@ -601,23 +664,41 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
-func (yb *TargetYugabyteDB) ExecuteBatch(batch []*Event) error {
-	var err error
-	for i := 0; i < len(batch); i++ {
-		event := batch[i]
-		stmt := event.GetSQLStmt(yb.tconf.Schema)
-		log.Debug(stmt)
-		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			_, err := conn.Exec(context.Background(), stmt)
+func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		ctx := context.Background()
+		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+		if err != nil {
+			return false, fmt.Errorf("error creating tx: %w", err)
+		}
+		defer tx.Rollback(ctx)
+		for i := 0; i < len(batch.Events); i++ {
+			event := batch.Events[i]
+			stmt := event.GetSQLStmt(yb.tconf.Schema)
+			log.Debug(stmt)
+			_, err := tx.Exec(context.Background(), stmt)
 			if err != nil {
 				log.Errorf("Error executing stmt: %v", err)
+				return false, fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 			}
-			return false, err
-		})
-		if err != nil {
-			return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 		}
+		importStateQuery := fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d;`, EVENT_CHANNELS_METADATA_TABLE_NAME, batch.GetLastVsn(), migrationUUID, batch.ChanNo)
+		res, err := tx.Exec(context.Background(), importStateQuery)
+		if err != nil || res.RowsAffected() == 0 {
+			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
+			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v", importStateQuery, err, res.RowsAffected())
+		}
+		log.Debugf("Updated event channel meta info with query = %s; rows Affected = %d", importStateQuery, res.RowsAffected())
+		if err = tx.Commit(ctx); err != nil {
+			return false, fmt.Errorf("failed to commit transaction : %w", err)
+		}
+
+		return false, err
+	})
+	if err != nil {
+		return fmt.Errorf("error executing batch: %w", err)
 	}
+
 	// Idempotency considerations:
 	// Note: Assuming PK column value is not changed via UPDATEs
 	// INSERT: The connPool sets `yb_enable_upsert_mode to true`. Hence the insert will be

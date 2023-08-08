@@ -29,6 +29,7 @@ import (
 
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
+	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	log "github.com/sirupsen/logrus"
 
@@ -255,8 +256,56 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
+	err := generateAndStoreMigrationUUIDIfRequired(exportDir)
+	if err != nil {
+		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
+	}
 
 	// log.Debugf("Created a project directory...")
+}
+
+func getMigrationUUIDFilePath(exportDir string) string {
+	return filepath.Join(exportDir, "metainfo", "migration_uuid")
+}
+
+func generateAndStoreMigrationUUIDIfRequired(exportDir string) error {
+	uuidFilePath := getMigrationUUIDFilePath(exportDir)
+	if !utils.FileOrFolderExists(uuidFilePath) {
+		uuid, err := uuid.NewUUID()
+		if err != nil {
+			return fmt.Errorf("failed to generate uuid :%w", err)
+		}
+		err = storeMigrationUUID(uuidFilePath, uuid)
+		if err != nil {
+			return fmt.Errorf("failed to store UUID: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
+	file, err := os.Create(uuidFilePath)
+	if err != nil {
+		return fmt.Errorf(" creating file: %s, error: %s", uuidFilePath, err)
+	}
+	defer file.Close()
+	_, err = file.WriteString(uuid.String())
+	if err != nil {
+		return fmt.Errorf(" writing to file: %s, error: %s", uuidFilePath, err)
+	}
+	return nil
+}
+
+// sets the global variable migrationUUID after retrieving it from exportDir
+func retrieveMigrationUUID(exportDir string) error {
+	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
+	if err != nil {
+		return fmt.Errorf("failed to read file :%w", err)
+	}
+	migrationUUID = uuid.MustParse(string(uuidBytes))
+	utils.PrintAndLog("migrationID: %s", migrationUUID)
+	return nil
 }
 
 func nameContainsCapitalLetter(name string) bool {

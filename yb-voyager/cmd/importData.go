@@ -166,11 +166,15 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	payload := callhome.GetPayload(exportDir)
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
+	payload := callhome.GetPayload(exportDir, migrationUUID)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
+	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
@@ -194,6 +198,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
+	}
+	err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean)
+	if err != nil {
+		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
