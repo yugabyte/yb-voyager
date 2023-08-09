@@ -81,7 +81,7 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	defer func() {
 		err := conn.Close()
 		if err != nil {
-			log.Errorf("failed to close connection to meta db: %w", err)
+			log.Errorf("failed to close connection to meta db: %v", err)
 		}
 	}()
 	if err != nil {
