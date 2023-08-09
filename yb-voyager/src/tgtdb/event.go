@@ -18,6 +18,8 @@ package tgtdb
 import (
 	"fmt"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type Event struct {
@@ -47,9 +49,9 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 	}
 }
 
-const insertTemplate = "INSERT INTO %s (%s) VALUES (%s);"
-const updateTemplate = "UPDATE %s SET %s WHERE %s;"
-const deleteTemplate = "DELETE FROM %s WHERE %s;"
+const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
+const updateTemplate = "UPDATE %s SET %s WHERE %s"
+const deleteTemplate = "DELETE FROM %s WHERE %s"
 
 func (event *Event) getInsertStmt(targetSchema string) string {
 	tableName := event.SchemaName + "." + event.TableName
@@ -106,6 +108,11 @@ type EventBatch struct {
 
 func (eb EventBatch) GetLastVsn() int64 {
 	return eb.Events[len(eb.Events)-1].Vsn
+}
+
+func (eb EventBatch) GetQueryToUpdateLastAppliedVSN(migrationUUID uuid.UUID) string {
+	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d`,
+		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), migrationUUID, eb.ChanNo)
 }
 
 type EventChannelMetaInfo struct {
