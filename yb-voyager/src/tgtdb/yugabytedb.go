@@ -678,18 +678,18 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			log.Debug(stmt)
 			_, err := tx.Exec(context.Background(), stmt)
 			if err != nil {
-				log.Errorf("error executing stmt: %v", err)
-				return false, fmt.Errorf("error executing stmt %q: %w", stmt, err)
+				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
 			}
 		}
-		updateStateQuery := batch.GetQueryToUpdateStateInDB(migrationUUID)
-		res, err := tx.Exec(context.Background(), updateStateQuery)
+		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID)
+		res, err := tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
-			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v",
-				updateStateQuery, err, res.RowsAffected())
+			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
+				updateVsnQuery, err, res.RowsAffected())
 		}
-		log.Debugf("Updated event channel meta info with query = %s; rows Affected = %d", updateStateQuery, res.RowsAffected())
+		log.Debugf("Updated event channel meta info with query = %s; rows Affected = %d", updateVsnQuery, res.RowsAffected())
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}

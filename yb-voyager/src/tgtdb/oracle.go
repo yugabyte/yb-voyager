@@ -547,20 +547,20 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 			stmt := event.GetSQLStmt(tdb.tconf.Schema)
 			_, err = tx.Exec(stmt)
 			if err != nil {
-				log.Errorf("error executing stmt: %v", err)
-				return false, fmt.Errorf("error executing stmt %q: %w", stmt, err)
+				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
 			}
 		}
 
-		updateStateQuery := batch.GetQueryToUpdateStateInDB(migrationUUID)
-		res, err := tx.Exec(updateStateQuery)
+		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID)
+		res, err := tx.Exec(updateVsnQuery)
 		if err != nil {
 			log.Errorf("error executing stmt: %v", err)
-			return false, fmt.Errorf("failed to update state on target db via query-%s: %w", updateStateQuery, err)
+			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w", updateVsnQuery, err)
 		} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
-			return false, fmt.Errorf("failed to update state on target db via query-%s: %w, rowsAffected: %v",
-				updateStateQuery, err, rowsAffected)
+			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
+				updateVsnQuery, err, rowsAffected)
 		}
 
 		if err = tx.Commit(); err != nil {
