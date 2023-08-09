@@ -31,12 +31,17 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	_ "github.com/mattn/go-sqlite3"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+var (
+	QUEUE_SEGMENT_META_TABLE_NAME = "queue_segment_meta"
 )
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -261,6 +266,10 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
 	}
 
+	err = createAndInitMetaDBIfRequired(exportDir)
+	if err != nil {
+		utils.ErrExit("could not create and init meta db: %w", err)
+	}
 	// log.Debugf("Created a project directory...")
 }
 
