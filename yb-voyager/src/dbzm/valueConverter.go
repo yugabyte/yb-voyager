@@ -29,9 +29,9 @@ type ValueConverter interface {
 	ConvertEvent(ev *tgtdb.Event, table string) error
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
+func NewValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb)
+		return NewDebeziumValueConverter(targetDBType, exportDir, tdb)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -55,20 +55,21 @@ type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
 	valueConverterSuite map[string]tgtdb.ConverterFn
 	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
+	targetDBType        string
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
 	schemaRegistry := NewSchemaRegistry(exportDir)
 	err := schemaRegistry.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
-
 	return &DebeziumValueConverter{
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
 		converterFnCache:    map[string][]tgtdb.ConverterFn{},
+		targetDBType:        targetDBType,
 	}, nil
 }
 
@@ -94,7 +95,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdb.ConverterFn, error) {
 	result := conv.converterFnCache[tableName]
 	if result == nil {
-		colTypes, err := conv.schemaRegistry.GetColumnTypes(tableName, columnNames)
+		colTypes, err := conv.schemaRegistry.GetColumnTypes(conv.targetDBType, tableName, columnNames)
 		if err != nil {
 			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
@@ -126,7 +127,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 			continue
 		}
 		columnValue := *value
-		colType, err := conv.schemaRegistry.GetColumnType(tableName, column)
+		colType, err := conv.schemaRegistry.GetColumnType(conv.targetDBType, tableName, column)
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}

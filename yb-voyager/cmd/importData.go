@@ -167,7 +167,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func importData(importFileTasks []*ImportFileTask) {
 	payload := callhome.GetPayload(exportDir)
-	tconf.Schema = strings.ToLower(tconf.Schema)
+	if tconf.TargetDBType == YUGABYTEDB {
+		tconf.Schema = strings.ToLower(tconf.Schema)
+	} else {
+		tconf.Schema = strings.ToUpper(tconf.Schema)
+	}
 
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err := tdb.Init()
@@ -175,7 +179,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
+	valueConverter, err = dbzm.NewValueConverter(tconf.TargetDBType, exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}

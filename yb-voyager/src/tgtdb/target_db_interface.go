@@ -112,15 +112,25 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
+func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, columnToTypes map[string]string) string {
 	var columns string
 	if len(args.Columns) > 0 {
 		columnsSlice := make([]string, 0, len(args.Columns))
 		for _, col := range args.Columns {
 			// Add the column name and the NULLIF clause after it
-			columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
+			splits := strings.Split(columnToTypes[col], ":")
+			dataType, charLength := splits[0], splits[1]
+			if strings.HasPrefix(dataType, "DATE") || strings.HasPrefix(dataType, "TIMESTAMP") || strings.Contains(dataType, "INTERVAL") {
+				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s %s NULLIF %s='\\N'`, col, dataType, col))
+			} else if strings.Contains(dataType, "CHAR") {
+				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='\\N'`, col, charLength, col))
+			} else if dataType == "LONG" {
+				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s CHAR(2000000000) NULLIF %s='\\N'`, col, col)) // for now mentioning max 2GB length, TODO: figure out if there is any other way to handle LONG data type
+			} else {
+				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
+			}
 		}
-		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ",\n"))
 	}
 
 	configTemplate := `LOAD DATA
@@ -129,6 +139,10 @@ APPEND
 INTO TABLE %s
 REENABLE DISABLED_CONSTRAINTS
 FIELDS TERMINATED BY '%s'
+DATE FORMAT "DD-MM-YY"
+TIMESTAMP FORMAT "DD-MM-YY HH:MI:SS.FF9 AM"
+TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR"
+TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM"
 %s`
 	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, "\\t", columns)
 }
