@@ -166,8 +166,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 			"false - to not truncate splits after importing (required for debugging)")
 	cmd.Flags().MarkHidden("truncate-splits")
 
-	cmd.Flags().BoolVar(&liveMigration, "live-migration", false,
-		"set this flag to true to enable streaming data from source to target database")
+	cmd.Flags().StringVar(&importType, "import-type", "snapshot", "import type: snapshot-only, changes-only, snapshot-and-changes")
 
 	cmd.Flags().MarkHidden("live-migration")
 }
@@ -283,5 +282,17 @@ func validateTargetDBType() {
 	tconf.TargetDBType = strings.ToLower(tconf.TargetDBType)
 	if !slices.Contains(supportedTargetDBTypes, tconf.TargetDBType) {
 		utils.ErrExit("Error: Invalid target-db-type: %q. Supported target db types are: %s", tconf.TargetDBType, supportedTargetDBTypes)
+	}
+}
+
+func validateImportType() {
+	if importType == "" {
+		// utils.ErrExit("Error: required flag \"import-type\" not set")
+		return
+	}
+
+	importType = strings.ToLower(importType)
+	if !slices.Contains(validExportTypes, importType) {
+		utils.ErrExit("Error: Invalid import-type: %q. Supported import types are: %s", importType, validExportTypes)
 	}
 }

@@ -34,7 +34,8 @@ var source srcdb.Source
 
 // to disable progress bar during data export and import
 var disablePb bool
-var liveMigration bool
+var importType string
+var exportType string
 var useDebezium bool
 
 var exportCmd = &cobra.Command{
@@ -287,5 +288,17 @@ func markFlagsRequired(cmd *cobra.Command) {
 		cmd.MarkFlagRequired("source-db-schema")
 	case MYSQL:
 		cmd.MarkFlagRequired("source-db-name")
+	}
+}
+
+func validateExportTypeFlag() {
+	if exportType == "" {
+		// utils.ErrExit("Error: required flag \"export-type\" not set")
+		return
+	}
+
+	exportType = strings.ToLower(exportType)
+	if !slices.Contains(validExportTypes, exportType) {
+		utils.ErrExit("Error: Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)
 	}
 }

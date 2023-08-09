@@ -48,6 +48,7 @@ var exportDataCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
 		validateExportFlags(cmd)
+		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 	},
 
@@ -73,8 +74,8 @@ func init() {
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 
-	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
-		"true - to enable live migration(default false)")
+	exportDataCmd.Flags().StringVar(&exportType, "export-type", "snapsot-only",
+		"export type: snapshot-only, changes-only, snapshot-and-changes")
 
 	exportDataCmd.Flags().MarkHidden("live-migration")
 }
@@ -168,7 +169,7 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	if liveMigration || useDebezium {
+	if exportType != "" || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
 		fmt.Printf("num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
@@ -241,7 +242,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	snapshotMode := "initial_only" // useDebezium is true
-	if liveMigration {
+	if exportType != "" {
 		snapshotMode = "initial"
 	}
 
@@ -427,7 +428,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
-	if liveMigration {
+	if exportType == "changes-only" || exportType == "snapshot-and-changes" {
 		color.Blue("streaming changes to a local queue file...")
 	}
 	return true, nil
@@ -581,7 +582,8 @@ func checkDataDirs() {
 		os.Remove(propertiesFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
+			if (exportType == "changes-only" || exportType == "snapshot-and-changes") &&
+				dbzm.IsLiveMigrationInStreamingMode(exportDir) {
 				utils.PrintAndLog("Continuing streaming from where we left off...")
 			} else {
 				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)

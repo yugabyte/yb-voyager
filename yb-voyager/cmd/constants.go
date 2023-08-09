@@ -44,6 +44,7 @@ const (
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
 var supportedTargetDBTypes = []string{YUGABYTEDB, ORACLE}
+var validExportTypes = []string{"snapshot-only", "changes-only", "snapshot-and-changes"}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},

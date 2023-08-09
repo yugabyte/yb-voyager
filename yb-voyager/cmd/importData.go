@@ -60,6 +60,7 @@ var importDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
+		validateImportType()
 	},
 	Run: importDataCommandFn,
 }
@@ -248,7 +249,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	callhome.PackAndSendPayload(exportDir)
 
-	if liveMigration {
+	if exportType == "changes-only" || exportType == "snapshot-and-changes" {
 		fmt.Println("streaming changes to target DB...")
 		err = streamChanges()
 		if err != nil {
