@@ -86,6 +86,10 @@ func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	success := exportDataOffline()
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
 
 	if success {
 		tableRowCount := map[string]int64{}
@@ -93,7 +97,7 @@ func exportData() {
 			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 		}
 		printExportedRowCount(tableRowCount, useDebezium)
-		callhome.GetPayload(exportDir)
+		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
 
@@ -543,7 +547,7 @@ func renameDbzmExportedDataFiles() error {
 		tableName := status.Tables[i].TableName
 		// either case sensitive(postgresql) or reserved keyword(any source db)
 		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
-			sqlname.IsReservedKeyword(tableName) {
+			sqlname.IsReservedKeywordPG(tableName) {
 			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
 		}
 

@@ -985,6 +985,10 @@ func analyzeSchemaInternal() utils.Report {
 }
 
 func analyzeSchema() {
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
 	reportFile := "report." + outputFormat
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
@@ -1032,7 +1036,7 @@ func analyzeSchema() {
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 
-	payload := callhome.GetPayload(exportDir)
+	payload := callhome.GetPayload(exportDir, migrationUUID)
 	var callhomeIssues []utils.Issue
 	for _, issue := range reportStruct.Issues {
 		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster

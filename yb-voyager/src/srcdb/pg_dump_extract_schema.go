@@ -46,12 +46,11 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	pgDumpArgs.ExtensionPattern = `"*"`
 
 	args := getPgDumpArgsFromFile("schema")
-	os.Setenv("PGPASSWORD", source.Password)
-	defer os.Unsetenv("PGPASSWORD")
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 
 	preparedPgdumpCommand := exec.Command("/bin/bash", "-c", cmd)
+	preparedPgdumpCommand.Env = append(os.Environ(), "PGPASSWORD="+source.Password)
 
 	stdout, err := preparedPgdumpCommand.CombinedOutput()
 	//pg_dump formats its stdout messages, %s is sufficient.

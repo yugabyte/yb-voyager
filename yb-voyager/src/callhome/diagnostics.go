@@ -75,7 +75,7 @@ func ReadEnvSendDiagnostics() {
 }
 
 // Fill in primary-key based fields, if needed
-func initJSON(exportdir string) {
+func initJSON(exportdir string, migrationUUID uuid.UUID) {
 	jsonFilePath = filepath.Join(exportdir, "metainfo", "diagnostics.json")
 	file, err := os.OpenFile(jsonFilePath, os.O_RDWR|os.O_CREATE, 0644)
 	file.Close()
@@ -98,12 +98,8 @@ func initJSON(exportdir string) {
 	}
 
 	if Payload.MigrationUuid == uuid.Nil {
-		Payload.MigrationUuid, err = uuid.NewUUID()
+		Payload.MigrationUuid = migrationUUID
 		Payload.StartTime = time.Now().Format("2006-01-02 15:04:05")
-		if err != nil {
-			log.Errorf("Error while generating new UUID for diagnostics.json: %v", err)
-			return
-		}
 	}
 	Payload.YBVoyagerVersion = utils.YB_VOYAGER_VERSION
 
@@ -113,10 +109,10 @@ func initJSON(exportdir string) {
 This getter method for payload: if json isn't already initialized,
 initialize it and fills mandatory fields in Payload struct
 */
-func GetPayload(exportDir string) *payload {
+func GetPayload(exportDir string, migrationUUID uuid.UUID) *payload {
 	//if json isn't already initialized...
 	if Payload.MigrationUuid == uuid.Nil {
-		initJSON(exportDir)
+		initJSON(exportDir, migrationUUID)
 	}
 	return &Payload
 }

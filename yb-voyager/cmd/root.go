@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,10 +30,11 @@ import (
 )
 
 var (
-	cfgFile    string
-	exportDir  string
-	startClean bool
-	lockFile   lockfile.Lockfile
+	cfgFile       string
+	exportDir     string
+	startClean    bool
+	lockFile      lockfile.Lockfile
+	migrationUUID uuid.UUID
 )
 
 var rootCmd = &cobra.Command{

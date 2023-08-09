@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 type TargetDB interface {
@@ -30,11 +32,21 @@ type TargetDB interface {
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []string) []string
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(batch []*Event) error
+	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
+	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
+	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
+	MaxBatchSizeInBytes() int64
 }
+
+const (
+	ORACLE     = "oracle"
+	MYSQL      = "mysql"
+	POSTGRESQL = "postgresql"
+	YUGABYTEDB = "yugabytedb"
+)
 
 // value converter Function type
 type ConverterFn func(v string, formatIfRequired bool) (string, error)
@@ -42,11 +54,15 @@ type ConverterFn func(v string, formatIfRequired bool) (string, error)
 type Batch interface {
 	Open() (*os.File, error)
 	GetFilePath() string
+	GetTableName() string
 	GetQueryIsBatchAlreadyImported() string
 	GetQueryToRecordEntryInDB(rowsAffected int64) string
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
+	if tconf.TargetDBType == "oracle" {
+		return newTargetOracleDB(tconf)
+	}
 	return newTargetYugabyteDB(tconf)
 }
 
@@ -98,4 +114,25 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 		options = append(options, fmt.Sprintf("NULL '%s'", args.NullString))
 	}
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+}
+
+func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
+	var columns string
+	if len(args.Columns) > 0 {
+		columnsSlice := make([]string, 0, len(args.Columns))
+		for _, col := range args.Columns {
+			// Add the column name and the NULLIF clause after it
+			columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
+		}
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
+	}
+
+	configTemplate := `LOAD DATA
+INFILE '%s'
+APPEND
+INTO TABLE %s
+REENABLE DISABLED_CONSTRAINTS
+FIELDS TERMINATED BY '%s'
+%s`
+	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, "\\t", columns)
 }

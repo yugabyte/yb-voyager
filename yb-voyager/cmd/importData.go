@@ -49,7 +49,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                    // to truncate *.D splits after import
+var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
 
@@ -72,6 +72,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
@@ -81,6 +82,26 @@ type ImportFileTask struct {
 	ID        int
 	FilePath  string
 	TableName string
+}
+
+func quoteTableNameIfRequired() {
+	if tconf.TargetDBType != ORACLE {
+		return
+	}
+	for _, fileEntry := range dataFileDescriptor.DataFileList {
+		if sqlname.IsQuoted(fileEntry.TableName) {
+			continue
+		}
+		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
+			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
+			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
+			if dataFileDescriptor.TableNameToExportedColumns != nil {
+				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
+				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+			}
+			fileEntry.TableName = newTableName
+		}
+	}
 }
 
 func discoverFilesToImport() []*ImportFileTask {
@@ -106,6 +127,30 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	log.Infof("includeList: %v", includeList)
 	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
+
+	allTables := make([]string, 0, len(importFileTasks))
+	for _, task := range importFileTasks {
+		allTables = append(allTables, task.TableName)
+	}
+	slices.Sort(allTables)
+	log.Infof("allTables: %v", allTables)
+
+	checkUnknownTableNames := func(tableNames []string, listName string) {
+		unknownTableNames := make([]string, 0)
+		for _, tableName := range tableNames {
+			if !slices.Contains(allTables, tableName) {
+				unknownTableNames = append(unknownTableNames, tableName)
+			}
+		}
+		if len(unknownTableNames) > 0 {
+			utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
+			utils.PrintAndLog("Valid table names are: %v", allTables)
+			utils.ErrExit("Table names are case-sensitive. Please fix the table names in the %s list and retry.", listName)
+		}
+	}
+	checkUnknownTableNames(includeList, "include")
+	checkUnknownTableNames(excludeList, "exclude")
+
 	for _, task := range importFileTasks {
 		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
@@ -121,11 +166,15 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	payload := callhome.GetPayload(exportDir)
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
+	payload := callhome.GetPayload(exportDir, migrationUUID)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
-	err := tdb.Init()
+	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
@@ -140,13 +189,19 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	targetDBVersion := tdb.GetVersion()
-	fmt.Printf("Target YugabyteDB version: %s\n", targetDBVersion)
+
+	fmt.Printf("%s version: %s\n", tconf.TargetDBType, targetDBVersion)
+
 	payload.TargetDBVersion = targetDBVersion
 	//payload.NodeCount = len(tconfs) // TODO: Figure out way to populate NodeCount.
 
 	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
+	}
+	err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean)
+	if err != nil {
+		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -167,7 +222,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks)//prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -188,7 +243,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	executePostImportDataSqls()
+	if tconf.TargetDBType == YUGABYTEDB {
+		executePostImportDataSqls() // TODO: it needs to be abstracted out in targetDB interface
+	}
 	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {
@@ -279,6 +336,14 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableName, err)
 		}
 	}
+
+	sqlldrDir := filepath.Join(exportDir, "sqlldr")
+	if utils.FileOrFolderExists(sqlldrDir) {
+		err := os.RemoveAll(sqlldrDir)
+		if err != nil {
+			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
+		}
+	}
 }
 
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
@@ -300,7 +365,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		HasHeader:  dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
 		QuoteChar:  dataFileDescriptor.QuoteChar,
 		EscapeChar: dataFileDescriptor.EscapeChar,
-		NullString: nullString,
+		NullString: dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
@@ -384,7 +449,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			table := batchWriter.tableName
 			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten + 1 , t, filePath, err)
+				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
 		}
 		err = batchWriter.WriteRecord(line)
@@ -392,7 +457,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 			utils.ErrExit("Write to batch %d: %s", batchNum, err)
 		}
 		if batchWriter.NumRecordsWritten == batchSize ||
-			dataFile.GetBytesRead() >= MAX_SPLIT_SIZE_BYTES ||
+			dataFile.GetBytesRead() >= tdb.MaxBatchSizeInBytes() ||
 			readLineErr != nil {
 
 			isLastBatch := false
@@ -456,7 +521,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -692,7 +757,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 	if dbType == "" {
 		dbType = sourceDBType
 	}
-	if sqlname.IsReservedKeyword(identifier) ||
+	if sqlname.IsReservedKeywordPG(identifier) ||
 		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
