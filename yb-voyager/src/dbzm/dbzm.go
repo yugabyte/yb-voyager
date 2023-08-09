@@ -16,13 +16,10 @@ limitations under the License.
 package dbzm
 
 import (
-	"bytes"
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"time"
 
@@ -49,18 +46,15 @@ func findDebeziumDistribution(sourceDBType string) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		var possiblePaths []string
+		pathSuffix := ""
 		if sourceDBType == "yugabytedb" {
-			possiblePaths = []string{
-				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
-				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server/debezium-server-fall-forward",
-				"/opt/yb-voyager/debezium-server/debezium-server-fall-forward"}
-		} else {
-			possiblePaths = []string{
-				"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-				"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-				"/opt/yb-voyager/debezium-server"}
+			pathSuffix = "/debezium-server-fall-forward"
 		}
+		possiblePaths := []string{
+			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
+			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
+			fmt.Sprintf("/opt/yb-voyager/debezium-server%s", pathSuffix)}
+
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
 				DEBEZIUM_DIST_DIR = path
@@ -73,105 +67,6 @@ func findDebeziumDistribution(sourceDBType string) error {
 		}
 	}
 	return nil
-}
-
-func GenerateAndStoreYBStreamID(config *Config) (string, error) {
-	err := findDebeziumDistribution(config.SourceDBType)
-	if err != nil {
-		return "", fmt.Errorf("error in finding debezium distribution: %s", err)
-	}
-	YB_CLIENT_WRAPPER_JAR := fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR) //$DEBEZIUM_DIST/yb-client-cdc-stream-wrapper.jar
-	tableName := strings.Split(config.TableList[0], ".")[1]                                        //any table name in the database is required by yb-client createCDCStream(...) API
-	command := fmt.Sprintf("java -jar %s -create -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBServers, tableName, config.DatabaseName)
-
-	if config.SSLRootCert != "" {
-		command += fmt.Sprintf(" -ssl_cert_file %s", config.SSLRootCert)
-	}
-
-	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", command)
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-	err = cmd.Start()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to start command: %s, error: %s", command, err)
-		return "", err
-	}
-	err = cmd.Wait()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to wait for command: %s , error: %s", command, err)
-		return "", err
-	}
-	//output of yb-admin command - CDC Stream ID: <stream_id>
-	output := outbuf.String()
-	streamID := strings.Trim(strings.Split(output, ":")[1], " \n")
-	//save streamID in a file
-	streamIDFile := filepath.Join(config.ExportDir, "metainfo", "yb_cdc_stream_id.txt")
-	file, err := os.Create(streamIDFile)
-	if err != nil {
-		return "", fmt.Errorf(" creating file: %s, error: %s", streamIDFile, err)
-	}
-	defer file.Close()
-	_, err = file.WriteString(streamID)
-	if err != nil {
-		return "", fmt.Errorf(" writing to file: %s, error: %s", streamIDFile, err)
-	}
-	return streamID, nil
-}
-
-func DeleteYBStreamID(config *Config) error {
-	err := findDebeziumDistribution(config.SourceDBType)
-	if err != nil {
-		return fmt.Errorf("error in finding debezium distribution: %s", err)
-	}
-	YB_CLIENT_WRAPPER_JAR := fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR) //$DEBEZIUM_DIST/yb-client-cdc-stream-wrapper.jar
-	tableName := strings.Split(config.TableList[0], ".")[1]                                        //any table name in the database is required by yb-client createCDCStream(...) API
-	command := fmt.Sprintf("java -jar %s -delete_stream %s -master_addresses %s -table_name %s -db_name %s ", YB_CLIENT_WRAPPER_JAR, config.YBStreamID, config.YBServers, tableName, config.DatabaseName)
-	if config.SSLRootCert != "" {
-		command += fmt.Sprintf(" -ssl_cert_file %s", config.SSLRootCert)
-	}
-
-	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", command)
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
-	err = cmd.Start()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to start command: %s, error: %s", command, err)
-		return err
-	}
-	err = cmd.Wait()
-	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", command, outbuf.String())
-		}
-		log.Infof("Failed to wait for command: %s , error: %s", command, err)
-		return err
-	}
-	return nil
-}
-
-func ReadYBStreamID(exportDir string) (string, error) {
-	streamIDFilePath := filepath.Join(exportDir, "metainfo", "yb_cdc_stream_id.txt")
-	if utils.FileOrFolderExists(streamIDFilePath) {
-		streamID, err := os.ReadFile(streamIDFilePath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read stream id file: %w", err)
-		}
-		return string(streamID), nil
-	}
-	return "", fmt.Errorf("yugabytedb cdc stream id not found at %s", streamIDFilePath)
 }
 
 func NewDebezium(config *Config) *Debezium {
