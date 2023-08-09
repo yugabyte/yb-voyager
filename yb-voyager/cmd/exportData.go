@@ -313,18 +313,31 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		}
 	} else if source.DBType == "yugabytedb" {
 		config.YBServers = source.DB().GetServers()
-		if startClean {
-			config.YBStreamID, err = dbzm.GenerateAndStoreYBStreamID(*config)
-			if err != nil {
-				return fmt.Errorf("failed to get stream id: %w", err)
-			}
-		} else {
+		if liveMigration { //TODO: for migration type CHANGES_ONLY
 			config.YBStreamID, err = dbzm.ReadYBStreamID(exportDir)
-			if err != nil {
+			if err != nil && strings.Contains(err.Error(), "stream id not found") {
+				config.YBStreamID, err = dbzm.GenerateAndStoreYBStreamID(config)
+				if err != nil {
+					return fmt.Errorf("failed to generate stream id: %w", err)
+				}
+				utils.PrintAndLog("Generated YugabyteDB CDC stream-id: %s", config.YBStreamID)
+			} else if err != nil {
 				return fmt.Errorf("failed to read stream id: %w", err)
+			} else if startClean {
+				err = dbzm.DeleteYBStreamID(config)
+				if err != nil {
+					return fmt.Errorf("failed to delete stream id: %w", err)
+				}
+				utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", config.YBStreamID)
+				config.YBStreamID, err = dbzm.GenerateAndStoreYBStreamID(config)
+				if err != nil {
+					return fmt.Errorf("failed to generate stream id: %w", err)
+				}
+				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
+			} else {
+				utils.PrintAndLog("Using YugabyteDB CDC stream-id: %s", config.YBStreamID)
 			}
 		}
-
 	}
 
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
