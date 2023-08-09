@@ -292,11 +292,6 @@ func markFlagsRequired(cmd *cobra.Command) {
 }
 
 func validateExportTypeFlag() {
-	if exportType == "" {
-		// utils.ErrExit("Error: required flag \"export-type\" not set")
-		return
-	}
-
 	exportType = strings.ToLower(exportType)
 	if !slices.Contains(validExportTypes, exportType) {
 		utils.ErrExit("Error: Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)

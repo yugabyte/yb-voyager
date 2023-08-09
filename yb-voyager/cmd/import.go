@@ -286,11 +286,6 @@ func validateTargetDBType() {
 }
 
 func validateImportType() {
-	if importType == "" {
-		// utils.ErrExit("Error: required flag \"import-type\" not set")
-		return
-	}
-
 	importType = strings.ToLower(importType)
 	if !slices.Contains(validExportTypes, importType) {
 		utils.ErrExit("Error: Invalid import-type: %q. Supported import types are: %s", importType, validExportTypes)
