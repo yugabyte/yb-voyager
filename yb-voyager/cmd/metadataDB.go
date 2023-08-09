@@ -78,7 +78,12 @@ func initMetaDB(path string) error {
 
 func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
-	defer conn.Close()
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to meta db: %w", err)
+		}
+	}()
 	if err != nil {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
