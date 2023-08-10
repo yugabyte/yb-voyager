@@ -97,6 +97,7 @@ func (event *Event) GetPreparedStmtName(targetSchema string) string {
 	ps.WriteString(event.Op)
 	if event.Op == "c" {
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
+		ps.WriteString(":")
 		ps.WriteString(keys)
 	}
 	return ps.String()
