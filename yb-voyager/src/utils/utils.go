@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
 	"golang.org/x/exp/slices"
@@ -427,10 +428,7 @@ func GetEnvAsInt(key string, fallback int) int {
 }
 
 func GetMapKeysSorted(m map[string]*string) []string {
-	keys := make([]string, 0, len(m))
-	for key := range m {
-		keys = append(keys, key)
-	}
+	keys := lo.Keys[string, *string](m)
 	sort.Strings(keys)
 	return keys
 }

@@ -696,17 +696,12 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 		}
 		defer tx.Rollback(ctx)
 
-		// preparing statements
 		for name, stmt := range stmtToPrepare {
-			if yb.connPool.IsStmtAlreadyPreparedOnConn(conn.PgConn().PID(), stmt) {
-				continue
-			}
-			_, err := conn.Prepare(ctx, name, stmt)
+			err := yb.connPool.PrepareStatement(conn, name, stmt)
 			if err != nil {
 				log.Errorf("error preparing stmt(%q): %v", stmt, err)
 				return false, fmt.Errorf("error preparing stmt: %w", err)
 			}
-			yb.connPool.CachePreparedStmtForConn(conn.PgConn().PID(), stmt)
 		}
 
 		br := conn.SendBatch(ctx, &ybBatch)

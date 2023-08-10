@@ -17,6 +17,7 @@ package tgtdb
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -82,8 +83,10 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 
 		retry, err = fn(conn)
 		if err != nil {
-			// On err, drop the connection.
+			// On err, drop the connection and clear the prepared statement cache.
 			conn.Close(context.Background())
+			// assuming PID will still be available
+			pool.connIdToPreparedStmtCache[conn.PgConn().PID()] = nil
 			pool.conns <- nil
 		} else {
 			pool.conns <- conn
@@ -93,7 +96,21 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	return err
 }
 
-func (pool *ConnectionPool) CachePreparedStmtForConn(connId uint32, ps string) {
+func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, stmt string) error {
+	if pool.isStmtAlreadyPreparedOnConn(conn.PgConn().PID(), stmtName) {
+		return nil
+	}
+
+	_, err := conn.Prepare(context.Background(), stmtName, stmt)
+	if err != nil {
+		log.Errorf("failed to prepare statement %q: %s", stmtName, err)
+		return fmt.Errorf("failed to prepare statement %q: %w", stmtName, err)
+	}
+	pool.cachePreparedStmtForConn(conn.PgConn().PID(), stmtName)
+	return err
+}
+
+func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
@@ -102,15 +119,13 @@ func (pool *ConnectionPool) CachePreparedStmtForConn(connId uint32, ps string) {
 	pool.connIdToPreparedStmtCache[connId][ps] = true
 }
 
-func (pool *ConnectionPool) IsStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
+func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
 	pool.Lock()
 	defer pool.Unlock()
 	if pool.connIdToPreparedStmtCache[connId] == nil {
 		return false
-	} else if cache, ok := pool.connIdToPreparedStmtCache[connId]; ok && cache[ps] {
-		return true
 	}
-	return false
+	return pool.connIdToPreparedStmtCache[connId][ps]
 }
 
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {

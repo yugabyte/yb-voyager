@@ -57,7 +57,8 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 }
 
 func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
-	if stmt, ok := cachePreparedStmt.Load(e.GetPreparedStmtName(targetSchema)); ok {
+	psName := e.GetPreparedStmtName(targetSchema)
+	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
 	}
 	var ps string
@@ -72,7 +73,7 @@ func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
 		panic("unknown op: " + e.Op)
 	}
 
-	cachePreparedStmt.Store(e.GetPreparedStmtName(targetSchema), ps)
+	cachePreparedStmt.Store(psName, ps)
 	return ps
 }
 
@@ -89,15 +90,24 @@ func (e *Event) GetParams() []interface{} {
 	}
 }
 
+func (event *Event) GetPreparedStmtName(targetSchema string) string {
+	var ps strings.Builder
+	ps.WriteString(event.getTableName(targetSchema))
+	ps.WriteString("_")
+	ps.WriteString(event.Op)
+	if event.Op == "c" {
+		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
+		ps.WriteString(keys)
+	}
+	return ps.String()
+}
+
 const insertTemplate = "INSERT INTO %s (%s) VALUES (%s)"
 const updateTemplate = "UPDATE %s SET %s WHERE %s"
 const deleteTemplate = "DELETE FROM %s WHERE %s"
 
 func (event *Event) getInsertStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
+	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
@@ -115,11 +125,8 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 }
 
 func (event *Event) getUpdateStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	var setClauses []string
+	tableName := event.getTableName(targetSchema)
+	setClauses := make([]string, 0, len(event.Fields))
 	for column, value := range event.Fields {
 		if value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
@@ -128,7 +135,8 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 		}
 	}
 	setClause := strings.Join(setClauses, ", ")
-	var whereClauses []string
+
+	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
@@ -140,11 +148,8 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 }
 
 func (event *Event) getDeleteStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	var whereClauses []string
+	tableName := event.getTableName(targetSchema)
+	whereClauses := make([]string, 0, len(event.Key))
 	for column, value := range event.Key {
 		if value == nil { // value can't be nil for keys
 			panic("key value is nil")
@@ -156,11 +161,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 }
 
 func (event *Event) getPreparedInsertStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-
+	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
@@ -174,21 +175,17 @@ func (event *Event) getPreparedInsertStmt(targetSchema string) string {
 	return stmt
 }
 
-// NOTE: PS for each event of same table can be diffrent as it depends on columns being updated
+// NOTE: PS for each event of same table can be different as it depends on columns being updated
 func (event *Event) getPreparedUpdateStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-
-	var setClauses []string
+	tableName := event.getTableName(targetSchema)
+	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
 		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, pos+1))
 	}
 	setClause := strings.Join(setClauses, ", ")
 
-	var whereClauses []string
+	whereClauses := make([]string, 0, len(event.Key))
 	keys = utils.GetMapKeysSorted(event.Key)
 	for i, key := range keys {
 		pos := i + 1 + len(event.Fields)
@@ -199,11 +196,8 @@ func (event *Event) getPreparedUpdateStmt(targetSchema string) string {
 }
 
 func (event *Event) getPreparedDeleteStmt(targetSchema string) string {
-	tableName := event.SchemaName + "." + event.TableName
-	if targetSchema != "" {
-		tableName = targetSchema + "." + event.TableName
-	}
-	var whereClauses []string
+	tableName := event.getTableName(targetSchema)
+	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
 		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
@@ -213,80 +207,44 @@ func (event *Event) getPreparedDeleteStmt(targetSchema string) string {
 }
 
 func (event *Event) getInsertParams() []interface{} {
-	var params []interface{}
-	keys := utils.GetMapKeysSorted(event.Fields)
-	for _, key := range keys {
-		value := event.Fields[key]
-		if value == nil {
-			params = append(params, nil)
-			continue
-		}
-		unquotedValue, err := strconv.Unquote(*value)
-		if err != nil {
-			unquotedValue = *value
-		}
-		params = append(params, unquotedValue)
-	}
-	return params
+	return getMapValuesForQuery(event.Fields)
 }
 
 func (event *Event) getUpdateParams() []interface{} {
-	var params []interface{}
-	keys := utils.GetMapKeysSorted(event.Fields)
-	for _, key := range keys {
-		value := event.Fields[key]
-		if value == nil {
-			params = append(params, nil)
-			continue
-		}
-		unquotedValue, err := strconv.Unquote(*value)
-		if err != nil {
-			unquotedValue = *value
-		}
-		params = append(params, unquotedValue)
-	}
-
-	keys = utils.GetMapKeysSorted(event.Key)
-	for _, key := range keys {
-		value := event.Key[key]
-		if value == nil {
-			params = append(params, nil)
-			continue
-		}
-		unquotedValue, err := strconv.Unquote(*value)
-		if err != nil {
-			unquotedValue = *value
-		}
-		params = append(params, unquotedValue)
-	}
+	params := make([]interface{}, 0, len(event.Fields)+len(event.Key))
+	params = append(params, getMapValuesForQuery(event.Fields)...)
+	params = append(params, getMapValuesForQuery(event.Key)...)
 	return params
 }
 
 func (event *Event) getDeleteParams() []interface{} {
-	var params []interface{}
-	keys := utils.GetMapKeysSorted(event.Key)
+	return getMapValuesForQuery(event.Key)
+}
+
+func getMapValuesForQuery(m map[string]*string) []interface{} {
+	keys := utils.GetMapKeysSorted(m)
+	values := make([]interface{}, 0, len(keys))
 	for _, key := range keys {
-		value := event.Key[key]
+		value := m[key]
 		if value == nil {
-			params = append(params, nil)
+			values = append(values, nil)
 			continue
 		}
 		unquotedValue, err := strconv.Unquote(*value)
 		if err != nil {
 			unquotedValue = *value
 		}
-		params = append(params, unquotedValue)
+		values = append(values, unquotedValue)
 	}
-	return params
+	return values
 }
 
-func (event *Event) GetPreparedStmtName(targetSchema string) string {
-	keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
-	tableName := event.SchemaName + "_" + event.TableName
+func (event *Event) getTableName(targetSchema string) string {
+	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
 	if targetSchema != "" {
-		tableName = targetSchema + "_" + event.TableName
+		tableName = strings.Join([]string{targetSchema, event.TableName}, ".")
 	}
-	return tableName + "_" + event.Op + "on:keys=" + keys
+	return tableName
 }
 
 // ==============================================================================================================================

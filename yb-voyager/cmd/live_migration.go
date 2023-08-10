@@ -25,7 +25,6 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -41,13 +40,11 @@ func init() {
 	EVENT_CHANNEL_SIZE = utils.GetEnvAsInt("EVENT_CHANNEL_SIZE", 2000)
 	MAX_EVENTS_PER_BATCH = utils.GetEnvAsInt("MAX_EVENTS_PER_BATCH", 2000)
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
-	log.Infof("NUM_EVENT_CHANNELS: %d", NUM_EVENT_CHANNELS)
-	log.Infof("EVENT_CHANNEL_SIZE: %d", EVENT_CHANNEL_SIZE)
-	log.Infof("MAX_EVENTS_PER_BATCH: %d", MAX_EVENTS_PER_BATCH)
-	log.Infof("MAX_INTERVAL_BETWEEN_BATCHES: %d", MAX_INTERVAL_BETWEEN_BATCHES)
 }
 
 func streamChanges() error {
+	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
+		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
@@ -203,7 +200,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
-		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %d",
+		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
