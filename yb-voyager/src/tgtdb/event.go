@@ -57,7 +57,7 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 }
 
 func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
-	if stmt, ok := cachePreparedStmt.Load(e.GetPreparedStmtName()); ok {
+	if stmt, ok := cachePreparedStmt.Load(e.GetPreparedStmtName(targetSchema)); ok {
 		return stmt.(string)
 	}
 	var ps string
@@ -72,7 +72,7 @@ func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
 		panic("unknown op: " + e.Op)
 	}
 
-	cachePreparedStmt.Store(e.GetPreparedStmtName(), ps)
+	cachePreparedStmt.Store(e.GetPreparedStmtName(targetSchema), ps)
 	return ps
 }
 
@@ -281,7 +281,7 @@ func (event *Event) getDeleteParams() []interface{} {
 }
 
 func (event *Event) GetPreparedStmtName(targetSchema string) string {
-	keys := strings.Join(utils.GetMapKeysSorted(event.Key), ",")
+	keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
 	tableName := event.SchemaName + "_" + event.TableName
 	if targetSchema != "" {
 		tableName = targetSchema + "_" + event.TableName
