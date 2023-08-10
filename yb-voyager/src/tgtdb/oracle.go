@@ -166,18 +166,6 @@ func (tdb *TargetOracleDB) GetVersion() string {
 }
 
 func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
-	createUserQuery := fmt.Sprintf(`BEGIN
-    DECLARE
-        user_exists NUMBER;
-    BEGIN
-        SELECT COUNT(*) INTO user_exists FROM all_users WHERE username = UPPER('%s');
-        IF user_exists = 0 THEN
-            EXECUTE IMMEDIATE 'CREATE USER %s IDENTIFIED BY "password"';
-        END IF;
-    END;
-END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
-	grantQuery := fmt.Sprintf(`GRANT CONNECT, RESOURCE TO %s`, BATCH_METADATA_TABLE_SCHEMA)
-	alterQuery := fmt.Sprintf(`ALTER USER %s QUOTA UNLIMITED ON USERS`, BATCH_METADATA_TABLE_SCHEMA)
 	createBatchMetadataTableQuery := fmt.Sprintf(`BEGIN
 		EXECUTE IMMEDIATE 'CREATE TABLE %s (
 			data_file_name VARCHAR2(250),
@@ -209,9 +197,6 @@ END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
 	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
 
 	cmds := []string{
-		createUserQuery,
-		grantQuery,
-		alterQuery,
 		createBatchMetadataTableQuery,
 		createEventChannelsMetadataTableQuery,
 	}
