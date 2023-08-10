@@ -40,15 +40,17 @@ type ConnectionParams struct {
 
 type ConnectionPool struct {
 	sync.Mutex
-	params       *ConnectionParams
-	conns        chan *pgx.Conn
-	nextUriIndex int
+	params                    *ConnectionParams
+	conns                     chan *pgx.Conn
+	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
+	nextUriIndex              int
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
-		params: params,
-		conns:  make(chan *pgx.Conn, params.NumConnections),
+		params:                    params,
+		conns:                     make(chan *pgx.Conn, params.NumConnections),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -89,6 +91,26 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	}
 
 	return err
+}
+
+func (pool *ConnectionPool) CachePreparedStmtForConn(connId uint32, ps string) {
+	pool.Lock()
+	defer pool.Unlock()
+	if pool.connIdToPreparedStmtCache[connId] == nil {
+		pool.connIdToPreparedStmtCache[connId] = make(map[string]bool)
+	}
+	pool.connIdToPreparedStmtCache[connId][ps] = true
+}
+
+func (pool *ConnectionPool) IsStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
+	pool.Lock()
+	defer pool.Unlock()
+	if pool.connIdToPreparedStmtCache[connId] == nil {
+		return false
+	} else if cache, ok := pool.connIdToPreparedStmtCache[connId]; ok && cache[ps] {
+		return true
+	}
+	return false
 }
 
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {

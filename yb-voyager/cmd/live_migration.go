@@ -193,11 +193,14 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		if len(batch) == 0 {
 			continue
 		}
+
+		start := time.Now()
 		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
-		log.Debugf("processEvents from channel %v: Executed Batch of size - %v", chanNo, len(batch))
+		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %d",
+			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
 }

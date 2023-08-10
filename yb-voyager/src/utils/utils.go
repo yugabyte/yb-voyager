@@ -425,3 +425,12 @@ func GetEnvAsInt(key string, fallback int) int {
 	}
 	return int(valueInt)
 }
+
+func GetMapKeysSorted(m map[string]*string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
