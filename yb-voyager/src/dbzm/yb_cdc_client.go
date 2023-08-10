@@ -53,7 +53,7 @@ func (ybc *YugabyteDBCDCClient) Init() error {
 	if err != nil {
 		return fmt.Errorf("error in finding debezium distribution: %s", err)
 	}
-	ybc.ybCdcClientJarPath = fmt.Sprintf("%s/yb-cdc-client.jar", DEBEZIUM_DIST_DIR)
+	ybc.ybCdcClientJarPath = fmt.Sprintf("%s/yb-client-cdc-stream-wrapper.jar", DEBEZIUM_DIST_DIR)
 	return nil
 }
 
@@ -112,18 +112,22 @@ func (ybc *YugabyteDBCDCClient) readYBStreamID() (string, error) {
 	return "", fmt.Errorf("yugabytedb cdc stream id not found at %s", streamIDFilePath)
 }
 
-func (ybc *YugabyteDBCDCClient) DeleteStreamID(streamID string) error {
-	args := fmt.Sprintf("--delete_stream %s -master_addresses %s -table_name %s -db_name %s ", streamID, ybc.masterAddreses, ybc.tableName, ybc.dbName)
+func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
+	streamID, err := ybc.readYBStreamID()
+	if err != nil {
+		return fmt.Errorf("failed to read stream id: %w", err)
+	}
+	args := fmt.Sprintf("-delete_stream %s -master_addresses %s ", streamID, ybc.masterAddreses)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
 	}
 
-	_, err := ybc.runCommand(args)
+	_, err = ybc.runCommand(args)
 	if err != nil {
 		return fmt.Errorf("running command with args: %s, error: %s", args, err)
 	}
-
+	utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", streamID)
 	return nil
 }
 
@@ -141,7 +145,7 @@ func (ybc *YugabyteDBCDCClient) runCommand(args string) (string, error) {
 			log.Infof("Output of the command %s: %s", command, outbuf.String())
 		}
 		log.Errorf("Failed to start command: %s, error: %s", command, err)
-		return outbuf.String(), fmt.Errorf("Failed to start command: %s, error: %s", command, err)
+		return outbuf.String(), fmt.Errorf("failed to start command: %s, error: %s", command, err)
 	}
 	err = cmd.Wait()
 	if err != nil {
@@ -149,7 +153,7 @@ func (ybc *YugabyteDBCDCClient) runCommand(args string) (string, error) {
 			log.Infof("Output of the command %s: %s", command, outbuf.String())
 		}
 		log.Errorf("Failed to wait for command: %s , error: %s", command, err)
-		return outbuf.String(), fmt.Errorf("Failed to wait for command: %s , error: %s", command, err)
+		return outbuf.String(), fmt.Errorf("failed to wait for command: %s , error: %s", command, err)
 	}
 
 	return outbuf.String(), nil

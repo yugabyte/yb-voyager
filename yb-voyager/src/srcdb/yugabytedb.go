@@ -391,6 +391,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 
 func (yb *YugabyteDB) GetServers() string {
 	var ybServers []string
+	//TODO: figure out a way to get master nodes only from server
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
 	rows, err := yb.conn.Query(context.Background(), YB_SERVERS_QUERY)
 	if err != nil {

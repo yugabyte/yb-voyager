@@ -245,7 +245,6 @@ func (c *Config) String() string {
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,
 			c.Username,
-			c.Password,
 			"never",
 			offsetFile,
 			strings.Join(c.TableList, ","),

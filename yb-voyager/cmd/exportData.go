@@ -318,21 +318,20 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	} else if source.DBType == "yugabytedb" {
 		config.YBServers = source.DB().GetServers()
 		if liveMigration { //TODO: for migration type CHANGES_ONLY
-			yugabytedbCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, config.YBServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
-			yugabytedbCDCClient.Init()
+			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, config.YBServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			ybCDCClient.Init()
 			if startClean {
-				err = yugabytedbCDCClient.DeleteStreamID(config.YBStreamID)
+				err = ybCDCClient.DeleteStreamID()
 				if err != nil {
 					return fmt.Errorf("failed to delete stream id: %w", err)
 				}
-				utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", config.YBStreamID)
-				config.YBStreamID, err = yugabytedbCDCClient.GenerateAndStoreStreamID()
+				config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
 				if err != nil {
 					return fmt.Errorf("failed to generate stream id: %w", err)
 				}
 				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
 			} else {
-				config.YBStreamID, err = yugabytedbCDCClient.GetStreamID()
+				config.YBStreamID, err = ybCDCClient.GetStreamID()
 				if err != nil {
 					return fmt.Errorf("failed to get stream id: %w", err)
 				}
