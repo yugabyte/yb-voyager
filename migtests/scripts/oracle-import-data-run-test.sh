@@ -83,6 +83,9 @@ main() {
     step "Truncate tables in target database"
     ./truncate_tables
 
+    step "Create yb-voyager-metadata user"
+    run_sqlplus_as_schema_owner ${TARGET_DB_NAME} ${TEST_DIR}/schema_and_data/create_yb_voyager_metadata_user
+
 	step "Import data."
 	import_data
 
