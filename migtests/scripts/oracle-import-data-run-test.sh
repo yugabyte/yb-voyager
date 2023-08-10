@@ -44,24 +44,6 @@ main() {
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
-	step "Export schema."
-	export_schema
-	find ${EXPORT_DIR}/schema -name '*.sql' -printf "'%p'\n"| xargs grep -wh CREATE
-
-	step "Analyze schema."
-	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
-
-	step "Fix schema."
-	if [ -x "${TEST_DIR}/fix-schema" ]
-	then
-		 "${TEST_DIR}/fix-schema"
-	fi
-
-	step "Analyze schema."
-	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
-
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data || { 
@@ -84,7 +66,7 @@ main() {
     ./truncate_tables
 
     step "Create yb-voyager-metadata user"
-    run_sqlplus_as_schema_owner ${TARGET_DB_NAME} ${TEST_DIR}/schema_and_data/create_yb_voyager_metadata_user
+    run_sqlplus_as_schema_owner ${TARGET_DB_NAME} ${TEST_DIR}/schema_and_data/create_metadata_user
 
 	step "Import data."
 	import_data
