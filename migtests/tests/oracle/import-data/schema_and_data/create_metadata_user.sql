@@ -8,3 +8,6 @@ BEGIN
         END IF;
     END;
 END;
+
+GRANT CONNECT, RESOURCE TO ybvoyager_metadata;
+ALTER USER ybvoyager_metadata QUOTA UNLIMITED ON USERS;
