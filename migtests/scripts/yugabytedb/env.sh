@@ -5,6 +5,7 @@ export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD:-'Test@123#$%^&*()!'}
 export TARGET_DB_ADMIN_USER=${TARGET_DB_ADMIN_USER:-"yugabyte"}
 export TARGET_DB_ADMIN_PASSWORD=${TARGET_DB_ADMIN_PASSWORD:-''}
 export TARGET_DB_SCHEMA=${TARGET_DB_SCHEMA:-'public'}
+export TARGET_DB_TYPE=${TARGET_DB_TYPE:-'yugabytedb'}
 
 # The PG driver, used to connect to YB, is case-sensitive about database name.
 if [ "${TARGET_DB_NAME}" == "" ]

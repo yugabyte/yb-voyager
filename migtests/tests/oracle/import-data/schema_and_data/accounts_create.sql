@@ -1,0 +1,12 @@
+CREATE TABLE ACCOUNTS (
+		block NUMBER(19) NOT NULL,
+		address VARCHAR2(4000) NOT NULL,
+		dc_balance NUMBER(19) DEFAULT 0 NOT NULL,
+		dc_nonce NUMBER(19) DEFAULT 0 NOT NULL,
+		security_balance NUMBER(19) DEFAULT 0 NOT NULL,
+		security_nonce NUMBER(19) DEFAULT 0 NOT NULL,
+		balance NUMBER(19) DEFAULT 0 NOT NULL,
+		nonce NUMBER(19) DEFAULT 0 NOT NULL,
+		staked_balance NUMBER(19),
+		PRIMARY KEY (block, address)
+	);

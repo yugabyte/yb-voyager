@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+source ${SCRIPTS}/functions.sh
+
+echo "Truncating Tables"
+run_sqlplus_as_schema_owner ${TARGET_DB_NAME} schema_and_data/truncate_tables
