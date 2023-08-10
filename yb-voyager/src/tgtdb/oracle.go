@@ -166,21 +166,6 @@ func (tdb *TargetOracleDB) GetVersion() string {
 }
 
 func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
-	createBatchMetadataTableQuery := fmt.Sprintf(`BEGIN
-		EXECUTE IMMEDIATE 'CREATE TABLE %s (
-			data_file_name VARCHAR2(250),
-			batch_number NUMBER(10),
-			schema_name VARCHAR2(250),
-			table_name VARCHAR2(250),
-			rows_imported NUMBER(19),
-			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
-		)';
-	EXCEPTION
-		WHEN OTHERS THEN
-			IF SQLCODE != -955 THEN
-				RAISE;
-			END IF;
-	END;`, BATCH_METADATA_TABLE_NAME)
 	// The exception block is to ignore the error if the table already exists and continue without error.
 	createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
 		EXECUTE IMMEDIATE 'CREATE TABLE %s (
@@ -197,7 +182,6 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
 
 	cmds := []string{
-		createBatchMetadataTableQuery,
 		createEventChannelsMetadataTableQuery,
 	}
 
