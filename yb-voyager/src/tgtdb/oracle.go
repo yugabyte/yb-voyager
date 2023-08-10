@@ -167,48 +167,50 @@ func (tdb *TargetOracleDB) GetVersion() string {
 
 func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	// The exception block is to ignore the error if the table already exists and continue without error.
-	createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
-		EXECUTE IMMEDIATE 'CREATE TABLE %s (
-			migration_uuid VARCHAR2(36),
-			channel_no INT,
-			last_applied_vsn NUMBER(19),
-			PRIMARY KEY (migration_uuid, channel_no)
-		)';
-	EXCEPTION
-		WHEN OTHERS THEN
-			IF SQLCODE != -955 THEN
-				RAISE;
-			END IF;
-	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
+	// 	createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
+	// 		EXECUTE IMMEDIATE 'CREATE TABLE %s (
+	// 			migration_uuid VARCHAR2(36),
+	// 			channel_no INT,
+	// 			last_applied_vsn NUMBER(19),
+	// 			PRIMARY KEY (migration_uuid, channel_no)
+	// 		)';
+	// 	EXCEPTION
+	// 		WHEN OTHERS THEN
+	// 			IF SQLCODE != -955 THEN
+	// 				RAISE;
+	// 			END IF;
+	// 	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
 
-	cmds := []string{
-		createEventChannelsMetadataTableQuery,
-	}
+	// 	cmds := []string{
+	// 		createEventChannelsMetadataTableQuery,
+	// 	}
 
-	maxAttempts := 12
-	var err error
+	// 	maxAttempts := 12
+	// 	var err error
 
-outer:
-	for _, cmd := range cmds {
-		for attempt := 1; attempt <= maxAttempts; attempt++ {
-			log.Infof("Executing on target: [%s]", cmd)
-			conn := tdb.GetConnection()
-			_, err = conn.ExecContext(context.Background(), cmd)
-			if err == nil {
-				// No error. Move on to the next command.
-				continue outer
-			}
-			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
-			time.Sleep(5 * time.Second)
-			err2 := tdb.reconnect()
-			if err2 != nil {
-				return fmt.Errorf("reconnect to target db: %w", err2)
-			}
-		}
-		if err != nil {
-			return fmt.Errorf("create ybvoyager schema on target: %w", err)
-		}
-	}
+	// outer:
+	//
+	//	for _, cmd := range cmds {
+	//		for attempt := 1; attempt <= maxAttempts; attempt++ {
+	//			log.Infof("Executing on target: [%s]", cmd)
+	//			conn := tdb.GetConnection()
+	//			_, err = conn.ExecContext(context.Background(), cmd)
+	//			if err == nil {
+	//				// No error. Move on to the next command.
+	//				continue outer
+	//			}
+	//			log.Warnf("Error while running [%s] attempt %d: %s", cmd, attempt, err)
+	//			time.Sleep(5 * time.Second)
+	//			err2 := tdb.reconnect()
+	//			if err2 != nil {
+	//				return fmt.Errorf("reconnect to target db: %w", err2)
+	//			}
+	//		}
+	//		if err != nil {
+	//			return fmt.Errorf("create ybvoyager schema on target: %w", err)
+	//		}
+	//	}
+	//	return nil
 	return nil
 }
 
