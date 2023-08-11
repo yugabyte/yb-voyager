@@ -428,7 +428,7 @@ func GetEnvAsInt(key string, fallback int) int {
 }
 
 func GetMapKeysSorted(m map[string]*string) []string {
-	keys := lo.Keys[string, *string](m)
+	keys := lo.Keys(m)
 	sort.Strings(keys)
 	return keys
 }

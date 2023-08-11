@@ -95,7 +95,7 @@ func (event *Event) GetPreparedStmtName(targetSchema string) string {
 	ps.WriteString(event.getTableName(targetSchema))
 	ps.WriteString("_")
 	ps.WriteString(event.Op)
-	if event.Op == "c" {
+	if event.Op == "u" {
 		keys := strings.Join(utils.GetMapKeysSorted(event.Fields), ",")
 		ps.WriteString(":")
 		ps.WriteString(keys)
