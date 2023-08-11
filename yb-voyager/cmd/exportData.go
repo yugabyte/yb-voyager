@@ -272,12 +272,13 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
-		SourceDBType: source.DBType,
-		ExportDir:    absExportDir,
-		Host:         source.Host,
-		Port:         source.Port,
-		Username:     source.User,
-		Password:     source.Password,
+		SourceDBType:   source.DBType,
+		ExportDir:      absExportDir,
+		MetadataDBPath: getMetaDBPath(absExportDir),
+		Host:           source.Host,
+		Port:           source.Port,
+		Username:       source.User,
+		Password:       source.Password,
 
 		DatabaseName:      source.DBName,
 		SchemaNames:       source.Schema,
@@ -604,6 +605,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {

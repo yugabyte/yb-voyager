@@ -34,6 +34,17 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var oraValueConverterSuite = map[string]ConverterFn{
+	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
+		if formatIfRequired {
+			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
+			return fmt.Sprintf("'%s'", formattedColumnValue), nil
+		} else {
+			return columnValue, nil
+		}
+	},
+}
+
 type TargetOracleDB struct {
 	sync.Mutex
 	tconf *TargetConf
@@ -167,7 +178,7 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
 	grantQuery := fmt.Sprintf(`GRANT CONNECT, RESOURCE TO %s`, BATCH_METADATA_TABLE_SCHEMA)
 	alterQuery := fmt.Sprintf(`ALTER USER %s QUOTA UNLIMITED ON USERS`, BATCH_METADATA_TABLE_SCHEMA)
-	createTableQuery := fmt.Sprintf(`BEGIN
+	createBatchMetadataTableQuery := fmt.Sprintf(`BEGIN
 		EXECUTE IMMEDIATE 'CREATE TABLE %s (
 			data_file_name VARCHAR2(250),
 			batch_number NUMBER(10),
@@ -183,12 +194,26 @@ END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
 			END IF;
 	END;`, BATCH_METADATA_TABLE_NAME)
 	// The exception block is to ignore the error if the table already exists and continue without error.
+	createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
+		EXECUTE IMMEDIATE 'CREATE TABLE %s (
+			migration_uuid VARCHAR2(36),
+			channel_no INT,
+			last_applied_vsn NUMBER(19),
+			PRIMARY KEY (migration_uuid, channel_no)
+		)';
+	EXCEPTION
+		WHEN OTHERS THEN
+			IF SQLCODE != -955 THEN
+				RAISE;
+			END IF;
+	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
 
 	cmds := []string{
 		createUserQuery,
 		grantQuery,
 		alterQuery,
-		createTableQuery,
+		createBatchMetadataTableQuery,
+		createEventChannelsMetadataTableQuery,
 	}
 
 	maxAttempts := 12
@@ -219,13 +244,60 @@ outer:
 }
 
 func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error {
-	// Not implemented
-	return nil
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		if startClean {
+			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+			res, err := conn.ExecContext(context.Background(), startCleanStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
+			}
+			rowsAffected, _ := res.RowsAffected()
+			log.Infof("deleted existing channels meta info using query %s; rows affected = %d", startCleanStmt, rowsAffected)
+		}
+		// if there are >0 rows, then skip because already been inited.
+		rowsStmt := fmt.Sprintf(
+			"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+		var rowCount int
+		err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
+		if err != nil {
+			return false, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+		}
+		if rowCount > 0 {
+			log.Info("event channels meta info already created. Skipping init.")
+			return false, nil
+		}
+
+		for c := 0; c < numChans; c++ {
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
+			_, err := conn.ExecContext(context.Background(), insertStmt)
+			if err != nil {
+				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			}
+			log.Infof("created channels meta info: %s;", insertStmt)
+		}
+		return false, nil
+	})
+	return err
 }
 
 func (tdb *TargetOracleDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
-	// Not implemented
-	return nil, nil
+	metainfo := map[int]EventChannelMetaInfo{}
+
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	rows, err := tdb.conn.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+
+	for rows.Next() {
+		var chanMetaInfo EventChannelMetaInfo
+		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
+	}
+	return metainfo, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
@@ -458,8 +530,48 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 	return columns, nil
 }
 
+// execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
-	// Not implemented
+	// TODO: figure out how to avoid round trips to Oracle DB
+	log.Infof("executing batch of %d events", len(batch.Events))
+
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		tx, err := conn.BeginTx(context.Background(), nil)
+		if err != nil {
+			return false, fmt.Errorf("begin transaction: %w", err)
+		}
+		defer tx.Rollback()
+
+		for i := 0; i < len(batch.Events); i++ {
+			event := batch.Events[i]
+			stmt := event.GetSQLStmt(tdb.tconf.Schema)
+			_, err = tx.Exec(stmt)
+			if err != nil {
+				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
+			}
+		}
+
+		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID)
+		res, err := tx.Exec(updateVsnQuery)
+		if err != nil {
+			log.Errorf("error executing stmt: %v", err)
+			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w", updateVsnQuery, err)
+		} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
+			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
+			return false, fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
+				updateVsnQuery, err, rowsAffected)
+		}
+
+		if err = tx.Commit(); err != nil {
+			return false, fmt.Errorf("failed to commit transaction : %w", err)
+		}
+		return false, err
+	})
+	if err != nil {
+		return fmt.Errorf("error executing batch: %w", err)
+	}
+
 	return nil
 }
 
@@ -470,13 +582,13 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	} else {
 		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
 	}
-
 	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
+	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism)
 	return nil
 }
 
 func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
-	return nil
+	return oraValueConverterSuite
 }
 
 func (tdb *TargetOracleDB) getConnectionUri(tconf *TargetConf) string {

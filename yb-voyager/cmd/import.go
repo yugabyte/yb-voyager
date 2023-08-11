@@ -70,6 +70,7 @@ func validateImportFlags(cmd *cobra.Command) {
 	}
 	validateBatchSizeFlag(batchSize)
 	validateTargetPassword(cmd)
+
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -197,6 +198,7 @@ func validateTargetPortRange() {
 		} else if tconf.TargetDBType == YUGABYTEDB {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 		}
+		return
 	}
 
 	if tconf.Port < 0 || tconf.Port > 65535 {
@@ -206,6 +208,11 @@ func validateTargetPortRange() {
 
 func validateTargetSchemaFlag() {
 	if tconf.Schema == "" {
+		if tconf.TargetDBType == YUGABYTEDB {
+			tconf.Schema = YUGABYTEDB_DEFAULT_SCHEMA
+		} else if tconf.TargetDBType == ORACLE {
+			tconf.Schema = tconf.User
+		}
 		return
 	}
 	if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
