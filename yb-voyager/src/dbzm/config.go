@@ -29,8 +29,9 @@ import (
 )
 
 type Config struct {
-	SourceDBType string
-	ExportDir    string
+	SourceDBType   string
+	ExportDir      string
+	MetadataDBPath string
 
 	Host     string
 	Port     int
