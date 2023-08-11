@@ -6,7 +6,7 @@ def main():
     oracle.run_checks(migration_completed_checks)
     
 EXPECTED_ROW_COUNT = {
-    'accounts': 10000
+    'accounts': 100000
 }
 
 def migration_completed_checks(tgt):
