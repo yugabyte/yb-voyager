@@ -167,7 +167,7 @@ func (tdb *TargetOracleDB) GetVersion() string {
 
 func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	// The exception block is to ignore the error if the table already exists and continue without error.
-	// 	createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
+	// createEventChannelsMetadataTableQuery := fmt.Sprintf(`BEGIN
 	// 		EXECUTE IMMEDIATE 'CREATE TABLE %s (
 	// 			migration_uuid VARCHAR2(36),
 	// 			channel_no INT,
@@ -181,9 +181,9 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	// 			END IF;
 	// 	END;`, EVENT_CHANNELS_METADATA_TABLE_NAME)
 
-	// 	cmds := []string{
-	// 		createEventChannelsMetadataTableQuery,
-	// 	}
+	// cmds := []string{
+	// 	createEventChannelsMetadataTableQuery,
+	// }
 
 	// 	maxAttempts := 12
 	// 	var err error
@@ -553,8 +553,8 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	} else {
 		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
 	}
-	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
-	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism)
+	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism + 1)
+	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism + 1)
 	return nil
 }
 

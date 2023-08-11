@@ -2,7 +2,7 @@
 DECLARE
     v_counter NUMBER := 1;
 BEGIN
-    FOR v_counter IN 1..1000000 LOOP
+    FOR v_counter IN 1..100000 LOOP
         INSERT INTO ACCOUNTS (
             block,
             address,
