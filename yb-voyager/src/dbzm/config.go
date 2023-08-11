@@ -89,7 +89,7 @@ debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
-debezium.sink.ybexporter.metadata.db.path=%d
+debezium.sink.ybexporter.metadata.db.path=%s
 `
 
 var postgresSrcConfigTemplate = `
