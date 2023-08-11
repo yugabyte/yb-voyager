@@ -52,6 +52,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
+var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -185,6 +186,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 	valueConverter, err = dbzm.NewValueConverter(tconf.TargetDBType, exportDir, tdb)
+	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}
@@ -227,7 +229,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -452,7 +454,8 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 		}
 		if line != "" {
 			table := batchWriter.tableName
-			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) 
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
@@ -526,7 +529,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema[batch.TableName])
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}

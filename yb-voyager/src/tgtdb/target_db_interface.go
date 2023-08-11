@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
 type TargetDB interface {
@@ -32,10 +33,10 @@ type TargetDB interface {
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []string) []string
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
-	GetDebeziumValueConverterSuite() map[string]ConverterFn
+	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
 	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
 	MaxBatchSizeInBytes() int64
@@ -47,9 +48,6 @@ const (
 	POSTGRESQL = "postgresql"
 	YUGABYTEDB = "yugabytedb"
 )
-
-// value converter Function type
-type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {
 	Open() (*os.File, error)
@@ -116,14 +114,14 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, columnToTypes map[string]string) string {
+func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map[string]map[string]string) string {
 	var columns string
 	if len(args.Columns) > 0 {
 		columnsSlice := make([]string, 0, len(args.Columns))
 		for _, col := range args.Columns {
 			// Add the column name and the NULLIF clause after it
-			splits := strings.Split(columnToTypes[col], ":")
-			dataType, charLength := splits[0], splits[1]
+			dataType := tableSchema[col]["__debezium.source.column.type"] 
+			charLength := tableSchema[col]["__debezium.source.column.length"]
 			if strings.HasPrefix(dataType, "DATE") || strings.HasPrefix(dataType, "TIMESTAMP") || strings.Contains(dataType, "INTERVAL") {
 				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s %s NULLIF %s='\\N'`, col, dataType, col))
 			} else if strings.Contains(dataType, "CHAR") {
