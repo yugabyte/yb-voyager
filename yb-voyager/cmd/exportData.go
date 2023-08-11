@@ -86,6 +86,10 @@ func exportData() {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	success := exportDataOffline()
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
 
 	if success {
 		tableRowCount := map[string]int64{}
@@ -93,7 +97,7 @@ func exportData() {
 			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 		}
 		printExportedRowCount(tableRowCount, useDebezium)
-		callhome.GetPayload(exportDir)
+		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
 
@@ -268,12 +272,13 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
-		SourceDBType: source.DBType,
-		ExportDir:    absExportDir,
-		Host:         source.Host,
-		Port:         source.Port,
-		Username:     source.User,
-		Password:     source.Password,
+		SourceDBType:   source.DBType,
+		ExportDir:      absExportDir,
+		MetadataDBPath: getMetaDBPath(absExportDir),
+		Host:           source.Host,
+		Port:           source.Port,
+		Username:       source.User,
+		Password:       source.Password,
 
 		DatabaseName:      source.DBName,
 		SchemaNames:       source.Schema,
@@ -575,6 +580,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
