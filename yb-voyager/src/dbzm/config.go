@@ -89,6 +89,7 @@ debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
+debezium.sink.ybexporter.metadata.db.path=%d
 `
 
 var postgresSrcConfigTemplate = `
@@ -212,7 +213,8 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
-			queueSegmentMaxBytes)
+			queueSegmentMaxBytes,
+			c.MetadataDBPath)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -234,7 +236,8 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
-			queueSegmentMaxBytes)
+			queueSegmentMaxBytes,
+			c.MetadataDBPath)
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
@@ -254,7 +257,8 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
-			queueSegmentMaxBytes)
+			queueSegmentMaxBytes,
+			c.MetadataDBPath)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
