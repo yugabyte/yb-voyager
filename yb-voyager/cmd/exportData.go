@@ -320,7 +320,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		if liveMigration { //TODO: for migration type CHANGES_ONLY
 			ybServers := source.DB().GetServers()
 			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
-			ybCDCClient.Init()
+			err := ybCDCClient.Init()
+			if err != nil {
+				return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+			}
 			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
 			if err != nil {
 				return fmt.Errorf("failed to list master nodes: %w", err)

@@ -29,22 +29,23 @@ import (
 )
 
 type YugabyteDBCDCClient struct {
-	exportDir      string
-	masterAddreses string
-	dbName         string
+	exportDir string
+	ybServers string
+	dbName    string
 	//Any table name in the database is required by yb-client createCDCStream(...) API
 	tableName          string
 	sslRootCert        string
 	ybCdcClientJarPath string
+	ybMasterNodes      string
 }
 
-func NewYugabyteDBCDCClient(exportDir, masterAddreses, sslRootCert, dbName, tableName string) *YugabyteDBCDCClient {
+func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName string) *YugabyteDBCDCClient {
 	return &YugabyteDBCDCClient{
-		exportDir:      exportDir,
-		masterAddreses: masterAddreses,
-		dbName:         dbName,
-		tableName:      tableName,
-		sslRootCert:    sslRootCert,
+		exportDir:   exportDir,
+		ybServers:   ybServers,
+		dbName:      dbName,
+		tableName:   tableName,
+		sslRootCert: sslRootCert,
 	}
 }
 
@@ -74,7 +75,7 @@ func (ybc *YugabyteDBCDCClient) GetStreamID() (string, error) {
 }
 
 func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
-	args := fmt.Sprintf("-create -master_addresses %s -table_name %s -db_name %s ", ybc.masterAddreses, ybc.tableName, ybc.dbName)
+	args := fmt.Sprintf("-create -master_addresses %s -table_name %s -db_name %s ", ybc.ybMasterNodes, ybc.tableName, ybc.dbName)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
@@ -117,7 +118,7 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	if err != nil {
 		return fmt.Errorf("failed to read stream id: %w", err)
 	}
-	args := fmt.Sprintf("-delete_stream %s -master_addresses %s ", streamID, ybc.masterAddreses)
+	args := fmt.Sprintf("-delete_stream %s -master_addresses %s ", streamID, ybc.ybMasterNodes)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
@@ -132,18 +133,19 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 }
 
 func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
-	args := fmt.Sprintf("-list_masters -master_addresses %s ", ybc.masterAddreses)
+	args := fmt.Sprintf("-list_masters -master_addresses %s ", ybc.ybServers)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
 	}
 
-	stdout, err := ybc.runCommand(args)	
+	stdout, err := ybc.runCommand(args)
 	if err != nil {
 		return "", fmt.Errorf("running command with args: %s, error: %s", args, err)
 	}
 	//stdout - Master Addresses: <comma_separated_list_addresses>
 	masterAddresses := strings.Trim(strings.Split(stdout, ": ")[1], " \n")
+	ybc.ybMasterNodes = masterAddresses
 	return masterAddresses, nil
 }
 
