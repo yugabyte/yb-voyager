@@ -272,12 +272,13 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
-		SourceDBType: source.DBType,
-		ExportDir:    absExportDir,
-		Host:         source.Host,
-		Port:         source.Port,
-		Username:     source.User,
-		Password:     source.Password,
+		SourceDBType:   source.DBType,
+		ExportDir:      absExportDir,
+		MetadataDBPath: getMetaDBPath(absExportDir),
+		Host:           source.Host,
+		Port:           source.Port,
+		Username:       source.User,
+		Password:       source.Password,
 
 		DatabaseName:      source.DBName,
 		SchemaNames:       source.Schema,
