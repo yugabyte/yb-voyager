@@ -131,6 +131,22 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	return nil
 }
 
+func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
+	args := fmt.Sprintf("-list_masters -master_addresses %s ", ybc.masterAddreses)
+
+	if ybc.sslRootCert != "" {
+		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
+	}
+
+	stdout, err := ybc.runCommand(args)	
+	if err != nil {
+		return "", fmt.Errorf("running command with args: %s, error: %s", args, err)
+	}
+	//stdout - Master Addresses: <comma_separated_list_addresses>
+	masterAddresses := strings.Trim(strings.Split(stdout, ": ")[1], " \n")
+	return masterAddresses, nil
+}
+
 func (ybc *YugabyteDBCDCClient) runCommand(args string) (string, error) {
 	command := fmt.Sprintf("java -jar %s %s", ybc.ybCdcClientJarPath, args)
 

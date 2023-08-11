@@ -56,7 +56,7 @@ type Config struct {
 	SSLTrustStore         string
 	SSLTrustStorePassword string
 	YBStreamID            string
-	YBServers             string
+	YBMasterNodes         string
 	SnapshotMode          string
 }
 
@@ -252,7 +252,7 @@ func (c *Config) String() string {
 			c.Host, c.Port,
 			c.DatabaseName,
 			c.YBStreamID,
-			c.YBServers,
+			c.YBMasterNodes,
 			schemaNames,
 
 			dataDir,

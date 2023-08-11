@@ -316,10 +316,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
 	} else if source.DBType == "yugabytedb" {
-		config.YBServers = source.DB().GetServers()
 		if liveMigration { //TODO: for migration type CHANGES_ONLY
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, config.YBServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			ybServers := source.DB().GetServers()
+			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
 			ybCDCClient.Init()
+			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
+			if err != nil {
+				return fmt.Errorf("failed to list master nodes: %w", err)
+			}
 			if startClean {
 				err = ybCDCClient.DeleteStreamID()
 				if err != nil {
