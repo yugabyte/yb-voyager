@@ -128,6 +128,8 @@ func setSourceDefaultPort() {
 		source.Port = ORACLE_DEFAULT_PORT
 	case POSTGRESQL:
 		source.Port = POSTGRES_DEFAULT_PORT
+	case YUGABYTEDB:
+		source.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 	case MYSQL:
 		source.Port = MYSQL_DEFAULT_PORT
 	}

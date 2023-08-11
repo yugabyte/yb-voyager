@@ -294,8 +294,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		SSLKeyStorePassword:   source.SSLKeyStorePassword,
 		SSLTrustStore:         source.SSLTrustStore,
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
-
-		SnapshotMode: snapshotMode,
+		SnapshotMode:          snapshotMode,
 	}
 	if source.DBType == "oracle" {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
@@ -316,6 +315,35 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		config.OracleJDBCWalletLocationSet, err = isOracleJDBCWalletLocationSet(source)
 		if err != nil {
 			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+		}
+	} else if source.DBType == "yugabytedb" {
+		if liveMigration { //TODO: for migration type CHANGES_ONLY
+			ybServers := source.DB().GetServers()
+			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			err := ybCDCClient.Init()
+			if err != nil {
+				return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+			}
+			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
+			if err != nil {
+				return fmt.Errorf("failed to list master nodes: %w", err)
+			}
+			if startClean {
+				err = ybCDCClient.DeleteStreamID()
+				if err != nil {
+					return fmt.Errorf("failed to delete stream id: %w", err)
+				}
+				config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
+				if err != nil {
+					return fmt.Errorf("failed to generate stream id: %w", err)
+				}
+				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
+			} else {
+				config.YBStreamID, err = ybCDCClient.GetStreamID()
+				if err != nil {
+					return fmt.Errorf("failed to get stream id: %w", err)
+				}
+			}
 		}
 	}
 

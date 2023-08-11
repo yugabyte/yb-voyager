@@ -20,13 +20,11 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -34,43 +32,41 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-const PG_COMMAND_VERSION string = "14.0"
-
-type PostgreSQL struct {
+type YugabyteDB struct {
 	source *Source
 
-	db *pgx.Conn
+	conn *pgx.Conn
 }
 
-func newPostgreSQL(s *Source) *PostgreSQL {
-	return &PostgreSQL{source: s}
+func newYugabyteDB(s *Source) *YugabyteDB {
+	return &YugabyteDB{source: s}
 }
 
-func (pg *PostgreSQL) Connect() error {
-	db, err := pgx.Connect(context.Background(), pg.getConnectionUri())
-	pg.db = db
+func (yb *YugabyteDB) Connect() error {
+	db, err := pgx.Connect(context.Background(), yb.getConnectionUri())
+	yb.conn = db
 	return err
 }
 
-func (pg *PostgreSQL) Disconnect() {
-	if pg.db == nil {
+func (yb *YugabyteDB) Disconnect() {
+	if yb.conn == nil {
 		log.Infof("No connection to the source database to close")
 		return
 	}
 
-	err := pg.db.Close(context.Background())
+	err := yb.conn.Close(context.Background())
 	if err != nil {
-		log.Infof("Failed to close connection to the source database: %s", err)
+		log.Errorf("Failed to close connection to the source database: %s", err)
 	}
 }
 
-func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
+func (yb *YugabyteDB) CheckRequiredToolsAreInstalled() {
 	checkTools("strings")
 }
 
-func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
+func (yb *YugabyteDB) GetTableRowCount(tableName string) int64 {
 	// new conn to avoid conn busy err as multiple parallel(and time-taking) queries possible
-	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	conn, err := pgx.Connect(context.Background(), yb.getConnectionUri())
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source database for table row count: %s", err)
 	}
@@ -87,13 +83,13 @@ func (pg *PostgreSQL) GetTableRowCount(tableName string) int64 {
 	return rowCount
 }
 
-func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
+func (yb *YugabyteDB) GetTableApproxRowCount(tableName *sqlname.SourceName) int64 {
 	var approxRowCount sql.NullInt64 // handles case: value of the row is null, default for int64 is 0
 	query := fmt.Sprintf("SELECT reltuples::bigint FROM pg_class "+
 		"where oid = '%s'::regclass", tableName.Qualified.MinQuoted)
 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
-	err := pg.db.QueryRow(context.Background(), query).Scan(&approxRowCount)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&approxRowCount)
 	if err != nil {
 		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
@@ -102,18 +98,18 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName *sqlname.SourceName) int6
 	return approxRowCount.Int64
 }
 
-func (pg *PostgreSQL) GetVersion() string {
+func (yb *YugabyteDB) GetVersion() string {
 	var version string
 	query := "SELECT setting from pg_settings where name = 'server_version'"
-	err := pg.db.QueryRow(context.Background(), query).Scan(&version)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&version)
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
 	return version
 }
 
-func (pg *PostgreSQL) checkSchemasExists() []string {
-	list := strings.Split(pg.source.Schema, "|")
+func (yb *YugabyteDB) checkSchemasExists() []string {
+	list := strings.Split(yb.source.Schema, "|")
 	var trimmedList []string
 	for _, schema := range list {
 		if utils.IsQuotedString(schema) {
@@ -124,7 +120,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	querySchemaList := "'" + strings.Join(trimmedList, "','") + "'"
 	chkSchemaExistsQuery := fmt.Sprintf(`SELECT schema_name
 	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
-	rows, err := pg.db.Query(context.Background(), chkSchemaExistsQuery)
+	rows, err := yb.conn.Query(context.Background(), chkSchemaExistsQuery)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
 	}
@@ -147,15 +143,15 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	return trimmedList
 }
 
-func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
-	schemaList := pg.checkSchemasExists()
+func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
+	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	query := fmt.Sprintf(`SELECT table_schema, table_name
 			  FROM information_schema.tables
 			  WHERE table_type = 'BASE TABLE' AND
 			        table_schema IN (%s);`, querySchemaList)
 
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
 	}
@@ -176,47 +172,49 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	return tableNames
 }
 
-func (pg *PostgreSQL) getConnectionUri() string {
-	source := pg.source
-	if source.Uri != "" {
-		return source.Uri
-	}
-	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
-	sourceUrl := &url.URL{
-		Scheme:   "postgresql",
-		User:     url.UserPassword(source.User, source.Password),
-		Host:     hostAndPort,
-		Path:     source.DBName,
-		RawQuery: generateSSLQueryStringIfNotExists(source),
-	}
+func (yb *YugabyteDB) getConnectionUri() string {
+	source := yb.source
+	if source.Uri == "" {
+		hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+		sourceUrl := &url.URL{
+			Scheme:   "postgresql",
+			User:     url.UserPassword(source.User, source.Password),
+			Host:     hostAndPort,
+			Path:     source.DBName,
+			RawQuery: generateSSLQueryStringIfNotExists(source),
+		}
 
-	source.Uri = sourceUrl.String()
+		source.Uri = sourceUrl.String()
+	}
 	return source.Uri
 }
 
-func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
-	source := pg.source
-	hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
-	sourceUrl := &url.URL{
-		Scheme:   "postgresql",
-		User:     url.User(source.User),
-		Host:     hostAndPort,
-		Path:     source.DBName,
-		RawQuery: generateSSLQueryStringIfNotExists(source),
+func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
+	source := yb.source
+	if source.Uri == "" {
+		hostAndPort := fmt.Sprintf("%s:%d", source.Host, source.Port)
+		sourceUrl := &url.URL{
+			Scheme:   "postgresql",
+			User:     url.User(source.User),
+			Host:     hostAndPort,
+			Path:     source.DBName,
+			RawQuery: generateSSLQueryStringIfNotExists(source),
+		}
+
+		source.Uri = sourceUrl.String()
 	}
-	return sourceUrl.String()
+	return source.Uri
 }
 
-func (pg *PostgreSQL) ExportSchema(exportDir string) {
-	pg.checkSchemasExists()
-	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
+func (yb *YugabyteDB) ExportSchema(exportDir string) {
+	panic("not implemented")
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
+	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
 
-func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
+func (yb *YugabyteDB) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	renameDataFiles(tablesProgressMetadata)
 	dfd := datafile.Descriptor{
 		FileFormat:                 datafile.TEXT,
@@ -225,13 +223,13 @@ func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressM
 		HasHeader:                  false,
 		ExportDir:                  exportDir,
 		NullString:                 `\N`,
-		TableNameToExportedColumns: pg.getExportedColumnsMap(exportDir, tablesProgressMetadata),
+		TableNameToExportedColumns: yb.getExportedColumnsMap(exportDir, tablesProgressMetadata),
 	}
 
 	dfd.Save()
 }
 
-func (pg *PostgreSQL) getExportedColumnsMap(
+func (yb *YugabyteDB) getExportedColumnsMap(
 	exportDir string, tablesMetadata map[string]*utils.TableProgressMetadata) map[string][]string {
 
 	result := make(map[string][]string)
@@ -239,12 +237,12 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 		// TODO: Use tableMetadata.TableName instead of parsing the file name.
 		// We need a new method in sqlname.SourceName that returns MaybeQuoted and MaybeQualified names.
 		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		result[tableName] = pg.getExportedColumnsListForTable(exportDir, tableName)
+		result[tableName] = yb.getExportedColumnsListForTable(exportDir, tableName)
 	}
 	return result
 }
 
-func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string) []string {
+func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string) []string {
 	var columnsList []string
 	var re *regexp.Regexp
 	if len(strings.Split(tableName, ".")) == 1 {
@@ -268,47 +266,13 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string
 	return columnsList
 }
 
-// Given a PG command name ("pg_dump", "pg_restore"), find absolute path of
-// the executable file having version >= `PG_COMMAND_VERSION`.
-func GetAbsPathOfPGCommand(cmd string) (string, error) {
-	paths, err := findAllExecutablesInPath(cmd)
-	if err != nil {
-		err = fmt.Errorf("error in finding executables: %w", err)
-		return "", err
-	}
-	if len(paths) == 0 {
-		err = fmt.Errorf("the command %v is not installed", cmd)
-		return "", err
-	}
-
-	for _, path := range paths {
-		cmd := exec.Command(path, "--version")
-		stdout, err := cmd.Output()
-		if err != nil {
-			err = fmt.Errorf("error in finding version of %v from path %v: %w", cmd, path, err)
-			return "", err
-		}
-
-		// example output centos: pg_restore (PostgreSQL) 14.5
-		// example output Ubuntu: pg_dump (PostgreSQL) 14.5 (Ubuntu 14.5-1.pgdg22.04+1)
-		currVersion := strings.Fields(string(stdout))[2]
-
-		if version.CompareSimple(currVersion, PG_COMMAND_VERSION) >= 0 {
-			return path, nil
-		}
-	}
-
-	err = fmt.Errorf("could not find %v with version greater than or equal to %v", cmd, PG_COMMAND_VERSION)
-	return "", err
-}
-
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequences() []string {
-	schemaList := pg.checkSchemasExists()
+func (yb *YugabyteDB) GetAllSequences() []string {
+	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
 	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
 	}
@@ -325,26 +289,26 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	return sequenceNames
 }
 
-func (pg *PostgreSQL) GetCharset() (string, error) {
-	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", pg.source.DBName)
+func (yb *YugabyteDB) GetCharset() (string, error) {
+	query := fmt.Sprintf("SELECT pg_encoding_to_char(encoding) FROM pg_database WHERE datname = '%s';", yb.source.DBName)
 	encoding := ""
-	err := pg.db.QueryRow(context.Background(), query).Scan(&encoding)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&encoding)
 	if err != nil {
 		return "", fmt.Errorf("error in querying database encoding: %w", err)
 	}
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (yb *YugabyteDB) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
-func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (yb *YugabyteDB) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var nonEmptyTableList, emptyTableList []*sqlname.SourceName
 	for _, tableName := range tableList {
 		query := fmt.Sprintf(`SELECT false FROM %s LIMIT 1;`, tableName.Qualified.MinQuoted)
 		var empty bool
-		err := pg.db.QueryRow(context.Background(), query).Scan(&empty)
+		err := yb.conn.QueryRow(context.Background(), query).Scan(&empty)
 		if err != nil {
 			if err == pgx.ErrNoRows {
 				empty = true
@@ -361,22 +325,22 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sql
 	return nonEmptyTableList, emptyTableList
 }
 
-func (pg *PostgreSQL) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
+func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string) {
 	return nil, nil, nil
 }
 
-func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
 	return nil, nil
 }
 
-func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
+func (yb *YugabyteDB) IsTablePartition(table *sqlname.SourceName) bool {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
 	FROM pg_catalog.pg_class c JOIN pg_catalog.pg_inherits ON c.oid = inhrelid
 	WHERE c.oid = '%s'::regclass::oid`, table.Qualified.MinQuoted)
 
-	err := pg.db.QueryRow(context.Background(), query).Scan(&parentTable)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&parentTable)
 	if err != pgx.ErrNoRows && err != nil {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
@@ -384,7 +348,7 @@ func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
 	return parentTable != ""
 }
 
-func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
+func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
 	columnToSequenceMap := make(map[string]string)
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
@@ -407,7 +371,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
 
 		var columeName, sequenceName, schemaName string
-		rows, err := pg.db.Query(context.Background(), query)
+		rows, err := yb.conn.Query(context.Background(), query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
 			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
@@ -425,41 +389,22 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	return columnToSequenceMap
 }
 
-func generateSSLQueryStringIfNotExists(s *Source) string {
-
-	if s.Uri == "" {
-		SSLQueryString := ""
-		if s.SSLQueryString == "" {
-
-			if s.SSLMode == "disable" || s.SSLMode == "allow" || s.SSLMode == "prefer" || s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-				SSLQueryString = "sslmode=" + s.SSLMode
-				if s.SSLMode == "require" || s.SSLMode == "verify-ca" || s.SSLMode == "verify-full" {
-					SSLQueryString = fmt.Sprintf("sslmode=%s", s.SSLMode)
-					if s.SSLCertPath != "" {
-						SSLQueryString += "&sslcert=" + s.SSLCertPath
-					}
-					if s.SSLKey != "" {
-						SSLQueryString += "&sslkey=" + s.SSLKey
-					}
-					if s.SSLRootCert != "" {
-						SSLQueryString += "&sslrootcert=" + s.SSLRootCert
-					}
-					if s.SSLCRL != "" {
-						SSLQueryString += "&sslcrl=" + s.SSLCRL
-					}
-				}
-			} else {
-				utils.ErrExit("Invalid sslmode: %q", s.SSLMode)
-			}
-		} else {
-			SSLQueryString = s.SSLQueryString
-		}
-		return SSLQueryString
-	} else {
-		return ""
+func (yb *YugabyteDB) GetServers() string {
+	var ybServers []string
+	//TODO: figure out a way to get master nodes only from server
+	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
+	rows, err := yb.conn.Query(context.Background(), YB_SERVERS_QUERY)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for yb_servers: %v\n", YB_SERVERS_QUERY, err)
 	}
+	defer rows.Close()
+	for rows.Next() {
+		var ybServer string
+		err = rows.Scan(&ybServer)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for yb_servers: %v\n", err)
+		}
+		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer))
+	}
+	return strings.Join(ybServers, ",")
 }
-
-func (pg *PostgreSQL) GetServers() string {
-	return pg.source.Host
-} 

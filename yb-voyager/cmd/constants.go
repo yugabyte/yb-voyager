@@ -42,10 +42,11 @@ const (
 	SCHEMA_VERSION_MISMATCH_ERR   = "Query error: schema version mismatch for table"
 )
 
-var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
+var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var supportedTargetDBTypes = []string{YUGABYTEDB, ORACLE}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }

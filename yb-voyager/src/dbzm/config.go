@@ -56,8 +56,9 @@ type Config struct {
 	SSLKeyStorePassword   string
 	SSLTrustStore         string
 	SSLTrustStorePassword string
-
-	SnapshotMode string
+	YBStreamID            string
+	YBMasterNodes         string
+	SnapshotMode          string
 }
 
 var baseConfigTemplate = `
@@ -184,6 +185,30 @@ debezium.source.database.ssl.truststore=%s
 debezium.source.database.ssl.truststore.password=%s
 `
 
+var yugabyteSrcConfigTemplate = `
+debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+debezium.source.database.hostname=%s
+debezium.source.database.port=%d
+debezium.source.database.dbname=%s
+debezium.source.database.streamid=%s
+debezium.source.database.master.addresses=%s
+debezium.source.schema.include.list=%s
+debezium.source.hstore.handling.mode=map
+debezium.source.converters=postgres_source_converter
+debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.transforms=unwrap
+debezium.source.transforms.unwrap.type=io.debezium.connector.yugabytedb.transforms.PGCompatible
+`
+
+var yugabyteConfigTemplate = baseConfigTemplate +
+	baseSrcConfigTemplate +
+	yugabyteSrcConfigTemplate +
+	baseSinkConfigTemplate
+
+var yugabyteSSLConfigTemplate = `
+debezium.source.database.sslrootcert=%s
+`
+
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
@@ -197,7 +222,6 @@ func (c *Config) String() string {
 	} else {
 		log.Infof("QUEUE_SEGMENT_MAX_BYTES: %d", queueSegmentMaxBytes)
 	}
-
 	var conf string
 	switch c.SourceDBType {
 	case "postgresql":
@@ -221,7 +245,26 @@ func (c *Config) String() string {
 			c.SSLKey,
 			c.SSLRootCert)
 		conf = conf + sslConf
+	case "yugabytedb":
+		conf = fmt.Sprintf(yugabyteConfigTemplate,
+			c.Username,
+			"never",
+			offsetFile,
+			strings.Join(c.TableList, ","),
 
+			c.Host, c.Port,
+			c.DatabaseName,
+			c.YBStreamID,
+			c.YBMasterNodes,
+			schemaNames,
+
+			dataDir,
+			strings.Join(c.ColumnSequenceMap, ","),
+			queueSegmentMaxBytes)
+		if c.SSLRootCert != "" {
+			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
+				c.SSLRootCert)
+		} //TODO test SSL for other methods for yugabytedb
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,

@@ -118,7 +118,7 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	switch sourceDBType {
 	case "oracle":
 		requiredList = oracleSchemaObjectList
-	case "postgresql":
+	case "postgresql", "yugabytedb" :
 		requiredList = postgresSchemaObjectList
 	case "mysql":
 		requiredList = mysqlSchemaObjectList
