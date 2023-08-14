@@ -179,7 +179,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
+	valueConverter, err = dbzm.NewValueConverter(tconf.TargetDBType, exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}

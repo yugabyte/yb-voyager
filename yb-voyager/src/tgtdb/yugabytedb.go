@@ -49,101 +49,108 @@ type TargetYugabyteDB struct {
 }
 
 var ybValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		date := time.Unix(int64(epochSecs), 0).Local().Format(time.DateOnly)
+		var formattedTimestamp string
 		if formatIfRequired {
-			date = fmt.Sprintf("'%s'", date)
+			formattedTimestamp = fmt.Sprintf("'%s'", date)
 		}
-		return date, nil
+		return date, formattedTimestamp, nil
 	},
-	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timestamp := time.Unix(epochSecs, 0).Local().Format(time.DateTime)
+		var formattedTimestamp string
 		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
+			formattedTimestamp = fmt.Sprintf("'%s'", timestamp)
 		}
-		return timestamp, nil
+		return timestamp, formattedTimestamp, nil
 	},
-	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano)) //TODO: check if proper format for Micro can work
 		if err != nil {
-			return columnValue, err
+			return columnValue, columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		timestamp := strings.TrimSuffix(microTimeStamp.String(), " +0000 UTC")
+		var formattedTimestamp string
 		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
+			formattedTimestamp = fmt.Sprintf("'%s'", timestamp)
 		}
-		return timestamp, nil
+		return timestamp, formattedTimestamp, nil
 	},
-	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
 		nanoTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano))
 		if err != nil {
-			return columnValue, err
+			return columnValue, columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
 		}
 		timestamp := strings.TrimSuffix(nanoTimeStamp.String(), " +0000 UTC")
+		var formattedTimestamp string
 		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
+			formattedTimestamp = fmt.Sprintf("'%s'", timestamp)
 		}
-		return timestamp, nil
+		return timestamp, formattedTimestamp, nil
 	},
-	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		// no transformation as columnValue is formatted string from debezium by default
+		var formattedTimestamp string
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
+			formattedTimestamp = fmt.Sprintf("'%s'", columnValue)
 		}
-		return columnValue, nil
+		return columnValue, formattedTimestamp, nil
 	},
-	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timeValue := time.Unix(epochSecs, 0).Local().Format(time.TimeOnly)
+		var formattedValue string
 		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
+			formattedValue = fmt.Sprintf("'%s'", timeValue)
 		}
-		return timeValue, nil
+		return timeValue, formattedValue, nil
 	},
-	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		MICRO_TIME_FORMAT := "15:04:05.000000"
 		timeValue := time.Unix(epochSeconds, epochNanos).Local().Format(MICRO_TIME_FORMAT)
+		var formattedValue string
 		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
+			formattedValue = fmt.Sprintf("'%s'", timeValue)
 		}
-		return timeValue, nil
+		return timeValue, formattedValue, nil
 	},
-	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
+			return columnValue, columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
 		}
 		var data uint64
 		if len(bytes) >= 8 {
@@ -153,74 +160,78 @@ var ybValueConverterSuite = map[string]ConverterFn{
 				data |= uint64(b) << (8 * i)
 			}
 		}
+		bits := fmt.Sprintf("%b", data)
+		var formattedBits string
 		if formatIfRequired {
-			return fmt.Sprintf("'%b'", data), nil
-		} else {
-			return fmt.Sprintf("%b", data), nil
-		}
+			formattedBits = fmt.Sprintf("'%s'", bits)
+		} 
+		return bits, formattedBits, nil
 	},
-	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.
-		return columnValue, nil
+		return columnValue, columnValue, nil
 	},
-	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis geometry point.
-		return columnValue, nil
+		return columnValue, columnValue, nil
 	},
-	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
-		return columnValue, nil
+		return columnValue, columnValue, nil
 	},
-	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool) (string, error) {
-		return columnValue, nil //handled in exporter plugin
+	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool) (string, string, error) {
+		return columnValue, columnValue, nil //handled in exporter plugin
 	},
-	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
-		return columnValue, nil //handled in exporter plugin
+	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, string, error) {
+		return columnValue, columnValue, nil //handled in exporter plugin
 	},
-	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
-			return columnValue, fmt.Errorf("decoding base64 string: %v", err)
+			return columnValue, columnValue, fmt.Errorf("decoding base64 string: %v", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
 		hexString := ""
 		for _, b := range decodedBytes {
 			hexString += fmt.Sprintf("%02x", b)
 		}
-		hexValue := ""
+		hexString = fmt.Sprintf(`\\x%s`, hexString)
+		var formattedHexString string
 		if formatIfRequired {
-			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
-		} else {
-			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash
+			formattedHexString = fmt.Sprintf("'%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
 		}
-		return string(hexValue), nil
+		return hexString, formattedHexString, nil
 	},
-	"MAP": func(columnValue string, formatIfRequired bool) (string, error) {
+	"MAP": func(columnValue string, _ bool) (string, string, error) {
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
+			return columnValue, columnValue, fmt.Errorf("parsing map: %v", err)
 		}
 		var transformedMapValue string
 		for key, value := range mapValue {
 			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
 		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
+		value := fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1])//remove last comma and add quotes
+		return value, value, nil 
 	},
-	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
+	"STRING": func(columnValue string, formatIfRequired bool) (string, string, error) {
+		var formattedColumnValue string
 		if formatIfRequired {
-			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
-			return fmt.Sprintf("'%s'", formattedColumnValue), nil
-		} else {
-			return columnValue, nil
-		}
+			formattedColumnValue = strings.Replace(columnValue, "'", "''", -1)
+			formattedColumnValue = fmt.Sprintf("'%s'", formattedColumnValue)
+		} 
+		fmt.Printf("columnValue: %s formattedColumnValue: %s", columnValue, formattedColumnValue)
+		
+		return columnValue, formattedColumnValue, nil
 	},
-	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, string, error) {
+		var formattedValue string
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
+			formattedValue = fmt.Sprintf("'%s'", columnValue)
 		}
-		return columnValue, nil
+		return columnValue, formattedValue, nil
 	},
 }
 
@@ -664,7 +675,30 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
+/*
+TODO(future): figure out the sql error codes for prepared statements which have become invalid
+and needs to be prepared again
+*/
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
+	log.Infof("executing batch of %d events", len(batch.Events))
+	ybBatch := pgx.Batch{}
+	stmtToPrepare := make(map[string]string)
+	// processing batch events to convert into prepared or unprepared statements based on Op type
+	for i := 0; i < len(batch.Events); i++ {
+		event := batch.Events[i]
+		if event.Op == "u" {
+			stmt := event.GetSQLStmt(yb.tconf.Schema)
+			ybBatch.Queue(stmt)
+		} else {
+			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
+			params := event.GetParams()
+			if _, ok := stmtToPrepare[stmt]; !ok {
+				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt
+			}
+			ybBatch.Queue(stmt, params...)
+		}
+	}
+
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		ctx := context.Background()
 		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
@@ -672,16 +706,28 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			return false, fmt.Errorf("error creating tx: %w", err)
 		}
 		defer tx.Rollback(ctx)
-		for i := 0; i < len(batch.Events); i++ {
-			event := batch.Events[i]
-			stmt := event.GetSQLStmt(yb.tconf.Schema)
-			log.Debug(stmt)
-			_, err := tx.Exec(context.Background(), stmt)
+
+		for name, stmt := range stmtToPrepare {
+			err := yb.connPool.PrepareStatement(conn, name, stmt)
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
+				log.Errorf("error preparing stmt(%q): %v", stmt, err)
+				return false, fmt.Errorf("error preparing stmt: %w", err)
 			}
 		}
+
+		br := conn.SendBatch(ctx, &ybBatch)
+		for i := 0; i < len(batch.Events); i++ {
+			_, err := br.Exec()
+			if err != nil {
+				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+			}
+		}
+		if err = br.Close(); err != nil {
+			log.Errorf("error closing batch: %v", err)
+			return false, fmt.Errorf("error closing batch: %v", err)
+		}
+
 		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID)
 		res, err := tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
