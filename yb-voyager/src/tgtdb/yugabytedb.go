@@ -664,7 +664,30 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
+/*
+TODO(future): figure out the sql error codes for prepared statements which have become invalid
+and needs to be prepared again
+*/
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
+	log.Infof("executing batch of %d events", len(batch.Events))
+	ybBatch := pgx.Batch{}
+	stmtToPrepare := make(map[string]string)
+	// processing batch events to convert into prepared or unprepared statements based on Op type
+	for i := 0; i < len(batch.Events); i++ {
+		event := batch.Events[i]
+		if event.Op == "u" {
+			stmt := event.GetSQLStmt(yb.tconf.Schema)
+			ybBatch.Queue(stmt)
+		} else {
+			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
+			params := event.GetParams()
+			if _, ok := stmtToPrepare[stmt]; !ok {
+				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt
+			}
+			ybBatch.Queue(stmt, params...)
+		}
+	}
+
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		ctx := context.Background()
 		tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
@@ -672,16 +695,28 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			return false, fmt.Errorf("error creating tx: %w", err)
 		}
 		defer tx.Rollback(ctx)
-		for i := 0; i < len(batch.Events); i++ {
-			event := batch.Events[i]
-			stmt := event.GetSQLStmt(yb.tconf.Schema)
-			log.Debug(stmt)
-			_, err := tx.Exec(context.Background(), stmt)
+
+		for name, stmt := range stmtToPrepare {
+			err := yb.connPool.PrepareStatement(conn, name, stmt)
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
+				log.Errorf("error preparing stmt(%q): %v", stmt, err)
+				return false, fmt.Errorf("error preparing stmt: %w", err)
 			}
 		}
+
+		br := conn.SendBatch(ctx, &ybBatch)
+		for i := 0; i < len(batch.Events); i++ {
+			_, err := br.Exec()
+			if err != nil {
+				log.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+			}
+		}
+		if err = br.Close(); err != nil {
+			log.Errorf("error closing batch: %v", err)
+			return false, fmt.Errorf("error closing batch: %v", err)
+		}
+
 		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID)
 		res, err := tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {

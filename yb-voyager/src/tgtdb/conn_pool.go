@@ -17,6 +17,7 @@ package tgtdb
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
@@ -40,15 +41,17 @@ type ConnectionParams struct {
 
 type ConnectionPool struct {
 	sync.Mutex
-	params       *ConnectionParams
-	conns        chan *pgx.Conn
-	nextUriIndex int
+	params                    *ConnectionParams
+	conns                     chan *pgx.Conn
+	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
+	nextUriIndex              int
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	pool := &ConnectionPool{
-		params: params,
-		conns:  make(chan *pgx.Conn, params.NumConnections),
+		params:                    params,
+		conns:                     make(chan *pgx.Conn, params.NumConnections),
+		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -80,8 +83,10 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 
 		retry, err = fn(conn)
 		if err != nil {
-			// On err, drop the connection.
+			// On err, drop the connection and clear the prepared statement cache.
 			conn.Close(context.Background())
+			// assuming PID will still be available
+			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
 			pool.conns <- nil
 		} else {
 			pool.conns <- conn
@@ -89,6 +94,38 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	}
 
 	return err
+}
+
+func (pool *ConnectionPool) PrepareStatement(conn *pgx.Conn, stmtName string, stmt string) error {
+	if pool.isStmtAlreadyPreparedOnConn(conn.PgConn().PID(), stmtName) {
+		return nil
+	}
+
+	_, err := conn.Prepare(context.Background(), stmtName, stmt)
+	if err != nil {
+		log.Errorf("failed to prepare statement %q: %s", stmtName, err)
+		return fmt.Errorf("failed to prepare statement %q: %w", stmtName, err)
+	}
+	pool.cachePreparedStmtForConn(conn.PgConn().PID(), stmtName)
+	return err
+}
+
+func (pool *ConnectionPool) cachePreparedStmtForConn(connId uint32, ps string) {
+	pool.Lock()
+	defer pool.Unlock()
+	if pool.connIdToPreparedStmtCache[connId] == nil {
+		pool.connIdToPreparedStmtCache[connId] = make(map[string]bool)
+	}
+	pool.connIdToPreparedStmtCache[connId][ps] = true
+}
+
+func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string) bool {
+	pool.Lock()
+	defer pool.Unlock()
+	if pool.connIdToPreparedStmtCache[connId] == nil {
+		return false
+	}
+	return pool.connIdToPreparedStmtCache[connId][ps]
 }
 
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
