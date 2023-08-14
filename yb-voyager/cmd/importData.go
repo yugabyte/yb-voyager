@@ -269,7 +269,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		err = tdb.RestoreSequences(status.Sequences)
 		if err != nil {
-			utils.ErrExit("failed to restore sequences(snapshot): %s", err)
+			utils.ErrExit("failed to restore sequences: %s", err)
 		}
 	}
 
