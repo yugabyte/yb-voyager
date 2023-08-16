@@ -397,6 +397,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	return nil
 }
 
+func reportStreamingProgress() {
+	for {
+		totalEventCount, err := getTotalExportedEvents()
+		if err != nil {
+			utils.ErrExit("failed to get total exported count from metadb: %w", err)
+		}
+		utils.PrintAndLog("TOTAL EXPORTED COUNT: %d", totalEventCount)
+		time.Sleep(1 * time.Second)
+	}
+}
+
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
@@ -460,6 +471,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	}
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
+		go reportStreamingProgress()
 	}
 	return true, nil
 }
@@ -610,7 +622,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
-		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME, EXPORTED_EVENTS_STATS_TABLE_NAME, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {

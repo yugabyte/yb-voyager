@@ -105,3 +105,20 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	}
 	return nil
 }
+
+func getTotalExportedEvents() (int64, error) {
+	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to meta db: %v", err)
+		}
+	}()
+	query := fmt.Sprintf(`SELECT sum(num_total) from %s`, EXPORTED_EVENTS_STATS_TABLE_NAME)
+	var totalCount int64
+	err = conn.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return totalCount, nil
+}
