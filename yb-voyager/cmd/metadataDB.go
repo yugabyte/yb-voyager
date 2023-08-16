@@ -25,6 +25,12 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var (
+	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
+	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
+	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
+)
+
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
 }
@@ -65,6 +71,8 @@ func initMetaDB(path string) error {
 	}
 	cmds := []string{
 		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (run_id TEXT, timestamp_minute INTEGER, num_total INTEGER, num_inserts INTEGER, num_updates INTEGER, num_deletes INTEGER, PRIMARY KEY(run_id, timestamp_minute) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (schema_name TEXT, table_name TEXT, num_total INTEGER, num_inserts INTEGER, num_updates INTEGER, num_deletes INTEGER, PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)

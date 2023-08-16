@@ -29,6 +29,7 @@ import (
 )
 
 type Config struct {
+	RunId          string
 	SourceDBType   string
 	ExportDir      string
 	MetadataDBPath string
@@ -91,6 +92,7 @@ debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
+debezium.sink.ybexporter.run.id=%s
 `
 
 var postgresSrcConfigTemplate = `
@@ -238,7 +240,8 @@ func (c *Config) String() string {
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
-			c.MetadataDBPath)
+			c.MetadataDBPath,
+			c.RunId)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -260,7 +263,9 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
-			queueSegmentMaxBytes)
+			queueSegmentMaxBytes,
+			c.MetadataDBPath,
+			c.RunId)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -280,7 +285,8 @@ func (c *Config) String() string {
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
-			c.MetadataDBPath)
+			c.MetadataDBPath,
+			c.RunId)
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
@@ -301,7 +307,8 @@ func (c *Config) String() string {
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
-			c.MetadataDBPath)
+			c.MetadataDBPath,
+			c.RunId)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,

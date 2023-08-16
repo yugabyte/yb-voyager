@@ -235,6 +235,7 @@ func exportDataOffline() bool {
 }
 
 func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
@@ -272,6 +273,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
+		RunId:          runId,
 		SourceDBType:   source.DBType,
 		ExportDir:      absExportDir,
 		MetadataDBPath: getMetaDBPath(absExportDir),
@@ -608,7 +610,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
-		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME})
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
