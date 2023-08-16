@@ -22,11 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -398,12 +400,19 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 }
 
 func reportStreamingProgress() {
+	header := uilive.New()
+	separator := header.Newline()
+	values := header.Newline()
+	header.Start()
 	for {
 		totalEventCount, totalEventCountRun, err := getTotalExportedEvents(runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
-		fmt.Printf("\rTOTAL EVENTS: %d\t TOTAL EVENTS(CURRENT RUN): %d\t EVENTS THROUGHPUT(LAST 1 MIN): %d", totalEventCount, totalEventCountRun, 0)
+		fmt.Fprintf(header, "|%30s|%30s|%30s|\n", "TOTAL EVENTS", "TOTAL EVENTS(CURRENT RUN)", "EVENTS THROUGHPUT")
+		fmt.Fprintf(separator, "----------------------------------------------------------------------------------------------\n")
+		fmt.Fprintf(values, "|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10), "0")
+		header.Flush()
 		time.Sleep(1 * time.Second)
 	}
 }
