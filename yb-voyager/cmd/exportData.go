@@ -399,11 +399,11 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 func reportStreamingProgress() {
 	for {
-		totalEventCount, err := getTotalExportedEvents()
+		totalEventCount, totalEventCountRun, err := getTotalExportedEvents(runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
-		utils.PrintAndLog("TOTAL EXPORTED COUNT: %d", totalEventCount)
+		fmt.Printf("\rTOTAL EVENTS: %d\t TOTAL EVENTS(CURRENT RUN): %d\t EVENTS THROUGHPUT(LAST 1 MIN): %d", totalEventCount, totalEventCountRun, 0)
 		time.Sleep(1 * time.Second)
 	}
 }

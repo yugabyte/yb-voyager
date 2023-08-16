@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -106,7 +107,9 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	return nil
 }
 
-func getTotalExportedEvents() (int64, error) {
+func getTotalExportedEvents(runId string) (int64, int64, error) {
+	var totalCount int64
+	var totalCountRun int64
 	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
 	defer func() {
 		err := conn.Close()
@@ -115,10 +118,21 @@ func getTotalExportedEvents() (int64, error) {
 		}
 	}()
 	query := fmt.Sprintf(`SELECT sum(num_total) from %s`, EXPORTED_EVENTS_STATS_TABLE_NAME)
-	var totalCount int64
 	err = conn.QueryRow(query).Scan(&totalCount)
 	if err != nil {
-		return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+
 	}
-	return totalCount, nil
+
+	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, runId)
+	err = conn.QueryRow(query).Scan(&totalCountRun)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+
+	return totalCount, totalCountRun, nil
 }
