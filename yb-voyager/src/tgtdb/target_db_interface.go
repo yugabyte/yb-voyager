@@ -34,10 +34,11 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
+	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) (int64, int64, int64, error)
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
-	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
+	GetImportStatsMetaInfo(migrationUUID uuid.UUID) (int64, int64, int64, error)
+	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
 }
 

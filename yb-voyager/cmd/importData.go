@@ -28,6 +28,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
@@ -199,10 +200,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
-	err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean)
-	if err != nil {
-		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
-	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
@@ -223,6 +220,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
+		err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
+		if err != nil {
+			utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+		}
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {

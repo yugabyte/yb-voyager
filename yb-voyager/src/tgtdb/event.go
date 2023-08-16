@@ -258,9 +258,14 @@ func (eb EventBatch) GetLastVsn() int64 {
 	return eb.Events[len(eb.Events)-1].Vsn
 }
 
-func (eb EventBatch) GetQueryToUpdateLastAppliedVSN(migrationUUID uuid.UUID) string {
-	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d`,
-		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), migrationUUID, eb.ChanNo)
+func (eb EventBatch) GetQueryToUpdateLastAppliedVSN(migrationUUID uuid.UUID, numInserts int64, numUpdates int64, numDeletes int64) string {
+	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND channel_no=%d`,
+		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), numInserts, numUpdates, numDeletes, migrationUUID, eb.ChanNo)
+}
+
+func (eb EventBatch) GetQueryToUpdateTableWiseStats(migrationUUID uuid.UUID, numInserts int64, numUpdates int64, numDeletes int64, schemaName string) string {
+	return fmt.Sprintf(`UPDATE %s SET total_events = total_events + %d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
+			EVENTS_PER_TABLE_METADATA_TABLE_NAME, (numInserts + numUpdates + numDeletes), numInserts, numUpdates, numDeletes, migrationUUID, schemaName, eb.Events[0].TableName) //TODO: check if this is correct
 }
 
 type EventChannelMetaInfo struct {
