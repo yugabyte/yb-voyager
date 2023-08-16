@@ -136,3 +136,22 @@ func getTotalExportedEvents(runId string) (int64, int64, error) {
 
 	return totalCount, totalCountRun, nil
 }
+
+func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, error) {
+	var totalCount int64
+	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to meta db: %v", err)
+		}
+	}()
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= (strftime('%%s', 'now') - (%d*60));`, EXPORTED_EVENTS_STATS_TABLE_NAME, n)
+	err = conn.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+	return totalCount, nil
+}
