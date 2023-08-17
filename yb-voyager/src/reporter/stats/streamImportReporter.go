@@ -70,14 +70,16 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	table.Start()
 
 	for range displayTicker.C {
-		fmt.Fprintf(headerRow, color.GreenString("| %-29s | %30s |\n", "Metric", "Value"))
-		fmt.Fprintf(seperator, color.GreenString("| %-29s | %30s |\n", "------", "------"))
-		fmt.Fprintf(row1, color.GreenString("| %-29s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
-		fmt.Fprintf(row2, color.GreenString("| %-29s | %30s |\n", "Last imported events", strconv.FormatInt(s.latestBatchEvents, 10)))
-		fmt.Fprintf(row3, color.GreenString("| %-29s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast3Mins/3 / 60)))
-		fmt.Fprintf(row4, color.GreenString("| %-29s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast10Mins/10 / 60)))
-		fmt.Fprintf(row5, color.GreenString("| %-29s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
-		fmt.Fprintf(row6, color.GreenString("| %-29s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
+		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
+		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
+		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Last imported events", strconv.FormatInt(s.latestBatchEvents, 10)))
+		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast3Mins/3 / 60)))
+		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast10Mins/10 / 60)))
+		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
+		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
+		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		table.Flush()
 	}
 }
