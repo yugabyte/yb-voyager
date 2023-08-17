@@ -108,6 +108,7 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	return nil
 }
 
+// TODO: use a common, opened connection object
 func getTotalExportedEvents(runId string) (int64, int64, error) {
 	var totalCount int64
 	var totalCountRun int64

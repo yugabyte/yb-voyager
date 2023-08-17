@@ -400,10 +400,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 }
 
 func reportStreamingProgress() {
-	header := uilive.New()
-	separator := header.Newline()
-	values := header.Newline()
-	header.Start()
+	tableWriter := uilive.New()
+	separatorWriter := tableWriter.Newline()
+	valuesWriter := tableWriter.Newline()
+	tableWriter.Start()
 	for {
 		totalEventCount, totalEventCountRun, err := getTotalExportedEvents(runId)
 		if err != nil {
@@ -411,13 +411,18 @@ func reportStreamingProgress() {
 		}
 		throughputInLast3Min, err := getExportedEventsThroughputInLastNMinutes(runId, 3)
 		if err != nil {
-			utils.ErrExit("failed to get exported count from metadb: %w", err)
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
+		}
+		throughputInLast10Min, err := getExportedEventsThroughputInLastNMinutes(runId, 10)
+		if err != nil {
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
 
-		fmt.Fprintf(header, "|%30s|%30s|%30s|\n", "TOTAL EVENTS", "TOTAL EVENTS(CURRENT RUN)", "EVENTS THROUGHPUT(LAST 3 MIN)")
-		fmt.Fprintf(separator, "----------------------------------------------------------------------------------------------\n")
-		fmt.Fprintf(values, "|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10), strconv.FormatInt(throughputInLast3Min, 10)+"/sec")
-		header.Flush()
+		fmt.Fprintf(tableWriter, "|%30s|%30s|%30s|%30s|\n", "Total Events", "Total Events (Current Run)", "Export Rate(Last 3 min)", "Export Rate(Last 10 min)")
+		fmt.Fprintf(separatorWriter, "----------------------------------------------------------------------------------------------------------------------------\n")
+		fmt.Fprintf(valuesWriter, "|%30s|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10),
+			strconv.FormatInt(throughputInLast3Min, 10)+"/sec", strconv.FormatInt(throughputInLast10Min, 10)+"/sec")
+		tableWriter.Flush()
 		time.Sleep(30 * time.Second)
 	}
 }
