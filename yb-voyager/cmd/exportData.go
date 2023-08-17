@@ -490,7 +490,9 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	}
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
-		go reportStreamingProgress()
+		if !disablePb {
+			go reportStreamingProgress()
+		}
 	}
 	return true, nil
 }

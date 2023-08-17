@@ -72,9 +72,26 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
-		fmt.Sprintf(`CREATE TABLE %s (run_id TEXT, timestamp_minute INTEGER, num_total INTEGER, num_inserts INTEGER, num_updates INTEGER, num_deletes INTEGER, PRIMARY KEY(run_id, timestamp_minute) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
-		fmt.Sprintf(`CREATE TABLE %s (schema_name TEXT, table_name TEXT, num_total INTEGER, num_inserts INTEGER, num_updates INTEGER, num_deletes INTEGER, PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			segment_no INTEGER PRIMARY KEY, 
+			file_path TEXT, 
+			size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			run_id TEXT, 
+			timestamp INTEGER, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(run_id, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT, 
+			table_name TEXT, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -149,13 +166,13 @@ func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, erro
 		}
 	}()
 	now := time.Now()
-	currentMinuteEpoch := now.Truncate(time.Minute)
+	nowFlooredToNearest30s := now.Truncate(time.Minute)
 	if now.Second() >= 30 {
-		currentMinuteEpoch.Add(30 * time.Second)
+		nowFlooredToNearest30s.Add(30 * time.Second)
 	}
-	startMinuteEpoch := currentMinuteEpoch.Add(-time.Minute * time.Duration(n))
-	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= %d AND timestamp_minute <= %d;`,
-		EXPORTED_EVENTS_STATS_TABLE_NAME, startMinuteEpoch.Unix(), currentMinuteEpoch.Unix())
+	startTimeStamp := nowFlooredToNearest30s.Add(-time.Minute * time.Duration(n))
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp >= %d AND timestamp <= %d;`,
+		EXPORTED_EVENTS_STATS_TABLE_NAME, startTimeStamp.Unix(), nowFlooredToNearest30s.Unix())
 	log.Info(query)
 	err = conn.QueryRow(query).Scan(&totalCount)
 	if err != nil {
