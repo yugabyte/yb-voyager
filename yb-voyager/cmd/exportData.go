@@ -401,8 +401,13 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 
 func reportStreamingProgress() {
 	tableWriter := uilive.New()
+	headerWriter := tableWriter.Newline()
 	separatorWriter := tableWriter.Newline()
-	valuesWriter := tableWriter.Newline()
+	row1Writer := tableWriter.Newline()
+	row2Writer := tableWriter.Newline()
+	row3Writer := tableWriter.Newline()
+	row4Writer := tableWriter.Newline()
+	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
 	for {
 		totalEventCount, totalEventCountRun, err := getTotalExportedEvents(runId)
@@ -417,11 +422,14 @@ func reportStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-
-		fmt.Fprintf(tableWriter, "|%30s|%30s|%30s|%30s|\n", "Total Events", "Total Events (Current Run)", "Export Rate(Last 3 min)", "Export Rate(Last 10 min)")
-		fmt.Fprintf(separatorWriter, "----------------------------------------------------------------------------------------------------------------------------\n")
-		fmt.Fprintf(valuesWriter, "|%30s|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10),
-			strconv.FormatInt(throughputInLast3Min, 10)+"/sec", strconv.FormatInt(throughputInLast10Min, 10)+"/sec")
+		fmt.Fprint(tableWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(headerWriter, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
+		fmt.Fprint(separatorWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(row1Writer, color.GreenString("| %-30s | %30s |\n", "Total Events", strconv.FormatInt(totalEventCount, 10)))
+		fmt.Fprint(row2Writer, color.GreenString("| %-30s | %30s |\n", "Total Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
+		fmt.Fprint(row3Writer, color.GreenString("| %-30s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
+		fmt.Fprint(row4Writer, color.GreenString("| %-30s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
+		fmt.Fprint(footerWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		tableWriter.Flush()
 		time.Sleep(30 * time.Second)
 	}
