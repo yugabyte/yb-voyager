@@ -130,6 +130,9 @@ func getTotalExportedEvents(runId string) (int64, int64, error) {
 	var totalCount int64
 	var totalCountRun int64
 	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return -1, -1, fmt.Errorf("error while opening meta db :%w", err)
+	}
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -159,6 +162,9 @@ func getTotalExportedEvents(runId string) (int64, int64, error) {
 func getExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
 	var totalCount int64
 	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return -1, fmt.Errorf("error while opening meta db :%w", err)
+	}
 	defer func() {
 		err := conn.Close()
 		if err != nil {
