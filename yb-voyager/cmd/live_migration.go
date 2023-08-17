@@ -25,8 +25,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -55,7 +55,6 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	go statsReporter.CalcStats()
 	go statsReporter.ReportStats()
 	eventQueue := NewEventQueue(exportDir)
 	// setup target event channels

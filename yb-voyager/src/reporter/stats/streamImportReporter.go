@@ -17,6 +17,7 @@ package stats
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -70,13 +71,14 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	table.Start()
 
 	for range displayTicker.C {
+		s.CalcStats()
 		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
 		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
 		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Last imported events", strconv.FormatInt(s.latestBatchEvents, 10)))
-		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast3Mins/3 / 60)))
-		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.2f events/sec", s.importRateLast10Mins/10 / 60)))
+		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.0f events/sec", math.Round(s.importRateLast3Mins/3/60))))
+		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.0f events/sec", math.Round(s.importRateLast10Mins/10/60))))
 		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
 		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
 		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
@@ -85,23 +87,21 @@ func (s *StreamImportStatsReporter) ReportStats() {
 }
 
 func (s *StreamImportStatsReporter) CalcStats() {
-	calcTicker := time.NewTicker(1 * time.Minute)
-	defer calcTicker.Stop()
-
-	for range calcTicker.C {
-		elapsedTime := time.Since(s.startTime).Minutes()
-		rate := float64(s.totalEventsImported) / elapsedTime
-		s.importRatePerMinute = rate
+	elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
+	rate := float64(s.totalEventsImported) / elapsedTime
+	s.importRatePerMinute = rate
+	elapsedMinutes := int(math.Floor(elapsedTime))
+	if elapsedTime == float64(elapsedMinutes) { //only store rate per minute
 		s.importRatesPerMinute[elapsedTime] = rate
-		s.importRateLast3Mins += rate
-		if elapsedTime > 3 {
-			s.importRateLast3Mins -= s.importRatesPerMinute[elapsedTime-3]
-		}
-		s.importRateLast10Mins += rate
-		if elapsedTime > 10 {
-			s.importRateLast10Mins -= s.importRatesPerMinute[elapsedTime-10]
-			delete(s.importRatesPerMinute, elapsedTime-10)
-		}
+	}
+	s.importRateLast3Mins += rate
+	if elapsedTime > 3 {
+		s.importRateLast3Mins -= s.importRatesPerMinute[elapsedTime-3]
+	}
+	s.importRateLast10Mins += rate
+	if elapsedTime > 10 {
+		s.importRateLast10Mins -= s.importRatesPerMinute[elapsedTime-10]
+		delete(s.importRatesPerMinute, elapsedTime-10)
 	}
 }
 

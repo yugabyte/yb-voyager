@@ -307,7 +307,7 @@ func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, nu
 		}
 
 		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0 ,0 ,0)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
 			_, err := conn.ExecContext(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -582,7 +582,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) (int64, int64, int64, error) {
 	// TODO: figure out how to avoid round trips to Oracle DB
 	log.Infof("executing batch of %d events", len(batch.Events))
-	var numInserts, numUpdates, numDeletes int64 
+	var numInserts, numUpdates, numDeletes int64
 	numInserts, numUpdates, numDeletes = 0, 0, 0
 
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
@@ -601,7 +601,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 				numUpdates++
 			case "d":
 				numDeletes++
-			}	
+			}
 			stmt := event.GetSQLStmt(tdb.tconf.Schema)
 			_, err = tx.Exec(stmt)
 			if err != nil {
@@ -686,8 +686,8 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 }
 
 func (tdb *TargetOracleDB) GetImportStatsMetaInfo(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'", 
-	EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'",
+		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var numInserts, numUpdates, numDeletes int64
 	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
 	if err != nil {
