@@ -409,11 +409,11 @@ func reportStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
-		throughputInLast3Min, err := getExportedEventsThroughputInLastNMinutes(runId, 3)
+		throughputInLast3Min, err := getExportedEventsRateInLastNMinutes(runId, 3)
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		throughputInLast10Min, err := getExportedEventsThroughputInLastNMinutes(runId, 10)
+		throughputInLast10Min, err := getExportedEventsRateInLastNMinutes(runId, 10)
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}

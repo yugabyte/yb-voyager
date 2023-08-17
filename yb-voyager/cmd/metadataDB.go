@@ -156,7 +156,7 @@ func getTotalExportedEvents(runId string) (int64, int64, error) {
 	return totalCount, totalCountRun, nil
 }
 
-func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, error) {
+func getExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
 	var totalCount int64
 	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
 	defer func() {
@@ -166,11 +166,6 @@ func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, erro
 		}
 	}()
 	now := time.Now()
-	// nowFlooredToNearest30s := now.Truncate(time.Minute)
-	// if now.Second() >= 30 {
-	// 	nowFlooredToNearest30s.Add(30 * time.Second)
-	// }
-	// startTimeStamp := nowFlooredToNearest30s.Add(-time.Minute * time.Duration(n))
 	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
 	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp >= %d`,
 		EXPORTED_EVENTS_STATS_TABLE_NAME, startTimeStamp.Unix())
