@@ -18,7 +18,6 @@ package tgtdb
 import (
 	"bufio"
 	"context"
-	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -459,7 +458,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 		}
 
 		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0 ,0)
 			_, err := conn.Exec(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -468,7 +467,7 @@ func (yb *TargetYugabyteDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, n
 		}
 
 		for _, tableName := range tableNames {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', '%s', 0, 0, 0, 0)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, yb.tconf.Schema, tableName)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, yb.tconf.Schema, tableName, 0, 0, 0, 0)
 			_, err := conn.Exec(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -1139,12 +1138,12 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 func (yb *TargetYugabyteDB) GetImportStatsMetaInfo(migrationUUID uuid.UUID) (int64, int64, int64, error) {
 	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'", 
 	EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var numInserts, numUpdates, numDeletes sql.NullInt64
+	var numInserts, numUpdates, numDeletes int64
 	err := yb.Conn().QueryRow(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
-	return numInserts.Int64, numUpdates.Int64, numDeletes.Int64, nil
+	return numInserts, numUpdates, numDeletes, nil
 }
 
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {

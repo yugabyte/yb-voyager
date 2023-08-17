@@ -250,7 +250,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {
-		fmt.Println("streaming changes to target DB...")
+		color.Blue("streaming changes to target DB...")
 		err = streamChanges()
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)

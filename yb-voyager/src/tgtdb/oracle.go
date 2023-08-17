@@ -307,7 +307,7 @@ func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, nu
 		}
 
 		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0 ,0 ,0)
 			_, err := conn.ExecContext(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -316,7 +316,7 @@ func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, nu
 		}
 
 		for _, tableName := range tableNames {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', '%s', 0, 0, 0, 0)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tdb.tconf.Schema, tableName)
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tdb.tconf.Schema, tableName, 0, 0, 0, 0)
 			_, err := conn.ExecContext(context.Background(), insertStmt)
 			if err != nil {
 				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
@@ -688,12 +688,12 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 func (tdb *TargetOracleDB) GetImportStatsMetaInfo(migrationUUID uuid.UUID) (int64, int64, int64, error) {
 	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'", 
 	EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var numInserts, numUpdates, numDeletes sql.NullInt64
+	var numInserts, numUpdates, numDeletes int64
 	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
 	if err != nil {
 		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
-	return numInserts.Int64, numUpdates.Int64, numDeletes.Int64, nil
+	return numInserts, numUpdates, numDeletes, nil
 }
 
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
