@@ -148,9 +148,13 @@ func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, erro
 			log.Errorf("failed to close connection to meta db: %v", err)
 		}
 	}()
-	currentMinuteEpoch := time.Now().Truncate(time.Minute)
+	now := time.Now()
+	currentMinuteEpoch := now.Truncate(time.Minute)
+	if now.Second() >= 30 {
+		currentMinuteEpoch.Add(30 * time.Second)
+	}
 	startMinuteEpoch := currentMinuteEpoch.Add(-time.Minute * time.Duration(n))
-	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= %d AND timestamp_minute < %d;`,
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= %d AND timestamp_minute <= %d;`,
 		EXPORTED_EVENTS_STATS_TABLE_NAME, startMinuteEpoch.Unix(), currentMinuteEpoch.Unix())
 	log.Info(query)
 	err = conn.QueryRow(query).Scan(&totalCount)
