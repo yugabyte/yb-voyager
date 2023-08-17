@@ -409,17 +409,16 @@ func reportStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
-		eventCountInLastMinute, err := getExportedEventsThroughputInLastNMinutes(runId, 1)
+		throughputInLast3Min, err := getExportedEventsThroughputInLastNMinutes(runId, 3)
 		if err != nil {
 			utils.ErrExit("failed to get exported count from metadb: %w", err)
 		}
-		throughput := eventCountInLastMinute / 60
 
-		fmt.Fprintf(header, "|%30s|%30s|%30s|\n", "TOTAL EVENTS", "TOTAL EVENTS(CURRENT RUN)", "EVENTS THROUGHPUT")
+		fmt.Fprintf(header, "|%30s|%30s|%30s|\n", "TOTAL EVENTS", "TOTAL EVENTS(CURRENT RUN)", "EVENTS THROUGHPUT(LAST 3 MIN)")
 		fmt.Fprintf(separator, "----------------------------------------------------------------------------------------------\n")
-		fmt.Fprintf(values, "|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10), strconv.FormatInt(throughput, 10))
+		fmt.Fprintf(values, "|%30s|%30s|%30s|\n", strconv.FormatInt(totalEventCount, 10), strconv.FormatInt(totalEventCountRun, 10), strconv.FormatInt(throughputInLast3Min, 10)+"/sec")
 		header.Flush()
-		time.Sleep(1 * time.Second)
+		time.Sleep(30 * time.Second)
 	}
 }
 

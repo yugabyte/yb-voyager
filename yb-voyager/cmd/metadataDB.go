@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -146,12 +147,16 @@ func getExportedEventsThroughputInLastNMinutes(runId string, n int) (int64, erro
 			log.Errorf("failed to close connection to meta db: %v", err)
 		}
 	}()
-	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= (strftime('%%s', 'now') - (%d*60));`, EXPORTED_EVENTS_STATS_TABLE_NAME, n)
+	currentMinuteEpoch := time.Now().Truncate(time.Minute)
+	startMinuteEpoch := currentMinuteEpoch.Add(-time.Minute * time.Duration(n))
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp_minute >= %d AND timestamp_minute < %d;`,
+		EXPORTED_EVENTS_STATS_TABLE_NAME, startMinuteEpoch.Unix(), currentMinuteEpoch.Unix())
+	log.Info(query)
 	err = conn.QueryRow(query).Scan(&totalCount)
 	if err != nil {
 		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
 			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 		}
 	}
-	return totalCount, nil
+	return totalCount / int64(n*60), nil
 }
