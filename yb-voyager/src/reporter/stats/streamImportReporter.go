@@ -44,7 +44,7 @@ func NewStreamImportStatsReporter() *StreamImportStatsReporter {
 
 func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.UUID) error {
 	s.migrationUUID = migrationUUID
-	numInserts, numUpdates, numDeletes, err := tdb.GetImportStatsMetaInfo(migrationUUID)
+	numInserts, numUpdates, numDeletes, err := tdb.GetTotalNumOfEventsImportedByType(migrationUUID)
 	s.totalEventsImported = numInserts + numUpdates + numDeletes
 	if err != nil {
 		return fmt.Errorf("failed to fetch import stats meta info from target : %w", err)
@@ -61,7 +61,9 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	defer displayTicker.Stop()
 	table := uilive.New()
 	headerRow := table.Newline()
-	seperator := table.Newline()
+	seperator1 := table.Newline()
+	seperator2 := table.Newline()
+	seperator3 := table.Newline()
 	row1 := table.Newline()
 	row2 := table.Newline()
 	row3 := table.Newline()
@@ -72,16 +74,16 @@ func (s *StreamImportStatsReporter) ReportStats() {
 
 	for range displayTicker.C {
 		s.CalcStats()
-		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
-		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
 		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Last imported events", strconv.FormatInt(s.latestBatchEvents, 10)))
 		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.0f events/sec", math.Round(s.importRateLast3Mins/3/60))))
 		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.0f events/sec", math.Round(s.importRateLast10Mins/10/60))))
 		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
 		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
-		fmt.Fprint(seperator, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		table.Flush()
 	}
 }

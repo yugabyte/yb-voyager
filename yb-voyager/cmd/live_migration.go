@@ -202,7 +202,19 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 
 		start := time.Now()
-		numInserts, numUpdates, numDeletes, err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
+		var numInserts, numUpdates, numDeletes int64
+		numInserts, numUpdates, numDeletes = 0, 0, 0
+		for _, event := range batch {
+			switch event.Op {
+			case "c":
+				numInserts++
+			case "u":
+				numUpdates++
+			case "d":
+				numDeletes++
+			}
+		}
+		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo, NumInserts: numInserts, NumUpdates: numUpdates, NumDeletes: numDeletes})
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}

@@ -220,7 +220,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
-		err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
+		err = tdb.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
 		if err != nil {
 			utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 		}

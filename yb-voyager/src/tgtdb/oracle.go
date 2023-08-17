@@ -214,13 +214,12 @@ END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
 	tableWiseEventsMetadataTableQuery := fmt.Sprintf(`BEGIN
 	EXECUTE IMMEDIATE 'CREATE TABLE %s (
 		migration_uuid VARCHAR2(36),
-		schema_name VARCHAR2(250),
 		table_name VARCHAR2(250),
 		total_events NUMBER(19),
 		num_inserts NUMBER(19),
 		num_updates NUMBER(19),
 		num_deletes NUMBER(19),
-		PRIMARY KEY (migration_uuid, schema_name, table_name)
+		PRIMARY KEY (migration_uuid, table_name)
 	)';
 EXCEPTION
 	WHEN OTHERS THEN
@@ -265,63 +264,105 @@ outer:
 	return nil
 }
 
-func (tdb *TargetOracleDB) InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
+func (tdb *TargetOracleDB) clearLiveMigrationMetaInfo(conn *sql.Conn, metainfoTable string, migrationUUID uuid.UUID) error {
+	startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", metainfoTable, migrationUUID)
+	res, err := conn.ExecContext(context.Background(), startCleanStmt)
+	if err != nil {
+		return fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
+	}
+	rowsAffected, _ := res.RowsAffected()
+	log.Infof("deleted existing channels meta info using query %s; rows affected = %d", startCleanStmt, rowsAffected)
+	return nil
+}
+
+func (tdb *TargetOracleDB) getLiveMigrationMetaInfo(conn *sql.Conn, migrationUUID uuid.UUID) (int64, error) {
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	var rowCount int64
+	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
+	var rowCount int64
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func (tdb *TargetOracleDB) initChannelMetaInfo(conn *sql.Conn, migrationUUID uuid.UUID, numChans int) error {
+	// if there are >0 rows, then skip because already been inited.
+	rowCount, err := tdb.getLiveMigrationMetaInfo(conn, migrationUUID)
+	if err != nil {
+		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+	if rowCount > 0 {
+		log.Info("event channels meta info already created. Skipping init.")
+		return nil
+	}
+	for c := 0; c < numChans; c++ {
+		insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
+		_, err := conn.ExecContext(context.Background(), insertStmt)
+		if err != nil {
+			return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+		}
+		log.Infof("created channels meta info: %s;", insertStmt)
+	}
+	return nil
+}
+
+func (tdb *TargetOracleDB) initEventStatByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) error {
+	insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, 0, 0, 0, 0)
+	_, err := conn.ExecContext(context.Background(), insertStmt)
+	if err != nil {
+		return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+	}
+	log.Infof("created table wise meta info: %s;", insertStmt)
+	return nil
+}
+
+func (tdb *TargetOracleDB) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		if startClean {
-			startCleanStmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-			res, err := conn.ExecContext(context.Background(), startCleanStmt)
+			err := tdb.clearLiveMigrationMetaInfo(conn, EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 			if err != nil {
-				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
+				return false, fmt.Errorf("failed to clear live migration meta info: %w", err)
 			}
-			rowsAffected, _ := res.RowsAffected()
-			log.Infof("deleted existing channels meta info using query %s; rows affected = %d", startCleanStmt, rowsAffected)
-			startCleanStmt = fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
-			res, err = conn.ExecContext(context.Background(), startCleanStmt)
+			err = tdb.clearLiveMigrationMetaInfo(conn, EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
 			if err != nil {
-				return false, fmt.Errorf("error executing stmt - %v: %w", startCleanStmt, err)
+				return false, fmt.Errorf("failed to clear live migration meta info: %w", err)
 			}
-			rowsAffected, _ = res.RowsAffected()
-			log.Infof("deleted existing batch meta info using query %s; rows affected = %d", startCleanStmt, rowsAffected)
-		}
-		// if there are >0 rows, then skip because already been inited.
-		rowsStmt := fmt.Sprintf(
-			"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-		var rowCount int
-		err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
-		if err != nil {
-			return false, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-		}
-		if rowCount > 0 {
-			log.Info("event channels meta info already created. Skipping init.")
-			return false, nil
 		}
 
-		rowsStmt = fmt.Sprintf(
-			"SELECT count(*) FROM %s where migration_uuid='%s'", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
-		err = conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
+		err := tdb.initChannelMetaInfo(conn, migrationUUID, numChans)
 		if err != nil {
-			return false, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-		}
-		if rowCount > 0 {
-			log.Info("table wise meta info already created. Skipping init.")
-		}
-
-		for c := 0; c < numChans; c++ {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
-			_, err := conn.ExecContext(context.Background(), insertStmt)
-			if err != nil {
-				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
-			}
-			log.Infof("created channels meta info: %s;", insertStmt)
+			return false, fmt.Errorf("failed to init live migration meta info: %w", err)
 		}
 
 		for _, tableName := range tableNames {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tdb.tconf.Schema, tableName, 0, 0, 0, 0)
-			_, err := conn.ExecContext(context.Background(), insertStmt)
-			if err != nil {
-				return false, fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			if len(strings.Split(tableName, ".")) != 2 {
+				tableName = fmt.Sprintf("%s.%s", tdb.tconf.Schema, tableName)
 			}
-			log.Infof("created table wise meta info: %s;", insertStmt)
+			rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
+			if err != nil {
+				return false, fmt.Errorf("failed to get table wise meta info: %w", err)
+			}
+			if rowCount > 0 {
+				log.Info("table wise meta info already created. Skipping init.")
+			} else {
+				err := tdb.initEventStatByTable(conn, migrationUUID, tableName)
+				if err != nil {
+					return false, fmt.Errorf("failed to init live migration meta info: %w", err)
+				}
+			}
+
 		}
 		return false, nil
 	})
@@ -579,12 +620,9 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 }
 
 // execute all events sequentially one by one in a single transaction
-func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) (int64, int64, int64, error) {
+func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
 	log.Infof("executing batch of %d events", len(batch.Events))
-	var numInserts, numUpdates, numDeletes int64
-	numInserts, numUpdates, numDeletes = 0, 0, 0
-
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), nil)
 		if err != nil {
@@ -594,14 +632,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			switch event.Op {
-			case "c":
-				numInserts++
-			case "u":
-				numUpdates++
-			case "d":
-				numDeletes++
-			}
 			stmt := event.GetSQLStmt(tdb.tconf.Schema)
 			_, err = tx.Exec(stmt)
 			if err != nil {
@@ -610,7 +640,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 			}
 		}
 
-		updateVsnQuery := batch.GetQueryToUpdateLastAppliedVSN(migrationUUID, numInserts, numUpdates, numDeletes)
+		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err := tx.Exec(updateVsnQuery)
 		if err != nil {
 			log.Errorf("error executing stmt: %v", err)
@@ -621,15 +651,21 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 				updateVsnQuery, err, rowsAffected)
 		}
 
-		updatePerTableEvents := batch.GetQueryToUpdateTableWiseStats(migrationUUID, numInserts, numUpdates, numDeletes, tdb.tconf.Schema)
-		res, err = tx.Exec(updatePerTableEvents)
-		if err != nil {
-			log.Errorf("error executing stmt: %v", err)
-			return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w", updatePerTableEvents, err)
-		} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
-			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
-			return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w, rowsAffected: %v",
-				updatePerTableEvents, err, rowsAffected)
+		tableNames := batch.GetTableNames()
+		for _, tableName := range tableNames {
+			if len(strings.Split(tableName, ".")) != 2 {
+				tableName = fmt.Sprintf("%s.%s", tdb.tconf.Schema, tableName)
+			}
+			updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+			res, err = tx.Exec(updatePerTableEvents)
+			if err != nil {
+				log.Errorf("error executing stmt: %v", err)
+				return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w", updatePerTableEvents, err)
+			} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
+				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
+				return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w, rowsAffected: %v",
+					updatePerTableEvents, err, rowsAffected)
+			}
 		}
 
 		if err = tx.Commit(); err != nil {
@@ -638,10 +674,10 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBatc
 		return false, err
 	})
 	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error executing batch: %w", err)
+		return fmt.Errorf("error executing batch: %w", err)
 	}
 
-	return numInserts, numUpdates, numDeletes, nil
+	return nil
 }
 
 func (tdb *TargetOracleDB) InitConnPool() error {
@@ -685,7 +721,7 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 	return connectString
 }
 
-func (tdb *TargetOracleDB) GetImportStatsMetaInfo(migrationUUID uuid.UUID) (int64, int64, int64, error) {
+func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
 	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'",
 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var numInserts, numUpdates, numDeletes int64
