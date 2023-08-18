@@ -114,12 +114,12 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 
 func (m *MetaDB) MarkSegmentAsProcessed(segmentNum int64) error {
 	var query string
-	if importerType == TARGET_DB {
+	if importDestination == TARGET_DB {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
-	} else if importerType == FF_DB {
+	} else if importDestination == FF_DB {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
 	} else {
-		return fmt.Errorf("invalid importer type: %s", importerType)
+		return fmt.Errorf("invalid importer type: %s", importDestination)
 	}
 
 	_, err := m.db.Exec(query)

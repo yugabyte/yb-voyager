@@ -46,7 +46,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
-var importerType string
+var importDestination string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -167,8 +167,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	importerType = TARGET_DB // need to figure out which type of importer it is
-
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -182,6 +180,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+
+	if tconf.TargetDBType == YUGABYTEDB {
+		importDestination = TARGET_DB
+	} else {
+		importDestination = FF_DB
+	}
+
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
