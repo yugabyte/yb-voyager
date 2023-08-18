@@ -173,8 +173,8 @@ func getExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
 	}()
 	now := time.Now()
 	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
-	query := fmt.Sprintf(`select sum(num_total) from %s WHERE timestamp >= %d`,
-		EXPORTED_EVENTS_STATS_TABLE_NAME, startTimeStamp.Unix())
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE run_id='%s' AND timestamp >= %d`,
+		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, startTimeStamp.Unix())
 	log.Info(query)
 	err = conn.QueryRow(query).Scan(&totalCount)
 	if err != nil {
