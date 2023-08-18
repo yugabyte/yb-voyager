@@ -64,7 +64,7 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER, imported_in_targetdb INTEGER, imported_in_ffdb INTEGER);`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER, imported_in_targetdb INTEGER DEFAULT 0, imported_in_ffdb INTEGER DEFAULT 0, archived INTEGER DEFAULT 0);`, QUEUE_SEGMENT_META_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
