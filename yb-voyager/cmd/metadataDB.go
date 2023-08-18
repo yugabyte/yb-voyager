@@ -64,7 +64,7 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER, imported_in_targetdb INTEGER, imported_in_ffdb INTEGER);`, QUEUE_SEGMENT_META_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -95,5 +95,37 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 		}
 		log.Infof("Executed query on meta db - %s", query)
 	}
+	return nil
+}
+
+// =====================================================================================================================
+
+type MetaDB struct {
+	db *sql.DB
+}
+
+func NewMetaDB(exportDir string) (*MetaDB, error) {
+	db, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return nil, fmt.Errorf("error while opening meta db :%w", err)
+	}
+	return &MetaDB{db: db}, nil
+}
+
+func (m *MetaDB) MarkSegmentAsProcessed(segmentNum int64) error {
+	var query string
+	if importerType == TARGET_DB {
+		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	} else if importerType == FF_DB {
+		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	} else {
+		return fmt.Errorf("invalid importer type: %s", importerType)
+	}
+
+	_, err := m.db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	log.Infof("Executed query on meta db - %s", query)
 	return nil
 }

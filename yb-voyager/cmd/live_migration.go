@@ -122,6 +122,11 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		<-processingDoneChans[i]
 	}
 
+	err = metaDB.MarkSegmentAsProcessed(segment.SegmentNum)
+	if err != nil {
+		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
+	}
+
 	// TODO: printing this line until some user stats are available.
 	utils.PrintAndLog("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
