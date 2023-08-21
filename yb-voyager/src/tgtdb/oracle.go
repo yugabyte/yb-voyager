@@ -323,33 +323,8 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }
 
-// Note: currently this is not required since only identity column sequences are supported for oracle
-// but in future if we support other sequences, then this will be required
+// NOTE: TODO support for identity columns sequences
 func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) error {
-	var sqlStmts []string
-	for sequenceName, lastValue := range sequencesLastVal {
-		// TODO: sequenceName in oracle can be different from YB, target exporter should generate config file with corresponding sequenceColumnsMap
-		if lastValue == 0 {
-			// TODO: can be valid for cases like cyclic sequences
-			continue
-		}
-		sqlStmt := fmt.Sprintf("ALTER SEQUENCE %s.%s RESTART START WITH %d", tdb.tconf.Schema, sequenceName, lastValue)
-		sqlStmts = append(sqlStmts, sqlStmt)
-	}
-
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		for _, sqlStmt := range sqlStmts {
-			_, err := conn.ExecContext(context.Background(), sqlStmt)
-			if err != nil {
-				log.Errorf("error executing sql stmt %q: %v", sqlStmt, err)
-				return false, fmt.Errorf("executing sql stmt %q: %w", sqlStmt, err)
-			}
-		}
-		return false, nil
-	})
-	if err != nil {
-		return fmt.Errorf("restore sequences: %w", err)
-	}
 	return nil
 }
 
