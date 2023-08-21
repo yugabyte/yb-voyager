@@ -126,66 +126,6 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 	return nil
 }
 
-// TODO: use a common, opened connection object
-func getTotalExportedEvents(runId string) (int64, int64, error) {
-	var totalCount int64
-	var totalCountRun int64
-	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
-	if err != nil {
-		return -1, -1, fmt.Errorf("error while opening meta db :%w", err)
-	}
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("failed to close connection to meta db: %v", err)
-		}
-	}()
-	query := fmt.Sprintf(`SELECT sum(num_total) from %s`, EXPORTED_EVENTS_STATS_TABLE_NAME)
-	err = conn.QueryRow(query).Scan(&totalCount)
-	if err != nil {
-		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
-			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-		}
-
-	}
-
-	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, runId)
-	err = conn.QueryRow(query).Scan(&totalCountRun)
-	if err != nil {
-		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
-			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-		}
-	}
-
-	return totalCount, totalCountRun, nil
-}
-
-func getExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
-	var totalCount int64
-	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
-	if err != nil {
-		return -1, fmt.Errorf("error while opening meta db :%w", err)
-	}
-	defer func() {
-		err := conn.Close()
-		if err != nil {
-			log.Errorf("failed to close connection to meta db: %v", err)
-		}
-	}()
-	now := time.Now()
-	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
-	query := fmt.Sprintf(`select sum(num_total) from %s WHERE run_id='%s' AND timestamp >= %d`,
-		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, startTimeStamp.Unix())
-	log.Info(query)
-	err = conn.QueryRow(query).Scan(&totalCount)
-	if err != nil {
-		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
-			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-		}
-	}
-	return totalCount / int64(n*60), nil
-}
-
 // =====================================================================================================================
 
 type MetaDB struct {
@@ -209,4 +149,44 @@ func (m *MetaDB) GetLastValidOffsetInSegmentFile(segmentNum int64) (int64, error
 		return -1, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
 	}
 	return sizeCommitted, nil
+}
+
+func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
+	var totalCount int64
+	var totalCountRun int64
+
+	query := fmt.Sprintf(`SELECT sum(num_total) from %s`, EXPORTED_EVENTS_STATS_TABLE_NAME)
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+
+	}
+
+	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, runId)
+	err = m.db.QueryRow(query).Scan(&totalCountRun)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+
+	return totalCount, totalCountRun, nil
+}
+
+func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
+	var totalCount int64
+	now := time.Now()
+	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE run_id='%s' AND timestamp >= %d`,
+		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, startTimeStamp.Unix())
+	log.Info(query)
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+	return totalCount / int64(n*60), nil
 }

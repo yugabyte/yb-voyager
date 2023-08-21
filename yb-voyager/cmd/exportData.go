@@ -124,6 +124,8 @@ func exportDataOffline() bool {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	metaDB, err = NewMetaDB(exportDir)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -410,26 +412,26 @@ func reportStreamingProgress() {
 	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
 	for {
-		totalEventCount, totalEventCountRun, err := getTotalExportedEvents(runId)
+		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEvents(runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
-		throughputInLast3Min, err := getExportedEventsRateInLastNMinutes(runId, 3)
+		throughputInLast3Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		throughputInLast10Min, err := getExportedEventsRateInLastNMinutes(runId, 10)
+		throughputInLast10Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		fmt.Fprint(tableWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		fmt.Fprint(headerWriter, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
-		fmt.Fprint(separatorWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		fmt.Fprint(row1Writer, color.GreenString("| %-30s | %30s |\n", "Total Events", strconv.FormatInt(totalEventCount, 10)))
-		fmt.Fprint(row2Writer, color.GreenString("| %-30s | %30s |\n", "Total Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
-		fmt.Fprint(row3Writer, color.GreenString("| %-30s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
-		fmt.Fprint(row4Writer, color.GreenString("| %-30s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
-		fmt.Fprint(footerWriter, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
+		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+		fmt.Fprint(row1Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events", strconv.FormatInt(totalEventCount, 10)))
+		fmt.Fprint(row2Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
+		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
+		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
+		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
 		time.Sleep(30 * time.Second)
 	}
