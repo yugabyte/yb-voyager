@@ -28,6 +28,7 @@ import (
 )
 
 var (
+	metaDB                                     *MetaDB
 	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
 	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
 	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
@@ -183,4 +184,29 @@ func getExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
 		}
 	}
 	return totalCount / int64(n*60), nil
+}
+
+// =====================================================================================================================
+
+type MetaDB struct {
+	db *sql.DB
+}
+
+func NewMetaDB(exportDir string) (*MetaDB, error) {
+	db, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return nil, fmt.Errorf("error while opening meta db :%w", err)
+	}
+	return &MetaDB{db: db}, nil
+}
+
+func (m *MetaDB) GetLastValidOffsetInSegmentFile(segmentNum int64) (int64, error) {
+	query := fmt.Sprintf(`SELECT size_committed FROM %s WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	row := m.db.QueryRow(query)
+	var sizeCommitted int64
+	err := row.Scan(&sizeCommitted)
+	if err != nil {
+		return -1, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	return sizeCommitted, nil
 }

@@ -204,6 +204,11 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
 
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
