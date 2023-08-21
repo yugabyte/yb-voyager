@@ -39,10 +39,14 @@ func (t *TailReader) Read(p []byte) (n int, err error) {
 		if err != nil {
 			return 0, fmt.Errorf("failed to get last valid offset: %w", err)
 		}
+		if t.bytesRead > lastOffset {
+			panic(fmt.Sprintf("Tail reader read more bytes %d than lastOffset %d", t.bytesRead, lastOffset))
+		}
 		if t.bytesRead == lastOffset {
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		// ensure we only read bytes upto last offset.
 		if lastOffset-t.bytesRead < int64(len(p)) {
 			p = p[:lastOffset-t.bytesRead]
 		}
