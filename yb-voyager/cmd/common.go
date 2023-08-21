@@ -42,6 +42,7 @@ import (
 
 var (
 	QUEUE_SEGMENT_META_TABLE_NAME = "queue_segment_meta"
+	metaDB                        *MetaDB
 )
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
