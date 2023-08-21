@@ -181,7 +181,6 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
 	query := fmt.Sprintf(`select sum(num_total) from %s WHERE run_id='%s' AND timestamp >= %d`,
 		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, startTimeStamp.Unix())
-	log.Info(query)
 	err := m.db.QueryRow(query).Scan(&totalCount)
 	if err != nil {
 		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
