@@ -814,7 +814,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch EventBat
 			if len(strings.Split(tableName, ".")) != 2 {
 				tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
 			}
-			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName, yb.tconf.Schema)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil || res.RowsAffected() == 0 {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())

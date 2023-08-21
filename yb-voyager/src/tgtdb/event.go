@@ -267,10 +267,10 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), eb.NumInserts, eb.NumUpdates, eb.NumDeletes, migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
+func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string, targetSchema string) string {
 	var numInserts, numUpdates, numDeletes int64
 	for _, event := range eb.Events {
-		if event.TableName == tableName {
+		if event.getTableName(targetSchema) == tableName {
 			switch event.Op {
 			case "c":
 				numInserts++

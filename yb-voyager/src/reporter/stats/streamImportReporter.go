@@ -83,18 +83,18 @@ func (s *StreamImportStatsReporter) ReportStats() {
 		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Events Imported in this Run", strconv.FormatInt(s.CurrImportedEvents, 10)))
 		var averageRateLast3Mins, averageRateLast10Mins float64 
 		if elapsedMins >= 3 {
-			averageRateLast3Mins = s.importRateLast3Mins / 6
+			averageRateLast3Mins = s.importRateLast3Mins / 6 // as 6 intervals of 30 seconds each in 3 mins
 		} else {
 			averageRateLast3Mins = s.importRateLast3Mins / (2*elapsedMins)
 		}
 		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.0f events/sec", math.Round(averageRateLast3Mins / 60))))
 		if elapsedMins >= 10 {
-			averageRateLast10Mins = s.importRateLast10Mins / 20
+			averageRateLast10Mins = s.importRateLast10Mins / 20 
 		} else {
 			averageRateLast10Mins = s.importRateLast10Mins / (2*elapsedMins)
 		}
 		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.0f events/sec", math.Round(averageRateLast10Mins / 60))))
-		fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", math.Round(time.Since(s.startTime).Minutes()*100)/100))) 
+		fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", math.Round(time.Since(s.startTime).Minutes()*100)/100)))
 		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
 		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
 		fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
