@@ -15,6 +15,8 @@ limitations under the License.
 */
 package cmd
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+
 const (
 	KB                            = 1024
 	MB                            = 1024 * 1024
@@ -47,6 +49,8 @@ const (
 	FF_DB                         = "ff"
 )
 
+var CUTOVER_EVENT = &tgtdb.Event{Op: "cutover"}
+var FALLFORWARD_EVENT = &tgtdb.Event{Op: "fallforward"}
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var supportedTargetDBTypes = []string{YUGABYTEDB, ORACLE}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}

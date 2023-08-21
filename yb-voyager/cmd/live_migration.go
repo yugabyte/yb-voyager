@@ -22,6 +22,7 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"time"
 
@@ -37,6 +38,7 @@ var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+var eventQueue *EventQueue
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 512)
@@ -63,7 +65,8 @@ func streamChanges() error {
 	}
 	go updateExportedEventsStats(statsReporter)
 	go statsReporter.ReportStats()
-	eventQueue := NewEventQueue(exportDir)
+
+	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
 	var processingDoneChans []chan bool
@@ -73,7 +76,7 @@ func streamChanges() error {
 	}
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
-	for { // continuously get next segments to stream
+	for eventQueue.EndEvent == nil { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && (errors.Is(err, os.ErrNotExist) || errors.Is(err, sql.ErrNoRows)) {
@@ -89,6 +92,7 @@ func streamChanges() error {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
+	return nil
 }
 
 func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
@@ -119,6 +123,11 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 		if event == nil && segment.IsProcessed() {
 			break
+		} else if reflect.DeepEqual(event, CUTOVER_EVENT) && tconf.TargetDBType == YUGABYTEDB ||
+			reflect.DeepEqual(event, FALLFORWARD_EVENT) && tconf.TargetDBType != YUGABYTEDB { // cutover or fall-forward command
+			eventQueue.EndEvent = event
+			segment.MarkProcessed()
+			break
 		}
 
 		err = handleEvent(event, evChans)
@@ -148,7 +157,11 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 			tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	log.Debugf("Handling event: %v", event)
+	if event == CUTOVER_EVENT || event == FALLFORWARD_EVENT {
+		// nil in case of cutover or fall_forward events for unconcerned importer
+		return nil
+	}
+	log.Debugf("handling event: %v", event)
 	tableName := event.TableName
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
 		tableName = event.SchemaName + "." + event.TableName

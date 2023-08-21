@@ -38,6 +38,7 @@ const (
 type EventQueue struct {
 	QueueDirPath       string
 	SegmentNumToStream int64
+	EndEvent           *tgtdb.Event
 }
 
 func NewEventQueue(exportDir string) *EventQueue {
@@ -126,7 +127,7 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 
 	if string(line) == EOFMarker {
 		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
-		eqs.processed = true
+		eqs.MarkProcessed()
 		return nil, nil
 	}
 
@@ -139,4 +140,8 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 
 func (eqs *EventQueueSegment) IsProcessed() bool {
 	return eqs.processed
+}
+
+func (eqs *EventQueueSegment) MarkProcessed() {
+	eqs.processed = true
 }

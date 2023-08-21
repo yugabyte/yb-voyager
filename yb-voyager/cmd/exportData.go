@@ -57,10 +57,7 @@ var exportDataCmd = &cobra.Command{
 		}
 	},
 
-	Run: func(cmd *cobra.Command, args []string) {
-		checkDataDirs()
-		exportData()
-	},
+	Run: exportDataCommandFn,
 }
 
 func init() {
@@ -70,13 +67,15 @@ func init() {
 	registerExportDataFlags(exportDataCmd)
 }
 
-func exportData() {
+func exportDataCommandFn(cmd *cobra.Command, args []string) {
+	exitIfDBSwitchedOver(getTriggerName("", "exporter", source.DBType))
+	checkDataDirs()
 	if useDebezium {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-	success := exportDataOffline()
+	success := exportData()
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -102,7 +101,7 @@ func exportData() {
 	}
 }
 
-func exportDataOffline() bool {
+func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -172,6 +171,13 @@ func exportDataOffline() bool {
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
+		}
+
+		if liveMigration {
+			log.Infof("live migration complete, proceeding to cutover")
+			triggerName := getTriggerName("", "exporter", source.DBType)
+			createTrigger(triggerName)
+			// TODO: print stats
 		}
 		return true
 	}

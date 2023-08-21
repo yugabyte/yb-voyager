@@ -67,6 +67,7 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+	exitIfDBSwitchedOver(getTriggerName("", "importer", tconf.TargetDBType))
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -277,6 +278,11 @@ func importData(importFileTasks []*ImportFileTask) {
 		if err != nil {
 			utils.ErrExit("failed to restore sequences: %s", err)
 		}
+
+		utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
+		triggerName := getTriggerName("", "importer", tconf.TargetDBType)
+		createTrigger(triggerName)
+		// TODO: print stats
 	}
 
 	fmt.Printf("\nImport data complete.\n")
