@@ -125,6 +125,9 @@ func exportDataOffline() bool {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
