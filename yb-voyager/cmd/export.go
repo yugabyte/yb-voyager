@@ -36,6 +36,7 @@ var source srcdb.Source
 var disablePb bool
 var liveMigration bool
 var useDebezium bool
+var runId string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
