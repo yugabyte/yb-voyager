@@ -17,7 +17,6 @@ package tgtdb
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"sync"
@@ -231,11 +230,7 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 			values = append(values, nil)
 			continue
 		}
-		unquotedValue, err := strconv.Unquote(*value)
-		if err != nil {
-			unquotedValue = *value
-		}
-		values = append(values, unquotedValue)
+		values = append(values, value)
 	}
 	return values
 }

@@ -27,9 +27,9 @@ type ValueConverter interface {
 	ConvertEvent(ev *tgtdb.Event, table string) error
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
+func NewValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb)
+		return NewDebeziumValueConverter(targetDBType,exportDir, tdb)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -53,9 +53,10 @@ type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
 	valueConverterSuite map[string]tgtdb.ConverterFn
 	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
+	targetDBType        string
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
 	schemaRegistry := NewSchemaRegistry(exportDir)
 	err := schemaRegistry.Init()
 	if err != nil {
@@ -67,6 +68,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumV
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
 		converterFnCache:    map[string][]tgtdb.ConverterFn{},
+		targetDBType:        targetDBType,
 	}, nil
 }
 
@@ -80,7 +82,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
 			continue
 		}
-		transformedValue, err := converterFns[i](columnValue, false)
+		transformedValue, _, err := converterFns[i](columnValue, false)
 		if err != nil {
 			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableName, i, columnValue, err)
 		}
@@ -106,35 +108,40 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
-	err := conv.convertMap(table, ev.Key)
+	err := conv.convertMap(table, ev.Key, ev.Op)
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
-	err = conv.convertMap(table, ev.Fields)
+	err = conv.convertMap(table, ev.Fields, ev.Op)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
 	return nil
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, evOp string) error {
 	for column, value := range m {
 		if value == nil {
 			continue
 		}
 		columnValue := *value
+		formattedColumnValue := *value
 		colType, err := conv.schemaRegistry.GetColumnType(tableName, column)
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, true)
+			columnValue, formattedColumnValue, err = converterFn(columnValue, true)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
 		}
-		m[column] = &columnValue
+		if evOp == "u" || conv.targetDBType == "oracle" {
+			m[column] = &formattedColumnValue
+		} else {
+			m[column] = &columnValue
+		}
 	}
 	return nil
 }

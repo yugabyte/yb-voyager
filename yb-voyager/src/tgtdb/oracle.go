@@ -35,13 +35,13 @@ import (
 )
 
 var oraValueConverterSuite = map[string]ConverterFn{
-	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
+	"STRING": func(columnValue string, formatIfRequired bool) (string, string, error) {
+		var formattedColumnValue string
 		if formatIfRequired {
-			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
-			return fmt.Sprintf("'%s'", formattedColumnValue), nil
-		} else {
-			return columnValue, nil
+			formattedColumnValue = strings.Replace(columnValue, "'", "''", -1)
+			formattedColumnValue = fmt.Sprintf("'%s'", formattedColumnValue)
 		}
+		return columnValue, formattedColumnValue, nil
 	},
 }
 

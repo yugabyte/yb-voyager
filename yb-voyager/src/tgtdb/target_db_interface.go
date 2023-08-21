@@ -49,7 +49,7 @@ const (
 )
 
 // value converter Function type
-type ConverterFn func(v string, formatIfRequired bool) (string, error)
+type ConverterFn func(v string, formatIfRequired bool) (string, string, error) // returns value, formattedValue, error
 
 type Batch interface {
 	Open() (*os.File, error)
