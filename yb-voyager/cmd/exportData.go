@@ -122,6 +122,11 @@ func exportDataOffline() bool {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -389,6 +394,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		if !snapshotComplete || err != nil {
 			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
+	}
+
+	if liveMigration {
+		// TODO: ensure cutover.source trigger is present indicating debezium process has exited normally.
 	}
 
 	log.Info("Debezium exited normally.")

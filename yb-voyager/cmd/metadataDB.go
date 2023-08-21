@@ -25,6 +25,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
+
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
 }
@@ -121,4 +123,19 @@ func (m *MetaDB) GetLastValidOffsetInSegmentFile(segmentNum int64) (int64, error
 		return -1, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
 	}
 	return sizeCommitted, nil
+}
+
+func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (int64, int64, int64, int64, error) {
+	var totalCount int64
+	var inserts int64
+	var updates int64
+	var deletes int64
+	query := fmt.Sprintf(`select num_total, num_inserts, num_updates, num_deletes from %s WHERE schema_name='%s' AND table_name='%s'`,
+		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
+
+	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
+	if err != nil {
+		return -1, -1, -1, -1, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return totalCount, inserts, updates, deletes, nil
 }
