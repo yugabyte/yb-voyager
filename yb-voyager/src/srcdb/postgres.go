@@ -418,7 +418,8 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.Qualified.Unquoted, columeName)
-			columnToSequenceMap[qualifiedColumnName] = schemaName + "." + sequenceName
+			// quoting sequence name as it can be case sensitive - required during import data restore sequences
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}
 	}
 
@@ -462,4 +463,4 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 
 func (pg *PostgreSQL) GetServers() string {
 	return pg.source.Host
-} 
+}

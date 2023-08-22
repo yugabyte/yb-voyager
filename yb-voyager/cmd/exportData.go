@@ -184,11 +184,6 @@ func exportDataOffline() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
-		err = createResumeSequencesFile()
-		if err != nil {
-			log.Errorf("Failed to create resume sequences files: %v", err)
-			return false
-		}
 		return true
 	}
 
@@ -556,31 +551,6 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		DataFileList: dataFileList,
 	}
 	dfd.Save()
-	return nil
-}
-
-func createResumeSequencesFile() error {
-	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		return fmt.Errorf("failed to read export status during creating resume sequence file: %w", err)
-	}
-
-	var sqlStmts []string
-	for sequenceName, lastValue := range status.Sequences {
-		if lastValue == 0 {
-			continue
-		}
-		sqlStmt := fmt.Sprintf("SELECT pg_catalog.setval('%s', %d, true);\n", sequenceName, lastValue)
-		sqlStmts = append(sqlStmts, sqlStmt)
-	}
-
-	if len(sqlStmts) > 0 {
-		file := filepath.Join(exportDir, "data", "postdata.sql")
-		err = os.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write resume sequence file: %w", err)
-		}
-	}
 	return nil
 }
 

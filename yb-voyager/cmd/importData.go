@@ -248,18 +248,31 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	if tconf.TargetDBType == YUGABYTEDB {
-		executePostImportDataSqls() // TODO: it needs to be abstracted out in targetDB interface
-	}
-	callhome.PackAndSendPayload(exportDir)
 
-	if liveMigration {
-		fmt.Println("streaming changes to target DB...")
-		err = streamChanges()
+	callhome.PackAndSendPayload(exportDir)
+	if !dbzm.IsDebeziumForDataExport(exportDir) {
+		executePostImportDataSqls()
+	} else {
+		if liveMigration {
+			fmt.Println("streaming changes to target DB...")
+			err = streamChanges()
+			if err != nil {
+				utils.ErrExit("Failed to stream changes from source DB: %s", err)
+			}
+		}
+
+		// in case of live migration sequences are restored after cutover
+		// otherwise for snapshot migration, directly restore sequences
+		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
-			utils.ErrExit("Failed to stream changes from source DB: %s", err)
+			utils.ErrExit("failed to read export status for restore sequences: %s", err)
+		}
+		err = tdb.RestoreSequences(status.Sequences)
+		if err != nil {
+			utils.ErrExit("failed to restore sequences: %s", err)
 		}
 	}
+
 	fmt.Printf("\nImport data complete.\n")
 }
 
