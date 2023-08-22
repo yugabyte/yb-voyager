@@ -687,7 +687,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
 			tableName := tdb.qualifyTableName(tableName)
-			updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName, tdb.tconf.Schema)
+			updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(updatePerTableEvents)
 			if err != nil {
 				log.Errorf("error executing stmt: %v", err)

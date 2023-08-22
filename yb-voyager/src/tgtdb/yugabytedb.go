@@ -873,7 +873,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
 			tableName := yb.qualifyTableName(tableName)
-			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName, yb.tconf.Schema)
+			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil || res.RowsAffected() == 0 {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
