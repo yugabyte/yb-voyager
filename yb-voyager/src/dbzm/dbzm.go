@@ -42,14 +42,19 @@ type Debezium struct {
 	done bool
 }
 
-func findDebeziumDistribution() error {
+func findDebeziumDistribution(sourceDBType string) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
+		pathSuffix := ""
+		if sourceDBType == "yugabytedb" {
+			pathSuffix = "/debezium-server-fall-forward"
+		}
 		possiblePaths := []string{
-			"/opt/homebrew/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/usr/local/Cellar/debezium@" + DEBEZIUM_VERSION + "/" + DEBEZIUM_VERSION + "/debezium-server",
-			"/opt/yb-voyager/debezium-server"}
+			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
+			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
+			fmt.Sprintf("/opt/yb-voyager/debezium-server%s", pathSuffix)}
+
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
 				DEBEZIUM_DIST_DIR = path
@@ -69,7 +74,7 @@ func NewDebezium(config *Config) *Debezium {
 }
 
 func (d *Debezium) Start() error {
-	err := findDebeziumDistribution()
+	err := findDebeziumDistribution(d.Config.SourceDBType)
 	if err != nil {
 		return err
 	}

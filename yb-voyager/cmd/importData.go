@@ -28,6 +28,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
@@ -46,6 +47,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
+var importDestinationType string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -180,6 +182,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+
+	if tconf.TargetDBType == YUGABYTEDB {
+		importDestinationType = TARGET_DB
+	} else {
+		importDestinationType = FF_DB
+	}
+
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -200,9 +209,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
-	err = tdb.InitEventChannelsMetaInfo(migrationUUID, NUM_EVENT_CHANNELS, startClean)
+
+	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
-		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -224,6 +234,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
+		err = tdb.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
+		if err != nil {
+			utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+		}
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -244,18 +258,32 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	if tconf.TargetDBType == YUGABYTEDB {
-		executePostImportDataSqls() // TODO: it needs to be abstracted out in targetDB interface
-	}
-	callhome.PackAndSendPayload(exportDir)
 
-	if changeStreamingIsEnabled(importType) {
-		fmt.Println("streaming changes to target DB...")
-		err = streamChanges()
+	callhome.PackAndSendPayload(exportDir)
+	if !dbzm.IsDebeziumForDataExport(exportDir) {
+		executePostImportDataSqls()
+	} else {
+		  if changeStreamingIsEnabled(importType) {
+			  color.Blue("streaming changes to target DB...")
+        err = streamChanges()
+			  if err != nil {
+				  utils.ErrExit("Failed to stream changes from source DB: %s", err)
+			  }
+		}
+    
+		// in case of live migration sequences are restored after cutover
+		// otherwise for snapshot migration, directly restore sequences
+		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
-			utils.ErrExit("Failed to stream changes from source DB: %s", err)
+			utils.ErrExit("failed to read export status for restore sequences: %s", err)
+		}
+		err = tdb.RestoreSequences(status.Sequences)
+
+		if err != nil {
+			utils.ErrExit("failed to restore sequences: %s", err)
 		}
 	}
+
 	fmt.Printf("\nImport data complete.\n")
 }
 
@@ -485,6 +513,14 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
+func executePostImportDataSqls() {
+	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
+	if utils.FileOrFolderExists(sequenceFilePath) {
+		fmt.Printf("setting resume value for sequences %10s\n", "")
+		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
+	}
+}
+
 func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	batchImportPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
@@ -498,14 +534,6 @@ func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProt
 		}
 	})
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
-}
-
-func executePostImportDataSqls() {
-	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s\n", "")
-		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
-	}
 }
 
 func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {

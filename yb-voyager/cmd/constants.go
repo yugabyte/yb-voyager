@@ -43,13 +43,16 @@ const (
 	SNAPSHOT_ONLY                 = "snapshot-only"
 	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
 	CHANGES_ONLY                  = "changes-only"
+	TARGET_DB                     = "target"
+	FF_DB                         = "ff"
 )
 
-var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL}
+var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var supportedTargetDBTypes = []string{YUGABYTEDB, ORACLE}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }

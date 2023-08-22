@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	YUGABYTE   = "yugabyte"
+	YUGABYTEDB   = "yugabytedb"
 	POSTGRESQL = "postgresql"
 	ORACLE     = "oracle"
 	MYSQL      = "mysql"
@@ -112,9 +112,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 	}
 	return &TargetName{
 		ObjectName: Identifier{
-			Quoted:    quote(objectName, YUGABYTE),
-			Unquoted:  unquote(objectName, YUGABYTE),
-			MinQuoted: minQuote(objectName, YUGABYTE),
+			Quoted:    quote(objectName, YUGABYTEDB),
+			Unquoted:  unquote(objectName, YUGABYTEDB),
+			MinQuoted: minQuote(objectName, YUGABYTEDB),
 		},
 		SchemaName: Identifier{
 			Quoted:    `"` + schemaName + `"`,
@@ -122,9 +122,9 @@ func NewTargetName(schemaName, objectName string) *TargetName {
 			MinQuoted: schemaName,
 		},
 		Qualified: Identifier{
-			Quoted:    schemaName + "." + quote(objectName, YUGABYTE),
-			Unquoted:  schemaName + "." + unquote(objectName, YUGABYTE),
-			MinQuoted: schemaName + "." + minQuote(objectName, YUGABYTE),
+			Quoted:    schemaName + "." + quote(objectName, YUGABYTEDB),
+			Unquoted:  schemaName + "." + unquote(objectName, YUGABYTEDB),
+			MinQuoted: schemaName + "." + minQuote(objectName, YUGABYTEDB),
 		},
 	}
 }
@@ -159,13 +159,13 @@ func IsQuoted(s string) bool {
 
 func quote(s string, dbType string) string {
 	if IsQuoted(s) {
-		if s[0] == '`' && dbType == YUGABYTE {
+		if s[0] == '`' && dbType == YUGABYTEDB {
 			return `"` + unquote(s, dbType) + `"` // `Foo` -> "Foo"
 		}
 		return s
 	}
 	switch dbType {
-	case POSTGRESQL, YUGABYTE:
+	case POSTGRESQL, YUGABYTEDB:
 		return `"` + strings.ToLower(s) + `"`
 	case MYSQL:
 		return s // TODO - learn the semantics of quoting in MySQL.
@@ -181,7 +181,7 @@ func unquote(s string, dbType string) string {
 		return s[1 : len(s)-1]
 	}
 	switch dbType {
-	case POSTGRESQL, YUGABYTE:
+	case POSTGRESQL, YUGABYTEDB:
 		return strings.ToLower(s)
 	case MYSQL:
 		return s
@@ -209,7 +209,7 @@ func SetDifference(a, b []*SourceName) []*SourceName {
 func minQuote(objectName, sourceDBType string) string {
 	objectName = unquote(objectName, sourceDBType)
 	switch sourceDBType {
-	case YUGABYTE, POSTGRESQL:
+	case YUGABYTEDB, POSTGRESQL:
 		if IsAllLowercase(objectName) && !IsReservedKeywordPG(objectName) {
 			return objectName
 		} else {
