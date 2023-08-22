@@ -136,6 +136,10 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 	return nil
 }
 
+func shouldFormatValues(event *tgtdb.Event) bool {
+	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
+			tconf.TargetDBType == ORACLE
+}
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	log.Debugf("Handling event: %v", event)
 	tableName := event.TableName
@@ -143,7 +147,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		tableName = event.SchemaName + "." + event.TableName
 	}
 	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName)
+	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
