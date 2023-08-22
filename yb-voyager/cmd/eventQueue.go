@@ -45,6 +45,7 @@ func NewEventQueue(exportDir string) *EventQueue {
 	return &EventQueue{
 		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
 		SegmentNumToStream: -1,
+		EndEvent:           nil,
 	}
 }
 
@@ -103,7 +104,7 @@ func (eqs *EventQueueSegment) Open() error {
 	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file, fn))
 
 	// providing buffer to scanner for scanning
-	eqs.buffer = make([]byte, 0, 100*KB)
+	eqs.buffer = make([]byte, 0, 100*KB) // TODO: do not assume max single line size to be 100KB
 	eqs.scanner.Buffer(eqs.buffer, cap(eqs.buffer))
 	return nil
 }

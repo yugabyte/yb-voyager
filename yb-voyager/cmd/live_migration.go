@@ -22,7 +22,6 @@ import (
 	"hash/fnv"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"time"
 
@@ -123,8 +122,8 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if reflect.DeepEqual(event, CUTOVER_EVENT) && tconf.TargetDBType == YUGABYTEDB ||
-			reflect.DeepEqual(event, FALLFORWARD_EVENT) && tconf.TargetDBType != YUGABYTEDB { // cutover or fall-forward command
+		} else if event.IsCutover() && tconf.TargetDBType == YUGABYTEDB ||
+			event.IsFallForward() && tconf.TargetDBType != YUGABYTEDB { // cutover or fall-forward command
 			eventQueue.EndEvent = event
 			segment.MarkProcessed()
 			break
@@ -157,7 +156,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 			tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event == CUTOVER_EVENT || event == FALLFORWARD_EVENT {
+	if event.IsCutover() || event.IsFallForward() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}

@@ -176,7 +176,7 @@ func exportData() bool {
 		if liveMigration {
 			log.Infof("live migration complete, proceeding to cutover")
 			triggerName := getTriggerName("", "exporter", source.DBType)
-			createTrigger(triggerName)
+			createTriggerIfNotExists(triggerName)
 			// TODO: print stats
 		}
 		return true

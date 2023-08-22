@@ -281,7 +281,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 		utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
 		triggerName := getTriggerName("", "importer", tconf.TargetDBType)
-		createTrigger(triggerName)
+		createTriggerIfNotExists(triggerName)
 		// TODO: print stats
 	}
 
