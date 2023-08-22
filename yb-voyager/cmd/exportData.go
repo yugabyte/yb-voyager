@@ -74,10 +74,8 @@ func init() {
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 
-	exportDataCmd.Flags().StringVar(&exportType, "export-type", "snapsot-only",
-		"export type: snapshot-only, changes-only, snapshot-and-changes")
-
-	exportDataCmd.Flags().MarkHidden("live-migration")
+	exportDataCmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
+		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
 }
 
 func exportData() {
@@ -169,7 +167,7 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	if exportType != "" || useDebezium {
+	if changeStreamingIsEnabled(exportType) || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
 		fmt.Printf("num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
@@ -241,9 +239,15 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
 	}
 
-	snapshotMode := "initial_only" // useDebezium is true
-	if exportType != "" {
+	var snapshotMode string
+
+	switch exportType {
+	case SNAPSHOT_AND_CHANGES:
 		snapshotMode = "initial"
+	case CHANGES_ONLY:
+		snapshotMode = "never"
+	default:
+		snapshotMode = "initial_only"
 	}
 
 	var dbzmTableList, dbzmColumnList []string
@@ -428,7 +432,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
-	if exportType == "changes-only" || exportType == "snapshot-and-changes" {
+	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 	}
 	return true, nil
@@ -582,8 +586,8 @@ func checkDataDirs() {
 		os.Remove(propertiesFilePath)
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			if (exportType == "changes-only" || exportType == "snapshot-and-changes") &&
-				dbzm.IsLiveMigrationInStreamingMode(exportDir) {
+			if (changeStreamingIsEnabled(exportType)) &&
+				dbzm.IsMigrationInStreamingMode(exportDir) {
 				utils.PrintAndLog("Continuing streaming from where we left off...")
 			} else {
 				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
@@ -642,4 +646,8 @@ func checkSourceDBCharset() {
 			utils.ErrExit("Export aborted.")
 		}
 	}
+}
+
+func changeStreamingIsEnabled(s string) bool {
+	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
 }

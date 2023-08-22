@@ -76,7 +76,7 @@ func IsLiveMigrationInSnapshotMode(exportDir string) bool {
 	return status != nil && status.Mode == MODE_SNAPSHOT
 }
 
-func IsLiveMigrationInStreamingMode(exportDir string) bool {
+func IsMigrationInStreamingMode(exportDir string) bool {
 	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {

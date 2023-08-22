@@ -249,7 +249,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	callhome.PackAndSendPayload(exportDir)
 
-	if importType == "changes-only" || importType == "snapshot-and-changes" {
+	if changeStreamingIsEnabled(importType) {
 		fmt.Println("streaming changes to target DB...")
 		err = streamChanges()
 		if err != nil {

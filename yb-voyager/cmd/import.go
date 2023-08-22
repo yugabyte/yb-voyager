@@ -31,6 +31,7 @@ import (
 
 var sourceDBType string
 var enableOrafce bool
+var importType string
 
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
@@ -166,9 +167,9 @@ func registerImportDataFlags(cmd *cobra.Command) {
 			"false - to not truncate splits after importing (required for debugging)")
 	cmd.Flags().MarkHidden("truncate-splits")
 
-	cmd.Flags().StringVar(&importType, "import-type", "snapshot", "import type: snapshot-only, changes-only, snapshot-and-changes")
+	cmd.Flags().StringVar(&importType, "import-type", SNAPSHOT_ONLY,
+		fmt.Sprintf("import type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
 
-	cmd.Flags().MarkHidden("live-migration")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

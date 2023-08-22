@@ -34,7 +34,6 @@ var source srcdb.Source
 
 // to disable progress bar during data export and import
 var disablePb bool
-var importType string
 var exportType string
 var useDebezium bool
 
