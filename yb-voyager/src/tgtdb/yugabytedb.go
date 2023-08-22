@@ -858,7 +858,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return false, fmt.Errorf("error closing batch: %v", err)
 		}
 
-		updateVsnQuery := batch.GetChannelMetadataUxpdateQuery(migrationUUID)
+		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
 		res, err := tx.Exec(context.Background(), updateVsnQuery)
 		if err != nil || res.RowsAffected() == 0 {
 			log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
