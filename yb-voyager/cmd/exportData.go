@@ -328,7 +328,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
 	} else if source.DBType == "yugabytedb" {
-		if liveMigration { //TODO: for migration type CHANGES_ONLY
+		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
 			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
 			err := ybCDCClient.Init()

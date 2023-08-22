@@ -263,14 +263,14 @@ func importData(importFileTasks []*ImportFileTask) {
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 	} else {
-		  if changeStreamingIsEnabled(importType) {
-			  color.Blue("streaming changes to target DB...")
-        err = streamChanges()
-			  if err != nil {
-				  utils.ErrExit("Failed to stream changes from source DB: %s", err)
-			  }
+		if changeStreamingIsEnabled(importType) {
+			color.Blue("streaming changes to target DB...")
+			err = streamChanges()
+			if err != nil {
+				utils.ErrExit("Failed to stream changes from source DB: %s", err)
+			}
 		}
-    
+
 		// in case of live migration sequences are restored after cutover
 		// otherwise for snapshot migration, directly restore sequences
 		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
