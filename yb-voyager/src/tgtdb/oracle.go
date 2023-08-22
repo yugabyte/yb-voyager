@@ -323,6 +323,11 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }
 
+// NOTE: TODO support for identity columns sequences
+func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) error {
+	return nil
+}
+
 func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error) {
 	tdb.Lock()
 	defer tdb.Unlock()

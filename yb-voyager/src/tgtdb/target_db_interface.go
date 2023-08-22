@@ -39,6 +39,7 @@ type TargetDB interface {
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
 	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
 	MaxBatchSizeInBytes() int64
+	RestoreSequences(sequencesLastValue map[string]int64) error
 }
 
 const (

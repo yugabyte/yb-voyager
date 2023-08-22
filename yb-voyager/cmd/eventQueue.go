@@ -86,7 +86,11 @@ func (eqs *EventQueueSegment) Open() error {
 		return fmt.Errorf("failed to open segment file %s: %w", eqs.FilePath, err)
 	}
 	eqs.file = file
-	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file))
+
+	fn := func() (int64, error) {
+		return metaDB.GetLastValidOffsetInSegmentFile(eqs.SegmentNum)
+	}
+	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file, fn))
 
 	// providing buffer to scanner for scanning
 	eqs.buffer = make([]byte, 0, 100*KB)

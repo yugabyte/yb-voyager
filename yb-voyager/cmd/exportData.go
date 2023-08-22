@@ -22,11 +22,13 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -122,6 +124,11 @@ func exportDataOffline() bool {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -177,11 +184,6 @@ func exportDataOffline() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
-		err = createResumeSequencesFile()
-		if err != nil {
-			log.Errorf("Failed to create resume sequences files: %v", err)
-			return false
-		}
 		return true
 	}
 
@@ -235,6 +237,7 @@ func exportDataOffline() bool {
 }
 
 func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
@@ -272,6 +275,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
+		RunId:          runId,
 		SourceDBType:   source.DBType,
 		ExportDir:      absExportDir,
 		MetadataDBPath: getMetaDBPath(absExportDir),
@@ -395,6 +399,42 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	return nil
 }
 
+func reportStreamingProgress() {
+	tableWriter := uilive.New()
+	headerWriter := tableWriter.Newline()
+	separatorWriter := tableWriter.Newline()
+	row1Writer := tableWriter.Newline()
+	row2Writer := tableWriter.Newline()
+	row3Writer := tableWriter.Newline()
+	row4Writer := tableWriter.Newline()
+	footerWriter := tableWriter.Newline()
+	tableWriter.Start()
+	for {
+		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEvents(runId)
+		if err != nil {
+			utils.ErrExit("failed to get total exported count from metadb: %w", err)
+		}
+		throughputInLast3Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
+		if err != nil {
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
+		}
+		throughputInLast10Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
+		if err != nil {
+			utils.ErrExit("failed to get export rate from metadb: %w", err)
+		}
+		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
+		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+		fmt.Fprint(row1Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events", strconv.FormatInt(totalEventCount, 10)))
+		fmt.Fprint(row2Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
+		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
+		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
+		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
+		tableWriter.Flush()
+		time.Sleep(30 * time.Second)
+	}
+}
+
 // oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
 // oracle.net.wallet_location=<>
 func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
@@ -458,6 +498,9 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	}
 	if liveMigration {
 		color.Blue("streaming changes to a local queue file...")
+		if !disablePb {
+			go reportStreamingProgress()
+		}
 	}
 	return true, nil
 }
@@ -508,31 +551,6 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		DataFileList: dataFileList,
 	}
 	dfd.Save()
-	return nil
-}
-
-func createResumeSequencesFile() error {
-	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		return fmt.Errorf("failed to read export status during creating resume sequence file: %w", err)
-	}
-
-	var sqlStmts []string
-	for sequenceName, lastValue := range status.Sequences {
-		if lastValue == 0 {
-			continue
-		}
-		sqlStmt := fmt.Sprintf("SELECT pg_catalog.setval('%s', %d, true);\n", sequenceName, lastValue)
-		sqlStmts = append(sqlStmts, sqlStmt)
-	}
-
-	if len(sqlStmts) > 0 {
-		file := filepath.Join(exportDir, "data", "postdata.sql")
-		err = os.WriteFile(file, []byte(strings.Join(sqlStmts, "")), 0644)
-		if err != nil {
-			return fmt.Errorf("failed to write resume sequence file: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -608,7 +626,7 @@ func checkDataDirs() {
 		os.Remove(flagFilePath)
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
-		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME})
+		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME, EXPORTED_EVENTS_STATS_TABLE_NAME, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
