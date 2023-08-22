@@ -20,9 +20,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+)
+
+var (
+	metaDB                                     *MetaDB
+	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
+	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
+	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
 )
 
 func getMetaDBPath(exportDir string) string {
@@ -64,7 +73,26 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (segment_no INTEGER PRIMARY KEY, file_path TEXT, size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			segment_no INTEGER PRIMARY KEY, 
+			file_path TEXT, 
+			size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			run_id TEXT, 
+			timestamp INTEGER, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(run_id, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			schema_name TEXT, 
+			table_name TEXT, 
+			num_total INTEGER, 
+			num_inserts INTEGER, 
+			num_updates INTEGER, 
+			num_deletes INTEGER, 
+			PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -96,4 +124,68 @@ func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
 		log.Infof("Executed query on meta db - %s", query)
 	}
 	return nil
+}
+
+// =====================================================================================================================
+
+type MetaDB struct {
+	db *sql.DB
+}
+
+func NewMetaDB(exportDir string) (*MetaDB, error) {
+	db, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	if err != nil {
+		return nil, fmt.Errorf("error while opening meta db :%w", err)
+	}
+	return &MetaDB{db: db}, nil
+}
+
+func (m *MetaDB) GetLastValidOffsetInSegmentFile(segmentNum int64) (int64, error) {
+	query := fmt.Sprintf(`SELECT size_committed FROM %s WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	row := m.db.QueryRow(query)
+	var sizeCommitted int64
+	err := row.Scan(&sizeCommitted)
+	if err != nil {
+		return -1, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	return sizeCommitted, nil
+}
+
+func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
+	var totalCount int64
+	var totalCountRun int64
+
+	query := fmt.Sprintf(`SELECT sum(num_total) from %s`, EXPORTED_EVENTS_STATS_TABLE_NAME)
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+
+	}
+
+	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, runId)
+	err = m.db.QueryRow(query).Scan(&totalCountRun)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+
+	return totalCount, totalCountRun, nil
+}
+
+func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
+	var totalCount int64
+	now := time.Now()
+	startTimeStamp := now.Add(-time.Minute * time.Duration(n))
+	query := fmt.Sprintf(`select sum(num_total) from %s WHERE run_id='%s' AND timestamp >= %d`,
+		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, startTimeStamp.Unix())
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+	return totalCount / int64(n*60), nil
 }

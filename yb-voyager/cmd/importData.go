@@ -201,6 +201,11 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
@@ -244,13 +249,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	if tconf.TargetDBType == YUGABYTEDB {
-		executePostImportDataSqls() // TODO: it needs to be abstracted out in targetDB interface
-	}
-	callhome.PackAndSendPayload(exportDir)
 
 	if liveMigration {
-		color.Blue("streaming changes to target DB...")
+		fmt.Println("streaming changes to target DB...")
 		err = streamChanges()
 		if err != nil {
 			utils.ErrExit("Failed to stream changes from source DB: %s", err)

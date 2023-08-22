@@ -747,6 +747,38 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
 }
 
+func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
+	batch := pgx.Batch{}
+	for sequenceName, lastValue := range sequencesLastVal {
+		if lastValue == 0 {
+			// TODO: can be valid for cases like cyclic sequences
+			continue
+		}
+		sqlStmt := fmt.Sprintf("SELECT pg_catalog.setval('%s', %d, true);\n", sequenceName, lastValue)
+		batch.Queue(sqlStmt)
+	}
+
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		br := conn.SendBatch(context.Background(), &batch)
+		for i := 0; i < batch.Len(); i++ {
+			_, err := br.Exec()
+			if err != nil {
+				log.Errorf("error executing restore sequence stmt: %v", err)
+				return false, fmt.Errorf("error executing restore sequence stmt: %w", err)
+			}
+		}
+		if err := br.Close(); err != nil {
+			log.Errorf("error closing batch: %v", err)
+			return false, fmt.Errorf("error closing batch: %w", err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("error restoring sequences: %w", err)
+	}
+	return err
+}
+
 /*
 TODO(future): figure out the sql error codes for prepared statements which have become invalid
 and needs to be prepared again
