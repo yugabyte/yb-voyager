@@ -189,25 +189,45 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium {
+	if useDebezium || liveMigration {
 		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
 			utils.ErrExit("Failed to read export status during data export: %v", err)
 		}
-		for i, tableStatus := range exportStatus.Tables {
-			if i == 0 {
+		utils.PrintAndLog("livemigration={%v}", liveMigration)
+		if !liveMigration {
+			for i, tableStatus := range exportStatus.Tables {
+				if i == 0 {
+					if tableStatus.SchemaName != "" {
+						table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					} else {
+						table.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					}
+				}
 				if tableStatus.SchemaName != "" {
-					table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
 				} else {
-					table.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					table.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
 				}
 			}
-			if tableStatus.SchemaName != "" {
-				table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-			} else {
-				table.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		} else {
+			for i, tableStatus := range exportStatus.Tables {
+				if i == 0 {
+					table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+						headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+						headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+
+				}
+				totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+				if err != nil {
+					utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+				}
+				table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+					inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
+
 			}
 		}
+
 	} else {
 		table.AddRow(headerfmt("TABLE"), headerfmt("ROW COUNT"))
 		sort.Strings(keys)
@@ -215,7 +235,6 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 			table.AddRow(key, exportedRowCount[key])
 		}
 	}
-
 	fmt.Print("\n")
 	fmt.Println(table)
 	fmt.Print("\n")

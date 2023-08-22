@@ -107,7 +107,7 @@ func getTriggerName(args ...string) string {
 }
 
 func waitForDBSwitchOverToComplete(action string) {
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", getTriggerName(action))
+	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", getTriggerName(action, "importer", YUGABYTEDB))
 	for {
 		if utils.FileOrFolderExists(triggerFPath) {
 			break
