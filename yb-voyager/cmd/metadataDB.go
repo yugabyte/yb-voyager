@@ -129,7 +129,7 @@ func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("error while getting rows updated: %w", err)
+		return fmt.Errorf("error while getting rows updated -%s :%w", query, err)
 	}
 
 	if rowsAffected != 1 {
