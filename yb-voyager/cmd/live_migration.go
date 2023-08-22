@@ -122,7 +122,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		<-processingDoneChans[i]
 	}
 
-	err = metaDB.MarkSegmentAsProcessed(segment.SegmentNum)
+	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum)
 	if err != nil {
 		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
 	}

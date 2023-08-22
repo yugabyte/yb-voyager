@@ -112,20 +112,30 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 	return &MetaDB{db: db}, nil
 }
 
-func (m *MetaDB) MarkSegmentAsProcessed(segmentNum int64) error {
+func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
 	var query string
-	if importDestination == TARGET_DB {
+	if importDestinationType == TARGET_DB {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
-	} else if importDestination == FF_DB {
+	} else if importDestinationType == FF_DB {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
 	} else {
-		return fmt.Errorf("invalid importer type: %s", importDestination)
+		return fmt.Errorf("invalid importer type: %s", importDestinationType)
 	}
 
-	_, err := m.db.Exec(query)
+	result, err := m.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error while getting rows updated: %w", err)
+	}
+
+	if rowsAffected != 1 {
+		return fmt.Errorf("expected 1 row to be updated, got %d", rowsAffected)
+	}
+
 	log.Infof("Executed query on meta db - %s", query)
 	return nil
 }
