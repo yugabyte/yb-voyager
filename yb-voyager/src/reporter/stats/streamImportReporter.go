@@ -19,23 +19,23 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uilive"
+	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 type StreamImportStatsReporter struct {
+	sync.Mutex
 	migrationUUID        uuid.UUID
 	totalEventsImported  int64
-	CurrImportedEvents    int64
-	importRatesPerMinute map[float64]float64
-	importRatePerMinute  float64
-	importRateLast3Mins  float64
-	importRateLast10Mins float64
+	CurrImportedEvents   int64
 	startTime            time.Time
+	eventsPer30Secs      [21]int64
 }
 
 func NewStreamImportStatsReporter() *StreamImportStatsReporter {
@@ -50,7 +50,6 @@ func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.
 		return fmt.Errorf("failed to fetch import stats meta info from target : %w", err)
 	}
 	s.startTime = time.Now()
-	s.importRatesPerMinute = make(map[float64]float64)
 	return nil
 }
 
@@ -75,25 +74,16 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	table.Start()
 
 	for range displayTicker.C {
-		elapsedMins := s.calcStats()
+		s.slideWindow()
 		fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
 		fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
 		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Events Imported in this Run", strconv.FormatInt(s.CurrImportedEvents, 10)))
-		var averageRateLast3Mins, averageRateLast10Mins float64 
-		if elapsedMins >= 3 {
-			averageRateLast3Mins = s.importRateLast3Mins / 6 // as 6 intervals of 30 seconds each in 3 mins
-		} else {
-			averageRateLast3Mins = s.importRateLast3Mins / (2*elapsedMins)
-		}
-		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%.0f events/sec", math.Round(averageRateLast3Mins / 60))))
-		if elapsedMins >= 10 {
-			averageRateLast10Mins = s.importRateLast10Mins / 20 
-		} else {
-			averageRateLast10Mins = s.importRateLast10Mins / (2*elapsedMins)
-		}
-		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%.0f events/sec", math.Round(averageRateLast10Mins / 60))))
+		averageRateLast3Mins := s.getIngestionRateForLastNMinutes(3) 		
+		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%d events/sec", averageRateLast3Mins/60)))
+		averageRateLast10Mins := s.getIngestionRateForLastNMinutes(10)		
+		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%d events/sec", averageRateLast10Mins/60)))
 		fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", math.Round(time.Since(s.startTime).Minutes()*100)/100)))
 		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
 		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
@@ -102,24 +92,25 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	}
 }
 
-func (s *StreamImportStatsReporter) calcStats() float64 {
-	elapsedMins := math.Round(time.Since(s.startTime).Minutes()*100) / 100
-	rate := float64(s.CurrImportedEvents) / elapsedMins
-	s.importRatePerMinute = rate
-	s.importRatesPerMinute[elapsedMins] = rate
-	s.importRateLast3Mins += rate
-	if elapsedMins > 3 {
-		s.importRateLast3Mins -= s.importRatesPerMinute[elapsedMins-3]
+func (s *StreamImportStatsReporter) slideWindow() {
+	s.Mutex.Lock()
+	for i := len(s.eventsPer30Secs) - 1; i > 0; i-- {
+		s.eventsPer30Secs[i] = s.eventsPer30Secs[i-1]
 	}
-	s.importRateLast10Mins += rate
-	if elapsedMins > 10 {
-		s.importRateLast10Mins -= s.importRatesPerMinute[elapsedMins-10]
-		delete(s.importRatesPerMinute, elapsedMins-10)
-	}
-	return elapsedMins
+	s.eventsPer30Secs[0] = 0
+	s.Mutex.Unlock()
 }
 
 func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDeletes int64) {
-	s.CurrImportedEvents += numInserts + numUpdates + numDeletes
-	s.totalEventsImported += numInserts + numUpdates + numDeletes
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+	total := numInserts + numUpdates + numDeletes
+	s.CurrImportedEvents += total
+	s.totalEventsImported += total
+	s.eventsPer30Secs[0] += total
+}
+
+func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {
+	window := 2*n + 1 //2*n as sliding window every 30 secs
+	return lo.Sum(s.eventsPer30Secs[1:window]) / n
 }

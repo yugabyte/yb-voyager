@@ -24,6 +24,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -46,6 +47,10 @@ func init() {
 func streamChanges() error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
+	err := tdb.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
+	if err != nil {
+		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
+	}
 	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
@@ -205,23 +210,12 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 
 		start := time.Now()
-		var numInserts, numUpdates, numDeletes int64
-		numInserts, numUpdates, numDeletes = 0, 0, 0
-		for _, event := range batch {
-			switch event.Op {
-			case "c":
-				numInserts++
-			case "u":
-				numUpdates++
-			case "d":
-				numDeletes++
-			}
-		}
-		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo, NumInserts: numInserts, NumUpdates: numUpdates, NumDeletes: numDeletes})
+		eventBatch := &tgtdb.EventBatch{Events: batch, ChanNo: chanNo, EventCounts : &tgtdb.EventCounter{}, EventCountsByTable: make(map[string]*tgtdb.EventCounter)}
+		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
-		statsReporter.BatchImported(numInserts, numUpdates, numDeletes)
+		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}

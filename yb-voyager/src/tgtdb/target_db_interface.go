@@ -34,7 +34,7 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
+	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
 	GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error)

@@ -253,9 +253,8 @@ func (event *Event) getTableName(targetSchema string) string {
 type EventBatch struct {
 	Events     []*Event
 	ChanNo     int
-	NumInserts int64
-	NumUpdates int64
-	NumDeletes int64
+	EventCounts *EventCounter
+	EventCountsByTable map[string]*EventCounter
 }
 
 func (eb *EventBatch) GetLastVsn() int64 {
@@ -263,37 +262,80 @@ func (eb *EventBatch) GetLastVsn() int64 {
 }
 
 func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) string {
-	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND channel_no=%d`,
-		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), eb.NumInserts, eb.NumUpdates, eb.NumDeletes, migrationUUID, eb.ChanNo)
+	queryTemplate := `UPDATE %s 
+	SET 
+		last_applied_vsn=%d, 
+		num_inserts = num_inserts + %d, 
+		num_updates = num_updates + %d, 
+		num_deletes = num_deletes + %d  
+	where 
+		migration_uuid='%s' AND channel_no=%d
+	`
+	return fmt.Sprintf(queryTemplate,
+		EVENT_CHANNELS_METADATA_TABLE_NAME, 
+		eb.GetLastVsn(), 
+		eb.EventCounts.NumInserts, 
+		eb.EventCounts.NumUpdates, 
+		eb.EventCounts.NumDeletes, 
+		migrationUUID, eb.ChanNo)
 }
 
 func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string, targetSchema string) string {
-	var numInserts, numUpdates, numDeletes int64
-	for _, event := range eb.Events {
-		if event.getTableName(targetSchema) == tableName {
-			switch event.Op {
-			case "c":
-				numInserts++
-			case "u":
-				numUpdates++
-			case "d":
-				numDeletes++
-			}
-		}
-	}
-	return fmt.Sprintf(`UPDATE %s SET total_events = total_events + %d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND table_name='%s'`,
-		EVENTS_PER_TABLE_METADATA_TABLE_NAME, (numInserts + numUpdates + numDeletes), numInserts, numUpdates, numDeletes, migrationUUID, tableName)
+	queryTemplate := `UPDATE %s 
+	SET 
+		total_events = total_events + %d, 
+		num_inserts = num_inserts + %d, 
+		num_updates = num_updates + %d, 
+		num_deletes = num_deletes + %d  
+	where 
+		migration_uuid='%s' AND table_name='%s'
+	`
+	return fmt.Sprintf(queryTemplate,
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, 
+		eb.EventCountsByTable[tableName].TotalEvents, 
+		eb.EventCountsByTable[tableName].NumInserts,  
+		eb.EventCountsByTable[tableName].NumUpdates,  
+		eb.EventCountsByTable[tableName].NumDeletes, 
+		migrationUUID, tableName)
 }
 
 func (eb *EventBatch) GetTableNames() []string {
-	tableNames := make(map[string]bool)
+	return lo.Keys(eb.EventCountsByTable)
+}
+
+func (eb *EventBatch) GetEventCountsByTable(targetSchema string) map[string]*EventCounter {
+	counts := make(map[string]*EventCounter)
 	for _, event := range eb.Events {
-		tableNames[event.TableName] = true
+		tableName := event.getTableName(targetSchema)
+		if _, ok := counts[tableName]; !ok {
+			counts[tableName] = &EventCounter{}
+		}
+		counts[tableName].CountEvent(event)
+		eb.EventCounts.CountEvent(event)
 	}
-	return lo.Keys(tableNames)
+	return counts
 }
 
 type EventChannelMetaInfo struct {
 	ChanNo         int
 	LastAppliedVsn int64
+}
+
+type EventCounter struct {
+	TotalEvents int64
+	NumInserts  int64
+	NumUpdates  int64
+	NumDeletes  int64
+}
+
+func (ec *EventCounter) CountEvent(ev *Event) {
+	ec.TotalEvents++
+	switch ev.Op {
+	case "c":
+		ec.NumInserts++
+	case "u":
+		ec.NumUpdates++
+	case "d":
+		ec.NumDeletes++
+	}
 }
