@@ -62,6 +62,7 @@ var importDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
+		validateImportType()
 	},
 	Run: importDataCommandFn,
 }
@@ -262,7 +263,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 	} else {
-		if liveMigration {
+		if changeStreamingIsEnabled(importType) {
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
@@ -277,6 +278,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("failed to read export status for restore sequences: %s", err)
 		}
 		err = tdb.RestoreSequences(status.Sequences)
+
 		if err != nil {
 			utils.ErrExit("failed to restore sequences: %s", err)
 		}

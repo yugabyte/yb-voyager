@@ -40,12 +40,16 @@ const (
 	INDEX_RETRY_COUNT             = 5
 	DDL_MAX_RETRY_COUNT           = 5
 	SCHEMA_VERSION_MISMATCH_ERR   = "Query error: schema version mismatch for table"
+	SNAPSHOT_ONLY                 = "snapshot-only"
+	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
+	CHANGES_ONLY                  = "changes-only"
 	TARGET_DB                     = "target"
 	FF_DB                         = "ff"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var supportedTargetDBTypes = []string{YUGABYTEDB, ORACLE}
+var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
 var validSSLModes = map[string][]string{
 	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},

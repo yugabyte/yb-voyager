@@ -50,6 +50,7 @@ var exportDataCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
 		validateExportFlags(cmd)
+		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 	},
 
@@ -75,10 +76,8 @@ func init() {
 	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 
-	exportDataCmd.Flags().BoolVar(&liveMigration, "live-migration", false,
-		"true - to enable live migration(default false)")
-
-	exportDataCmd.Flags().MarkHidden("live-migration")
+	exportDataCmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
+		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
 }
 
 func exportData() {
@@ -175,7 +174,7 @@ func exportDataOffline() bool {
 		os.Exit(0)
 	}
 
-	if liveMigration || useDebezium {
+	if changeStreamingIsEnabled(exportType) || useDebezium {
 		finalTableList = filterTablePartitions(finalTableList)
 		fmt.Printf("num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
@@ -243,9 +242,17 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
 	}
 
-	snapshotMode := "initial_only" // useDebezium is true
-	if liveMigration {
+	var snapshotMode string
+
+	switch exportType {
+	case SNAPSHOT_AND_CHANGES:
 		snapshotMode = "initial"
+	case CHANGES_ONLY:
+		snapshotMode = "never"
+	case SNAPSHOT_ONLY:
+		snapshotMode = "initial_only"
+	default:
+		return fmt.Errorf("invalid export type %s", exportType)
 	}
 
 	var dbzmTableList, dbzmColumnList []string
@@ -321,7 +328,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
 	} else if source.DBType == "yugabytedb" {
-		if liveMigration { //TODO: for migration type CHANGES_ONLY
+		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
 			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
 			err := ybCDCClient.Init()
@@ -496,7 +503,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
-	if liveMigration {
+	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
 			go reportStreamingProgress()
@@ -629,7 +636,8 @@ func checkDataDirs() {
 		truncateTablesInMetaDb(exportDir, []string{QUEUE_SEGMENT_META_TABLE_NAME, EXPORTED_EVENTS_STATS_TABLE_NAME, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
-			if liveMigration && dbzm.IsLiveMigrationInStreamingMode(exportDir) {
+			if (changeStreamingIsEnabled(exportType)) &&
+				dbzm.IsMigrationInStreamingMode(exportDir) {
 				utils.PrintAndLog("Continuing streaming from where we left off...")
 			} else {
 				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
@@ -688,4 +696,8 @@ func checkSourceDBCharset() {
 			utils.ErrExit("Export aborted.")
 		}
 	}
+}
+
+func changeStreamingIsEnabled(s string) bool {
+	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
 }
