@@ -287,11 +287,11 @@ func (tdb *TargetOracleDB) getEventChannelsRowCount(conn *sql.Conn, migrationUUI
 	return rowCount, nil
 }
 
-func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string, channelNo int) (int64, error) {
+func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
 	var rowCount int64
 	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s' AND channel_no=%d", 
-			EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, channelNo)
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", 
+			EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
 	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
 	if err != nil {
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
@@ -339,15 +339,15 @@ func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, mig
 	}
 	defer tx.Rollback()
 	for _, tableName := range tableNames {
-		for c := 0; c < numChans; c++ {
-			tableName = tdb.qualifyTableName(tableName)
-			rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName, c)
-			if err != nil {
-				return  fmt.Errorf("failed to get table wise meta info: %w", err)
-			}
-			if rowCount > 0 {
-				log.Info("table wise meta info already created. Skipping init.")
-			} else {
+		tableName = tdb.qualifyTableName(tableName)
+		rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
+		if err != nil {
+			return  fmt.Errorf("failed to get table wise meta info: %w", err)
+		}
+		if rowCount > 0 {
+			log.Info("table wise meta info already created. Skipping init.")
+		} else {
+			for c := 0; c < numChans; c++ {
 				insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
 				_, err := tx.Exec(insertStmt)
 				if err != nil {
@@ -655,7 +655,6 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 // execute all events sequentially one by one in a single transaction
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
-	batch.EventCountsByTable = batch.GetEventCountsByTable(tdb.tconf.Schema)
 	log.Infof("executing batch of %d events", len(batch.Events))
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		tx, err := conn.BeginTx(context.Background(), nil)

@@ -257,6 +257,12 @@ type EventBatch struct {
 	EventCountsByTable map[string]*EventCounter
 }
 
+func NewEventBatch(events []*Event, chanNo int, targetSchema string) *EventBatch {
+	batch := &EventBatch{Events: events, ChanNo: chanNo, EventCounts : &EventCounter{}, EventCountsByTable: make(map[string]*EventCounter)}
+	batch.EventCountsByTable = batch.getEventCountsByTable(targetSchema)
+	return batch
+}
+
 func (eb *EventBatch) GetLastVsn() int64 {
 	return eb.Events[len(eb.Events)-1].Vsn
 }
@@ -303,7 +309,7 @@ func (eb *EventBatch) GetTableNames() []string {
 	return lo.Keys(eb.EventCountsByTable)
 }
 
-func (eb *EventBatch) GetEventCountsByTable(targetSchema string) map[string]*EventCounter {
+func (eb *EventBatch) getEventCountsByTable(targetSchema string) map[string]*EventCounter {
 	counts := make(map[string]*EventCounter)
 	for _, event := range eb.Events {
 		tableName := event.getTableName(targetSchema)
