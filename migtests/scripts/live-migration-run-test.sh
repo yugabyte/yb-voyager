@@ -88,7 +88,7 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data --live-migration || { 
+	export_data export-type "snapshot-and-changes" || { 
 		tail_log_file "yb-voyager.log"
 		tail_log_file "debezium.log"
 		exit 1
@@ -108,7 +108,7 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data --live-migration &
+	import_data import-type "snapshot-and-changes" &
 
 	# Storing the pid for the import data command
 	imp_pid=$!

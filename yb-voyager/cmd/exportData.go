@@ -246,8 +246,10 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 		snapshotMode = "initial"
 	case CHANGES_ONLY:
 		snapshotMode = "never"
-	default:
+	case SNAPSHOT_ONLY:
 		snapshotMode = "initial_only"
+	default:
+		return fmt.Errorf("invalid export type %s", exportType)
 	}
 
 	var dbzmTableList, dbzmColumnList []string
