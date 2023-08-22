@@ -40,6 +40,8 @@ const (
 	INDEX_RETRY_COUNT             = 5
 	DDL_MAX_RETRY_COUNT           = 5
 	SCHEMA_VERSION_MISMATCH_ERR   = "Query error: schema version mismatch for table"
+	TARGET_DB                     = "target"
+	FF_DB                         = "ff"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

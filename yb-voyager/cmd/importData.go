@@ -46,6 +46,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
+var importDestinationType string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -179,6 +180,13 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+
+	if tconf.TargetDBType == YUGABYTEDB {
+		importDestinationType = TARGET_DB
+	} else {
+		importDestinationType = FF_DB
+	}
+
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)

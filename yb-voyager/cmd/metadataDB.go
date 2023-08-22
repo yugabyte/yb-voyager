@@ -73,10 +73,13 @@ func initMetaDB(path string) error {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
 	cmds := []string{
-		fmt.Sprintf(`CREATE TABLE %s (
-			segment_no INTEGER PRIMARY KEY, 
-			file_path TEXT, 
-			size_committed INTEGER );`, QUEUE_SEGMENT_META_TABLE_NAME),
+
+		fmt.Sprintf(`CREATE TABLE %s 
+      (segment_no INTEGER PRIMARY KEY, 
+       file_path TEXT, size_committed INTEGER, 
+       imported_in_targetdb INTEGER DEFAULT 0, 
+       imported_in_ffdb INTEGER DEFAULT 0, 
+       archived INTEGER DEFAULT 0);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
 			timestamp INTEGER, 
@@ -138,6 +141,34 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}
 	return &MetaDB{db: db}, nil
+}
+
+func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
+	var query string
+	if importDestinationType == TARGET_DB {
+		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	} else if importDestinationType == FF_DB {
+		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	} else {
+		return fmt.Errorf("invalid importer type: %s", importDestinationType)
+	}
+
+	result, err := m.db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error while getting rows updated -%s :%w", query, err)
+	}
+
+	if rowsAffected != 1 {
+		return fmt.Errorf("expected 1 row to be updated, got %d", rowsAffected)
+	}
+
+	log.Infof("Executed query on meta db - %s", query)
+	return nil
 }
 
 func (m *MetaDB) GetLastValidOffsetInSegmentFile(segmentNum int64) (int64, error) {
