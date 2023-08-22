@@ -23,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -250,17 +251,46 @@ func (event *Event) getTableName(targetSchema string) string {
 
 // ==============================================================================================================================
 type EventBatch struct {
-	Events []*Event
-	ChanNo int
+	Events     []*Event
+	ChanNo     int
+	NumInserts int64
+	NumUpdates int64
+	NumDeletes int64
 }
 
-func (eb EventBatch) GetLastVsn() int64 {
+func (eb *EventBatch) GetLastVsn() int64 {
 	return eb.Events[len(eb.Events)-1].Vsn
 }
 
-func (eb EventBatch) GetQueryToUpdateLastAppliedVSN(migrationUUID uuid.UUID) string {
-	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d where migration_uuid='%s' AND channel_no=%d`,
-		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), migrationUUID, eb.ChanNo)
+func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) string {
+	return fmt.Sprintf(`UPDATE %s SET last_applied_vsn=%d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND channel_no=%d`,
+		EVENT_CHANNELS_METADATA_TABLE_NAME, eb.GetLastVsn(), eb.NumInserts, eb.NumUpdates, eb.NumDeletes, migrationUUID, eb.ChanNo)
+}
+
+func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string, targetSchema string) string {
+	var numInserts, numUpdates, numDeletes int64
+	for _, event := range eb.Events {
+		if event.getTableName(targetSchema) == tableName {
+			switch event.Op {
+			case "c":
+				numInserts++
+			case "u":
+				numUpdates++
+			case "d":
+				numDeletes++
+			}
+		}
+	}
+	return fmt.Sprintf(`UPDATE %s SET total_events = total_events + %d, num_inserts = num_inserts + %d, num_updates = num_updates + %d, num_deletes = num_deletes + %d  where migration_uuid='%s' AND table_name='%s'`,
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, (numInserts + numUpdates + numDeletes), numInserts, numUpdates, numDeletes, migrationUUID, tableName)
+}
+
+func (eb *EventBatch) GetTableNames() []string {
+	tableNames := make(map[string]bool)
+	for _, event := range eb.Events {
+		tableNames[event.TableName] = true
+	}
+	return lo.Keys(tableNames)
 }
 
 type EventChannelMetaInfo struct {

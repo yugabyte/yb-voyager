@@ -37,7 +37,8 @@ type TargetDB interface {
 	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
-	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
+	GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error)
+	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
 }

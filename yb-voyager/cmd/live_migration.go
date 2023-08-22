@@ -25,6 +25,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -49,7 +50,12 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
-
+	statsReporter := reporter.NewStreamImportStatsReporter()
+	err = statsReporter.Init(tdb, migrationUUID)
+	if err != nil {
+		return fmt.Errorf("failed to initialize stats reporter: %w", err)
+	}
+	go statsReporter.ReportStats()
 	eventQueue := NewEventQueue(exportDir)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
@@ -71,14 +77,14 @@ func streamChanges() error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
-		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo)
+		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo) error {
+func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -94,7 +100,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		} else {
 			return fmt.Errorf("unable to find channel meta info for channel - %v", i)
 		}
-		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i])
+		go processEvents(i, evChans[i], chanLastAppliedVsn, processingDoneChans[i], statsReporter)
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
@@ -126,9 +132,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 	if err != nil {
 		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
 	}
-
-	// TODO: printing this line until some user stats are available.
-	utils.PrintAndLog("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
+	log.Infof("finished streaming changes from segment %s\n", filepath.Base(segment.FilePath))
 	return nil
 }
 
@@ -168,7 +172,7 @@ func hashEvent(e *tgtdb.Event) int {
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
-func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool) {
+func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, done chan bool, statsReporter *reporter.StreamImportStatsReporter) {
 	endOfProcessing := false
 	for !endOfProcessing {
 		batch := []*tgtdb.Event{}
@@ -201,10 +205,23 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 
 		start := time.Now()
-		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo})
+		var numInserts, numUpdates, numDeletes int64
+		numInserts, numUpdates, numDeletes = 0, 0, 0
+		for _, event := range batch {
+			switch event.Op {
+			case "c":
+				numInserts++
+			case "u":
+				numUpdates++
+			case "d":
+				numDeletes++
+			}
+		}
+		err := tdb.ExecuteBatch(migrationUUID, tgtdb.EventBatch{Events: batch, ChanNo: chanNo, NumInserts: numInserts, NumUpdates: numUpdates, NumDeletes: numDeletes})
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
 		}
+		statsReporter.BatchImported(numInserts, numUpdates, numDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}
