@@ -137,7 +137,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 }
 
 func shouldFormatValues(event *tgtdb.Event) bool {
-	return tconf.TargetDBType == YUGABYTEDB && event.Op == "u" ||
+	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
 			tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {

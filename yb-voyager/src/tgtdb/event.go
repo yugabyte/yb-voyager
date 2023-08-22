@@ -226,12 +226,7 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	keys := utils.GetMapKeysSorted(m)
 	values := make([]interface{}, 0, len(keys))
 	for _, key := range keys {
-		value := m[key]
-		if value == nil {
-			values = append(values, nil)
-			continue
-		}
-		values = append(values, value)
+		values = append(values, m[key])
 	}
 	return values
 }
