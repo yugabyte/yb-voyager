@@ -382,11 +382,12 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			table_name VARCHAR(250), 
+			channel_no INT,
 			total_events BIGINT,
 			num_inserts BIGINT,
 			num_deletes BIGINT,
 			num_updates BIGINT,
-			PRIMARY KEY (migration_uuid, table_name));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
+			PRIMARY KEY (migration_uuid, table_name, channel_no));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -437,9 +438,9 @@ func (yb *TargetYugabyteDB) getEventChannelsRowCount(conn *pgx.Conn, migrationUU
 	return rowCount, nil
 }
 
-func (yb *TargetYugabyteDB) getLiveMigrationMetaInfoByTable(conn *pgx.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
+func (yb *TargetYugabyteDB) getLiveMigrationMetaInfoByTable(conn *pgx.Conn, migrationUUID uuid.UUID, tableName string, channelNo int) (int64, error) {
 	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s' AND channel_no = %d", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, channelNo)
 	var rowCount int64
 	err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
 	if err != nil {
@@ -490,7 +491,7 @@ func(yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
 	return tableName
 }
 
-func(yb * TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrationUUID uuid.UUID, tableNames []string) error {
+func(yb * TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrationUUID uuid.UUID, tableNames []string, numChans int) error {
 	ctx := context.Background()
 	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -499,20 +500,22 @@ func(yb * TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrat
 	defer tx.Rollback(ctx)
 	
 	for _, tableName := range tableNames {
-		tableName := yb.qualifyTableName(tableName)
-		rowCount, err := yb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
-		if err != nil {
-			return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-		}
-		if rowCount > 0 {
-			log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableName))
-		} else {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, 0, 0, 0, 0)
-			_, err := tx.Exec(ctx, insertStmt)
+		for c := 0; c < numChans; c++ {
+			tableName := yb.qualifyTableName(tableName)
+			rowCount, err := yb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName, c)
 			if err != nil {
-				return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 			}
-			log.Infof("created table wise event meta info: %s;", insertStmt)
+			if rowCount > 0 {
+				log.Info(fmt.Sprintf("event stats for %s and channel %d already created. Skipping init.", tableName, c))
+			} else {
+				insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
+				_, err := tx.Exec(ctx, insertStmt)
+				if err != nil {
+					return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+				}
+				log.Infof("created table wise event meta info: %s;", insertStmt)
+			}
 		}
 	}
 	err = tx.Commit(ctx)
@@ -539,7 +542,7 @@ func (yb *TargetYugabyteDB) InitLiveMigrationState(migrationUUID uuid.UUID, numC
 			return false, fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 		}
 
-        err = yb.initEventStatsByTableMetainfo(conn, migrationUUID, tableNames)
+        err = yb.initEventStatsByTableMetainfo(conn, migrationUUID, tableNames, numChans)
 		if err != nil {
 			return false, fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
 		}

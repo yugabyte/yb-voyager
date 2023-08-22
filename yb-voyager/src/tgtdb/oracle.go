@@ -215,11 +215,12 @@ END;`, BATCH_METADATA_TABLE_SCHEMA, BATCH_METADATA_TABLE_SCHEMA)
 	EXECUTE IMMEDIATE 'CREATE TABLE %s (
 		migration_uuid VARCHAR2(36),
 		table_name VARCHAR2(250),
+		channel_no INT,
 		total_events NUMBER(19),
 		num_inserts NUMBER(19),
 		num_updates NUMBER(19),
 		num_deletes NUMBER(19),
-		PRIMARY KEY (migration_uuid, table_name)
+		PRIMARY KEY (migration_uuid, table_name, channel_no)
 	)';
 EXCEPTION
 	WHEN OTHERS THEN
@@ -286,10 +287,11 @@ func (tdb *TargetOracleDB) getEventChannelsRowCount(conn *sql.Conn, migrationUUI
 	return rowCount, nil
 }
 
-func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
+func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string, channelNo int) (int64, error) {
 	var rowCount int64
 	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s' AND channel_no=%d", 
+			EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, channelNo)
 	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
 	if err != nil {
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
@@ -328,7 +330,7 @@ func (tdb *TargetOracleDB) initChannelMetaInfo(conn *sql.Conn, migrationUUID uui
 	return nil
 }
 
-func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, migrationUUID uuid.UUID, conn *sql.Conn) error {
+func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, migrationUUID uuid.UUID, conn *sql.Conn, numChans int) error {
 
 	ctx := context.Background()
 	tx, err := conn.BeginTx(ctx, nil)
@@ -337,20 +339,22 @@ func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, mig
 	}
 	defer tx.Rollback()
 	for _, tableName := range tableNames {
-		tableName = tdb.qualifyTableName(tableName)
-		rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
-		if err != nil {
-			return  fmt.Errorf("failed to get table wise meta info: %w", err)
-		}
-		if rowCount > 0 {
-			log.Info("table wise meta info already created. Skipping init.")
-		} else {
-			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, 0, 0, 0, 0)
-			_, err := tx.Exec(insertStmt)
+		for c := 0; c < numChans; c++ {
+			tableName = tdb.qualifyTableName(tableName)
+			rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName, c)
 			if err != nil {
-				return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+				return  fmt.Errorf("failed to get table wise meta info: %w", err)
 			}
-			log.Infof("created table wise meta info: %s;", insertStmt)
+			if rowCount > 0 {
+				log.Info("table wise meta info already created. Skipping init.")
+			} else {
+				insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
+				_, err := tx.Exec(insertStmt)
+				if err != nil {
+					return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+				}
+				log.Infof("created table wise meta info: %s;", insertStmt)
+			}
 		}
 	}
 	err = tx.Commit()
@@ -377,7 +381,7 @@ func (tdb *TargetOracleDB) InitLiveMigrationState(migrationUUID uuid.UUID, numCh
 		if err != nil {
 			return false, fmt.Errorf("failed to init live migration meta info: %w", err)
 		}
-		err = tdb.initEventStatByTableMetainfo(tableNames, migrationUUID, conn)
+		err = tdb.initEventStatByTableMetainfo(tableNames, migrationUUID, conn, numChans)
 		if err != nil {
 			return false, fmt.Errorf("failed to init table wise meta info: %w", err)
 		}

@@ -288,7 +288,7 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		num_updates = num_updates + %d, 
 		num_deletes = num_deletes + %d  
 	where 
-		migration_uuid='%s' AND table_name='%s'
+		migration_uuid='%s' AND table_name='%s' AND channel_no=%d
 	`
 	return fmt.Sprintf(queryTemplate,
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME, 
@@ -296,7 +296,7 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		eb.EventCountsByTable[tableName].NumInserts,  
 		eb.EventCountsByTable[tableName].NumUpdates,  
 		eb.EventCountsByTable[tableName].NumDeletes, 
-		migrationUUID, tableName)
+		migrationUUID, tableName, eb.ChanNo)
 }
 
 func (eb *EventBatch) GetTableNames() []string {
