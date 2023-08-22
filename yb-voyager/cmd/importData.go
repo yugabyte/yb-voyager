@@ -501,14 +501,6 @@ func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProt
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 }
 
-func executePostImportDataSqls() {
-	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-	if utils.FileOrFolderExists(sequenceFilePath) {
-		fmt.Printf("setting resume value for sequences %10s\n", "")
-		executeSqlFile(sequenceFilePath, "SEQUENCE", func(_, _ string) bool { return false })
-	}
-}
-
 func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	err := batch.MarkPending()
 	if err != nil {
