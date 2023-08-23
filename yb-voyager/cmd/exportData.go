@@ -173,7 +173,7 @@ func exportData() bool {
 			return false
 		}
 
-		if liveMigration {
+		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
 			triggerName := getTriggerName("", "exporter", source.DBType)
 			createTriggerIfNotExists(triggerName)

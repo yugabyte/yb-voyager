@@ -117,7 +117,7 @@ func waitForDBSwitchOverToComplete(action string) {
 }
 
 func exitIfDBSwitchedOver(triggerName string) {
-	if !dbzm.IsLiveMigrationInStreamingMode(exportDir) {
+	if !dbzm.IsMigrationInStreamingMode(exportDir) {
 		return
 	}
 	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)

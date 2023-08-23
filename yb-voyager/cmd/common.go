@@ -189,12 +189,12 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium || liveMigration {
+	if useDebezium || changeStreamingIsEnabled(exportType) {
 		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
 			utils.ErrExit("Failed to read export status during data export: %v", err)
 		}
-		if !liveMigration {
+		if !changeStreamingIsEnabled(exportType) {
 			for i, tableStatus := range exportStatus.Tables {
 				if i == 0 {
 					if tableStatus.SchemaName != "" {
@@ -260,8 +260,8 @@ func printImportedRowCount(tasks []*ImportFileTask) {
 		snapshotRowCount[tableName] = tableRowCount
 	}
 
-	if useDebezium || liveMigration {
-		if liveMigration {
+	if useDebezium || changeStreamingIsEnabled(exportType) {
+		if changeStreamingIsEnabled(exportType) {
 			for i, tableName := range tableList {
 				if i == 0 {
 					uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
