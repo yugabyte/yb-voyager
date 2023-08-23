@@ -258,8 +258,13 @@ type EventBatch struct {
 }
 
 func NewEventBatch(events []*Event, chanNo int, targetSchema string) *EventBatch {
-	batch := &EventBatch{Events: events, ChanNo: chanNo, EventCounts : &EventCounter{}, EventCountsByTable: make(map[string]*EventCounter)}
-	batch.EventCountsByTable = batch.getEventCountsByTable(targetSchema)
+	batch := &EventBatch{
+		Events: events, 
+		ChanNo: chanNo, 
+		EventCounts : &EventCounter{}, 
+		EventCountsByTable: make(map[string]*EventCounter),
+	}
+	batch.getEventCountsByTable(targetSchema)
 	return batch
 }
 
@@ -309,17 +314,15 @@ func (eb *EventBatch) GetTableNames() []string {
 	return lo.Keys(eb.EventCountsByTable)
 }
 
-func (eb *EventBatch) getEventCountsByTable(targetSchema string) map[string]*EventCounter {
-	counts := make(map[string]*EventCounter)
+func (eb *EventBatch) getEventCountsByTable(targetSchema string) {
 	for _, event := range eb.Events {
 		tableName := event.getTableName(targetSchema)
-		if _, ok := counts[tableName]; !ok {
-			counts[tableName] = &EventCounter{}
+		if _, ok := eb.EventCountsByTable[tableName]; !ok {
+			eb.EventCountsByTable[tableName] = &EventCounter{}
 		}
-		counts[tableName].CountEvent(event)
+		eb.EventCountsByTable[tableName].CountEvent(event)
 		eb.EventCounts.CountEvent(event)
 	}
-	return counts
 }
 
 type EventChannelMetaInfo struct {
