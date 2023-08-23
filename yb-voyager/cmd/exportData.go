@@ -52,6 +52,9 @@ var exportDataCmd = &cobra.Command{
 		validateExportFlags(cmd)
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
+		if changeStreamingIsEnabled(exportType) {
+			useDebezium = true
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
