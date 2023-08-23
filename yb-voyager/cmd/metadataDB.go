@@ -220,3 +220,21 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 	}
 	return totalCount / int64(n*60), nil
 }
+
+func (m *MetaDB) CheckIfSegmentIsProcessed(segmentNum int64) (bool, error) {
+	query := fmt.Sprintf(`SELECT imported_in_targetdb, imported_in_ffdb FROM %s WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
+	row := m.db.QueryRow(query)
+	var importedInTargetDB int
+	var importedInFFDB int
+	err := row.Scan(&importedInTargetDB, &importedInFFDB)
+	if err != nil {
+		return false, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	if importDestinationType == TARGET_DB && importedInTargetDB == 1 {
+		return true, nil
+	}
+	if importDestinationType == FF_DB && importedInFFDB == 1 {
+		return true, nil
+	}
+	return false, nil
+}

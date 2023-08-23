@@ -77,6 +77,14 @@ func streamChanges() error {
 		}
 		log.Infof("got next segment to stream: %v", segment)
 
+		segmentIsProcessed, err := metaDB.CheckIfSegmentIsProcessed(segment.SegmentNum)
+		if err != nil {
+			return fmt.Errorf("error checking if segment %s is processed: %v", segment.FilePath, err)
+		}
+		if segmentIsProcessed {
+			log.Infof("segment %s is already processed", segment.FilePath)
+			continue
+		}
 		err = streamChangesFromSegment(segment, evChans, processingDoneChans, eventChannelsMetaInfo, statsReporter)
 		if err != nil {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
