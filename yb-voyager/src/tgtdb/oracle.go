@@ -766,3 +766,52 @@ func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return 2 * 1024 * 1024 * 1024 // 2GB
 }
+
+func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (int64, int64, int64, int64, error) {
+	var totalEvents, numInserts, numUpdates, numDeletes int64
+
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		query := fmt.Sprintf(`SELECT total_events, num_inserts, num_updates, num_deletes 
+		FROM %s where table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+
+		err := conn.QueryRowContext(context.Background(), query).Scan(&totalEvents, &numInserts, &numUpdates, &numDeletes)
+		return false, err
+	})
+	if err != nil {
+		log.Errorf("error in getting import stats from target db: %v", err)
+		return -1, -1, -1, -1, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+
+	return totalEvents, numInserts, numUpdates, numDeletes, nil
+}
+
+func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
+	var totalRowCount int64
+	schema := tdb.getTargetSchemaName(tableName)
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		query := fmt.Sprintf(`SELECT rows_imported FROM %s where schema_name='%s' AND table_name='%s'`,
+			BATCH_METADATA_TABLE_NAME, schema, tableName)
+		rows, err := conn.QueryContext(context.Background(), query)
+		if err != nil {
+			log.Infof("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
+			return false, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var rowCount int64
+			err = rows.Scan(&rowCount)
+			if err != nil {
+				log.Infof("error in scanning row_imported for snapshot import of table %s: %v", tableName, err)
+				return false, fmt.Errorf("error in scanning row_imported for snapshot import of table %s: %w", tableName, err)
+			}
+			totalRowCount += rowCount
+		}
+		return false, nil
+	})
+	if err != nil {
+		log.Infof("error in getting total row count for snapshot import of table %s: %v", tableName, err)
+		return -1, fmt.Errorf("error in getting total row count for snapshot import of table %s: %w", tableName, err)
+	}
+
+	return totalRowCount, nil
+}

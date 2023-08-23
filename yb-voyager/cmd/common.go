@@ -180,7 +180,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) {
+func printExportedRowCount(exportedRowCount map[string]int64) {
 	var keys []string
 	for key := range exportedRowCount {
 		keys = append(keys, key)
@@ -194,7 +194,6 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 		if err != nil {
 			utils.ErrExit("Failed to read export status during data export: %v", err)
 		}
-		utils.PrintAndLog("livemigration={%v}", liveMigration)
 		if !liveMigration {
 			for i, tableStatus := range exportStatus.Tables {
 				if i == 0 {
@@ -239,6 +238,63 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 	fmt.Println(table)
 	fmt.Print("\n")
 
+}
+
+func printImportedRowCount(tasks []*ImportFileTask) {
+	tableList := importFileTasksToTableNames(tasks)
+
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("could not retrieve migration UUID: %w", err)
+	}
+
+	uitable := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	snapshotRowCount := make(map[string]int64)
+	for _, tableName := range tableList {
+		tableRowCount, err := tdb.GetImportedSnapshotRowCountForTable(tableName)
+		if err != nil {
+			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+		}
+		snapshotRowCount[tableName] = tableRowCount
+	}
+
+	if useDebezium || liveMigration {
+		if liveMigration {
+			for i, tableName := range tableList {
+				if i == 0 {
+					uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+						headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+						headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+				}
+				total_events, num_inserts, num_updates, num_deletes, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
+				if err != nil {
+					utils.ErrExit("could not fetch table stats from target db: %v", err)
+				}
+				uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], total_events,
+					num_inserts, num_updates, num_deletes, snapshotRowCount[tableName]+num_inserts-num_deletes)
+			}
+		} else {
+			for i, tableName := range tableList {
+				if i == 0 {
+					uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
+				}
+				uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+			}
+		}
+	} else {
+		for i, tableName := range tableList {
+			if i == 0 {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+			}
+			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		}
+	}
+
+	fmt.Printf("\n")
+	fmt.Println(uitable)
+	fmt.Printf("\n")
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
@@ -324,6 +380,9 @@ func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
 
 // sets the global variable migrationUUID after retrieving it from exportDir
 func retrieveMigrationUUID(exportDir string) error {
+	if migrationUUID != uuid.Nil {
+		return nil
+	}
 	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
 	if err != nil {
 		return fmt.Errorf("failed to read file :%w", err)

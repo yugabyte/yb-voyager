@@ -231,7 +231,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo, tconf.Schema)
 		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
 		if err != nil {
-			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
+			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",

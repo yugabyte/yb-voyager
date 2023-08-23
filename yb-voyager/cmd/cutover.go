@@ -46,7 +46,7 @@ func init() {
 }
 
 func InitiatePrimarySwitch(action string) {
-	createTriggerIfNotExists(action)
+	createTriggerIfNotExists(getTriggerName(action))
 	if wait {
 		utils.PrintAndLog("waiting for %s to complete", action)
 		waitForDBSwitchOverToComplete(action)
@@ -54,10 +54,10 @@ func InitiatePrimarySwitch(action string) {
 	}
 }
 
-func createTriggerIfNotExists(action string) {
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", getTriggerName(action))
+func createTriggerIfNotExists(triggerName string) {
+	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
 	if utils.FileOrFolderExists(triggerFPath) {
-		utils.PrintAndLog("%s already initiated, wait for it to complete", action)
+		utils.PrintAndLog("%s already initiated, wait for it to complete", triggerName)
 		return
 	}
 	file, err := os.Create(triggerFPath)
@@ -69,7 +69,7 @@ func createTriggerIfNotExists(action string) {
 	if err != nil {
 		utils.ErrExit("failed to close trigger file(%s): %w", triggerFPath, err)
 	}
-	utils.PrintAndLog("%s initiated", action)
+	utils.PrintAndLog("%s initiated", triggerName)
 }
 
 /*

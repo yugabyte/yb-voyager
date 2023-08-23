@@ -86,7 +86,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
 			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 		}
-		printExportedRowCount(tableRowCount, useDebezium)
+		printExportedRowCount(tableRowCount)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
