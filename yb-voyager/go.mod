@@ -40,6 +40,7 @@ require (
 )
 
 require (
+	github.com/jackc/puddle v1.3.0 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect

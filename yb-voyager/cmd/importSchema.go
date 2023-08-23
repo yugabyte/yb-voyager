@@ -77,6 +77,10 @@ func importSchema() {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
+	// Send 'IN PROGRESS' metadata for `IMPORT SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("IMPORT SCHEMA", "IN PROGRESS", "")
+
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
 		utils.ErrExit("Unable to connect to target YugabyteDB database: %v", err)
@@ -170,7 +174,14 @@ func importSchema() {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
 
+	// Send 'COMPLETED' metadata for `IMPORT SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("IMPORT SCHEMA", "COMPLETED", "")
+
 	callhome.PackAndSendPayload(exportDir)
+
+	// Wait till the visualisation metadata is sent
+	utils.WaitGroup.Wait()
 }
 
 func dumpStatements(stmts []string, filePath string) {

@@ -91,6 +91,11 @@ func exportSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
+	// Send 'IN PROGRESS' metadata for `EXPORT SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("EXPORT SCHEMA", "IN PROGRESS", "")
+
 	source.DB().ExportSchema(exportDir)
 	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
@@ -102,6 +107,13 @@ func exportSchema() {
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
+
+	// Send 'COMPLETED' metadata for `EXPORT SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("EXPORT SCHEMA", "COMPLETED", "")
+
+	// Wait till the visualisation metadata is sent
+	utils.WaitGroup.Wait()
 }
 
 func init() {

@@ -1041,6 +1041,11 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	reportFile := "schema_analysis_report." + outputFormat
+
+	// Send `IN PROGRESS` metadata for `ANALYZE SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("ANALYZE SCHEMA", "IN PROGRESS", "")
+
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
 	if !schemaIsExported() {
@@ -1050,16 +1055,20 @@ func analyzeSchema() {
 	analyzeSchemaInternal()
 
 	var finalReport string
+
+	// Create JSON Report to send to visualisation metadata.
+	var reportJsonString string
+	jsonBytes, err := json.Marshal(reportStruct)
+	if err != nil {
+		panic(err)
+	}
+
+	reportJsonString = string(jsonBytes)
 	switch outputFormat {
 	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
 	case "json":
-		jsonBytes, err := json.Marshal(reportStruct)
-		if err != nil {
-			panic(err)
-		}
-		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	case "txt":
 		finalReport = generateTxtReport(reportStruct)
@@ -1107,6 +1116,13 @@ func analyzeSchema() {
 	}
 
 	callhome.PackAndSendPayload(exportDir)
+
+	// Send 'COMPLETED' metadata for `ANALYZE SCHEMA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("ANALYZE SCHEMA", "COMPLETED", reportJsonString)
+
+	// Wait till the visualisation metadata is sent
+	utils.WaitGroup.Wait()
 }
 
 var analyzeSchemaCmd = &cobra.Command{
