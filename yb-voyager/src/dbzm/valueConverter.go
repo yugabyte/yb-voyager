@@ -75,7 +75,8 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues := strings.Split(row, "\t")
+	// columnValues := strings.Split(row, "\t")
+	columnValues, err := StringSplitWithEscape(row, "\t", '\\')
 	for i, columnValue := range columnValues {
 		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
 			continue

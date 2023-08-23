@@ -16,16 +16,39 @@ limitations under the License.
 package dbzm
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
-
-
 
 func IsDebeziumForDataExport(exportDir string) bool {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	return utils.FileOrFolderExists(exportStatusFilePath)
 }
 
+func StringSplitWithEscape(s string, separator string, escapeChar byte) ([]string, error) {
+	var result []string
+	stringSplits := strings.Split(s, separator)
+	for i := 0; i < len(stringSplits); i++ {
+		if stringSplits[i][len(stringSplits[i])-1] == escapeChar {
+			result = append(result, stringSplits[i])
+			continue
+		}
+		var j int
+		for j = i + 1; j < len(stringSplits); j++ {
+			if stringSplits[j][len(stringSplits[j])-1] != escapeChar {
+				// if a[j] does not end with \ {
+				s := strings.Join(stringSplits[i:j+1], "")
+				result = append(result, s)
+				break
+			}
+			if (j == (len(stringSplits) - 1)) && (stringSplits[j][len(stringSplits[j])-1] == escapeChar) {
+				return nil, fmt.Errorf("Invalid string as last split ends with escape character. string=%s, escapeChar=%c", s, escapeChar)
+			}
+		}
+		i = j
+	}
+	return result, nil
+}
