@@ -26,7 +26,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type VisualizerYugabyteDB struct {
@@ -61,11 +60,15 @@ func (db *VisualizerYugabyteDB) Finalize() {
 	db.disconnect()
 }
 
-func (db *VisualizerYugabyteDB) getConn() *pgxpool.Pool {
+func (db *VisualizerYugabyteDB) getConn() (*pgxpool.Pool, error) {
+	var err error
+	err = nil
 	if db.conn == nil {
-		utils.ErrExit("Called TargetDB.Conn() before TargetDB.Connect()")
+		err = fmt.Errorf("called visualizer_yugabyte_db.get_conn() " +
+			"before visualizer_yugabyte_db.connect()")
 	}
-	return db.conn
+
+	return db.conn, err
 }
 
 func (db *VisualizerYugabyteDB) reconnect() error {
@@ -184,8 +187,12 @@ func (db *VisualizerYugabyteDB) GetInvocationSequence(mUUID uuid.UUID, phase int
 	log.Infof("Executing on target DB: [%s]", cmd)
 
 	var latestSequence *int
-	conn := db.getConn()
-	err := conn.QueryRow(context.Background(), cmd).Scan(&latestSequence)
+	conn, err := db.getConn()
+	if err != nil {
+		return 0, err
+	}
+
+	err = conn.QueryRow(context.Background(), cmd).Scan(&latestSequence)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return 1, nil
@@ -290,7 +297,11 @@ func (db *VisualizerYugabyteDB) executeCmdOnTarget(cmd string) error {
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		log.Infof("Executing on target DB: [%s]", cmd)
-		conn := db.getConn()
+		conn, err := db.getConn()
+		if err != nil {
+			return err
+		}
+
 		_, err = conn.Exec(context.Background(), cmd)
 		if err == nil {
 			return nil
