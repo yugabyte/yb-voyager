@@ -32,16 +32,15 @@ func StringSplitWithEscape(s string, separator string, escapeChar byte) ([]strin
 	var result []string
 	stringSplits := strings.Split(s, separator)
 	for i := 0; i < len(stringSplits); i++ {
-		if stringSplits[i][len(stringSplits[i])-1] == escapeChar {
+		if stringSplits[i][len(stringSplits[i])-1] != escapeChar {
 			result = append(result, stringSplits[i])
 			continue
 		}
 		var j int
 		for j = i + 1; j < len(stringSplits); j++ {
 			if stringSplits[j][len(stringSplits[j])-1] != escapeChar {
-				// if a[j] does not end with \ {
-				s := strings.Join(stringSplits[i:j+1], "")
-				result = append(result, s)
+				strCombined := strings.Join(stringSplits[i:j+1], separator)
+				result = append(result, strCombined)
 				break
 			}
 			if (j == (len(stringSplits) - 1)) && (stringSplits[j][len(stringSplits[j])-1] == escapeChar) {
