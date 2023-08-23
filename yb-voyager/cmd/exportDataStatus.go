@@ -94,6 +94,11 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
 				doneCount++
+
+				// Update a table entry to `COMPLETED` once the table is exported
+				utils.WaitGroup.Add(1)
+				go createAndSendVisualizerExportTableMetrics([]string{key})
+
 				if doneCount == numTables {
 					break
 				}
@@ -141,6 +146,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.Qualified.MinQuoted)
 		pbr.SetTotalRowCount(actualRowCount, false)
+		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
 	tableDataFileName := tableMetadata.InProgressFilePath
@@ -161,6 +167,14 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
+		}
+	}()
+
+	go func() { //for sending visualization table metrics every 5 secs
+		for !pbr.IsComplete() {
+			utils.WaitGroup.Add(1)
+			createAndSendVisualizerExportTableMetrics([]string{tableName})
+			time.Sleep(time.Second * 5)
 		}
 	}()
 

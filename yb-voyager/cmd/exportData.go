@@ -55,6 +55,10 @@ var exportDataCmd = &cobra.Command{
 		if changeStreamingIsEnabled(exportType) {
 			useDebezium = true
 		}
+		err := visualizerDB.CreateYugabytedTableMetricsTable()
+		if err != nil {
+			log.Warnf("Failed to create table metrics table for visualization. %s", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -89,12 +93,16 @@ func exportData() {
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-	success := exportDataOffline()
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
+	// Send 'IN PROGRESS' metadata for `EXPORT DATA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("EXPORT DATA", "IN PROGRESS", "")
+
+	success := exportDataOffline()
 	if success {
 		tableRowCount := map[string]int64{}
 		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
@@ -113,6 +121,13 @@ func exportData() {
 		log.Error("Export of data failed.")
 		atexit.Exit(1)
 	}
+
+	// Send 'COMPLETED' metadata for `EXPORT DATA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("EXPORT DATA", "COMPLETED", "")
+
+	// Wait till the visualisation metadata is sent
+	utils.WaitGroup.Wait()
 }
 
 func exportDataOffline() bool {
@@ -223,6 +238,10 @@ func exportDataOffline() bool {
 	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList)
 	// Wait for the export data to start.
 	<-exportDataStart
+
+	// Create initial entry for each table in the table metrics table
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerExportTableMetrics(utils.GetSortedKeys(tablesProgressMetadata))
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)

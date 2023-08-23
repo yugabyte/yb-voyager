@@ -62,6 +62,10 @@ var importDataCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
 		validateImportType()
+		err := visualizerDB.CreateYugabytedTableMetricsTable()
+		if err != nil {
+			log.Warnf("Failed to create table metrics table for visualization. %s", err)
+		}
 	},
 	Run: importDataCommandFn,
 }
@@ -172,6 +176,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
+	// Send 'IN PROGRESS' metadata for `IMPORT DATA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("IMPORT DATA", "IN PROGRESS", "")
+
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
@@ -244,11 +253,36 @@ func importData(importFileTasks []*ImportFileTask) {
 			progressReporter.ImportFileStarted(task, totalProgressAmount)
 			importedProgressAmount := getImportedProgressAmount(task, state)
 			progressReporter.AddProgressAmount(task, importedProgressAmount)
+
+			// Maintain the current progress of this task
+			var currentProgress int64
 			updateProgressFn := func(progressAmount int64) {
+				currentProgress += progressAmount
 				progressReporter.AddProgressAmount(task, progressAmount)
 			}
+
+			// For updating table metrics every 5 secs
+			go func() {
+				for totalProgressAmount > currentProgress {
+					var status int
+					if currentProgress == 0 {
+						status = 0
+					} else {
+						status = 1
+					}
+					utils.WaitGroup.Add(1)
+					createAndSendVisualizerImportTableMetrics(task.TableName, currentProgress,
+						totalProgressAmount, status)
+					time.Sleep(time.Second * 5)
+				}
+			}()
 			importFile(state, task, updateProgressFn)
-			batchImportPool.Wait()                // Wait for the file import to finish.
+			batchImportPool.Wait() // Wait for the file import to finish.
+
+			// Update the table entry to `COMPLETED` once the table is exported
+			utils.WaitGroup.Add(1)
+			go createAndSendVisualizerImportTableMetrics(task.TableName, currentProgress,
+				totalProgressAmount, 3)
 			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 		}
 		time.Sleep(time.Second * 2)
@@ -280,6 +314,13 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+
+	// Send 'COMPLETED' metadata for `IMPORT DATA` step
+	utils.WaitGroup.Add(1)
+	go createAndSendVisualizerPayload("IMPORT DATA", "COMPLETED", "")
+
+	// Wait till the visualisation metadata is sent
+	utils.WaitGroup.Wait()
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {

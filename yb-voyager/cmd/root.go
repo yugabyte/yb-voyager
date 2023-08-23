@@ -22,11 +22,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/visualizer"
 )
 
 var (
@@ -35,6 +37,7 @@ var (
 	startClean    bool
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
+	visualizerDB  visualizer.VisualizerYugabyteDB
 )
 
 var rootCmd = &cobra.Command{
@@ -51,6 +54,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			InitLogging(exportDir, cmd.Use == "status")
 		}
+		err := visualizerDB.Init(exportDir)
+		if err != nil {
+			log.Warnf("Failed to initialize the target DB for visualization. %s", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -64,6 +71,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" {
 			unlockExportDir()
 		}
+		visualizerDB.Finalize()
 	},
 }
 
