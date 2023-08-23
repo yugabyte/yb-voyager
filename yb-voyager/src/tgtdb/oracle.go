@@ -718,8 +718,8 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	} else {
 		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
 	}
-	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism)
-	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism)
+	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism + 1)
+	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism + 1)
 	return nil
 }
 
