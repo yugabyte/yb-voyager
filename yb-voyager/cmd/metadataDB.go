@@ -227,10 +227,7 @@ func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
 	var segmentNum int64
 	err := row.Scan(&segmentNum)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return -1, nil
-		}
-		return -1, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+		return -1, fmt.Errorf("error while running query on meta db - %s : %w", query, err)
 	}
 	return segmentNum, nil
 }
