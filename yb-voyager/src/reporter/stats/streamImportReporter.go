@@ -36,6 +36,8 @@ type StreamImportStatsReporter struct {
 	CurrImportedEvents  int64
 	startTime           time.Time
 	eventsSlidingWindow [61]int64 // stores events per 10 secs for last 10 mins
+	remainingEvents     int64
+	estimatedTimeToCatchUp time.Duration
 }
 
 func NewStreamImportStatsReporter() *StreamImportStatsReporter {
@@ -54,8 +56,6 @@ func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.
 }
 
 func (s *StreamImportStatsReporter) ReportStats() {
-	var remainingEvents int64 //TODO: calculate remaining events using sqlite db table exported_event_count
-	var estimatedTimeToCatchUp time.Duration
 	displayTicker := time.NewTicker(10 * time.Second)
 	defer displayTicker.Stop()
 	table := uilive.New()
@@ -95,8 +95,8 @@ func (s *StreamImportStatsReporter) ReportStats() {
 		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%d events/sec", averageRateLast3Mins/60)))
 		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%d events/sec", averageRateLast10Mins/60)))
 		fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", elapsedTime)))
-		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(remainingEvents, 10)))
-		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", estimatedTimeToCatchUp.String()))
+		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(s.remainingEvents, 10)))
+		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", s.estimatedTimeToCatchUp.String()))
 		fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 		table.Flush()
 	}
@@ -123,4 +123,14 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {
 	windowSize := 6*n + 1 //6*n as sliding window every 10 secs
 	return lo.Sum(s.eventsSlidingWindow[1:windowSize]) / n
+}
+
+func (s *StreamImportStatsReporter) UpdateRemainingEvents(totalExportedEvents int64) {
+	s.Mutex.Lock()
+	defer s.Mutex.Unlock()
+	s.remainingEvents = totalExportedEvents - s.totalEventsImported
+	lastMinIngestionRate := s.getIngestionRateForLastNMinutes(1)
+	if lastMinIngestionRate > 0 {
+		s.estimatedTimeToCatchUp = time.Duration(s.remainingEvents/lastMinIngestionRate) * time.Minute
+	}
 }
