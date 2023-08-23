@@ -35,7 +35,7 @@ type StreamImportStatsReporter struct {
 	totalEventsImported int64
 	CurrImportedEvents  int64
 	startTime           time.Time
-	eventsPer30Secs     [61]int64
+	eventsSlidingWindow [61]int64 // stores events per 10 secs for last 10 mins
 }
 
 func NewStreamImportStatsReporter() *StreamImportStatsReporter {
@@ -104,10 +104,10 @@ func (s *StreamImportStatsReporter) ReportStats() {
 
 func (s *StreamImportStatsReporter) slideWindow() {
 	s.Mutex.Lock()
-	for i := len(s.eventsPer30Secs) - 1; i > 0; i-- {
-		s.eventsPer30Secs[i] = s.eventsPer30Secs[i-1]
+	for i := len(s.eventsSlidingWindow) - 1; i > 0; i-- {
+		s.eventsSlidingWindow[i] = s.eventsSlidingWindow[i-1]
 	}
-	s.eventsPer30Secs[0] = 0
+	s.eventsSlidingWindow[0] = 0
 	s.Mutex.Unlock()
 }
 
@@ -117,10 +117,10 @@ func (s *StreamImportStatsReporter) BatchImported(numInserts, numUpdates, numDel
 	total := numInserts + numUpdates + numDeletes
 	s.CurrImportedEvents += total
 	s.totalEventsImported += total
-	s.eventsPer30Secs[0] += total
+	s.eventsSlidingWindow[0] += total
 }
 
 func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int64 {
-	window := 6*n + 1 //6*n as sliding window every 10 secs
-	return lo.Sum(s.eventsPer30Secs[1:window]) / n
+	windowSize := 6*n + 1 //6*n as sliding window every 10 secs
+	return lo.Sum(s.eventsSlidingWindow[1:windowSize]) / n
 }

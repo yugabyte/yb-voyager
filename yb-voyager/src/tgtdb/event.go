@@ -264,7 +264,7 @@ func NewEventBatch(events []*Event, chanNo int, targetSchema string) *EventBatch
 		EventCounts : &EventCounter{}, 
 		EventCountsByTable: make(map[string]*EventCounter),
 	}
-	batch.getEventCountsByTable(targetSchema)
+	batch.updateCounts(targetSchema)
 	return batch
 }
 
@@ -314,7 +314,7 @@ func (eb *EventBatch) GetTableNames() []string {
 	return lo.Keys(eb.EventCountsByTable)
 }
 
-func (eb *EventBatch) getEventCountsByTable(targetSchema string) {
+func (eb *EventBatch) updateCounts(targetSchema string) {
 	for _, event := range eb.Events {
 		tableName := event.getTableName(targetSchema)
 		if _, ok := eb.EventCountsByTable[tableName]; !ok {
