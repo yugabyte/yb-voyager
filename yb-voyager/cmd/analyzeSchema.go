@@ -186,6 +186,7 @@ var (
 	unsupportedCommentRegex2   = re("--", anything, "please edit to match PostgreSQL syntax")
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
+	viewJsonFuncRegex          = re("CREATE", opt("OR REPLACE"), "VIEW", capture(ident), anything, "JSON_ARRAYAGG")
 )
 
 // Reports one case in JSON
@@ -573,6 +574,8 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
 		} else if regMatch := uriTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt)
+		} else if regMatch := viewJsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
+			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, "VIEW", regMatch[2], sqlInfo.formattedStmt)
 		}
 
 	}
