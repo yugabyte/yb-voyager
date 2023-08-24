@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -226,22 +227,31 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 	return totalCount / int64(n*60), nil
 }
 
-func (m *MetaDB) InsertJsonObject(key string, obj any) error {
+func (m *MetaDB) InsertJsonObject(tx *sql.Tx, key string, obj any) error {
 	jsonText, err := json.Marshal(obj)
 	if err != nil {
 		return fmt.Errorf("error while marshalling json: %w", err)
 	}
 	query := fmt.Sprintf(`INSERT INTO %s (key, json_text) VALUES (?, ?)`, JSON_OBJECTS_TABLE_NAME)
-	_, err = m.db.Exec(query, key, jsonText)
+	if tx == nil {
+		_, err = m.db.Exec(query, key, jsonText)
+	} else {
+		_, err = tx.Exec(query, key, jsonText)
+	}
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
 	}
 	return nil
 }
 
-func (m *MetaDB) GetJsonObject(key string, obj any) (bool, error) {
+func (m *MetaDB) GetJsonObject(tx *sql.Tx, key string, obj any) (bool, error) {
 	query := fmt.Sprintf(`SELECT json_text FROM %s WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
-	row := m.db.QueryRow(query, key)
+	var row *sql.Row
+	if tx == nil {
+		row = m.db.QueryRow(query, key)
+	} else {
+		row = tx.QueryRow(query, key)
+	}
 	var jsonText string
 	err := row.Scan(&jsonText)
 	if err != nil {
@@ -258,23 +268,52 @@ func (m *MetaDB) GetJsonObject(key string, obj any) (bool, error) {
 }
 
 func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T)) error {
+	// Get a connection to the meta db.
+	conn, err := m.db.Conn(context.Background())
+	if err != nil {
+		return fmt.Errorf("error while getting connection to meta db: %w", err)
+	}
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to meta db: %v", err)
+		}
+	}()
+	// Start a transaction.
+	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("error while starting transaction on meta db: %w", err)
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			log.Errorf("failed to rollback transaction on meta db: %v", err)
+		}
+	}()
+	// Get the json object.
 	obj := new(T)
-	found, err := m.GetJsonObject(key, obj)
+	found, err := m.GetJsonObject(tx, key, obj)
 	if err != nil {
 		return fmt.Errorf("error while getting json object from meta db: %w", err)
 	}
+	// Update the json object.
 	updateFn(obj)
+	// Update the json object in the meta db.
 	newJsonText, err := json.Marshal(obj)
 	if err != nil {
 		return fmt.Errorf("error while marshalling json: %w", err)
 	}
 	if !found {
-		return m.InsertJsonObject(key, obj)
+		return m.InsertJsonObject(tx, key, obj)
 	}
 	query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
-	_, err = m.db.Exec(query, string(newJsonText), key)
+	_, err = tx.Exec(query, string(newJsonText), key)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error while commiting transaction on meta db: %w", err)
 	}
 	return nil
 }
