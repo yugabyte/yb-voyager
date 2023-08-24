@@ -67,20 +67,7 @@ func init() {
 	exportCmd.AddCommand(exportDataCmd)
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
-	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - disable progress bar during data export(default false)")
-
-	exportDataCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while exporting data (ignored if --table-list is used)")
-
-	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"list of the tables to export data")
-
-	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
-		"number of Parallel Jobs to extract data from source database")
-
-	exportDataCmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
+	registerExportDataFlags(exportDataCmd)
 }
 
 func exportData() {
