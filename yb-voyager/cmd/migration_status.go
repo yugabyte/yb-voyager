@@ -17,7 +17,7 @@ func UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
 
 func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	record := new(MigrationStatusRecord)
-	found, err := metaDB.GetJsonObject(MIGRATION_STATUS_KEY, record)
+	found, err := metaDB.GetJsonObject(nil, MIGRATION_STATUS_KEY, record)
 	if err != nil {
 		return nil, fmt.Errorf("error while getting migration status record from meta db: %w", err)
 	}
