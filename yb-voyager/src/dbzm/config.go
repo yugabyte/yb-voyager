@@ -243,7 +243,8 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExportSourceType)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -267,7 +268,8 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExportSourceType)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -288,7 +290,8 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExportSourceType)
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
@@ -310,7 +313,8 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExportSourceType)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
