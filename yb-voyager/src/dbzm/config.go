@@ -29,10 +29,11 @@ import (
 )
 
 type Config struct {
-	RunId          string
-	SourceDBType   string
-	ExportDir      string
-	MetadataDBPath string
+	RunId            string
+	SourceDBType     string
+	ExportSourceType string
+	ExportDir        string
+	MetadataDBPath   string
 
 	Host     string
 	Port     int
@@ -93,6 +94,7 @@ debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
+debezium.sink.ybexporter.source.type=%s
 `
 
 var postgresSrcConfigTemplate = `

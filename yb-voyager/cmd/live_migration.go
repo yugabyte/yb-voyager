@@ -124,6 +124,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 				if err != nil {
 					return fmt.Errorf("failed to udpate export source type to TARGET in value converter: %w", err)
 				}
+				log.Infof("Received cutover event. Updated export source type to target in ValueConverter.")
 			}
 		}
 
