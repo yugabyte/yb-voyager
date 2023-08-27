@@ -97,7 +97,6 @@ func exportData() {
 	} else {
 		exportSourceType = SOURCE_DB
 	}
-	setExportSourceType(exportSourceType, exportDir)
 	success := exportDataOffline()
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -134,6 +133,7 @@ func exportDataOffline() bool {
 	source.DB().CheckRequiredToolsAreInstalled()
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	setExportSourceType(exportSourceType, exportDir)
 
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
