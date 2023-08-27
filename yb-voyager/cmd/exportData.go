@@ -42,6 +42,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var exportSourceType string
+
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is a beta feature to speed up the data export, set the environment variable BETA_FAST_DATA_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details on this feature.",
@@ -89,6 +91,12 @@ func exportData() {
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
+	// TODO: interpret this from fall-forward/export data commands.
+	if source.DBType == YUGABYTEDB {
+		exportSourceType = TARGET_DB
+	} else {
+		exportSourceType = SOURCE_DB
+	}
 	success := exportDataOffline()
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {

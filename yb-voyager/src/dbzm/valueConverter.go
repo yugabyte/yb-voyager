@@ -25,11 +25,12 @@ import (
 type ValueConverter interface {
 	ConvertRow(tableName string, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
+	UpdateExportSourceType(exportSourceType string) error
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (ValueConverter, error) {
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, exportSourceType string) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb, targetConf)
+		return NewDebeziumValueConverter(exportDir, tdb, targetConf, exportSourceType)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -47,9 +48,14 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, forma
 	return nil
 }
 
+func (nvc *NoOpValueConverter) UpdateExportSourceType(exportSourceType string) error {
+	return nil
+}
+
 //============================================================================
 
 type DebeziumValueConverter struct {
+	exportDir           string
 	schemaRegistry      *SchemaRegistry
 	targetDBType        string
 	targetSchema        string
@@ -57,8 +63,8 @@ type DebeziumValueConverter struct {
 	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
-	schemaRegistry := NewSchemaRegistry(exportDir)
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, exportSourceType string) (*DebeziumValueConverter, error) {
+	schemaRegistry := NewSchemaRegistry(exportDir, exportSourceType)
 	err := schemaRegistry.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
@@ -66,12 +72,25 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
+		exportDir:           exportDir,
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
 		converterFnCache:    map[string][]tgtdb.ConverterFn{},
 		targetDBType:        targetConf.TargetDBType,
 		targetSchema:        targetConf.Schema,
 	}, nil
+}
+
+func (conv *DebeziumValueConverter) UpdateExportSourceType(exportSourceType string) error {
+	schemaRegistry := NewSchemaRegistry(conv.exportDir, exportSourceType)
+	err := schemaRegistry.Init()
+	if err != nil {
+		return fmt.Errorf("initializing schema registry: %w", err)
+	}
+	for k := range conv.converterFnCache {
+		delete(conv.converterFnCache, k)
+	}
+	return nil
 }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {

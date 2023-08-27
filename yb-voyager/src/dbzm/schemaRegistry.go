@@ -57,12 +57,14 @@ func (ts *TableSchema) getColumnType(columnName string) (string, error) {
 
 type SchemaRegistry struct {
 	exportDir         string
+	exportSourceType  string
 	tableNameToSchema map[string]*TableSchema
 }
 
-func NewSchemaRegistry(exportDir string) *SchemaRegistry {
+func NewSchemaRegistry(exportDir string, exportSourceType string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
+		exportSourceType:  exportSourceType,
 		tableNameToSchema: make(map[string]*TableSchema),
 	}
 }
@@ -92,7 +94,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string,
 }
 
 func (sreg *SchemaRegistry) Init() error {
-	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas")
+	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exportSourceType)
 	schemaFiles, err := os.ReadDir(schemaDir)
 	if err != nil {
 		return fmt.Errorf("failed to read schema dir %s: %w", schemaDir, err)

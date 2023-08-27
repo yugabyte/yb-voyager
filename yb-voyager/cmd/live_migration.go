@@ -118,6 +118,14 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		if event == nil && segment.IsProcessed() {
 			break
 		}
+		if event.Op == "cutover" {
+			if importDestinationType == FF_DB {
+				err = valueConverter.UpdateExportSourceType(TARGET_DB)
+				if err != nil {
+					return fmt.Errorf("failed to udpate export source type to TARGET in value converter: %w", err)
+				}
+			}
+		}
 
 		err = handleEvent(event, evChans)
 		if err != nil {
@@ -143,7 +151,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 func shouldFormatValues(event *tgtdb.Event) bool {
 	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
-			tconf.TargetDBType == ORACLE
+		tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	log.Debugf("Handling event: %v", event)
