@@ -97,6 +97,7 @@ func exportData() {
 	} else {
 		exportSourceType = SOURCE_DB
 	}
+	setExportSourceType(exportSourceType, exportDir)
 	success := exportDataOffline()
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -714,4 +715,14 @@ func checkSourceDBCharset() {
 
 func changeStreamingIsEnabled(s string) bool {
 	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
+}
+
+// clear and set source db type flag
+func setExportSourceType(exportSourceType string, exportDir string) {
+	flagFilePath := filepath.Join(exportDir, "metainfo", "data", fmt.Sprintf("export-source-type-%s", exportSourceType))
+	fh, err := os.Create(flagFilePath)
+	if err != nil {
+		utils.ErrExit("create %q: %s", flagFilePath, err)
+	}
+	fh.Close()
 }
