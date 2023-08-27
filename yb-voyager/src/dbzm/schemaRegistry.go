@@ -86,9 +86,15 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []strin
 }
 
 func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string, error) {
-	tableSchema := sreg.tableNameToSchema[tableName]
+	var tableSchema *TableSchema
+	var err error
+	tableSchema = sreg.tableNameToSchema[tableName]
 	if tableSchema == nil {
-		return "", fmt.Errorf("table %s not found in schema registry", tableName)
+		// check on disk
+		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
+		if err != nil{
+			return "", fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
+		}
 	}
 	return tableSchema.getColumnType(columnName)
 }
@@ -115,4 +121,20 @@ func (sreg *SchemaRegistry) Init() error {
 		schemaFile.Close()
 	}
 	return nil
+}
+
+func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
+	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exportSourceType, fmt.Sprintf("%s_schema.json", tableName))
+	schemaFile, err := os.Open(schemaFilePath)
+	defer schemaFile.Close()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
+	}
+	var tableSchema TableSchema
+	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
+	}
+	sreg.tableNameToSchema[tableName] = &tableSchema
+	return &tableSchema, nil
 }
