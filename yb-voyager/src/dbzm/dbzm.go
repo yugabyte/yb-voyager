@@ -61,10 +61,10 @@ func findDebeziumDistribution(sourceDBType string) error {
 			err := fmt.Errorf("could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
 			return err
 		}
-		if sourceDBType == "yugabytedb" {
-			pathSuffix := "debezium-server-1.9.5"
-			DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
-		}
+	}
+	if sourceDBType == "yugabytedb" {
+		pathSuffix := "debezium-server-1.9.5"
+		DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 	}
 	return nil
 }
