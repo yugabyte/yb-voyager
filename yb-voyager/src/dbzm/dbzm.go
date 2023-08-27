@@ -46,14 +46,10 @@ func findDebeziumDistribution(sourceDBType string) error {
 	if distDir := os.Getenv("DEBEZIUM_DIST_DIR"); distDir != "" {
 		DEBEZIUM_DIST_DIR = distDir
 	} else {
-		pathSuffix := ""
-		if sourceDBType == "yugabytedb" {
-			pathSuffix = "/debezium-server-fall-forward"
-		}
 		possiblePaths := []string{
-			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
-			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server%s", DEBEZIUM_VERSION, DEBEZIUM_VERSION, pathSuffix),
-			fmt.Sprintf("/opt/yb-voyager/debezium-server%s", pathSuffix)}
+			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
+			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
+			fmt.Sprintf("/opt/yb-voyager/debezium-server")}
 
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {
@@ -64,6 +60,10 @@ func findDebeziumDistribution(sourceDBType string) error {
 		if DEBEZIUM_DIST_DIR == "" {
 			err := fmt.Errorf("could not find debezium-server directory in any of %v. Either install debezium-server or provide its path in the DEBEZIUM_DIST_DIR env variable", possiblePaths)
 			return err
+		}
+		if sourceDBType == "yugabytedb" {
+			pathSuffix := "debezium-server-1.9.5"
+			DEBEZIUM_DIST_DIR = filepath.Join(DEBEZIUM_DIST_DIR, pathSuffix)
 		}
 	}
 	return nil

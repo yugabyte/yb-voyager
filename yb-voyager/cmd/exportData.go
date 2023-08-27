@@ -657,6 +657,8 @@ func getDefaultSourceSchemaName() string {
 		return "public"
 	case ORACLE:
 		return source.Schema
+	case YUGABYTEDB:
+		return "public"
 	default:
 		panic("invalid db type")
 	}
