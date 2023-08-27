@@ -45,6 +45,7 @@ const (
 	CHANGES_ONLY                  = "changes-only"
 	TARGET_DB                     = "target"
 	FF_DB                         = "ff"
+	SOURCE_DB                     = "source"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

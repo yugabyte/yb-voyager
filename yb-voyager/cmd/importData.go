@@ -188,7 +188,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		importDestinationType = FF_DB
 	}
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb)
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}

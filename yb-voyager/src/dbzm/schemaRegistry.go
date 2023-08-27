@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 )
 
 type ColumnSchema struct {
@@ -57,13 +56,13 @@ func (ts *TableSchema) getColumnType(columnName string) (string, error) {
 //===========================================================
 
 type SchemaRegistry struct {
-	exportDir     string
+	exportDir         string
 	tableNameToSchema map[string]*TableSchema
 }
 
 func NewSchemaRegistry(exportDir string) *SchemaRegistry {
 	return &SchemaRegistry{
-		exportDir:     exportDir,
+		exportDir:         exportDir,
 		tableNameToSchema: make(map[string]*TableSchema),
 	}
 }

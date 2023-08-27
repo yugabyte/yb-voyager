@@ -27,9 +27,9 @@ type ValueConverter interface {
 	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb)
+		return NewDebeziumValueConverter(exportDir, tdb, targetConf)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -51,11 +51,13 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, forma
 
 type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
+	targetDBType        string
+	targetSchema        string
 	valueConverterSuite map[string]tgtdb.ConverterFn
 	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
 	schemaRegistry := NewSchemaRegistry(exportDir)
 	err := schemaRegistry.Init()
 	if err != nil {
@@ -67,6 +69,8 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumV
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
 		converterFnCache:    map[string][]tgtdb.ConverterFn{},
+		targetDBType:        targetConf.TargetDBType,
+		targetSchema:        targetConf.Schema,
 	}, nil
 }
 
@@ -114,6 +118,13 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
+	// setting tableName and schemaName as per target
+	// TODO: handle properly. (maybe as part of targetDBinterface?)
+	// TODO: handle case sensitivity/quoted table names..
+	if conv.targetDBType == tgtdb.ORACLE {
+		ev.TableName = strings.ToUpper(ev.TableName)
+	}
+	ev.SchemaName = conv.targetSchema
 	return nil
 }
 
