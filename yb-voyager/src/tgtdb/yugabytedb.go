@@ -423,7 +423,7 @@ func (yb *TargetYugabyteDB) clearMigrationStateFromTable(conn *pgx.Conn, tableNa
 	if err != nil {
 		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
 	}
-	log.Infof("Query: %s ==> Rows affected: %d", stmt, res.RowsAffected())	
+	log.Infof("Query: %s ==> Rows affected: %d", stmt, res.RowsAffected())
 	return nil
 }
 
@@ -440,7 +440,7 @@ func (yb *TargetYugabyteDB) getEventChannelsRowCount(conn *pgx.Conn, migrationUU
 
 func (yb *TargetYugabyteDB) getLiveMigrationMetaInfoByTable(conn *pgx.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
 	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", 
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
 		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
 	var rowCount int64
 	err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
@@ -485,21 +485,21 @@ func (yb *TargetYugabyteDB) initChannelMetaInfo(conn *pgx.Conn, migrationUUID uu
 	return nil
 }
 
-func(yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
+func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
 	if len(strings.Split(tableName, ".")) != 2 {
 		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
 	}
 	return tableName
 }
 
-func(yb * TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrationUUID uuid.UUID, tableNames []string, numChans int) error {
+func (yb *TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrationUUID uuid.UUID, tableNames []string, numChans int) error {
 	ctx := context.Background()
 	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("error creating tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	
+
 	for _, tableName := range tableNames {
 		tableName := yb.qualifyTableName(tableName)
 		rowCount, err := yb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
@@ -543,7 +543,7 @@ func (yb *TargetYugabyteDB) InitLiveMigrationState(migrationUUID uuid.UUID, numC
 			return false, fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
 		}
 
-        err = yb.initEventStatsByTableMetainfo(conn, migrationUUID, tableNames, numChans)
+		err = yb.initEventStatsByTableMetainfo(conn, migrationUUID, tableNames, numChans)
 		if err != nil {
 			return false, fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
 		}
@@ -777,14 +777,18 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
+	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
+	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
 	for sequenceName, lastValue := range sequencesLastVal {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
 			continue
 		}
-		sqlStmt := fmt.Sprintf("SELECT pg_catalog.setval('%s', %d, true);\n", sequenceName, lastValue)
-		batch.Queue(sqlStmt)
+		// same function logic will work for sequences as well
+		sequenceName = yb.qualifyTableName(sequenceName)
+		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
+		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
 
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
