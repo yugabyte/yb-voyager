@@ -19,8 +19,8 @@ import "github.com/spf13/cobra"
 
 var fallForwardCmd = &cobra.Command{
 	Use:   "fall-forward",
-	Short: "fall-forward",
-	Long:  `fall-forward`,
+	Short: "fall-forward is used to setup and synchronize the fall forward database",
+	Long:  `Fall-forward has three commands: setup, synchronize and switchover.`,
 }
 
 func init() {
