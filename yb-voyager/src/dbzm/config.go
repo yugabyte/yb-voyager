@@ -123,6 +123,7 @@ var postgresConfigTemplate = baseConfigTemplate +
 	baseSinkConfigTemplate
 
 // ref for perf tuning - https://debezium.io/blog/2023/06/29/debezium-oracle-series-part-3/
+
 var oracleSrcConfigTemplate = `
 debezium.source.database.url=%s
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
@@ -147,6 +148,12 @@ debezium.source.log.mining.sleep.time.max.ms=400
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
 debezium.source.query.fetch.size=10000
+`
+
+// ref for snapshot boundary mode - https://debezium.zulipchat.com/#narrow/stream/348250-community-oracle/topic/Missing.20change.20events.20from.20in-flight.20transactions.3F
+//   - https://aws.amazon.com/blogs/database/how-aws-dms-handles-open-transactions-when-starting-a-full-load-and-cdc-task/
+var oracleLiveMigrationSrcConfigTemplate = `
+debezium.source.internal.log.mining.transaction.snapshot.boundary.mode=all
 `
 
 var oracleSrcPDBConfigTemplate = `
@@ -292,6 +299,10 @@ func (c *Config) String() string {
 			c.MetadataDBPath,
 			c.RunId,
 			c.ExportSourceType)
+		if c.SnapshotMode == "initial" {
+			conf = conf + oracleLiveMigrationSrcConfigTemplate
+		}
+
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
