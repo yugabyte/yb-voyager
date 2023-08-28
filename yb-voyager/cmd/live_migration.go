@@ -60,6 +60,7 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
+	go updateExportedEventsStats(statsReporter)
 	go statsReporter.ReportStats()
 	eventQueue := NewEventQueue(exportDir)
 	// setup target event channels
@@ -224,4 +225,17 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
+}
+
+func updateExportedEventsStats(statsReporter *reporter.StreamImportStatsReporter) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
+		if err != nil {
+			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		}
+		statsReporter.UpdateRemainingEvents(totalExportedEvents)
+	}
 }
