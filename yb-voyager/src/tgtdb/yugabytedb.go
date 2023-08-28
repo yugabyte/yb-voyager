@@ -785,7 +785,8 @@ func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) 
 			// TODO: can be valid for cases like cyclic sequences
 			continue
 		}
-		sequenceName = yb.getTargetSchemaName("") + "." + sequenceName
+		// same function logic will work for sequences as well
+		sequenceName = yb.qualifyTableName(sequenceName)
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
