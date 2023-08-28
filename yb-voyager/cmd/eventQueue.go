@@ -56,6 +56,7 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
 		}
+		log.Info("segment num to resume: ", eq.SegmentNumToStream)
 	}
 	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
 	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
