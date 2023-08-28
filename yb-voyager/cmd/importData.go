@@ -259,29 +259,32 @@ func importData(importFileTasks []*ImportFileTask) {
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 	} else {
+		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			utils.ErrExit("failed to read export status for restore sequences: %s", err)
+		}
 		if changeStreamingIsEnabled(importType) {
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
-		}
 
-		// in case of live migration sequences are restored after cutover
-		// otherwise for snapshot migration, directly restore sequences
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			utils.ErrExit("failed to read export status for restore sequences: %s", err)
-		}
-		err = tdb.RestoreSequences(status.Sequences)
+			// in case of live migration sequences are restored after cutover
+			err = tdb.RestoreSequences(status.Sequences)
+			if err != nil {
+				utils.ErrExit("failed to restore sequences: %s", err)
+			}
 
-		if err != nil {
-			utils.ErrExit("failed to restore sequences: %s", err)
+			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
+			triggerName := getTriggerName("", "importer", tconf.TargetDBType)
+			createTriggerIfNotExists(triggerName)
+		} else {
+			err = tdb.RestoreSequences(status.Sequences)
+			if err != nil {
+				utils.ErrExit("failed to restore sequences: %s", err)
+			}
 		}
-
-		utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
-		triggerName := getTriggerName("", "importer", tconf.TargetDBType)
-		createTriggerIfNotExists(triggerName)
 	}
 
 	printImportedRowCount(pendingTasks)
