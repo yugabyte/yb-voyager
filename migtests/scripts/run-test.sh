@@ -46,7 +46,6 @@ main() {
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
-#dummy commit
 	step "Check the Voyager version installed"
 	yb-voyager version
 
