@@ -57,9 +57,8 @@ var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"G
 	"TRIGGER", "FUNCTION", "PROCEDURE"}
 
 type ExportMetaInfo struct {
-	SourceDBType     string
-	ExportSourceType string
-	ExportToolUsed   string
+	SourceDBType   string
+	ExportToolUsed string
 }
 
 var WaitGroup sync.WaitGroup

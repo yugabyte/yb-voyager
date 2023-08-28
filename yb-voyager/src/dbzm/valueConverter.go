@@ -47,10 +47,6 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, forma
 	return nil
 }
 
-func (nvc *NoOpValueConverter) UpdateExportSourceType(exportSourceType string) error {
-	return nil
-}
-
 //============================================================================
 
 type DebeziumValueConverter struct {
@@ -82,18 +78,6 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		targetSchema:         targetConf.Schema,
 	}, nil
 }
-
-// func (conv *DebeziumValueConverter) UpdateExportSourceType(exportSourceType string) error {
-// 	schemaRegistry := NewSchemaRegistry(conv.exportDir, exportSourceType)
-// 	err := schemaRegistry.Init()
-// 	if err != nil {
-// 		return fmt.Errorf("initializing schema registry: %w", err)
-// 	}
-// 	for k := range conv.converterFnCache {
-// 		delete(conv.converterFnCache, k)
-// 	}
-// 	return nil
-// }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
 	converterFns, err := conv.getConverterFns(tableName, columnNames)

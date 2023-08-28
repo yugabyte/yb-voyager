@@ -118,17 +118,6 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		if event == nil && segment.IsProcessed() {
 			break
 		}
-		// if event.Op == "cutover" {
-		// 	if importDestinationType == FF_DB {
-		// 		setExportSourceType(TARGET_DB, exportDir)
-		// 		err = valueConverter.UpdateExportSourceType(TARGET_DB)
-		// 		if err != nil {
-		// 			return fmt.Errorf("failed to udpate export source type to TARGET in value converter: %w", err)
-		// 		}
-		// 		log.Infof("Received cutover event. Updated export source type to target in ValueConverter.")
-		// 		continue
-		// 	}
-		// }
 
 		err = handleEvent(event, evChans)
 		if err != nil {
