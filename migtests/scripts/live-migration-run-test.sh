@@ -60,6 +60,9 @@ main() {
 		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 	fi
 	
+	step "Check the Voyager version installed"
+	yb-voyager version
+
 	step "Export schema."
 	export_schema
 	find ${EXPORT_DIR}/schema -name '*.sql' -printf "'%p'\n"| xargs grep -wh CREATE
