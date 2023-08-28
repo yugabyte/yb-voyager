@@ -779,7 +779,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
 	log.Infof("restoring sequences on target")
 	batch := pgx.Batch{}
-	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true);\n"
+	restoreStmt := "SELECT pg_catalog.setval('%s', %d, true)"
 	for sequenceName, lastValue := range sequencesLastVal {
 		if lastValue == 0 {
 			// TODO: can be valid for cases like cyclic sequences
