@@ -68,7 +68,11 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	exitIfDBSwitchedOver(getTriggerName("", "exporter", source.DBType))
+	triggerName, err := getTriggerName("", "exporter", source.DBType)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
 	checkDataDirs()
 	if useDebezium {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
@@ -76,7 +80,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 	success := exportData()
-	err := retrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -175,9 +179,14 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			triggerName := getTriggerName("", "exporter", source.DBType)
-			createTriggerIfNotExists(triggerName)
-			// TODO: print stats
+			triggerName, err := getTriggerName("", "exporter", source.DBType)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after data export: %v", err)
+			}
+			err = createTriggerIfNotExists(triggerName)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
 		}
 		return true
 	}

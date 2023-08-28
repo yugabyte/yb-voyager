@@ -260,34 +260,25 @@ func printImportedRowCount(tasks []*ImportFileTask) {
 		snapshotRowCount[tableName] = tableRowCount
 	}
 
-	if useDebezium || changeStreamingIsEnabled(exportType) {
-		if changeStreamingIsEnabled(exportType) {
-			for i, tableName := range tableList {
-				if i == 0 {
-					uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-						headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-						headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
-				}
-				eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
-				if err != nil {
-					utils.ErrExit("could not fetch table stats from target db: %v", err)
-				}
-				uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
-					eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
-					snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
+	if changeStreamingIsEnabled(exportType) {
+		for i, tableName := range tableList {
+			if i == 0 {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
 			}
-		} else {
-			for i, tableName := range tableList {
-				if i == 0 {
-					uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
-				}
-				uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+			eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
+			if err != nil {
+				utils.ErrExit("could not fetch table stats from target db: %v", err)
 			}
+			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
+				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
+				snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
 		}
 	} else {
 		for i, tableName := range tableList {
 			if i == 0 {
-				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
 			}
 			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
 		}

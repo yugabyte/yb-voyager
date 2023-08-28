@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -29,11 +30,14 @@ var wait bool
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "TODO: add short description",
-	Long:  `TODO: add long description`,
+	Short: "Initiate cutover to YugabyteDB",
+	Long:  `Initiate cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		InitiatePrimarySwitch(cmd.Use)
+		err := InitiatePrimarySwitch(cmd.Use)
+		if err != nil {
+			utils.ErrExit("failed to initiate cutover: %v", err)
+		}
 	},
 }
 
@@ -45,31 +49,44 @@ func init() {
 		"wait for the cutover to complete")
 }
 
-func InitiatePrimarySwitch(action string) {
-	createTriggerIfNotExists(getTriggerName(action))
+func InitiatePrimarySwitch(action string) error {
+	triggerName, err := getTriggerName(action)
+	if err != nil {
+		return fmt.Errorf("failed to get trigger name: %w", err)
+	}
+	err = createTriggerIfNotExists(triggerName)
+	if err != nil {
+		return err
+	}
+
 	if wait {
 		utils.PrintAndLog("waiting for %s to complete", action)
-		waitForDBSwitchOverToComplete(action)
+		err = waitForDBSwitchOverToComplete(action)
+		if err != nil {
+			return fmt.Errorf("failed waiting for %s to complete: %w", action, err)
+		}
 		utils.PrintAndLog("%s completed...", action)
 	}
+	return nil
 }
 
-func createTriggerIfNotExists(triggerName string) {
+func createTriggerIfNotExists(triggerName string) error {
 	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
 	if utils.FileOrFolderExists(triggerFPath) {
 		utils.PrintAndLog("%s already initiated, wait for it to complete", triggerName)
-		return
+		return nil
 	}
 	file, err := os.Create(triggerFPath)
 	if err != nil {
-		utils.ErrExit("failed to create trigger file(%s): %v", triggerFPath, err)
+		return fmt.Errorf("failed to create trigger file(%s): %w", triggerFPath, err)
 	}
 
 	err = file.Close()
 	if err != nil {
-		utils.ErrExit("failed to close trigger file(%s): %w", triggerFPath, err)
+		return fmt.Errorf("failed to close trigger file(%s): %w", triggerFPath, err)
 	}
 	utils.PrintAndLog("%s initiated", triggerName)
+	return nil
 }
 
 /*
@@ -78,42 +95,47 @@ args[0] is the action
 args[1] will be exporter or importer
 args[2] will be db type
 */
-func getTriggerName(args ...string) string {
+func getTriggerName(args ...string) (string, error) {
 	switch len(args) {
 	case 0:
-		panic("no arguments passed to getTriggerFileName")
+		return "", fmt.Errorf("no arguments passed to getTriggerName")
 	case 1: // for cutover or fall-forward commands
-		return args[0]
+		return args[0], nil
 	case 3: // for exporter or importer commands
 		if args[1] == "exporter" {
 			if args[2] != YUGABYTEDB {
-				return "cutover.source"
+				return "cutover.source", nil
 			} else {
-				return "fallforward.target"
+				return "fallforward.target", nil
 			}
 		} else if args[1] == "importer" {
 			if args[2] != YUGABYTEDB {
-				return "fallforward.ff"
+				return "fallforward.ff", nil
 			} else if args[2] == YUGABYTEDB {
-				return "cutover.target"
+				return "cutover.target", nil
 			}
 		} else {
-			panic("invalid argument passed to getTriggerFileName")
+			return "", fmt.Errorf("invalid arg=%s passed to getTriggerName", args[1])
 		}
 	default:
-		panic("invalid number of arguments passed to getTriggerFileName")
+		return "", fmt.Errorf("invalid number of arguments passed to getTriggerFileName")
 	}
-	return ""
+	return "", nil
 }
 
-func waitForDBSwitchOverToComplete(action string) {
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", getTriggerName(action, "importer", YUGABYTEDB))
+func waitForDBSwitchOverToComplete(action string) error {
+	triggerName, err := getTriggerName(action, "importer", YUGABYTEDB)
+	if err != nil {
+		return fmt.Errorf("failed to get trigger name for checking if switchover is complete: %v", err)
+	}
+	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
 	for {
 		if utils.FileOrFolderExists(triggerFPath) {
 			break
 		}
 		time.Sleep(2 * time.Second)
 	}
+	return nil
 }
 
 func exitIfDBSwitchedOver(triggerName string) {

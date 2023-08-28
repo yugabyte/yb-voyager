@@ -1258,7 +1258,7 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 }
 
 func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
-	eventCounter := EventCounter{}
+	var eventCounter EventCounter
 	tableName = yb.qualifyTableName(tableName)
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		query := fmt.Sprintf(`SELECT total_events, num_inserts, num_updates, num_deletes FROM %s 
@@ -1270,7 +1270,7 @@ func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, mig
 	})
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
-		return &EventCounter{-1, -1, -1, -1}, fmt.Errorf("error in getting import stats from target db: %w", err)
+		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
 	log.Infof("import stats for table %s: %v", tableName, eventCounter)
 	return &eventCounter, nil

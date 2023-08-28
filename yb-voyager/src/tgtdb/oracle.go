@@ -769,7 +769,6 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 
 func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
 	var eventCounter EventCounter
-
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		query := fmt.Sprintf(`SELECT total_events, num_inserts, num_updates, num_deletes 
 		FROM %s where table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
@@ -780,7 +779,7 @@ func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migr
 	})
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
-		return &EventCounter{-1, -1, -1, -1}, fmt.Errorf("error in getting import stats from target db: %w", err)
+		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
 	log.Infof("import stats for table %s: %v", tableName, eventCounter)
 	return &eventCounter, nil

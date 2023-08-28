@@ -38,14 +38,14 @@ const (
 type EventQueue struct {
 	QueueDirPath       string
 	SegmentNumToStream int64
-	EndEvent           *tgtdb.Event
+	EndOfQueue         bool
 }
 
 func NewEventQueue(exportDir string) *EventQueue {
 	return &EventQueue{
 		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
 		SegmentNumToStream: -1,
-		EndEvent:           nil,
+		EndOfQueue:         false,
 	}
 }
 

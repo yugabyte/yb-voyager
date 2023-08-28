@@ -75,7 +75,7 @@ func streamChanges() error {
 	}
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
-	for eventQueue.EndEvent == nil { // continuously get next segments to stream
+	for !eventQueue.EndOfQueue { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
 			if segment == nil && (errors.Is(err, os.ErrNotExist) || errors.Is(err, sql.ErrNoRows)) {
@@ -124,7 +124,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 			break
 		} else if event.IsCutover() && importDestinationType == TARGET_DB ||
 			event.IsFallForward() && importDestinationType == FF_DB { // cutover or fall-forward command
-			eventQueue.EndEvent = event
+			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
 		}

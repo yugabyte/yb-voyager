@@ -67,7 +67,11 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-	exitIfDBSwitchedOver(getTriggerName("", "importer", tconf.TargetDBType))
+	triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -259,11 +263,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 	} else {
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			utils.ErrExit("failed to read export status for restore sequences: %s", err)
-		}
 		if changeStreamingIsEnabled(importType) {
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if err != nil {
+				utils.ErrExit("failed to read export status for restore sequences: %s", err)
+			}
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
@@ -277,9 +281,16 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
-			triggerName := getTriggerName("", "importer", tconf.TargetDBType)
+			triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
+			}
 			createTriggerIfNotExists(triggerName)
 		} else {
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if err != nil {
+				utils.ErrExit("failed to read export status for restore sequences: %s", err)
+			}
 			err = tdb.RestoreSequences(status.Sequences)
 			if err != nil {
 				utils.ErrExit("failed to restore sequences: %s", err)
