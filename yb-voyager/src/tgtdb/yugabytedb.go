@@ -1257,53 +1257,43 @@ func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB
 }
 
-func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (int64, int64, int64, int64, error) {
-	var total_events, num_inserts, num_updates, num_deletes int64
-	if !strings.Contains(tableName, ".") {
-		tableName = yb.getTargetSchemaName(tableName) + "." + tableName
-	}
+func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
+	eventCounter := EventCounter{}
+	tableName = yb.qualifyTableName(tableName)
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
 		query := fmt.Sprintf(`SELECT total_events, num_inserts, num_updates, num_deletes FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
 		log.Infof("query to get import stats for table %s: %s", tableName, query)
-		err = conn.QueryRow(context.Background(), query).Scan(&total_events, &num_inserts, &num_updates, &num_deletes)
+		err = conn.QueryRow(context.Background(), query).Scan(&eventCounter.TotalEvents,
+			&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 		return false, err
 	})
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)
-		return -1, -1, -1, -1, fmt.Errorf("error in getting import stats from target db: %w", err)
+		return &EventCounter{-1, -1, -1, -1}, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
-	return total_events, num_inserts, num_updates, num_deletes, nil
+	log.Infof("import stats for table %s: %v", tableName, eventCounter)
+	return &eventCounter, nil
 }
 
 func (yb *TargetYugabyteDB) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
-	var totalRowCount int64
+	var snapshotRowCount int64
 	schema := yb.getTargetSchemaName(tableName)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		query := fmt.Sprintf(`SELECT rows_imported FROM %s where schema_name='%s' AND table_name='%s'`,
+	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
 			BATCH_METADATA_TABLE_NAME, schema, tableName)
 		log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
-		rows, err := conn.Query(context.Background(), query)
+		err := conn.QueryRow(context.Background(), query).Scan(&snapshotRowCount)
 		if err != nil {
-			log.Infof("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
+			log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
 			return false, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
-		}
-		defer rows.Close()
-		for rows.Next() {
-			var rowCount int64
-			err = rows.Scan(&rowCount)
-			if err != nil {
-				log.Infof("error in scanning row_imported for snapshot import of table %s: %v", tableName, err)
-				return false, fmt.Errorf("error in scanning row_imported for snapshot import of table %s: %w", tableName, err)
-			}
-			totalRowCount += rowCount
 		}
 		return false, nil
 	})
 	if err != nil {
-		log.Infof("error in getting total row count for snapshot import of table %s: %v", tableName, err)
+		log.Errorf("error in getting total row count for snapshot import of table %s: %v", tableName, err)
 		return -1, fmt.Errorf("error in getting total row count for snapshot import of table %s: %w", tableName, err)
 	}
-
-	return totalRowCount, nil
+	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
+	return snapshotRowCount, nil
 }

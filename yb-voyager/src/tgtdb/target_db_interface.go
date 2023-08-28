@@ -41,7 +41,7 @@ type TargetDB interface {
 	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (int64, int64, int64, int64, error)
+	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (*EventCounter, error)
 	GetImportedSnapshotRowCountForTable(tableName string) (int64, error)
 }
 
