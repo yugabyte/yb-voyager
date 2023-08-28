@@ -49,7 +49,7 @@ func findDebeziumDistribution(sourceDBType string) error {
 		possiblePaths := []string{
 			fmt.Sprintf("/opt/homebrew/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
 			fmt.Sprintf("/usr/local/Cellar/debezium@%s/%s/debezium-server", DEBEZIUM_VERSION, DEBEZIUM_VERSION),
-			fmt.Sprintf("/opt/yb-voyager/debezium-server")}
+			"/opt/yb-voyager/debezium-server"}
 
 		for _, path := range possiblePaths {
 			if utils.FileOrFolderExists(path) {

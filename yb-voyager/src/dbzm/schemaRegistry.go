@@ -92,7 +92,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string,
 	if tableSchema == nil {
 		// check on disk
 		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
-		if err != nil{
+		if err != nil {
 			return "", fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
 	}
@@ -126,7 +126,9 @@ func (sreg *SchemaRegistry) Init() error {
 func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
 	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exportSourceType, fmt.Sprintf("%s_schema.json", tableName))
 	schemaFile, err := os.Open(schemaFilePath)
-	defer schemaFile.Close()
+	defer func() {
+		_ = schemaFile.Close()
+	}()
 	if err != nil {
 		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
 	}
