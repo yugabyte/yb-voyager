@@ -67,7 +67,7 @@ main() {
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data || { 
-		tail_log_file "yb-voyager.log"
+		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium.log"
 		exit 1
 	}
