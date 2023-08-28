@@ -35,5 +35,5 @@ func init() {
 	registerCommonGlobalFlags(fallForwardSynchronizeCmd)
 	registerCommonExportFlags(fallForwardSynchronizeCmd)
 	registerExportDataFlags(fallForwardSynchronizeCmd)
-	hideFlags(fallForwardSynchronizeCmd)
+	hideFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
 }

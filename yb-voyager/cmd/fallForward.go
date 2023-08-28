@@ -27,7 +27,7 @@ func init() {
 	rootCmd.AddCommand(fallForwardCmd)
 }
 
-func hideFlags(cmd *cobra.Command) {
+func hideFlagsInFallFowardCmds(cmd *cobra.Command) {
 	var flags = []string{"target-db-type", "import-type", "source-db-type", "export-type"}
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
