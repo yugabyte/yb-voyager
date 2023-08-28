@@ -19,8 +19,8 @@ import "github.com/spf13/cobra"
 
 var fallForwardSetupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "fall-forward setup help",
-	Long:  `fall-forward setup`,
+	Short: "This command will set up and import data into fall forward database",
+	Long:  `This command connects to the fall forward database using the parameters provided and starts the importing process.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
