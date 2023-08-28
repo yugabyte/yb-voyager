@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
 	"golang.org/x/exp/slices"
@@ -118,7 +119,7 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	switch sourceDBType {
 	case "oracle":
 		requiredList = oracleSchemaObjectList
-	case "postgresql":
+	case "postgresql", "yugabytedb" :
 		requiredList = postgresSchemaObjectList
 	case "mysql":
 		requiredList = mysqlSchemaObjectList
@@ -424,4 +425,10 @@ func GetEnvAsInt(key string, fallback int) int {
 		return fallback
 	}
 	return int(valueInt)
+}
+
+func GetMapKeysSorted(m map[string]*string) []string {
+	keys := lo.Keys(m)
+	sort.Strings(keys)
+	return keys
 }

@@ -20,7 +20,7 @@ import (
 	"github.com/vbauerster/mpb/v8"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/pbreporter"
+	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 )
 
 type ProgressTracker struct {

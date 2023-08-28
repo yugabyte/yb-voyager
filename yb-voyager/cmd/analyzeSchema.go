@@ -1061,8 +1061,7 @@ var analyzeSchemaCmd = &cobra.Command{
 	Use:   "analyze-schema",
 	Short: "Analyze source database schema and generate report about YB incompatible constructs",
 	Long:  ``,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		cmd.Parent().PersistentPreRun(cmd.Parent(), args)
+	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat()
 		validateExportDirFlag()
 	},

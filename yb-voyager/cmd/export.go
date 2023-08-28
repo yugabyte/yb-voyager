@@ -34,8 +34,9 @@ var source srcdb.Source
 
 // to disable progress bar during data export and import
 var disablePb bool
-var liveMigration bool
+var exportType string
 var useDebezium bool
+var runId string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -128,6 +129,8 @@ func setSourceDefaultPort() {
 		source.Port = ORACLE_DEFAULT_PORT
 	case POSTGRESQL:
 		source.Port = POSTGRES_DEFAULT_PORT
+	case YUGABYTEDB:
+		source.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
 	case MYSQL:
 		source.Port = MYSQL_DEFAULT_PORT
 	}
@@ -287,5 +290,12 @@ func markFlagsRequired(cmd *cobra.Command) {
 		cmd.MarkFlagRequired("source-db-schema")
 	case MYSQL:
 		cmd.MarkFlagRequired("source-db-name")
+	}
+}
+
+func validateExportTypeFlag() {
+	exportType = strings.ToLower(exportType)
+	if !slices.Contains(validExportTypes, exportType) {
+		utils.ErrExit("Error: Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)
 	}
 }

@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
 type TargetDB interface {
@@ -35,11 +35,13 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
-	ExecuteBatch(migrationUUID uuid.UUID, batch EventBatch) error
+	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
-	InitEventChannelsMetaInfo(migrationUUID uuid.UUID, numChans int, startClean bool) error
+	GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error)
+	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
+	RestoreSequences(sequencesLastValue map[string]int64) error
 }
 
 const (

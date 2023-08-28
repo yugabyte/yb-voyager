@@ -23,11 +23,9 @@ import (
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
-var NULL_STRING string = "NULL"
-
 type ValueConverter interface {
 	ConvertRow(tableName string, columnNames []string, row string) (string, error)
-	ConvertEvent(ev *tgtdb.Event, table string) error
+	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
@@ -47,7 +45,7 @@ func (nvc *NoOpValueConverter) ConvertRow(tableName string, columnNames []string
 	return row, nil
 }
 
-func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
+func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
 	return nil
 }
 
@@ -71,6 +69,7 @@ func NewDebeziumValueConverter(targetDBType string, exportDir string, tdb tgtdb.
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
+
 	return &DebeziumValueConverter{
 		schemaRegistry:      schemaRegistry,
 		valueConverterSuite: tdbValueConverterSuite,
@@ -114,22 +113,21 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 	return result, nil
 }
 
-func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string) error {
-	err := conv.convertMap(table, ev.Key)
+func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
+	err := conv.convertMap(table, ev.Key, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
-	err = conv.convertMap(table, ev.Fields)
+	err = conv.convertMap(table, ev.Fields, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
 	return nil
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, formatIfRequired bool) error {
 	for column, value := range m {
 		if value == nil {
-			m[column] = &NULL_STRING
 			continue
 		}
 		columnValue := *value
@@ -139,7 +137,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, true)
+			columnValue, err = converterFn(columnValue, formatIfRequired)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}

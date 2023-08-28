@@ -40,10 +40,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var (
-	QUEUE_SEGMENT_META_TABLE_NAME = "queue_segment_meta"
-)
-
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
 	var requiredMap map[string]string
 
