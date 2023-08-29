@@ -121,12 +121,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 	var columns string
 	if len(args.Columns) > 0 {
-		columnsSlice := make([]string, 0, len(args.Columns))
-		for _, col := range args.Columns {
-			// Add the column name and the NULLIF clause after it
-			columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
-		}
-		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ", "))
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
 
 	configTemplate := `LOAD DATA
@@ -134,7 +129,15 @@ INFILE '%s'
 APPEND
 INTO TABLE %s
 REENABLE DISABLED_CONSTRAINTS
-FIELDS TERMINATED BY '%s'
+FIELDS CSV WITH EMBEDDED 
+TRAILING NULLCOLS
 %s`
-	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, "\\t", columns)
+	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, columns)
+	/*
+	   reference for sqlldr control file
+	   https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-control-file-contents.html#GUID-D1762699-8154-40F6-90DE-EFB8EB6A9AB0
+	   REENABLE DISABLED_CONSTRAINTS - reenables all disabled constraints on the table
+	   FIELDS CSV WITH EMBEDDED - specifies that the data file contains comma-separated values (CSV) with embedded newlines
+	   TRAILING NULLCOLS - allows SQL*Loader to load a table when the record contains trailing null fields
+	*/
 }

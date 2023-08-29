@@ -16,6 +16,8 @@ limitations under the License.
 package dbzm
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"strings"
 
@@ -75,9 +77,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues := strings.Split(row, "\t")
+	columnValues, err := csv.NewReader(strings.NewReader(row)).Read()
+	if err != nil {
+		return "", fmt.Errorf("reading row: %w", err)
+	}
 	for i, columnValue := range columnValues {
-		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
+		if columnValue == "" || converterFns[i] == nil { // TODO: make "" condition Target specific tdb.NullString()
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false)
@@ -86,7 +91,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	return strings.Join(columnValues, "\t"), nil
+	var buffer bytes.Buffer
+	csvWriter := csv.NewWriter(&buffer)
+	csvWriter.Write(columnValues)
+	csvWriter.Flush()
+	transformedRow := buffer.String()
+	return transformedRow, nil
 }
 
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdb.ConverterFn, error) {

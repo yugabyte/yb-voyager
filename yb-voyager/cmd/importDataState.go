@@ -394,7 +394,7 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 		return nil
 	}
 	var err error
-	if bw.flagFirstRecordWritten {
+	if bw.flagFirstRecordWritten && !strings.HasSuffix(record, "\n") { //TODO: check if this is better way to check if \n is already added or not
 		_, err = bw.w.WriteString("\n")
 		if err != nil {
 			return fmt.Errorf("write to %q: %s", bw.outFile.Name(), err)
