@@ -264,16 +264,16 @@ func importData(importFileTasks []*ImportFileTask) {
 		executePostImportDataSqls()
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-			if err != nil {
-				utils.ErrExit("failed to read export status for restore sequences: %s", err)
-			}
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
 
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if err != nil {
+				utils.ErrExit("failed to read export status for restore sequences: %s", err)
+			}
 			// in case of live migration sequences are restored after cutover
 			err = tdb.RestoreSequences(status.Sequences)
 			if err != nil {

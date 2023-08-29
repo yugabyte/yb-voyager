@@ -74,7 +74,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	exitIfDBSwitchedOver(triggerName)
 	checkDataDirs()
-	if useDebezium {
+	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)

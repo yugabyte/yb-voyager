@@ -52,7 +52,7 @@ func init() {
 func InitiatePrimarySwitch(action string) error {
 	triggerName, err := getTriggerName(action)
 	if err != nil {
-		return fmt.Errorf("failed to get trigger name: %w", err)
+		return fmt.Errorf("get trigger name: %w", err)
 	}
 	err = createTriggerIfNotExists(triggerName)
 	if err != nil {
@@ -63,7 +63,7 @@ func InitiatePrimarySwitch(action string) error {
 		utils.PrintAndLog("waiting for %s to complete", action)
 		err = waitForDBSwitchOverToComplete(action)
 		if err != nil {
-			return fmt.Errorf("failed waiting for %s to complete: %w", action, err)
+			return fmt.Errorf("waiting for %s to complete: %w", action, err)
 		}
 		utils.PrintAndLog("%s completed...", action)
 	}
@@ -78,12 +78,12 @@ func createTriggerIfNotExists(triggerName string) error {
 	}
 	file, err := os.Create(triggerFPath)
 	if err != nil {
-		return fmt.Errorf("failed to create trigger file(%s): %w", triggerFPath, err)
+		return fmt.Errorf("create trigger file(%s): %w", triggerFPath, err)
 	}
 
 	err = file.Close()
 	if err != nil {
-		return fmt.Errorf("failed to close trigger file(%s): %w", triggerFPath, err)
+		return fmt.Errorf("close trigger file(%s): %w", triggerFPath, err)
 	}
 	utils.PrintAndLog("%s initiated", triggerName)
 	return nil
@@ -126,7 +126,7 @@ func getTriggerName(args ...string) (string, error) {
 func waitForDBSwitchOverToComplete(action string) error {
 	triggerName, err := getTriggerName(action, "importer", YUGABYTEDB)
 	if err != nil {
-		return fmt.Errorf("failed to get trigger name for checking if switchover is complete: %v", err)
+		return fmt.Errorf("get trigger name for checking if switchover is complete: %v", err)
 	}
 	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
 	for {
