@@ -1261,7 +1261,7 @@ func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, mig
 	var eventCounter EventCounter
 	tableName = yb.qualifyTableName(tableName)
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		query := fmt.Sprintf(`SELECT total_events, num_inserts, num_updates, num_deletes FROM %s 
+		query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
 		log.Infof("query to get import stats for table %s: %s", tableName, query)
 		err = conn.QueryRow(context.Background(), query).Scan(&eventCounter.TotalEvents,
