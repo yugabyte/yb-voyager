@@ -56,6 +56,7 @@ type DebeziumValueConverter struct {
 	schemaRegistry      *SchemaRegistry
 	valueConverterSuite map[string]tgtdb.ConverterFn
 	converterFnCache    map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
+	buf                 bytes.Buffer
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
@@ -92,11 +93,11 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	var buffer bytes.Buffer
-	csvWriter := csv.NewWriter(&buffer)
+	csvWriter := csv.NewWriter(&conv.buf)
 	csvWriter.Write(columnValues)
 	csvWriter.Flush()
-	transformedRow := buffer.String()
+	transformedRow := strings.TrimSuffix(conv.buf.String(), "\n")
+	conv.buf.Reset()
 	return transformedRow, nil
 }
 
