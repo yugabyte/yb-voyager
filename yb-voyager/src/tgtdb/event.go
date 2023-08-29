@@ -44,6 +44,14 @@ func (e *Event) String() string {
 		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
 }
 
+func (e *Event) IsCutover() bool {
+	return e.Op == "cutover"
+}
+
+func (e *Event) IsFallForward() bool {
+	return e.Op == "fallforward"
+}
+
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":

@@ -95,6 +95,7 @@ debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
 debezium.sink.ybexporter.exporter.role=%s
+debezium.sink.ybexporter.triggers.dir=%s
 `
 
 var postgresSrcConfigTemplate = `
@@ -224,6 +225,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	triggerDirPath := filepath.Join(c.ExportDir, "metainfo", "triggers")
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
@@ -251,7 +253,8 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole)
+			c.ExporterRole,
+			triggerDirPath)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -276,7 +279,8 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole)
+			c.ExporterRole,
+			triggerDirPath)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -298,7 +302,8 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole)
+			c.ExporterRole,
+			triggerDirPath)
 		if c.SnapshotMode == "initial" {
 			conf = conf + oracleLiveMigrationSrcConfigTemplate
 		}
@@ -325,7 +330,8 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole)
+			c.ExporterRole,
+			triggerDirPath)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,

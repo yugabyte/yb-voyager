@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -36,6 +37,7 @@ var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+var eventQueue *EventQueue
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 512)
@@ -60,8 +62,10 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
+	go updateExportedEventsStats(statsReporter)
 	go statsReporter.ReportStats()
-	eventQueue := NewEventQueue(exportDir)
+
+	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
 	var processingDoneChans []chan bool
@@ -71,10 +75,10 @@ func streamChanges() error {
 	}
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
-	for { // continuously get next segments to stream
+	for !eventQueue.EndOfQueue { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
-			if segment == nil && errors.Is(err, os.ErrNotExist) {
+			if segment == nil && (errors.Is(err, os.ErrNotExist) || errors.Is(err, sql.ErrNoRows)) {
 				time.Sleep(2 * time.Second)
 				continue
 			}
@@ -87,6 +91,7 @@ func streamChanges() error {
 			return fmt.Errorf("error streaming changes for segment %s: %v", segment.FilePath, err)
 		}
 	}
+	return nil
 }
 
 func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
@@ -117,6 +122,11 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 		if event == nil && segment.IsProcessed() {
 			break
+		} else if event.IsCutover() && importDestinationType == TARGET_DB ||
+			event.IsFallForward() && importDestinationType == FF_DB { // cutover or fall-forward command
+			eventQueue.EndOfQueue = true
+			segment.MarkProcessed()
+			break
 		}
 
 		err = handleEvent(event, evChans)
@@ -146,7 +156,11 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 		tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	log.Debugf("Handling event: %v", event)
+	if event.IsCutover() || event.IsFallForward() {
+		// nil in case of cutover or fall_forward events for unconcerned importer
+		return nil
+	}
+	log.Debugf("handling event: %v", event)
 	tableName := event.TableName
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
 		tableName = event.SchemaName + "." + event.TableName
@@ -217,11 +231,24 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo, tconf.Schema)
 		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
 		if err != nil {
-			utils.ErrExit("error executing batch on channel %v: %w", chanNo, err)
+			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
+}
+
+func updateExportedEventsStats(statsReporter *reporter.StreamImportStatsReporter) {
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
+		if err != nil {
+			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		}
+		statsReporter.UpdateRemainingEvents(totalExportedEvents)
+	}
 }

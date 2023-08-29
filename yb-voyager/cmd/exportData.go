@@ -59,46 +59,38 @@ var exportDataCmd = &cobra.Command{
 		}
 	},
 
-	Run: func(cmd *cobra.Command, args []string) {
-		checkDataDirs()
-		exportData()
-	},
+	Run: exportDataCommandFn,
 }
 
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
-	exportDataCmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - disable progress bar during data export(default false)")
-
-	exportDataCmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while exporting data (ignored if --table-list is used)")
-
-	exportDataCmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"list of the tables to export data")
-
-	exportDataCmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
-		"number of Parallel Jobs to extract data from source database")
-
-	exportDataCmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
+	registerExportDataFlags(exportDataCmd)
 }
 
-func exportData() {
-	if useDebezium {
+func exportDataCommandFn(cmd *cobra.Command, args []string) {
+	triggerName, err := getTriggerName("", "exporter", source.DBType)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
+	checkDataDirs()
+	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
+
 	// TODO: interpret this from fall-forward/export data commands.
 	if source.DBType == YUGABYTEDB {
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 	} else {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
-	success := exportDataOffline()
-	err := retrieveMigrationUUID(exportDir)
+  
+	success := exportData()
+	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -108,7 +100,7 @@ func exportData() {
 		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
 			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 		}
-		printExportedRowCount(tableRowCount, useDebezium)
+		printExportedRowCount(tableRowCount)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -123,7 +115,7 @@ func exportData() {
 	}
 }
 
-func exportDataOffline() bool {
+func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -193,6 +185,18 @@ func exportDataOffline() bool {
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
+		}
+
+		if changeStreamingIsEnabled(exportType) {
+			log.Infof("live migration complete, proceeding to cutover")
+			triggerName, err := getTriggerName("", "exporter", source.DBType)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after data export: %v", err)
+			}
+			err = createTriggerIfNotExists(triggerName)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
 		}
 		return true
 	}
