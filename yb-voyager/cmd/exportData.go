@@ -557,6 +557,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		FileFormat:   datafile.CSV,
 		Delimiter:    ",",
 		HasHeader:    true,
+		NullString:   utils.YB_VOYAGER_NULL_STRING,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,
 	}

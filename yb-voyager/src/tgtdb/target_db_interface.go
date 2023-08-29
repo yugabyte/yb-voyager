@@ -121,7 +121,12 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
 	var columns string
 	if len(args.Columns) > 0 {
-		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+		var columnsList []string
+		for _, column := range args.Columns {
+			//setting the null string for each column
+			columnsList = append(columnsList, fmt.Sprintf("%s NULLIF %s='%s'", column, column, args.NullString))
+		}
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsList, ", "))
 	}
 
 	configTemplate := `LOAD DATA

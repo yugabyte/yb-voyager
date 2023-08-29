@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ValueConverter interface {
@@ -82,7 +83,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		return "", fmt.Errorf("reading row: %w", err)
 	}
 	for i, columnValue := range columnValues {
-		if columnValue == "" || converterFns[i] == nil { // TODO: make "" condition Target specific tdb.NullString()
+		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false)
