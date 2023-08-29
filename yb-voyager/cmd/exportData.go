@@ -96,11 +96,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	if success {
-		tableRowCount := map[string]int64{}
-		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
-		}
-		printExportedRowCount(tableRowCount)
+		tableRowCount := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -186,6 +182,7 @@ func exportData() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
+		displayExportedRowCountSnapshot()
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
@@ -198,6 +195,7 @@ func exportData() bool {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
 		}
+		displayExportedRowCountSnapshotAndChanges()
 		return true
 	}
 
@@ -247,6 +245,7 @@ func exportData() bool {
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	displayExportedRowCountSnapshot()
 	return true
 }
 

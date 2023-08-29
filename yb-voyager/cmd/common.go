@@ -34,8 +34,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -182,76 +184,100 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func printExportedRowCount(exportedRowCount map[string]int64) {
-	var keys []string
-	for key := range exportedRowCount {
-		keys = append(keys, key)
+func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
+	tableRowCount := map[string]int64{}
+	for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
+		tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 	}
+	return tableRowCount
+}
 
-	table := uitable.New()
+func displayExportedRowCountSnapshotAndChanges() {
+	uitable := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium || changeStreamingIsEnabled(exportType) {
-		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			utils.ErrExit("Failed to read export status during data export: %v", err)
+	exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+	}
+	for i, tableStatus := range exportStatus.Tables {
+		if i == 0 {
+			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+
 		}
-		if !changeStreamingIsEnabled(exportType) {
-			for i, tableStatus := range exportStatus.Tables {
-				if i == 0 {
-					if tableStatus.SchemaName != "" {
-						table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
-					} else {
-						table.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
-					}
-				}
-				if tableStatus.SchemaName != "" {
-					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-				} else {
-					table.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-				}
-			}
+		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+		if errors.Is(err, sql.ErrNoRows) {
+			log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
+			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+		} else if err != nil {
+			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 		} else {
-			for i, tableStatus := range exportStatus.Tables {
-				if i == 0 {
-					table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-						headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-						headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
-
-				}
-				totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
-				if errors.Is(err, sql.ErrNoRows) {
-					log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
-					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
-				} else if err != nil {
-					utils.ErrExit("could not fetch table stats from meta DB: %w", err)
-				} else {
-					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
-						inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
-				}
-			}
-		}
-
-	} else {
-		table.AddRow(headerfmt("TABLE"), headerfmt("ROW COUNT"))
-		sort.Strings(keys)
-		for _, key := range keys {
-			table.AddRow(key, exportedRowCount[key])
+			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+				inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
 		}
 	}
 	fmt.Print("\n")
-	fmt.Println(table)
+	fmt.Println(uitable)
 	fmt.Print("\n")
 }
 
-func printImportedRowCount(tasks []*ImportFileTask) {
-	tableList := importFileTasksToTableNames(tasks)
+func displayExportedRowCountSnapshot() {
+	uitable := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
+	if !useDebezium {
+		exportedRowCount := getExportedRowCountSnapshot(exportDir)
+		if source.Schema != "" {
+			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+		} else {
+			uitable.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+		}
+		keys := lo.Keys(exportedRowCount)
+		sort.Strings(keys)
+		for _, key := range keys {
+			if source.Schema != "" {
+				uitable.AddRow(source.Schema, key, exportedRowCount[key])
+			} else {
+				uitable.AddRow(source.DBName, key, exportedRowCount[key])
+			}
+		}
+		fmt.Print("\n")
+		fmt.Println(uitable)
+		fmt.Print("\n")
+		return
+	}
+
+	exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+	if err != nil {
+		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+	}
+	for i, tableStatus := range exportStatus.Tables {
+		if i == 0 {
+			if tableStatus.SchemaName != "" {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+			} else {
+				uitable.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+			}
+		}
+		if tableStatus.SchemaName != "" {
+			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		} else {
+			uitable.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		}
+	}
+	fmt.Print("\n")
+	fmt.Println(uitable)
+	fmt.Print("\n")
+}
+
+func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
+	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
-
 	uitable := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
@@ -264,30 +290,50 @@ func printImportedRowCount(tasks []*ImportFileTask) {
 		snapshotRowCount[tableName] = tableRowCount
 	}
 
-	if changeStreamingIsEnabled(importType) {
-		for i, tableName := range tableList {
-			if i == 0 {
-				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
-			}
-			eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
-			if err != nil {
-				utils.ErrExit("could not fetch table stats from target db: %v", err)
-			}
-			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
-				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
-				snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
+	for i, tableName := range tableList {
+		if i == 0 {
+			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
 		}
-	} else {
-		for i, tableName := range tableList {
-			if i == 0 {
-				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
-			}
-			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
+		if err != nil {
+			utils.ErrExit("could not fetch table stats from target db: %v", err)
 		}
+		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
+			eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
+			snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
 	}
 
+	fmt.Printf("\n")
+	fmt.Println(uitable)
+	fmt.Printf("\n")
+}
+
+func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
+	tableList := importFileTasksToTableNames(tasks)
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("could not retrieve migration UUID: %w", err)
+	}
+	uitable := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	snapshotRowCount := make(map[string]int64)
+	for _, tableName := range tableList {
+		tableRowCount, err := tdb.GetImportedSnapshotRowCountForTable(tableName)
+		if err != nil {
+			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+		}
+		snapshotRowCount[tableName] = tableRowCount
+	}
+
+	for i, tableName := range tableList {
+		if i == 0 {
+			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
+		}
+		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
 	fmt.Printf("\n")
