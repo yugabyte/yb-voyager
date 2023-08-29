@@ -118,6 +118,8 @@ func exportDataOffline() bool {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
 
+	updateExportTypeInMetaDB()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 

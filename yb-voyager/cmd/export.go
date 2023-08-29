@@ -316,3 +316,12 @@ func validateExportTypeFlag() {
 		utils.ErrExit("Error: Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)
 	}
 }
+
+func updateExportTypeInMetaDB() {
+	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		record.ExportType = exportType
+	})
+	if err != nil {
+		utils.ErrExit(err.Error())
+	}
+}

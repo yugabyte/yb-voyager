@@ -304,12 +304,16 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 		return fmt.Errorf("error while marshalling json: %w", err)
 	}
 	if !found {
-		return m.InsertJsonObject(tx, key, obj)
-	}
-	query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
-	_, err = tx.Exec(query, string(newJsonText), key)
-	if err != nil {
-		return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+		err = m.InsertJsonObject(tx, key, obj)
+		if err != nil {
+			return fmt.Errorf("error while inserting json object into meta db: %w", err)
+		}
+	} else {
+		query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
+		_, err = tx.Exec(query, string(newJsonText), key)
+		if err != nil {
+			return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+		}
 	}
 	err = tx.Commit()
 	if err != nil {

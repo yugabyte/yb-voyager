@@ -61,7 +61,6 @@ var importDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateImportFlags(cmd)
-		validateImportType()
 	},
 	Run: importDataCommandFn,
 }
@@ -212,6 +211,14 @@ func importData(importFileTasks []*ImportFileTask) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
+	if importDestinationType == TARGET_DB {
+		record, err := GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("Failed to get migration status record: %s", err)
+		}
+		importType = record.ExportType
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
