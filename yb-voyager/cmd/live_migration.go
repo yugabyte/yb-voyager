@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -75,7 +76,7 @@ func streamChanges() error {
 	for { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
 		if err != nil {
-			if segment == nil && errors.Is(err, os.ErrNotExist) {
+			if segment == nil && (errors.Is(err, os.ErrNotExist) || errors.Is(err, sql.ErrNoRows)) {
 				time.Sleep(2 * time.Second)
 				continue
 			}

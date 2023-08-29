@@ -220,3 +220,14 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 	}
 	return totalCount / int64(n*60), nil
 }
+
+func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
+	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importDestinationType)
+	row := m.db.QueryRow(query)
+	var segmentNum int64
+	err := row.Scan(&segmentNum)
+	if err != nil {
+		return -1, fmt.Errorf("error while running query on meta db - %s : %w", query, err)
+	}
+	return segmentNum, nil
+}
