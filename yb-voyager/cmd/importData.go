@@ -60,6 +60,9 @@ var importDataCmd = &cobra.Command{
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if tconf.TargetDBType == "" {
+			tconf.TargetDBType = YUGABYTEDB
+		}
 		validateImportFlags(cmd)
 	},
 	Run: importDataCommandFn,
