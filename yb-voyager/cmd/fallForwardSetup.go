@@ -15,7 +15,12 @@ limitations under the License.
 */
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+)
 
 var fallForwardSetupCmd = &cobra.Command{
 	Use:   "setup",
@@ -36,4 +41,13 @@ func init() {
 	registerCommonImportFlags(fallForwardSetupCmd)
 	registerImportDataFlags(fallForwardSetupCmd)
 	hideFlagsInFallFowardCmds(fallForwardSetupCmd)
+}
+
+func updateFallForwarDBExistsInMetaDB() {
+	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		record.FallForwarDBExists = true
+	})
+	if err != nil {
+		utils.ErrExit(fmt.Sprintf("error while updating fall forward db exists in meta db: %v", err))
+	}
 }

@@ -221,6 +221,10 @@ func importData(importFileTasks []*ImportFileTask) {
 		importType = record.ExportType
 	}
 
+	if importDestinationType == FF_DB {
+		updateFallForwarDBExistsInMetaDB()
+	}
+
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
