@@ -42,6 +42,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var exporterRole string
+
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is a beta feature to speed up the data export, set the environment variable BETA_FAST_DATA_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details on this feature.",
@@ -79,6 +81,14 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
+
+	// TODO: interpret this from fall-forward/export data commands.
+	if source.DBType == YUGABYTEDB {
+		exporterRole = TARGET_DB_EXPORTER_ROLE
+	} else {
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+	}
+  
 	success := exportData()
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -289,6 +299,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
+		ExporterRole:   exporterRole,
 		ExportDir:      absExportDir,
 		MetadataDBPath: getMetaDBPath(absExportDir),
 		Host:           source.Host,
@@ -597,10 +608,10 @@ func renameDbzmExportedDataFiles() error {
 		}
 
 		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", tableName+"_schema.json")
+		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
+		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
 		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", status.Tables[i].SchemaName+"."+tableName+"_schema.json")
+			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
 		}
 		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
 		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
@@ -659,6 +670,8 @@ func getDefaultSourceSchemaName() string {
 		return "public"
 	case ORACLE:
 		return source.Schema
+	case YUGABYTEDB:
+		return "public"
 	default:
 		panic("invalid db type")
 	}

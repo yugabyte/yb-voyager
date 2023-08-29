@@ -49,7 +49,7 @@ type ImportDataState struct {
 func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{
 		exportDir: exportDir,
-		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state"),
+		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state", importDestinationType),
 	}
 }
 
