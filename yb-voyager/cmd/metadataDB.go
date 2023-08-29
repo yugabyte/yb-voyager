@@ -37,6 +37,8 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 )
 
+const SQLITE_OPTIONS = "?_txlock=immediate&_timeout=30000"
+
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
 }
@@ -71,7 +73,7 @@ func createMetaDBFile(path string) error {
 }
 
 func initMetaDB(path string) error {
-	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s?_txlock=immediate&_timeout=30000", path))
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", path, SQLITE_OPTIONS))
 	if err != nil {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
@@ -114,7 +116,7 @@ func initMetaDB(path string) error {
 }
 
 func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
-	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s?_txlock=immediate&_timeout=30000", getMetaDBPath(exportDir)))
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -142,7 +144,7 @@ type MetaDB struct {
 }
 
 func NewMetaDB(exportDir string) (*MetaDB, error) {
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_txlock=immediate&_timeout=30000", getMetaDBPath(exportDir)))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}

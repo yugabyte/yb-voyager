@@ -317,7 +317,7 @@ func validateExportTypeFlag() {
 	}
 }
 
-func updateExportTypeInMetaDB() {
+func saveExportTypeInMetaDB() {
 	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		record.ExportType = exportType
 	})

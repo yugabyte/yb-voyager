@@ -69,6 +69,11 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+	var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -209,11 +214,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
-	}
-
-	metaDB, err = NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
 
 	if importDestinationType == TARGET_DB {

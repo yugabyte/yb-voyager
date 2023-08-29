@@ -58,6 +58,11 @@ var exportDataCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
 		checkDataDirs()
 		exportData()
 	},
@@ -113,12 +118,7 @@ func exportDataOffline() bool {
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
-	metaDB, err = NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-
-	updateExportTypeInMetaDB()
+	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

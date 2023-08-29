@@ -1,6 +1,8 @@
 package cmd
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type MigrationStatusRecord struct {
 	MigrationUUID      string
@@ -25,4 +27,11 @@ func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 		return nil, nil
 	}
 	return record, nil
+}
+
+func InitMigrationStatusRecord(migUUID string) error {
+	return UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		record.MigrationUUID = migUUID
+		record.ExportType = SNAPSHOT_ONLY
+	})
 }
