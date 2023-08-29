@@ -38,20 +38,31 @@ const (
 type EventQueue struct {
 	QueueDirPath       string
 	SegmentNumToStream int64
+	EndOfQueue         bool
 }
 
 func NewEventQueue(exportDir string) *EventQueue {
 	return &EventQueue{
 		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
-		SegmentNumToStream: 0,
+		SegmentNumToStream: -1,
+		EndOfQueue:         false,
 	}
 }
 
 // GetNextSegment returns the next segment to process
 func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
+	var err error
+	if eq.SegmentNumToStream == -1 {
+		// called for the first time
+		eq.SegmentNumToStream, err = metaDB.GetSegmentNumToResume()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
+		}
+		log.Info("segment num to resume: ", eq.SegmentNumToStream)
+	}
 	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
 	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
-	_, err := os.Stat(segmentFilePath)
+	_, err = os.Stat(segmentFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
 	}
@@ -93,7 +104,7 @@ func (eqs *EventQueueSegment) Open() error {
 	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file, fn))
 
 	// providing buffer to scanner for scanning
-	eqs.buffer = make([]byte, 0, 100*KB)
+	eqs.buffer = make([]byte, 0, 100*KB) // TODO: do not assume max single line size to be 100KB
 	eqs.scanner.Buffer(eqs.buffer, cap(eqs.buffer))
 	return nil
 }
@@ -117,7 +128,7 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 
 	if string(line) == EOFMarker {
 		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
-		eqs.processed = true
+		eqs.MarkProcessed()
 		return nil, nil
 	}
 
@@ -130,4 +141,8 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 
 func (eqs *EventQueueSegment) IsProcessed() bool {
 	return eqs.processed
+}
+
+func (eqs *EventQueueSegment) MarkProcessed() {
+	eqs.processed = true
 }

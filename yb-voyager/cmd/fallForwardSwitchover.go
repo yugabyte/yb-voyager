@@ -13,15 +13,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package dbzm
+package cmd
 
 import (
-	"path/filepath"
+	"fmt"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/spf13/cobra"
 )
 
-func IsDebeziumForDataExport(exportDir string) bool {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	return utils.FileOrFolderExists(exportStatusFilePath)
+var fallForwardSwitchoverCmd = &cobra.Command{
+	Use:   "switchover",
+	Short: "fall-forward switchover help",
+	Long:  `fall-forward switchover help`,
+
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("fall-forward switchover")
+	},
+}
+
+func init() {
+	fallForwardCmd.AddCommand(fallForwardSwitchoverCmd)
 }

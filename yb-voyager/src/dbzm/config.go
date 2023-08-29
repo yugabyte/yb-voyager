@@ -31,6 +31,7 @@ import (
 type Config struct {
 	RunId          string
 	SourceDBType   string
+	ExporterRole   string
 	ExportDir      string
 	MetadataDBPath string
 
@@ -93,6 +94,8 @@ debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
+debezium.sink.ybexporter.exporter.role=%s
+debezium.sink.ybexporter.triggers.dir=%s
 `
 
 var postgresSrcConfigTemplate = `
@@ -121,6 +124,7 @@ var postgresConfigTemplate = baseConfigTemplate +
 	baseSinkConfigTemplate
 
 // ref for perf tuning - https://debezium.io/blog/2023/06/29/debezium-oracle-series-part-3/
+
 var oracleSrcConfigTemplate = `
 debezium.source.database.url=%s
 debezium.source.connector.class=io.debezium.connector.oracle.OracleConnector
@@ -145,6 +149,12 @@ debezium.source.log.mining.sleep.time.max.ms=400
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
 debezium.source.query.fetch.size=10000
+`
+
+// ref for snapshot boundary mode - https://debezium.zulipchat.com/#narrow/stream/348250-community-oracle/topic/Missing.20change.20events.20from.20in-flight.20transactions.3F
+//   - https://aws.amazon.com/blogs/database/how-aws-dms-handles-open-transactions-when-starting-a-full-load-and-cdc-task/
+var oracleLiveMigrationSrcConfigTemplate = `
+debezium.source.internal.log.mining.transaction.snapshot.boundary.mode=all
 `
 
 var oracleSrcPDBConfigTemplate = `
@@ -215,6 +225,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	triggerDirPath := filepath.Join(c.ExportDir, "metainfo", "triggers")
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
@@ -241,7 +252,9 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExporterRole,
+			triggerDirPath)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -265,7 +278,9 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExporterRole,
+			triggerDirPath)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -286,7 +301,13 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExporterRole,
+			triggerDirPath)
+		if c.SnapshotMode == "initial" {
+			conf = conf + oracleLiveMigrationSrcConfigTemplate
+		}
+
 		if c.PDBName != "" {
 			// cdb setup.
 			conf = conf + fmt.Sprintf(oracleSrcPDBConfigTemplate, c.PDBName)
@@ -308,7 +329,9 @@ func (c *Config) String() string {
 			strings.Join(c.ColumnSequenceMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
-			c.RunId)
+			c.RunId,
+			c.ExporterRole,
+			triggerDirPath)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,

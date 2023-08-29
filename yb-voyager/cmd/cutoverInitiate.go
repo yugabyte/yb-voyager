@@ -13,15 +13,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package dbzm
+package cmd
 
 import (
-	"path/filepath"
-
+	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-func IsDebeziumForDataExport(exportDir string) bool {
-	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	return utils.FileOrFolderExists(exportStatusFilePath)
+var cutoverInitiateCmd = &cobra.Command{
+	Use:   "initiate",
+	Short: "Initiate cutover to YugabyteDB",
+	Long:  `Initiate cutover to YugabyteDB`,
+
+	Run: func(cmd *cobra.Command, args []string) {
+		err := InitiatePrimarySwitch("cutover")
+		if err != nil {
+			utils.ErrExit("failed to initiate cutover: %v", err)
+		}
+	},
+}
+
+func init() {
+	cutoverCmd.AddCommand(cutoverInitiateCmd)
+	cutoverInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }

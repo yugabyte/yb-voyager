@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	BATCH_METADATA_TABLE_NAME = tgtdb.BATCH_METADATA_TABLE_NAME
+	BATCH_METADATA_TABLE_NAME            = tgtdb.BATCH_METADATA_TABLE_NAME
+	EVENTS_PER_TABLE_METADATA_TABLE_NAME = tgtdb.EVENTS_PER_TABLE_METADATA_TABLE_NAME
 )
 
 /*
@@ -48,7 +49,7 @@ type ImportDataState struct {
 func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{
 		exportDir: exportDir,
-		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state"),
+		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state", importDestinationType),
 	}
 }
 

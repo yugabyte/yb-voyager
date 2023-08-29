@@ -46,6 +46,9 @@ main() {
 	step "Grant source database user permissions"
 	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
+	step "Check the Voyager version installed"
+	yb-voyager version
+
 	step "Export schema."
 	export_schema
 	find ${EXPORT_DIR}/schema -name '*.sql' -printf "'%p'\n"| xargs grep -wh CREATE
@@ -67,7 +70,7 @@ main() {
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data || { 
-		tail_log_file "yb-voyager.log"
+		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium.log"
 		exit 1
 	}

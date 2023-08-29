@@ -48,13 +48,13 @@ func (mf *MyFormatter) Format(entry *log.Entry) ([]byte, error) {
 	return []byte(msg), nil
 }
 
-func InitLogging(logDir string, disableLogging bool) {
+func InitLogging(logDir string, disableLogging bool, cmdName string) {
 	// Redirect log messages to ${logDir}/yb-voyager.log if not a status command.
 	if disableLogging {
 		log.SetOutput(io.Discard)
 		return
 	}
-	logFileName := filepath.Join(logDir, "logs", "yb-voyager.log")
+	logFileName := filepath.Join(logDir, "logs", fmt.Sprintf("yb-voyager-%s.log", cmdName))
 
 	// logRotator handles scenario where "logs" folder, or yb-voyager.log file does not exist.
 	logRotator := &lumberjack.Logger{

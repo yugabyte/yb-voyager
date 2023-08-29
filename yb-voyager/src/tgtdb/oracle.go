@@ -290,8 +290,8 @@ func (tdb *TargetOracleDB) getEventChannelsRowCount(conn *sql.Conn, migrationUUI
 func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
 	var rowCount int64
 	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'", 
-			EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
 	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
 	if err != nil {
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
@@ -342,7 +342,7 @@ func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, mig
 		tableName = tdb.qualifyTableName(tableName)
 		rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
 		if err != nil {
-			return  fmt.Errorf("failed to get table wise meta info: %w", err)
+			return fmt.Errorf("failed to get table wise meta info: %w", err)
 		}
 		if rowCount > 0 {
 			log.Info("table wise meta info already created. Skipping init.")
@@ -772,4 +772,42 @@ func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.
 
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 	return 2 * 1024 * 1024 * 1024 // 2GB
+}
+
+func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
+	var eventCounter EventCounter
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+		err := conn.QueryRowContext(context.Background(), query).Scan(&eventCounter.TotalEvents,
+			&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
+		return false, err
+	})
+	if err != nil {
+		log.Errorf("error in getting import stats from target db: %v", err)
+		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+	log.Infof("import stats for table %s: %v", tableName, eventCounter)
+	return &eventCounter, nil
+}
+
+func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
+	var snapshotRowCount int64
+	schema := tdb.getTargetSchemaName(tableName)
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
+			BATCH_METADATA_TABLE_NAME, schema, tableName)
+		err := conn.QueryRowContext(context.Background(), query).Scan(&snapshotRowCount)
+		if err != nil {
+			log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
+			return false, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		log.Errorf("error in getting total row count for snapshot import of table %s: %v", tableName, err)
+		return -1, fmt.Errorf("error in getting total row count for snapshot import of table %s: %w", tableName, err)
+	}
+	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
+	return snapshotRowCount, nil
 }
