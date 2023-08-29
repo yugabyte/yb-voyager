@@ -57,14 +57,14 @@ func (ts *TableSchema) getColumnType(columnName string) (string, error) {
 
 type SchemaRegistry struct {
 	exportDir         string
-	exportSourceType  string
+	exporterRole      string
 	tableNameToSchema map[string]*TableSchema
 }
 
-func NewSchemaRegistry(exportDir string, exportSourceType string) *SchemaRegistry {
+func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
-		exportSourceType:  exportSourceType,
+		exporterRole:      exporterRole,
 		tableNameToSchema: make(map[string]*TableSchema),
 	}
 }
@@ -100,7 +100,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string,
 }
 
 func (sreg *SchemaRegistry) Init() error {
-	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exportSourceType)
+	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole)
 	schemaFiles, err := os.ReadDir(schemaDir)
 	if err != nil {
 		return fmt.Errorf("failed to read schema dir %s: %w", schemaDir, err)
@@ -124,7 +124,7 @@ func (sreg *SchemaRegistry) Init() error {
 }
 
 func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
-	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exportSourceType, fmt.Sprintf("%s_schema.json", tableName))
+	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
 	schemaFile, err := os.Open(schemaFilePath)
 	defer func() {
 		_ = schemaFile.Close()

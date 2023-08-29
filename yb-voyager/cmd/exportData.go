@@ -42,7 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var exportSourceType string
+var exporterRole string
 
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
@@ -93,9 +93,9 @@ func exportData() {
 	sqlname.SourceDBType = source.DBType
 	// TODO: interpret this from fall-forward/export data commands.
 	if source.DBType == YUGABYTEDB {
-		exportSourceType = TARGET_DB
+		exporterRole = TARGET_DB_EXPORTER_ROLE
 	} else {
-		exportSourceType = SOURCE_DB
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 	success := exportDataOffline()
 	err := retrieveMigrationUUID(exportDir)
@@ -293,15 +293,15 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	}
 
 	config := &dbzm.Config{
-		RunId:            runId,
-		SourceDBType:     source.DBType,
-		ExportSourceType: exportSourceType,
-		ExportDir:        absExportDir,
-		MetadataDBPath:   getMetaDBPath(absExportDir),
-		Host:             source.Host,
-		Port:             source.Port,
-		Username:         source.User,
-		Password:         source.Password,
+		RunId:          runId,
+		SourceDBType:   source.DBType,
+		ExporterRole:   exporterRole,
+		ExportDir:      absExportDir,
+		MetadataDBPath: getMetaDBPath(absExportDir),
+		Host:           source.Host,
+		Port:           source.Port,
+		Username:       source.User,
+		Password:       source.Password,
 
 		DatabaseName:      source.DBName,
 		SchemaNames:       source.Schema,
@@ -604,10 +604,10 @@ func renameDbzmExportedDataFiles() error {
 		}
 
 		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB, tableName+"_schema.json")
+		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
+		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
 		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
+			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
 		}
 		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
 		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)

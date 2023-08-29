@@ -29,11 +29,11 @@ import (
 )
 
 type Config struct {
-	RunId            string
-	SourceDBType     string
-	ExportSourceType string
-	ExportDir        string
-	MetadataDBPath   string
+	RunId          string
+	SourceDBType   string
+	ExporterRole   string
+	ExportDir      string
+	MetadataDBPath string
 
 	Host     string
 	Port     int
@@ -94,7 +94,7 @@ debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
-debezium.sink.ybexporter.source.type=%s
+debezium.sink.ybexporter.exporter.role=%s
 `
 
 var postgresSrcConfigTemplate = `
@@ -251,7 +251,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExportSourceType)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -276,7 +276,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExportSourceType)
+			c.ExporterRole)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -298,7 +298,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExportSourceType)
+			c.ExporterRole)
 		if c.SnapshotMode == "initial" {
 			conf = conf + oracleLiveMigrationSrcConfigTemplate
 		}
@@ -325,7 +325,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExportSourceType)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,

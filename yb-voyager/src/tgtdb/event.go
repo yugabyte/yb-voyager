@@ -28,13 +28,13 @@ import (
 )
 
 type Event struct {
-	Vsn              int64              `json:"vsn"` // Voyager Sequence Number
-	Op               string             `json:"op"`
-	SchemaName       string             `json:"schema_name"`
-	TableName        string             `json:"table_name"`
-	Key              map[string]*string `json:"key"`
-	Fields           map[string]*string `json:"fields"`
-	ExportSourceType string             `json:"export_source_type"`
+	Vsn          int64              `json:"vsn"` // Voyager Sequence Number
+	Op           string             `json:"op"`
+	SchemaName   string             `json:"schema_name"`
+	TableName    string             `json:"table_name"`
+	Key          map[string]*string `json:"key"`
+	Fields       map[string]*string `json:"fields"`
+	ExporterRole string             `json:"exporter_role"`
 }
 
 var cachePreparedStmt = sync.Map{}

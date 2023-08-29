@@ -60,12 +60,12 @@ type DebeziumValueConverter struct {
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := NewSchemaRegistry(exportDir, "source")
+	schemaRegistrySource := NewSchemaRegistry(exportDir, "source-db-exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target")
+	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target-db-exporter")
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
@@ -115,11 +115,11 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
-	err := conv.convertMap(table, ev.Key, ev.ExportSourceType, formatIfRequired)
+	err := conv.convertMap(table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
-	err = conv.convertMap(table, ev.Fields, ev.ExportSourceType, formatIfRequired)
+	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
@@ -135,7 +135,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
-	if exportSourceType == "source" {
+	if exportSourceType == "source-db-exporter" {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
 		schemaRegistry = conv.schemaRegistryTarget
