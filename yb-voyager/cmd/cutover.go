@@ -19,34 +19,20 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var wait bool
-
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Initiate cutover to YugabyteDB",
-	Long:  `Initiate cutover to YugabyteDB`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch(cmd.Use)
-		if err != nil {
-			utils.ErrExit("failed to initiate cutover: %v", err)
-		}
-	},
+	Short: "cutover has further subcommands 'initiate' and 'status' for cutover to YugabyteDB",
+	Long:  "cutover has further subcommands 'initiate' and 'status' for cutover to YugabyteDB",
 }
 
 func init() {
 	rootCmd.AddCommand(cutoverCmd)
-	cutoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
-	cutoverCmd.Flags().BoolVarP(&wait, "wait", "w", false,
-		"wait for the cutover to complete")
 }
 
 func InitiatePrimarySwitch(action string) error {
@@ -57,15 +43,6 @@ func InitiatePrimarySwitch(action string) error {
 	err = createTriggerIfNotExists(triggerName)
 	if err != nil {
 		return err
-	}
-
-	if wait {
-		utils.PrintAndLog("waiting for %s to complete", action)
-		err = waitForDBSwitchOverToComplete(action)
-		if err != nil {
-			return fmt.Errorf("waiting for %s to complete: %w", action, err)
-		}
-		utils.PrintAndLog("%s completed...", action)
 	}
 	return nil
 }
@@ -121,21 +98,6 @@ func getTriggerName(args ...string) (string, error) {
 		return "", fmt.Errorf("invalid number of arguments passed to getTriggerFileName")
 	}
 	return "", nil
-}
-
-func waitForDBSwitchOverToComplete(action string) error {
-	triggerName, err := getTriggerName(action, "importer", YUGABYTEDB)
-	if err != nil {
-		return fmt.Errorf("get trigger name for checking if switchover is complete: %v", err)
-	}
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
-	for {
-		if utils.FileOrFolderExists(triggerFPath) {
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
-	return nil
 }
 
 func exitIfDBSwitchedOver(triggerName string) {
