@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -218,12 +220,15 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 
 				}
 				totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
-				if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+				} else if err != nil {
 					utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+				} else {
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+						inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
 				}
-				table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
-					inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
-
 			}
 		}
 
@@ -237,7 +242,6 @@ func printExportedRowCount(exportedRowCount map[string]int64) {
 	fmt.Print("\n")
 	fmt.Println(table)
 	fmt.Print("\n")
-
 }
 
 func printImportedRowCount(tasks []*ImportFileTask) {
@@ -260,7 +264,7 @@ func printImportedRowCount(tasks []*ImportFileTask) {
 		snapshotRowCount[tableName] = tableRowCount
 	}
 
-	if changeStreamingIsEnabled(exportType) {
+	if changeStreamingIsEnabled(importType) {
 		for i, tableName := range tableList {
 			if i == 0 {
 				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
