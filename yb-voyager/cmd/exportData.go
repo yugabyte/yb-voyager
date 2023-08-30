@@ -42,6 +42,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var exporterRole string
+
 var exportDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "This command is used to export table's data from source database to *.sql files \nNote: For Oracle and MySQL, there is a beta feature to speed up the data export, set the environment variable BETA_FAST_DATA_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/migrate/migrate-steps/#export-data) for more details on this feature.",
@@ -57,15 +59,7 @@ var exportDataCmd = &cobra.Command{
 		}
 	},
 
-	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-		metaDB, err = NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
-		}
-		checkDataDirs()
-		exportData()
-	},
+	Run: exportDataCommandFn,
 }
 
 func init() {
@@ -75,14 +69,33 @@ func init() {
 	registerExportDataFlags(exportDataCmd)
 }
 
-func exportData() {
-	if useDebezium {
+func exportDataCommandFn(cmd *cobra.Command, args []string) {
+  var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+	triggerName, err := getTriggerName("", "exporter", source.DBType)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
+	checkDataDirs()
+	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-	success := exportDataOffline()
-	err := retrieveMigrationUUID(exportDir)
+
+	// TODO: interpret this from fall-forward/export data commands.
+	if source.DBType == YUGABYTEDB {
+		exporterRole = TARGET_DB_EXPORTER_ROLE
+	} else {
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+	}
+
+	success := exportData()
+	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -92,7 +105,7 @@ func exportData() {
 		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
 			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
 		}
-		printExportedRowCount(tableRowCount, useDebezium)
+		printExportedRowCount(tableRowCount)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -107,7 +120,7 @@ func exportData() {
 	}
 }
 
-func exportDataOffline() bool {
+func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -174,6 +187,18 @@ func exportDataOffline() bool {
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
+		}
+
+		if changeStreamingIsEnabled(exportType) {
+			log.Infof("live migration complete, proceeding to cutover")
+			triggerName, err := getTriggerName("", "exporter", source.DBType)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after data export: %v", err)
+			}
+			err = createTriggerIfNotExists(triggerName)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
 		}
 		return true
 	}
@@ -276,6 +301,7 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
+		ExporterRole:   exporterRole,
 		ExportDir:      absExportDir,
 		MetadataDBPath: getMetaDBPath(absExportDir),
 		Host:           source.Host,
@@ -430,7 +456,7 @@ func reportStreamingProgress() {
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -584,10 +610,10 @@ func renameDbzmExportedDataFiles() error {
 		}
 
 		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", tableName+"_schema.json")
+		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
+		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
 		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", status.Tables[i].SchemaName+"."+tableName+"_schema.json")
+			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
 		}
 		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
 		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
@@ -646,6 +672,8 @@ func getDefaultSourceSchemaName() string {
 		return "public"
 	case ORACLE:
 		return source.Schema
+	case YUGABYTEDB:
+		return "public"
 	default:
 		panic("invalid db type")
 	}

@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -180,7 +182,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 	return tableRowCountMap
 }
 
-func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) {
+func printExportedRowCount(exportedRowCount map[string]int64) {
 	var keys []string
 	for key := range exportedRowCount {
 		keys = append(keys, key)
@@ -189,25 +191,47 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium {
+	if useDebezium || changeStreamingIsEnabled(exportType) {
 		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
 			utils.ErrExit("Failed to read export status during data export: %v", err)
 		}
-		for i, tableStatus := range exportStatus.Tables {
-			if i == 0 {
+		if !changeStreamingIsEnabled(exportType) {
+			for i, tableStatus := range exportStatus.Tables {
+				if i == 0 {
+					if tableStatus.SchemaName != "" {
+						table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					} else {
+						table.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					}
+				}
 				if tableStatus.SchemaName != "" {
-					table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
 				} else {
-					table.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+					table.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
 				}
 			}
-			if tableStatus.SchemaName != "" {
-				table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
-			} else {
-				table.AddRow(tableStatus.DatabaseName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot)
+		} else {
+			for i, tableStatus := range exportStatus.Tables {
+				if i == 0 {
+					table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+						headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+						headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+
+				}
+				totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+				if errors.Is(err, sql.ErrNoRows) {
+					log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+				} else if err != nil {
+					utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+				} else {
+					table.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+						inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
+				}
 			}
 		}
+
 	} else {
 		table.AddRow(headerfmt("TABLE"), headerfmt("ROW COUNT"))
 		sort.Strings(keys)
@@ -215,11 +239,58 @@ func printExportedRowCount(exportedRowCount map[string]int64, useDebezium bool) 
 			table.AddRow(key, exportedRowCount[key])
 		}
 	}
-
 	fmt.Print("\n")
 	fmt.Println(table)
 	fmt.Print("\n")
+}
 
+func printImportedRowCount(tasks []*ImportFileTask) {
+	tableList := importFileTasksToTableNames(tasks)
+
+	err := retrieveMigrationUUID(exportDir)
+	if err != nil {
+		utils.ErrExit("could not retrieve migration UUID: %w", err)
+	}
+
+	uitable := uitable.New()
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+
+	snapshotRowCount := make(map[string]int64)
+	for _, tableName := range tableList {
+		tableRowCount, err := tdb.GetImportedSnapshotRowCountForTable(tableName)
+		if err != nil {
+			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+		}
+		snapshotRowCount[tableName] = tableRowCount
+	}
+
+	if changeStreamingIsEnabled(importType) {
+		for i, tableName := range tableList {
+			if i == 0 {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+			}
+			eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
+			if err != nil {
+				utils.ErrExit("could not fetch table stats from target db: %v", err)
+			}
+			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
+				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
+				snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
+		}
+	} else {
+		for i, tableName := range tableList {
+			if i == 0 {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
+			}
+			uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		}
+	}
+
+	fmt.Printf("\n")
+	fmt.Println(uitable)
+	fmt.Printf("\n")
 }
 
 // setup a project having subdirs for various database objects IF NOT EXISTS
@@ -227,7 +298,8 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags", "metainfo/conf", "metainfo/ssl",
+		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags",
+		"metainfo/conf", "metainfo/ssl", "metainfo/triggers",
 		"temp", "temp/ora2pg_temp_dir",
 	}
 
@@ -310,6 +382,9 @@ func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
 
 // sets the global variable migrationUUID after retrieving it from exportDir
 func retrieveMigrationUUID(exportDir string) error {
+	if migrationUUID != uuid.Nil {
+		return nil
+	}
 	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
 	if err != nil {
 		return fmt.Errorf("failed to read file :%w", err)
