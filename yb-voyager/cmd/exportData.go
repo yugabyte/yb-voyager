@@ -88,7 +88,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
-  
+
 	success := exportData()
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -454,7 +454,7 @@ func reportStreamingProgress() {
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
