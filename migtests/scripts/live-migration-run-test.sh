@@ -111,7 +111,7 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data --import-type "snapshot-and-changes" &
+	import_data &
 
 	# Storing the pid for the import data command
 	imp_pid=$!

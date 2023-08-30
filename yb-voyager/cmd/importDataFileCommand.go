@@ -56,7 +56,18 @@ var importDataFileCmd = &cobra.Command{
 	Use:   "file",
 	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.",
 
+	PreRun: func(cmd *cobra.Command, args []string) {
+		if tconf.TargetDBType == "" {
+			tconf.TargetDBType = YUGABYTEDB
+		}
+	},
+
 	Run: func(cmd *cobra.Command, args []string) {
+		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
 		reportProgressInBytes = true
 		checkImportDataFileFlags(cmd)
 		dataStore = datastore.NewDataStore(dataDir)
@@ -161,6 +172,8 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	checkAndParseEscapeAndQuoteChar()
 	setDefaultForNullString()
 	validateTargetPassword(cmd)
+	validateTargetPortRange()
+	validateTargetSchemaFlag()
 }
 
 func checkFileFormat() {
