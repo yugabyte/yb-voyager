@@ -175,6 +175,23 @@ func validateExportFlags(cmd *cobra.Command) {
 	}
 }
 
+func registerExportDataFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+		"true - disable progress bar during data export(default false)")
+
+	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
+		"list of tables to exclude while exporting data (ignored if --table-list is used)")
+
+	cmd.Flags().StringVar(&source.TableList, "table-list", "",
+		"list of the tables to export data")
+
+	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
+		"number of Parallel Jobs to extract data from source database")
+
+	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
+		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
+}
+
 func validateSourceDBType() {
 	if source.DBType == "" {
 		utils.ErrExit("Error: required flag \"source-db-type\" not set")

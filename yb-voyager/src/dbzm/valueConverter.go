@@ -29,9 +29,9 @@ type ValueConverter interface {
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
-func NewValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (ValueConverter, error) {
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(targetDBType, exportDir, tdb)
+		return NewDebeziumValueConverter(exportDir, tdb, targetConf)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -56,25 +56,32 @@ func (nvc *NoOpValueConverter) GetTableNameToSchema() map[string]map[string]map[
 //============================================================================
 
 type DebeziumValueConverter struct {
-	schemaRegistry      *SchemaRegistry
-	valueConverterSuite map[string]tgtdbsuite.ConverterFn
-	converterFnCache    map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
+	exportDir            string
+	schemaRegistrySource *SchemaRegistry
+	schemaRegistryTarget *SchemaRegistry
+	targetSchema         string
+	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
+	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType        string
 }
 
-func NewDebeziumValueConverter(targetDBType string, exportDir string, tdb tgtdb.TargetDB) (*DebeziumValueConverter, error) {
-	schemaRegistry := NewSchemaRegistry(exportDir)
-	err := schemaRegistry.Init()
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
+	schemaRegistrySource := NewSchemaRegistry(exportDir, "source-db-exporter")
+	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
+	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target-db-exporter")
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
-		schemaRegistry:      schemaRegistry,
-		valueConverterSuite: tdbValueConverterSuite,
-		converterFnCache:    map[string][]tgtdbsuite.ConverterFn{},
-		targetDBType:        targetDBType,
+		exportDir:            exportDir,
+		schemaRegistrySource: schemaRegistrySource,
+		schemaRegistryTarget: schemaRegistryTarget,
+		valueConverterSuite:  tdbValueConverterSuite,
+		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
+		targetDBType:         targetConf.TargetDBType,
+		targetSchema:         targetConf.Schema,
 	}, nil
 }
 
@@ -100,7 +107,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, error) {
 	result := conv.converterFnCache[tableName]
 	if result == nil {
-		colTypes, err := conv.schemaRegistry.GetColumnTypes(conv.targetDBType, tableName, columnNames)
+		colTypes, err := conv.schemaRegistrySource.GetColumnTypes(conv.targetDBType, tableName, columnNames)
 		if err != nil {
 			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
@@ -114,24 +121,37 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
-	err := conv.convertMap(table, ev.Key, formatIfRequired)
+	err := conv.convertMap(table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
-	err = conv.convertMap(table, ev.Fields, formatIfRequired)
+	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
+	// setting tableName and schemaName as per target
+	// TODO: handle properly. (maybe as part of targetDBinterface?)
+	// TODO: handle case sensitivity/quoted table names..
+	if conv.targetDBType == tgtdb.ORACLE {
+		ev.TableName = strings.ToUpper(ev.TableName)
+	}
+	ev.SchemaName = conv.targetSchema
 	return nil
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+	var schemaRegistry *SchemaRegistry
+	if exportSourceType == "source-db-exporter" {
+		schemaRegistry = conv.schemaRegistrySource
+	} else {
+		schemaRegistry = conv.schemaRegistryTarget
+	}
 	for column, value := range m {
 		if value == nil {
 			continue
 		}
 		columnValue := *value
-		colType, err := conv.schemaRegistry.GetColumnType(conv.targetDBType, tableName, column)
+		colType, err := schemaRegistry.GetColumnType(conv.targetDBType, tableName, column)
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
@@ -148,10 +168,11 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 }
 
 func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
+
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
 	var tableToSchema = make(map[string]map[string]map[string]string)
 	// tableToSchema {<table>: {<column>:<parameters>}}
-	for table, col := range conv.schemaRegistry.tableNameToSchema {
+	for table, col := range conv.schemaRegistrySource.tableNameToSchema {
 		tableToSchema[table] = make(map[string]map[string]string)
 		for _, col := range col.Columns {
 			tableToSchema[table][col.Name] = col.Schema.Parameters

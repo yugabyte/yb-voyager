@@ -41,8 +41,8 @@ type TableSchema struct {
 }
 
 func (ts *TableSchema) getColumnType(columnName string, targetDBType string) (string, error) {
-	for _, colSchema := range ts.Columns {
-		if colSchema.Name == columnName {
+	for _, colSchema := range ts.Columns { 
+		if colSchema.Name == columnName { //TODO: store the column names in map for faster lookup
 			if dbColType, ok := colSchema.Schema.Parameters["__debezium.source.column.type"]; ok && targetDBType == "oracle" &&
 				(strings.Contains(dbColType, "DATE") || strings.Contains(dbColType, "INTERVAL")) {
 				//in case oracle import for DATE and INTERVAL types, need to use the original type from source
@@ -61,13 +61,15 @@ func (ts *TableSchema) getColumnType(columnName string, targetDBType string) (st
 //===========================================================
 
 type SchemaRegistry struct {
-	exportDir         string
+	exportDir             string
+	exporterRole      string
 	tableNameToSchema map[string]*TableSchema
 }
 
-func NewSchemaRegistry(exportDir string) *SchemaRegistry {
+func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
-		exportDir:         exportDir,
+		exportDir:             exportDir,
+		exporterRole:      exporterRole,
 		tableNameToSchema: make(map[string]*TableSchema),
 	}
 }
@@ -89,15 +91,21 @@ func (sreg *SchemaRegistry) GetColumnTypes(targetDBType, tableName string, colum
 }
 
 func (sreg *SchemaRegistry) GetColumnType(targetDBType, tableName, columnName string) (string, error) {
-	tableSchema := sreg.tableNameToSchema[tableName]
+	var tableSchema *TableSchema
+	var err error
+	tableSchema = sreg.tableNameToSchema[tableName]
 	if tableSchema == nil {
-		return "", fmt.Errorf("table %s not found in schema registry", tableName)
+		// check on disk
+		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
+		if err != nil {
+			return "", fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
+		}
 	}
 	return tableSchema.getColumnType(columnName, targetDBType)
 }
 
 func (sreg *SchemaRegistry) Init() error {
-	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas")
+	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole)
 	schemaFiles, err := os.ReadDir(schemaDir)
 	if err != nil {
 		return fmt.Errorf("failed to read schema dir %s: %w", schemaDir, err)
@@ -118,4 +126,22 @@ func (sreg *SchemaRegistry) Init() error {
 		schemaFile.Close()
 	}
 	return nil
+}
+
+func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
+	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
+	schemaFile, err := os.Open(schemaFilePath)
+	defer func() {
+		_ = schemaFile.Close()
+	}()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open table schema file %s: %w", schemaFilePath, err)
+	}
+	var tableSchema TableSchema
+	err = json.NewDecoder(schemaFile).Decode(&tableSchema)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
+	}
+	sreg.tableNameToSchema[tableName] = &tableSchema
+	return &tableSchema, nil
 }

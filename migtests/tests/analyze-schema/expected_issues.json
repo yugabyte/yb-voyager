@@ -454,6 +454,29 @@
             "sqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
             "suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "test",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE OR REPLACE VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
+        },
+        {
+            "objectType": "PROCEDURE",
+            "objectName": "foo1",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE OR REPLACE PROCEDURE foo1 (p_id integer) AS $body$\nBEGIN\n    create temporary table temp(id int, agg bigint);\n    insert into temp(id,agg) select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg FROM test1\n    select agg from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "test",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE TRIGGER test\n    INSERT on test for each ROW\n    EXECUTE PROCEDURE JSON_ARRAYAGG(trunc(b, 2) order by t desc);",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
         }
-
 ]

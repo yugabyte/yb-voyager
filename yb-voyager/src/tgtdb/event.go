@@ -28,12 +28,13 @@ import (
 )
 
 type Event struct {
-	Vsn        int64              `json:"vsn"` // Voyager Sequence Number
-	Op         string             `json:"op"`
-	SchemaName string             `json:"schema_name"`
-	TableName  string             `json:"table_name"`
-	Key        map[string]*string `json:"key"`
-	Fields     map[string]*string `json:"fields"`
+	Vsn          int64              `json:"vsn"` // Voyager Sequence Number
+	Op           string             `json:"op"`
+	SchemaName   string             `json:"schema_name"`
+	TableName    string             `json:"table_name"`
+	Key          map[string]*string `json:"key"`
+	Fields       map[string]*string `json:"fields"`
+	ExporterRole string             `json:"exporter_role"`
 }
 
 var cachePreparedStmt = sync.Map{}
@@ -41,6 +42,14 @@ var cachePreparedStmt = sync.Map{}
 func (e *Event) String() string {
 	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
 		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+}
+
+func (e *Event) IsCutover() bool {
+	return e.Op == "cutover"
+}
+
+func (e *Event) IsFallForward() bool {
+	return e.Op == "fallforward"
 }
 
 func (e *Event) GetSQLStmt(targetSchema string) string {
@@ -241,17 +250,17 @@ func (event *Event) getTableName(targetSchema string) string {
 
 // ==============================================================================================================================
 type EventBatch struct {
-	Events     []*Event
-	ChanNo     int
-	EventCounts *EventCounter
+	Events             []*Event
+	ChanNo             int
+	EventCounts        *EventCounter
 	EventCountsByTable map[string]*EventCounter
 }
 
 func NewEventBatch(events []*Event, chanNo int, targetSchema string) *EventBatch {
 	batch := &EventBatch{
-		Events: events, 
-		ChanNo: chanNo, 
-		EventCounts : &EventCounter{}, 
+		Events:             events,
+		ChanNo:             chanNo,
+		EventCounts:        &EventCounter{},
 		EventCountsByTable: make(map[string]*EventCounter),
 	}
 	batch.updateCounts(targetSchema)
@@ -273,11 +282,11 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migration_uuid='%s' AND channel_no=%d
 	`
 	return fmt.Sprintf(queryTemplate,
-		EVENT_CHANNELS_METADATA_TABLE_NAME, 
-		eb.GetLastVsn(), 
-		eb.EventCounts.NumInserts, 
-		eb.EventCounts.NumUpdates, 
-		eb.EventCounts.NumDeletes, 
+		EVENT_CHANNELS_METADATA_TABLE_NAME,
+		eb.GetLastVsn(),
+		eb.EventCounts.NumInserts,
+		eb.EventCounts.NumUpdates,
+		eb.EventCounts.NumDeletes,
 		migrationUUID, eb.ChanNo)
 }
 
@@ -292,11 +301,11 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		migration_uuid='%s' AND table_name='%s' AND channel_no=%d
 	`
 	return fmt.Sprintf(queryTemplate,
-		EVENTS_PER_TABLE_METADATA_TABLE_NAME, 
-		eb.EventCountsByTable[tableName].TotalEvents, 
-		eb.EventCountsByTable[tableName].NumInserts,  
-		eb.EventCountsByTable[tableName].NumUpdates,  
-		eb.EventCountsByTable[tableName].NumDeletes, 
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
+		eb.EventCountsByTable[tableName].TotalEvents,
+		eb.EventCountsByTable[tableName].NumInserts,
+		eb.EventCountsByTable[tableName].NumUpdates,
+		eb.EventCountsByTable[tableName].NumDeletes,
 		migrationUUID, tableName, eb.ChanNo)
 }
 

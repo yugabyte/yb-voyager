@@ -68,6 +68,11 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+	triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -194,7 +199,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		importDestinationType = FF_DB
 	}
 
-	valueConverter, err = dbzm.NewValueConverter(tconf.TargetDBType, exportDir, tdb)
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -271,21 +276,36 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
-		}
 
-		// in case of live migration sequences are restored after cutover
-		// otherwise for snapshot migration, directly restore sequences
-		status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-		if err != nil {
-			utils.ErrExit("failed to read export status for restore sequences: %s", err)
-		}
-		err = tdb.RestoreSequences(status.Sequences)
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if err != nil {
+				utils.ErrExit("failed to read export status for restore sequences: %s", err)
+			}
+			// in case of live migration sequences are restored after cutover
+			err = tdb.RestoreSequences(status.Sequences)
+			if err != nil {
+				utils.ErrExit("failed to restore sequences: %s", err)
+			}
 
-		if err != nil {
-			utils.ErrExit("failed to restore sequences: %s", err)
+			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
+			triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
+			}
+			createTriggerIfNotExists(triggerName)
+		} else {
+			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+			if err != nil {
+				utils.ErrExit("failed to read export status for restore sequences: %s", err)
+			}
+			err = tdb.RestoreSequences(status.Sequences)
+			if err != nil {
+				utils.ErrExit("failed to restore sequences: %s", err)
+			}
 		}
 	}
 
+	printImportedRowCount(pendingTasks)
 	fmt.Printf("\nImport data complete.\n")
 }
 
