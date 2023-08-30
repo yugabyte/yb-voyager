@@ -551,11 +551,13 @@ func createAndSendVisualizerPayload(phase string, status string, payload string)
 	var (
 		dbName string
 		schema string
+		dbType string
 	)
 
 	if phase == "EXPORT SCHEMA" || phase == "EXPORT DATA" {
 		dbName = source.DBName
 		schema = source.Schema
+		dbType = source.DBType
 	}
 
 	if phase == "IMPORT SCHEMA" || phase == "IMPORT DATA" {
@@ -570,6 +572,7 @@ func createAndSendVisualizerPayload(phase string, status string, payload string)
 		dbName,
 		schema,
 		payload,
+		dbType,
 		status,
 		formattedTimestamp)
 

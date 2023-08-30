@@ -25,6 +25,7 @@ type VisualizerDBPayload struct {
 	DatabaseName        string    `json:"database_name"`
 	SchemaName          string    `json:"schema_name"`
 	Payload             string    `json:"payload"`
+	DBType              string    `json:"db_type"`
 	Status              string    `json:"status"`
 	InvocationTimestamp string    `json:"invocation_timestamp"`
 }
@@ -44,6 +45,7 @@ func CreateVisualzerDBPayload(mUUID uuid.UUID,
 	dbName string,
 	schema string,
 	visualizerPayload string,
+	db_type string,
 	status string,
 	timestamp string) VisualizerDBPayload {
 
@@ -54,6 +56,7 @@ func CreateVisualzerDBPayload(mUUID uuid.UUID,
 		DatabaseName:        dbName,
 		SchemaName:          schema,
 		Payload:             visualizerPayload,
+		DBType:              db_type,
 		Status:              status,
 		InvocationTimestamp: timestamp,
 	}

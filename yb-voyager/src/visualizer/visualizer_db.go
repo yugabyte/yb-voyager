@@ -140,6 +140,8 @@ func (db *VisualizerYugabyteDB) createYugabytedMetadataTable() error {
 			database_name VARCHAR(250),
 			schema_name VARCHAR(250),
 			payload TEXT,
+			complexity VARCHAR(30),
+			db_type VARCHAR(30),
 			status VARCHAR(30),
 			invocation_timestamp TIMESTAMPTZ,
 			PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
@@ -219,10 +221,11 @@ func (db *VisualizerYugabyteDB) SendVisualizerDBPayload(
 		"database_name, "+
 		"schema_name, "+
 		"payload, "+
+		"db_type, "+
 		"status, "+
 		"invocation_timestamp"+
 		") VALUES ("+
-		"'%s', %d, %d, '%s', '%s', '%s', '%s', '%s', '%s'"+
+		"'%s', %d, %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s'"+
 		")", YUGABYTED_METADATA_TABLE_NAME,
 		visualizerDBPayload.MigrationUUID,
 		visualizerDBPayload.MigrationPhase,
@@ -231,6 +234,7 @@ func (db *VisualizerYugabyteDB) SendVisualizerDBPayload(
 		visualizerDBPayload.DatabaseName,
 		visualizerDBPayload.SchemaName,
 		visualizerDBPayload.Payload,
+		visualizerDBPayload.DBType,
 		visualizerDBPayload.Status,
 		visualizerDBPayload.InvocationTimestamp)
 
