@@ -45,7 +45,7 @@ func InitiatePrimarySwitch(action string) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("cutover initiated, wait for it to complete")
+	utils.PrintAndLog("cutover initiated, wait for it to complete")
 	return nil
 }
 
