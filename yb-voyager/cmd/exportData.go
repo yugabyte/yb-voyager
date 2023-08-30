@@ -89,6 +89,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -118,8 +119,6 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
