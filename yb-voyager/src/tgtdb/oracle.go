@@ -31,10 +31,9 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
 
 type TargetOracleDB struct {
 	sync.Mutex
@@ -437,7 +436,6 @@ func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) error {
 	return nil
 }
-
 
 func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
 	tdb.Lock()

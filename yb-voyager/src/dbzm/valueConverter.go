@@ -62,7 +62,7 @@ type DebeziumValueConverter struct {
 	targetSchema         string
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
-	targetDBType        string
+	targetDBType         string
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {

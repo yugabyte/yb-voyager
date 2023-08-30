@@ -41,7 +41,7 @@ type TableSchema struct {
 }
 
 func (ts *TableSchema) getColumnType(columnName string, targetDBType string) (string, error) {
-	for _, colSchema := range ts.Columns { 
+	for _, colSchema := range ts.Columns {
 		if colSchema.Name == columnName { //TODO: store the column names in map for faster lookup
 			if dbColType, ok := colSchema.Schema.Parameters["__debezium.source.column.type"]; ok && targetDBType == "oracle" &&
 				(strings.Contains(dbColType, "DATE") || strings.Contains(dbColType, "INTERVAL")) {
@@ -61,14 +61,14 @@ func (ts *TableSchema) getColumnType(columnName string, targetDBType string) (st
 //===========================================================
 
 type SchemaRegistry struct {
-	exportDir             string
+	exportDir         string
 	exporterRole      string
 	tableNameToSchema map[string]*TableSchema
 }
 
 func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
-		exportDir:             exportDir,
+		exportDir:         exportDir,
 		exporterRole:      exporterRole,
 		tableNameToSchema: make(map[string]*TableSchema),
 	}
