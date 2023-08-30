@@ -266,7 +266,11 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-	InitMigrationStatusRecord(migUUID)
+
+	err = InitMigrationStatusRecord(migUUID)
+	if err != nil {
+		utils.ErrExit("could not init migration status record: %w", err)
+	}
 }
 
 func getMigrationUUIDFilePath(exportDir string) string {

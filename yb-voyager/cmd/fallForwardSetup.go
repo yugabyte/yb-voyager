@@ -16,8 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -48,6 +46,6 @@ func updateFallForwarDBExistsInMetaDB() {
 		record.FallForwarDBExists = true
 	})
 	if err != nil {
-		utils.ErrExit(fmt.Sprintf("error while updating fall forward db exists in meta db: %v", err))
+		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
 	}
 }

@@ -322,6 +322,6 @@ func saveExportTypeInMetaDB() {
 		record.ExportType = exportType
 	})
 	if err != nil {
-		utils.ErrExit(fmt.Sprintf("error while updating export type in meta db: %v", err))
+		utils.ErrExit("error while updating export type in meta db: %v", err)
 	}
 }
