@@ -89,12 +89,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
-	success := exportData()
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-
+	success := exportData()
 	if success {
 		tableRowCount := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
@@ -182,7 +181,6 @@ func exportData() bool {
 			log.Errorf("Export Data using debezium failed: %v", err)
 			return false
 		}
-		displayExportedRowCountSnapshot()
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
@@ -518,6 +516,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
+	displayExportedRowCountSnapshot()
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {

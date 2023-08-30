@@ -193,6 +193,7 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 }
 
 func displayExportedRowCountSnapshotAndChanges() {
+	fmt.Printf("snapshot and changes export report\n")
 	uitable := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
@@ -224,6 +225,7 @@ func displayExportedRowCountSnapshotAndChanges() {
 }
 
 func displayExportedRowCountSnapshot() {
+	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
@@ -273,6 +275,7 @@ func displayExportedRowCountSnapshot() {
 }
 
 func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
+	fmt.Printf("snapshot and changes import report\n")
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -311,6 +314,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 }
 
 func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
+	fmt.Printf("snapshot import report\n")
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {

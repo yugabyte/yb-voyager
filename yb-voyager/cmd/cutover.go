@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -44,6 +45,7 @@ func InitiatePrimarySwitch(action string) error {
 	if err != nil {
 		return err
 	}
+	log.Infof("cutover initiated, wait for it to complete")
 	return nil
 }
 
@@ -57,12 +59,11 @@ func createTriggerIfNotExists(triggerName string) error {
 	if err != nil {
 		return fmt.Errorf("create trigger file(%s): %w", triggerFPath, err)
 	}
-
 	err = file.Close()
 	if err != nil {
 		return fmt.Errorf("close trigger file(%s): %w", triggerFPath, err)
 	}
-	utils.PrintAndLog("%s initiated", triggerName)
+	log.Infof("created trigger file(%s)", triggerFPath)
 	return nil
 }
 
