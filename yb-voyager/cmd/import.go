@@ -51,7 +51,6 @@ func init() {
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command) {
 	validateExportDirFlag()
-	validateTargetDBType()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 	if tconf.TableList != "" && tconf.ExcludeTableList != "" {
@@ -75,9 +74,6 @@ func validateImportFlags(cmd *cobra.Command) {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.TargetDBType, "target-db-type", "",
-		"type of the target database (oracle, yugabytedb)")
-
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
@@ -167,10 +163,6 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"true - to truncate splits after importing\n"+
 			"false - to not truncate splits after importing (required for debugging)")
 	cmd.Flags().MarkHidden("truncate-splits")
-
-	cmd.Flags().StringVar(&importType, "import-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("import type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
-
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -279,23 +271,5 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 
 	if numLinesInASplit > defaultBatchSize {
 		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
-	}
-}
-
-func validateTargetDBType() {
-	if tconf.TargetDBType == "" {
-		utils.ErrExit("Error: required flag \"target-db-type\" not set")
-	}
-
-	tconf.TargetDBType = strings.ToLower(tconf.TargetDBType)
-	if !slices.Contains(supportedTargetDBTypes, tconf.TargetDBType) {
-		utils.ErrExit("Error: Invalid target-db-type: %q. Supported target db types are: %s", tconf.TargetDBType, supportedTargetDBTypes)
-	}
-}
-
-func validateImportType() {
-	importType = strings.ToLower(importType)
-	if !slices.Contains(validExportTypes, importType) {
-		utils.ErrExit("Error: Invalid import-type: %q. Supported import types are: %s", importType, validExportTypes)
 	}
 }

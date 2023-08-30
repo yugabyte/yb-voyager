@@ -70,6 +70,11 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
+  var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
 	triggerName, err := getTriggerName("", "exporter", source.DBType)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
@@ -120,10 +125,7 @@ func exportData() bool {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	metaDB, err = NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
+	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

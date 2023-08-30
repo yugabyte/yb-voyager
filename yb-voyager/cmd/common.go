@@ -379,7 +379,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
-	err := generateAndStoreMigrationUUIDIfRequired(exportDir)
+	migUUID, err := generateAndStoreMigrationUUIDIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
 	}
@@ -388,27 +388,33 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-	// log.Debugf("Created a project directory...")
+
+	err = InitMigrationStatusRecord(migUUID)
+	if err != nil {
+		utils.ErrExit("could not init migration status record: %w", err)
+	}
 }
 
 func getMigrationUUIDFilePath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "migration_uuid")
 }
 
-func generateAndStoreMigrationUUIDIfRequired(exportDir string) error {
+func generateAndStoreMigrationUUIDIfRequired(exportDir string) (string, error) {
 	uuidFilePath := getMigrationUUIDFilePath(exportDir)
+	var migUUID uuid.UUID
+	var err error
 	if !utils.FileOrFolderExists(uuidFilePath) {
-		uuid, err := uuid.NewUUID()
+		migUUID, err = uuid.NewUUID()
 		if err != nil {
-			return fmt.Errorf("failed to generate uuid :%w", err)
+			return "", fmt.Errorf("failed to generate uuid :%w", err)
 		}
-		err = storeMigrationUUID(uuidFilePath, uuid)
+		err = storeMigrationUUID(uuidFilePath, migUUID)
 		if err != nil {
-			return fmt.Errorf("failed to store UUID: %w", err)
+			return "", fmt.Errorf("failed to store UUID: %w", err)
 		}
 	}
-
-	return nil
+	// convert uuid.UUID to string
+	return migUUID.String(), nil
 }
 
 func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
