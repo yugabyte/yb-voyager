@@ -322,6 +322,7 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 		return fmt.Errorf("error while commiting transaction on meta db: %w", err)
 	}
 	return nil
+}
 
 func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
 	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importDestinationType)
