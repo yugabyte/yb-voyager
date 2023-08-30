@@ -88,7 +88,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
-  
+
 	success := exportData()
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -445,6 +445,10 @@ func reportStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
+		err = metaDB.DeleteExportedEventCountsOlderThanNMinutes(runId, 10)
+		if err != nil {
+			utils.ErrExit("failed to delete older exported event counts from metadb: %w", err)
+		}
 		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
 		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
@@ -454,7 +458,7 @@ func reportStreamingProgress() {
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
