@@ -30,15 +30,10 @@ func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 }
 
 func InitMigrationStatusRecord(migUUID string) error {
-	record, err := GetMigrationStatusRecord()
-	if err != nil {
-		return err
-	}
-	if record.MigrationUUID != "" {
-		return nil
-	}
-
 	return UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		if record != nil && record.MigrationUUID != "" {
+			return // already initialized
+		}
 		record.MigrationUUID = migUUID
 		record.ExportType = SNAPSHOT_ONLY
 	})
