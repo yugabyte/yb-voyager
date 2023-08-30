@@ -445,10 +445,6 @@ func reportStreamingProgress() {
 		if err != nil {
 			utils.ErrExit("failed to get export rate from metadb: %w", err)
 		}
-		err = metaDB.DeleteExportedEventCountsOlderThanNMinutes(runId, 10)
-		if err != nil {
-			utils.ErrExit("failed to delete older exported event counts from metadb: %w", err)
-		}
 		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
 		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))

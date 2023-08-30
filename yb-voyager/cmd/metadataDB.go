@@ -221,18 +221,6 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 	return totalCount / int64(n*60), nil
 }
 
-func (m *MetaDB) DeleteExportedEventCountsOlderThanNMinutes(runId string, n int) error {
-	now := time.Now()
-	endTimeStamp := now.Add(-time.Minute * time.Duration(n))
-	query := fmt.Sprintf(`DELETE from %s WHERE run_id='%s' AND timestamp < %d`,
-		EXPORTED_EVENTS_STATS_TABLE_NAME, runId, endTimeStamp.Unix())
-	_, err := m.db.Exec(query)
-	if err != nil {
-		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-	}
-	return nil
-}
-
 func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
 	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importDestinationType)
 	row := m.db.QueryRow(query)
