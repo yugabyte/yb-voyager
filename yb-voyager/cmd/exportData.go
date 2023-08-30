@@ -89,18 +89,13 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
-	success := exportData()
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-
+	success := exportData()
 	if success {
-		tableRowCount := map[string]int64{}
-		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
-		}
-		printExportedRowCount(tableRowCount)
+		tableRowCount := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -198,6 +193,7 @@ func exportData() bool {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
 		}
+		displayExportedRowCountSnapshotAndChanges()
 		return true
 	}
 
@@ -247,6 +243,7 @@ func exportData() bool {
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	displayExportedRowCountSnapshot()
 	return true
 }
 
@@ -519,6 +516,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
+	displayExportedRowCountSnapshot()
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
