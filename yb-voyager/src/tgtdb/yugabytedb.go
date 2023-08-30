@@ -81,11 +81,6 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999")
-		// microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).UTC().Format(time.RFC3339Nano)) //TODO: check if proper format for Micro can work
-		// if err != nil {
-		// 	return columnValue, err
-		// }
-		// timestamp := strings.TrimSuffix(microTimeStamp.String(), " +0000 UTC")
 		if formatIfRequired {
 			timestamp = fmt.Sprintf("'%s'", timestamp)
 		}
@@ -99,11 +94,6 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999999")
-		// nanoTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).UTC().Format(time.RFC3339Nano))
-		// if err != nil {
-		// 	return columnValue, err
-		// }
-		// timestamp := strings.TrimSuffix(nanoTimeStamp.String(), " +0000 UTC")
 		if formatIfRequired {
 			timestamp = fmt.Sprintf("'%s'", timestamp)
 		}
