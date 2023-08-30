@@ -11,7 +11,8 @@ def main():
 EXPECTED_ROW_COUNT = {
 	'ext_test': 1,    
 	'tt': 4,
-	'audit': 4
+	'audit': 4,
+	'c':12,
 }
 
 EXPECTED_TRIGGER_LIST = ["audit_trigger",]
@@ -19,7 +20,7 @@ EXPECTED_TRIGGER_LIST = ["audit_trigger",]
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 3 
+	assert len(table_list) == 4 
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")
