@@ -20,10 +20,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallForwardInitiateCmd = &cobra.Command{
-	Use:   "initiate",
-	Short: "Initiate fall-forward to fall-forward DB",
-	Long:  `fall-forward to fall-forward DB`,
+var fallForwardSwitchoverCmd = &cobra.Command{
+	Use:   "switchover",
+	Short: "switchover to fall-forward DB",
+	Long:  `switchover to fall-forward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		err := InitiatePrimarySwitch("fallforward")
@@ -34,7 +34,7 @@ var fallForwardInitiateCmd = &cobra.Command{
 }
 
 func init() {
-	fallForwardCmd.AddCommand(fallForwardInitiateCmd)
-	fallForwardInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+	fallForwardCmd.AddCommand(fallForwardSwitchoverCmd)
+	fallForwardSwitchoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
