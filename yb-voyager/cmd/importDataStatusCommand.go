@@ -63,21 +63,22 @@ var importDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		validateTargetPassword(cmd)
-		validateFallforwardPassword(cmd) //TODO: handle in a better way
 		checkWithStreamingMode()
-		reInitialisingTarget()
+		if withStreamingMode {
+			validateTargetPassword(cmd)
+			validateFallforwardPassword(cmd) //TODO: handle in a better way
+			reInitialisingTarget()
+		}
 		color.Cyan("Import Data Status for TargetDB\n")
 		err := runImportDataStatusCmd(targetDB, targetDBConf, false)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		if ffDB != nil {
-			color.Cyan("Import Data Status for fall-forward DB\n")
-			err := runImportDataStatusCmd(ffDB, ffDBConf, true)
-			if err != nil {
-				utils.ErrExit("error: %s\n", err)
-			}
+		color.Cyan("Import Data Status for fall-forward DB\n")
+		err = runImportDataStatusCmd(ffDB, ffDBConf, true)
+		err = runImportDataStatusCmd(ffDB, ffDBConf, true)
+		if err != nil {
+			utils.ErrExit("error: %s\n", err)
 		}
 	},
 }
@@ -87,10 +88,10 @@ func init() {
 
 	//TODO: handle this in a better way
 	importDataStatusCmd.Flags().StringVar(&ffDBPassword, "ff-db-password", "",
-		"password with which to connect to the target Fall forward server")
+		"password with which to connect to the target fall-forward DB server")
 
 	importDataStatusCmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
-		"password with which to connect to the target Fall forward server")
+		"password with which to connect to the target YugabyteDB server")
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
@@ -238,6 +239,11 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 	tdb = tgtdb
 	tconf = tgtconf
 	var dataFileDescriptor *datafile.Descriptor
+	if isffDB {
+		importDestinationType = FF_DB
+	} else {
+		importDestinationType = TARGET_DB
+	}
 	state := NewImportDataState(exportDir)
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
@@ -283,13 +289,12 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			tableName:  dataFile.TableName,
 			schemaName: getTargetSchemaName(dataFile.TableName),
 		}
-
-		qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)
-		eventCounter, err := tdb.GetImportedEventsStatsForTable(qualifiedTableName, migrationUUID)
-		if err != nil {
-			return nil, fmt.Errorf("get imported events stats for table %q: %w", qualifiedTableName, err)
-		}
 		if withStreamingMode {
+			qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)
+			eventCounter, err := tdb.GetImportedEventsStatsForTable(qualifiedTableName, migrationUUID)
+			if err != nil {
+				return nil, fmt.Errorf("get imported events stats for table %q: %w", qualifiedTableName, err)
+			}
 			row.totalEvents = eventCounter.TotalEvents
 			row.numInserts = eventCounter.NumInserts
 			row.numUpdates = eventCounter.NumUpdates

@@ -81,18 +81,7 @@ func runExportDataStatusCmdDbzm() error {
 	InProgressTableSno := status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
 	for _, tableStatus := range status.Tables {
-		if dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-			row := &exportTableMigStatusOutputRow{
-				tableName:     tableStatus.TableName,
-				status:        "DONE",
-				exportedCount: tableStatus.ExportedRowCountSnapshot,
-			}
-			if tableStatus.Sno == InProgressTableSno {
-				row.status = "EXPORTING"
-			}
-
-			rows = append(rows, row)
-		} else if withStreamingMode {
+		if withStreamingMode {
 			totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
 			row := &exportTableMigStatusOutputRow{
 				schemaName:    tableStatus.SchemaName,
@@ -123,6 +112,17 @@ func runExportDataStatusCmdDbzm() error {
 				rows = append(rows, row)
 			}
 
+		} else {
+			row := &exportTableMigStatusOutputRow{
+				tableName:     tableStatus.TableName,
+				status:        "DONE",
+				exportedCount: tableStatus.ExportedRowCountSnapshot,
+			}
+			if tableStatus.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+				row.status = "EXPORTING"
+			}
+
+			rows = append(rows, row)
 		}
 
 	}
