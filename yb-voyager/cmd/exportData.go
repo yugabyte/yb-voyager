@@ -566,9 +566,10 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.TEXT,
-		Delimiter:    "\t",
+		FileFormat:   datafile.CSV,
+		Delimiter:    ",",
 		HasHeader:    true,
+		NullString:   utils.YB_VOYAGER_NULL_STRING,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,
 	}

@@ -562,7 +562,14 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	password := tdb.tconf.Password
 	connectString := tdb.getConnectionString(tdb.tconf)
 	oracleConnectionString := fmt.Sprintf("%s@\"%s\"", user, connectString)
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+	/*
+	reference for sqlldr cli options https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-commands.html#GUID-24205A60-E16F-4DBA-AD82-376C401013DF
+    DIRECT=TRUE for using faster mode (direct path)
+	NO_INDEX_ERRORS=TRUE for not ignoring index errors
+	SKIP=1 for skipping the first row which is the header
+	ERRORS=0 for exiting on first error and 0 errors allowed
+	*/
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
 	var outbuf string
 	var errbuf string

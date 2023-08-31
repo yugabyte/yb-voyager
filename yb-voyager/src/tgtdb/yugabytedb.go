@@ -184,7 +184,7 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		if formatIfRequired {
 			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
 		} else {
-			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash
+			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
 		}
 		return string(hexValue), nil
 	},

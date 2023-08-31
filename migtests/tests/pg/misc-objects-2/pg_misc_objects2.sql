@@ -115,3 +115,19 @@ SELECT * from audit;
 
 
 
+create table c(id int, c text, nc text);
+
+insert into c values(1,'abc','abc');
+insert into c values(2,'\a','\a'); 
+insert into c values(3,'null','NULL');
+insert into c values(4,'
+','tt');
+insert into c values(5,'	','abc');
+insert into c values(6,'abc	abc','abc'); 
+insert into c values(7,'abc
+abc','abc');
+insert into c values(8,'"abc"','ab"');
+insert into c values(9,'"abc"','"abcn''"');
+insert into c values(10,'abc abc','abc abc'); 
+insert into c values(11,NULL,'abc');
+insert into c values(12,'abc',null);
