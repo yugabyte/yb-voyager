@@ -74,11 +74,12 @@ var importDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		color.Cyan("Import Data Status for fall-forward DB\n")
-		err = runImportDataStatusCmd(ffDB, ffDBConf, true)
-		err = runImportDataStatusCmd(ffDB, ffDBConf, true)
-		if err != nil {
-			utils.ErrExit("error: %s\n", err)
+		if ffDB != nil {
+			color.Cyan("Import Data Status for fall-forward DB\n")
+			err = runImportDataStatusCmd(ffDB, ffDBConf, true)
+			if err != nil {
+				utils.ErrExit("error: %s\n", err)
+			}
 		}
 	},
 }
@@ -206,19 +207,25 @@ func reInitialisingTarget() {
 		utils.ErrExit("parse migration UUID %q: %w", migrationStatus.MigrationUUID, err)
 	}
 	err = json.Unmarshal([]byte(migrationStatus.TargetConf), &targetDBConf)
+	if err != nil {
+		utils.ErrExit("unmarshal target DB conf: %w", err)
+	}
 	targetDBConf.Password = tconf.Password
 	targetDB = tgtdb.NewTargetDB(&targetDBConf)
 	err = targetDB.Init()
 	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB: %s", err)
+		utils.ErrExit("Failed to initialize the target DB: %w", err)
 	}
 	defer targetDB.Finalize()
 	err = targetDB.InitConnPool()
 	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
+		utils.ErrExit("Failed to initialize the target DB connection pool: %w", err)
 	}
 	if migrationStatus.FallForwarDBExists {
 		err = json.Unmarshal([]byte(migrationStatus.FallForwardDBConf), &ffDBConf)
+		if err != nil {
+			utils.ErrExit("unmarshal fall-forward DB conf: %w", err)
+		}
 		ffDBConf.Password = ffDBPassword
 		ffDB = tgtdb.NewTargetDB(&ffDBConf)
 		err = ffDB.Init()
