@@ -38,6 +38,9 @@ var importSchemaCmd = &cobra.Command{
 	Short: "This command imports schema into the target YugabyteDB database",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if tconf.TargetDBType == "" {
+			tconf.TargetDBType = YUGABYTEDB
+		}
 		validateImportFlags(cmd)
 	},
 

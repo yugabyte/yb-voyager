@@ -37,7 +37,7 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 )
 
-const SQLITE_OPTIONS = "?_txlock=immediate&_timeout=30000"
+const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
 
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
