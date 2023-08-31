@@ -9,6 +9,8 @@ type MigrationStatusRecord struct {
 	SourceDBType       string
 	ExportType         string
 	FallForwarDBExists bool
+	TargetConf		   string //json representation
+	FallForwardDBConf  string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

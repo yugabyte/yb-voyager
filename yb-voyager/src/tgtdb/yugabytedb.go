@@ -337,9 +337,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 	if yb.tconf.Parallelism == -1 {
 		yb.tconf.Parallelism = fetchDefaultParllelJobs(tconfs)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
-	} else {
-		utils.PrintAndLog("Using %d parallel jobs", yb.tconf.Parallelism)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
 	params := &ConnectionParams{

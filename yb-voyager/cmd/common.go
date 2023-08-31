@@ -452,3 +452,34 @@ func nameContainsCapitalLetter(name string) bool {
 	}
 	return false
 }
+
+func checkCutoverCompleted() bool {
+	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
+	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
+	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
+
+	a := utils.FileOrFolderExists(cutoverFpath)
+	b := utils.FileOrFolderExists(cutoverSrcFpath)
+	c := utils.FileOrFolderExists(cutoverTgtFpath)
+
+	return a && b && c
+}
+
+var withStreamingMode bool
+
+func checkWithStreamingMode() {
+	var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("error while connecting meta db: %w\n", err)
+	}
+	migrationStatus, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error while fetching migration status record: %w\n", err)
+	}
+	withStreamingMode = dbzm.IsMigrationInStreamingMode(exportDir) && changeStreamingIsEnabled(migrationStatus.ExportType)
+}
+
+func checkfallForwardComplete() bool {
+	return false //TODO: implement it 
+}

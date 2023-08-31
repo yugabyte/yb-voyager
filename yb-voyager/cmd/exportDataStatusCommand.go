@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
@@ -23,6 +25,8 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
+
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -35,6 +39,7 @@ var exportDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
+		checkWithStreamingMode()
 		var err error
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
@@ -56,6 +61,13 @@ type exportTableMigStatusOutputRow struct {
 	tableName     string
 	status        string
 	exportedCount int64
+	//streaming stats
+	schemaName    string
+	totalEvents   int64
+	numInserts    int64
+	numUpdates    int64
+	numDeletes    int64
+	finalRowCount int64
 }
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
@@ -68,17 +80,53 @@ func runExportDataStatusCmdDbzm() error {
 	}
 	InProgressTableSno := status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
-	for _, table := range status.Tables {
-		row := &exportTableMigStatusOutputRow{
-			tableName:     table.TableName,
-			status:        "DONE",
-			exportedCount: table.ExportedRowCountSnapshot,
+	for _, tableStatus := range status.Tables {
+		if dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+			row := &exportTableMigStatusOutputRow{
+				tableName:     tableStatus.TableName,
+				status:        "DONE",
+				exportedCount: tableStatus.ExportedRowCountSnapshot,
+			}
+			if tableStatus.Sno == InProgressTableSno {
+				row.status = "EXPORTING"
+			}
+
+			rows = append(rows, row)
+		} else if withStreamingMode {
+			totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+			row := &exportTableMigStatusOutputRow{
+				schemaName:    tableStatus.SchemaName,
+				tableName:     tableStatus.TableName,
+				exportedCount: tableStatus.ExportedRowCountSnapshot,
+			}
+			if checkCutoverCompleted() {
+				row.status = "DONE"
+			} else {
+				row.status = "STREAMING"
+			}
+			if errors.Is(err, sql.ErrNoRows) {
+				log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
+				row.totalEvents = 0
+				row.numInserts = 0
+				row.numUpdates = 0
+				row.numDeletes = 0
+				row.finalRowCount = tableStatus.ExportedRowCountSnapshot
+				rows = append(rows, row)
+			} else if err != nil {
+				utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+			} else {
+				row.totalEvents = totalChangesEvents
+				row.numInserts = inserts
+				row.numUpdates = updates
+				row.numDeletes = deletes
+				row.finalRowCount = tableStatus.ExportedRowCountSnapshot + inserts - deletes
+				rows = append(rows, row)
+			}
+
 		}
-		if table.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-			row.status = "EXPORTING"
-		}
-		rows = append(rows, row)
+
 	}
+
 	displayExportDataStatus(rows)
 	return nil
 }
@@ -150,7 +198,11 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	table := uitable.New()
 	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium {
+	if withStreamingMode {
+		table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+			headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+			headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+	} else if useDebezium {
 		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("EXPORTED ROWS"))
 	} else {
 		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
@@ -158,7 +210,7 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 
 	// First sort by status and then by table-name.
 	sort.Slice(rows, func(i, j int) bool {
-		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3}
+		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3, "STREAMING": 4}
 		row1 := rows[i]
 		row2 := rows[j]
 		if row1.status == row2.status {
@@ -168,7 +220,11 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		}
 	})
 	for _, row := range rows {
-		if useDebezium {
+		if withStreamingMode {
+			table.AddRow(row.schemaName, row.tableName, row.status, row.exportedCount, row.totalEvents,
+				row.numInserts, row.numUpdates, row.numDeletes,
+				row.finalRowCount)
+		} else if useDebezium {
 			table.AddRow(row.tableName, row.status, row.exportedCount)
 		} else {
 			table.AddRow(row.tableName, row.status)

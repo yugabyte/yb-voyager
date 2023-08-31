@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -179,6 +180,31 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
+func updateTargetConfInMigrationStatus() {
+	targetPass := tconf.Password
+	tconf.Password = "" //not storing password in metaDB
+	tconfString, err := json.Marshal(tconf)
+	if err != nil {
+		utils.ErrExit("Failed to marshal target conf: %s", err)
+	} 
+	if tconf.TargetDBType == YUGABYTEDB {
+		err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
+			record.TargetConf = string(tconfString)
+		})
+		if err != nil {
+			utils.ErrExit("Failed to update target conf in migration status record: %s", err)
+		}
+	} else {
+		err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
+			record.FallForwardDBConf = string(tconfString)
+		})
+		if err != nil {
+			utils.ErrExit("Failed to update target conf in migration status record: %s", err)
+		}
+	}
+	tconf.Password = targetPass
+}
+
 func importData(importFileTasks []*ImportFileTask) {
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -186,7 +212,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	tconf.Schema = strings.ToLower(tconf.Schema)
-
+    updateTargetConfInMigrationStatus()
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -208,6 +234,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
+	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
 
