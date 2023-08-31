@@ -666,12 +666,10 @@ func getDefaultSourceSchemaName() string {
 	switch source.DBType {
 	case MYSQL:
 		return source.DBName
-	case POSTGRESQL:
+	case POSTGRESQL, YUGABYTEDB:
 		return "public"
 	case ORACLE:
 		return source.Schema
-	case YUGABYTEDB:
-		return "public"
 	default:
 		panic("invalid db type")
 	}
