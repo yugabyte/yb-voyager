@@ -46,7 +46,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
 			// TODO: avoid lock only for fall-forward setup
-			if cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "data" && cmd.Parent().Use == "import"){
+			if cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "setup" && cmd.Parent().Use == "fall-forward") {
 				lockExportDir(cmd)
 			}
 			cmdName := cmd.Use
@@ -65,7 +65,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 	},
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "data" && cmd.Parent().Use == "import"){
+		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "setup" && cmd.Parent().Use == "fall-forward") {
 			unlockExportDir()
 		}
 	},
