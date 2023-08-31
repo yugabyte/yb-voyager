@@ -54,7 +54,7 @@ func validateFallforwardPassword(cmd *cobra.Command) {
 		return
 	}
 	fmt.Print("\n")
-	tconf.Password = string(bytePassword)
+	ffDBPassword = string(bytePassword)
 }
 
 var importDataStatusCmd = &cobra.Command{
@@ -306,12 +306,11 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			row.numInserts = eventCounter.NumInserts
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
-			snapshotRow, err := tdb.GetImportedSnapshotRowCountForTable(row.tableName)
-			row.importedCount = snapshotRow
+			row.importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
 			if err != nil {
-				return nil, fmt.Errorf("get imported snapshot row count for table %q: %w", qualifiedTableName, err)
+				return nil, fmt.Errorf("get imported row count for table %q: %w", qualifiedTableName, err)
 			}
-			row.finalRowCount = snapshotRow + row.numInserts - row.numDeletes
+			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
 			if (isffDB && checkfallForwardComplete()) || (!isffDB && checkCutoverCompleted()) { //TODO: handle for fallforward-complete
 				row.status = "DONE"
 			} else {
