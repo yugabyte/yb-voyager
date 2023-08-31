@@ -769,16 +769,18 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 
 func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
 	var eventCounter EventCounter
+	schema := tdb.getTargetSchemaName(tableName)
+	var query string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
-		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+		query = fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, schema+"."+tableName, migrationUUID)
 		err := conn.QueryRowContext(context.Background(), query).Scan(&eventCounter.TotalEvents,
 			&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 		return false, err
 	})
 	if err != nil {
-		log.Errorf("error in getting import stats from target db: %v", err)
-		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
+		log.Errorf("error in getting import stats from target db: using query-%s %v", query, err)
+		return nil, fmt.Errorf("error in getting import stats from target db: using query-%s %w", query, err)
 	}
 	log.Infof("import stats for table %s: %v", tableName, eventCounter)
 	return &eventCounter, nil
