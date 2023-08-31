@@ -16,21 +16,25 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallForwardSwitchoverCmd = &cobra.Command{
-	Use:   "switchover",
-	Short: "fall-forward switchover help",
-	Long:  `fall-forward switchover help`,
+var fallForwardInitiateCmd = &cobra.Command{
+	Use:   "initiate",
+	Short: "Initiate fall-forward to fall-forward DB",
+	Long:  `fall-forward to fall-forward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("fall-forward switchover")
+		err := InitiatePrimarySwitch("fallforward")
+		if err != nil {
+			utils.ErrExit("failed to initiate fallforward: %v", err)
+		}
 	},
 }
 
 func init() {
-	fallForwardCmd.AddCommand(fallForwardSwitchoverCmd)
+	fallForwardCmd.AddCommand(fallForwardInitiateCmd)
+	fallForwardInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
