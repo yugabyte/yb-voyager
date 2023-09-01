@@ -31,13 +31,14 @@ import (
 
 type StreamImportStatsReporter struct {
 	sync.Mutex
-	migrationUUID       uuid.UUID
-	totalEventsImported int64
-	CurrImportedEvents  int64
-	startTime           time.Time
-	eventsSlidingWindow [61]int64 // stores events per 10 secs for last 10 mins
-	remainingEvents     int64
+	migrationUUID          uuid.UUID
+	totalEventsImported    int64
+	CurrImportedEvents     int64
+	startTime              time.Time
+	eventsSlidingWindow    [61]int64 // stores events per 10 secs for last 10 mins
+	remainingEvents        int64
 	estimatedTimeToCatchUp time.Duration
+	uitable                *uilive.Writer
 }
 
 func NewStreamImportStatsReporter() *StreamImportStatsReporter {
@@ -55,23 +56,27 @@ func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.
 	return nil
 }
 
+func (s *StreamImportStatsReporter) Finalize() {
+	s.uitable.Stop()
+}
+
 func (s *StreamImportStatsReporter) ReportStats() {
 	displayTicker := time.NewTicker(10 * time.Second)
 	defer displayTicker.Stop()
-	table := uilive.New()
-	headerRow := table.Newline()
-	seperator1 := table.Newline()
-	seperator2 := table.Newline()
-	seperator3 := table.Newline()
-	row1 := table.Newline()
-	row2 := table.Newline()
-	row3 := table.Newline()
-	row4 := table.Newline()
-	row5 := table.Newline()
-	row6 := table.Newline()
-	timerRow := table.Newline()
+	s.uitable = uilive.New()
+	headerRow := s.uitable.Newline()
+	seperator1 := s.uitable.Newline()
+	seperator2 := s.uitable.Newline()
+	seperator3 := s.uitable.Newline()
+	row1 := s.uitable.Newline()
+	row2 := s.uitable.Newline()
+	row3 := s.uitable.Newline()
+	row4 := s.uitable.Newline()
+	row5 := s.uitable.Newline()
+	row6 := s.uitable.Newline()
+	timerRow := s.uitable.Newline()
 
-	table.Start()
+	s.uitable.Start()
 
 	for range displayTicker.C {
 		elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
@@ -98,7 +103,7 @@ func (s *StreamImportStatsReporter) ReportStats() {
 		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(s.remainingEvents, 10)))
 		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", s.estimatedTimeToCatchUp.String()))
 		fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		table.Flush()
+		s.uitable.Flush()
 	}
 }
 
