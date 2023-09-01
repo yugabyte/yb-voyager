@@ -16,10 +16,12 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -93,6 +95,43 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
+	startFallforwardSynchronizeIfRequired(nil)
+}
+
+func startFallforwardSynchronizeIfRequired(tableList []string) {
+	migrationStatusRecord, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	if !migrationStatusRecord.FallForwarDBExists {
+		return
+	}
+	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %s --source-db-user %s --source-db-password %s --source-db-name %s --source-db-schema %s --send-diagnostics=%s",
+		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, callhome.SendDiagnostics)
+
+	// TODO: --yes, ssl*, disablePb,
+
+	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
+	var outbuf bytes.Buffer
+	var errbuf bytes.Buffer
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+	err = cmd.Start()
+	if err != nil {
+		if outbuf.String() != "" {
+			log.Infof("Output of the command %s: %s", fallForwardSynchronizeCmdStr, outbuf.String())
+		}
+		log.Errorf("Failed to start command: %s, error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
+		utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
+	}
+	err = cmd.Wait()
+	if err != nil {
+		if outbuf.String() != "" {
+			log.Infof("Output of the command %s: %s", fallForwardSynchronizeCmdStr, outbuf.String())
+		}
+		log.Errorf("Failed to wait for command: %s , error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
+		utils.ErrExit("failed to wait for command: %s , error: %w", fallForwardSynchronizeCmdStr, err)
+	}
 }
 
 type ImportFileTask struct {
