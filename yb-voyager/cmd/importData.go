@@ -94,7 +94,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
-	startFallforwardSynchronizeIfRequired(nil)
+	var tablelist []string
+	for _, ift := range importFileTasks {
+		tablelist = append(tablelist, ift.TableName)
+	}
+	startFallforwardSynchronizeIfRequired(tablelist)
 }
 
 func startFallforwardSynchronizeIfRequired(tableList []string) {
@@ -111,8 +115,8 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 	// TODO: ssl* params
 	// TODO: obfuscate password.
-	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --send-diagnostics=%t",
-		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, callhome.SendDiagnostics)
+	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --table-list %s --send-diagnostics=%t",
+		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, strings.Join(tableList, ","), callhome.SendDiagnostics)
 	if utils.DoNotPrompt {
 		fallForwardSynchronizeCmdStr += " --yes"
 	}
