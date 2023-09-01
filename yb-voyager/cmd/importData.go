@@ -832,7 +832,7 @@ func checkExportDataDoneFlag() {
 	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
 	_, err = os.Stat(exportDataDonePath)
 	if err != nil {
-		utils.ErrExit("Snapshot data export need to complete first. Exiting.")
+		utils.ErrExit("Snapshot data export is not completed yet. Exiting.")
 	}
 }
 
