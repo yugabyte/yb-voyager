@@ -114,8 +114,8 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
 	var outbuf bytes.Buffer
 	var errbuf bytes.Buffer
-	cmd.Stdout = &outbuf
-	cmd.Stderr = &errbuf
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 	err = cmd.Start()
 	if err != nil {
 		if outbuf.String() != "" {
