@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -62,8 +63,10 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	go updateExportedEventsStats(statsReporter)
-	go statsReporter.ReportStats()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go updateExportedEventsStats(ctx, statsReporter)
+	go statsReporter.ReportStats(ctx)
 
 	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels
@@ -240,15 +243,21 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func updateExportedEventsStats(statsReporter *reporter.StreamImportStatsReporter) {
+func updateExportedEventsStats(ctx context.Context, statsReporter *reporter.StreamImportStatsReporter) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
-		if err != nil {
-			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
+			if err != nil {
+				utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+			}
+			statsReporter.UpdateRemainingEvents(totalExportedEvents)
 		}
-		statsReporter.UpdateRemainingEvents(totalExportedEvents)
+
 	}
 }
