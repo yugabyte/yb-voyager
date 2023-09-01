@@ -197,12 +197,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	// if tconf.TargetDBType == YUGABYTEDB {
-	// 	importerRole = TARGET_DB
-	// } else {
-	// 	importerRole = FF_DB
-	// }
-
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
