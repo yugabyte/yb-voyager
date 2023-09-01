@@ -50,7 +50,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
-		timestamp := time.Unix(epochSecs, 0).Local()
+		timestamp := time.Unix(epochSecs, 0).UTC()
 		oracleTimestampFormat := "02-01-2006 03.04.05.000 PM" //format: DD-MM-YY HH.MI.SS.FFF PM
 		formattedTimestamp := timestamp.Format(oracleTimestampFormat)
 		if formatIfRequired {
@@ -65,7 +65,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
-		microTimeStamp := time.Unix(epochSeconds, epochNanos).Local()
+		microTimeStamp := time.Unix(epochSeconds, epochNanos).UTC()
 		oracleTimestampFormat := "02-01-2006 03.04.05.000000 PM" //format: DD-MON-YYYY HH.MI.SS.FFFFFF PM
 		formattedTimestamp := microTimeStamp.Format(oracleTimestampFormat)
 		if formatIfRequired {
@@ -80,7 +80,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
-		nanoTimestamp := time.Unix(epochSeconds, epochNanos).Local()
+		nanoTimestamp := time.Unix(epochSeconds, epochNanos).UTC()
 		oracleTimestampFormat := "02-01-2006 03.04.05.000000000 PM" //format: DD-MON-YYYY HH.MI.SS.FFFFFFFFF PM
 		formattedTimestamp := nanoTimestamp.Format(oracleTimestampFormat)
 		if formatIfRequired {

@@ -119,7 +119,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, error) {
 	result := conv.converterFnCache[tableName]
 	if result == nil {
-		colTypes, err := conv.schemaRegistrySource.GetColumnTypes(conv.targetDBType, tableName, columnNames)
+		colTypes, err := conv.schemaRegistrySource.GetColumnTypes(tableName, columnNames, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
@@ -130,6 +130,10 @@ func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnName
 		conv.converterFnCache[tableName] = result
 	}
 	return result, nil
+}
+
+func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
+	return conv.targetDBType == tgtdb.ORACLE
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
@@ -163,7 +167,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 			continue
 		}
 		columnValue := *value
-		colType, err := schemaRegistry.GetColumnType(conv.targetDBType, tableName, column)
+		colType, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
@@ -182,6 +186,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
+	//TODO: fix this cyclic dependency
 	var tableToSchema = make(map[string]map[string]map[string]string)
 	// tableToSchema {<table>: {<column>:<parameters>}}
 	for table, col := range conv.schemaRegistrySource.tableNameToSchema {

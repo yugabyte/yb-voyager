@@ -124,7 +124,7 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map
 		var columnsList []string
 		for _, column := range args.Columns {
 			//setting the null string for each column
-			dataType := tableSchema[column]["__debezium.source.column.type"] 
+			dataType := tableSchema[column]["__debezium.source.column.type"]  //TODO: rename this to some thing like source-db-datatype
 			charLength := tableSchema[column]["__debezium.source.column.length"]
 			if strings.HasPrefix(dataType, "DATE") || strings.HasPrefix(dataType, "TIMESTAMP") || strings.Contains(dataType, "INTERVAL") {
 				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
