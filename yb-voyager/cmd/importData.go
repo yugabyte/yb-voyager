@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -112,24 +111,17 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	// TODO: --yes, ssl*, disablePb,
 	utils.PrintAndLog("Starting ff synchronize with command %s", fallForwardSynchronizeCmdStr)
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
-	var outbuf bytes.Buffer
-	var errbuf bytes.Buffer
+
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
 	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", fallForwardSynchronizeCmdStr, outbuf.String())
-		}
-		log.Errorf("Failed to start command: %s, error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
+		// log.Errorf("Failed to start command: %s, error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
 		utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
 	}
 	err = cmd.Wait()
 	if err != nil {
-		if outbuf.String() != "" {
-			log.Infof("Output of the command %s: %s", fallForwardSynchronizeCmdStr, outbuf.String())
-		}
-		log.Errorf("Failed to wait for command: %s , error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
+		// log.Errorf("Failed to wait for command: %s , error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
 		utils.ErrExit("failed to wait for command: %s , error: %w", fallForwardSynchronizeCmdStr, err)
 	}
 }
