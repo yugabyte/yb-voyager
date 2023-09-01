@@ -128,15 +128,10 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	fallForwardSynchronizeCmdStr := strings.Join(fallForwardSynchronizeCmd, " ")
-	// fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --table-list %s --send-diagnostics=%t",
-	// 	exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, strings.Join(tableList, ","), callhome.SendDiagnostics)
-
 	if utils.DoNotPrompt {
-		// fallForwardSynchronizeCmdStr += " --yes"
 		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--yes")
 	}
 	if disablePb {
-		// fallForwardSynchronizeCmdStr += " --disable-pb"
 		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--disable-pb")
 	}
 
@@ -147,7 +142,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, os.Environ())
 	if execErr != nil {
-		utils.ErrExit("could not exec yb-voyager - %w", err)
+		utils.ErrExit("could not successfully run yb-voyager fall-forward synchronize - %w\n Please re-run with commend-%s", err, fallForwardSynchronizeCmdStr)
 	}
 
 	// cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
