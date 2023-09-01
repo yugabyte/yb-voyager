@@ -79,7 +79,7 @@ func shouldLock(cmd *cobra.Command) bool {
 	}
 	if cmd.Parent().Use == "fall-forward" {
 		if cmd.Use == "setup" || cmd.Use == "switchover" {
-			return true
+			return false
 		}
 	}
 	return false
