@@ -70,7 +70,7 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-  var err error
+	var err error
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
