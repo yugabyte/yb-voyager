@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,38 +23,24 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-var ffDBPassword string 
 
-func validateFallforwardPassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("ff-db-password") {
-		return
-	}
-	if os.Getenv("FF_DB_PASSWORD") != "" {
-		tconf.Password = os.Getenv("FF_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to fall-forward DB:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
-	}
-	fmt.Print("\n")
-	ffDBPassword = string(bytePassword)
-}
+var ffDBPassword string
+var targetDB tgtdb.TargetDB
+var ffDB tgtdb.TargetDB
+var targetDBConf tgtdb.TargetConf
+var ffDBConf tgtdb.TargetConf
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -63,14 +48,27 @@ var importDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		checkWithStreamingMode()
+		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("error while connecting meta db: %w\n", err)
+		}
+		err = checkWithStreamingMode()
+		if err != nil {
+			utils.ErrExit("error while checking streaming mode: %w\n", err)
+		}
 		if withStreamingMode {
 			validateTargetPassword(cmd)
-			validateFallforwardPassword(cmd) //TODO: handle in a better way
-			reInitialisingTarget()
+			if migrationStatus.FallForwarDBExists {
+				validateFallforwardPassword(cmd)
+			}
+			err = reInitialisingTarget()
+			if err != nil {
+				utils.ErrExit("error while re-initialising target: %w\n", err)
+			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
-		err := runImportDataStatusCmd(targetDB, targetDBConf, false)
+		err = runImportDataStatusCmd(targetDB, targetDBConf, false)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
@@ -87,12 +85,19 @@ var importDataStatusCmd = &cobra.Command{
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 
-	//TODO: handle this in a better way
 	importDataStatusCmd.Flags().StringVar(&ffDBPassword, "ff-db-password", "",
 		"password with which to connect to the target fall-forward DB server")
 
 	importDataStatusCmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server")
+}
+
+func validateFallforwardPassword(cmd *cobra.Command) {
+	var err error
+	ffDBPassword, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("error while getting ff-db-password: %w", err)
+	}
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
@@ -111,13 +116,6 @@ type tableMigStatusOutputRow struct {
 	finalRowCount      int64
 }
 
-
-var targetDB tgtdb.TargetDB
-var ffDB tgtdb.TargetDB
-var targetDBConf tgtdb.TargetConf
-var ffDBConf tgtdb.TargetConf
-
-
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
 func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isffDB bool) error {
@@ -135,12 +133,11 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
 	uiTable := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 	for i, row := range table {
 		perc := fmt.Sprintf("%.2f", row.percentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
-				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL SIZE"), headerfmt("IMPORTED SIZE"), headerfmt("PERCENTAGE"))
+				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "PERCENTAGE")
 			}
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.totalCount)
@@ -148,16 +145,16 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
 		} else if withStreamingMode {
 			if i == 0 {
-				uiTable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+				addHeader(uiTable, "SCHEMA", "TABLE", "FILE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS",
+					"TOTAL CHANGES EVENTS", "INSERTS", "UPDATES", "DELETES",
+					"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 			}
-			uiTable.AddRow(row.schemaName, row.tableName, row.status, row.importedCount, row.totalEvents,
-				row.numInserts, row.numUpdates, row.numDeletes,
+			uiTable.AddRow(row.schemaName, row.tableName, row.fileName, row.status, row.totalCount, row.importedCount,
+				row.totalEvents, row.numInserts, row.numUpdates, row.numDeletes,
 				row.finalRowCount)
 		} else {
 			if i == 0 {
-				uiTable.AddRow(headerfmt("TABLE"), headerfmt("FILE"), headerfmt("STATUS"), headerfmt("TOTAL ROWS"), headerfmt("IMPORTED ROWS"), headerfmt("PERCENTAGE"))
+				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
 			uiTable.AddRow(row.tableName, row.fileName, row.status, row.totalCount, row.importedCount, perc)
@@ -171,6 +168,14 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 	}
 
 	return nil
+}
+
+func addHeader(table *uitable.Table, cols ...string) {
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+	columns := lo.Map(cols, func(col string, _ int) interface{} {
+		return headerfmt(col)
+	})
+	table.AddRow(columns...)
 }
 
 func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
@@ -197,47 +202,39 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func reInitialisingTarget() {
-	migrationStatus, err := GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("get migration status record: %w", err)
-	}
+func reInitialisingTarget() error {
+	var err error
 	migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
 	if err != nil {
-		utils.ErrExit("parse migration UUID %q: %w", migrationStatus.MigrationUUID, err)
+		return fmt.Errorf("parse migration UUID %q: %w", migrationStatus.MigrationUUID, err)
 	}
-	err = json.Unmarshal([]byte(migrationStatus.TargetConf), &targetDBConf)
-	if err != nil {
-		utils.ErrExit("unmarshal target DB conf: %w", err)
-	}
+	targetDBConf = migrationStatus.TargetConf
 	targetDBConf.Password = tconf.Password
 	targetDB = tgtdb.NewTargetDB(&targetDBConf)
 	err = targetDB.Init()
 	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB: %w", err)
+		return fmt.Errorf("Failed to initialize the target DB: %w", err)
 	}
 	defer targetDB.Finalize()
 	err = targetDB.InitConnPool()
 	if err != nil {
-		utils.ErrExit("Failed to initialize the target DB connection pool: %w", err)
+		return fmt.Errorf("Failed to initialize the target DB connection pool: %w", err)
 	}
 	if migrationStatus.FallForwarDBExists {
-		err = json.Unmarshal([]byte(migrationStatus.FallForwardDBConf), &ffDBConf)
-		if err != nil {
-			utils.ErrExit("unmarshal fall-forward DB conf: %w", err)
-		}
+		ffDBConf = migrationStatus.FallForwardDBConf
 		ffDBConf.Password = ffDBPassword
 		ffDB = tgtdb.NewTargetDB(&ffDBConf)
 		err = ffDB.Init()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the fall-forward DB: %s", err)
+			return fmt.Errorf("Failed to initialize the fall-forward DB: %s", err)
 		}
 		defer ffDB.Finalize()
 		err = ffDB.InitConnPool()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the fall-forward DB connection pool: %s", err)
+			return fmt.Errorf("Failed to initialize the fall-forward DB connection pool: %s", err)
 		}
 	}
+	return nil
 }
 
 func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isffDB bool) ([]*tableMigStatusOutputRow, error) {
@@ -293,8 +290,13 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			status = "MIGRATING"
 		}
 		row := &tableMigStatusOutputRow{
-			tableName:  dataFile.TableName,
-			schemaName: getTargetSchemaName(dataFile.TableName),
+			tableName:          dataFile.TableName,
+			schemaName:         getTargetSchemaName(dataFile.TableName),
+			fileName:           path.Base(dataFile.FilePath),
+			status:             status,
+			totalCount:         totalCount,
+			importedCount:      importedCount,
+			percentageComplete: perc,
 		}
 		if withStreamingMode {
 			qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)
@@ -306,24 +308,15 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			row.numInserts = eventCounter.NumInserts
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
-			row.importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
-			if err != nil {
-				return nil, fmt.Errorf("get imported row count for table %q: %w", qualifiedTableName, err)
-			}
 			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			if (isffDB && checkfallForwardComplete()) || (!isffDB && checkCutoverCompleted()) { //TODO: handle for fallforward-complete
+			isffComplete := isffDB && (checkfallForwardStatus() == COMPLETED)
+			isCutoverComplete := !isffDB && (checkCutoverStatus() == COMPLETED)
+			if isffComplete || isCutoverComplete {
 				row.status = "DONE"
 			} else {
 				row.status = "STREAMING"
 			}
-		} else {
-			row.fileName = path.Base(dataFile.FilePath)
-			row.status = status
-			row.totalCount = totalCount
-			row.importedCount = importedCount
-			row.percentageComplete = perc // TODO: for streaming mode, this should be the percentage of events processed.
 		}
-
 		table = append(table, row)
 	}
 	// First sort by status and then by table-name.

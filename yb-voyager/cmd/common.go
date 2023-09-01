@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -36,6 +37,8 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -453,7 +456,7 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func checkCutoverCompleted() bool {
+func checkCutoverStatus() string {
 	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
 	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
 	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
@@ -462,24 +465,59 @@ func checkCutoverCompleted() bool {
 	b := utils.FileOrFolderExists(cutoverSrcFpath)
 	c := utils.FileOrFolderExists(cutoverTgtFpath)
 
-	return a && b && c
+	if !a {
+		return NOT_INITIATED
+	} else if a && b && c {
+		return COMPLETED
+	}
+	return INITIATED
+
 }
 
 var withStreamingMode bool
+var migrationStatus *MigrationStatusRecord
 
-func checkWithStreamingMode() {
+func checkWithStreamingMode() error {
 	var err error
-	metaDB, err = NewMetaDB(exportDir)
+	migrationStatus, err = GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error while connecting meta db: %w\n", err)
+		return fmt.Errorf("error while fetching migration status record: %w\n", err)
 	}
-	migrationStatus, err := GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("error while fetching migration status record: %w\n", err)
-	}
-	withStreamingMode = dbzm.IsMigrationInStreamingMode(exportDir) && changeStreamingIsEnabled(migrationStatus.ExportType)
+	withStreamingMode = changeStreamingIsEnabled(migrationStatus.ExportType) && dbzm.IsMigrationInStreamingMode(exportDir)
+	return nil
 }
 
-func checkfallForwardComplete() bool {
-	return false //TODO: implement it 
+func checkfallForwardStatus() string {
+	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
+	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
+	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
+
+	a := utils.FileOrFolderExists(fallforwardFPath)
+	b := utils.FileOrFolderExists(fallforwardTargetFPath)
+	c := utils.FileOrFolderExists(fallforwardFFFPath)
+
+	fmt.Printf("fall-forward status: ")
+	if !a {
+		return NOT_INITIATED
+	} else if a && b && c {
+		return COMPLETED
+	}
+	return INITIATED
+}
+
+func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, error) {
+	if cmd.Flags().Changed(cliArgName) {
+		return cmd.Flag(cliArgName).Value.String(), nil
+	}
+	if os.Getenv(envVarName) != "" {
+		return os.Getenv(envVarName), nil
+	}
+	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable %s): ", strings.TrimSuffix(cliArgName, "-password"), envVarName)
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("read password: %v", err)
+		return "", err
+	}
+	fmt.Print("\n")
+	return string(bytePassword), nil
 }

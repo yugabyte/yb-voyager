@@ -345,7 +345,7 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
-		return -1, -1, -1, -1, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		return 0, 0, 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return totalCount, inserts, updates, deletes, nil
 }

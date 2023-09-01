@@ -17,17 +17,15 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-const (
-	NOT_INITIATED = "NOT_INITIATED"
-	INITIATED     = "INITIATED"
-	COMPLETED     = "COMPLETED"
+var (
+	NOT_INITIATED = color.YellowString("NOT_INITIATED")
+	INITIATED     = color.RedString("INITIATED")
+	COMPLETED     = color.GreenString("COMPLETED")
 )
 
 var cutoverStatusCmd = &cobra.Command{
@@ -47,20 +45,6 @@ func init() {
 }
 
 func checkAndReportCutoverStatus() {
-	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
-	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
-	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
-
-	a := utils.FileOrFolderExists(cutoverFpath)
-	b := utils.FileOrFolderExists(cutoverSrcFpath)
-	c := utils.FileOrFolderExists(cutoverTgtFpath)
-
-	fmt.Printf("cutover status: ")
-	if !a {
-		color.Red("%s\n", NOT_INITIATED)
-	} else if a && b && c {
-		color.Green("%s\n", COMPLETED)
-	} else {
-		color.Yellow("%s\n", INITIATED)
-	}
+	status := checkCutoverStatus()
+	fmt.Printf("cutover status: %s\n", status)
 }

@@ -23,38 +23,38 @@ import (
 )
 
 type TargetConf struct {
-	TargetDBType         string
-	Host                 string
-	Port                 int
-	User                 string
-	Password             string
-	DBName               string
-	Schema               string
-	SSLMode              string
-	SSLCertPath          string
-	SSLKey               string
-	SSLRootCert          string
-	SSLCRL               string
-	SSLQueryString       string
-	DBSid                string
-	TNSAlias             string
-	OracleHome           string
-	Uri                  string
-	ContinueOnError      bool
-	IgnoreIfExists       bool
-	VerboseMode          bool
-	TableList            string
-	ExcludeTableList     string
-	ImportMode           bool
-	ImportObjects        string
-	ExcludeImportObjects string
-	dbVersion            string
+	TargetDBType         string `json:"target_db_type"`
+	Host                 string `json:"host"`
+	Port                 int    `json:"port"`
+	User                 string `json:"user"`
+	Password             string `json:"password"`
+	DBName               string `json:"db_name"`
+	Schema               string `json:"schema"`
+	SSLMode              string `json:"ssl_mode"`
+	SSLCertPath          string `json:"ssl_cert_path"`
+	SSLKey               string `json:"ssl_key"`
+	SSLRootCert          string `json:"ssl_root_cert"`
+	SSLCRL               string `json:"ssl_crl"`
+	SSLQueryString       string `json:"ssl_query_string"`
+	DBSid                string `json:"db_sid"`
+	TNSAlias             string `json:"tns_alias"`
+	OracleHome           string `json:"oracle_home"`
+	Uri                  string `json:"uri"`
+	ContinueOnError      bool   `json:"continue_on_error"`
+	IgnoreIfExists       bool   `json:"ignore_if_exists"`
+	VerboseMode          bool   `json:"verbose_mode"`
+	TableList            string `json:"table_list"`
+	ExcludeTableList     string `json:"exclude_table_list"`
+	ImportMode           bool   `json:"import_mode"`
+	ImportObjects        string `json:"import_objects"`
+	ExcludeImportObjects string `json:"exclude_import_objects"`
+	dbVersion            string `json:"db_version"`
 
-	TargetEndpoints            string
-	UsePublicIP                bool
-	EnableUpsert               bool
-	DisableTransactionalWrites bool
-	Parallelism                int
+	TargetEndpoints            string `json:"target_endpoints"`
+	UsePublicIP                bool   `json:"use_public_ip"`
+	EnableUpsert               bool   `json:"enable_upsert"`
+	DisableTransactionalWrites bool   `json:"disable_transactional_writes"`
+	Parallelism                int    `json:"parallelism"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

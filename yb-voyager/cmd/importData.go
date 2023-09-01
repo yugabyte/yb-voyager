@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -181,28 +180,21 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func updateTargetConfInMigrationStatus() {
-	targetPass := tconf.Password
-	tconf.Password = "" //not storing password in metaDB
-	tconfString, err := json.Marshal(tconf)
+	err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
+		switch tconf.TargetDBType {
+		case YUGABYTEDB:
+			record.TargetConf = tconf 
+			record.TargetConf.Password = ""
+		case ORACLE:
+			record.FallForwardDBConf = tconf
+			record.FallForwardDBConf.Password = ""
+		default:
+			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))
+		}
+	})
 	if err != nil {
-		utils.ErrExit("Failed to marshal target conf: %s", err)
-	} 
-	if tconf.TargetDBType == YUGABYTEDB {
-		err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
-			record.TargetConf = string(tconfString)
-		})
-		if err != nil {
-			utils.ErrExit("Failed to update target conf in migration status record: %s", err)
-		}
-	} else {
-		err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
-			record.FallForwardDBConf = string(tconfString)
-		})
-		if err != nil {
-			utils.ErrExit("Failed to update target conf in migration status record: %s", err)
-		}
+		utils.ErrExit("Failed to update target conf in migration status record: %s", err)
 	}
-	tconf.Password = targetPass
 }
 
 func importData(importFileTasks []*ImportFileTask) {
