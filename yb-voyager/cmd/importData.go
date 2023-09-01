@@ -23,6 +23,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -115,28 +116,52 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 	// TODO: ssl* params
 	// TODO: obfuscate password.
-	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --table-list %s --send-diagnostics=%t",
-		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, strings.Join(tableList, ","), callhome.SendDiagnostics)
+	fallForwardSynchronizeCmd := []string{"yb-voyager", "fall-forward", "synchronize",
+		"--export-dir", exportDir,
+		"--source-db-host", tconf.Host,
+		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--source-db-host", tconf.Host,
+		"--source-db-host", tconf.Host,
+		"--source-db-host", tconf.Host,
+		"--source-db-host", tconf.Host,
+		"--table-list", strings.Join(tableList, ","),
+		fmt.Sprintf("--send-diagnostics=%s", callhome.SendDiagnostics),
+	}
+	fallForwardSynchronizeCmdStr := strings.Join(fallForwardSynchronizeCmd, " ")
+	// fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --table-list %s --send-diagnostics=%t",
+	// 	exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, strings.Join(tableList, ","), callhome.SendDiagnostics)
+
 	if utils.DoNotPrompt {
-		fallForwardSynchronizeCmdStr += " --yes"
+		// fallForwardSynchronizeCmdStr += " --yes"
+		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--yes")
 	}
 	if disablePb {
-		fallForwardSynchronizeCmdStr += " --disable-pb"
+		// fallForwardSynchronizeCmdStr += " --disable-pb"
+		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--disable-pb")
 	}
 
 	utils.PrintAndLog("Starting ff synchronize with command %s", fallForwardSynchronizeCmdStr)
-	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
+	binary, lookErr := exec.LookPath("yb-voyager")
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager - %w", err)
+	}
+	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, os.Environ())
+	if execErr != nil {
+		utils.ErrExit("could not exec yb-voyager - %w", err)
+	}
 
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err = cmd.Start()
-	if err != nil {
-		utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
-	}
-	err = cmd.Wait()
-	if err != nil {
-		utils.ErrExit("fall-forward synchronize failed with error: %w. \nPlease re-run the command:\n%s", err, fallForwardSynchronizeCmdStr)
-	}
+	// cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
+
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+	// err = cmd.Start()
+	// if err != nil {
+	// 	utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
+	// }
+	// err = cmd.Wait()
+	// if err != nil {
+	// 	utils.ErrExit("fall-forward synchronize failed with error: %w. \nPlease re-run the command:\n%s", err, fallForwardSynchronizeCmdStr)
+	// }
 }
 
 type ImportFileTask struct {
