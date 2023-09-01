@@ -37,11 +37,11 @@ func init() {
 }
 
 func InitiatePrimarySwitch(action string) error {
-	triggerName, err := getTriggerName(action)
-	if err != nil {
-		return fmt.Errorf("get trigger name: %w", err)
-	}
-	err = createTriggerIfNotExists(triggerName)
+	triggerName := action
+	// if err != nil {
+	// 	return fmt.Errorf("get trigger name: %w", err)
+	// }
+	err := createTriggerIfNotExists(triggerName)
 	if err != nil {
 		return err
 	}
@@ -73,32 +73,48 @@ args[0] is the action
 args[1] will be exporter or importer
 args[2] will be db type
 */
-func getTriggerName(args ...string) (string, error) {
-	switch len(args) {
-	case 0:
-		return "", fmt.Errorf("no arguments passed to getTriggerName")
-	case 1: // for cutover or fall-forward commands
-		return args[0], nil
-	case 3: // for exporter or importer commands
-		if args[1] == "exporter" {
-			if args[2] != YUGABYTEDB {
-				return "cutover.source", nil
-			} else {
-				return "fallforward.target", nil
-			}
-		} else if args[1] == "importer" {
-			if args[2] != YUGABYTEDB {
-				return "fallforward.ff", nil
-			} else if args[2] == YUGABYTEDB {
-				return "cutover.target", nil
-			}
-		} else {
-			return "", fmt.Errorf("invalid arg=%s passed to getTriggerName", args[1])
-		}
+// TODO: rely on exporterRole and importerRole
+// func getTriggerName(args ...string) (string, error) {
+// 	switch len(args) {
+// 	case 0:
+// 		return "", fmt.Errorf("no arguments passed to getTriggerName")
+// 	case 1: // for cutover or fall-forward commands
+// 		return args[0], nil
+// 	case 3: // for exporter or importer commands
+// 		if args[1] == "exporter" {
+// 			if args[2] != YUGABYTEDB {
+// 				return "cutover.source", nil
+// 			} else {
+// 				return "fallforward.target", nil
+// 			}
+// 		} else if args[1] == "importer" {
+// 			if args[2] != YUGABYTEDB {
+// 				return "fallforward.ff", nil
+// 			} else if args[2] == YUGABYTEDB {
+// 				return "cutover.target", nil
+// 			}
+// 		} else {
+// 			return "", fmt.Errorf("invalid arg=%s passed to getTriggerName", args[1])
+// 		}
+// 	default:
+// 		return "", fmt.Errorf("invalid number of arguments passed to getTriggerFileName")
+// 	}
+// 	return "", nil
+// }
+
+func getTriggerName(importerOrExporterRole string) (string, error) {
+	switch importerOrExporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		return "cutover.source", nil
+	case TARGET_DB_IMPORTER_ROLE:
+		return "cutover.target", nil
+	case TARGET_DB_EXPORTER_ROLE:
+		return "fallforward.target", nil
+	case FF_DB_IMPORTER_ROLE:
+		return "fallforward.ff", nil
 	default:
-		return "", fmt.Errorf("invalid number of arguments passed to getTriggerFileName")
+		return "", fmt.Errorf("invalid role %s", importerOrExporterRole)
 	}
-	return "", nil
 }
 
 func exitIfDBSwitchedOver(triggerName string) {

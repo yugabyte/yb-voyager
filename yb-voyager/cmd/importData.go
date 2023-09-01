@@ -74,7 +74,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+	if importerRole == "" {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+	}
+	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
@@ -194,9 +197,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	if importerRole == "" {
-		importerRole = TARGET_DB_IMPORTER_ROLE
-	}
 	// if tconf.TargetDBType == YUGABYTEDB {
 	// 	importerRole = TARGET_DB
 	// } else {
@@ -300,7 +300,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
-			triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
