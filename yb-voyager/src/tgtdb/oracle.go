@@ -677,9 +677,8 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			stmt := event.GetSQLStmt(tdb.tconf.Schema)
 			_, err = tx.Exec(stmt)
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
-				log.Errorf("stmt: %s", stmt)
-				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
+				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
+				return false, fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
 			}
 		}
 
