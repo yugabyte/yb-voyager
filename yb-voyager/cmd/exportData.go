@@ -75,7 +75,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	triggerName, err := getTriggerName("", "exporter", source.DBType)
+	if exporterRole == "" {
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+	}
+
+	triggerName, err := getTriggerName(exporterRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
@@ -86,13 +90,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-
-	// TODO: interpret this from fall-forward/export data commands.
-	if source.DBType == YUGABYTEDB {
-		exporterRole = TARGET_DB_EXPORTER_ROLE
-	} else {
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
-	}
 
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID(exportDir)
@@ -185,7 +182,7 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			triggerName, err := getTriggerName("", "exporter", source.DBType)
+			triggerName, err := getTriggerName(exporterRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after data export: %v", err)
 			}
