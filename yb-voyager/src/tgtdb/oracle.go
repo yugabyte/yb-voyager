@@ -339,7 +339,9 @@ func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, mig
 	}
 	defer tx.Rollback()
 	for _, tableName := range tableNames {
-		tableName = tdb.qualifyTableName(tableName)
+		// for handling case-sensitive tablenames as case-insensitive in oracle
+		// TODO: need proper logic and handling for case-sensitive tablenames
+		tableName = tdb.getTargetSchemaName(tableName) + "." + strings.ToUpper(tableName)
 		rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
 		if err != nil {
 			return fmt.Errorf("failed to get table wise meta info: %w", err)
@@ -676,6 +678,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			_, err = tx.Exec(stmt)
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d): %v", event.Vsn, err)
+				log.Errorf("stmt: %s", stmt)
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %w", event.Vsn, err)
 			}
 		}
