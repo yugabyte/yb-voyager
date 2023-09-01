@@ -24,12 +24,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-const (
-	NOT_INITIATED = "NOT_INITIATED"
-	INITIATED     = "INITIATED"
-	COMPLETED     = "COMPLETED"
-)
-
 var fallforwardStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Prints status of the fallforward to fallforward DB",
