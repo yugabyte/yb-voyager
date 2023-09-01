@@ -75,10 +75,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	// TODO: interpret this from fall-forward/export data commands.
-	if source.DBType == YUGABYTEDB {
-		exporterRole = TARGET_DB_EXPORTER_ROLE
-	} else {
+	if exporterRole == "" {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
