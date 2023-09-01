@@ -82,8 +82,8 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s 
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
-       imported_by_target-db-importer INTEGER DEFAULT 0, 
-       imported_by_ff-db-importer INTEGER DEFAULT 0, 
+       imported_by_target_db_importer INTEGER DEFAULT 0, 
+       imported_by_ff_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
