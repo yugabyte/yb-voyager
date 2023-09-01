@@ -107,7 +107,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.PrintAndLog("no ff db exists. returning. ")
 		return
 	}
-	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password %s --source-db-name %s --source-db-schema %s --send-diagnostics=%t",
+	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --send-diagnostics=%t",
 		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, callhome.SendDiagnostics)
 	// TODO: --yes, ssl*, disablePb,
 	utils.PrintAndLog("Starting ff synchronize with command %s", fallForwardSynchronizeCmdStr)
