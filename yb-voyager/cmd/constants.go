@@ -45,6 +45,8 @@ const (
 	CHANGES_ONLY                  = "changes-only"
 	TARGET_DB                     = "target"
 	FF_DB                         = "ff"
+	FF_DB_IMPORTER_ROLE           = "ff-db-importer"
+	TARGET_DB_IMPORTER_ROLE       = "target-db-importer"
 	SOURCE_DB_EXPORTER_ROLE       = "source-db-exporter"
 	TARGET_DB_EXPORTER_ROLE       = "target-db-exporter"
 )

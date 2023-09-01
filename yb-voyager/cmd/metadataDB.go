@@ -153,12 +153,12 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 
 func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
 	var query string
-	if importDestinationType == TARGET_DB {
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
-	} else if importDestinationType == FF_DB {
+	} else if importerRole == FF_DB_IMPORTER_ROLE {
 		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
 	} else {
-		return fmt.Errorf("invalid importer type: %s", importDestinationType)
+		return fmt.Errorf("invalid importer type: %s", importerRole)
 	}
 
 	result, err := m.db.Exec(query)
@@ -325,7 +325,7 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 }
 
 func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
-	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importDestinationType)
+	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
 	row := m.db.QueryRow(query)
 	var segmentNum int64
 	err := row.Scan(&segmentNum)

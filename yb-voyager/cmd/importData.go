@@ -46,7 +46,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
-var importDestinationType string
+var importerRole string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -194,11 +194,14 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	if tconf.TargetDBType == YUGABYTEDB {
-		importDestinationType = TARGET_DB
-	} else {
-		importDestinationType = FF_DB
+	if importerRole == "" {
+		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
+	// if tconf.TargetDBType == YUGABYTEDB {
+	// 	importerRole = TARGET_DB
+	// } else {
+	// 	importerRole = FF_DB
+	// }
 
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
 	if err != nil {
@@ -221,7 +224,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	if importDestinationType == TARGET_DB {
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		record, err := GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("Failed to get migration status record: %s", err)
@@ -229,7 +232,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		importType = record.ExportType
 	}
 
-	if importDestinationType == FF_DB {
+	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
 	}
 
