@@ -193,8 +193,8 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
+			displayExportedRowCountSnapshotAndChanges()
 		}
-		displayExportedRowCountSnapshotAndChanges()
 		return true
 	}
 
