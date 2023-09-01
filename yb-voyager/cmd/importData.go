@@ -86,7 +86,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	quoteTableNameIfRequired()
+	// TODO: handle case-sensitive in table names with oracle ff-db
+	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
@@ -98,25 +99,25 @@ type ImportFileTask struct {
 	TableName string
 }
 
-func quoteTableNameIfRequired() {
-	if tconf.TargetDBType != ORACLE {
-		return
-	}
-	for _, fileEntry := range dataFileDescriptor.DataFileList {
-		if sqlname.IsQuoted(fileEntry.TableName) {
-			continue
-		}
-		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
-			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
-			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
-			if dataFileDescriptor.TableNameToExportedColumns != nil {
-				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
-				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
-			}
-			fileEntry.TableName = newTableName
-		}
-	}
-}
+// func quoteTableNameIfRequired() {
+// 	if tconf.TargetDBType != ORACLE {
+// 		return
+// 	}
+// 	for _, fileEntry := range dataFileDescriptor.DataFileList {
+// 		if sqlname.IsQuoted(fileEntry.TableName) {
+// 			continue
+// 		}
+// 		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
+// 			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
+// 			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
+// 			if dataFileDescriptor.TableNameToExportedColumns != nil {
+// 				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
+// 				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+// 			}
+// 			fileEntry.TableName = newTableName
+// 		}
+// 	}
+// }
 
 func discoverFilesToImport() []*ImportFileTask {
 	result := []*ImportFileTask{}
