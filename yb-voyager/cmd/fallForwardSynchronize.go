@@ -27,6 +27,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
+		createTriggerIfNotExists("fallforward.synchronize")
 		exportDataCmd.Run(cmd, args)
 	},
 }
