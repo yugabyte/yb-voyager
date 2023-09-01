@@ -120,12 +120,12 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--export-dir", exportDir,
 		"--source-db-host", tconf.Host,
 		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
-		"--source-db-host", tconf.Host,
-		"--source-db-host", tconf.Host,
-		"--source-db-host", tconf.Host,
-		"--source-db-host", tconf.Host,
+		"--source-db-user", tconf.User,
+		"--source-db-password", fmt.Sprintf("'%s'", tconf.Password),
+		"--source-db-name", tconf.DBName,
+		"--source-db-schema", tconf.Schema,
 		"--table-list", strings.Join(tableList, ","),
-		fmt.Sprintf("--send-diagnostics=%s", callhome.SendDiagnostics),
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	fallForwardSynchronizeCmdStr := strings.Join(fallForwardSynchronizeCmd, " ")
 	// fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --table-list %s --send-diagnostics=%t",
