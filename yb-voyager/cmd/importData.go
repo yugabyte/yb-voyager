@@ -98,6 +98,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func startFallforwardSynchronizeIfRequired(tableList []string) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
 	migrationStatusRecord, err := GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
@@ -106,9 +109,17 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.PrintAndLog("no ff db exists. returning. ")
 		return
 	}
+	// TODO: ssl* params
+	// TODO: obfuscate password.
 	fallForwardSynchronizeCmdStr := fmt.Sprintf("yb-voyager fall-forward synchronize --export-dir %s --source-db-host %s --source-db-port %d --source-db-user %s --source-db-password '%s' --source-db-name %s --source-db-schema %s --send-diagnostics=%t",
 		exportDir, tconf.Host, tconf.Port, tconf.User, tconf.Password, tconf.DBName, tconf.Schema, callhome.SendDiagnostics)
-	// TODO: --yes, ssl*, disablePb,
+	if utils.DoNotPrompt {
+		fallForwardSynchronizeCmdStr += " --yes"
+	}
+	if disablePb {
+		fallForwardSynchronizeCmdStr += " --disable-pb"
+	}
+
 	utils.PrintAndLog("Starting ff synchronize with command %s", fallForwardSynchronizeCmdStr)
 	cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
 
@@ -116,13 +127,11 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	cmd.Stderr = os.Stderr
 	err = cmd.Start()
 	if err != nil {
-		// log.Errorf("Failed to start command: %s, error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
 		utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
 	}
 	err = cmd.Wait()
 	if err != nil {
-		// log.Errorf("Failed to wait for command: %s , error: %s", fallForwardSynchronizeCmdStr, errbuf.String())
-		utils.ErrExit("failed to wait for command: %s , error: %w", fallForwardSynchronizeCmdStr, err)
+		utils.ErrExit("fall-forward synchronize failed with error: %w. \nPlease re-run the command:\n%s", err, fallForwardSynchronizeCmdStr)
 	}
 }
 
