@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,7 +34,10 @@ var (
 	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
 	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
 	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
+	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 )
+
+const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
 
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
@@ -68,7 +73,7 @@ func createMetaDBFile(path string) error {
 }
 
 func initMetaDB(path string) error {
-	conn, err := sql.Open("sqlite3", path)
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", path, SQLITE_OPTIONS))
 	if err != nil {
 		return fmt.Errorf("error while opening meta db :%w", err)
 	}
@@ -96,6 +101,9 @@ func initMetaDB(path string) error {
 			num_updates INTEGER, 
 			num_deletes INTEGER, 
 			PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
+		fmt.Sprintf(`CREATE TABLE %s (
+			key TEXT PRIMARY KEY,
+			json_text TEXT);`, JSON_OBJECTS_TABLE_NAME),
 	}
 	for _, cmd := range cmds {
 		_, err = conn.Exec(cmd)
@@ -108,7 +116,7 @@ func initMetaDB(path string) error {
 }
 
 func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
-	conn, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -136,7 +144,7 @@ type MetaDB struct {
 }
 
 func NewMetaDB(exportDir string) (*MetaDB, error) {
-	db, err := sql.Open("sqlite3", getMetaDBPath(exportDir))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}
@@ -219,6 +227,101 @@ func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64
 		}
 	}
 	return totalCount / int64(n*60), nil
+}
+
+func (m *MetaDB) InsertJsonObject(tx *sql.Tx, key string, obj any) error {
+	jsonText, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("error while marshalling json: %w", err)
+	}
+	query := fmt.Sprintf(`INSERT INTO %s (key, json_text) VALUES (?, ?)`, JSON_OBJECTS_TABLE_NAME)
+	if tx == nil {
+		_, err = m.db.Exec(query, key, jsonText)
+	} else {
+		_, err = tx.Exec(query, key, jsonText)
+	}
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	return nil
+}
+
+func (m *MetaDB) GetJsonObject(tx *sql.Tx, key string, obj any) (bool, error) {
+	query := fmt.Sprintf(`SELECT json_text FROM %s WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
+	var row *sql.Row
+	if tx == nil {
+		row = m.db.QueryRow(query, key)
+	} else {
+		row = tx.QueryRow(query, key)
+	}
+	var jsonText string
+	err := row.Scan(&jsonText)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+	}
+	err = json.Unmarshal([]byte(jsonText), obj)
+	if err != nil {
+		return true, fmt.Errorf("error while unmarshalling json: %w", err)
+	}
+	return true, nil
+}
+
+func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T)) error {
+	// Get a connection to the meta db.
+	conn, err := m.db.Conn(context.Background())
+	if err != nil {
+		return fmt.Errorf("error while getting connection to meta db: %w", err)
+	}
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			log.Errorf("failed to close connection to meta db: %v", err)
+		}
+	}()
+	// Start a transaction.
+	tx, err := conn.BeginTx(context.Background(), &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("error while starting transaction on meta db: %w", err)
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil {
+			log.Errorf("failed to rollback transaction on meta db: %v", err)
+		}
+	}()
+	// Get the json object.
+	obj := new(T)
+	found, err := m.GetJsonObject(tx, key, obj)
+	if err != nil {
+		return fmt.Errorf("error while getting json object from meta db: %w", err)
+	}
+	// Update the json object.
+	updateFn(obj)
+	// Update the json object in the meta db.
+	newJsonText, err := json.Marshal(obj)
+	if err != nil {
+		return fmt.Errorf("error while marshalling json: %w", err)
+	}
+	if !found {
+		err = m.InsertJsonObject(tx, key, obj)
+		if err != nil {
+			return fmt.Errorf("error while inserting json object into meta db: %w", err)
+		}
+	} else {
+		query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
+		_, err = tx.Exec(query, string(newJsonText), key)
+		if err != nil {
+			return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
+		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error while commiting transaction on meta db: %w", err)
+	}
+	return nil
 }
 
 func (m *MetaDB) GetSegmentNumToResume() (int64, error) {

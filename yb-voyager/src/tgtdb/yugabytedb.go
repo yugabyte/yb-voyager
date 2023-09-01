@@ -36,7 +36,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
 type TargetYugabyteDB struct {

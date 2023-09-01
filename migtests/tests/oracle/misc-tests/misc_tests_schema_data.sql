@@ -126,3 +126,26 @@ insert into "Case_Sensitive_Columns" ("First_Name", last_name, email, gender, ip
 insert into "Case_Sensitive_Columns" ("First_Name", last_name, email, gender, ip_address) values ('Magnum', 'Danzelman', 'mdanzelman3@storify.com', 'Bigender', '192.200.33.56');
 insert into "Case_Sensitive_Columns" ("First_Name", last_name, email, gender, ip_address) values ('Mitzi', 'Pidwell', 'mpidwell4@shutterfly.com', 'Female', '216.4.250.71');
 insert into "Case_Sensitive_Columns" ("First_Name", last_name, email, gender, ip_address) values ('Milzie', 'Rohlfing', 'mrohlfing5@java.com', 'Female', '230.101.87.42');
+
+create table c(id int, c char(100),nc nchar(100));
+
+insert into c values(1,'abc','abc');
+insert into c values(2,'\a','\a'); 
+insert into c values(3,'null','NULL');
+insert into c values(4,'
+','tt');
+insert into c values(5,'	','abc');
+insert into c values(6,'abc	abc','abc'); 
+insert into c values(7,'abc
+abc','abc');
+insert into c values(8,'"abc"','ab"');
+insert into c values(9,'"abc"','"abcn''"');
+insert into c values(10,'abc abc','abc abc'); 
+insert into c values(11,NULL,'abc');
+insert into c values(12,'abc',null);
+
+
+create table c1(id int, vc varchar2(100),nvc nvarchar2(100));
+insert into c1 values(4,'
+','tt');
+insert into c1 values(5,'	','abc');

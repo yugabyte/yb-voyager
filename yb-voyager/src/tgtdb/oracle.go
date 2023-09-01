@@ -554,8 +554,15 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	password := tdb.tconf.Password
 	connectString := tdb.getConnectionString(tdb.tconf)
 	oracleConnectionString := fmt.Sprintf("%s@\"%s\"", user, connectString)
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE ERRORS=0",
-		oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+	/*
+	reference for sqlldr cli options https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-commands.html#GUID-24205A60-E16F-4DBA-AD82-376C401013DF
+    DIRECT=TRUE for using faster mode (direct path)
+	NO_INDEX_ERRORS=TRUE for not ignoring index errors
+	SKIP=1 for skipping the first row which is the header
+	ERRORS=0 for exiting on first error and 0 errors allowed
+	*/
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", 
+	oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
 	var outbuf string
 	var errbuf string
@@ -775,16 +782,18 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 
 func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
 	var eventCounter EventCounter
+	tableName = tdb.qualifyTableName(tableName)
+	var query string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
+		query = fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
 		err := conn.QueryRowContext(context.Background(), query).Scan(&eventCounter.TotalEvents,
 			&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 		return false, err
 	})
 	if err != nil {
-		log.Errorf("error in getting import stats from target db: %v", err)
-		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
+		log.Errorf("error in getting import stats from target db: using query-%s %v", query, err)
+		return nil, fmt.Errorf("error in getting import stats from target db: using query-%s %w", query, err)
 	}
 	log.Infof("import stats for table %s: %v", tableName, eventCounter)
 	return &eventCounter, nil

@@ -121,22 +121,22 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map[string]map[string]string) string {
 	var columns string
 	if len(args.Columns) > 0 {
-		columnsSlice := make([]string, 0, len(args.Columns))
-		for _, col := range args.Columns {
-			// Add the column name and the NULLIF clause after it
-			dataType := tableSchema[col]["__debezium.source.column.type"] 
-			charLength := tableSchema[col]["__debezium.source.column.length"]
+		var columnsList []string
+		for _, column := range args.Columns {
+			//setting the null string for each column
+			dataType := tableSchema[column]["__debezium.source.column.type"] 
+			charLength := tableSchema[column]["__debezium.source.column.length"]
 			if strings.HasPrefix(dataType, "DATE") || strings.HasPrefix(dataType, "TIMESTAMP") || strings.Contains(dataType, "INTERVAL") {
-				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s %s NULLIF %s='\\N'`, col, dataType, col))
+				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
 			} else if strings.Contains(dataType, "CHAR") {
-				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='\\N'`, col, charLength, col))
+				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='%s'`, column, charLength, column, args.NullString))
 			} else if dataType == "LONG" {
-				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s CHAR(2000000000) NULLIF %s='\\N'`, col, col)) // for now mentioning max 2GB length, TODO: figure out if there is any other way to handle LONG data type
+				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(2000000000) NULLIF %s='%s'`, column, column, args.NullString)) // for now mentioning max 2GB length, TODO: figure out if there is any other way to handle LONG data type
 			} else {
-				columnsSlice = append(columnsSlice, fmt.Sprintf(`%s NULLIF %s='\\N'`, col, col))
+				columnsList = append(columnsList, fmt.Sprintf("%s NULLIF %s='%s'", column, column, args.NullString))
 			}
 		}
-		columns = fmt.Sprintf("(%s)", strings.Join(columnsSlice, ",\n"))
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsList, ",\n"))
 	}
 
 	configTemplate := `LOAD DATA
@@ -144,11 +144,19 @@ INFILE '%s'
 APPEND
 INTO TABLE %s
 REENABLE DISABLED_CONSTRAINTS
-FIELDS TERMINATED BY '%s'
+FIELDS CSV WITH EMBEDDED 
+TRAILING NULLCOLS
 DATE FORMAT "DD-MM-YY"
 TIMESTAMP FORMAT "DD-MM-YY HH:MI:SS.FF9 AM"
 TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR"
 TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM"
 %s`
-	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, "\\t", columns)
+	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, columns)
+	/*
+	   reference for sqlldr control file
+	   https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-control-file-contents.html#GUID-D1762699-8154-40F6-90DE-EFB8EB6A9AB0
+	   REENABLE DISABLED_CONSTRAINTS - reenables all disabled constraints on the table
+	   FIELDS CSV WITH EMBEDDED - specifies that the data file contains comma-separated values (CSV) with embedded newlines
+	   TRAILING NULLCOLS - allows SQL*Loader to load a table when the record contains trailing null fields
+	*/
 }

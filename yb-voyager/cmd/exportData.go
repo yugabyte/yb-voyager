@@ -70,6 +70,11 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
+  var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
 	triggerName, err := getTriggerName("", "exporter", source.DBType)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
@@ -88,19 +93,15 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
-  
-	success := exportData()
+
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-
+	success := exportData()
 	if success {
-		tableRowCount := map[string]int64{}
-		for _, fileEntry := range datafile.OpenDescriptor(exportDir).DataFileList {
-			tableRowCount[fileEntry.TableName] += fileEntry.RowCount
-		}
-		printExportedRowCount(tableRowCount)
+		tableRowCount := getExportedRowCountSnapshot(exportDir)
 		callhome.GetPayload(exportDir, migrationUUID)
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
@@ -124,12 +125,7 @@ func exportData() bool {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	metaDB, err = NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
+	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -198,6 +194,7 @@ func exportData() bool {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
 		}
+		displayExportedRowCountSnapshotAndChanges()
 		return true
 	}
 
@@ -247,6 +244,7 @@ func exportData() bool {
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
+	displayExportedRowCountSnapshot()
 	return true
 }
 
@@ -454,7 +452,7 @@ func reportStreamingProgress() {
 		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
 		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
 		tableWriter.Flush()
-		time.Sleep(30 * time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -519,6 +517,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
+	displayExportedRowCountSnapshot()
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
@@ -567,9 +566,10 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.TEXT,
-		Delimiter:    "\t",
+		FileFormat:   datafile.CSV,
+		Delimiter:    ",",
 		HasHeader:    true,
+		NullString:   utils.YB_VOYAGER_NULL_STRING,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,
 	}
@@ -666,12 +666,10 @@ func getDefaultSourceSchemaName() string {
 	switch source.DBType {
 	case MYSQL:
 		return source.DBName
-	case POSTGRESQL:
+	case POSTGRESQL, YUGABYTEDB:
 		return "public"
 	case ORACLE:
 		return source.Schema
-	case YUGABYTEDB:
-		return "public"
 	default:
 		panic("invalid db type")
 	}

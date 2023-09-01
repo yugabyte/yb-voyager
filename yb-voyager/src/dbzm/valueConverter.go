@@ -16,11 +16,14 @@ limitations under the License.
 package dbzm
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ValueConverter interface {
@@ -63,6 +66,7 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
+	buf                 bytes.Buffer
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
@@ -90,9 +94,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues := strings.Split(row, "\t")
+	columnValues, err := csv.NewReader(strings.NewReader(row)).Read()
+	if err != nil {
+		return "", fmt.Errorf("reading row: %w", err)
+	}
 	for i, columnValue := range columnValues {
-		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
+		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false)
@@ -101,7 +108,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	return strings.Join(columnValues, "\t"), nil
+	csvWriter := csv.NewWriter(&conv.buf)
+	csvWriter.Write(columnValues)
+	csvWriter.Flush()
+	transformedRow := strings.TrimSuffix(conv.buf.String(), "\n")
+	conv.buf.Reset()
+	return transformedRow, nil
 }
 
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, error) {

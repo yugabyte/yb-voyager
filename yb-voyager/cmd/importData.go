@@ -61,13 +61,20 @@ var importDataCmd = &cobra.Command{
 	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if tconf.TargetDBType == "" {
+			tconf.TargetDBType = YUGABYTEDB
+		}
 		validateImportFlags(cmd)
-		validateImportType()
 	},
 	Run: importDataCommandFn,
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
+	var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
 	triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
@@ -221,9 +228,16 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	metaDB, err = NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
+	if importDestinationType == TARGET_DB {
+		record, err := GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("Failed to get migration status record: %s", err)
+		}
+		importType = record.ExportType
+	}
+
+	if importDestinationType == FF_DB {
+		updateFallForwarDBExistsInMetaDB()
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -269,8 +283,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
+		displayImportedRowCountSnapshot(pendingTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
+			displayImportedRowCountSnapshot(pendingTasks)
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
@@ -293,6 +309,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
+			displayImportedRowCountSnapshotAndChanges(pendingTasks)
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
@@ -302,10 +319,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
+			displayImportedRowCountSnapshot(pendingTasks)
 		}
 	}
 
-	printImportedRowCount(pendingTasks)
 	fmt.Printf("\nImport data complete.\n")
 }
 

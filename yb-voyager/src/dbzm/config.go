@@ -208,8 +208,6 @@ debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
-debezium.source.transforms=unwrap
-debezium.source.transforms.unwrap.type=io.debezium.connector.yugabytedb.transforms.PGCompatible
 `
 
 var yugabyteConfigTemplate = baseConfigTemplate +

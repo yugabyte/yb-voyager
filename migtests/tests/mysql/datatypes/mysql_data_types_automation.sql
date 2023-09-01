@@ -167,6 +167,23 @@ insert into blob_types values(2,'Lorem','Lorem ipsum dolor sit amet, consectetue
 create table test(b blob); -- single column unsupported case
 insert into test values('abc'),('gsdgxaf');
 
+create table c(id int, c char(100),vc VARCHAR(100));
+
+insert into c values(1,'abc','abc');
+insert into c values(2,'\a','\a'); 
+insert into c values(3,'null','NULL');
+insert into c values(4,'
+','tt');
+insert into c values(5,'	','abc');
+insert into c values(6,'abc	abc','abc'); 
+insert into c values(7,'abc
+abc','abc');
+insert into c values(8,'"abc"','ab"');
+insert into c values(9,'"abc"','"abcn''"');
+insert into c values(10,'abc abc','abc abc'); 
+insert into c values(11,NULL,'abc');
+insert into c values(12,'abc',null);
+
 desc int_types;
 desc fixed_point_types;
 desc floating_point_types;

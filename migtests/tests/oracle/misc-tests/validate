@@ -12,7 +12,9 @@ EXPECTED_ROW_COUNT = {
 	'check':5,
 	'reserved_column':5,
 	'mixed_case_table_name_test':6,
-	'case_sensitive_columns':6
+	'case_sensitive_columns':6,
+	'c': 12,
+	'c1': 2,
 }
 
 def migration_completed_checks(tgt):
