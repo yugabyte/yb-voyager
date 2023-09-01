@@ -17,6 +17,7 @@ package stats
 
 import (
 	"fmt"
+	"io"
 	"math"
 	"strconv"
 	"sync"
@@ -57,54 +58,61 @@ func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.
 }
 
 func (s *StreamImportStatsReporter) Finalize() {
+	s.refreshStats()
 	s.uitable.Stop()
 }
+
+var headerRow, seperator1, seperator2, seperator3, row1, row2, row3, row4, row5, row6, timerRow io.Writer
 
 func (s *StreamImportStatsReporter) ReportStats() {
 	displayTicker := time.NewTicker(10 * time.Second)
 	defer displayTicker.Stop()
 	s.uitable = uilive.New()
-	headerRow := s.uitable.Newline()
-	seperator1 := s.uitable.Newline()
-	seperator2 := s.uitable.Newline()
-	seperator3 := s.uitable.Newline()
-	row1 := s.uitable.Newline()
-	row2 := s.uitable.Newline()
-	row3 := s.uitable.Newline()
-	row4 := s.uitable.Newline()
-	row5 := s.uitable.Newline()
-	row6 := s.uitable.Newline()
-	timerRow := s.uitable.Newline()
+	headerRow = s.uitable.Newline()
+	seperator1 = s.uitable.Newline()
+	seperator2 = s.uitable.Newline()
+	seperator3 = s.uitable.Newline()
+	row1 = s.uitable.Newline()
+	row2 = s.uitable.Newline()
+	row3 = s.uitable.Newline()
+	row4 = s.uitable.Newline()
+	row5 = s.uitable.Newline()
+	row6 = s.uitable.Newline()
+	timerRow = s.uitable.Newline()
 
 	s.uitable.Start()
 
 	for range displayTicker.C {
-		elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
-		s.slideWindow()
-		fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
-		fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
-		fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Events Imported in this Run", strconv.FormatInt(s.CurrImportedEvents, 10)))
-		var averageRateLast3Mins, averageRateLast10Mins int64
-		if elapsedTime < 3 {
-			averageRateLast3Mins = s.getIngestionRateForLastNMinutes(int64(elapsedTime) + 1)
-		} else {
-			averageRateLast3Mins = s.getIngestionRateForLastNMinutes(3)
-		}
-		if elapsedTime < 10 {
-			averageRateLast10Mins = s.getIngestionRateForLastNMinutes(int64(elapsedTime) + 1)
-		} else {
-			averageRateLast10Mins = s.getIngestionRateForLastNMinutes(10)
-		}
-		fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%d events/sec", averageRateLast3Mins/60)))
-		fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%d events/sec", averageRateLast10Mins/60)))
-		fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", elapsedTime)))
-		fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(s.remainingEvents, 10)))
-		fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", s.estimatedTimeToCatchUp.String()))
-		fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
-		s.uitable.Flush()
+		s.refreshStats()
 	}
+}
+
+func (s *StreamImportStatsReporter) refreshStats() {
+	elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
+	s.slideWindow()
+	fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+	fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
+	fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+	fmt.Fprint(row1, color.GreenString("| %-30s | %30s |\n", "Total Imported events", strconv.FormatInt(s.totalEventsImported, 10)))
+	fmt.Fprint(row2, color.GreenString("| %-30s | %30s |\n", "Events Imported in this Run", strconv.FormatInt(s.CurrImportedEvents, 10)))
+	var averageRateLast3Mins, averageRateLast10Mins int64
+	if elapsedTime < 3 {
+		averageRateLast3Mins = s.getIngestionRateForLastNMinutes(int64(elapsedTime) + 1)
+	} else {
+		averageRateLast3Mins = s.getIngestionRateForLastNMinutes(3)
+	}
+	if elapsedTime < 10 {
+		averageRateLast10Mins = s.getIngestionRateForLastNMinutes(int64(elapsedTime) + 1)
+	} else {
+		averageRateLast10Mins = s.getIngestionRateForLastNMinutes(10)
+	}
+	fmt.Fprint(row3, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 3 mins)", fmt.Sprintf("%d events/sec", averageRateLast3Mins/60)))
+	fmt.Fprint(row4, color.GreenString("| %-30s | %30s |\n", "Ingestion Rate (last 10 mins)", fmt.Sprintf("%d events/sec", averageRateLast10Mins/60)))
+	fmt.Fprint(timerRow, color.GreenString("| %-30s | %30s |\n", "Time taken in this Run", fmt.Sprintf("%.2f mins", elapsedTime)))
+	fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(s.remainingEvents, 10)))
+	fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", s.estimatedTimeToCatchUp.String()))
+	fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+	s.uitable.Flush()
 }
 
 func (s *StreamImportStatsReporter) slideWindow() {
