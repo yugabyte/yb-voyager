@@ -40,8 +40,23 @@ var pgDumpArgs PgDumpArgs
 var pgDumpArgsFile string
 
 func getPgDumpArgsFromFile(sectionToRead string) string {
-	basePgDumpArgsFilePath := filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini")
-	if utils.FileOrFolderExists(basePgDumpArgsFilePath) {
+	var basePgDumpArgsFilePath string
+	homebrewVoyagerDir := fmt.Sprintf("yb-voyager@%s", utils.YB_VOYAGER_VERSION)
+	possiblePaths := []string{
+		filepath.Join("/", "etc", "yb-voyager", "pg_dump-args.ini"),
+		filepath.Join("/", "opt", "homebrew", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "pg_dump-args.ini"),
+		filepath.Join("/", "usr", "local", "Cellar", homebrewVoyagerDir, utils.YB_VOYAGER_VERSION, "etc", "yb-voyager", "pg_dump-args.ini"),
+	}
+
+	for _, path := range possiblePaths {
+		if utils.FileOrFolderExists(path) {
+			basePgDumpArgsFilePath = path
+			break
+		}
+	}
+	if basePgDumpArgsFilePath == "" {
+		utils.ErrExit("Could not find pg_dump-args.ini in any of %v.", possiblePaths)
+	} else {
 		log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
 		basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
 		if err != nil {
