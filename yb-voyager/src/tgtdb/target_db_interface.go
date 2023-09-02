@@ -125,9 +125,20 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map
 		for _, column := range args.Columns {
 			//setting the null string for each column
 			dataType := tableSchema[column]["__debezium.source.column.type"]  //TODO: rename this to some thing like source-db-datatype
+			fmt.Printf("column: %s, dataType: %s\n", column, dataType)
 			charLength := tableSchema[column]["__debezium.source.column.length"]
-			if strings.HasPrefix(dataType, "DATE") || strings.HasPrefix(dataType, "TIMESTAMP") || strings.Contains(dataType, "INTERVAL") {
+			if  strings.Contains(dataType, "INTERVAL") {
 				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
+			} else if strings.HasPrefix(dataType, "DATE") {
+				columnsList = append(columnsList, fmt.Sprintf(`%s DATE "DD-MM-YY" NULLIF %s='%s'`, column, column, args.NullString))
+			} else if strings.HasPrefix(dataType,  "TIMESTAMP") {
+				if strings.Contains(dataType, "WITH LOCAL TIME ZONE") {
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
+				} else if strings.Contains(dataType, "WITH TIME ZONE") {
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR" NULLIF %s='%s'`, column, column, args.NullString))
+				} else {
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP "DD-MM-YY HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
+				}
 			} else if strings.Contains(dataType, "CHAR") {
 				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='%s'`, column, charLength, column, args.NullString))
 			} else if dataType == "LONG" {
@@ -146,10 +157,6 @@ INTO TABLE %s
 REENABLE DISABLED_CONSTRAINTS
 FIELDS CSV WITH EMBEDDED 
 TRAILING NULLCOLS
-DATE FORMAT "DD-MM-YY"
-TIMESTAMP FORMAT "DD-MM-YY HH:MI:SS.FF9 AM"
-TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR"
-TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM"
 %s`
 	return fmt.Sprintf(configTemplate, args.FilePath, schema+"."+args.TableName, columns)
 	/*
@@ -160,3 +167,10 @@ TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM"
 	   TRAILING NULLCOLS - allows SQL*Loader to load a table when the record contains trailing null fields
 	*/
 }
+/*
+
+DATE FORMAT "DD-MM-YY"
+TIMESTAMP FORMAT "DD-MM-YY HH:MI:SS.FF9 AM"
+TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR"
+TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM"
+*/

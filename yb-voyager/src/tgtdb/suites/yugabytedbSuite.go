@@ -38,7 +38,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
-		date := time.Unix(int64(epochSecs), 0).Local().Format(time.DateOnly)
+		date := time.Unix(int64(epochSecs), 0).UTC().Format(time.DateOnly)
 		if formatIfRequired {
 			date = fmt.Sprintf("'%s'", date)
 		}

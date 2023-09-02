@@ -33,14 +33,14 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
-		parsedTime := time.Unix(epochSecs, 0).Local()
+		parsedTime := time.Unix(epochSecs, 0).UTC()
 		oracleDateFormat := "02-01-2006" //format: DD-MON-YYYY
 		formattedDate := parsedTime.Format(oracleDateFormat)
 		if err != nil {
 			return "", fmt.Errorf("parsing date: %v", err)
 		}
 		if formatIfRequired {
-			formattedDate = fmt.Sprintf("'%s'", formattedDate)
+			formattedDate = fmt.Sprintf("TO_DATE('%s', 'DD-MM-YYYY')", formattedDate)
 		}
 		return formattedDate, nil
 	},
@@ -54,7 +54,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		oracleTimestampFormat := "02-01-2006 03.04.05.000 PM" //format: DD-MM-YY HH.MI.SS.FFF PM
 		formattedTimestamp := timestamp.Format(oracleTimestampFormat)
 		if formatIfRequired {
-			formattedTimestamp = fmt.Sprintf("'%s'", formattedTimestamp)
+			formattedTimestamp = fmt.Sprintf("TO_TIMESTAMP('%s','DD-MM-RR HH:MI:SS.FF9 AM')", formattedTimestamp)
 		}
 		return formattedTimestamp, nil
 	},
@@ -69,7 +69,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		oracleTimestampFormat := "02-01-2006 03.04.05.000000 PM" //format: DD-MON-YYYY HH.MI.SS.FFFFFF PM
 		formattedTimestamp := microTimeStamp.Format(oracleTimestampFormat)
 		if formatIfRequired {
-			formattedTimestamp = fmt.Sprintf("'%s'", formattedTimestamp)
+			formattedTimestamp = fmt.Sprintf("TO_TIMESTAMP('%s','DD-MM-RR HH:MI:SS.FF9 AM')", formattedTimestamp)
 		}
 		return formattedTimestamp, nil
 	},
@@ -84,7 +84,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		oracleTimestampFormat := "02-01-2006 03.04.05.000000000 PM" //format: DD-MON-YYYY HH.MI.SS.FFFFFFFFF PM
 		formattedTimestamp := nanoTimestamp.Format(oracleTimestampFormat)
 		if formatIfRequired {
-			formattedTimestamp = fmt.Sprintf("'%s'", formattedTimestamp)
+			formattedTimestamp = fmt.Sprintf("TO_TIMESTAMP('%s','DD-MM-RR HH:MI:SS.FF9 AM')", formattedTimestamp)
 		}
 		return formattedTimestamp, nil
 	},
@@ -97,12 +97,16 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 
 		oracleFormat := "06-01-02 3:04:05.000000000 PM -07:00"
+		format := "RR-MM-DD HH:MI:SS.FF9 AM TZR"
+		timstampFn := "TO_TIMESTAMP_TZ"
 		if parsedTime.Location().String() == "UTC" { //LOCAL TIMEZONE Case
 			oracleFormat = "06-01-02 3:04:05.000000000 PM" // TODO: for timezone ones sqlldr is inserting as GMT though GMT/UTC is similar
+			format = "RR-MM-DD HH:MI:SS.FF9 AM"
+			timstampFn = "TO_TIMESTAMP"
 		}
 		formattedTimestamp := parsedTime.Format(oracleFormat)
 		if formatIfRequired {
-			formattedTimestamp = fmt.Sprintf("'%s'", formattedTimestamp)
+			formattedTimestamp = fmt.Sprintf("%s('%s','%s')", timstampFn, formattedTimestamp, format)
 		}
 		return formattedTimestamp, nil
 	},
@@ -164,7 +168,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			columnValue = fmt.Sprintf("%d-%d", years, months) // 1-5
 		}
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
+			columnValue = fmt.Sprintf("INTERVAL'%s'YEAR TO MONTH", columnValue)
 		}
 		return columnValue, nil
 	},
@@ -199,7 +203,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			columnValue = fmt.Sprintf("%d %d:%d:%.9f", days, hours, mins, seconds) // 24 23:34:5.878667
 		}
 		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
+			columnValue = fmt.Sprintf("INTERVAL'%s'DAY TO SECOND", columnValue)
 		}
 		return columnValue, nil
 	},
