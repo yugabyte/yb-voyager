@@ -146,7 +146,7 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 		} else if withStreamingMode {
 			if i == 0 {
 				addHeader(uiTable, "SCHEMA", "TABLE", "FILE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS",
-					"TOTAL CHANGES EVENTS", "INSERTS", "UPDATES", "DELETES",
+					"TOTAL CHANGES", "INSERTS", "UPDATES", "DELETES",
 					"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 			}
 			uiTable.AddRow(row.schemaName, row.tableName, row.fileName, row.status, row.totalCount, row.importedCount,
@@ -244,9 +244,9 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 	tconf = tgtconf
 	var dataFileDescriptor *datafile.Descriptor
 	if isffDB {
-		importDestinationType = FF_DB
+		importerRole = FF_DB_IMPORTER_ROLE
 	} else {
-		importDestinationType = TARGET_DB
+		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
 	state := NewImportDataState(exportDir)
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)

@@ -496,7 +496,6 @@ func checkfallForwardStatus() string {
 	b := utils.FileOrFolderExists(fallforwardTargetFPath)
 	c := utils.FileOrFolderExists(fallforwardFFFPath)
 
-	fmt.Printf("fall-forward status: ")
 	if !a {
 		return NOT_INITIATED
 	} else if a && b && c {
@@ -512,7 +511,7 @@ func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, err
 	if os.Getenv(envVarName) != "" {
 		return os.Getenv(envVarName), nil
 	}
-	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable %s): ", strings.TrimSuffix(cliArgName, "-password"), envVarName)
+	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable `%s`): ", strings.TrimSuffix(cliArgName, "-password"), envVarName)
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		utils.ErrExit("read password: %v", err)
