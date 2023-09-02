@@ -66,16 +66,16 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
-	buf                 bytes.Buffer
+	buf                  bytes.Buffer
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := NewSchemaRegistry(exportDir, "source-db-exporter")
+	schemaRegistrySource := NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target-db-exporter")
+	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target_db_exporter")
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
@@ -157,7 +157,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
-	if exportSourceType == "source-db-exporter" {
+	if exportSourceType == "source_db_exporter" {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
 		schemaRegistry = conv.schemaRegistryTarget

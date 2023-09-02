@@ -28,6 +28,7 @@ var fallForwardSetupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
 		tconf.TargetDBType = ORACLE
+		importerRole = FF_DB_IMPORTER_ROLE
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},

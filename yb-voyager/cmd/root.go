@@ -45,8 +45,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			// TODO: avoid lock only for fall-forward setup
-			if cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "setup" && cmd.Parent().Use == "fall-forward") {
+			if shouldLock(cmd) {
 				lockExportDir(cmd)
 			}
 			cmdName := cmd.Use
@@ -65,10 +64,25 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 	},
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
-		if exportDir != "" && utils.FileOrFolderExists(exportDir) && cmd.Use != "version" && cmd.Use != "status" && cmd.Use != "initiate" && !(cmd.Use == "setup" && cmd.Parent().Use == "fall-forward") {
+		if shouldLock(cmd) {
 			unlockExportDir()
 		}
 	},
+}
+
+func shouldLock(cmd *cobra.Command) bool {
+	if cmd.Use == "version" || cmd.Use == "status" {
+		return false
+	}
+	if cmd.Use == "initiate" && cmd.Parent().Use == "cutover" {
+		return false
+	}
+	if cmd.HasParent() && cmd.Parent().Use == "fall-forward" {
+		if cmd.Use == "setup" || cmd.Use == "switchover" {
+			return false
+		}
+	}
+	return true
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
