@@ -25,6 +25,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
+		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
 		exportDataCmd.Run(cmd, args)
 	},

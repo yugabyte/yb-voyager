@@ -37,7 +37,7 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 )
 
-const SQLITE_OPTIONS = "?_txlock=immediate&_timeout=30000"
+const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
 
 func getMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
@@ -82,8 +82,8 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s 
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
-       imported_in_targetdb INTEGER DEFAULT 0, 
-       imported_in_ffdb INTEGER DEFAULT 0, 
+       imported_by_target_db_importer INTEGER DEFAULT 0, 
+       imported_by_ff_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
@@ -152,14 +152,7 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 }
 
 func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
-	var query string
-	if importDestinationType == TARGET_DB {
-		query = fmt.Sprintf(`UPDATE %s SET imported_in_targetdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
-	} else if importDestinationType == FF_DB {
-		query = fmt.Sprintf(`UPDATE %s SET imported_in_ffdb = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, segmentNum)
-	} else {
-		return fmt.Errorf("invalid importer type: %s", importDestinationType)
-	}
+	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole, segmentNum)
 
 	result, err := m.db.Exec(query)
 	if err != nil {
@@ -325,7 +318,7 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 }
 
 func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
-	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_in_%sdb = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importDestinationType)
+	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
 	row := m.db.QueryRow(query)
 	var segmentNum int64
 	err := row.Scan(&segmentNum)

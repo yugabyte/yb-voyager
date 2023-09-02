@@ -67,7 +67,7 @@ var ybValueConverterSuite = map[string]ConverterFn{
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
-		timestamp := time.Unix(epochSecs, 0).Local().Format(time.DateTime)
+		timestamp := time.Unix(epochSecs, 0).UTC().Format(time.DateTime)
 		if formatIfRequired {
 			timestamp = fmt.Sprintf("'%s'", timestamp)
 		}
@@ -80,11 +80,7 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
-		microTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano)) //TODO: check if proper format for Micro can work
-		if err != nil {
-			return columnValue, err
-		}
-		timestamp := strings.TrimSuffix(microTimeStamp.String(), " +0000 UTC")
+		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999")
 		if formatIfRequired {
 			timestamp = fmt.Sprintf("'%s'", timestamp)
 		}
@@ -97,11 +93,7 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
-		nanoTimeStamp, err := time.Parse(time.RFC3339Nano, time.Unix(epochSeconds, epochNanos).Local().Format(time.RFC3339Nano))
-		if err != nil {
-			return columnValue, err
-		}
-		timestamp := strings.TrimSuffix(nanoTimeStamp.String(), " +0000 UTC")
+		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999999")
 		if formatIfRequired {
 			timestamp = fmt.Sprintf("'%s'", timestamp)
 		}
@@ -192,7 +184,7 @@ var ybValueConverterSuite = map[string]ConverterFn{
 		if formatIfRequired {
 			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
 		} else {
-			hexValue = fmt.Sprintf(`\\x%s`, hexString) // in data file need to escape the backslash
+			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
 		}
 		return string(hexValue), nil
 	},

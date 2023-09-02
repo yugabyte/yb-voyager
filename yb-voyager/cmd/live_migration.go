@@ -62,8 +62,11 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	go updateExportedEventsStats(statsReporter)
-	go statsReporter.ReportStats()
+	defer statsReporter.Finalize()
+	if !disablePb {
+		go updateExportedEventsStats(statsReporter)
+		go statsReporter.ReportStats()
+	}
 
 	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels
@@ -122,8 +125,8 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if event.IsCutover() && importDestinationType == TARGET_DB ||
-			event.IsFallForward() && importDestinationType == FF_DB { // cutover or fall-forward command
+		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break

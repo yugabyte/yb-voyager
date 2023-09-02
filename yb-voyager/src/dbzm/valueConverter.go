@@ -16,10 +16,13 @@ limitations under the License.
 package dbzm
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ValueConverter interface {
@@ -57,15 +60,16 @@ type DebeziumValueConverter struct {
 	targetSchema         string
 	valueConverterSuite  map[string]tgtdb.ConverterFn
 	converterFnCache     map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
+	buf                  bytes.Buffer
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := NewSchemaRegistry(exportDir, "source-db-exporter")
+	schemaRegistrySource := NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target-db-exporter")
+	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target_db_exporter")
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
@@ -84,9 +88,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues := strings.Split(row, "\t")
+	columnValues, err := csv.NewReader(strings.NewReader(row)).Read()
+	if err != nil {
+		return "", fmt.Errorf("reading row: %w", err)
+	}
 	for i, columnValue := range columnValues {
-		if columnValue == "\\N" || converterFns[i] == nil { // TODO: make "\\N" condition Target specific tdb.NullString()
+		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
 			continue
 		}
 		transformedValue, err := converterFns[i](columnValue, false)
@@ -95,7 +102,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	return strings.Join(columnValues, "\t"), nil
+	csvWriter := csv.NewWriter(&conv.buf)
+	csvWriter.Write(columnValues)
+	csvWriter.Flush()
+	transformedRow := strings.TrimSuffix(conv.buf.String(), "\n")
+	conv.buf.Reset()
+	return transformedRow, nil
 }
 
 func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdb.ConverterFn, error) {
@@ -135,7 +147,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
-	if exportSourceType == "source-db-exporter" {
+	if exportSourceType == "source_db_exporter" {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
 		schemaRegistry = conv.schemaRegistryTarget

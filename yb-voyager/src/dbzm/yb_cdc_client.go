@@ -115,7 +115,9 @@ func (ybc *YugabyteDBCDCClient) readYBStreamID() (string, error) {
 
 func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	streamID, err := ybc.readYBStreamID()
-	if err != nil {
+	if err != nil && strings.Contains(err.Error(), "stream id not found") {
+		return nil
+	} else if err != nil {
 		return fmt.Errorf("failed to read stream id: %w", err)
 	}
 	args := fmt.Sprintf("-delete_stream %s -master_addresses %s ", streamID, ybc.ybMasterNodes)
@@ -162,16 +164,16 @@ func (ybc *YugabyteDBCDCClient) runCommand(args string) (string, error) {
 		if outbuf.String() != "" {
 			log.Infof("Output of the command %s: %s", command, outbuf.String())
 		}
-		log.Errorf("Failed to start command: %s, error: %s", command, err)
-		return outbuf.String(), fmt.Errorf("failed to start command: %s, error: %s", command, err)
+		log.Errorf("Failed to start command: %s, error: %s", command, errbuf.String())
+		return outbuf.String(), fmt.Errorf("failed to start command: %s, error: %w", command, err)
 	}
 	err = cmd.Wait()
 	if err != nil {
 		if outbuf.String() != "" {
 			log.Infof("Output of the command %s: %s", command, outbuf.String())
 		}
-		log.Errorf("Failed to wait for command: %s , error: %s", command, err)
-		return outbuf.String(), fmt.Errorf("failed to wait for command: %s , error: %s", command, err)
+		log.Errorf("Failed to wait for command: %s , error: %s", command, errbuf.String())
+		return outbuf.String(), fmt.Errorf("failed to wait for command: %s , error: %w", command, err)
 	}
 
 	return outbuf.String(), nil

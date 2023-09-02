@@ -75,7 +75,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	triggerName, err := getTriggerName("", "exporter", source.DBType)
+	if exporterRole == "" {
+		exporterRole = SOURCE_DB_EXPORTER_ROLE
+	}
+
+	triggerName, err := getTriggerName(exporterRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
@@ -87,13 +91,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	// TODO: interpret this from fall-forward/export data commands.
-	if source.DBType == YUGABYTEDB {
-		exporterRole = TARGET_DB_EXPORTER_ROLE
-	} else {
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
-	}
-
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -123,8 +121,6 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
 	saveExportTypeInMetaDB()
 
@@ -186,7 +182,7 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			triggerName, err := getTriggerName("", "exporter", source.DBType)
+			triggerName, err := getTriggerName(exporterRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after data export: %v", err)
 			}
@@ -194,8 +190,8 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
+			displayExportedRowCountSnapshotAndChanges()
 		}
-		displayExportedRowCountSnapshotAndChanges()
 		return true
 	}
 
@@ -567,9 +563,10 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		dataFileList = append(dataFileList, fileEntry)
 	}
 	dfd := datafile.Descriptor{
-		FileFormat:   datafile.TEXT,
-		Delimiter:    "\t",
+		FileFormat:   datafile.CSV,
+		Delimiter:    ",",
 		HasHeader:    true,
+		NullString:   utils.YB_VOYAGER_NULL_STRING,
 		ExportDir:    exportDir,
 		DataFileList: dataFileList,
 	}
@@ -666,12 +663,10 @@ func getDefaultSourceSchemaName() string {
 	switch source.DBType {
 	case MYSQL:
 		return source.DBName
-	case POSTGRESQL:
+	case POSTGRESQL, YUGABYTEDB:
 		return "public"
 	case ORACLE:
 		return source.Schema
-	case YUGABYTEDB:
-		return "public"
 	default:
 		panic("invalid db type")
 	}

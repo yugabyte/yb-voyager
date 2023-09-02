@@ -46,7 +46,7 @@ var metaInfoDirName = META_INFO_DIR_NAME
 var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
-var importDestinationType string
+var importerRole string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -74,7 +74,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+	if importerRole == "" {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+	}
+	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
@@ -86,7 +89,8 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	quoteTableNameIfRequired()
+	// TODO: handle case-sensitive in table names with oracle ff-db
+	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	importFileTasks = applyTableListFilter(importFileTasks)
 	importData(importFileTasks)
@@ -98,25 +102,25 @@ type ImportFileTask struct {
 	TableName string
 }
 
-func quoteTableNameIfRequired() {
-	if tconf.TargetDBType != ORACLE {
-		return
-	}
-	for _, fileEntry := range dataFileDescriptor.DataFileList {
-		if sqlname.IsQuoted(fileEntry.TableName) {
-			continue
-		}
-		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
-			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
-			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
-			if dataFileDescriptor.TableNameToExportedColumns != nil {
-				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
-				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
-			}
-			fileEntry.TableName = newTableName
-		}
-	}
-}
+// func quoteTableNameIfRequired() {
+// 	if tconf.TargetDBType != ORACLE {
+// 		return
+// 	}
+// 	for _, fileEntry := range dataFileDescriptor.DataFileList {
+// 		if sqlname.IsQuoted(fileEntry.TableName) {
+// 			continue
+// 		}
+// 		if sqlname.IsReservedKeywordOracle(fileEntry.TableName) ||
+// 			(sqlname.IsCaseSensitive(fileEntry.TableName, ORACLE)) {
+// 			newTableName := fmt.Sprintf(`"%s"`, fileEntry.TableName)
+// 			if dataFileDescriptor.TableNameToExportedColumns != nil {
+// 				dataFileDescriptor.TableNameToExportedColumns[newTableName] = dataFileDescriptor.TableNameToExportedColumns[fileEntry.TableName]
+// 				delete(dataFileDescriptor.TableNameToExportedColumns, fileEntry.TableName)
+// 			}
+// 			fileEntry.TableName = newTableName
+// 		}
+// 	}
+// }
 
 func discoverFilesToImport() []*ImportFileTask {
 	result := []*ImportFileTask{}
@@ -212,12 +216,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	if tconf.TargetDBType == YUGABYTEDB {
-		importDestinationType = TARGET_DB
-	} else {
-		importDestinationType = FF_DB
-	}
-
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -240,7 +238,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	if importDestinationType == TARGET_DB {
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		record, err := GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("Failed to get migration status record: %s", err)
@@ -248,7 +246,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		importType = record.ExportType
 	}
 
-	if importDestinationType == FF_DB {
+	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
 	}
 
@@ -295,10 +293,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
-		displayImportedRowCountSnapshot(pendingTasks)
+		displayImportedRowCountSnapshot(importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			displayImportedRowCountSnapshot(pendingTasks)
+			displayImportedRowCountSnapshot(importFileTasks)
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges()
 			if err != nil {
@@ -316,12 +314,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
-			triggerName, err := getTriggerName("", "importer", tconf.TargetDBType)
+			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
-			displayImportedRowCountSnapshotAndChanges(pendingTasks)
+			displayImportedRowCountSnapshotAndChanges(importFileTasks)
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
@@ -331,7 +329,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
-			displayImportedRowCountSnapshot(pendingTasks)
+			displayImportedRowCountSnapshot(importFileTasks)
 		}
 	}
 
@@ -853,7 +851,7 @@ func checkExportDataDoneFlag() {
 	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
 	_, err = os.Stat(exportDataDonePath)
 	if err != nil {
-		utils.ErrExit("Export Data is not complete yet. Exiting.")
+		utils.ErrExit("Snapshot data export is not completed yet. Exiting.")
 	}
 }
 
