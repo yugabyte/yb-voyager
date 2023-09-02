@@ -304,19 +304,19 @@ func (yb *TargetYugabyteDB) EnsureConnected() {
 }
 
 func (yb *TargetYugabyteDB) GetVersion() string {
-	if yb.tconf.dbVersion != "" {
-		return yb.tconf.dbVersion
+	if yb.tconf.DBVersion != "" {
+		return yb.tconf.DBVersion
 	}
 
 	yb.EnsureConnected()
 	yb.Mutex.Lock()
 	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.dbVersion)
+	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return yb.tconf.dbVersion
+	return yb.tconf.DBVersion
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {

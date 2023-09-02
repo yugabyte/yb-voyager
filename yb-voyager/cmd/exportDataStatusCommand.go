@@ -23,7 +23,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
@@ -201,16 +200,15 @@ func runExportDataStatusCmd() error {
 
 func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	table := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	if withStreamingMode {
-		table.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES"),
-			headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-			headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+		addHeader(table, "SCHEMA", "TABLE", "STATUS", "SNAPSHOT ROW COUNT", "TOTAL CHANGES",
+			"INSERTS", "UPDATES", "DELETES",
+			"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 	} else if useDebezium {
-		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("EXPORTED ROWS"))
+		addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
 	} else {
-		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+		addHeader(table, "TABLE", "STATUS")
 	}
 
 	// First sort by status and then by table-name.

@@ -27,7 +27,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -170,13 +169,6 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 	return nil
 }
 
-func addHeader(table *uitable.Table, cols ...string) {
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
-	columns := lo.Map(cols, func(col string, _ int) interface{} {
-		return headerfmt(col)
-	})
-	table.AddRow(columns...)
-}
 
 func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
 	var dataFileDescriptor datafile.Descriptor
@@ -208,17 +200,17 @@ func reInitialisingTarget() error {
 	if err != nil {
 		return fmt.Errorf("parse migration UUID %q: %w", migrationStatus.MigrationUUID, err)
 	}
-	targetDBConf = migrationStatus.TargetConf
+	targetDBConf = migrationStatus.TargetDBConf
 	targetDBConf.Password = tconf.Password
 	targetDB = tgtdb.NewTargetDB(&targetDBConf)
 	err = targetDB.Init()
 	if err != nil {
-		return fmt.Errorf("Failed to initialize the target DB: %w", err)
+		return fmt.Errorf("failed to initialize the target DB: %w", err)
 	}
 	defer targetDB.Finalize()
 	err = targetDB.InitConnPool()
 	if err != nil {
-		return fmt.Errorf("Failed to initialize the target DB connection pool: %w", err)
+		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
 	if migrationStatus.FallForwarDBExists {
 		ffDBConf = migrationStatus.FallForwardDBConf
@@ -226,12 +218,12 @@ func reInitialisingTarget() error {
 		ffDB = tgtdb.NewTargetDB(&ffDBConf)
 		err = ffDB.Init()
 		if err != nil {
-			return fmt.Errorf("Failed to initialize the fall-forward DB: %s", err)
+			return fmt.Errorf("failed to initialize the fall-forward DB: %s", err)
 		}
 		defer ffDB.Finalize()
 		err = ffDB.InitConnPool()
 		if err != nil {
-			return fmt.Errorf("Failed to initialize the fall-forward DB connection pool: %s", err)
+			return fmt.Errorf("failed to initialize the fall-forward DB connection pool: %s", err)
 		}
 	}
 	return nil
@@ -296,7 +288,7 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			status:             status,
 			totalCount:         totalCount,
 			importedCount:      importedCount,
-			percentageComplete: perc,
+			percentageComplete: perc, //TODO: for streaming mode, this should events percentage
 		}
 		if withStreamingMode {
 			qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)

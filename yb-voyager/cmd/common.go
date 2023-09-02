@@ -198,7 +198,6 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 func displayExportedRowCountSnapshotAndChanges() {
 	fmt.Printf("snapshot and changes export report\n")
 	uitable := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 	if err != nil {
@@ -206,9 +205,9 @@ func displayExportedRowCountSnapshotAndChanges() {
 	}
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
-			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
+				"INSERTS", "UPDATES", "DELETES",
+				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 
 		}
 		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
@@ -230,14 +229,13 @@ func displayExportedRowCountSnapshotAndChanges() {
 func displayExportedRowCountSnapshot() {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	if !useDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
-			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 		} else {
-			uitable.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+			addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 		}
 		keys := lo.Keys(exportedRowCount)
 		sort.Strings(keys)
@@ -261,9 +259,9 @@ func displayExportedRowCountSnapshot() {
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
-				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+				addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
 			} else {
-				uitable.AddRow(headerfmt("DATABASE"), headerfmt("TABLE"), headerfmt("ROW COUNT"))
+				addHeader(uitable, "DATABASE", "TABLE", "ROW COUNT")
 			}
 		}
 		if tableStatus.SchemaName != "" {
@@ -285,7 +283,6 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
 	uitable := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
@@ -298,9 +295,9 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 
 	for i, tableName := range tableList {
 		if i == 0 {
-			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
+				"INSERTS", "UPDATES", "DELETES",
+				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 		}
 		eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
 		if err != nil {
@@ -324,7 +321,6 @@ func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
 	uitable := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
@@ -337,7 +333,7 @@ func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
 
 	for i, tableName := range tableList {
 		if i == 0 {
-			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"))
+			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT")
 		}
 		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
 	}
@@ -481,7 +477,7 @@ func checkWithStreamingMode() error {
 	var err error
 	migrationStatus, err = GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("error while fetching migration status record: %w\n", err)
+		return fmt.Errorf("error while fetching migration status record: %w", err)
 	}
 	withStreamingMode = changeStreamingIsEnabled(migrationStatus.ExportType) && dbzm.IsMigrationInStreamingMode(exportDir)
 	return nil
@@ -519,4 +515,12 @@ func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, err
 	}
 	fmt.Print("\n")
 	return string(bytePassword), nil
+}
+
+func addHeader(table *uitable.Table, cols ...string) {
+	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
+	columns := lo.Map(cols, func(col string, _ int) interface{} {
+		return headerfmt(col)
+	})
+	table.AddRow(columns...)
 }

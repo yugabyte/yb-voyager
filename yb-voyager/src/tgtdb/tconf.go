@@ -48,7 +48,7 @@ type TargetConf struct {
 	ImportMode           bool   `json:"import_mode"`
 	ImportObjects        string `json:"import_objects"`
 	ExcludeImportObjects string `json:"exclude_import_objects"`
-	dbVersion            string `json:"db_version"`
+	DBVersion            string `json:"db_version"`
 
 	TargetEndpoints            string `json:"target_endpoints"`
 	UsePublicIP                bool   `json:"use_public_ip"`

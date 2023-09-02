@@ -184,11 +184,11 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func updateTargetConfInMigrationStatus() {
-	err := UpdateMigrationStatusRecord(func (record *MigrationStatusRecord) {
+	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		switch tconf.TargetDBType {
 		case YUGABYTEDB:
-			record.TargetConf = tconf 
-			record.TargetConf.Password = ""
+			record.TargetDBConf = tconf
+			record.TargetDBConf.Password = ""
 		case ORACLE:
 			record.FallForwardDBConf = tconf
 			record.FallForwardDBConf.Password = ""
@@ -208,7 +208,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	tconf.Schema = strings.ToLower(tconf.Schema)
-    updateTargetConfInMigrationStatus()
+	updateTargetConfInMigrationStatus()
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {

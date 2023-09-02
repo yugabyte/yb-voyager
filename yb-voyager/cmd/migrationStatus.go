@@ -11,7 +11,7 @@ type MigrationStatusRecord struct {
 	SourceDBType       string
 	ExportType         string
 	FallForwarDBExists bool
-	TargetConf		   tgtdb.TargetConf 
+	TargetDBConf       tgtdb.TargetConf
 	FallForwardDBConf  tgtdb.TargetConf
 }
 
