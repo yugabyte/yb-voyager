@@ -63,10 +63,14 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go updateExportedEventsStats(ctx, statsReporter)
-	go statsReporter.ReportStats(ctx)
+
+	defer statsReporter.Finalize()
+	if !disablePb {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go updateExportedEventsStats(ctx, statsReporter)
+		go statsReporter.ReportStats(ctx)
+	}
 
 	eventQueue = NewEventQueue(exportDir)
 	// setup target event channels

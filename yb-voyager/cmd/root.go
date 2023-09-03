@@ -77,12 +77,13 @@ func shouldLock(cmd *cobra.Command) bool {
 	if cmd.Use == "initiate" && cmd.Parent().Use == "cutover" {
 		return false
 	}
-	if cmd.Parent().Use == "fall-forward" {
+	if cmd.HasParent() && cmd.Parent().Use == "fall-forward" {
+
 		if cmd.Use == "setup" || cmd.Use == "switchover" {
 			return false
 		}
 	}
-	return false
+	return true
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
