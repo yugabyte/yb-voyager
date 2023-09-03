@@ -36,7 +36,7 @@ type Oracle struct {
 }
 
 // In addition to the types listed below, user-defined types (UDTs) are also not supported if Debezium is used for data export. The UDT case is handled inside the `GetColumnsWithSupportedTypes()`.
-var oracleUnsupportedDataTypes = []string{"BLOB", "BFILE", "URITYPE", "XMLTYPE",
+var oracleUnsupportedDataTypes = []string{"BLOB", "CLOB", "NCLOB", "BFILE", "URITYPE", "XMLTYPE",
 	"AnyData", "AnyType", "AnyDataSet", "ROWID", "UROWID", "SDO_GEOMETRY", "SDO_POINT_TYPE", "SDO_ELEM_INFO_ARRAY", "SDO_ORDINATE_ARRAY", "SDO_GTYPE", "SDO_SRID", "SDO_POINT", "SDO_ORDINATES", "SDO_DIM_ARRAY", "SDO_ORGSCL_TYPE", "SDO_STRING_ARRAY", "JSON"}
 
 func newOracle(s *Source) *Oracle {
