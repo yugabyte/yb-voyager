@@ -35,6 +35,8 @@ var (
 	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
 	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
+	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
+	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
@@ -227,6 +229,7 @@ func (m *MetaDB) InsertJsonObject(tx *sql.Tx, key string, obj any) error {
 	if err != nil {
 		return fmt.Errorf("error while marshalling json: %w", err)
 	}
+	log.Infof("Inserting json object for key: %s", key)
 	query := fmt.Sprintf(`INSERT INTO %s (key, json_text) VALUES (?, ?)`, JSON_OBJECTS_TABLE_NAME)
 	if tx == nil {
 		_, err = m.db.Exec(query, key, jsonText)
@@ -251,14 +254,17 @@ func (m *MetaDB) GetJsonObject(tx *sql.Tx, key string, obj any) (bool, error) {
 	err := row.Scan(&jsonText)
 	if err != nil {
 		if err == sql.ErrNoRows {
+			log.Infof("No json object found for key: %s", key)
 			return false, nil
 		}
 		return false, fmt.Errorf("error while running query on meta db - %s :%w", query, err)
 	}
 	err = json.Unmarshal([]byte(jsonText), obj)
 	if err != nil {
+		log.Infof("Found json object for key: %s, but failed to unmarshal it: %v", key, err)
 		return true, fmt.Errorf("error while unmarshalling json: %w", err)
 	}
+	log.Infof("Found json object for key: %s", key)
 	return true, nil
 }
 

@@ -47,11 +47,13 @@ var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
+var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                            // to truncate *.D splits after import
-var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
+var truncateSplits bool                                    // to truncate *.D splits after import
+var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
+var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 
 var importDataCmd = &cobra.Command{
@@ -225,10 +227,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
 		importType = record.ExportType
+		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
+		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -244,6 +248,31 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
+
+	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to get identity columns from meta db: %s", err)
+	}
+	if !found {
+		tables := importFileTasksToTableNames(importFileTasks)
+		TableToIdentityColumnNames, err = tdb.GetGeneratedAlwaysAsIdentityColumnsForTables(tables)
+		if err != nil {
+			utils.ErrExit("failed to get identity columns for tables(%v) from meta db: %s", tables, err)
+		}
+		// saving in metadb for handling restarts
+		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
+	}
+
+	err = tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
+	}
+	defer func() {
+		err = tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+		if err != nil {
+			utils.ErrExit("failed to enable generated always as identity columns: %s", err)
+		}
+	}()
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
