@@ -333,7 +333,7 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	var inserts int64
 	var updates int64
 	var deletes int64
-	query := fmt.Sprintf(`select num_total, num_inserts, num_updates, num_deletes from %s WHERE schema_name='%s' AND table_name='%s'`,
+	query := fmt.Sprintf(`select num_total, num_inserts, num_updates, num_deletes from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
 		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)

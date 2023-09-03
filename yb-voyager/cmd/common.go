@@ -206,9 +206,13 @@ func displayExportedRowCountSnapshotAndChanges() {
 			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
 				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
 				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
-
 		}
-		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+		schemaName := ""
+		// it's unnecessary to deal with schema when it's the default. It causes issues in ff synchronize while finally reporting stats.
+		if source.DBType == POSTGRESQL && tableStatus.SchemaName != "public" {
+			schemaName = tableStatus.SchemaName
+		}
+		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
 			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
