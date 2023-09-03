@@ -125,7 +125,6 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map
 		for _, column := range args.Columns {
 			//setting the null string for each column
 			dataType := tableSchema[column]["__debezium.source.column.type"]  //TODO: rename this to some thing like source-db-datatype
-			fmt.Printf("column: %s, dataType: %s\n", column, dataType)
 			charLength := tableSchema[column]["__debezium.source.column.length"]
 			if  strings.Contains(dataType, "INTERVAL") {
 				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))

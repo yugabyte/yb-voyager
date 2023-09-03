@@ -33,6 +33,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"golang.org/x/exp/slices"
 )
 
 type TargetOracleDB struct {
@@ -651,7 +653,78 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 }
 
 func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
-	return columns, nil //TODO
+	result := make([]string, len(columns))
+	// FAST PATH.
+	fastPathSuccessful := true
+	for i, colName := range columns {
+		if strings.ToUpper(colName) == colName {
+			if sqlname.IsReservedKeywordOracle(colName) && colName[0:1] != `"` {
+				result[i] = fmt.Sprintf(`"%s"`, colName)
+			} else {
+				result[i] = colName
+			}
+		} else {
+			// Go to slow path.
+			log.Infof("column name (%s) is not all upper-case. Going to slow path.", colName)
+			result = make([]string, len(columns))
+			fastPathSuccessful = false
+			break
+		}
+	}
+	if fastPathSuccessful {
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		return result, nil
+	}
+	// SLOW PATH.
+	schemaName := tdb.tconf.Schema
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		schemaName = parts[0]
+		tableName = parts[1]
+	}
+	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("get list of table attributes: %w", err)
+	}
+	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	for i, colName := range columns {
+		if colName[0] == '"' && colName[len(colName)-1] == '"' {
+			colName = colName[1 : len(colName)-1]
+		}
+		switch true {
+		// TODO: Move sqlname.IsReservedKeywordOracle() in this file.
+		case sqlname.IsReservedKeywordOracle(colName):
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case colName == strings.ToUpper(colName): // Name is all Upper case.
+			result[i] = colName
+		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
+			result[i] = strings.ToUpper(colName)
+		default:
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+		}
+	}
+	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	return result, nil 
+}
+
+func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
+	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tableName, schemaName)
+	rows, err := tdb.conn.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+	var columns []string
+	for rows.Next() {
+		var column string
+		err := rows.Scan(&column)
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		columns = append(columns, column)
+	}
+	return columns, nil
 }
 
 // execute all events sequentially one by one in a single transaction

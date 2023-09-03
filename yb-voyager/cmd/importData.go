@@ -195,7 +195,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
-	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
