@@ -92,7 +92,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-	importFileTasks = applyTableListFilter(importFileTasks)
+	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
+		utils.PrintAndLog("Skipping table list filter in case of streaming is enabled.")
+	} else {
+		importFileTasks = applyTableListFilter(importFileTasks)
+	}
 	importData(importFileTasks)
 }
 
