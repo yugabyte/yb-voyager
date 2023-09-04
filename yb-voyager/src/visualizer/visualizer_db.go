@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,6 +30,7 @@ import (
 )
 
 type VisualizerYugabyteDB struct {
+	sync.Mutex
 	conn               *pgxpool.Pool
 	migrationDirectory string
 }
@@ -225,23 +227,36 @@ func (db *VisualizerYugabyteDB) SendVisualizerDBPayload(
 		"status, "+
 		"invocation_timestamp"+
 		") VALUES ("+
-		"'%s', %d, %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s'"+
-		")", YUGABYTED_METADATA_TABLE_NAME,
-		visualizerDBPayload.MigrationUUID,
-		visualizerDBPayload.MigrationPhase,
-		visualizerDBPayload.InvocationSequence,
-		db.migrationDirectory,
-		visualizerDBPayload.DatabaseName,
-		visualizerDBPayload.SchemaName,
-		visualizerDBPayload.Payload,
-		visualizerDBPayload.DBType,
-		visualizerDBPayload.Status,
-		visualizerDBPayload.InvocationTimestamp)
+		"$1, $2, $3, $4, $5, $6, $7, $8, $9, $10"+
+		")", YUGABYTED_METADATA_TABLE_NAME)
 
-	err := db.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
+	var maxAttempts = 5
+
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		err = db.executeInsertQuery(cmd, visualizerDBPayload)
+		if err == nil {
+			break
+		} else {
+			if attempt == maxAttempts {
+				return err
+			}
+		}
+
+		invocationSequence, err := db.GetInvocationSequence(visualizerDBPayload.MigrationUUID,
+			visualizerDBPayload.MigrationPhase)
+
+		if err != nil {
+			log.Warnf("Cannot get invocation sequence for visualization metadata. %s", err)
+			return err
+		}
+
+		visualizerDBPayload.InvocationSequence = invocationSequence
 	}
+	// err := db.executeInsertQuery(cmd, visualizerDBPayload)
+	// if err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
@@ -289,6 +304,49 @@ func (db *VisualizerYugabyteDB) SendVisualizerTableMetrics(
 	err := db.executeCmdOnTarget(cmd)
 	if err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func (db *VisualizerYugabyteDB) executeInsertQuery(cmd string,
+	visualizerDBPayload VisualizerDBPayload) error {
+
+	db.Mutex.Lock()
+	defer db.Mutex.Unlock()
+
+	var err error
+
+	log.Infof("Executing on target DB: [%s] for [%+v]", cmd, visualizerDBPayload)
+	conn, err := db.getConn()
+	if err != nil {
+		return err
+	}
+
+	_, err = conn.Exec(context.Background(), cmd,
+		visualizerDBPayload.MigrationUUID,
+		visualizerDBPayload.MigrationPhase,
+		visualizerDBPayload.InvocationSequence,
+		visualizerDBPayload.MigrationDirectory,
+		visualizerDBPayload.DatabaseName,
+		visualizerDBPayload.SchemaName,
+		visualizerDBPayload.Payload,
+		visualizerDBPayload.DBType,
+		visualizerDBPayload.Status,
+		visualizerDBPayload.InvocationTimestamp)
+
+	if err == nil {
+		return nil
+	}
+	log.Warnf("Error while running [%s]: %s", cmd, err)
+	time.Sleep(time.Second)
+	err2 := db.reconnect()
+	if err2 != nil {
+		log.Warnf("Failed to reconnect to the target database: %s", err2)
+	}
+
+	if err != nil {
+		return fmt.Errorf("couldn't excute command %s on target db. error: %w", cmd, err)
 	}
 
 	return nil
