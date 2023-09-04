@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
 type TargetDB interface {
@@ -32,10 +33,10 @@ type TargetDB interface {
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []string) []string
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
-	GetDebeziumValueConverterSuite() map[string]ConverterFn
+	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
 	GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error)
 	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
@@ -51,9 +52,6 @@ const (
 	POSTGRESQL = "postgresql"
 	YUGABYTEDB = "yugabytedb"
 )
-
-// value converter Function type
-type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 type Batch interface {
 	Open() (*os.File, error)
@@ -120,15 +118,35 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string) string {
+func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map[string]map[string]string) string {
 	var columns string
 	if len(args.Columns) > 0 {
 		var columnsList []string
 		for _, column := range args.Columns {
 			//setting the null string for each column
-			columnsList = append(columnsList, fmt.Sprintf("%s NULLIF %s='%s'", column, column, args.NullString))
+			dataType, ok := tableSchema[column]["__debezium.source.column.type"] //TODO: rename this to some thing like source-db-datatype
+			charLength, okLen := tableSchema[column]["__debezium.source.column.length"]
+			switch true {
+			case ok && strings.Contains(dataType, "INTERVAL"):
+				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
+			case ok && strings.HasPrefix(dataType, "DATE"):
+				columnsList = append(columnsList, fmt.Sprintf(`%s DATE "DD-MM-YY" NULLIF %s='%s'`, column, column, args.NullString))
+			case ok && strings.HasPrefix(dataType, "TIMESTAMP"):
+				switch true {
+				case strings.Contains(dataType, "TIME ZONE"):
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR" NULLIF %s='%s'`, column, column, args.NullString))
+				default:
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP "DD-MM-YY HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
+				}
+			case ok && okLen && strings.Contains(dataType, "CHAR"):
+				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='%s'`, column, charLength, column, args.NullString))
+			case ok && dataType == "LONG":
+				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(2000000000) NULLIF %s='%s'`, column, column, args.NullString)) // for now mentioning max 2GB length, TODO: figure out if there is any other way to handle LONG data type
+			default:
+				columnsList = append(columnsList, fmt.Sprintf("%s NULLIF %s='%s'", column, column, args.NullString))
+			}
 		}
-		columns = fmt.Sprintf("(%s)", strings.Join(columnsList, ", "))
+		columns = fmt.Sprintf("(%s)", strings.Join(columnsList, ",\n"))
 	}
 
 	configTemplate := `LOAD DATA
