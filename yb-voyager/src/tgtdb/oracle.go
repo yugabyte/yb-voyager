@@ -778,7 +778,8 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 
 func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
 	var eventCounter EventCounter
-	tableName = tdb.qualifyTableName(tableName)
+	// TODO: handle case-sensitive properly for tablenames
+	tableName = tdb.getTargetSchemaName(tableName) + "." + strings.ToUpper(tableName)
 	var query string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		query = fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
