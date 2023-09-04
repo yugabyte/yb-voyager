@@ -87,6 +87,7 @@ func (m *EventSegmentMover) Run() {
 				log.Infof("Moved segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
 			}
 		}
+		fmt.Println("Archiver EventSegmentMover sleeping for 10 seconds")
 		log.Info("Archiver EventSegmentMover sleeping for 10 seconds")
 		time.Sleep(10 * time.Second)
 	}

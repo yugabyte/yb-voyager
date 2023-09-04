@@ -16,8 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -35,13 +35,13 @@ func NewEventSegmentDeleter(fsUtilisationThreshold int) *EventSegmentDeleter {
 }
 
 func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
-	disk := filepath.VolumeName(exportDir)
-	DiskStats, err := utils.GetDiskStats(disk)
+	DiskStats, err := utils.GetDiskStats(exportDir)
 	if err != nil {
 		utils.ErrExit("error while getting disk usage: %v", err)
 	}
 
 	usedPercentage := int(DiskStats.Used * 100 / DiskStats.Total)
+	fmt.Println("Used percentage: ", usedPercentage)
 	return usedPercentage > d.FSUtilisationThreshold
 }
 
@@ -60,9 +60,11 @@ func (d *EventSegmentDeleter) deleteSegments() {
 func (d *EventSegmentDeleter) Run() {
 	for {
 		if d.isFSUtilisationExceeded() {
+			fmt.Println("FS Utilisation exceeded, deleting segments")
 			d.deleteSegments()
 		}
 		time.Sleep(5 * time.Second)
+		fmt.Println("Archiver EventSegmentDeleter sleeping for 5 seconds")
 		log.Info("Archiver EventSegmentDeleter sleeping for 5 seconds")
 	}
 }
