@@ -22,10 +22,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	NOT_INITIATED = color.YellowString("NOT_INITIATED")
-	INITIATED     = color.RedString("INITIATED")
-	COMPLETED     = color.GreenString("COMPLETED")
+const (
+	NOT_INITIATED = "NOT_INITIATED"
+	INITIATED     = "INITIATED"
+	COMPLETED     = "COMPLETED"
 )
 
 var cutoverStatusCmd = &cobra.Command{
@@ -45,6 +45,14 @@ func init() {
 }
 
 func checkAndReportCutoverStatus() {
-	status := checkCutoverStatus()
-	fmt.Printf("cutover status: %s\n", status)
+	status := getCutoverStatus()
+	fmt.Printf("cutover status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", NOT_INITIATED)
+	case INITIATED:
+		color.Yellow("%s\n", INITIATED)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
+	}
 }

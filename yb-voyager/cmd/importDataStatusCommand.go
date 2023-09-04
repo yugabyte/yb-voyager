@@ -36,10 +36,10 @@ import (
 )
 
 var ffDBPassword string
-var targetDB tgtdb.TargetDB
-var ffDB tgtdb.TargetDB
-var targetDBConf tgtdb.TargetConf
-var ffDBConf tgtdb.TargetConf
+var targetDBPassword string
+var targetDBConf *tgtdb.TargetConf
+var ffDBConf *tgtdb.TargetConf
+var migrationStatus *MigrationStatusRecord
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -52,28 +52,37 @@ var importDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while connecting meta db: %w\n", err)
 		}
-		err = checkWithStreamingMode()
+		migrationStatus, err := GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error while getting migration status: %w\n", err)
+		}
+		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
-		if withStreamingMode {
-			validateTargetPassword(cmd)
+		migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
+		if err != nil {
+			utils.ErrExit("error while parsing migration UUID: %w\n", err)
+		}
+		if streamChanges {
+			getTargetPassword(cmd)
+			migrationStatus.TargetDBConf.Password = targetDBPassword
 			if migrationStatus.FallForwarDBExists {
-				validateFallforwardPassword(cmd)
+				getFallForwardDBPassword(cmd)
+				migrationStatus.FallForwardDBConf.Password = ffDBPassword
 			}
-			err = reInitialisingTarget()
 			if err != nil {
 				utils.ErrExit("error while re-initialising target: %w\n", err)
 			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
-		err = runImportDataStatusCmd(targetDB, targetDBConf, false)
+		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, streamChanges)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		if ffDB != nil {
+		if migrationStatus.FallForwarDBExists {
 			color.Cyan("Import Data Status for fall-forward DB\n")
-			err = runImportDataStatusCmd(ffDB, ffDBConf, true)
+			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, streamChanges)
 			if err != nil {
 				utils.ErrExit("error: %s\n", err)
 			}
@@ -91,7 +100,7 @@ func init() {
 		"password with which to connect to the target YugabyteDB server")
 }
 
-func validateFallforwardPassword(cmd *cobra.Command) {
+func getFallForwardDBPassword(cmd *cobra.Command) {
 	var err error
 	ffDBPassword, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
 	if err != nil {
@@ -117,7 +126,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isffDB bool) error {
+func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
 	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
 	_, err := os.Stat(exportDataDoneFlagFilePath)
 	if err != nil {
@@ -126,8 +135,18 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 		}
 		return fmt.Errorf("check if data export is done: %w", err)
 	}
-
-	table, err := prepareImportDataStatusTable(tgtdb, tgtconf, isffDB)
+	//reinitialise targetDB
+	tdb = tgtdb.NewTargetDB(tgtconf)
+	err = tdb.Init()
+	if err != nil {
+		return fmt.Errorf("failed to initialize the target DB: %w", err)
+	}
+	defer tdb.Finalize()
+	err = tdb.InitConnPool()
+	if err != nil {
+		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
+	}
+	table, err := prepareImportDataStatusTable(tdb, tgtconf, isffDB, streamChanges)
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
@@ -142,7 +161,7 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 			totalCount := utils.HumanReadableByteCount(row.totalCount)
 			importedCount := utils.HumanReadableByteCount(row.importedCount)
 			uiTable.AddRow(row.tableName, row.fileName, row.status, totalCount, importedCount, perc)
-		} else if withStreamingMode {
+		} else if streamChanges {
 			if i == 0 {
 				addHeader(uiTable, "SCHEMA", "TABLE", "FILE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS",
 					"TOTAL CHANGES", "INSERTS", "UPDATES", "DELETES",
@@ -169,7 +188,6 @@ func runImportDataStatusCmd(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isff
 	return nil
 }
 
-
 func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
 	var dataFileDescriptor datafile.Descriptor
 
@@ -194,46 +212,11 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func reInitialisingTarget() error {
-	var err error
-	migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
-	if err != nil {
-		return fmt.Errorf("parse migration UUID %q: %w", migrationStatus.MigrationUUID, err)
-	}
-	targetDBConf = migrationStatus.TargetDBConf
-	targetDBConf.Password = tconf.Password
-	targetDB = tgtdb.NewTargetDB(&targetDBConf)
-	err = targetDB.Init()
-	if err != nil {
-		return fmt.Errorf("failed to initialize the target DB: %w", err)
-	}
-	defer targetDB.Finalize()
-	err = targetDB.InitConnPool()
-	if err != nil {
-		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
-	}
-	if migrationStatus.FallForwarDBExists {
-		ffDBConf = migrationStatus.FallForwardDBConf
-		ffDBConf.Password = ffDBPassword
-		ffDB = tgtdb.NewTargetDB(&ffDBConf)
-		err = ffDB.Init()
-		if err != nil {
-			return fmt.Errorf("failed to initialize the fall-forward DB: %s", err)
-		}
-		defer ffDB.Finalize()
-		err = ffDB.InitConnPool()
-		if err != nil {
-			return fmt.Errorf("failed to initialize the fall-forward DB connection pool: %s", err)
-		}
-	}
-	return nil
-}
-
-func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf, isffDB bool) ([]*tableMigStatusOutputRow, error) {
+func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
 	var err error
 	tdb = tgtdb
-	tconf = tgtconf
+	tconf = *tgtconf
 	var dataFileDescriptor *datafile.Descriptor
 	if isffDB {
 		importerRole = FF_DB_IMPORTER_ROLE
@@ -288,9 +271,9 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			status:             status,
 			totalCount:         totalCount,
 			importedCount:      importedCount,
-			percentageComplete: perc, //TODO: for streaming mode, this should events percentage
+			percentageComplete: perc,
 		}
-		if withStreamingMode {
+		if streamChanges {
 			qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)
 			eventCounter, err := tdb.GetImportedEventsStatsForTable(qualifiedTableName, migrationUUID)
 			if err != nil {
@@ -301,8 +284,8 @@ func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf tgtdb.TargetConf
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
 			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			isffComplete := isffDB && (checkfallForwardStatus() == COMPLETED)
-			isCutoverComplete := !isffDB && (checkCutoverStatus() == COMPLETED)
+			isffComplete := isffDB && (getfallForwardStatus() == COMPLETED)
+			isCutoverComplete := !isffDB && (getCutoverStatus() == COMPLETED)
 			if isffComplete || isCutoverComplete {
 				row.status = "DONE"
 			} else {

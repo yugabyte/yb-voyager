@@ -41,13 +41,13 @@ var exportDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while connecting meta db: %w\n", err)
 		}
-		err = checkWithStreamingMode()
+		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
-			err = runExportDataStatusCmdDbzm()
+			err = runExportDataStatusCmdDbzm(streamChanges)
 		} else {
 			err = runExportDataStatusCmd()
 		}
@@ -78,7 +78,7 @@ var InProgressTableSno int
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
-func runExportDataStatusCmdDbzm() error {
+func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -88,7 +88,7 @@ func runExportDataStatusCmdDbzm() error {
 	var rows []*exportTableMigStatusOutputRow
 	var row *exportTableMigStatusOutputRow
 	for _, tableStatus := range status.Tables {
-		if withStreamingMode {
+		if streamChanges {
 			row = getSnapshotAndChangesExportStatusRow(&tableStatus)
 		} else {
 			row = getSnapshotExportStatusRow(&tableStatus)
@@ -96,7 +96,7 @@ func runExportDataStatusCmdDbzm() error {
 		rows = append(rows, row)
 	}
 
-	displayExportDataStatus(rows)
+	displayExportDataStatus(rows, streamChanges)
 	return nil
 }
 
@@ -113,7 +113,7 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 }
 
 func getSnapshotAndChangesExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
-	totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+	eventCounter, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 	}
@@ -122,16 +122,16 @@ func getSnapshotAndChangesExportStatusRow(tableStatus *dbzm.TableExportStatus) *
 		tableName:     tableStatus.TableName,
 		exportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
-	if checkCutoverStatus() == COMPLETED {
+	if getCutoverStatus() == COMPLETED {
 		row.status = "DONE"
 	} else {
 		row.status = "STREAMING"
 	}
-	row.totalEvents = totalChangesEvents
-	row.numInserts = inserts
-	row.numUpdates = updates
-	row.numDeletes = deletes
-	row.finalRowCount = tableStatus.ExportedRowCountSnapshot + inserts - deletes
+	row.totalEvents = eventCounter.TotalEvents
+	row.numInserts = eventCounter.NumInserts
+	row.numUpdates = eventCounter.NumUpdates
+	row.numDeletes = eventCounter.NumDeletes
+	row.finalRowCount = tableStatus.ExportedRowCountSnapshot + eventCounter.NumInserts - eventCounter.NumDeletes
 	return row
 }
 
@@ -193,15 +193,15 @@ func runExportDataStatusCmd() error {
 		outputRows = append(outputRows, row)
 	}
 
-	displayExportDataStatus(outputRows)
+	displayExportDataStatus(outputRows, false)
 
 	return nil
 }
 
-func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
+func displayExportDataStatus(rows []*exportTableMigStatusOutputRow, streamChanges bool) {
 	table := uitable.New()
 
-	if withStreamingMode {
+	if streamChanges {
 		addHeader(table, "SCHEMA", "TABLE", "STATUS", "SNAPSHOT ROW COUNT", "TOTAL CHANGES",
 			"INSERTS", "UPDATES", "DELETES",
 			"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
@@ -223,7 +223,7 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		}
 	})
 	for _, row := range rows {
-		if withStreamingMode {
+		if streamChanges {
 			table.AddRow(row.schemaName, row.tableName, row.status, row.exportedCount, row.totalEvents,
 				row.numInserts, row.numUpdates, row.numDeletes,
 				row.finalRowCount)

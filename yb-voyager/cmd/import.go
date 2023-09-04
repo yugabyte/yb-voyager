@@ -66,7 +66,7 @@ func validateImportFlags(cmd *cobra.Command) {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(batchSize)
-	validateTargetPassword(cmd)
+	getTargetPassword(cmd)
 
 }
 
@@ -209,7 +209,7 @@ func validateTargetSchemaFlag() {
 	}
 }
 
-func validateTargetPassword(cmd *cobra.Command) {
+func getTargetPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {

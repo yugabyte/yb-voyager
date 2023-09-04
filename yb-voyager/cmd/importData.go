@@ -187,10 +187,10 @@ func updateTargetConfInMigrationStatus() {
 	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		switch tconf.TargetDBType {
 		case YUGABYTEDB:
-			record.TargetDBConf = tconf
+			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
 		case ORACLE:
-			record.FallForwardDBConf = tconf
+			record.FallForwardDBConf = tconf.Clone()
 			record.FallForwardDBConf.Password = ""
 		default:
 			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))

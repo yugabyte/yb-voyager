@@ -210,15 +210,15 @@ func displayExportedRowCountSnapshotAndChanges() {
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 
 		}
-		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+		eventCounter, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
 			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
 		} else if err != nil {
 			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 		} else {
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
-				inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
+			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
+				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes, tableStatus.ExportedRowCountSnapshot+eventCounter.NumInserts-eventCounter.NumDeletes)
 		}
 	}
 	fmt.Print("\n")
@@ -452,7 +452,7 @@ func nameContainsCapitalLetter(name string) bool {
 	return false
 }
 
-func checkCutoverStatus() string {
+func getCutoverStatus() string {
 	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
 	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
 	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
@@ -470,20 +470,17 @@ func checkCutoverStatus() string {
 
 }
 
-var withStreamingMode bool
-var migrationStatus *MigrationStatusRecord
-
-func checkWithStreamingMode() error {
+func checkWithStreamingMode() (bool, error) {
 	var err error
-	migrationStatus, err = GetMigrationStatusRecord()
+	migrationStatus, err := GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("error while fetching migration status record: %w", err)
+		return false, fmt.Errorf("error while fetching migration status record: %w", err)
 	}
-	withStreamingMode = changeStreamingIsEnabled(migrationStatus.ExportType) && dbzm.IsMigrationInStreamingMode(exportDir)
-	return nil
+	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportType) && dbzm.IsMigrationInStreamingMode(exportDir)
+	return streamChanges, nil
 }
 
-func checkfallForwardStatus() string {
+func getfallForwardStatus() string {
 	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
 	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
 	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
