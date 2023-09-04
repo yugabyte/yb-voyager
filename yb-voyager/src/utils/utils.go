@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/samber/lo"
@@ -38,6 +39,12 @@ import (
 )
 
 var DoNotPrompt bool
+
+type DiskStats struct {
+	Available int64
+	Used      int64
+	Total     int64
+}
 
 func Wait(args ...string) {
 	var successMsg, failureMsg string
@@ -431,4 +438,22 @@ func GetMapKeysSorted(m map[string]*string) []string {
 	keys := lo.Keys(m)
 	sort.Strings(keys)
 	return keys
+}
+
+func GetDiskStats(path string) (DiskStats, error) {
+	var stats syscall.Statfs_t
+	err := syscall.Statfs(path, &stats)
+	if err != nil {
+		return DiskStats{}, err
+	}
+
+	available := int64(stats.Bavail) * stats.Bsize
+	used := (int64(stats.Blocks) - int64(stats.Bavail)) * stats.Bsize
+	total := int64(stats.Blocks) * stats.Bsize
+
+	return DiskStats{
+		Available: available,
+		Used:      used,
+		Total:     total,
+	}, nil
 }

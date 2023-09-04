@@ -84,7 +84,9 @@ func initMetaDB(path string) error {
        file_path TEXT, size_committed INTEGER, 
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_ff_db_importer INTEGER DEFAULT 0, 
-       archived INTEGER DEFAULT 0);`, QUEUE_SEGMENT_META_TABLE_NAME),
+       archived INTEGER DEFAULT 0,
+	   deleted INTEGER DEFAULT 0,
+	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
 			timestamp INTEGER, 
@@ -341,4 +343,109 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 		return -1, -1, -1, -1, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return totalCount, inserts, updates, deletes, nil
+}
+
+func (m *MetaDB) GetSegmentsToBeArchived(importCount int) []Segments {
+	var segmentsToArchive []Segments
+	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE imported_by_target_db_importer + imported_by_ff_db_importer = ? AND archived = 0 ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME)
+	rows, err := m.db.Query(query, importCount)
+	if err != nil {
+		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+	}
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("failed to close rows: %v", err)
+		}
+	}()
+	for rows.Next() {
+		var segmentNo int64
+		var filePath string
+		err := rows.Scan(&segmentNo, &filePath)
+		if err != nil {
+			utils.ErrExit("error while scanning rows: %v", err)
+		}
+		segment := Segments{
+			SegmentNum:      int(segmentNo),
+			SegmentFilePath: filePath,
+		}
+		segmentsToArchive = append(segmentsToArchive, segment)
+	}
+	return segmentsToArchive
+}
+
+func (m *MetaDB) GetSegmentsToBeDeleted() []Segments {
+	var segmentsToBeDeleted []Segments
+	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME)
+	rows, err := m.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+	}
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			log.Errorf("failed to close rows: %v", err)
+		}
+	}()
+	for rows.Next() {
+		var segmentNo int64
+		var filePath string
+		err := rows.Scan(&segmentNo, &filePath)
+		if err != nil {
+			utils.ErrExit("error while scanning rows: %v", err)
+		}
+		segment := Segments{
+			SegmentNum:      int(segmentNo),
+			SegmentFilePath: filePath,
+		}
+		segmentsToBeDeleted = append(segmentsToBeDeleted, segment)
+	}
+	return segmentsToBeDeleted
+}
+
+func (m *MetaDB) UpdateSegmentDeletionStatus(segmentNum int) {
+	queries := []string{
+		fmt.Sprintf(`UPDATE %s SET deleted = 1 WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME),
+		fmt.Sprintf(`UPDATE %s SET file_path = NULL WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME),
+	}
+
+	for _, query := range queries {
+		result, err := m.db.Exec(query, segmentNum)
+		if err != nil {
+			utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+		}
+
+		err = checkRowsAffected(result, 1)
+		if err != nil {
+			utils.ErrExit(err.Error())
+		}
+
+		log.Infof("Executed query on meta db - %s", query)
+	}
+}
+
+func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation string) {
+	query := fmt.Sprintf(`UPDATE %s SET archived = 1, archive_location = ? WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME)
+	result, err := m.db.Exec(query, archiveLocation, segmentNum)
+	if err != nil {
+		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+	}
+
+	err = checkRowsAffected(result, 1)
+	if err != nil {
+		utils.ErrExit(err.Error())
+	}
+
+	log.Infof("Executed query on meta db - %s", query)
+}
+
+func checkRowsAffected(result sql.Result, expectedRows int) error {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error while getting rows updated: %v", err)
+	}
+	if rowsAffected != int64(expectedRows) {
+		return fmt.Errorf("expected %d rows to be updated, got %d", expectedRows, rowsAffected)
+	}
+	return nil
 }
