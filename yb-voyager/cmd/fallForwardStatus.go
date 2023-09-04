@@ -30,7 +30,8 @@ var fallforwardStatusCmd = &cobra.Command{
 	Long:  `Prints status of the fallforward to fallforward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		checkAndReportFallforwardStatus()
+		status := getFallForwardStatus()
+		reportFallForwardStatus(status)
 	},
 }
 
@@ -40,7 +41,7 @@ func init() {
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
-func checkAndReportFallforwardStatus() {
+func getFallForwardStatus() string {
 	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
 	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
 	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
@@ -49,12 +50,23 @@ func checkAndReportFallforwardStatus() {
 	b := utils.FileOrFolderExists(fallforwardTargetFPath)
 	c := utils.FileOrFolderExists(fallforwardFFFPath)
 
-	fmt.Printf("fall-forward status: ")
 	if !a {
-		color.Red("%s\n", NOT_INITIATED)
+		return NOT_INITIATED
 	} else if a && b && c {
-		color.Green("%s\n", COMPLETED)
+		return COMPLETED
 	} else {
-		color.Yellow("%s\n", INITIATED)
+		return INITIATED
+	}
+}
+
+func reportFallForwardStatus(status string) {
+	fmt.Printf("fall-forward status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", status)
+	case INITIATED:
+		color.Yellow("%s\n", status)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
 	}
 }
