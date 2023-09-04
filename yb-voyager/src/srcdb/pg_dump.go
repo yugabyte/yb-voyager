@@ -55,7 +55,9 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		}
 	}
 
-	if pgDumpArgsFile == "" {
+	if basePgDumpArgsFilePath == "" {
+		log.Infof("Using embedded pg_dump arguments file")
+	} else {
 		log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
 		basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
 		if err != nil {
