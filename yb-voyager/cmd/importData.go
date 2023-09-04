@@ -255,24 +255,13 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	if !found {
 		tables := importFileTasksToTableNames(importFileTasks)
-		TableToIdentityColumnNames, err = tdb.GetGeneratedAlwaysAsIdentityColumnsForTables(tables)
-		if err != nil {
-			utils.ErrExit("failed to get identity columns for tables(%v) from meta db: %s", tables, err)
-		}
+		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
 		// saving in metadb for handling restarts
 		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
 	}
 
-	err = tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
-	if err != nil {
-		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
-	}
-	defer func() {
-		err = tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
-		if err != nil {
-			utils.ErrExit("failed to enable generated always as identity columns: %s", err)
-		}
-	}()
+	disableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	defer enableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -344,6 +333,35 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func disableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) {
+	err := tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
+	}
+}
+
+func enableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) {
+	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to enable generated always as identity columns: %s", err)
+	}
+}
+
+func getGeneratedAlwaysAsIdentityColumnNamesForTables(tables []string) map[string][]string {
+	var result = make(map[string][]string)
+	for _, table := range tables {
+		identityColumns, err := tdb.GetGeneratedAlwaysAsIdentityColumnNamesForTable(table)
+		if err != nil {
+			utils.ErrExit("error in getting identity columns for table %s: %w", table, err)
+		}
+		if len(identityColumns) > 0 {
+			log.Infof("identity columns for table %s: %v", table, identityColumns)
+			result[table] = identityColumns
+		}
+	}
+	return result
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
