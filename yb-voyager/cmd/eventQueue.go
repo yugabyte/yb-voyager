@@ -18,7 +18,9 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -80,7 +82,7 @@ type EventQueueSegment struct {
 	reader     *bufio.Reader
 }
 
-var EOFMarker = `\.`
+var EOFMarker = []byte(`\.`)
 
 func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
 	return &EventQueueSegment{
@@ -100,7 +102,7 @@ func (eqs *EventQueueSegment) Open() error {
 	fn := func() (int64, error) {
 		return metaDB.GetLastValidOffsetInSegmentFile(eqs.SegmentNum)
 	}
-	eqs.reader = bufio.NewReader(utils.NewTailReader(file, fn))
+	eqs.reader = bufio.NewReaderSize(utils.NewTailReader(file, fn), 100*MB)
 	return nil
 }
 
@@ -112,17 +114,23 @@ func (eqs *EventQueueSegment) Close() error {
 // Waits until an event is available.
 func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	var event tgtdb.Event
+	var err error
+	var isPrefix = true
+	var line, currline []byte
 
-	line, err := eqs.reader.ReadBytes('\n')
-	if err != nil {
+	for isPrefix && err == nil {
+		currline, isPrefix, err = eqs.reader.ReadLine()
+		line = append(line, currline...)
+	}
+	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
 	}
-	if string(line) == EOFMarker {
+
+	if bytes.Equal(line, EOFMarker) {
 		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
 		eqs.MarkProcessed()
 		return nil, nil
 	}
-
 	err = json.Unmarshal(line, &event)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal json event %s: %w", string(line), err)
