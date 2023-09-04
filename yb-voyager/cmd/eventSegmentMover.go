@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -60,13 +61,23 @@ func (m *EventSegmentMover) Run() {
 	if err != nil {
 		utils.ErrExit("error while getting import count: %v", err)
 	}
+	log.Infof("Import count: %d", importCount)
 
 	for {
 		segmentsToArchive := metaDB.GetSegmentsToBeArchived(importCount)
 
 		for _, segment := range segmentsToArchive {
 			if m.MoveDestination != "" {
-				segmentNewPath := fmt.Sprintf("%s/%s", m.MoveDestination, segment.SegmentFilePath)
+				segmentFileName := filepath.Base(segment.SegmentFilePath)
+				segmentNewPath := fmt.Sprintf("%s/%s", m.MoveDestination, segmentFileName)
+
+				if utils.FileOrFolderExists(segmentNewPath) {
+					err = os.Remove(segmentNewPath)
+					if err != nil {
+						utils.ErrExit("error while deleting file: %v", err)
+					}
+					log.Infof("Deleted existing file %s", segmentNewPath)
+				}
 
 				sourceFile, err := os.Open(segment.SegmentFilePath)
 				if err != nil {
@@ -87,7 +98,6 @@ func (m *EventSegmentMover) Run() {
 				log.Infof("Moved segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
 			}
 		}
-		fmt.Println("Archiver EventSegmentMover sleeping for 10 seconds")
 		log.Info("Archiver EventSegmentMover sleeping for 10 seconds")
 		time.Sleep(10 * time.Second)
 	}

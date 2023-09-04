@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -41,7 +40,7 @@ func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
 	}
 
 	usedPercentage := int(DiskStats.Used * 100 / DiskStats.Total)
-	fmt.Println("Used percentage: ", usedPercentage)
+	log.Infof("FS Utilisation: %d%%", usedPercentage)
 	return usedPercentage > d.FSUtilisationThreshold
 }
 
@@ -60,11 +59,9 @@ func (d *EventSegmentDeleter) deleteSegments() {
 func (d *EventSegmentDeleter) Run() {
 	for {
 		if d.isFSUtilisationExceeded() {
-			fmt.Println("FS Utilisation exceeded, deleting segments")
 			d.deleteSegments()
 		}
 		time.Sleep(5 * time.Second)
-		fmt.Println("Archiver EventSegmentDeleter sleeping for 5 seconds")
 		log.Info("Archiver EventSegmentDeleter sleeping for 5 seconds")
 	}
 }
