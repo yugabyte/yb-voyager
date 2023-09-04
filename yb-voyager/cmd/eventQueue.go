@@ -77,8 +77,7 @@ type EventQueueSegment struct {
 	SegmentNum int64 // 0-based
 	processed  bool
 	file       *os.File
-	scanner    *bufio.Scanner
-	buffer     []byte // buffer for scanning from file
+	reader     *bufio.Reader
 }
 
 var EOFMarker = `\.`
@@ -101,11 +100,7 @@ func (eqs *EventQueueSegment) Open() error {
 	fn := func() (int64, error) {
 		return metaDB.GetLastValidOffsetInSegmentFile(eqs.SegmentNum)
 	}
-	eqs.scanner = bufio.NewScanner(utils.NewTailReader(file, fn))
-
-	// providing buffer to scanner for scanning
-	eqs.buffer = make([]byte, 0, 100*KB) // TODO: do not assume max single line size to be 100KB
-	eqs.scanner.Buffer(eqs.buffer, cap(eqs.buffer))
+	eqs.reader = bufio.NewReader(utils.NewTailReader(file, fn))
 	return nil
 }
 
@@ -118,14 +113,10 @@ func (eqs *EventQueueSegment) Close() error {
 func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	var event tgtdb.Event
 
-	// Scan() return false in case of error but it is handled below by Err()
-	_ = eqs.scanner.Scan()
-	// scanner.Err() returns nil when EOF error
-	line, err := eqs.scanner.Bytes(), eqs.scanner.Err()
+	line, err := eqs.reader.ReadBytes('\n')
 	if err != nil {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
 	}
-
 	if string(line) == EOFMarker {
 		log.Infof("reached EOF marker in segment %s", eqs.FilePath)
 		eqs.MarkProcessed()
