@@ -50,7 +50,7 @@ func checkAndReportCutoverStatus() {
 	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
 	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
 	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
-	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize")
+	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
 
 	a := utils.FileOrFolderExists(cutoverFpath)
 	b := utils.FileOrFolderExists(cutoverSrcFpath)

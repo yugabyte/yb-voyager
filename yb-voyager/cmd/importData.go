@@ -112,7 +112,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
 	if !migrationStatusRecord.FallForwarDBExists {
-		utils.PrintAndLog("no ff db exists. returning. ")
+		utils.PrintAndLog("No fall-forward db exists. Exiting.")
 		return
 	}
 	// TODO: ssl* params
@@ -122,7 +122,6 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--source-db-host", tconf.Host,
 		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
 		"--source-db-user", tconf.User,
-		"--source-db-password", fmt.Sprintf("'%s'", tconf.Password),
 		"--source-db-name", tconf.DBName,
 		"--source-db-schema", tconf.Schema,
 		"--table-list", strings.Join(tableList, ","),
@@ -141,7 +140,9 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
-	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, os.Environ())
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
+	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, env)
 	if execErr != nil {
 		utils.ErrExit("could not successfully run yb-voyager fall-forward synchronize - %w\n Please re-run with commend-%s", err, fallForwardSynchronizeCmdStr)
 	}
