@@ -36,7 +36,6 @@ import (
 )
 
 var ffDBPassword string
-var targetDBPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -63,13 +62,10 @@ var importDataStatusCmd = &cobra.Command{
 		}
 		if streamChanges {
 			getTargetPassword(cmd)
-			migrationStatus.TargetDBConf.Password = targetDBPassword
+			migrationStatus.TargetDBConf.Password = tconf.Password
 			if migrationStatus.FallForwarDBExists {
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = ffDBPassword
-			}
-			if err != nil {
-				utils.ErrExit("error while re-initialising target: %w\n", err)
 			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
