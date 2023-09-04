@@ -93,7 +93,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
-		utils.PrintAndLog("Skipping table list filter in case of streaming is enabled.")
+		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
