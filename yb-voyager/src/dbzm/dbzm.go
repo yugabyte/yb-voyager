@@ -119,7 +119,7 @@ func (d *Debezium) Start() error {
 }
 
 func (d *Debezium) setupLogFile() error {
-	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
+	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", fmt.Sprintf("debezium-%s.log", d.ExporterRole)))
 	if err != nil {
 		return fmt.Errorf("failed to create absolute path:%v", err)
 	}
