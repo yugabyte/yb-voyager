@@ -103,17 +103,16 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
-	migrationStatusRecord, err := GetMigrationStatusRecord()
+	msr, err := GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
-	if !migrationStatusRecord.FallForwarDBExists {
+	if !msr.FallForwarDBExists {
 		utils.PrintAndLog("No fall-forward db exists. Exiting.")
 		return
 	}
 	// TODO: ssl* params
-	// TODO: obfuscate password.
-	fallForwardSynchronizeCmd := []string{"yb-voyager", "fall-forward", "synchronize",
+	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
 		"--export-dir", exportDir,
 		"--source-db-host", tconf.Host,
 		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
@@ -125,23 +124,23 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 
 	if utils.DoNotPrompt {
-		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--yes")
+		cmd = append(cmd, "--yes")
 	}
 	if disablePb {
-		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--disable-pb")
+		cmd = append(cmd, "--disable-pb")
 	}
-	fallForwardSynchronizeCmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(fallForwardSynchronizeCmd, " ")
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(fallForwardSynchronizeCmdStr))
+	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
-	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, env)
+	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("could not successfully run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, fallForwardSynchronizeCmdStr)
+		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 
