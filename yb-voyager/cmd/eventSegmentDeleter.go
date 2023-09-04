@@ -42,10 +42,7 @@ func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
 	}
 
 	usedPercentage := int(DiskStats.Used * 100 / DiskStats.Total)
-	if usedPercentage > d.FSUtilisationThreshold {
-		return true
-	}
-	return false
+	return usedPercentage > d.FSUtilisationThreshold
 }
 
 func (d *EventSegmentDeleter) deleteSegments() {

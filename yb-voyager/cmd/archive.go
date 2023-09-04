@@ -39,8 +39,7 @@ func init() {
 }
 
 func registerCommonArchiveFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"directory in which exported data is present")
+	registerCommonGlobalFlags(cmd)
 
 	cmd.Flags().StringVar(&moveDestination, "move-to", "",
 		"destination to move exported data to")
@@ -49,8 +48,7 @@ func registerCommonArchiveFlags(cmd *cobra.Command) {
 		"delete exported data after moving it to destination, default is false")
 
 	cmd.Flags().IntVar(&utilizationThreshold, "utilization-threshold", 80,
-		"disk utilization threshold in percentage, default is 80")
-
+		"disk utilization threshold in percentage")
 }
 
 func validateCommonArchiveFlags() {
