@@ -55,12 +55,14 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		}
 	}
 
-	log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
-	basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
-	if err != nil {
-		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
+	if pgDumpArgsFile == "" {
+		log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
+		basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
+		if err != nil {
+			utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
+		}
+		pgDumpArgsFile = string(basePgDumpArgsFile)
 	}
-	pgDumpArgsFile = string(basePgDumpArgsFile)
 
 	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
 	if err != nil {
