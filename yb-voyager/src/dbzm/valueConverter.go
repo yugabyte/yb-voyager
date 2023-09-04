@@ -186,7 +186,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
-	//TODO: fix this cyclic dependency
+	//TODO: fix this cyclic dependency maybe using DataFileDescriptor 
 	var tableToSchema = make(map[string]map[string]map[string]string)
 	// tableToSchema {<table>: {<column>:<parameters>}}
 	for table, col := range conv.schemaRegistrySource.tableNameToSchema {

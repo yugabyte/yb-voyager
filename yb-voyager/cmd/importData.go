@@ -187,7 +187,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 func importData(importFileTasks []*ImportFileTask) {
 	if tconf.TargetDBType == YUGABYTEDB {
 		tconf.Schema = strings.ToLower(tconf.Schema)
-	} else if !utils.IsQuotedString(tconf.Schema) {
+	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
 		tconf.Schema = strings.ToUpper(tconf.Schema)
 	}
 	err := retrieveMigrationUUID(exportDir)

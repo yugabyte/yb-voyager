@@ -98,15 +98,9 @@ var OraValueConverterSuite = map[string]ConverterFn{
 
 		oracleFormat := "06-01-02 3:04:05.000000000 PM -07:00"
 		format := "RR-MM-DD HH:MI:SS.FF9 AM TZR"
-		timstampFn := "TO_TIMESTAMP_TZ"
-		if parsedTime.Location().String() == "UTC" { //LOCAL TIMEZONE Case
-			oracleFormat = "06-01-02 3:04:05.000000000 PM" // TODO: for timezone ones sqlldr is inserting as GMT though GMT/UTC is similar
-			format = "RR-MM-DD HH:MI:SS.FF9 AM"
-			timstampFn = "TO_TIMESTAMP"
-		}
 		formattedTimestamp := parsedTime.Format(oracleFormat)
 		if formatIfRequired {
-			formattedTimestamp = fmt.Sprintf("%s('%s','%s')", timstampFn, formattedTimestamp, format)
+			formattedTimestamp = fmt.Sprintf("TO_TIMESTAMP_TZ('%s','%s')", formattedTimestamp, format)
 		}
 		return formattedTimestamp, nil
 	},

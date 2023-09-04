@@ -124,25 +124,25 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map
 		var columnsList []string
 		for _, column := range args.Columns {
 			//setting the null string for each column
-			dataType := tableSchema[column]["__debezium.source.column.type"]  //TODO: rename this to some thing like source-db-datatype
-			charLength := tableSchema[column]["__debezium.source.column.length"]
-			if  strings.Contains(dataType, "INTERVAL") {
+			dataType, ok := tableSchema[column]["__debezium.source.column.type"] //TODO: rename this to some thing like source-db-datatype
+			charLength, okLen := tableSchema[column]["__debezium.source.column.length"]
+			switch true {
+			case ok && strings.Contains(dataType, "INTERVAL"):
 				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
-			} else if strings.HasPrefix(dataType, "DATE") {
+			case ok && strings.HasPrefix(dataType, "DATE"):
 				columnsList = append(columnsList, fmt.Sprintf(`%s DATE "DD-MM-YY" NULLIF %s='%s'`, column, column, args.NullString))
-			} else if strings.HasPrefix(dataType,  "TIMESTAMP") {
-				if strings.Contains(dataType, "WITH LOCAL TIME ZONE") {
-					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH LOCAL TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
-				} else if strings.Contains(dataType, "WITH TIME ZONE") {
+			case ok && strings.HasPrefix(dataType, "TIMESTAMP"):
+				switch true {
+				case strings.Contains(dataType, "TIME ZONE"):
 					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR" NULLIF %s='%s'`, column, column, args.NullString))
-				} else {
+				default:
 					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP "DD-MM-YY HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
 				}
-			} else if strings.Contains(dataType, "CHAR") {
+			case ok && okLen && strings.Contains(dataType, "CHAR"):
 				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='%s'`, column, charLength, column, args.NullString))
-			} else if dataType == "LONG" {
+			case ok && dataType == "LONG":
 				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(2000000000) NULLIF %s='%s'`, column, column, args.NullString)) // for now mentioning max 2GB length, TODO: figure out if there is any other way to handle LONG data type
-			} else {
+			default:
 				columnsList = append(columnsList, fmt.Sprintf("%s NULLIF %s='%s'", column, column, args.NullString))
 			}
 		}

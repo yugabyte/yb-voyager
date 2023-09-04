@@ -95,7 +95,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
-		timeValue := time.Unix(epochSecs, 0).Local().Format(time.TimeOnly)
+		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
 		if formatIfRequired {
 			timeValue = fmt.Sprintf("'%s'", timeValue)
 		}
@@ -109,7 +109,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		MICRO_TIME_FORMAT := "15:04:05.000000"
-		timeValue := time.Unix(epochSeconds, epochNanos).Local().Format(MICRO_TIME_FORMAT)
+		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
 		if formatIfRequired {
 			timeValue = fmt.Sprintf("'%s'", timeValue)
 		}

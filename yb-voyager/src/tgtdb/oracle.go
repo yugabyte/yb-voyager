@@ -44,8 +44,6 @@ type TargetOracleDB struct {
 	conn  *sql.Conn
 }
 
-var TableToColumnDataTypesCache = make(map[string]map[string]string)
-
 func newTargetOracleDB(tconf *TargetConf) TargetDB {
 	return &TargetOracleDB{tconf: tconf}
 }
@@ -697,7 +695,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 			result[i] = fmt.Sprintf(`"%s"`, colName)
 		case colName == strings.ToUpper(colName): // Name is all Upper case.
 			result[i] = colName
-		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
+		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all uppercase.
 			result[i] = fmt.Sprintf(`"%s"`, colName)
 		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
 			result[i] = strings.ToUpper(colName)
