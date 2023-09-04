@@ -249,19 +249,8 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
-	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
-	if err != nil {
-		utils.ErrExit("failed to get identity columns from meta db: %s", err)
-	}
-	if !found {
-		tables := importFileTasksToTableNames(importFileTasks)
-		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
-		// saving in metadb for handling restarts
-		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
-	}
-
-	disableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
-	defer enableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	disableGeneratedAlwaysAsIdentityColumns()
+	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -335,14 +324,25 @@ func importData(importFileTasks []*ImportFileTask) {
 	fmt.Printf("\nImport data complete.\n")
 }
 
-func disableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) {
-	err := tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+func disableGeneratedAlwaysAsIdentityColumns() {
+	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to get identity columns from meta db: %s", err)
+	}
+	if !found {
+		tables := importFileTasksToTableNames(importFileTasks)
+		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
+		// saving in metadb for handling restarts
+		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
+	}
+
+	err = tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 	if err != nil {
 		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
 	}
 }
 
-func enableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) {
+func enableGeneratedAlwaysAsIdentityColumns() {
 	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 	if err != nil {
 		utils.ErrExit("failed to enable generated always as identity columns: %s", err)

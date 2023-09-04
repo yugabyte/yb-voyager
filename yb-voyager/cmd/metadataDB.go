@@ -195,7 +195,6 @@ func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
 		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
 			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 		}
-
 	}
 
 	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, runId)
