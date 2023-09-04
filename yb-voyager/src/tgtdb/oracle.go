@@ -77,10 +77,10 @@ func (tdb *TargetOracleDB) Init() error {
 	if err != nil {
 		return err
 	}
-
+	tdb.tconf.Schema = strings.ToUpper(tdb.tconf.Schema)
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
-		strings.ToUpper(tdb.tconf.Schema))
+		tdb.tconf.Schema)
 	var cntSchemaName int
 	if err = tdb.conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
@@ -819,8 +819,8 @@ func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string)
 func (tdb *TargetOracleDB) GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error) {
 	schema := tdb.getTargetSchemaName(table)
 	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
-		AND TABLE_NAME = '%s' AND GENERATION_TYPE='ALWAYS';`, schema, table)
-
+	AND TABLE_NAME = '%s' AND GENERATION_TYPE='ALWAYS'`, schema, table)
+	log.Infof("query of identity columns for table(%s): %s", table, query)
 	var identityColumns []string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		rows, err := conn.QueryContext(context.Background(), query)

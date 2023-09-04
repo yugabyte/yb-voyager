@@ -1300,6 +1300,7 @@ func (yb *TargetYugabyteDB) GetGeneratedAlwaysAsIdentityColumnNamesForTable(tabl
 	}
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='%s' AND
 		table_name='%s' AND is_identity='YES' AND identity_generation='ALWAYS'`, schema, table)
+	log.Infof("query of identity columns for table(%s): %s", table, query)
 	var identityColumns []string
 	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 		rows, err := conn.Query(context.Background(), query)
