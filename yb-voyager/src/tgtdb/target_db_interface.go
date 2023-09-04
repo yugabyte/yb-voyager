@@ -44,6 +44,9 @@ type TargetDB interface {
 	RestoreSequences(sequencesLastValue map[string]int64) error
 	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (*EventCounter, error)
 	GetImportedSnapshotRowCountForTable(tableName string) (int64, error)
+	GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error)
+	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
+	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 }
 
 const (
