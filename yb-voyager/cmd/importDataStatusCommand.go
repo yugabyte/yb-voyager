@@ -37,9 +37,6 @@ import (
 
 var ffDBPassword string
 var targetDBPassword string
-var targetDBConf *tgtdb.TargetConf
-var ffDBConf *tgtdb.TargetConf
-var migrationStatus *MigrationStatusRecord
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -136,6 +133,7 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChange
 		return fmt.Errorf("check if data export is done: %w", err)
 	}
 	//reinitialise targetDB
+	tconf = *tgtconf
 	tdb = tgtdb.NewTargetDB(tgtconf)
 	err = tdb.Init()
 	if err != nil {
@@ -146,7 +144,7 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChange
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	table, err := prepareImportDataStatusTable(tdb, tgtconf, isffDB, streamChanges)
+	table, err := prepareImportDataStatusTable(isffDB, streamChanges)
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
@@ -212,11 +210,9 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func prepareImportDataStatusTable(tgtdb tgtdb.TargetDB, tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
+func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
 	var err error
-	tdb = tgtdb
-	tconf = *tgtconf
 	var dataFileDescriptor *datafile.Descriptor
 	if isffDB {
 		importerRole = FF_DB_IMPORTER_ROLE
