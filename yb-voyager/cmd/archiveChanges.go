@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var archiveChangesCmd = &cobra.Command{
@@ -26,6 +27,11 @@ var archiveChangesCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateCommonArchiveFlags()
+		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
