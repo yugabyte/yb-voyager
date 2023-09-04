@@ -721,7 +721,7 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		case colName == strings.ToLower(colName): // Name is all lowercase.
 			result[i] = colName
 		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all lowercase.
-			result[i] = fmt.Sprintf(`"%s"`, colName)Y
+			result[i] = fmt.Sprintf(`"%s"`, colName)
 		case slices.Contains(targetColumns, strings.ToLower(colName)): // Case insensitive name given with mixed case.
 			result[i] = strings.ToLower(colName)
 		default:

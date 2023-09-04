@@ -135,8 +135,8 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--disable-pb")
 	}
 
-	utils.PrintAndLog("Starting ff synchronize with command %s", fallForwardSynchronizeCmdStr)
-	binary, lookErr := exec.LookPath("yb-voyager")
+	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(fallForwardSynchronizeCmdStr))
+	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
