@@ -127,13 +127,14 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--table-list", strings.Join(tableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
-	fallForwardSynchronizeCmdStr := strings.Join(fallForwardSynchronizeCmd, " ")
+
 	if utils.DoNotPrompt {
 		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--yes")
 	}
 	if disablePb {
 		fallForwardSynchronizeCmd = append(fallForwardSynchronizeCmd, "--disable-pb")
 	}
+	fallForwardSynchronizeCmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(fallForwardSynchronizeCmd, " ")
 
 	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(fallForwardSynchronizeCmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
@@ -144,21 +145,8 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, fallForwardSynchronizeCmd, env)
 	if execErr != nil {
-		utils.ErrExit("could not successfully run yb-voyager fall-forward synchronize - %w\n Please re-run with commend-%s", err, fallForwardSynchronizeCmdStr)
+		utils.ErrExit("could not successfully run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, fallForwardSynchronizeCmdStr)
 	}
-
-	// cmd := exec.CommandContext(context.Background(), "/bin/bash", "-c", fallForwardSynchronizeCmdStr)
-
-	// cmd.Stdout = os.Stdout
-	// cmd.Stderr = os.Stderr
-	// err = cmd.Start()
-	// if err != nil {
-	// 	utils.ErrExit("failed to start command: %s, error: %w", fallForwardSynchronizeCmdStr, err)
-	// }
-	// err = cmd.Wait()
-	// if err != nil {
-	// 	utils.ErrExit("fall-forward synchronize failed with error: %w. \nPlease re-run the command:\n%s", err, fallForwardSynchronizeCmdStr)
-	// }
 }
 
 type ImportFileTask struct {
