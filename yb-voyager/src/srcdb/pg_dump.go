@@ -54,16 +54,13 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 			break
 		}
 	}
-	if basePgDumpArgsFilePath == "" {
-		utils.ErrExit("Could not find pg_dump-args.ini in any of %v.", possiblePaths)
-	} else {
-		log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
-		basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
-		if err != nil {
-			utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
-		}
-		pgDumpArgsFile = string(basePgDumpArgsFile)
+
+	log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
+	basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
+	if err != nil {
+		utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
 	}
+	pgDumpArgsFile = string(basePgDumpArgsFile)
 
 	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
 	if err != nil {

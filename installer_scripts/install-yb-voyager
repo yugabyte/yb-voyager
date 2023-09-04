@@ -150,7 +150,7 @@ ubuntu_main() {
 
 	install_golang linux
 	ubuntu_install_postgres
-	create_pg_dump_args_file
+	# create_pg_dump_args_file
 	if [ $ONLY_PG == "false" ] ; then
 		sudo apt-get -y install perl  1>&2
 		sudo apt-get -y install libdbi-perl 1>&2
