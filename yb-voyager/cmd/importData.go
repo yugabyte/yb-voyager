@@ -53,6 +53,7 @@ var dataFileDescriptor *datafile.Descriptor
 var truncateSplits bool                            // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
 var valueConverter dbzm.ValueConverter
+var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -92,7 +93,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-	importFileTasks = applyTableListFilter(importFileTasks)
+	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
+		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+	} else {
+		importFileTasks = applyTableListFilter(importFileTasks)
+	}
 	importData(importFileTasks)
 }
 
@@ -202,12 +207,16 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
+	if tconf.TargetDBType == YUGABYTEDB {
+		tconf.Schema = strings.ToLower(tconf.Schema)
+	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
+		tconf.Schema = strings.ToUpper(tconf.Schema)
+	}
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
-	tconf.Schema = strings.ToLower(tconf.Schema)
 	updateTargetConfInMigrationStatus()
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
@@ -217,6 +226,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	defer tdb.Finalize()
 
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
+	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}
@@ -268,7 +278,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -525,7 +535,8 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 		}
 		if line != "" {
 			table := batchWriter.tableName
-			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line)
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
@@ -599,7 +610,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema[batch.TableName])
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}

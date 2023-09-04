@@ -207,7 +207,7 @@ func exportData() bool {
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 			utils.ErrExit("yb-voyager encountered internal error. "+
-				"Check %s/logs/yb-voyager.log for more details.", exportDir)
+				"Check %s/logs/yb-voyager-export-data.log for more details.", exportDir)
 		}
 	}()
 

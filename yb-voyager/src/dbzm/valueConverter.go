@@ -22,12 +22,14 @@ import (
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type ValueConverter interface {
 	ConvertRow(tableName string, columnNames []string, row string) (string, error)
 	ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error
+	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (ValueConverter, error) {
@@ -50,16 +52,20 @@ func (nvc *NoOpValueConverter) ConvertEvent(ev *tgtdb.Event, table string, forma
 	return nil
 }
 
+func (nvc *NoOpValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
+	return nil
+}
+
 //============================================================================
 
 type DebeziumValueConverter struct {
 	exportDir            string
 	schemaRegistrySource *SchemaRegistry
 	schemaRegistryTarget *SchemaRegistry
-	targetDBType         string
 	targetSchema         string
-	valueConverterSuite  map[string]tgtdb.ConverterFn
-	converterFnCache     map[string][]tgtdb.ConverterFn //stores table name to converter functions for each column
+	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
+	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
+	targetDBType         string
 	buf                  bytes.Buffer
 }
 
@@ -77,7 +83,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistrySource: schemaRegistrySource,
 		schemaRegistryTarget: schemaRegistryTarget,
 		valueConverterSuite:  tdbValueConverterSuite,
-		converterFnCache:     map[string][]tgtdb.ConverterFn{},
+		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
 	}, nil
@@ -110,20 +116,24 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	return transformedRow, nil
 }
 
-func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdb.ConverterFn, error) {
+func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, error) {
 	result := conv.converterFnCache[tableName]
 	if result == nil {
-		colTypes, err := conv.schemaRegistrySource.GetColumnTypes(tableName, columnNames)
+		colTypes, err := conv.schemaRegistrySource.GetColumnTypes(tableName, columnNames, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
-		result = make([]tgtdb.ConverterFn, len(columnNames))
+		result = make([]tgtdbsuite.ConverterFn, len(columnNames))
 		for i, colType := range colTypes {
 			result[i] = conv.valueConverterSuite[colType]
 		}
 		conv.converterFnCache[tableName] = result
 	}
 	return result, nil
+}
+
+func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
+	return conv.targetDBType == tgtdb.ORACLE
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
@@ -157,7 +167,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 			continue
 		}
 		columnValue := *value
-		colType, err := schemaRegistry.GetColumnType(tableName, column)
+		colType, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
@@ -171,4 +181,19 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 		m[column] = &columnValue
 	}
 	return nil
+}
+
+func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
+
+	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
+	//TODO: fix this cyclic dependency maybe using DataFileDescriptor 
+	var tableToSchema = make(map[string]map[string]map[string]string)
+	// tableToSchema {<table>: {<column>:<parameters>}}
+	for table, col := range conv.schemaRegistrySource.tableNameToSchema {
+		tableToSchema[table] = make(map[string]map[string]string)
+		for _, col := range col.Columns {
+			tableToSchema[table][col.Name] = col.Schema.Parameters
+		}
+	}
+	return tableToSchema
 }

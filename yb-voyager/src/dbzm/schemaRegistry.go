@@ -24,8 +24,9 @@ import (
 )
 
 type ColumnSchema struct {
-	Type string `json:"type"`
-	Name string `json:"name"`
+	Type       string            `json:"type"`
+	Name       string            `json:"name"`
+	Parameters map[string]string `json:"parameters"`
 	// Not decoding the rest of the fields for now.
 }
 
@@ -39,10 +40,14 @@ type TableSchema struct {
 	Columns []Column `json:"columns"`
 }
 
-func (ts *TableSchema) getColumnType(columnName string) (string, error) {
+func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequired bool) (string, error) {
 	for _, colSchema := range ts.Columns {
-		if colSchema.Name == columnName {
-			if colSchema.Schema.Name != "" { // in case Kafka speicfic type which start with io.debezium...
+		if colSchema.Name == columnName { //TODO: store the column names in map for faster lookup
+			if dbColType, ok := colSchema.Schema.Parameters["__debezium.source.column.type"]; ok && getSourceDatatypeIfRequired &&
+				(strings.Contains(dbColType, "DATE") || strings.Contains(dbColType, "INTERVAL")) {
+				//in case oracle import for DATE and INTERVAL types, need to use the original type from source
+				return dbColType, nil
+			} else if colSchema.Schema.Name != "" { // in case Kafka speicfic type which start with io.debezium...
 				return colSchema.Schema.Name, nil
 			} else {
 				return colSchema.Schema.Type, nil // in case of Primitive types e.g. BYTES/STRING..
@@ -69,7 +74,7 @@ func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	}
 }
 
-func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string) ([]string, error) {
+func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, error) {
 	tableSchema := sreg.tableNameToSchema[tableName]
 	if tableSchema == nil {
 		return nil, fmt.Errorf("table %s not found in schema registry", tableName)
@@ -77,7 +82,7 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []strin
 	columnTypes := make([]string, len(columnNames))
 	for idx, columnName := range columnNames {
 		var err error
-		columnTypes[idx], err = tableSchema.getColumnType(columnName)
+		columnTypes[idx], err = tableSchema.getColumnType(columnName, getSourceDatatypes)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableName, columnName, err)
 		}
@@ -85,7 +90,7 @@ func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []strin
 	return columnTypes, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, error) {
 	var tableSchema *TableSchema
 	var err error
 	tableSchema = sreg.tableNameToSchema[tableName]
@@ -96,7 +101,7 @@ func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string) (string,
 			return "", fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
 	}
-	return tableSchema.getColumnType(columnName)
+	return tableSchema.getColumnType(columnName, getSourceDatatype)
 }
 
 func (sreg *SchemaRegistry) Init() error {
