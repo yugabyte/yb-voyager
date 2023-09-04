@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -391,7 +392,10 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 
 func (yb *YugabyteDB) GetServers() string {
 	var ybServers []string
-	//TODO: figure out a way to get master nodes only from server
+	masterPort := "7100"
+	if os.Getenv("YB_MASTER_PORT") != "" {
+		masterPort = os.Getenv("YB_MASTER_PORT")
+	}
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
 	rows, err := yb.conn.Query(context.Background(), YB_SERVERS_QUERY)
 	if err != nil {
@@ -404,7 +408,8 @@ func (yb *YugabyteDB) GetServers() string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for yb_servers: %v\n", err)
 		}
-		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer))
+		
+		ybServers = append(ybServers, fmt.Sprintf("%s:%s", ybServer, masterPort))
 	}
 	return strings.Join(ybServers, ",")
 }
