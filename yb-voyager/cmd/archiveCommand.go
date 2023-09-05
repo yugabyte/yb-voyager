@@ -57,15 +57,17 @@ func validateCommonArchiveFlags() {
 }
 
 func validateMoveToFlag() {
-	if !utils.FileOrFolderExists(moveDestination) {
-		utils.ErrExit("move destination %q doesn't exists.\n", moveDestination)
-	} else {
-		var err error
-		moveDestination, err = filepath.Abs(moveDestination)
-		if err != nil {
-			utils.ErrExit("Failed to get absolute path for move destination %q: %v\n", moveDestination, err)
+	if moveDestination != "" {
+		if !utils.FileOrFolderExists(moveDestination) {
+			utils.ErrExit("move destination %q doesn't exists.\n", moveDestination)
+		} else {
+			var err error
+			moveDestination, err = filepath.Abs(moveDestination)
+			if err != nil {
+				utils.ErrExit("Failed to get absolute path for move destination %q: %v\n", moveDestination, err)
+			}
+			moveDestination = filepath.Clean(moveDestination)
+			fmt.Printf("Note: Using %q as move destination\n", moveDestination)
 		}
-		moveDestination = filepath.Clean(moveDestination)
-		fmt.Printf("Note: Using %q as move destination\n", moveDestination)
 	}
 }
