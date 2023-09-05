@@ -17,11 +17,9 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -47,29 +45,14 @@ func init() {
 }
 
 func checkAndReportCutoverStatus() {
-	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
-	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
-	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
-	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
-
-	a := utils.FileOrFolderExists(cutoverFpath)
-	b := utils.FileOrFolderExists(cutoverSrcFpath)
-	c := utils.FileOrFolderExists(cutoverTgtFpath)
-	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
-	migrationStatusRecord, err := GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
-	}
-	ffDBExists := migrationStatusRecord.FallForwarDBExists
-
+	status := getCutoverStatus()
 	fmt.Printf("cutover status: ")
-	if !a {
+	switch status {
+	case NOT_INITIATED:
 		color.Red("%s\n", NOT_INITIATED)
-	} else if !ffDBExists && a && b && c {
-		color.Green("%s\n", COMPLETED)
-	} else if a && b && c && d {
-		color.Green("%s\n", COMPLETED)
-	} else {
+	case INITIATED:
 		color.Yellow("%s\n", INITIATED)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
 	}
 }

@@ -17,13 +17,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -71,9 +68,9 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateBatchSizeFlag(batchSize)
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
-		validateTargetDBPassword(cmd)
+		getTargetPassword(cmd)
 	case FF_DB_IMPORTER_ROLE:
-		validateFFDBPassword(cmd)
+		getFallForwardDBPassword(cmd)
 	}
 }
 
@@ -258,40 +255,20 @@ func validateTargetSchemaFlag() {
 	}
 }
 
-func validateTargetDBPassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("target-db-password") {
-		return
-	}
-	if os.Getenv("TARGET_DB_PASSWORD") != "" {
-		tconf.Password = os.Getenv("TARGET_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to target:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+func getTargetPassword(cmd *cobra.Command) {
+	var err error
+	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
+		utils.ErrExit("error in getting target-db-password: %v", err)
 	}
-	fmt.Print("\n")
-	tconf.Password = string(bytePassword)
 }
 
-func validateFFDBPassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("ff-db-password") {
-		return
-	}
-	if os.Getenv("FF_DB_PASSWORD") != "" {
-		tconf.Password = os.Getenv("FF_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to fall-forward DB:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+func getFallForwardDBPassword(cmd *cobra.Command) {
+	var err error
+	tconf.Password, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
+		utils.ErrExit("error while getting ff-db-password: %w", err)
 	}
-	fmt.Print("\n")
-	tconf.Password = string(bytePassword)
 }
 
 func validateImportObjectsFlag(importObjectsString string, flagName string) {

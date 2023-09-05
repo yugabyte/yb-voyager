@@ -171,7 +171,7 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	checkHasHeader()
 	checkAndParseEscapeAndQuoteChar()
 	setDefaultForNullString()
-	validateTargetDBPassword(cmd)
+	getTargetPassword(cmd)
 	validateTargetPortRange()
 	validateTargetSchemaFlag()
 }

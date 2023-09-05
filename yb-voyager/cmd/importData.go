@@ -252,6 +252,24 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
+func updateTargetConfInMigrationStatus() {
+	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		switch tconf.TargetDBType {
+		case YUGABYTEDB:
+			record.TargetDBConf = tconf.Clone()
+			record.TargetDBConf.Password = ""
+		case ORACLE:
+			record.FallForwardDBConf = tconf.Clone()
+			record.FallForwardDBConf.Password = ""
+		default:
+			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))
+		}
+	})
+	if err != nil {
+		utils.ErrExit("Failed to update target conf in migration status record: %s", err)
+	}
+}
+
 func importData(importFileTasks []*ImportFileTask) {
 	if tconf.TargetDBType == YUGABYTEDB {
 		tconf.Schema = strings.ToLower(tconf.Schema)
@@ -263,7 +281,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
-
+	updateTargetConfInMigrationStatus()
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -280,6 +298,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
+	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
 

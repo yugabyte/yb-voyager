@@ -16,12 +16,13 @@ limitations under the License.
 package cmd
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/fatih/color"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
@@ -36,9 +37,17 @@ var exportDataStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
 		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("error while connecting meta db: %w\n", err)
+		}
+		streamChanges, err := checkWithStreamingMode()
+		if err != nil {
+			utils.ErrExit("error while checking streaming mode: %w\n", err)
+		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {
-			err = runExportDataStatusCmdDbzm()
+			err = runExportDataStatusCmdDbzm(streamChanges)
 		} else {
 			err = runExportDataStatusCmd()
 		}
@@ -56,31 +65,74 @@ type exportTableMigStatusOutputRow struct {
 	tableName     string
 	status        string
 	exportedCount int64
+	//streaming stats
+	schemaName    string
+	totalEvents   int64
+	numInserts    int64
+	numUpdates    int64
+	numDeletes    int64
+	finalRowCount int64
 }
+
+var InProgressTableSno int
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
-func runExportDataStatusCmdDbzm() error {
+func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
-	InProgressTableSno := status.InProgressTableSno()
+	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
-	for _, table := range status.Tables {
-		row := &exportTableMigStatusOutputRow{
-			tableName:     table.TableName,
-			status:        "DONE",
-			exportedCount: table.ExportedRowCountSnapshot,
-		}
-		if table.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
-			row.status = "EXPORTING"
+	var row *exportTableMigStatusOutputRow
+	for _, tableStatus := range status.Tables {
+		if streamChanges {
+			row = getSnapshotAndChangesExportStatusRow(&tableStatus)
+		} else {
+			row = getSnapshotExportStatusRow(&tableStatus)
 		}
 		rows = append(rows, row)
 	}
-	displayExportDataStatus(rows)
+
+	displayExportDataStatus(rows, streamChanges)
 	return nil
+}
+
+func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
+	row := &exportTableMigStatusOutputRow{
+		tableName:     tableStatus.TableName,
+		status:        "DONE",
+		exportedCount: tableStatus.ExportedRowCountSnapshot,
+	}
+	if tableStatus.Sno == InProgressTableSno && dbzm.IsLiveMigrationInSnapshotMode(exportDir) {
+		row.status = "EXPORTING"
+	}
+	return row
+}
+
+func getSnapshotAndChangesExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
+	eventCounter, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+	}
+	row := &exportTableMigStatusOutputRow{
+		schemaName:    tableStatus.SchemaName,
+		tableName:     tableStatus.TableName,
+		exportedCount: tableStatus.ExportedRowCountSnapshot,
+	}
+	if getCutoverStatus() == COMPLETED {
+		row.status = "DONE"
+	} else {
+		row.status = "STREAMING"
+	}
+	row.totalEvents = eventCounter.TotalEvents
+	row.numInserts = eventCounter.NumInserts
+	row.numUpdates = eventCounter.NumUpdates
+	row.numDeletes = eventCounter.NumDeletes
+	row.finalRowCount = tableStatus.ExportedRowCountSnapshot + eventCounter.NumInserts - eventCounter.NumDeletes
+	return row
 }
 
 func runExportDataStatusCmd() error {
@@ -141,24 +193,27 @@ func runExportDataStatusCmd() error {
 		outputRows = append(outputRows, row)
 	}
 
-	displayExportDataStatus(outputRows)
+	displayExportDataStatus(outputRows, false)
 
 	return nil
 }
 
-func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
+func displayExportDataStatus(rows []*exportTableMigStatusOutputRow, streamChanges bool) {
 	table := uitable.New()
-	headerfmt := color.New(color.FgGreen, color.Underline).SprintFunc()
 
-	if useDebezium {
-		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"), headerfmt("EXPORTED ROWS"))
+	if streamChanges {
+		addHeader(table, "SCHEMA", "TABLE", "STATUS", "SNAPSHOT ROW COUNT", "TOTAL CHANGES",
+			"INSERTS", "UPDATES", "DELETES",
+			"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
+	} else if useDebezium {
+		addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
 	} else {
-		table.AddRow(headerfmt("TABLE"), headerfmt("STATUS"))
+		addHeader(table, "TABLE", "STATUS")
 	}
 
 	// First sort by status and then by table-name.
 	sort.Slice(rows, func(i, j int) bool {
-		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3}
+		ordStates := map[string]int{"EXPORTING": 1, "DONE": 2, "NOT_STARTED": 3, "STREAMING": 4}
 		row1 := rows[i]
 		row2 := rows[j]
 		if row1.status == row2.status {
@@ -168,7 +223,11 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		}
 	})
 	for _, row := range rows {
-		if useDebezium {
+		if streamChanges {
+			table.AddRow(row.schemaName, row.tableName, row.status, row.exportedCount, row.totalEvents,
+				row.numInserts, row.numUpdates, row.numDeletes,
+				row.finalRowCount)
+		} else if useDebezium {
 			table.AddRow(row.tableName, row.status, row.exportedCount)
 		} else {
 			table.AddRow(row.tableName, row.status)
