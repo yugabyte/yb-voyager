@@ -338,6 +338,7 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	var inserts int64
 	var updates int64
 	var deletes int64
+	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
 	query := fmt.Sprintf(`select SUM(num_total), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
 		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
 
