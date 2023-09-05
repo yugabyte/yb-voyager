@@ -54,7 +54,7 @@ var importSchemaCmd = &cobra.Command{
 func init() {
 	importCmd.AddCommand(importSchemaCmd)
 	registerCommonGlobalFlags(importSchemaCmd)
-	registerCommonImportFlags(importSchemaCmd)
+	registerCommonImportFlags(importSchemaCmd, TARGET_DB_IMPORTER_ROLE)
 	registerImportSchemaFlags(importSchemaCmd)
 }
 

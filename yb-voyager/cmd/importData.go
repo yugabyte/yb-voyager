@@ -897,6 +897,6 @@ func checkExportDataDoneFlag() {
 func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonGlobalFlags(importDataCmd)
-	registerCommonImportFlags(importDataCmd)
+	registerCommonImportFlags(importDataCmd, TARGET_DB_IMPORTER_ROLE)
 	registerImportDataFlags(importDataCmd)
 }

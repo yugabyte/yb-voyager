@@ -37,7 +37,7 @@ var fallForwardSetupCmd = &cobra.Command{
 func init() {
 	fallForwardCmd.AddCommand(fallForwardSetupCmd)
 	registerCommonGlobalFlags(fallForwardSetupCmd)
-	registerCommonImportFlags(fallForwardSetupCmd)
+	registerCommonImportFlags(fallForwardSetupCmd, FF_DB_IMPORTER_ROLE)
 	registerImportDataFlags(fallForwardSetupCmd)
 	hideFlagsInFallFowardCmds(fallForwardSetupCmd)
 }

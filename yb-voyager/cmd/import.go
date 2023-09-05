@@ -73,24 +73,33 @@ func validateImportFlags(cmd *cobra.Command) {
 
 }
 
-func registerCommonImportFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
+func registerCommonImportFlags(cmd *cobra.Command, importerRole string) {
+	var prefix string
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		prefix = "target"
+	case FF_DB_IMPORTER_ROLE:
+		prefix = "ff"
+	default:
+		utils.ErrExit("invalid importer role %s", importerRole)
+	}
+	cmd.Flags().StringVar(&tconf.Host, fmt.Sprintf("%s-db-host", prefix), "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, fmt.Sprintf("%s-db-port", prefix), -1,
 		"port on which the YugabyteDB YSQL API is running")
 
-	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
+	cmd.Flags().StringVar(&tconf.User, fmt.Sprintf("%s-db-user", prefix), "",
 		"username with which to connect to the target YugabyteDB server")
-	cmd.MarkFlagRequired("target-db-user")
+	cmd.MarkFlagRequired(fmt.Sprintf("%s-db-user", prefix))
 
-	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
+	cmd.Flags().StringVar(&tconf.Password, fmt.Sprintf("%s-db-password", prefix), "",
 		"password with which to connect to the target YugabyteDB server")
 
-	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
+	cmd.Flags().StringVar(&tconf.DBName, fmt.Sprintf("%s-db-name", prefix), "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.DBSid, "target-db-sid", "",
+	cmd.Flags().StringVar(&tconf.DBSid, fmt.Sprintf("%s-db-sid", prefix), "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
 
 	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
@@ -99,23 +108,23 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
+	cmd.Flags().StringVar(&tconf.Schema, fmt.Sprintf("%s-db-schema", prefix), "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
-	cmd.Flags().StringVar(&tconf.SSLCertPath, "target-ssl-cert", "",
+	cmd.Flags().StringVar(&tconf.SSLCertPath, fmt.Sprintf("%s-ssl-cert", prefix), "",
 		"provide target SSL Certificate Path")
 
-	cmd.Flags().StringVar(&tconf.SSLMode, "target-ssl-mode", "prefer",
+	cmd.Flags().StringVar(&tconf.SSLMode, fmt.Sprintf("%s-ssl-mode", prefix), "prefer",
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
-	cmd.Flags().StringVar(&tconf.SSLKey, "target-ssl-key", "",
+	cmd.Flags().StringVar(&tconf.SSLKey, fmt.Sprintf("%s-ssl-key", prefix), "",
 		"target SSL Key Path")
 
-	cmd.Flags().StringVar(&tconf.SSLRootCert, "target-ssl-root-cert", "",
+	cmd.Flags().StringVar(&tconf.SSLRootCert, fmt.Sprintf("%s-ssl-root-cert", prefix), "",
 		"target SSL Root Certificate Path")
 
-	cmd.Flags().StringVar(&tconf.SSLCRL, "target-ssl-crl", "",
+	cmd.Flags().StringVar(&tconf.SSLCRL, fmt.Sprintf("%s-ssl-crl", prefix), "",
 		"target SSL Root Certificate Revocation List (CRL)")
 
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
