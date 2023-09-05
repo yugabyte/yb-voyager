@@ -160,7 +160,7 @@ func exportData() bool {
 	}
 
 	if len(finalTableList) == 0 {
-		fmt.Println("no tables present to export, exiting...")
+		utils.PrintAndLog("no tables present to export, exiting...")
 		createExportDataDoneFlag()
 		dfd := datafile.Descriptor{
 			ExportDir:    exportDir,

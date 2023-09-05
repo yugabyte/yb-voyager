@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -65,8 +66,10 @@ func streamChanges() error {
 	}
 	defer finalizeStats()
 	if !disablePb {
-		go updateExportedEventsStats()
-		go statsReporter.ReportStats()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go updateExportedEventsStats(ctx)
+		go statsReporter.ReportStats(ctx)
 	}
 
 	eventQueue = NewEventQueue(exportDir)
@@ -244,12 +247,17 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func updateExportedEventsStats() {
+func updateExportedEventsStats(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		fetchAndUpdateEventsStats()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			fetchAndUpdateEventsStats()
+		}
 	}
 }
 

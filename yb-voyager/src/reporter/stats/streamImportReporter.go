@@ -16,6 +16,7 @@ limitations under the License.
 package stats
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -64,7 +65,7 @@ func (s *StreamImportStatsReporter) Finalize() {
 
 var headerRow, seperator1, seperator2, seperator3, row1, row2, row3, row4, row5, row6, timerRow io.Writer
 
-func (s *StreamImportStatsReporter) ReportStats() {
+func (s *StreamImportStatsReporter) ReportStats(ctx context.Context) {
 	displayTicker := time.NewTicker(10 * time.Second)
 	defer displayTicker.Stop()
 	s.uitable = uilive.New()
@@ -83,7 +84,12 @@ func (s *StreamImportStatsReporter) ReportStats() {
 	s.uitable.Start()
 
 	for range displayTicker.C {
-		s.refreshStats()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			s.refreshStats()
+		}
 	}
 }
 

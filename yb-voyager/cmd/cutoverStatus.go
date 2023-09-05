@@ -50,15 +50,24 @@ func checkAndReportCutoverStatus() {
 	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
 	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
 	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
+	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
 
 	a := utils.FileOrFolderExists(cutoverFpath)
 	b := utils.FileOrFolderExists(cutoverSrcFpath)
 	c := utils.FileOrFolderExists(cutoverTgtFpath)
+	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
+	migrationStatusRecord, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	ffDBExists := migrationStatusRecord.FallForwarDBExists
 
 	fmt.Printf("cutover status: ")
 	if !a {
 		color.Red("%s\n", NOT_INITIATED)
-	} else if a && b && c {
+	} else if !ffDBExists && a && b && c {
+		color.Green("%s\n", COMPLETED)
+	} else if a && b && c && d {
 		color.Green("%s\n", COMPLETED)
 	} else {
 		color.Yellow("%s\n", INITIATED)
