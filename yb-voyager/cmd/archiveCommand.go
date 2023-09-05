@@ -57,9 +57,6 @@ func validateCommonArchiveFlags() {
 }
 
 func validateMoveToFlag() {
-	if moveDestination == "" {
-		utils.ErrExit(`ERROR: required flag "move-to" not set`)
-	}
 	if !utils.FileOrFolderExists(moveDestination) {
 		utils.ErrExit("move destination %q doesn't exists.\n", moveDestination)
 	} else {

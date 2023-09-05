@@ -36,22 +36,39 @@ var archiveChangesCmd = &cobra.Command{
 		validateCommonArchiveFlags()
 	},
 
-	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-		metaDB, err = NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
-		}
-		mover := NewEventSegmentCopier(moveDestination)
-		if deleteSegments {
-			deleter := NewEventSegmentDeleter(utilizationThreshold)
-			go deleter.Run()
-		}
-		err = mover.Run()
-		if err != nil {
-			utils.ErrExit("Failed to run event segment mover: %s", err)
-		}
-	},
+	Run: archiveChangesCommandFn,
+}
+
+func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
+	var err error
+	metaDB, err = NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+
+	moveToChanged := cmd.Flags().Changed("move-to")
+	deleteChanged := cmd.Flags().Changed("delete")
+	if (moveToChanged && !deleteChanged) || (!moveToChanged && deleteChanged) {
+		copier := NewEventSegmentCopier(moveDestination)
+		deleter := NewEventSegmentDeleter(utilizationThreshold)
+
+		go func() {
+			err := copier.Run()
+			if err != nil {
+				utils.ErrExit("Error while copying segments: %v", err)
+			}
+		}()
+
+		go func() {
+			err := deleter.Run()
+			if err != nil {
+				utils.ErrExit("Error while deleting segments: %v", err)
+			}
+		}()
+
+	} else {
+		utils.ErrExit("Either move-to or delete flag should be specified")
+	}
 }
 
 func init() {
@@ -102,16 +119,16 @@ func (d *EventSegmentDeleter) deleteSegments() error {
 	return nil
 }
 
-func (d *EventSegmentDeleter) Run() {
+func (d *EventSegmentDeleter) Run() error {
 	for {
 		fsUtilizationExceeded, err := d.isFSUtilisationExceeded()
 		if err != nil {
-			utils.ErrExit("error while checking fs utilization exceeded: %v", err)
+			return fmt.Errorf("error while checking fs utilization: %v", err)
 		}
 		if fsUtilizationExceeded {
 			err := d.deleteSegments()
 			if err != nil {
-				utils.ErrExit("error while deleting segments: %v", err)
+				return fmt.Errorf("error while deleting segments: %v", err)
 			}
 		}
 		time.Sleep(5 * time.Second)
