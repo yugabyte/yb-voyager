@@ -202,7 +202,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	case SOURCE_DB_EXPORTER_ROLE:
 		validateSourcePassword(cmd)
 	case TARGET_DB_EXPORTER_ROLE:
-		validateTargetDBPassword(cmd)
+		validateTargetDBAsSourcePassword(cmd)
 	}
 
 	// checking if wrong flag is given used for a db type
@@ -331,6 +331,24 @@ func validateSourcePassword(cmd *cobra.Command) {
 		return
 	}
 	fmt.Print("Password to connect to source:")
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("read password: %v", err)
+		return
+	}
+	fmt.Print("\n")
+	source.Password = string(bytePassword)
+}
+
+func validateTargetDBAsSourcePassword(cmd *cobra.Command) {
+	if cmd.Flags().Changed("target-db-password") {
+		return
+	}
+	if os.Getenv("TARGET_DB_PASSWORD") != "" {
+		tconf.Password = os.Getenv("TARGET_DB_PASSWORD")
+		return
+	}
+	fmt.Print("Password to connect to target:")
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		utils.ErrExit("read password: %v", err)
