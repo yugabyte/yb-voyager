@@ -207,10 +207,10 @@ func displayExportedRowCountSnapshotAndChanges() {
 				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
 				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
 		}
-		schemaName := ""
-		// it's unnecessary to deal with schema when it's the default. It causes issues in ff synchronize while finally reporting stats.
-		if source.DBType == POSTGRESQL && tableStatus.SchemaName != "public" {
-			schemaName = tableStatus.SchemaName
+		schemaName := tableStatus.SchemaName
+		sourceSchemaCount := len(strings.Split(source.Schema, "|"))
+		if sourceSchemaCount <= 1 {
+			schemaName = ""
 		}
 		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
 		if errors.Is(err, sql.ErrNoRows) {
