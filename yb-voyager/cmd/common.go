@@ -238,8 +238,6 @@ func displayExportedRowCountSnapshotAndChanges() {
 				uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
 					inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
 			}
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
-				inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
 		}
 	}
 	fmt.Print("\n")
