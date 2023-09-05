@@ -307,7 +307,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 
 	for i, tableName := range tableList {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
+			addHeader(uitable, "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 		}
@@ -315,7 +315,11 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 		if err != nil {
 			utils.ErrExit("could not fetch table stats from target db: %v", err)
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
+		fullyQualifiedTablename := tableName
+		if len(strings.Split(fullyQualifiedTablename, ".")) < 2 {
+			fullyQualifiedTablename = fmt.Sprintf("%s.%s", getTargetSchemaName(fullyQualifiedTablename), fullyQualifiedTablename)
+		}
+		uitable.AddRow(fullyQualifiedTablename, snapshotRowCount[tableName], eventCounter.TotalEvents,
 			eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
 			snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
 	}
