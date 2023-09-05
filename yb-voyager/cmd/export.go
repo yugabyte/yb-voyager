@@ -185,7 +185,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags(cmd *cobra.Command) {
+func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -198,7 +198,12 @@ func validateExportFlags(cmd *cobra.Command) {
 	}
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
-	validateSourcePassword(cmd)
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		validateSourcePassword(cmd)
+	case TARGET_DB_EXPORTER_ROLE:
+		validateTargetDBPassword(cmd)
+	}
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
