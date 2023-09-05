@@ -143,7 +143,7 @@ func registerFFDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
 		"username with which to connect to the Fall-forward DB server")
-	cmd.MarkFlagRequired("target-db-user")
+	cmd.MarkFlagRequired("ff-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
 		"password with which to connect to the Fall-forward DB server")
