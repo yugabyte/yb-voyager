@@ -71,7 +71,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
-		validateImportFlags(cmd)
+		validateImportFlags(cmd, importerRole)
 	},
 	Run: importDataCommandFn,
 }
