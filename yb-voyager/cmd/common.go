@@ -203,21 +203,32 @@ func displayExportedRowCountSnapshotAndChanges() {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
+	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
+			addHeader(uitable, "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
-
 		}
-		eventCounter, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+		schemaName := tableStatus.SchemaName
+		if sourceSchemaCount <= 1 {
+			schemaName = ""
+		}
+
+		eventCounter, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
+		fullyQualifiedTableName := tableStatus.TableName
+		if schemaName != "" {
+			fullyQualifiedTableName = fmt.Sprintf("%s.%s", schemaName, fullyQualifiedTableName)
+		}
 		if errors.Is(err, sql.ErrNoRows) {
-			log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+			log.Infof("no changes events found for table %s.%s", schemaName, tableStatus.TableName)
+
+			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+
 		} else if err != nil {
-			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+			utils.ErrExit("could not fetch stats for table %s from meta DB: %w", fullyQualifiedTableName, err)
 		} else {
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
+			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
 				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes, tableStatus.ExportedRowCountSnapshot+eventCounter.NumInserts-eventCounter.NumDeletes)
 		}
 	}
@@ -295,7 +306,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 
 	for i, tableName := range tableList {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
+			addHeader(uitable, "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 		}
@@ -303,7 +314,11 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 		if err != nil {
 			utils.ErrExit("could not fetch table stats from target db: %v", err)
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName], eventCounter.TotalEvents,
+		fullyQualifiedTablename := tableName
+		if len(strings.Split(fullyQualifiedTablename, ".")) < 2 {
+			fullyQualifiedTablename = fmt.Sprintf("%s.%s", getTargetSchemaName(fullyQualifiedTablename), fullyQualifiedTablename)
+		}
+		uitable.AddRow(fullyQualifiedTablename, snapshotRowCount[tableName], eventCounter.TotalEvents,
 			eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes,
 			snapshotRowCount[tableName]+eventCounter.NumInserts-eventCounter.NumDeletes)
 	}
