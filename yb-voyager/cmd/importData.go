@@ -68,6 +68,9 @@ var importDataCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		if importerRole == "" {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		}
 		validateImportFlags(cmd)
 	},
 	Run: importDataCommandFn,
@@ -78,9 +81,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-	if importerRole == "" {
-		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
 	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
