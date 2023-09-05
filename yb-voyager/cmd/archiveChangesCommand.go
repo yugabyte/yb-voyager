@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -51,21 +52,27 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	if (moveToChanged && !deleteChanged) || (!moveToChanged && deleteChanged) {
 		copier := NewEventSegmentCopier(moveDestination)
 		deleter := NewEventSegmentDeleter(utilizationThreshold)
+		var wg sync.WaitGroup
 
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			err := copier.Run()
 			if err != nil {
 				utils.ErrExit("Error while copying segments: %v", err)
 			}
 		}()
 
+		wg.Add(1)
 		go func() {
+			defer wg.Done()
 			err := deleter.Run()
 			if err != nil {
 				utils.ErrExit("Error while deleting segments: %v", err)
 			}
 		}()
 
+		wg.Wait()
 	} else {
 		utils.ErrExit("Either move-to or delete flag should be specified")
 	}
