@@ -121,6 +121,7 @@ func (d *EventSegmentDeleter) deleteSegments() error {
 		if err != nil {
 			return fmt.Errorf("error while marking segment %d as deleted: %v", segment.SegmentNum, err)
 		}
+		fmt.Printf("event queue segment file %s deleted\n", segment.SegmentFilePath)
 		log.Infof("Deleted segment file %s", segment.SegmentFilePath)
 	}
 	return nil
@@ -234,7 +235,10 @@ func (m *EventSegmentCopier) Run() error {
 			if err != nil {
 				return fmt.Errorf("error while updating segment archive location in metaDB for segment %s : %v", segment.SegmentFilePath, err)
 			}
-			log.Infof("Copied segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
+			if m.MoveDestination != "" {
+				fmt.Printf("event queue segment file %s archived to %s\n", segment.SegmentFilePath, segmentNewPath)
+				log.Infof("Copied segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
+			}
 		}
 		time.Sleep(10 * time.Second)
 	}
