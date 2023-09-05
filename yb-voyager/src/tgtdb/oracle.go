@@ -801,7 +801,7 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	return nil
 }
 
-func (tdb *TargetOracleDB) PrepareConnPoolForStreaming() {}
+func (tdb *TargetOracleDB) PrepareForStreaming() {}
 
 func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
 	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite

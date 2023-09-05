@@ -149,7 +149,8 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	return yb.tconf.DBVersion
 }
 
-func (yb *TargetYugabyteDB) PrepareConnPoolForStreaming() {
+func (yb *TargetYugabyteDB) PrepareForStreaming() {
+	log.Infof("Preparing target DB for streaming - disable throttling")
 	yb.connPool.DisableThrottling()
 }
 

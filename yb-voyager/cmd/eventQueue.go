@@ -116,11 +116,15 @@ func (eqs *EventQueueSegment) NextEvent() (*tgtdb.Event, error) {
 	var event tgtdb.Event
 	var err error
 	var isPrefix = true
-	var line, currline []byte
+	var line, currLine []byte
 
 	for isPrefix && err == nil {
-		currline, isPrefix, err = eqs.reader.ReadLine()
-		line = append(line, currline...)
+		currLine, isPrefix, err = eqs.reader.ReadLine()
+		if isPrefix || len(line) != 0 {
+			line = append(line, currLine...)
+		} else {
+			line = currLine
+		}
 	}
 	if err != nil && err != io.EOF {
 		return nil, fmt.Errorf("failed to read line from %s: %w", eqs.FilePath, err)
