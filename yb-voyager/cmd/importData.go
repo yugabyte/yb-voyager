@@ -358,7 +358,9 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
-		displayImportedRowCountSnapshot(importFileTasks)
+		if !reportProgressInBytes { //shouldn't report in case import data file
+			displayImportedRowCountSnapshot(importFileTasks)
+		}
 	} else {
 		if changeStreamingIsEnabled(importType) {
 			displayImportedRowCountSnapshot(importFileTasks)

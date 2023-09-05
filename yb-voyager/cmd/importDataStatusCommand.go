@@ -223,6 +223,8 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 	} else {
 		// Case of `import data file` command where row counts are not available.
 		// Use file sizes for progress reporting.
+		importerRole = IMPORT_FILE_ROLE
+		state = NewImportDataState(exportDir)
 		dataFileDescriptor, err = prepareDummyDescriptor(state)
 		if err != nil {
 			return nil, fmt.Errorf("prepare dummy descriptor: %w", err)

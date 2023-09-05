@@ -64,11 +64,13 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
+		importerRole = IMPORT_FILE_ROLE
 		metaDB, err = NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %s", err)
 		}
 		reportProgressInBytes = true
+		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)
 		dataStore = datastore.NewDataStore(dataDir)
 		importFileTasks = prepareImportFileTasks()
