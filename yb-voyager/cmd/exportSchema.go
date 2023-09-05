@@ -34,7 +34,7 @@ var exportSchemaCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags(cmd)
+		validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
 		markFlagsRequired(cmd)
 	},
 
