@@ -17,13 +17,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -69,7 +66,7 @@ func validateImportFlags(cmd *cobra.Command) {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(batchSize)
-	validateTargetPassword(cmd)
+	getTargetPassword(cmd)
 
 }
 
@@ -212,22 +209,12 @@ func validateTargetSchemaFlag() {
 	}
 }
 
-func validateTargetPassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("target-db-password") {
-		return
-	}
-	if os.Getenv("TARGET_DB_PASSWORD") != "" {
-		tconf.Password = os.Getenv("TARGET_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to target:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+func getTargetPassword(cmd *cobra.Command) {
+	var err error
+	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
+		utils.ErrExit("error in getting target-db-password: %v", err)
 	}
-	fmt.Print("\n")
-	tconf.Password = string(bytePassword)
 }
 
 func validateImportObjectsFlag(importObjectsString string, flagName string) {

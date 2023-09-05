@@ -17,11 +17,9 @@ package cmd
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var fallforwardStatusCmd = &cobra.Command{
@@ -30,8 +28,8 @@ var fallforwardStatusCmd = &cobra.Command{
 	Long:  `Prints status of the fallforward to fallforward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		status := getFallForwardStatus()
-		reportFallForwardStatus(status)
+		
+		reportFallForwardStatus()
 	},
 }
 
@@ -41,25 +39,8 @@ func init() {
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
-func getFallForwardStatus() string {
-	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
-	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
-	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
-
-	a := utils.FileOrFolderExists(fallforwardFPath)
-	b := utils.FileOrFolderExists(fallforwardTargetFPath)
-	c := utils.FileOrFolderExists(fallforwardFFFPath)
-
-	if !a {
-		return NOT_INITIATED
-	} else if a && b && c {
-		return COMPLETED
-	} else {
-		return INITIATED
-	}
-}
-
-func reportFallForwardStatus(status string) {
+func reportFallForwardStatus() {
+	status := getFallForwardStatus()
 	fmt.Printf("fall-forward status: ")
 	switch status {
 	case NOT_INITIATED:

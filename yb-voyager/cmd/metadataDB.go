@@ -27,6 +27,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 var (
@@ -333,7 +334,7 @@ func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
 	return segmentNum, nil
 }
 
-func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (int64, int64, int64, int64, error) {
+func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
 	var totalCount int64
 	var inserts int64
 	var updates int64
@@ -343,7 +344,17 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
-		return -1, -1, -1, -1, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		return  &tgtdb.EventCounter{
+			TotalEvents: 0, 
+			NumInserts: 0, 
+			NumUpdates: 0, 
+			NumDeletes: 0,
+		}, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
-	return totalCount, inserts, updates, deletes, nil
+	return &tgtdb.EventCounter{
+		TotalEvents: totalCount, 
+		NumInserts: inserts, 
+		NumUpdates: updates, 
+		NumDeletes: deletes,
+	}, nil
 }

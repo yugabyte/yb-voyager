@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 type MigrationStatusRecord struct {
@@ -9,6 +11,8 @@ type MigrationStatusRecord struct {
 	SourceDBType       string
 	ExportType         string
 	FallForwarDBExists bool
+	TargetDBConf       *tgtdb.TargetConf
+	FallForwardDBConf  *tgtdb.TargetConf
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
