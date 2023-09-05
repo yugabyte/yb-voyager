@@ -49,7 +49,7 @@ func init() {
 }
 
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
-func validateImportFlags(cmd *cobra.Command) {
+func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
@@ -69,22 +69,15 @@ func validateImportFlags(cmd *cobra.Command) {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(batchSize)
-
-	validateTargetDBPassword(cmd)
-
-}
-
-func registerCommonImportFlags(cmd *cobra.Command, importerRole string) {
-
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
-		registerTargetDBConnFlags(cmd)
+		validateTargetDBPassword(cmd)
 	case FF_DB_IMPORTER_ROLE:
-		registerFFDBConnFlags(cmd)
-	default:
-		utils.ErrExit("invalid importer role %s", importerRole)
+		validateFFDBPassword(cmd)
 	}
+}
 
+func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
 		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
 
@@ -149,36 +142,36 @@ func registerFFDBConnFlags(cmd *cobra.Command) {
 		"port on which the Fall-forward DB YSQL API is running")
 
 	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
-		"username with which to connect to the target Fall-forward DB server")
+		"username with which to connect to the Fall-forward DB server")
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
-		"password with which to connect to the target Fall-forward DB server")
+		"password with which to connect to the Fall-forward DB server")
 
 	cmd.Flags().StringVar(&tconf.DBName, "ff-db-name", "",
-		"name of the database on the target YugabyteDB server on which import needs to be done")
+		"name of the database on the Fall-forward DB server on which import needs to be done")
 
 	cmd.Flags().StringVar(&tconf.DBSid, "ff-db-sid", "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
 
 	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
-		"target schema name in Fall-forward DB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
+		"schema name in Fall-forward DB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
-		"provide target SSL Certificate Path")
+		"provide Fall-forward DB SSL Certificate Path")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "ff-ssl-mode", "prefer",
-		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+		"specify the Fall-forward DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "ff-ssl-key", "",
-		"target SSL Key Path")
+		"Fall-forward DB SSL Key Path")
 
 	cmd.Flags().StringVar(&tconf.SSLRootCert, "ff-ssl-root-cert", "",
-		"target SSL Root Certificate Path")
+		"Fall-forward DB SSL Root Certificate Path")
 
 	cmd.Flags().StringVar(&tconf.SSLCRL, "ff-ssl-crl", "",
-		"target SSL Root Certificate Revocation List (CRL)")
+		"Fall-forward DB SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerImportDataFlags(cmd *cobra.Command) {
@@ -291,7 +284,7 @@ func validateFFDBPassword(cmd *cobra.Command) {
 		tconf.Password = os.Getenv("FF_DB_PASSWORD")
 		return
 	}
-	fmt.Print("Password to connect to target:")
+	fmt.Print("Password to connect to fall-forward DB:")
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
 		utils.ErrExit("read password: %v", err)

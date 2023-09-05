@@ -346,7 +346,8 @@ func escapeFileOptsCharsIfRequired() {
 
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
-	registerCommonImportFlags(importDataFileCmd, TARGET_DB_IMPORTER_ROLE)
+	registerCommonImportFlags(importDataFileCmd)
+	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
