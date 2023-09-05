@@ -201,24 +201,43 @@ func displayExportedRowCountSnapshotAndChanges() {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
+	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 	for i, tableStatus := range exportStatus.Tables {
-		if i == 0 {
-			uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
-				headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
-				headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
-		}
+
 		schemaName := tableStatus.SchemaName
-		sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 		if sourceSchemaCount <= 1 {
 			schemaName = ""
+		}
+		if i == 0 {
+			if schemaName == "" {
+				uitable.AddRow(headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+			} else {
+				uitable.AddRow(headerfmt("SCHEMA"), headerfmt("TABLE"), headerfmt("SNAPSHOT ROW COUNT"), headerfmt("TOTAL CHANGES EVENTS"),
+					headerfmt("INSERTS"), headerfmt("UPDATES"), headerfmt("DELETES"),
+					headerfmt("FINAL ROW COUNT(SNAPSHOT + CHANGES)"))
+			}
+
 		}
 		totalChangesEvents, inserts, updates, deletes, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Infof("no changes events found for table %s.%s", tableStatus.SchemaName, tableStatus.TableName)
-			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+			if schemaName == "" {
+				uitable.AddRow(tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+			} else {
+				uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+			}
 		} else if err != nil {
 			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 		} else {
+			if schemaName == "" {
+				uitable.AddRow(tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+					inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
+			} else {
+				uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
+					inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
+			}
 			uitable.AddRow(tableStatus.SchemaName, tableStatus.TableName, tableStatus.ExportedRowCountSnapshot, totalChangesEvents,
 				inserts, updates, deletes, tableStatus.ExportedRowCountSnapshot+inserts-deletes)
 		}
