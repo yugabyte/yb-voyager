@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -101,6 +103,52 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 	importData(importFileTasks)
+	startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+}
+
+func startFallforwardSynchronizeIfRequired(tableList []string) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+	msr, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	if !msr.FallForwarDBExists {
+		utils.PrintAndLog("No fall-forward db exists. Exiting.")
+		return
+	}
+	// TODO: ssl* params
+	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
+		"--export-dir", exportDir,
+		"--source-db-host", tconf.Host,
+		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--source-db-user", tconf.User,
+		"--source-db-name", tconf.DBName,
+		"--source-db-schema", tconf.Schema,
+		"--table-list", strings.Join(tableList, ","),
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+	}
+
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+	if disablePb {
+		cmd = append(cmd, "--disable-pb")
+	}
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager - %w", err)
+	}
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
+	}
 }
 
 type ImportFileTask struct {
