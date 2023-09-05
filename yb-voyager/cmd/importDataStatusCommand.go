@@ -303,10 +303,3 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 
 	return table, nil
 }
-
-func qualifyTableName(targetSchema string, tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", targetSchema, tableName)
-	}
-	return tableName
-}
