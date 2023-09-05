@@ -345,7 +345,7 @@ func validateTargetDBAsSourcePassword(cmd *cobra.Command) {
 		return
 	}
 	if os.Getenv("TARGET_DB_PASSWORD") != "" {
-		tconf.Password = os.Getenv("TARGET_DB_PASSWORD")
+		source.Password = os.Getenv("TARGET_DB_PASSWORD")
 		return
 	}
 	fmt.Print("Password to connect to target:")
