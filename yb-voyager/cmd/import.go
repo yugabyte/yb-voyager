@@ -78,12 +78,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
-
-	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
-
 	cmd.Flags().BoolVar(&startClean, "start-clean", false,
 		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
 
@@ -134,7 +128,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 		"target SSL Root Certificate Revocation List (CRL)")
 }
 
-func registerFFDBConnFlags(cmd *cobra.Command) {
+func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
 		"host on which the Fall-forward DB server is running")
 
@@ -153,6 +147,12 @@ func registerFFDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.DBSid, "ff-db-sid", "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
+
+	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
 	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
 		"schema name in Fall-forward DB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
