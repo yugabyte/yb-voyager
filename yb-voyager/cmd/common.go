@@ -314,7 +314,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 }
 
 func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
-	fmt.Printf("snapshot import report\n")
+	fmt.Printf("import report\n")
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
@@ -333,7 +333,7 @@ func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
 
 	for i, tableName := range tableList {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "SNAPSHOT ROW COUNT")
+			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
 		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
 	}
