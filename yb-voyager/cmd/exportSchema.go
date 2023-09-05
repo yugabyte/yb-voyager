@@ -117,6 +117,7 @@ func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
+	registerSourceDBConnFlags(exportSchemaCmd)
 	exportSchemaCmd.Flags().BoolVar(&source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")
 

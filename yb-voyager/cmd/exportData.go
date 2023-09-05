@@ -66,6 +66,7 @@ func init() {
 	exportCmd.AddCommand(exportDataCmd)
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
+	registerSourceDBConnFlags(exportDataCmd)
 	registerExportDataFlags(exportDataCmd)
 }
 
