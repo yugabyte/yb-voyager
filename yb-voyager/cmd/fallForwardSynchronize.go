@@ -35,7 +35,6 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 func init() {
 	fallForwardCmd.AddCommand(fallForwardSynchronizeCmd)
 	registerCommonGlobalFlags(fallForwardSynchronizeCmd)
-	registerCommonExportFlags(fallForwardSynchronizeCmd)
 	registerTargetDBAsSourceConnFlags(fallForwardSynchronizeCmd)
 	registerExportDataFlags(fallForwardSynchronizeCmd)
 	hideFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
