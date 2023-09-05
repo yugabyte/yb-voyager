@@ -22,7 +22,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -127,15 +126,24 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--target-db-user", tconf.User,
 		"--target-db-name", tconf.DBName,
 		"--target-db-schema", tconf.Schema,
-		"--target-ssl-cert", strconv.Quote(tconf.SSLCertPath),
-		"--target-ssl-mode", strconv.Quote(tconf.SSLMode),
-		"--target-ssl-key", strconv.Quote(tconf.SSLKey),
-		"--target-ssl-root-cert", strconv.Quote(tconf.SSLRootCert),
-		"--target-ssl-crl", strconv.Quote(tconf.SSLCRL),
 		"--table-list", strings.Join(tableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
-
+	if tconf.SSLMode != "" {
+		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
+	}
+	if tconf.SSLCertPath != "" {
+		cmd = append(cmd, "--target-ssl-cert", tconf.SSLCertPath)
+	}
+	if tconf.SSLKey != "" {
+		cmd = append(cmd, "--target-ssl-key", tconf.SSLKey)
+	}
+	if tconf.SSLRootCert != "" {
+		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+	}
+	if tconf.SSLCRL != "" {
+		cmd = append(cmd, "--target-ssl-crl", tconf.SSLCRL)
+	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
