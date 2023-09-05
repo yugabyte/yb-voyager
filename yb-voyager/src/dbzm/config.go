@@ -355,6 +355,9 @@ func (c *Config) String() string {
 
 func (c *Config) WriteToFile(filePath string) error {
 	config := c.String()
+	if c.Password == "" { //empty password have issues with Env variable https://yugabyte.atlassian.net/browse/DB-7533
+		config += fmt.Sprintf("\ndebezium.source.database.password=%s", c.Password)	
+	}
 	err := os.WriteFile(filePath, []byte(config), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)
