@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -126,11 +127,11 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--target-db-user", tconf.User,
 		"--target-db-name", tconf.DBName,
 		"--target-db-schema", tconf.Schema,
-		"--target-ssl-cert", tconf.SSLCertPath,
-		"--target-ssl-mode", tconf.SSLMode,
-		"--target-ssl-key", tconf.SSLKey,
-		"--target-ssl-root-cert", tconf.SSLRootCert,
-		"--target-ssl-crl", tconf.SSLCRL,
+		"--target-ssl-cert", strconv.Quote(tconf.SSLCertPath),
+		"--target-ssl-mode", strconv.Quote(tconf.SSLMode),
+		"--target-ssl-key", strconv.Quote(tconf.SSLKey),
+		"--target-ssl-root-cert", strconv.Quote(tconf.SSLRootCert),
+		"--target-ssl-crl", strconv.Quote(tconf.SSLCRL),
 		"--table-list", strings.Join(tableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
@@ -150,6 +151,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	utils.PrintAndLog("TARGET_DB_PASSWORD=%s", tconf.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
