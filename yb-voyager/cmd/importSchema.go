@@ -55,7 +55,7 @@ func init() {
 	importCmd.AddCommand(importSchemaCmd)
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
-	registerTargetDBConnFlags(importDataFileCmd)
+	registerTargetDBConnFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
