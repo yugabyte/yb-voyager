@@ -159,7 +159,6 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
-	utils.PrintAndLog("TARGET_DB_PASSWORD=%s", tconf.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
