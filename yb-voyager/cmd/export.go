@@ -19,11 +19,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -279,21 +277,11 @@ func validateOracleParams() {
 }
 
 func validateSourcePassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("source-db-password") {
-		return
-	}
-	if os.Getenv("SOURCE_DB_PASSWORD") != "" {
-		source.Password = os.Getenv("SOURCE_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to source:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	var err error
+	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
+		utils.ErrExit("error in getting source-db-password: %v", err)
 	}
-	fmt.Print("\n")
-	source.Password = string(bytePassword)
 }
 
 func markFlagsRequired(cmd *cobra.Command) {

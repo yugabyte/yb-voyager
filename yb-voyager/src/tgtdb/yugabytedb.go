@@ -134,19 +134,19 @@ func (yb *TargetYugabyteDB) EnsureConnected() {
 }
 
 func (yb *TargetYugabyteDB) GetVersion() string {
-	if yb.tconf.dbVersion != "" {
-		return yb.tconf.dbVersion
+	if yb.tconf.DBVersion != "" {
+		return yb.tconf.DBVersion
 	}
 
 	yb.EnsureConnected()
 	yb.Mutex.Lock()
 	defer yb.Mutex.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.dbVersion)
+	err := yb.conn_.QueryRow(context.Background(), query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
 		utils.ErrExit("get target db version: %s", err)
 	}
-	return yb.tconf.dbVersion
+	return yb.tconf.DBVersion
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {
@@ -159,9 +159,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 
 	if yb.tconf.Parallelism == -1 {
 		yb.tconf.Parallelism = fetchDefaultParllelJobs(tconfs)
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
-	} else {
-		utils.PrintAndLog("Using %d parallel jobs", yb.tconf.Parallelism)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
 	params := &ConnectionParams{
