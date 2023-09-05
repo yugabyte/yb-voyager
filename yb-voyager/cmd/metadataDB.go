@@ -357,7 +357,7 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
 
 func (m *MetaDB) GetSegmentsToBeDeleted() ([]Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;
-	queryParams := fmt.Sprintf(`archived = 1 AND deleted = 0`)
+	queryParams := "archived = 1 AND deleted = 0"
 	segmentsToBeDeleted, err := m.querySegments(queryParams)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching segments to be deleted: %v", err)
@@ -412,7 +412,7 @@ func (m *MetaDB) updateSegment(segmentNum int, parameters string) error {
 
 func (m *MetaDB) MarkSegmentDeleted(segmentNum int) error {
 	// sample query: UPDATE queue_segment_meta SET deleted = 1 WHERE segment_no = 1;
-	queryParams := fmt.Sprintf(`deleted = 1`)
+	queryParams := "deleted = 1"
 	err := m.updateSegment(segmentNum, queryParams)
 	if err != nil {
 		return fmt.Errorf("error while marking segment deleted in metaDB for segment %d: %v", segmentNum, err)
