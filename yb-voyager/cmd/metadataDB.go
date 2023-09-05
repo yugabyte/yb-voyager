@@ -345,46 +345,37 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	return totalCount, inserts, updates, deletes, nil
 }
 
-func (m *MetaDB) GetSegmentsToBeArchived(importCount int) []Segments {
-	var segmentsToArchive []Segments
-	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE imported_by_target_db_importer + imported_by_ff_db_importer = ? AND archived = 0 ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME)
-	rows, err := m.db.Query(query, importCount)
+func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
+	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
+	queryParams := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer = %d AND archived = 0`, importCount)
+	segmentsToBeArchived, err := m.querySegments(queryParams)
 	if err != nil {
-		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+		return nil, fmt.Errorf("error while fetching segments to be archived: %v", err)
 	}
-	defer func() {
-		err := rows.Close()
-		if err != nil {
-			log.Errorf("failed to close rows: %v", err)
-		}
-	}()
-	for rows.Next() {
-		var segmentNo int64
-		var filePath string
-		err := rows.Scan(&segmentNo, &filePath)
-		if err != nil {
-			utils.ErrExit("error while scanning rows: %v", err)
-		}
-		segment := Segments{
-			SegmentNum:      int(segmentNo),
-			SegmentFilePath: filePath,
-		}
-		segmentsToArchive = append(segmentsToArchive, segment)
-	}
-	return segmentsToArchive
+	return segmentsToBeArchived, nil
 }
 
-func (m *MetaDB) GetSegmentsToBeDeleted() []Segments {
-	var segmentsToBeDeleted []Segments
-	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME)
+func (m *MetaDB) GetSegmentsToBeDeleted() ([]Segment, error) {
+	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;
+	queryParams := fmt.Sprintf(`archived = 1 AND deleted = 0`)
+	segmentsToBeDeleted, err := m.querySegments(queryParams)
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching segments to be deleted: %v", err)
+	}
+	return segmentsToBeDeleted, nil
+}
+
+func (m *MetaDB) querySegments(parameters string) ([]Segment, error) {
+	var segments []Segment
+	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, parameters)
 	rows, err := m.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+		return nil, fmt.Errorf("error while running query on meta db -%s :%v", query, err)
 	}
 	defer func() {
 		err := rows.Close()
 		if err != nil {
-			log.Errorf("failed to close rows: %v", err)
+			log.Errorf("failed to close rows while fetching segments from query %s : %v", query, err)
 		}
 	}()
 	for rows.Next() {
@@ -392,51 +383,51 @@ func (m *MetaDB) GetSegmentsToBeDeleted() []Segments {
 		var filePath string
 		err := rows.Scan(&segmentNo, &filePath)
 		if err != nil {
-			utils.ErrExit("error while scanning rows: %v", err)
+			return nil, fmt.Errorf("error while scanning rows while fetching segments from query %s : %v", query, err)
 		}
-		segment := Segments{
+		segment := Segment{
 			SegmentNum:      int(segmentNo),
 			SegmentFilePath: filePath,
 		}
-		segmentsToBeDeleted = append(segmentsToBeDeleted, segment)
+		segments = append(segments, segment)
 	}
-	return segmentsToBeDeleted
+	return segments, nil
 }
 
-func (m *MetaDB) UpdateSegmentDeletionStatus(segmentNum int) {
-	queries := []string{
-		fmt.Sprintf(`UPDATE %s SET deleted = 1 WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME),
-		fmt.Sprintf(`UPDATE %s SET file_path = NULL WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME),
-	}
-
-	for _, query := range queries {
-		result, err := m.db.Exec(query, segmentNum)
-		if err != nil {
-			utils.ErrExit("error while running query on meta db -%s :%v", query, err)
-		}
-
-		err = checkRowsAffected(result, 1)
-		if err != nil {
-			utils.ErrExit(err.Error())
-		}
-
-		log.Infof("Executed query on meta db - %s", query)
-	}
-}
-
-func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation string) {
-	query := fmt.Sprintf(`UPDATE %s SET archived = 1, archive_location = ? WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME)
-	result, err := m.db.Exec(query, archiveLocation, segmentNum)
+func (m *MetaDB) updateSegment(segmentNum int, parameters string) error {
+	query := fmt.Sprintf(`UPDATE %s SET %s WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME, parameters)
+	result, err := m.db.Exec(query, segmentNum)
 	if err != nil {
-		utils.ErrExit("error while running query on meta db -%s :%v", query, err)
+		return fmt.Errorf("error while running query on meta db -%s :%v", query, err)
 	}
 
 	err = checkRowsAffected(result, 1)
 	if err != nil {
-		utils.ErrExit(err.Error())
+		return fmt.Errorf("error while running query on meta db -%s :%v", query, err)
 	}
 
 	log.Infof("Executed query on meta db - %s", query)
+	return nil
+}
+
+func (m *MetaDB) MarkSegmentDeleted(segmentNum int) error {
+	// sample query: UPDATE queue_segment_meta SET deleted = 1 WHERE segment_no = 1;
+	queryParams := fmt.Sprintf(`deleted = 1`)
+	err := m.updateSegment(segmentNum, queryParams)
+	if err != nil {
+		return fmt.Errorf("error while marking segment deleted in metaDB for segment %d: %v", segmentNum, err)
+	}
+	return nil
+}
+
+func (m *MetaDB) UpdateSegmentArchiveLocation(segmentNum int, archiveLocation string) error {
+	// sample query: UPDATE queue_segment_meta SET archived = 1, archive_location = "/tmp/1" WHERE segment_no = 1;
+	queryParams := fmt.Sprintf(`archived = 1, archive_location = "%s"`, archiveLocation)
+	err := m.updateSegment(segmentNum, queryParams)
+	if err != nil {
+		return fmt.Errorf("error while marking segment archived in metaDB for segment %d: %v", segmentNum, err)
+	}
+	return nil
 }
 
 func checkRowsAffected(result sql.Result, expectedRows int) error {

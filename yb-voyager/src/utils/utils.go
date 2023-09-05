@@ -40,12 +40,6 @@ import (
 
 var DoNotPrompt bool
 
-type DiskStats struct {
-	Available int64
-	Used      int64
-	Total     int64
-}
-
 func Wait(args ...string) {
 	var successMsg, failureMsg string
 	if len(args) > 0 {
@@ -440,20 +434,13 @@ func GetMapKeysSorted(m map[string]*string) []string {
 	return keys
 }
 
-func GetDiskStats(path string) (DiskStats, error) {
+func GetFSUtilizationPercentage(path string) (int, error) {
 	var stats syscall.Statfs_t
 	err := syscall.Statfs(path, &stats)
 	if err != nil {
-		return DiskStats{}, err
+		return -1, fmt.Errorf("error while getting disk stats for %q: %v", path, err)
 	}
 
-	available := int64(stats.Bavail) * stats.Bsize
-	used := (int64(stats.Blocks) - int64(stats.Bavail)) * stats.Bsize
-	total := int64(stats.Blocks) * stats.Bsize
-
-	return DiskStats{
-		Available: available,
-		Used:      used,
-		Total:     total,
-	}, nil
+	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
+	return percUtilization, nil
 }
