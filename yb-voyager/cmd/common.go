@@ -205,31 +205,30 @@ func displayExportedRowCountSnapshotAndChanges() {
 	}
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 	for i, tableStatus := range exportStatus.Tables {
-
-		schemaName := tableStatus.SchemaName
-		if sourceSchemaCount <= 1 {
-			schemaName = ""
-		}
 		if i == 0 {
 			addHeader(uitable, "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
-
 		}
+		schemaName := tableStatus.SchemaName
+		if sourceSchemaCount <= 1 {
+			schemaName = ""
+		}
+
 		eventCounter, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
-		tableName := tableStatus.TableName
+		fullyQualifiedTableName := tableStatus.TableName
 		if schemaName != "" {
-			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+			fullyQualifiedTableName = fmt.Sprintf("%s.%s", schemaName, fullyQualifiedTableName)
 		}
 		if errors.Is(err, sql.ErrNoRows) {
 			log.Infof("no changes events found for table %s.%s", schemaName, tableStatus.TableName)
 
-			uitable.AddRow(tableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
+			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
 
 		} else if err != nil {
 			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 		} else {
-			uitable.AddRow(tableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
+			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
 				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes, tableStatus.ExportedRowCountSnapshot+eventCounter.NumInserts-eventCounter.NumDeletes)
 		}
 	}
