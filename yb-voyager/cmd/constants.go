@@ -49,6 +49,7 @@ const (
 	TARGET_DB_IMPORTER_ROLE       = "target_db_importer"
 	SOURCE_DB_EXPORTER_ROLE       = "source_db_exporter"
 	TARGET_DB_EXPORTER_ROLE       = "target_db_exporter"
+	IMPORT_FILE_ROLE			  = "import_file"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
