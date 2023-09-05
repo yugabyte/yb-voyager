@@ -118,14 +118,19 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.PrintAndLog("No fall-forward db exists. Exiting.")
 		return
 	}
-	// TODO: ssl* params
+
 	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
 		"--export-dir", exportDir,
-		"--source-db-host", tconf.Host,
-		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
-		"--source-db-user", tconf.User,
-		"--source-db-name", tconf.DBName,
-		"--source-db-schema", tconf.Schema,
+		"--target-db-host", tconf.Host,
+		"--target-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--target-db-user", tconf.User,
+		"--target-db-name", tconf.DBName,
+		"--target-db-schema", tconf.Schema,
+		"--target-ssl-cert", tconf.SSLCertPath,
+		"--target-ssl-mode", tconf.SSLMode,
+		"--target-ssl-key", tconf.SSLKey,
+		"--target-ssl-root-cert", tconf.SSLRootCert,
+		"--target-ssl-crl", tconf.SSLCRL,
 		"--table-list", strings.Join(tableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
@@ -136,7 +141,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 	if disablePb {
 		cmd = append(cmd, "--disable-pb")
 	}
-	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
@@ -144,7 +149,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
+	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
