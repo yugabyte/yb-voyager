@@ -456,14 +456,23 @@ func getCutoverStatus() string {
 	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
 	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
 	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
+	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
 
 	a := utils.FileOrFolderExists(cutoverFpath)
 	b := utils.FileOrFolderExists(cutoverSrcFpath)
 	c := utils.FileOrFolderExists(cutoverTgtFpath)
+	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
 
+	migrationStatusRecord, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	ffDBExists := migrationStatusRecord.FallForwarDBExists
 	if !a {
 		return NOT_INITIATED
-	} else if a && b && c {
+	} else if !ffDBExists && a && b && c {
+		return COMPLETED
+	} else if a && b && c && d {
 		return COMPLETED
 	}
 	return INITIATED
@@ -480,7 +489,7 @@ func checkWithStreamingMode() (bool, error) {
 	return streamChanges, nil
 }
 
-func getfallForwardStatus() string {
+func getFallForwardStatus() string {
 	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
 	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
 	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")

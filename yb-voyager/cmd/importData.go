@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -47,11 +49,13 @@ var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
+var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                            // to truncate *.D splits after import
-var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
+var truncateSplits bool                                    // to truncate *.D splits after import
+var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
+var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
 
@@ -99,6 +103,52 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 	importData(importFileTasks)
+	startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+}
+
+func startFallforwardSynchronizeIfRequired(tableList []string) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+	msr, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	if !msr.FallForwarDBExists {
+		utils.PrintAndLog("No fall-forward db exists. Exiting.")
+		return
+	}
+	// TODO: ssl* params
+	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
+		"--export-dir", exportDir,
+		"--source-db-host", tconf.Host,
+		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--source-db-user", tconf.User,
+		"--source-db-name", tconf.DBName,
+		"--source-db-schema", tconf.Schema,
+		"--table-list", strings.Join(tableList, ","),
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+	}
+
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+	if disablePb {
+		cmd = append(cmd, "--disable-pb")
+	}
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager - %w", err)
+	}
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
+	}
 }
 
 type ImportFileTask struct {
@@ -254,10 +304,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
 		importType = record.ExportType
+		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
+		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -273,6 +325,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
+
+	disableGeneratedAlwaysAsIdentityColumns()
+	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -344,6 +399,46 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func disableGeneratedAlwaysAsIdentityColumns() {
+	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to get identity columns from meta db: %s", err)
+	}
+	if !found {
+		tables := importFileTasksToTableNames(importFileTasks)
+		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
+		// saving in metadb for handling restarts
+		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
+	}
+
+	err = tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
+	}
+}
+
+func enableGeneratedAlwaysAsIdentityColumns() {
+	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to enable generated always as identity columns: %s", err)
+	}
+}
+
+func getGeneratedAlwaysAsIdentityColumnNamesForTables(tables []string) map[string][]string {
+	var result = make(map[string][]string)
+	for _, table := range tables {
+		identityColumns, err := tdb.GetGeneratedAlwaysAsIdentityColumnNamesForTable(table)
+		if err != nil {
+			utils.ErrExit("error in getting identity columns for table %s: %w", table, err)
+		}
+		if len(identityColumns) > 0 {
+			log.Infof("identity columns for table %s: %v", table, identityColumns)
+			result[table] = identityColumns
+		}
+	}
+	return result
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {

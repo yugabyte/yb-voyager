@@ -266,17 +266,16 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 			percentageComplete: perc,
 		}
 		if streamChanges {
-			qualifiedTableName := qualifyTableName(tconf.Schema, row.tableName)
-			eventCounter, err := tdb.GetImportedEventsStatsForTable(qualifiedTableName, migrationUUID)
+			eventCounter, err := tdb.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
 			if err != nil {
-				return nil, fmt.Errorf("get imported events stats for table %q: %w", qualifiedTableName, err)
+				return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
 			}
 			row.totalEvents = eventCounter.TotalEvents
 			row.numInserts = eventCounter.NumInserts
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
 			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			isffComplete := isffDB && (getfallForwardStatus() == COMPLETED)
+			isffComplete := isffDB && (getFallForwardStatus() == COMPLETED)
 			isCutoverComplete := !isffDB && (getCutoverStatus() == COMPLETED)
 			if isffComplete || isCutoverComplete {
 				row.status = "DONE"
