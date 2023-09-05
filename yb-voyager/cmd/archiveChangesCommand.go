@@ -215,9 +215,10 @@ func (m *EventSegmentCopier) Run() error {
 			return fmt.Errorf("error while getting segments to be archived: %v", err)
 		}
 		for _, segment := range segmentsToArchive {
+			var segmentNewPath string
 			if m.MoveDestination != "" {
 				segmentFileName := filepath.Base(segment.SegmentFilePath)
-				segmentNewPath := fmt.Sprintf("%s/%s", m.MoveDestination, segmentFileName)
+				segmentNewPath = fmt.Sprintf("%s/%s", m.MoveDestination, segmentFileName)
 
 				err := m.ifExistsDeleteSegmentFileFromArchive(segmentNewPath)
 				if err != nil {
@@ -228,13 +229,12 @@ func (m *EventSegmentCopier) Run() error {
 				if err != nil {
 					return fmt.Errorf("error while copying file %s : %v", segment.SegmentFilePath, err)
 				}
-
-				err = metaDB.UpdateSegmentArchiveLocation(segment.SegmentNum, segmentNewPath)
-				if err != nil {
-					return fmt.Errorf("error while updating segment archive location in metaDB for segment %s : %v", segment.SegmentFilePath, err)
-				}
-				log.Infof("Copied segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
 			}
+			err = metaDB.UpdateSegmentArchiveLocation(segment.SegmentNum, segmentNewPath)
+			if err != nil {
+				return fmt.Errorf("error while updating segment archive location in metaDB for segment %s : %v", segment.SegmentFilePath, err)
+			}
+			log.Infof("Copied segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
 		}
 		time.Sleep(10 * time.Second)
 	}
