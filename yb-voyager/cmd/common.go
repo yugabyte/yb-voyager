@@ -226,7 +226,7 @@ func displayExportedRowCountSnapshotAndChanges() {
 			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, 0, 0, 0, 0, tableStatus.ExportedRowCountSnapshot)
 
 		} else if err != nil {
-			utils.ErrExit("could not fetch table stats from meta DB: %w", err)
+			utils.ErrExit("could not fetch stats for table %s from meta DB: %w", fullyQualifiedTableName, err)
 		} else {
 			uitable.AddRow(fullyQualifiedTableName, tableStatus.ExportedRowCountSnapshot, eventCounter.TotalEvents,
 				eventCounter.NumInserts, eventCounter.NumUpdates, eventCounter.NumDeletes, tableStatus.ExportedRowCountSnapshot+eventCounter.NumInserts-eventCounter.NumDeletes)
