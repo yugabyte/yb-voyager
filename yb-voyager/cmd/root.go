@@ -24,6 +24,7 @@ import (
 	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -48,14 +49,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if shouldLock(cmd) {
 				lockExportDir(cmd)
 			}
-			cmdName := cmd.Use
-			if cmd.Parent() != nil && cmd.Parent().Use != "yb-voyager" {
-				cmdName = fmt.Sprintf("%s-%s", cmd.Parent().Use, cmd.Use)
-			}
-			if cmd.Parent().Use == "data" { //import data file case
-				cmdName = fmt.Sprintf("%s-%s-%s", cmd.Parent().Parent().Use, cmd.Parent().Use, cmd.Use)
-			}
-			InitLogging(exportDir, cmd.Use == "status", cmdName)
+			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 		}
 	},
 
@@ -74,16 +68,16 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 }
 
 func shouldLock(cmd *cobra.Command) bool {
-	if cmd.Use == "version" || cmd.Use == "status" {
-		return false
+	noLockNeededList := []string{
+		"yb-voyager version",
+		"yb-voyager import data status",
+		"yb-voyager export data status",
+		"yb-voyager cutover status",
+		"yb-voyager fall-forward status",
+		"yb-voyager cutover initiate",
+		"yb-voyager fall-forward switchover",
 	}
-	if cmd.Use == "initiate" && cmd.Parent().Use == "cutover" {
-		return false
-	}
-	if cmd.Use == "switchover" && cmd.Parent().Use == "fall-forward" {
-		return false
-	}
-	return true
+	return !slices.Contains(noLockNeededList, cmd.CommandPath())
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -160,10 +154,7 @@ func validateExportDirFlag() {
 
 func lockExportDir(cmd *cobra.Command) {
 	// locking export-dir per command TODO: revisit this
-	lockFileName := fmt.Sprintf(".%s%sLockfile.lck", cmd.Parent().Use, cmd.Use)
-	if cmd.Parent().Use == "data" { //import data file case
-		lockFileName = fmt.Sprintf(".%s%s%sLockfile.lck", cmd.Parent().Parent().Use, cmd.Parent().Use, cmd.Use)
-	}
+	lockFileName := fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd))
 
 	lockFilePath, err := filepath.Abs(filepath.Join(exportDir, lockFileName))
 	if err != nil {
@@ -194,4 +185,16 @@ func unlockExportDir() {
 	if err != nil {
 		utils.ErrExit("Unable to unlock %q: %v\n", lockFile, err)
 	}
+}
+
+func GetCommandID(c *cobra.Command) string {
+	if c.HasParent() {
+		p := GetCommandID(c.Parent())
+		if p == "" {
+			return c.Name()
+		} else {
+			return p + "-" + c.Name()
+		}
+	}
+	return ""
 }
