@@ -368,9 +368,12 @@ func (ora *Oracle) GetTableColumns(tableName *sqlname.SourceName) ([]string, []s
 	return columns, dataTypes, dataTypesOwner
 }
 
-func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string) {
 	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
+	if isStreamingEnabled {
+		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, []string{"NCHAR", "NVARCHAR2"}...)
+	}
 	for _, tableName := range tableList {
 		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
 		var supportedColumnNames []string

@@ -149,7 +149,7 @@ func exportData() bool {
 		}
 	}
 
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium)
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
 	if len(unsupportedColumnNames) > 0 {
 		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
 		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
