@@ -50,7 +50,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	moveToChanged := cmd.Flags().Changed("move-to")
 	deleteChanged := cmd.Flags().Changed("delete")
 	if moveToChanged == deleteChanged {
-		utils.ErrExit("Either move-to or delete flag should be specified")
+		utils.ErrExit("Either --move-to or --delete flag should be specified")
 	}
 
 	copier := NewEventSegmentCopier(moveDestination)
@@ -115,7 +115,7 @@ func (d *EventSegmentDeleter) deleteSegment(segment Segment) error {
 	if err != nil {
 		return fmt.Errorf("mark segment %d as deleted: %v", segment.Num, err)
 	}
-	utils.PrintAndLog(fmt.Sprintf("event queue segment file %s deleted", segment.FilePath))
+	utils.PrintAndLog("event queue segment file %s deleted", segment.FilePath)
 	return nil
 }
 
@@ -229,13 +229,11 @@ func (m *EventSegmentCopier) Run() error {
 				if err != nil {
 					return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
 				}
+				utils.PrintAndLog("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath)
 			}
 			err = metaDB.UpdateSegmentArchiveLocation(segment.Num, segmentNewPath)
 			if err != nil {
 				return fmt.Errorf("update segment archive location in metaDB for segment %s : %v", segment.FilePath, err)
-			}
-			if m.Dest != "" {
-				utils.PrintAndLog(fmt.Sprintf("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath))
 			}
 		}
 		time.Sleep(10 * time.Second)
