@@ -372,7 +372,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
 	if isStreamingEnabled {
-		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, []string{"NCHAR", "NVARCHAR2"}...)
+		oracleUnsupportedDataTypes = append(oracleUnsupportedDataTypes, "NCHAR", "NVARCHAR2")
 	}
 	for _, tableName := range tableList {
 		columns, dataTypes, dataTypesOwner := ora.GetTableColumns(tableName)
