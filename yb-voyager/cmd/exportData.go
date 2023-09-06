@@ -51,7 +51,10 @@ var exportDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags(cmd)
+		if exporterRole == "" {
+			exporterRole = SOURCE_DB_EXPORTER_ROLE
+		}
+		validateExportFlags(cmd, exporterRole)
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 		if changeStreamingIsEnabled(exportType) {
@@ -66,6 +69,7 @@ func init() {
 	exportCmd.AddCommand(exportDataCmd)
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
+	registerSourceDBConnFlags(exportDataCmd)
 	registerExportDataFlags(exportDataCmd)
 }
 
@@ -74,9 +78,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-	if exporterRole == "" {
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
 	triggerName, err := getTriggerName(exporterRole)
