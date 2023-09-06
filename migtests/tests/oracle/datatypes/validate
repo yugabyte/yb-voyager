@@ -52,7 +52,7 @@ EXPECTED_DATA_TYPES = {
 		'ts_tz_value': 'timestamp with time zone',
 		'timestamp_val': 'timestamp without time zone',
 		'ts_tz_lt_value': 'timestamp with time zone',
-		'date_val': 'timestamp without time zone'
+		'date_val': 'date'
 	},
 	'interval_types': {
 		'id': 'numeric',
