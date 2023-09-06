@@ -80,7 +80,7 @@ EXPECTED_DATA_TYPES = {
    	'date_time_types': {
         'date_time_type': 'timestamp without time zone',
         'time_stamp_type': 'timestamp without time zone',
-        'date_type': 'timestamp without time zone', 
+        'date_type': 'date', 
         'year_type': 'smallint', 
         'time_type': 'time without time zone'
     }, 
