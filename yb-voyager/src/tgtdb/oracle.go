@@ -31,7 +31,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
@@ -563,8 +563,8 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 			SKIP=1 for skipping the first row which is the header
 			ERRORS=0 for exiting on first error and 0 errors allowed
 	*/
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", 
-	oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0",
+		oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
 	var outbuf string
 	var errbuf string
@@ -704,7 +704,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 		}
 	}
 	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil 
+	return result, nil
 }
 
 func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
@@ -800,6 +800,8 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism + 1)
 	return nil
 }
+
+func (tdb *TargetOracleDB) PrepareForStreaming() {}
 
 func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
 	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite

@@ -34,9 +34,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
 type TargetYugabyteDB struct {
@@ -147,6 +147,11 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 		utils.ErrExit("get target db version: %s", err)
 	}
 	return yb.tconf.DBVersion
+}
+
+func (yb *TargetYugabyteDB) PrepareForStreaming() {
+	log.Infof("Preparing target DB for streaming - disable throttling")
+	yb.connPool.DisableThrottling()
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {
