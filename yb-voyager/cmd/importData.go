@@ -549,7 +549,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to reset queue segment meta: %s", err)
 	}
-	err = metaDB.RemoveJsonObjectsKey(identityColumnsMetaDBKey)
+	err = metaDB.DeleteJsonObject(identityColumnsMetaDBKey)
 	if err != nil {
 		utils.ErrExit("failed to reset identity columns meta: %s", err)
 	}

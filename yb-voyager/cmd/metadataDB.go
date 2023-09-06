@@ -268,6 +268,15 @@ func (m *MetaDB) GetJsonObject(tx *sql.Tx, key string, obj any) (bool, error) {
 	return true, nil
 }
 
+func (m *MetaDB) DeleteJsonObject(key string) error {
+	query := fmt.Sprintf(`DELETE FROM %s WHERE key = '%s'`, JSON_OBJECTS_TABLE_NAME, key)
+	_, err := m.db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return nil
+}
+
 func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T)) error {
 	// Get a connection to the meta db.
 	conn, err := m.db.Conn(context.Background())
@@ -362,15 +371,6 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 
 func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
-	_, err := m.db.Exec(query)
-	if err != nil {
-		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
-	}
-	return nil
-}
-
-func (m *MetaDB) RemoveJsonObjectsKey(key string) error {
-	query := fmt.Sprintf(`DELETE FROM %s WHERE key = '%s'`, JSON_OBJECTS_TABLE_NAME, key)
 	_, err := m.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
