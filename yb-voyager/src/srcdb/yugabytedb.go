@@ -329,7 +329,7 @@ func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, 
 	return nil, nil, nil
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
 	return nil, nil
 }
 
