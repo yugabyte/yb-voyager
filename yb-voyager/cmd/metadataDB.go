@@ -340,7 +340,9 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	var updates int64
 	var deletes int64
 	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
-	query := fmt.Sprintf(`select COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0), COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0) from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
+	query := fmt.Sprintf(`select COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0),
+	 	COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0)
+	  	from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
 		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
