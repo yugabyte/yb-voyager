@@ -30,6 +30,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	"github.com/magiconair/properties"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
@@ -342,7 +343,15 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	} else if source.DBType == "yugabytedb" {
 		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, ybServers, config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			masterPort := "7100"
+			if os.Getenv("YB_MASTER_PORT") != "" {
+				masterPort = os.Getenv("YB_MASTER_PORT")
+			}
+			ybServers = lo.Map(ybServers, (func(s string, _ int) string {
+				return fmt.Sprintf("%s:%s", s, masterPort)
+			}),
+			)
+			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0])
 			err := ybCDCClient.Init()
 			if err != nil {
 				return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)

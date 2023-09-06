@@ -394,6 +394,6 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 	return tableColumnMap, unsupportedColumnNames
 }
 
-func (ora *Oracle) GetServers() string {
-	return ora.source.Host
+func (ora *Oracle) GetServers() []string {
+	return []string{ora.source.Host}
 }
