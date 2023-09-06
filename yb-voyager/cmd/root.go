@@ -52,6 +52,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if cmd.Parent() != nil && cmd.Parent().Use != "yb-voyager" {
 				cmdName = fmt.Sprintf("%s-%s", cmd.Parent().Use, cmd.Use)
 			}
+			if cmd.Parent().Use == "data" { //import data file case
+				cmdName = fmt.Sprintf("%s-%s-%s", cmd.Parent().Parent().Use, cmd.Parent().Use, cmd.Use)
+			}
 			InitLogging(exportDir, cmd.Use == "status", cmdName)
 		}
 	},
@@ -77,7 +80,7 @@ func shouldLock(cmd *cobra.Command) bool {
 	if cmd.Use == "initiate" && cmd.Parent().Use == "cutover" {
 		return false
 	}
-	if cmd.HasParent() && cmd.Parent().Use == "fall-forward" {
+	if cmd.Use == "switchover" && cmd.Parent().Use == "fall-forward" {
 		return false
 	}
 	return true
@@ -156,10 +159,10 @@ func validateExportDirFlag() {
 }
 
 func lockExportDir(cmd *cobra.Command) {
-	lockFileName := ".lockfile.lck"
-	// using different lockfile as import data can be run in parallel with export data(for live migration)
-	if cmd.Use == "data" && cmd.Parent().Use == "import" {
-		lockFileName = ".importDataLockfile.lck"
+	// locking export-dir per command TODO: revisit this
+	lockFileName := fmt.Sprintf(".%s%sLockfile.lck", cmd.Parent().Use, cmd.Use)
+	if cmd.Parent().Use == "data" { //import data file case
+		lockFileName = fmt.Sprintf(".%s%s%sLockfile.lck", cmd.Parent().Parent().Use, cmd.Parent().Use, cmd.Use)
 	}
 
 	lockFilePath, err := filepath.Abs(filepath.Join(exportDir, lockFileName))
