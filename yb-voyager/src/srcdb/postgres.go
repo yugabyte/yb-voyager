@@ -461,6 +461,6 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 	}
 }
 
-func (pg *PostgreSQL) GetServers() string {
-	return pg.source.Host
+func (pg *PostgreSQL) GetServers() []string {
+	return []string{pg.source.Host}
 }

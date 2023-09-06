@@ -68,7 +68,10 @@ var importDataCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-		validateImportFlags(cmd)
+		if importerRole == "" {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		}
+		validateImportFlags(cmd, importerRole)
 	},
 	Run: importDataCommandFn,
 }
@@ -78,9 +81,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-	if importerRole == "" {
-		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
 	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
@@ -103,7 +103,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 	importData(importFileTasks)
-	startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+	if changeStreamingIsEnabled(importType) {
+		startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+	}
 }
 
 func startFallforwardSynchronizeIfRequired(tableList []string) {
@@ -118,25 +120,39 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.PrintAndLog("No fall-forward db exists. Exiting.")
 		return
 	}
-	// TODO: ssl* params
+
 	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
 		"--export-dir", exportDir,
-		"--source-db-host", tconf.Host,
-		"--source-db-port", fmt.Sprintf("%d", tconf.Port),
-		"--source-db-user", tconf.User,
-		"--source-db-name", tconf.DBName,
-		"--source-db-schema", tconf.Schema,
+		"--target-db-host", tconf.Host,
+		"--target-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--target-db-user", tconf.User,
+		"--target-db-name", tconf.DBName,
+		"--target-db-schema", tconf.Schema,
 		"--table-list", strings.Join(tableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
-
+	if tconf.SSLMode != "" {
+		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
+	}
+	if tconf.SSLCertPath != "" {
+		cmd = append(cmd, "--target-ssl-cert", tconf.SSLCertPath)
+	}
+	if tconf.SSLKey != "" {
+		cmd = append(cmd, "--target-ssl-key", tconf.SSLKey)
+	}
+	if tconf.SSLRootCert != "" {
+		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+	}
+	if tconf.SSLCRL != "" {
+		cmd = append(cmd, "--target-ssl-crl", tconf.SSLCRL)
+	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
 	if disablePb {
 		cmd = append(cmd, "--disable-pb")
 	}
-	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
@@ -144,7 +160,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", tconf.Password))
+	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
@@ -965,5 +981,6 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
+	registerTargetDBConnFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
 }

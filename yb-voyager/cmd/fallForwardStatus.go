@@ -28,7 +28,7 @@ var fallforwardStatusCmd = &cobra.Command{
 	Long:  `Prints status of the fallforward to fallforward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		
+		validateExportDirFlag()
 		reportFallForwardStatus()
 	},
 }

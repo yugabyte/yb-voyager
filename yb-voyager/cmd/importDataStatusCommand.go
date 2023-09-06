@@ -35,7 +35,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var ffDBPassword string
+var targetDbPassword string
+var ffDbPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -65,7 +66,7 @@ var importDataStatusCmd = &cobra.Command{
 			migrationStatus.TargetDBConf.Password = tconf.Password
 			if migrationStatus.FallForwarDBExists {
 				getFallForwardDBPassword(cmd)
-				migrationStatus.FallForwardDBConf.Password = ffDBPassword
+				migrationStatus.FallForwardDBConf.Password = tconf.Password
 			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
@@ -86,19 +87,11 @@ var importDataStatusCmd = &cobra.Command{
 func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 
-	importDataStatusCmd.Flags().StringVar(&ffDBPassword, "ff-db-password", "",
+	importDataStatusCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
 		"password with which to connect to the target fall-forward DB server")
 
-	importDataStatusCmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
+	importDataStatusCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server")
-}
-
-func getFallForwardDBPassword(cmd *cobra.Command) {
-	var err error
-	ffDBPassword, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
-	if err != nil {
-		utils.ErrExit("error while getting ff-db-password: %w", err)
-	}
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.

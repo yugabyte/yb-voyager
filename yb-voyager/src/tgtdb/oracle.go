@@ -844,7 +844,7 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 }
 
 func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'",
+	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var numInserts, numUpdates, numDeletes int64
 	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)

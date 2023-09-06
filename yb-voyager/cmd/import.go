@@ -46,7 +46,7 @@ func init() {
 }
 
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
-func validateImportFlags(cmd *cobra.Command) {
+func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
@@ -66,11 +66,26 @@ func validateImportFlags(cmd *cobra.Command) {
 		fmt.Println("WARNING: The --disable-transactional-writes feature is in the experimental phase, not for production use case.")
 	}
 	validateBatchSizeFlag(batchSize)
-	getTargetPassword(cmd)
-
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		getTargetPassword(cmd)
+	case FF_DB_IMPORTER_ROLE:
+		getFallForwardDBPassword(cmd)
+	}
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&startClean, "start-clean", false,
+		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
+
+	cmd.Flags().BoolVar(&tconf.VerboseMode, "verbose", false,
+		"verbose mode for some extra details during execution of command")
+
+	cmd.Flags().BoolVar(&tconf.ContinueOnError, "continue-on-error", false,
+		"If set, this flag will ignore errors and continue with the import")
+}
+
+func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
@@ -90,12 +105,6 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.DBSid, "target-db-sid", "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
 
-	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
-
-	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
-
 	cmd.Flags().StringVar(&tconf.Schema, "target-db-schema", "",
 		"target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
 
@@ -114,15 +123,52 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&tconf.SSLCRL, "target-ssl-crl", "",
 		"target SSL Root Certificate Revocation List (CRL)")
+}
 
-	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
+func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
+		"host on which the Fall-forward DB server is running")
 
-	cmd.Flags().BoolVar(&tconf.VerboseMode, "verbose", false,
-		"verbose mode for some extra details during execution of command")
+	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
+		"port on which the Fall-forward DB server is running")
 
-	cmd.Flags().BoolVar(&tconf.ContinueOnError, "continue-on-error", false,
-		"If set, this flag will ignore errors and continue with the import")
+	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
+		"username with which to connect to the Fall-forward DB server")
+	cmd.MarkFlagRequired("ff-db-user")
+
+	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
+		"password with which to connect to the Fall-forward DB server")
+
+	cmd.Flags().StringVar(&tconf.DBName, "ff-db-name", "",
+		"name of the database on the Fall-forward DB server on which import needs to be done")
+
+	cmd.Flags().StringVar(&tconf.DBSid, "ff-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
+
+	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
+	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
+		"schema name in Fall-forward DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+
+	// TODO: SSL related more args might come. Need to explore SSL part completely.
+	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
+		"provide Fall-forward DB SSL Certificate Path")
+
+	cmd.Flags().StringVar(&tconf.SSLMode, "ff-ssl-mode", "prefer",
+		"specify the Fall-forward DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	cmd.Flags().StringVar(&tconf.SSLKey, "ff-ssl-key", "",
+		"Fall-forward DB SSL Key Path")
+
+	cmd.Flags().StringVar(&tconf.SSLRootCert, "ff-ssl-root-cert", "",
+		"Fall-forward DB SSL Root Certificate Path")
+
+	cmd.Flags().StringVar(&tconf.SSLCRL, "ff-ssl-crl", "",
+		"Fall-forward DB SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerImportDataFlags(cmd *cobra.Command) {
@@ -214,6 +260,14 @@ func getTargetPassword(cmd *cobra.Command) {
 	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
 		utils.ErrExit("error in getting target-db-password: %v", err)
+	}
+}
+
+func getFallForwardDBPassword(cmd *cobra.Command) {
+	var err error
+	tconf.Password, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("error while getting ff-db-password: %w", err)
 	}
 }
 
