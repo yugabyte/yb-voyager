@@ -314,3 +314,9 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
 	}
 }
+
+func validateFFDBSchemaFlag() {
+	if tconf.Schema == "" {
+		utils.ErrExit("Error: --ff-db-schema flag is mandatory for fall-forward setup")
+	}
+}
