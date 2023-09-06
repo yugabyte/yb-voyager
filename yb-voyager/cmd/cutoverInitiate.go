@@ -26,6 +26,7 @@ var cutoverInitiateCmd = &cobra.Command{
 	Long:  `Initiate cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateExportDirFlag()
 		err := InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
