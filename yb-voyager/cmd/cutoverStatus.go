@@ -36,6 +36,7 @@ var cutoverStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
+		validateExportDirFlag()
 		metaDB, err = NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("failed to create metaDB: %w", err)
