@@ -198,9 +198,9 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		validateSourcePassword(cmd)
+		getAndStoreSourceDBPasswordInSourceConf(cmd)
 	case TARGET_DB_EXPORTER_ROLE:
-		validateTargetDBAsSourcePassword(cmd)
+		getAndStoreTargetDBPasswordInSourceConf(cmd)
 	}
 
 	// checking if wrong flag is given used for a db type
@@ -320,7 +320,7 @@ func validateOracleParams() {
 
 }
 
-func validateSourcePassword(cmd *cobra.Command) {
+func getAndStoreSourceDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
 	if err != nil {
@@ -328,11 +328,11 @@ func validateSourcePassword(cmd *cobra.Command) {
 	}
 }
 
-func validateTargetDBAsSourcePassword(cmd *cobra.Command) {
+func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
 	var err error
 	source.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting source-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %v", err)
 	}
 }
 
