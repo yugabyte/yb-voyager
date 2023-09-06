@@ -26,8 +26,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var (
@@ -340,22 +340,22 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	var updates int64
 	var deletes int64
 	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
-	query := fmt.Sprintf(`select SUM(num_total), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
+	query := fmt.Sprintf(`select COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0), COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0) from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
 		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
-		return  &tgtdb.EventCounter{
-			TotalEvents: 0, 
-			NumInserts: 0, 
-			NumUpdates: 0, 
-			NumDeletes: 0,
+		return &tgtdb.EventCounter{
+			TotalEvents: 0,
+			NumInserts:  0,
+			NumUpdates:  0,
+			NumDeletes:  0,
 		}, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return &tgtdb.EventCounter{
-		TotalEvents: totalCount, 
-		NumInserts: inserts, 
-		NumUpdates: updates, 
-		NumDeletes: deletes,
+		TotalEvents: totalCount,
+		NumInserts:  inserts,
+		NumUpdates:  updates,
+		NumDeletes:  deletes,
 	}, nil
 }
