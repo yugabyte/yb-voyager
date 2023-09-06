@@ -26,8 +26,8 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var (
@@ -345,17 +345,35 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
-		return  &tgtdb.EventCounter{
-			TotalEvents: 0, 
-			NumInserts: 0, 
-			NumUpdates: 0, 
-			NumDeletes: 0,
+		return &tgtdb.EventCounter{
+			TotalEvents: 0,
+			NumInserts:  0,
+			NumUpdates:  0,
+			NumDeletes:  0,
 		}, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return &tgtdb.EventCounter{
-		TotalEvents: totalCount, 
-		NumInserts: inserts, 
-		NumUpdates: updates, 
-		NumDeletes: deletes,
+		TotalEvents: totalCount,
+		NumInserts:  inserts,
+		NumUpdates:  updates,
+		NumDeletes:  deletes,
 	}, nil
+}
+
+func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
+	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
+	_, err := m.db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return nil
+}
+
+func (m *MetaDB) RemoveJsonObjectsKey(key string) error {
+	query := fmt.Sprintf(`DELETE FROM %s WHERE key = %s`, JSON_OBJECTS_TABLE_NAME, key)
+	_, err := m.db.Exec(query)
+	if err != nil {
+		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return nil
 }
