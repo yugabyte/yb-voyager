@@ -19,11 +19,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
-	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -49,6 +47,11 @@ func init() {
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&startClean, "start-clean", false,
+		"cleans up the project directory for schema or data files depending on the export command")
+}
+
+func registerSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
 
@@ -105,9 +108,43 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
 		"source SSL Root Certificate Revocation List (CRL)")
+}
 
-	cmd.Flags().BoolVar(&startClean, "start-clean", false,
-		"cleans up the project directory for schema or data files depending on the export command")
+func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&source.Host, "target-db-host", "127.0.0.1",
+		"host on which the YugabyteDB server is running")
+
+	cmd.Flags().IntVar(&source.Port, "target-db-port", -1,
+		"port on which the YugabyteDB YSQL API is running")
+
+	cmd.Flags().StringVar(&source.User, "target-db-user", "",
+		"username with which to connect to the target YugabyteDB server")
+	cmd.MarkFlagRequired("target-db-user")
+
+	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
+		"password with which to connect to the target YugabyteDB server")
+
+	cmd.Flags().StringVar(&source.DBName, "target-db-name", "",
+		"name of the database on the target YugabyteDB server on which import needs to be done")
+
+	cmd.Flags().StringVar(&source.Schema, "target-db-schema", "",
+		"target schema name in YugabyteDB")
+
+	// TODO: SSL related more args might come. Need to explore SSL part completely.
+	cmd.Flags().StringVar(&source.SSLCertPath, "target-ssl-cert", "",
+		"provide target SSL Certificate Path")
+
+	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "prefer",
+		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	cmd.Flags().StringVar(&source.SSLKey, "target-ssl-key", "",
+		"target SSL Key Path")
+
+	cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
+		"target SSL Root Certificate Path")
+
+	cmd.Flags().StringVar(&source.SSLCRL, "target-ssl-crl", "",
+		"target SSL Root Certificate Revocation List (CRL)")
 }
 
 func setExportFlagsDefaults() {
@@ -146,7 +183,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags(cmd *cobra.Command) {
+func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -159,7 +196,12 @@ func validateExportFlags(cmd *cobra.Command) {
 	}
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
-	validateSourcePassword(cmd)
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		getAndStoreSourceDBPasswordInSourceConf(cmd)
+	case TARGET_DB_EXPORTER_ROLE:
+		getAndStoreTargetDBPasswordInSourceConf(cmd)
+	}
 
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
@@ -278,22 +320,20 @@ func validateOracleParams() {
 
 }
 
-func validateSourcePassword(cmd *cobra.Command) {
-	if cmd.Flags().Changed("source-db-password") {
-		return
-	}
-	if os.Getenv("SOURCE_DB_PASSWORD") != "" {
-		source.Password = os.Getenv("SOURCE_DB_PASSWORD")
-		return
-	}
-	fmt.Print("Password to connect to source:")
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+func getAndStoreSourceDBPasswordInSourceConf(cmd *cobra.Command) {
+	var err error
+	source.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return
+		utils.ErrExit("error in getting source-db-password: %v", err)
 	}
-	fmt.Print("\n")
-	source.Password = string(bytePassword)
+}
+
+func getAndStoreTargetDBPasswordInSourceConf(cmd *cobra.Command) {
+	var err error
+	source.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("error in getting target-db-password: %v", err)
+	}
 }
 
 func markFlagsRequired(cmd *cobra.Command) {

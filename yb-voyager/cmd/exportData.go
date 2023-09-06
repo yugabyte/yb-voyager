@@ -51,7 +51,10 @@ var exportDataCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags(cmd)
+		if exporterRole == "" {
+			exporterRole = SOURCE_DB_EXPORTER_ROLE
+		}
+		validateExportFlags(cmd, exporterRole)
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 		if changeStreamingIsEnabled(exportType) {
@@ -66,6 +69,7 @@ func init() {
 	exportCmd.AddCommand(exportDataCmd)
 	registerCommonGlobalFlags(exportDataCmd)
 	registerCommonExportFlags(exportDataCmd)
+	registerSourceDBConnFlags(exportDataCmd)
 	registerExportDataFlags(exportDataCmd)
 }
 
@@ -74,9 +78,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-	if exporterRole == "" {
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
 	}
 
 	triggerName, err := getTriggerName(exporterRole)
@@ -160,7 +161,7 @@ func exportData() bool {
 	}
 
 	if len(finalTableList) == 0 {
-		fmt.Println("no tables present to export, exiting...")
+		utils.PrintAndLog("no tables present to export, exiting...")
 		createExportDataDoneFlag()
 		dfd := datafile.Descriptor{
 			ExportDir:    exportDir,
@@ -207,7 +208,7 @@ func exportData() bool {
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
 			utils.ErrExit("yb-voyager encountered internal error. "+
-				"Check %s/logs/yb-voyager.log for more details.", exportDir)
+				"Check %s/logs/yb-voyager-export-data.log for more details.", exportDir)
 		}
 	}()
 

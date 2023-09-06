@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -38,6 +39,7 @@ var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var eventQueue *EventQueue
+var statsReporter *reporter.StreamImportStatsReporter
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 512)
@@ -57,15 +59,17 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
-	statsReporter := reporter.NewStreamImportStatsReporter()
+	statsReporter = reporter.NewStreamImportStatsReporter()
 	err = statsReporter.Init(tdb, migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	defer statsReporter.Finalize()
+	defer finalizeStats()
 	if !disablePb {
-		go updateExportedEventsStats(statsReporter)
-		go statsReporter.ReportStats()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go updateExportedEventsStats(ctx)
+		go statsReporter.ReportStats(ctx)
 	}
 
 	eventQueue = NewEventQueue(exportDir)
@@ -243,15 +247,29 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func updateExportedEventsStats(statsReporter *reporter.StreamImportStatsReporter) {
+func updateExportedEventsStats(ctx context.Context) {
 	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
-		if err != nil {
-			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			fetchAndUpdateEventsStats()
 		}
-		statsReporter.UpdateRemainingEvents(totalExportedEvents)
 	}
+}
+
+func fetchAndUpdateEventsStats() {
+	totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
+	if err != nil {
+		utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+	}
+	statsReporter.UpdateRemainingEvents(totalExportedEvents)
+}
+
+func finalizeStats() {
+	fetchAndUpdateEventsStats()
+	statsReporter.Finalize()
 }

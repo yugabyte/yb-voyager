@@ -88,7 +88,9 @@ func (d *Debezium) Start() error {
 	d.cmd.Env = os.Environ()
 	// $TNS_ADMIN is used to set jdbc property oracle.net.tns_admin which will enable using TNS alias
 	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("TNS_ADMIN=%s", d.Config.TNSAdmin))
-	d.cmd.Env = append(d.cmd.Env, "DEBEZIUM_SOURCE_DATABASE_PASSWORD="+d.Config.Password)
+	if d.Config.Password != "" {
+		d.cmd.Env = append(d.cmd.Env, "DEBEZIUM_SOURCE_DATABASE_PASSWORD="+d.Config.Password)
+	}
 	log.Infof("Setting TNS_ADMIN=%s", d.Config.TNSAdmin)
 	if !d.Config.OracleJDBCWalletLocationSet {
 		// only specify the default value of this property if it is not already set in $TNS_ADMIN/ojdbc.properties.
@@ -119,7 +121,7 @@ func (d *Debezium) Start() error {
 }
 
 func (d *Debezium) setupLogFile() error {
-	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", "debezium.log"))
+	logFilePath, err := filepath.Abs(filepath.Join(d.ExportDir, "logs", fmt.Sprintf("debezium-%s.log", d.ExporterRole)))
 	if err != nil {
 		return fmt.Errorf("failed to create absolute path:%v", err)
 	}

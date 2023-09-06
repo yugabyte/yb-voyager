@@ -22,36 +22,31 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	NOT_INITIATED = "NOT_INITIATED"
-	INITIATED     = "INITIATED"
-	COMPLETED     = "COMPLETED"
-)
-
-var cutoverStatusCmd = &cobra.Command{
+var fallforwardStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Prints status of the cutover to YugabyteDB",
-	Long:  `Prints status of the cutover to YugabyteDB`,
+	Short: "Prints status of the fallforward to fallforward DB",
+	Long:  `Prints status of the fallforward to fallforward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		checkAndReportCutoverStatus()
+		
+		reportFallForwardStatus()
 	},
 }
 
 func init() {
-	cutoverCmd.AddCommand(cutoverStatusCmd)
-	cutoverStatusCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+	fallForwardCmd.AddCommand(fallforwardStatusCmd)
+	fallforwardStatusCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
-func checkAndReportCutoverStatus() {
-	status := getCutoverStatus()
-	fmt.Printf("cutover status: ")
+func reportFallForwardStatus() {
+	status := getFallForwardStatus()
+	fmt.Printf("fall-forward status: ")
 	switch status {
 	case NOT_INITIATED:
-		color.Red("%s\n", NOT_INITIATED)
+		color.Red("%s\n", status)
 	case INITIATED:
-		color.Yellow("%s\n", INITIATED)
+		color.Yellow("%s\n", status)
 	case COMPLETED:
 		color.Green("%s\n", COMPLETED)
 	}

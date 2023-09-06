@@ -31,19 +31,11 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"golang.org/x/exp/slices"
 )
-
-var oraValueConverterSuite = map[string]ConverterFn{
-	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
-			return fmt.Sprintf("'%s'", formattedColumnValue), nil
-		} else {
-			return columnValue, nil
-		}
-	},
-}
 
 type TargetOracleDB struct {
 	sync.Mutex
@@ -77,10 +69,10 @@ func (tdb *TargetOracleDB) Init() error {
 	if err != nil {
 		return err
 	}
-
+	tdb.tconf.Schema = strings.ToUpper(tdb.tconf.Schema)
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'",
-		strings.ToUpper(tdb.tconf.Schema))
+		tdb.tconf.Schema)
 	var cntSchemaName int
 	if err = tdb.conn.QueryRowContext(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
 		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tdb.tconf.Host, err)
@@ -447,14 +439,14 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string) (int64, error) {
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
 	tdb.Lock()
 	defer tdb.Unlock()
 
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *sql.Conn) (bool, error) {
-		rowsAffected, err = tdb.importBatch(conn, batch, args, exportDir)
+		rowsAffected, err = tdb.importBatch(conn, batch, args, exportDir, tableSchema)
 		return false, err
 	}
 	err = tdb.WithConn(copyFn)
@@ -495,7 +487,7 @@ func (tdb *TargetOracleDB) WithConn(fn func(*sql.Conn) (bool, error)) error {
 	return err
 }
 
-func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportBatchArgs, exportDir string) (rowsAffected int64, err error) {
+func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (rowsAffected int64, err error) {
 	var file *os.File
 	file, err = batch.Open()
 	if err != nil {
@@ -539,7 +531,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	}
 
 	tableName := batch.GetTableName()
-	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema)
+	sqlldrConfig := args.GetSqlLdrControlFile(tdb.tconf.Schema, tableSchema)
 	fileName := filepath.Base(batch.GetFilePath())
 
 	err = sqlldr.CreateSqlldrDir(exportDir)
@@ -565,13 +557,14 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	connectString := tdb.getConnectionString(tdb.tconf)
 	oracleConnectionString := fmt.Sprintf("%s@\"%s\"", user, connectString)
 	/*
-	reference for sqlldr cli options https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-commands.html#GUID-24205A60-E16F-4DBA-AD82-376C401013DF
-    DIRECT=TRUE for using faster mode (direct path)
-	NO_INDEX_ERRORS=TRUE for not ignoring index errors
-	SKIP=1 for skipping the first row which is the header
-	ERRORS=0 for exiting on first error and 0 errors allowed
+			reference for sqlldr cli options https://docs.oracle.com/en/database/oracle/oracle-database/19/sutil/oracle-sql-loader-commands.html#GUID-24205A60-E16F-4DBA-AD82-376C401013DF
+		    DIRECT=TRUE for using faster mode (direct path)
+			NO_INDEX_ERRORS=TRUE for not ignoring index errors
+			SKIP=1 for skipping the first row which is the header
+			ERRORS=0 for exiting on first error and 0 errors allowed
 	*/
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", 
+	oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
 	var outbuf string
 	var errbuf string
@@ -658,6 +651,77 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 }
 
 func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error) {
+	result := make([]string, len(columns))
+	// FAST PATH.
+	fastPathSuccessful := true
+	for i, colName := range columns {
+		if strings.ToUpper(colName) == colName {
+			if sqlname.IsReservedKeywordOracle(colName) && colName[0:1] != `"` {
+				result[i] = fmt.Sprintf(`"%s"`, colName)
+			} else {
+				result[i] = colName
+			}
+		} else {
+			// Go to slow path.
+			log.Infof("column name (%s) is not all upper-case. Going to slow path.", colName)
+			result = make([]string, len(columns))
+			fastPathSuccessful = false
+			break
+		}
+	}
+	if fastPathSuccessful {
+		log.Infof("FAST PATH: columns of table %s after quoting: %v", tableName, result)
+		return result, nil
+	}
+	// SLOW PATH.
+	schemaName := tdb.tconf.Schema
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		schemaName = parts[0]
+		tableName = parts[1]
+	}
+	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("get list of table attributes: %w", err)
+	}
+	log.Infof("columns of table %s.%s in target db: %v", schemaName, tableName, targetColumns)
+	for i, colName := range columns {
+		if colName[0] == '"' && colName[len(colName)-1] == '"' {
+			colName = colName[1 : len(colName)-1]
+		}
+		switch true {
+		// TODO: Move sqlname.IsReservedKeywordOracle() in this file.
+		case sqlname.IsReservedKeywordOracle(colName):
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case colName == strings.ToUpper(colName): // Name is all Upper case.
+			result[i] = colName
+		case slices.Contains(targetColumns, colName): // Name is not keyword and is not all uppercase.
+			result[i] = fmt.Sprintf(`"%s"`, colName)
+		case slices.Contains(targetColumns, strings.ToUpper(colName)): // Case insensitive name given with mixed case.
+			result[i] = strings.ToUpper(colName)
+		default:
+			return nil, fmt.Errorf("column %q not found in table %s", colName, tableName)
+		}
+	}
+	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
+	return result, nil 
+}
+
+func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
+	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tableName, schemaName)
+	rows, err := tdb.conn.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+	var columns []string
+	for rows.Next() {
+		var column string
+		err := rows.Scan(&column)
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		columns = append(columns, column)
+	}
 	return columns, nil
 }
 
@@ -675,6 +739,13 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
 			stmt := event.GetSQLStmt(tdb.tconf.Schema)
+			if event.Op == "c" && tdb.tconf.EnableUpsert {
+				// converting to an UPSERT
+				event.Op = "u"
+				updateStmt := event.GetSQLStmt(tdb.tconf.Schema)
+				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
+				event.Op = "c" // reverting state
+			}
 			_, err = tx.Exec(stmt)
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
@@ -723,16 +794,25 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 func (tdb *TargetOracleDB) InitConnPool() error {
 	if tdb.tconf.Parallelism == -1 {
 		tdb.tconf.Parallelism = 1
-		utils.PrintAndLog("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", tdb.tconf.Parallelism)
-	} else {
-		utils.PrintAndLog("Using %d parallel jobs", tdb.tconf.Parallelism)
+		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", tdb.tconf.Parallelism)
 	}
 	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism + 1)
 	tdb.oraDB.SetMaxOpenConns(tdb.tconf.Parallelism + 1)
 	return nil
 }
 
-func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]ConverterFn {
+func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
+	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite
+	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		intervalType := fmt.Sprintf("INTERVAL YEAR(%d) TO MONTH", i) //for all interval year to month types with precision
+		oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL YEAR TO MONTH"]
+	}
+	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		for _, j := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
+			intervalType := fmt.Sprintf("INTERVAL DAY(%d) TO SECOND(%d)", i, j) //for all interval day to second types with precision
+			oraValueConverterSuite[intervalType] = oraValueConverterSuite["INTERVAL DAY TO SECOND"]
+		}
+	}
 	return oraValueConverterSuite
 }
 
@@ -751,11 +831,13 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 	var connectString string
 	switch true {
 	case tconf.DBSid != "":
-		connectString = fmt.Sprintf("(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))", tconf.Host, tconf.Port, tconf.DBSid)
+		connectString = fmt.Sprintf("(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SID=%s)))",
+			tconf.Host, tconf.Port, tconf.DBSid)
 	case tconf.TNSAlias != "":
 		connectString = tconf.TNSAlias
 	case tconf.DBName != "":
-		connectString = fmt.Sprintf("(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))", tconf.Host, tconf.Port, tconf.DBName)
+		connectString = fmt.Sprintf("(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST=%s)(PORT=%d))(CONNECT_DATA=(SERVICE_NAME=%s)))",
+			tconf.Host, tconf.Port, tconf.DBName)
 	}
 
 	return connectString
@@ -778,7 +860,8 @@ func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {
 
 func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
 	var eventCounter EventCounter
-	tableName = tdb.qualifyTableName(tableName)
+	// TODO: handle case-sensitive properly for tablenames
+	tableName = tdb.getTargetSchemaName(tableName) + "." + strings.ToUpper(tableName)
 	var query string
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
 		query = fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
@@ -814,4 +897,67 @@ func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string)
 	}
 	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
 	return snapshotRowCount, nil
+}
+
+func (tdb *TargetOracleDB) GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error) {
+	schema := tdb.getTargetSchemaName(table)
+	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'
+	AND TABLE_NAME = '%s' AND GENERATION_TYPE='ALWAYS'`, schema, table)
+	log.Infof("query of identity columns for table(%s): %s", table, query)
+	var identityColumns []string
+	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+		rows, err := conn.QueryContext(context.Background(), query)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				return false, nil
+			}
+			log.Errorf("querying identity columns: %v", err)
+			return false, fmt.Errorf("querying identity columns: %w", err)
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var colName string
+			err := rows.Scan(&colName)
+			if err != nil {
+				log.Errorf("scanning row for identity column name: %v", err)
+				return false, fmt.Errorf("scanning row for identity column name: %w", err)
+			}
+			identityColumns = append(identityColumns, colName)
+		}
+		return false, nil
+	})
+	return identityColumns, err
+}
+
+func (tdb *TargetOracleDB) DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+	log.Infof("disabling generated always as identity columns")
+	return tdb.alterColumns(tableColumnsMap, "GENERATED BY DEFAULT AS IDENTITY(START WITH LIMIT VALUE)")
+}
+
+func (tdb *TargetOracleDB) EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error {
+	log.Infof("enabling generated always as identity columns")
+	// Oracle needs start value to resumes the value for further inserts correctly
+	return tdb.alterColumns(tableColumnsMap, "GENERATED ALWAYS AS IDENTITY(START WITH LIMIT VALUE)")
+}
+
+func (tdb *TargetOracleDB) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {
+	for table, columns := range tableColumnsMap {
+		qualifiedTblName := tdb.qualifyTableName(table)
+		for _, column := range columns {
+			// LIMIT VALUE - ensures that start it is set to the current value of the sequence
+			query := fmt.Sprintf(`ALTER TABLE %s MODIFY %s %s`, qualifiedTblName, column, alterAction)
+			err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
+				_, err := conn.ExecContext(context.Background(), query)
+				if err != nil {
+					log.Errorf("executing query-%s to alter column(%s) for table(%s): %v", query, column, qualifiedTblName, err)
+					return false, fmt.Errorf("executing query to alter column for table(%s): %w", qualifiedTblName, err)
+				}
+				return false, nil
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

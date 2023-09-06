@@ -27,6 +27,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
+		createTriggerIfNotExists("fallforward.synchronize.started")
 		exportDataCmd.Run(cmd, args)
 	},
 }
@@ -34,7 +35,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 func init() {
 	fallForwardCmd.AddCommand(fallForwardSynchronizeCmd)
 	registerCommonGlobalFlags(fallForwardSynchronizeCmd)
-	registerCommonExportFlags(fallForwardSynchronizeCmd)
+	registerTargetDBAsSourceConnFlags(fallForwardSynchronizeCmd)
 	registerExportDataFlags(fallForwardSynchronizeCmd)
 	hideFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
 }

@@ -80,7 +80,7 @@ debezium.source.offset.flush.interval.ms=0
 debezium.source.table.include.list=%s
 debezium.source.interval.handling.mode=string
 debezium.source.include.unknown.datatypes=true
-debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*
+debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*,.*DATE.*,.*INTERVAL.*,.*CHAR.*,.*TIMESTAMP.*,.*LONG.*
 debezium.source.tombstones.on.delete=false
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
@@ -355,6 +355,9 @@ func (c *Config) String() string {
 
 func (c *Config) WriteToFile(filePath string) error {
 	config := c.String()
+	if c.Password == "" { //empty password have issues with Env variable https://yugabyte.atlassian.net/browse/DB-7533
+		config += fmt.Sprintf("\ndebezium.source.database.password=%s", c.Password)	
+	}
 	err := os.WriteFile(filePath, []byte(config), 0644)
 	if err != nil {
 		return fmt.Errorf("failed to write config file %s: %v", filePath, err)

@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
@@ -47,12 +49,15 @@ var batchSize = int64(0)
 var batchImportPool *pool.Pool
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
+var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                            // to truncate *.D splits after import
-var TableToColumnNames = make(map[string][]string) // map of table name to columnNames
+var truncateSplits bool                                    // to truncate *.D splits after import
+var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
+var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
+var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
@@ -63,7 +68,10 @@ var importDataCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-		validateImportFlags(cmd)
+		if importerRole == "" {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		}
+		validateImportFlags(cmd, importerRole)
 	},
 	Run: importDataCommandFn,
 }
@@ -73,9 +81,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	metaDB, err = NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-	if importerRole == "" {
-		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
 	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
@@ -92,8 +97,74 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-	importFileTasks = applyTableListFilter(importFileTasks)
+	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
+		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
+	} else {
+		importFileTasks = applyTableListFilter(importFileTasks)
+	}
 	importData(importFileTasks)
+	if changeStreamingIsEnabled(importType) {
+		startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+	}
+}
+
+func startFallforwardSynchronizeIfRequired(tableList []string) {
+	if importerRole != TARGET_DB_IMPORTER_ROLE {
+		return
+	}
+	msr, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	if !msr.FallForwarDBExists {
+		utils.PrintAndLog("No fall-forward db exists. Exiting.")
+		return
+	}
+
+	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
+		"--export-dir", exportDir,
+		"--target-db-host", tconf.Host,
+		"--target-db-port", fmt.Sprintf("%d", tconf.Port),
+		"--target-db-user", tconf.User,
+		"--target-db-name", tconf.DBName,
+		"--target-db-schema", tconf.Schema,
+		"--table-list", strings.Join(tableList, ","),
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+	}
+	if tconf.SSLMode != "" {
+		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
+	}
+	if tconf.SSLCertPath != "" {
+		cmd = append(cmd, "--target-ssl-cert", tconf.SSLCertPath)
+	}
+	if tconf.SSLKey != "" {
+		cmd = append(cmd, "--target-ssl-key", tconf.SSLKey)
+	}
+	if tconf.SSLRootCert != "" {
+		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+	}
+	if tconf.SSLCRL != "" {
+		cmd = append(cmd, "--target-ssl-crl", tconf.SSLCRL)
+	}
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+	if disablePb {
+		cmd = append(cmd, "--disable-pb")
+	}
+	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager - %w", err)
+	}
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
+	}
 }
 
 type ImportFileTask struct {
@@ -183,14 +254,36 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	return result
 }
 
+func updateTargetConfInMigrationStatus() {
+	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		switch tconf.TargetDBType {
+		case YUGABYTEDB:
+			record.TargetDBConf = tconf.Clone()
+			record.TargetDBConf.Password = ""
+		case ORACLE:
+			record.FallForwardDBConf = tconf.Clone()
+			record.FallForwardDBConf.Password = ""
+		default:
+			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))
+		}
+	})
+	if err != nil {
+		utils.ErrExit("Failed to update target conf in migration status record: %s", err)
+	}
+}
+
 func importData(importFileTasks []*ImportFileTask) {
+	if tconf.TargetDBType == YUGABYTEDB {
+		tconf.Schema = strings.ToLower(tconf.Schema)
+	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
+		tconf.Schema = strings.ToUpper(tconf.Schema)
+	}
 	err := retrieveMigrationUUID(exportDir)
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
-	tconf.Schema = strings.ToLower(tconf.Schema)
-
+	updateTargetConfInMigrationStatus()
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -199,6 +292,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	defer tdb.Finalize()
 
 	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
+	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
 	}
@@ -206,6 +300,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB connection pool: %s", err)
 	}
+	utils.PrintAndLog("Using %d parallel jobs.", tconf.Parallelism)
 
 	targetDBVersion := tdb.GetVersion()
 
@@ -225,10 +320,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
 		importType = record.ExportType
+		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
+		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
@@ -245,11 +342,14 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
+	disableGeneratedAlwaysAsIdentityColumns()
+	defer enableGeneratedAlwaysAsIdentityColumns()
+
 	if len(pendingTasks) == 0 {
 		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 	} else {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map in case of debezium
+		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 		poolSize := tconf.Parallelism * 2
 		progressReporter := NewImportDataProgressReporter(disablePb)
 		for _, task := range pendingTasks {
@@ -315,6 +415,46 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func disableGeneratedAlwaysAsIdentityColumns() {
+	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to get identity columns from meta db: %s", err)
+	}
+	if !found {
+		tables := importFileTasksToTableNames(importFileTasks)
+		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
+		// saving in metadb for handling restarts
+		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
+	}
+
+	err = tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
+	}
+}
+
+func enableGeneratedAlwaysAsIdentityColumns() {
+	err := tdb.EnableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
+	if err != nil {
+		utils.ErrExit("failed to enable generated always as identity columns: %s", err)
+	}
+}
+
+func getGeneratedAlwaysAsIdentityColumnNamesForTables(tables []string) map[string][]string {
+	var result = make(map[string][]string)
+	for _, table := range tables {
+		identityColumns, err := tdb.GetGeneratedAlwaysAsIdentityColumnNamesForTable(table)
+		if err != nil {
+			utils.ErrExit("error in getting identity columns for table %s: %w", table, err)
+		}
+		if len(identityColumns) > 0 {
+			log.Infof("identity columns for table %s: %v", table, identityColumns)
+			result[table] = identityColumns
+		}
+	}
+	return result
 }
 
 func getTotalProgressAmount(task *ImportFileTask) int64 {
@@ -506,7 +646,8 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 		}
 		if line != "" {
 			table := batchWriter.tableName
-			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line) // can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
+			line, err = valueConverter.ConvertRow(table, TableToColumnNames[table], line)
 			if err != nil {
 				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", batchWriter.NumRecordsWritten+1, t, filePath, err)
 			}
@@ -580,7 +721,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	var rowsAffected int64
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema[batch.TableName])
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -840,5 +981,6 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
+	registerTargetDBConnFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
 }
