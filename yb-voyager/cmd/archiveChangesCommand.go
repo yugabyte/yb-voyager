@@ -49,33 +49,33 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 
 	moveToChanged := cmd.Flags().Changed("move-to")
 	deleteChanged := cmd.Flags().Changed("delete")
-	if (moveToChanged && !deleteChanged) || (!moveToChanged && deleteChanged) {
-		copier := NewEventSegmentCopier(moveDestination)
-		deleter := NewEventSegmentDeleter(utilizationThreshold)
-		var wg sync.WaitGroup
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := copier.Run()
-			if err != nil {
-				utils.ErrExit("Error while copying segments: %v", err)
-			}
-		}()
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err := deleter.Run()
-			if err != nil {
-				utils.ErrExit("Error while deleting segments: %v", err)
-			}
-		}()
-
-		wg.Wait()
-	} else {
+	if moveToChanged == deleteChanged {
 		utils.ErrExit("Either move-to or delete flag should be specified")
 	}
+
+	copier := NewEventSegmentCopier(moveDestination)
+	deleter := NewEventSegmentDeleter(utilizationThreshold)
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := copier.Run()
+		if err != nil {
+			utils.ErrExit("copying segments: %v", err)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := deleter.Run()
+		if err != nil {
+			utils.ErrExit("deleting segments: %v", err)
+		}
+	}()
+
+	wg.Wait()
 }
 
 func init() {
@@ -95,75 +95,74 @@ func NewEventSegmentDeleter(fsUtilisationThreshold int) *EventSegmentDeleter {
 	}
 }
 
-func (d *EventSegmentDeleter) isFSUtilisationExceeded() (bool, error) {
+func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
 	fsUtilization, err := utils.GetFSUtilizationPercentage(exportDir)
 	if err != nil {
-		return false, fmt.Errorf("error while getting fs utilization: %v", err)
+		utils.ErrExit("get fs utilization: %v", err)
 	}
 
-	log.Infof("FS Utilisation: %d%%", fsUtilization)
-	return fsUtilization > d.FSUtilisationThreshold, nil
+	return fsUtilization > d.FSUtilisationThreshold
 }
 
-func (d *EventSegmentDeleter) deleteSegments() error {
-	segmentsToBeDeleted, err := metaDB.GetSegmentsToBeDeleted()
-	if err != nil {
-		return fmt.Errorf("error while getting segments to be deleted: %v", err)
-	}
-	for _, segment := range segmentsToBeDeleted {
-		if utils.FileOrFolderExists(segment.SegmentFilePath) {
-			err := os.Remove(segment.SegmentFilePath)
-			if err != nil {
-				return fmt.Errorf("error while deleting segment file %s: %v", segment.SegmentFilePath, err)
-			}
-		}
-		err := metaDB.MarkSegmentDeleted(segment.SegmentNum)
+func (d *EventSegmentDeleter) deleteSegment(segment Segment) error {
+	if utils.FileOrFolderExists(segment.FilePath) {
+		err := os.Remove(segment.FilePath)
 		if err != nil {
-			return fmt.Errorf("error while marking segment %d as deleted: %v", segment.SegmentNum, err)
+			return fmt.Errorf("delete segment file %s: %v", segment.FilePath, err)
 		}
-		fmt.Printf("event queue segment file %s deleted\n", segment.SegmentFilePath)
-		log.Infof("Deleted segment file %s", segment.SegmentFilePath)
 	}
+	err := metaDB.MarkSegmentDeleted(segment.Num)
+	if err != nil {
+		return fmt.Errorf("mark segment %d as deleted: %v", segment.Num, err)
+	}
+	utils.PrintAndLog(fmt.Sprintf("event queue segment file %s deleted", segment.FilePath))
 	return nil
 }
 
 func (d *EventSegmentDeleter) Run() error {
-	for {
-		fsUtilizationExceeded, err := d.isFSUtilisationExceeded()
-		if err != nil {
-			return fmt.Errorf("error while checking fs utilization: %v", err)
+	ticker := time.NewTicker(5 * time.Second)
+	for range ticker.C {
+		if !d.isFSUtilisationExceeded() {
+			continue
 		}
-		if fsUtilizationExceeded {
-			err := d.deleteSegments()
+		segmentsToBeDeleted, err := metaDB.GetSegmentsToBeDeleted()
+		if err != nil {
+			return fmt.Errorf("get segments to be deleted: %v", err)
+		}
+		for _, segment := range segmentsToBeDeleted {
+			err := d.deleteSegment(segment)
 			if err != nil {
-				return fmt.Errorf("error while deleting segments: %v", err)
+				return fmt.Errorf("delete segment %s: %v", segment.FilePath, err)
+			}
+			if !d.isFSUtilisationExceeded() {
+				break
 			}
 		}
-		time.Sleep(5 * time.Second)
 	}
+	return nil
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 type EventSegmentCopier struct {
-	MoveDestination string
+	Dest string
 }
 
 type Segment struct {
-	SegmentNum      int
-	SegmentFilePath string
+	Num      int
+	FilePath string
 }
 
 func NewEventSegmentCopier(dest string) *EventSegmentCopier {
 	return &EventSegmentCopier{
-		MoveDestination: dest,
+		Dest: dest,
 	}
 }
 
 func (m *EventSegmentCopier) getImportCount() (int, error) {
 	msr, err := GetMigrationStatusRecord()
 	if err != nil {
-		return 0, fmt.Errorf("error while getting migration status record: %v", err)
+		return 0, fmt.Errorf("get migration status record: %v", err)
 	}
 	if msr == nil {
 		return 0, fmt.Errorf("migration status record not found")
@@ -178,7 +177,7 @@ func (m *EventSegmentCopier) ifExistsDeleteSegmentFileFromArchive(segmentNewPath
 	if utils.FileOrFolderExists(segmentNewPath) {
 		err := os.Remove(segmentNewPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("delete %s: %w", segmentNewPath, err)
 		}
 		log.Infof("Deleted existing file %s", segmentNewPath)
 	}
@@ -186,19 +185,19 @@ func (m *EventSegmentCopier) ifExistsDeleteSegmentFileFromArchive(segmentNewPath
 }
 
 func (m *EventSegmentCopier) copySegmentFile(segment Segment, segmentNewPath string) error {
-	sourceFile, err := os.Open(segment.SegmentFilePath)
+	sourceFile, err := os.Open(segment.FilePath)
 	if err != nil {
-		return fmt.Errorf("error while opening segment file %s : %v", segment.SegmentFilePath, err)
+		return fmt.Errorf("open segment file %s : %v", segment.FilePath, err)
 	}
 	defer sourceFile.Close()
 	destinationFile, err := os.Create(segmentNewPath)
 	if err != nil {
-		return fmt.Errorf("error while creating file %s : %v", segmentNewPath, err)
+		return fmt.Errorf("create file %s : %v", segmentNewPath, err)
 	}
 	defer destinationFile.Close()
 	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {
-		return fmt.Errorf("error while copying file %s : %v", segment.SegmentFilePath, err)
+		return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
 	}
 	return nil
 }
@@ -206,38 +205,37 @@ func (m *EventSegmentCopier) copySegmentFile(segment Segment, segmentNewPath str
 func (m *EventSegmentCopier) Run() error {
 	importCount, err := m.getImportCount()
 	if err != nil {
-		return fmt.Errorf("error while getting import count: %v", err)
+		return fmt.Errorf("getimport count: %v", err)
 	}
 	log.Infof("Import count: %d", importCount)
 
 	for {
 		segmentsToArchive, err := metaDB.GetSegmentsToBeArchived(importCount)
 		if err != nil {
-			return fmt.Errorf("error while getting segments to be archived: %v", err)
+			return fmt.Errorf("get segments to be archived: %v", err)
 		}
 		for _, segment := range segmentsToArchive {
 			var segmentNewPath string
-			if m.MoveDestination != "" {
-				segmentFileName := filepath.Base(segment.SegmentFilePath)
-				segmentNewPath = fmt.Sprintf("%s/%s", m.MoveDestination, segmentFileName)
+			if m.Dest != "" {
+				segmentFileName := filepath.Base(segment.FilePath)
+				segmentNewPath = fmt.Sprintf("%s/%s", m.Dest, segmentFileName)
 
 				err := m.ifExistsDeleteSegmentFileFromArchive(segmentNewPath)
 				if err != nil {
-					return fmt.Errorf("error while deleting existing file %s : %v", segmentNewPath, err)
+					return fmt.Errorf("delete existing file %s : %v", segmentNewPath, err)
 				}
 
 				err = m.copySegmentFile(segment, segmentNewPath)
 				if err != nil {
-					return fmt.Errorf("error while copying file %s : %v", segment.SegmentFilePath, err)
+					return fmt.Errorf("copy file %s : %v", segment.FilePath, err)
 				}
 			}
-			err = metaDB.UpdateSegmentArchiveLocation(segment.SegmentNum, segmentNewPath)
+			err = metaDB.UpdateSegmentArchiveLocation(segment.Num, segmentNewPath)
 			if err != nil {
-				return fmt.Errorf("error while updating segment archive location in metaDB for segment %s : %v", segment.SegmentFilePath, err)
+				return fmt.Errorf("update segment archive location in metaDB for segment %s : %v", segment.FilePath, err)
 			}
-			if m.MoveDestination != "" {
-				fmt.Printf("event queue segment file %s archived to %s\n", segment.SegmentFilePath, segmentNewPath)
-				log.Infof("Copied segment file %s to %s", segment.SegmentFilePath, segmentNewPath)
+			if m.Dest != "" {
+				utils.PrintAndLog(fmt.Sprintf("event queue segment file %s archived to %s", segment.FilePath, segmentNewPath))
 			}
 		}
 		time.Sleep(10 * time.Second)

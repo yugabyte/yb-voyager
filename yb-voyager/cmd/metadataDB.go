@@ -347,8 +347,8 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
-	queryParams := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer = %d AND archived = 0`, importCount)
-	segmentsToBeArchived, err := m.querySegments(queryParams)
+	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer = %d AND archived = 0`, importCount)
+	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching segments to be archived: %v", err)
 	}
@@ -357,17 +357,17 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
 
 func (m *MetaDB) GetSegmentsToBeDeleted() ([]Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;
-	queryParams := "archived = 1 AND deleted = 0"
-	segmentsToBeDeleted, err := m.querySegments(queryParams)
+	predicate := "archived = 1 AND deleted = 0"
+	segmentsToBeDeleted, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching segments to be deleted: %v", err)
 	}
 	return segmentsToBeDeleted, nil
 }
 
-func (m *MetaDB) querySegments(parameters string) ([]Segment, error) {
+func (m *MetaDB) querySegments(predicate string) ([]Segment, error) {
 	var segments []Segment
-	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, parameters)
+	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := m.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error while running query on meta db -%s :%v", query, err)
@@ -386,16 +386,16 @@ func (m *MetaDB) querySegments(parameters string) ([]Segment, error) {
 			return nil, fmt.Errorf("error while scanning rows while fetching segments from query %s : %v", query, err)
 		}
 		segment := Segment{
-			SegmentNum:      int(segmentNo),
-			SegmentFilePath: filePath,
+			Num:      int(segmentNo),
+			FilePath: filePath,
 		}
 		segments = append(segments, segment)
 	}
 	return segments, nil
 }
 
-func (m *MetaDB) updateSegment(segmentNum int, parameters string) error {
-	query := fmt.Sprintf(`UPDATE %s SET %s WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME, parameters)
+func (m *MetaDB) updateSegment(segmentNum int, predicate string) error {
+	query := fmt.Sprintf(`UPDATE %s SET %s WHERE segment_no = ?;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	result, err := m.db.Exec(query, segmentNum)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%v", query, err)
