@@ -370,7 +370,7 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 }
 
 func (m *MetaDB) RemoveJsonObjectsKey(key string) error {
-	query := fmt.Sprintf(`DELETE FROM %s WHERE key = %s`, JSON_OBJECTS_TABLE_NAME, key)
+	query := fmt.Sprintf(`DELETE FROM %s WHERE key = '%s'`, JSON_OBJECTS_TABLE_NAME, key)
 	_, err := m.db.Exec(query)
 	if err != nil {
 		return fmt.Errorf("error while running query on meta db -%s :%w", query, err)
