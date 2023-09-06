@@ -130,7 +130,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 		"host on which the Fall-forward DB server is running")
 
 	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
-		"port on which the Fall-forward DB YSQL API is running")
+		"port on which the Fall-forward DB server is running")
 
 	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
 		"username with which to connect to the Fall-forward DB server")
@@ -152,7 +152,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
 	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
-		"schema name in Fall-forward DB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)")
+		"schema name in Fall-forward DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
