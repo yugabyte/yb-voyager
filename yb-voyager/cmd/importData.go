@@ -103,7 +103,9 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 	importData(importFileTasks)
-	startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+	if changeStreamingIsEnabled(importType) {
+		startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+	}
 }
 
 func startFallforwardSynchronizeIfRequired(tableList []string) {
