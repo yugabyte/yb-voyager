@@ -30,13 +30,15 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"golang.org/x/exp/slices"
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -130,8 +132,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Send 'IN PROGRESS' metadata for `EXPORT DATA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("EXPORT DATA", "IN PROGRESS", "")
+	exportDataStartEvent, err := createExportDataEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.SnapshotExportStarted(&exportDataStartEvent)
+	}
 
 	success := exportData()
 	if success {
@@ -153,8 +158,11 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Send 'COMPLETED' metadata for `EXPORT DATA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("EXPORT DATA", "COMPLETED", "")
+	exportDataCompleteEvent, err := createExportDataEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.SnapshotExportStarted(&exportDataCompleteEvent)
+	}
 
 	// Wait till the visualisation metadata is sent
 	utils.WaitGroup.Wait()
@@ -371,7 +379,7 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	for _, table := range finalTableList {
 		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
 			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-		} 
+		}
 		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
 			if len(source.DB().GetPartitions(table)) > 0 {
 				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
@@ -386,12 +394,11 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	if len(caseSensitiveTables) > 0 {
 		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
 	}
-	if len(partitionedTables) > 0 {	
+	if len(partitionedTables) > 0 {
 		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
 	}
 	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
 }
-
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
@@ -481,8 +488,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	<-exportDataStart
 
 	// Create initial entry for each table in the table metrics table
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerExportTableMetrics(utils.GetSortedKeys(tablesProgressMetadata))
+	exportDataTableMetrics, err := createExportDataTableMetricsList(
+		utils.GetSortedKeys(tablesProgressMetadata))
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+	}
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)
@@ -749,4 +760,52 @@ func saveSourceDBConfInMSR() {
 		record.SourceDBConf.Password = ""
 		record.SourceDBConf.Uri = ""
 	})
+}
+
+func createExportDataEvent() (cp.SnapshotExportEvent, error) {
+
+	dataExportEvent := cp.SnapshotExportEvent{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return dataExportEvent, fmt.Errorf(err)
+	}
+
+	dataExportEvent = cp.SnapshotExportEvent{
+		MigrationUUID: migrationUUID,
+		DatabaseName:  source.DBName,
+		SchemaName:    source.Schema,
+		DBType:        source.DBType,
+	}
+
+	return dataExportEvent, nil
+}
+
+func createExportDataTableMetricsList(tableNames []string) ([]*cp.SnapshotExportTableMetrics,
+	error) {
+
+	dataExportTableMetricsList := []*cp.SnapshotExportTableMetrics{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return dataExportTableMetricsList, fmt.Errorf(err)
+	}
+
+	for _, tableName := range tableNames {
+		tableMetadata := tablesProgressMetadata[tableName]
+		dataExportTableMetricsList = append(dataExportTableMetricsList, &cp.SnapshotExportTableMetrics{
+			MigrationUUID:  migrationUUID,
+			TableName:      tableName,
+			Schema:         source.Schema,
+			Status:         tableMetadata.Status,
+			CountLiveRows:  tableMetadata.CountLiveRows,
+			CountTotalRows: tableMetadata.CountTotalRows,
+		})
+	}
+
+	return dataExportTableMetricsList, nil
 }

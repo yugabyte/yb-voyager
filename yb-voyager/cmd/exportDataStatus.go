@@ -139,8 +139,11 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				doneCount++
 
 				// Update a table entry to `COMPLETED` once the table is exported
-				utils.WaitGroup.Add(1)
-				go createAndSendVisualizerExportTableMetrics([]string{key})
+				exportDataTableMetrics, err := createExportDataTableMetricsList([]string{key})
+				if err == nil {
+					utils.WaitGroup.Add(1)
+					go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+				}
 
 				if doneCount == numTables {
 					break
@@ -215,8 +218,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	go func() { //for sending visualization table metrics every 5 secs
 		for !pbr.IsComplete() {
-			utils.WaitGroup.Add(1)
-			createAndSendVisualizerExportTableMetrics([]string{tableName})
+			exportDataTableMetrics, err := createExportDataTableMetricsList([]string{tableName})
+			if err == nil {
+				utils.WaitGroup.Add(1)
+				go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+			}
 			time.Sleep(time.Second * 5)
 		}
 	}()

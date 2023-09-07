@@ -46,7 +46,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/visualizer"
 )
 
 var (
@@ -519,7 +518,6 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-<<<<<<< HEAD
 func getDefaultPGSchema(schema string) (string, bool) {
 	schemas := strings.Split(schema, "|")
 	if len(schemas) == 1 {
@@ -528,125 +526,6 @@ func getDefaultPGSchema(schema string) (string, bool) {
 		return "public", false
 	} else {
 		return "", true
-=======
-// Function to create and send the visualisation metadata
-func createAndSendVisualizerPayload(phase string, status string, payload string) {
-	defer utils.WaitGroup.Done()
-	if migrationUUID == uuid.Nil {
-		log.Warnf("MigrationUUID couldn't be retreived. Cannot send metadata for visualization")
-		return
-	}
-
-	currentTime := time.Now()
-	formattedTimestamp := currentTime.Format("2006-01-02 15:04:05")
-
-	invocationSequence, err := visualizerDB.GetInvocationSequence(migrationUUID,
-		visualizer.MIGRATION_PHASE_MAP[phase])
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
-
-	var (
-		dbName string
-		schema string
-		dbType string
-	)
-
-	if phase == "EXPORT SCHEMA" || phase == "EXPORT DATA" {
-		dbName = source.DBName
-		schema = source.Schema
-		dbType = source.DBType
-	}
-
-	if phase == "IMPORT SCHEMA" || phase == "IMPORT DATA" {
-		dbName = tconf.DBName
-		schema = tconf.Schema
-	}
-
-	visualizerDBPayload := visualizer.CreateVisualzerDBPayload(
-		migrationUUID,
-		visualizer.MIGRATION_PHASE_MAP[phase],
-		invocationSequence,
-		dbName,
-		schema,
-		payload,
-		dbType,
-		status,
-		formattedTimestamp)
-
-	err = visualizerDB.SendVisualizerDBPayload(visualizerDBPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
-}
-
-// Function to create and send table completion metrics for `EXPORT DATA` step
-func createAndSendVisualizerExportTableMetrics(tableNames []string) {
-	defer utils.WaitGroup.Done()
-	if migrationUUID == uuid.Nil {
-		log.Warnf("MigrationUUID couldn't be retreived. Cannot send metadata for visualization")
-		return
-	}
-
-	currentTime := time.Now()
-	formattedTimestamp := currentTime.Format("2006-01-02 15:04:05")
-
-	var visualizerTableMetricsList []visualizer.VisualizerTableMetrics
-	for _, tableName := range tableNames {
-		tableMetadata := tablesProgressMetadata[tableName]
-		visualizerTableMetrics := visualizer.CreateVisualzerDBTableMetrics(
-			migrationUUID,
-			tableName,
-			source.Schema,
-			visualizer.MIGRATION_PHASE_MAP["EXPORT DATA"],
-			tableMetadata.Status,
-			tableMetadata.CountLiveRows,
-			tableMetadata.CountTotalRows,
-			formattedTimestamp)
-		visualizerTableMetricsList = append(visualizerTableMetricsList, visualizerTableMetrics)
-	}
-
-	err := visualizerDB.SendVisualizerTableMetrics(visualizerTableMetricsList)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
-}
-
-// Function to create and send table completion metrics for `IMPORT DATA` step
-func createAndSendVisualizerImportTableMetrics(tableName string, countLiveRows int64,
-	countTotalRows int64, status int) {
-
-	defer utils.WaitGroup.Done()
-
-	if migrationUUID == uuid.Nil {
-		log.Warnf("MigrationUUID couldn't be retreived. Cannot send metadata for visualization")
-		return
-	}
-
-	currentTime := time.Now()
-	formattedTimestamp := currentTime.Format("2006-01-02 15:04:05")
-
-	var visualizerTableMetricsList []visualizer.VisualizerTableMetrics
-
-	visualizerTableMetricsList = append(visualizerTableMetricsList, visualizer.CreateVisualzerDBTableMetrics(
-		migrationUUID,
-		tableName,
-		tconf.Schema,
-		visualizer.MIGRATION_PHASE_MAP["IMPORT DATA"],
-		status,
-		countLiveRows,
-		countTotalRows,
-		formattedTimestamp))
-
-	err := visualizerDB.SendVisualizerTableMetrics(visualizerTableMetricsList)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
->>>>>>> 6612e07 ([#1002] yugabyted: Send visualization metadata and metrics to target yugabyteDB.)
 	}
 }
 

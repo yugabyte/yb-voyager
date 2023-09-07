@@ -31,9 +31,10 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/visualizer"
 )
 
 var (
@@ -44,7 +45,7 @@ var (
 	migrationUUID            uuid.UUID
 	perfProfile              utils.BoolStr
 	ProcessShutdownRequested bool
-	visualizerDB             visualizer.VisualizerYugabyteDB
+	controlPlane             cp.ControlPlane
 )
 
 var rootCmd = &cobra.Command{
@@ -71,7 +72,8 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			go startPprofServer()
 		}
 
-		err := visualizerDB.Init(exportDir)
+		controlPlane = yugabyted.New(exportDir)
+		err := controlPlane.Init()
 		if err != nil {
 			log.Warnf("Failed to initialize the target DB for visualization. %s", err)
 		}
@@ -89,7 +91,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			lockFile.Unlock()
 		}
 		atexit.Exit(0)
-		visualizerDB.Finalize()
+		controlPlane.Finalize()
 	},
 }
 

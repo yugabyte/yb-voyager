@@ -29,6 +29,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -37,6 +38,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -79,10 +81,6 @@ var importDataCmd = &cobra.Command{
 		err := validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
-		}
-		err = visualizerDB.CreateYugabytedTableMetricsTable()
-		if err != nil {
-			log.Warnf("Failed to create table metrics table for visualization. %s", err)
 		}
 	},
 	Run: importDataCommandFn,
@@ -375,8 +373,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	// Send 'IN PROGRESS' metadata for `IMPORT DATA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("IMPORT DATA", "IN PROGRESS", "")
+	importDataStartEvent, err := createImportDataEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.SnapshotImportStarted(&importDataStartEvent)
+	}
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
@@ -488,9 +489,12 @@ func importData(importFileTasks []*ImportFileTask) {
 				batchImportPool.Wait() // Wait for the file import to finish.
 
 				// Update the table entry to `COMPLETED` once the table is exported
-				utils.WaitGroup.Add(1)
-				go createAndSendVisualizerImportTableMetrics(task.TableName, currentProgress,
-					totalProgressAmount, 3)
+				importDataTableMetrics, err := createImportDataTableMetrics(task.TableName,
+					currentProgress, totalProgressAmount, 3)
+				if err == nil {
+					utils.WaitGroup.Add(1)
+					go controlPlane.UpdateImportedRowCount(&importDataTableMetrics)
+				}
 				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
 			time.Sleep(time.Second * 2)
@@ -554,8 +558,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	fmt.Printf("\nImport data complete.\n")
 
 	// Send 'COMPLETED' metadata for `IMPORT DATA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("IMPORT DATA", "COMPLETED", "")
+	importDataCompletedEvent, err := createImportDataEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.SnapshotImportStarted(&importDataCompletedEvent)
+	}
 
 	// Wait till the visualisation metadata is sent
 	utils.WaitGroup.Wait()
@@ -1197,4 +1204,48 @@ func init() {
 	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportDataFlags(importDataCmd)
 	registerImportDataFlags(importDataToTargetCmd)
+}
+
+func createImportDataEvent() (cp.SnapshotImportEvent, error) {
+
+	dataImportEvent := cp.SnapshotImportEvent{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return dataImportEvent, fmt.Errorf(err)
+	}
+
+	dataImportEvent = cp.SnapshotImportEvent{
+		MigrationUUID: migrationUUID,
+		DatabaseName:  tconf.DBName,
+		SchemaName:    tconf.Schema,
+	}
+
+	return dataImportEvent, nil
+}
+
+func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
+	status int) (cp.SnapshotImportTableMetrics, error) {
+
+	dataImportTableMetrics := cp.SnapshotImportTableMetrics{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return dataImportTableMetrics, fmt.Errorf(err)
+	}
+
+	dataImportTableMetrics = cp.SnapshotImportTableMetrics{
+		MigrationUUID:  migrationUUID,
+		TableName:      tableName,
+		Schema:         tconf.Schema,
+		Status:         status,
+		CountLiveRows:  countLiveRows,
+		CountTotalRows: countTotalRows,
+	}
+
+	return dataImportTableMetrics, nil
 }

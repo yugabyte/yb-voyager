@@ -23,12 +23,14 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -78,8 +80,11 @@ func importSchema() {
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	// Send 'IN PROGRESS' metadata for `IMPORT SCHEMA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("IMPORT SCHEMA", "IN PROGRESS", "")
+	importSchemaStartEvent, err := createImportSchemaEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
+	}
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
@@ -175,8 +180,11 @@ func importSchema() {
 	}
 
 	// Send 'COMPLETED' metadata for `IMPORT SCHEMA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("IMPORT SCHEMA", "COMPLETED", "")
+	importSchemaCompleteEvent, err := createImportSchemaEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
+	}
 
 	callhome.PackAndSendPayload(exportDir)
 
@@ -358,4 +366,24 @@ func isAlreadyExists(errString string) bool {
 		}
 	}
 	return false
+}
+
+func createImportSchemaEvent() (cp.ImportSchemaEvent, error) {
+
+	importSchemaEvent := cp.ImportSchemaEvent{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return importSchemaEvent, fmt.Errorf(err)
+	}
+
+	importSchemaEvent = cp.ImportSchemaEvent{
+		MigrationUUID: migrationUUID,
+		DatabaseName:  tconf.DBName,
+		SchemaName:    tconf.Schema,
+	}
+
+	return importSchemaEvent, nil
 }

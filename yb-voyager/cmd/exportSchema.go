@@ -20,7 +20,10 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -93,8 +96,11 @@ func exportSchema() {
 	}
 
 	// Send 'IN PROGRESS' metadata for `EXPORT SCHEMA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("EXPORT SCHEMA", "IN PROGRESS", "")
+	exportSchemaStartEvent, err := createExportSchemaEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
+	}
 
 	source.DB().ExportSchema(exportDir)
 	updateIndexesInfoInMetaDB()
@@ -109,8 +115,11 @@ func exportSchema() {
 	setSchemaIsExported()
 
 	// Send 'COMPLETED' metadata for `EXPORT SCHEMA` step
-	utils.WaitGroup.Add(1)
-	go createAndSendVisualizerPayload("EXPORT SCHEMA", "COMPLETED", "")
+	exportSchemaCompleteEvent, err := createExportSchemaEvent()
+	if err == nil {
+		utils.WaitGroup.Add(1)
+		go controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+	}
 
 	// Wait till the visualisation metadata is sent
 	utils.WaitGroup.Wait()
@@ -180,4 +189,25 @@ func updateIndexesInfoInMetaDB() {
 	if err != nil {
 		utils.ErrExit("update indexes info in meta db: %s", err)
 	}
+}
+
+func createExportSchemaEvent() (cp.ExportSchemaEvent, error) {
+
+	exportSchemaEvent := cp.ExportSchemaEvent{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprintf(err))
+		return exportSchemaEvent, fmt.Errorf(err)
+	}
+
+	exportSchemaEvent = cp.ExportSchemaEvent{
+		MigrationUUID: migrationUUID,
+		DatabaseName:  source.DBName,
+		SchemaName:    source.Schema,
+		DBType:        source.DBType,
+	}
+
+	return exportSchemaEvent, nil
 }
