@@ -134,13 +134,13 @@ func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map
 			case ok && strings.Contains(dataType, "INTERVAL"):
 				columnsList = append(columnsList, fmt.Sprintf(`%s %s NULLIF %s='%s'`, column, dataType, column, args.NullString))
 			case ok && strings.HasPrefix(dataType, "DATE"):
-				columnsList = append(columnsList, fmt.Sprintf(`%s DATE "DD-MM-YY" NULLIF %s='%s'`, column, column, args.NullString))
+				columnsList = append(columnsList, fmt.Sprintf(`%s DATE "DD-MM-YYYY" NULLIF %s='%s'`, column, column, args.NullString))
 			case ok && strings.HasPrefix(dataType, "TIMESTAMP"):
 				switch true {
 				case strings.Contains(dataType, "TIME ZONE"):
-					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH TIME ZONE "YY-MM-DD HH:MI:SS.FF9 AM TZR" NULLIF %s='%s'`, column, column, args.NullString))
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP WITH TIME ZONE "YYYY-MM-DD HH:MI:SS.FF9 AM TZR" NULLIF %s='%s'`, column, column, args.NullString))
 				default:
-					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP "DD-MM-YY HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
+					columnsList = append(columnsList, fmt.Sprintf(`%s TIMESTAMP "DD-MM-YYYY HH:MI:SS.FF9 AM" NULLIF %s='%s'`, column, column, args.NullString))
 				}
 			case ok && okLen && strings.Contains(dataType, "CHAR"):
 				columnsList = append(columnsList, fmt.Sprintf(`%s CHAR(%s) NULLIF %s='%s'`, column, charLength, column, args.NullString))
