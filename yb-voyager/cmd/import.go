@@ -129,8 +129,8 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
 		"host on which the Fall-forward DB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", ORACLE_DEFAULT_PORT,
-		"port on which the Fall-forward DB server is running")
+	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
+		"port on which the Fall-forward DB server is running Default: ORACLE(1521)")
 
 	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
 		"username with which to connect to the Fall-forward DB server")
