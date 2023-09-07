@@ -570,7 +570,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 	var errbuf string
 	outbuf, errbuf, err = sqlldr.RunSqlldr(sqlldrArgs, password)
 
-	if errbuf != "" || err != nil {
+	if err != nil {
 		// for error related to the stdinPipe of created while running sqlldr
 		return 0, fmt.Errorf("run sqlldr error: %w %s\nPlease check the log file for more information - %s", err, errbuf, sqlldrLogFilePath)
 	}
