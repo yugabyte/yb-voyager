@@ -219,7 +219,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 
 func registerExportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - disable progress bar during data export(default false)")
+		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"list of tables to exclude while exporting data (ignored if --table-list is used)")
@@ -231,7 +231,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"number of Parallel Jobs to extract data from source database")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: %s, %s, %s", SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES))
+		fmt.Sprintf("export type: %s, %s", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
 }
 
 func validateSourceDBType() {

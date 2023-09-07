@@ -89,7 +89,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, "target-db-port", YUGABYTEDB_YSQL_DEFAULT_PORT,
 		"port on which the YugabyteDB YSQL API is running")
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
@@ -130,7 +130,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 		"host on which the Fall-forward DB server is running")
 
 	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
-		"port on which the Fall-forward DB server is running")
+		"port on which the Fall-forward DB server is running Default: ORACLE(1521)")
 
 	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
 		"username with which to connect to the Fall-forward DB server")
@@ -173,17 +173,24 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 
 func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - to disable progress bar during data import (default false)")
+		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"list of tables to exclude while importing data (ignored if --table-list is used)")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
-	cmd.Flags().Int64Var(&batchSize, "batch-size", -1,
+	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
+	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
+		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
+	}
+	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
 		"maximum number of rows in each batch generated during import.")
+	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
+	"Otherwise, it fall back to using twice the number of nodes in the cluster"
+	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
+		defaultParallelismMsg = ""
+	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+
-			"By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
-			"Otherwise, it fall back to using twice the number of nodes in the cluster")
+		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
 	cmd.Flags().BoolVar(&tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")

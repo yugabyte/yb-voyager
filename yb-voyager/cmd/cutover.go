@@ -37,6 +37,10 @@ func init() {
 }
 
 func InitiatePrimarySwitch(action string) error {
+	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", action)) {
+		utils.PrintAndLog("Aborting %s", action)
+		return nil
+	}
 	triggerName := action
 	err := createTriggerIfNotExists(triggerName)
 	if err != nil {

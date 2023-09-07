@@ -92,8 +92,8 @@ main() {
 	step "Export data."
 	# false if exit code of export_data is non-zero
 	export_data --export-type "snapshot-and-changes" || { 
-		tail_log_file "yb-voyager.log"
-		tail_log_file "debezium.log"
+		tail_log_file "yb-voyager-export-data.log"
+		tail_log_file "debezium-source_db_exporter.log"
 		exit 1
 	} &
 
