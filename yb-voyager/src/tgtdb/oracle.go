@@ -31,7 +31,7 @@ import (
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
+	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/slices"
@@ -563,16 +563,16 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 			SKIP=1 for skipping the first row which is the header
 			ERRORS=0 for exiting on first error and 0 errors allowed
 	*/
-	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0", 
-	oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
+	sqlldrArgs := fmt.Sprintf("userid=%s control=%s log=%s DIRECT=TRUE NO_INDEX_ERRORS=TRUE SKIP=1 ERRORS=0",
+		oracleConnectionString, sqlldrControlFilePath, sqlldrLogFilePath)
 
 	var outbuf string
 	var errbuf string
 	outbuf, errbuf, err = sqlldr.RunSqlldr(sqlldrArgs, password)
 
-	if outbuf == "" && errbuf == "" && err != nil {
+	if err != nil {
 		// for error related to the stdinPipe of created while running sqlldr
-		return 0, fmt.Errorf("run sqlldr: %w", err)
+		return 0, fmt.Errorf("run sqlldr error: %w %s\nPlease check the log file for more information - %s", err, errbuf, sqlldrLogFilePath)
 	}
 
 	var err2 error
@@ -704,7 +704,7 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 		}
 	}
 	log.Infof("columns of table %s.%s after quoting: %v", schemaName, tableName, result)
-	return result, nil 
+	return result, nil
 }
 
 func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
@@ -801,6 +801,8 @@ func (tdb *TargetOracleDB) InitConnPool() error {
 	return nil
 }
 
+func (tdb *TargetOracleDB) PrepareForStreaming() {}
+
 func (tdb *TargetOracleDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
 	oraValueConverterSuite := tgtdbsuite.OraValueConverterSuite
 	for _, i := range []int{1, 2, 3, 4, 5, 6, 7, 8, 9} {
@@ -844,7 +846,7 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 }
 
 func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT num_inserts, num_updates, num_deletes FROM %s where migration_uuid='%s'",
+	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
 		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
 	var numInserts, numUpdates, numDeletes int64
 	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)

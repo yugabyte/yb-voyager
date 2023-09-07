@@ -28,6 +28,7 @@ type TargetDB interface {
 	Init() error
 	Finalize()
 	InitConnPool() error
+	PrepareForStreaming()
 	CleanFileImportState(filePath, tableName string) error
 	GetVersion() string
 	CreateVoyagerSchema() error

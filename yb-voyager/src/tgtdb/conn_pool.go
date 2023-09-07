@@ -45,6 +45,7 @@ type ConnectionPool struct {
 	conns                     chan *pgx.Conn
 	connIdToPreparedStmtCache map[uint32]map[string]bool // cache list of prepared statements per connection
 	nextUriIndex              int
+	disableThrottling         bool
 }
 
 func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
@@ -52,6 +53,7 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 		params:                    params,
 		conns:                     make(chan *pgx.Conn, params.NumConnections),
 		connIdToPreparedStmtCache: make(map[uint32]map[string]bool, params.NumConnections),
+		disableThrottling:         false,
 	}
 	for i := 0; i < params.NumConnections; i++ {
 		pool.conns <- nil
@@ -62,17 +64,27 @@ func NewConnectionPool(params *ConnectionParams) *ConnectionPool {
 	return pool
 }
 
+func (pool *ConnectionPool) DisableThrottling() {
+	pool.disableThrottling = true
+}
+
 func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 	var err error
 	retry := true
 
 	for retry {
-		conn, gotIt := <-pool.conns
-		if !gotIt {
-			// The following sleep is intentional. It is added so that voyager does not
-			// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
-			time.Sleep(2 * time.Second)
-			continue
+		var conn *pgx.Conn
+		var gotIt bool
+		if pool.disableThrottling {
+			conn = <-pool.conns
+		} else {
+			conn, gotIt = <-pool.conns
+			if !gotIt {
+				// The following sleep is intentional. It is added so that voyager does not
+				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
+				time.Sleep(2 * time.Second)
+				continue
+			}
 		}
 		if conn == nil {
 			conn, err = pool.createNewConnection()

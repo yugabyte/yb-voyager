@@ -231,7 +231,7 @@ func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 
-func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
 	tableColumnMap := make(map[*sqlname.SourceName][]string)
 	var unsupportedColumnNames []string
 	for _, tableName := range tableList {
@@ -333,6 +333,6 @@ func createTLSConf(source *Source) tls.Config {
 	}
 }
 
-func (ms *MySQL) GetServers() string {
-	return ms.source.Host
+func (ms *MySQL) GetServers() []string {
+	return []string{ms.source.Host}
 }

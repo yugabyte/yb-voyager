@@ -38,12 +38,12 @@ type SourceDB interface {
 	GetCharset() (string, error)
 	FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName)
 	FilterEmptyTables(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, []*sqlname.SourceName)
-	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string)
+	GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, isStreamingEnabled bool) (map[*sqlname.SourceName][]string, []string)
 	GetTableColumns(tableName *sqlname.SourceName) ([]string, []string, []string)
 	IsTablePartition(table *sqlname.SourceName) bool
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 	GetAllSequences() []string
-	GetServers() string
+	GetServers() []string
 }
 
 func newSourceDB(source *Source) SourceDB {

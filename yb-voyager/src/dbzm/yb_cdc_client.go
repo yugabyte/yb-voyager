@@ -135,7 +135,11 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 }
 
 func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
-	args := fmt.Sprintf("-list_masters -master_addresses %s ", ybc.ybServers)
+	tserverPort := "9100" //TODO: make it internally handled by yb-client
+	if os.Getenv("YB_TSERVER_PORT") != "" {
+		tserverPort = os.Getenv("YB_TSERVER_PORT")
+	}
+	args := fmt.Sprintf("-list_masters -master_addresses %s -tserver_port %s", ybc.ybServers, tserverPort)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)

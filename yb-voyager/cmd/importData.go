@@ -543,6 +543,16 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
 		}
 	}
+
+	// clearing state from metaDB based on importerRole
+	err := metaDB.ResetQueueSegmentMeta(importerRole)
+	if err != nil {
+		utils.ErrExit("failed to reset queue segment meta: %s", err)
+	}
+	err = metaDB.DeleteJsonObject(identityColumnsMetaDBKey)
+	if err != nil {
+		utils.ErrExit("failed to reset identity columns meta: %s", err)
+	}
 }
 
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
@@ -965,16 +975,29 @@ func quoteIdentifierIfRequired(identifier string) string {
 }
 
 func checkExportDataDoneFlag() {
-	metaInfoDir := fmt.Sprintf("%s/%s", exportDir, metaInfoDirName)
+	metaInfoDir := filepath.Join(exportDir, metaInfoDirName)
 	_, err := os.Stat(metaInfoDir)
 	if err != nil {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
-	exportDataDonePath := metaInfoDir + "/flags/exportDataDone"
-	_, err = os.Stat(exportDataDonePath)
-	if err != nil {
-		utils.ErrExit("Snapshot data export is not completed yet. Exiting.")
+
+	exportDataDonePath := filepath.Join(metaInfoDir, "flags", "exportDataDone")
+	if utils.FileOrFolderExists(exportDataDonePath) {
+		return
 	}
+
+	utils.PrintAndLog("Waiting for snapshot data export to complete...")
+	for {
+		_, err = os.Stat(exportDataDonePath)
+		if err == nil {
+			break
+		} else if os.IsNotExist(err) {
+			time.Sleep(time.Second * 2)
+		} else {
+			utils.ErrExit("error while checking export data done flag: %s", err)
+		}
+	}
+	utils.PrintAndLog("Snapshot data export is complete.")
 }
 
 func init() {

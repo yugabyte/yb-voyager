@@ -329,7 +329,7 @@ func (yb *YugabyteDB) GetTableColumns(tableName *sqlname.SourceName) ([]string, 
 	return nil, nil, nil
 }
 
-func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool) (map[*sqlname.SourceName][]string, []string) {
+func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, useDebezium bool, _ bool) (map[*sqlname.SourceName][]string, []string) {
 	return nil, nil
 }
 
@@ -389,9 +389,9 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	return columnToSequenceMap
 }
 
-func (yb *YugabyteDB) GetServers() string {
+func (yb *YugabyteDB) GetServers() []string {
 	var ybServers []string
-	//TODO: figure out a way to get master nodes only from server
+
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
 	rows, err := yb.conn.Query(context.Background(), YB_SERVERS_QUERY)
 	if err != nil {
@@ -404,7 +404,8 @@ func (yb *YugabyteDB) GetServers() string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for yb_servers: %v\n", err)
 		}
-		ybServers = append(ybServers, fmt.Sprintf("%s:7100", ybServer))
+
+		ybServers = append(ybServers, ybServer)
 	}
-	return strings.Join(ybServers, ",")
+	return ybServers
 }
