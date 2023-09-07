@@ -44,6 +44,23 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedDate, nil
 	},
+	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
+		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
+		if err != nil {
+			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
+		}
+		epochSecs := epochDays * 24 * 60 * 60
+		parsedTime := time.Unix(int64(epochSecs), 0).UTC()
+		oracleDateFormat := "02-01-2006" //format: DD-MON-YYYY
+		formattedDate := parsedTime.Format(oracleDateFormat)
+		if err != nil {
+			return "", fmt.Errorf("parsing date: %v", err)
+		}
+		if formatIfRequired {
+			formattedDate = fmt.Sprintf("TO_DATE('%s', 'DD-MM-YYYY')", formattedDate)
+		}
+		return formattedDate, nil
+	},
 	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
