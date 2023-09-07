@@ -2,9 +2,9 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: [ main ]
+    branches: [ 1.5-dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ 1.5-dev ]
 
 jobs:
   run-mysql-migration-tests:
