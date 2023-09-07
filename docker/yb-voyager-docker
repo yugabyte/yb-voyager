@@ -17,7 +17,7 @@ i=0
 exported_vars=""
 
 # Define an array of environment variable names to capture
-variables=("BETA_FAST_DATA_EXPORT" "SOURCE_DB_PASSWORD" "TARGET_DB_PASSWORD" "FF_DB_PASSWORD" "YB_MASTER_PORT" "YB_TSERVER_PORT")
+variables=("BETA_FAST_DATA_EXPORT" "SOURCE_DB_PASSWORD" "TARGET_DB_PASSWORD" "FF_DB_PASSWORD" "YB_MASTER_PORT" "YB_TSERVER_PORT" "QUEUE_SEGMENT_MAX_BYTES" "NUM_EVENT_CHANNELS" "EVENT_CHANNEL_SIZE" "MAX_EVENTS_PER_BATCH" "MAX_INTERVAL_BETWEEN_BATCHES")
 
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
