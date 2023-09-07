@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/samber/lo"
@@ -431,4 +432,15 @@ func GetMapKeysSorted(m map[string]*string) []string {
 	keys := lo.Keys(m)
 	sort.Strings(keys)
 	return keys
+}
+
+func GetFSUtilizationPercentage(path string) (int, error) {
+	var stats syscall.Statfs_t
+	err := syscall.Statfs(path, &stats)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting disk stats for %q: %v", path, err)
+	}
+
+	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
+	return percUtilization, nil
 }
