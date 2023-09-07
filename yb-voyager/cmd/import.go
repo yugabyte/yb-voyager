@@ -179,14 +179,14 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
 	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
-	if cmd.Name() == "setup" {
+	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
 		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
 	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
 		"maximum number of rows in each batch generated during import.")
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
 	"Otherwise, it fall back to using twice the number of nodes in the cluster"
-	if cmd.Name() == "setup"  {
+	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
 		defaultParallelismMsg = ""
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
