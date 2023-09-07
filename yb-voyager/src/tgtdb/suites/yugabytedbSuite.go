@@ -33,7 +33,7 @@ type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
 var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
-		epochDays, err := strconv.ParseUint(columnValue, 10, 64)
+		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
