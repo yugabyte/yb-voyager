@@ -22,8 +22,8 @@ import (
 
 var fallForwardSwitchoverCmd = &cobra.Command{
 	Use:   "switchover",
-	Short: "switchover to fall-forward DB",
-	Long:  `switchover to fall-forward DB`,
+	Short: "Initiates the switchover to fall-forward DB",
+	Long:  `Initiates the switchover to fall-forward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()

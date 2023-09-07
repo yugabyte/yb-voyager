@@ -24,8 +24,8 @@ import (
 
 var fallforwardStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Prints status of the fallforward to fallforward DB",
-	Long:  `Prints status of the fallforward to fallforward DB`,
+	Short: "Prints status of the fall-forward switchover to fall forward DB",
+	Long:  `Prints status of the fall-forward switchover to fall forward DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()

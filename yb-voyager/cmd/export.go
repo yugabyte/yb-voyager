@@ -219,7 +219,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 
 func registerExportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
-		"true - disable progress bar during data export(default false)")
+		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"list of tables to exclude while exporting data (ignored if --table-list is used)")

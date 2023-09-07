@@ -40,7 +40,7 @@ var ffDbPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Print status of an ongoing/completed data import.",
+	Short: "Print status of an ongoing/completed import data/fall-forward setup.",
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
