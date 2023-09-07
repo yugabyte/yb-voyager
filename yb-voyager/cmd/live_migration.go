@@ -163,22 +163,15 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
 		tconf.TargetDBType == ORACLE
 }
+
+var valueConverterTime time.Duration
+
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if event.IsCutover() || event.IsFallForward() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}
 	log.Debugf("handling event: %v", event)
-	tableName := event.TableName
-	if sourceDBType == "postgresql" && event.SchemaName != "public" {
-		tableName = event.SchemaName + "." + event.TableName
-	}
-	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
-	if err != nil {
-		return fmt.Errorf("error transforming event key fields: %v", err)
-	}
-
 	h := hashEvent(event)
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
@@ -213,6 +206,17 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			// read from channel until MAX_EVENTS_PER_BATCH or MAX_INTERVAL_BETWEEN_BATCHES
 			select {
 			case event := <-evChan:
+				tableName := event.TableName
+				if sourceDBType == "postgresql" && event.SchemaName != "public" {
+					tableName = event.SchemaName + "." + event.TableName
+				}
+				// preparing value converters for the streaming mode
+				timer := time.Now()
+				err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+				if err != nil {
+					utils.ErrExit("error transforming event(vsn=%d) key fields: %v", event.Vsn, err)
+				}
+				valueConverterTime += time.Since(timer)
 				if event == END_OF_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
 					break Batching

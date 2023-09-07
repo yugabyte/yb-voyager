@@ -394,6 +394,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
 
+			utils.PrintAndLog("time taken by the value converter: %v", valueConverterTime)
 			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
 			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
