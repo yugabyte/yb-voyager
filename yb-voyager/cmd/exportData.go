@@ -690,7 +690,7 @@ func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
 	tableList := utils.CsvStringToSlice(flagTableList)
 
 	defaultSchemaName := getDefaultSourceSchemaName()
-	schemaNames := utils.CsvStringToSlice(source.Schema)
+	schemaNames := strings.Split(source.Schema, "|")
 	if len(schemaNames) == 1 {
 		defaultSchemaName = schemaNames[0]
 	}
