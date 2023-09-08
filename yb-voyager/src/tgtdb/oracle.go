@@ -787,11 +787,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 						insertTableStatsQuery, err)
 				}
 			}
-			// else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
-			// 	log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
-			// 	return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w, rowsAffected: %v",
-			// 		updatePerTableEvents, err, rowsAffected)
-			// }
 		}
 
 		if err = tx.Commit(); err != nil {
