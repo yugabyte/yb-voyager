@@ -155,9 +155,13 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	return nil
 }
 
+func checkSourceExporter(exporterRole string) bool {
+	return exporterRole == "source_db_exporter"
+}
+
 func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
-	if exportSourceType == "source_db_exporter" {
+	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
 		schemaRegistry = conv.schemaRegistryTarget
@@ -170,6 +174,13 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 		colType, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
+		}
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType,"io.debezium.time.Interval") {
+			colType, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes()) 
+			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
+			if err != nil {
+				return fmt.Errorf("fetch column schema: %w", err)
+			}
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
