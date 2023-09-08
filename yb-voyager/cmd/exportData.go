@@ -90,6 +90,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
+	if changeStreamingIsEnabled(exportType) {
+		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature. Not meant for production use.`))
+	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
