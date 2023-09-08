@@ -252,7 +252,16 @@ func displayExportedRowCountSnapshot() {
 		sort.Strings(keys)
 		for _, key := range keys {
 			if source.Schema != "" {
-				uitable.AddRow(source.Schema, key, exportedRowCount[key])
+				tableParts := strings.Split(key, ".")
+				table := tableParts[0]
+				schema := source.Schema
+				if len(tableParts) > 1 {
+					schema = tableParts[0]
+					table = tableParts[1]
+				} else if source.DBType == POSTGRESQL {
+					schema = getDefaultSourceSchemaName()
+				}
+				uitable.AddRow(schema, table, exportedRowCount[key])
 			} else {
 				uitable.AddRow(source.DBName, key, exportedRowCount[key])
 			}
