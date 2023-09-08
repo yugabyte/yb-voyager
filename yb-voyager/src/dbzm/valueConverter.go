@@ -175,8 +175,9 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		if !checkSourceExporter(exportSourceType) && strings.Contains(strings.ToLower(colType), "interval") {
-			colType, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes()) //assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType,"io.debezium.time.Interval") {
+			colType, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes()) 
+			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
 				return fmt.Errorf("fetch column schema: %w", err)
 			}
