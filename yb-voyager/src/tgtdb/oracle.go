@@ -94,24 +94,6 @@ func (tdb *TargetOracleDB) disconnect() {
 	tdb.conn = nil
 }
 
-func (tdb *TargetOracleDB) reconnect() error {
-	tdb.Mutex.Lock()
-	defer tdb.Mutex.Unlock()
-
-	var err error
-	tdb.disconnect()
-	for attempt := 1; attempt < 5; attempt++ {
-		err = tdb.connect()
-		if err == nil {
-			return nil
-		}
-		log.Warnf("Attempt %d: Failed to reconnect to the target database: %s", attempt, err)
-		time.Sleep(time.Duration(attempt*2) * time.Second)
-		// Retry.
-	}
-	return fmt.Errorf("reconnect to target db: %w", err)
-}
-
 func (tdb *TargetOracleDB) GetConnection() *sql.Conn {
 	if tdb.conn == nil {
 		utils.ErrExit("Called target db GetConnection() before Init()")
