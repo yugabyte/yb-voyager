@@ -53,7 +53,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 
 func registerSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
-		fmt.Sprintf("source database type: %s\n", supportedSourceDBTypes))
+		"source database type: (oracle, mysql, postgresql)\n")
 
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
@@ -231,7 +231,7 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"number of Parallel Jobs to extract data from source database")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: %s, %s", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
+		fmt.Sprintf("export type: %s, %s[TECH PREVIEW]", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
 }
 
 func validateSourceDBType() {
@@ -241,7 +241,7 @@ func validateSourceDBType() {
 
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: %s", source.DBType, supportedSourceDBTypes)
+		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: (postgresql, oracle, mysql)", source.DBType)
 	}
 }
 
