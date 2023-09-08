@@ -120,11 +120,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks)
 	if changeStreamingIsEnabled(importType) {
-		startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
+		startFallforwardSynchronizeIfRequired()
 	}
 }
 
-func startFallforwardSynchronizeIfRequired(tableList []string) {
+func startFallforwardSynchronizeIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -136,6 +136,15 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		utils.PrintAndLog("No fall-forward db exists. Exiting.")
 		return
 	}
+	tableListExportedFromSource := msr.TableListExportedFromSource
+	var unqualifiedTableList []string
+	for _, qualifiedTableName := range tableListExportedFromSource {
+		parts := strings.Split(qualifiedTableName, ".")
+		if len(parts) != 2 {
+			utils.ErrExit("failed to prepare tablelist arg. Expected qualified table names; received %s", qualifiedTableName)
+		}
+		unqualifiedTableList = append(unqualifiedTableList, parts[1])
+	}
 
 	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
 		"--export-dir", exportDir,
@@ -144,7 +153,7 @@ func startFallforwardSynchronizeIfRequired(tableList []string) {
 		"--target-db-user", tconf.User,
 		"--target-db-name", tconf.DBName,
 		"--target-db-schema", tconf.Schema,
-		"--table-list", strings.Join(tableList, ","),
+		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if tconf.SSLMode != "" {
