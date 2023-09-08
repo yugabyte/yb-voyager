@@ -156,6 +156,7 @@ func prepareImportFileTasks() []*ImportFileTask {
 				ID:        i,
 				FilePath:  filePath,
 				TableName: table,
+				RowCount:  -1,
 			}
 			result = append(result, task)
 		}
