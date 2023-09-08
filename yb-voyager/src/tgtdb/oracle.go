@@ -780,7 +780,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			}
 			if rowsAffected == 0 {
 				insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
-				res, err = tx.Exec(insertTableStatsQuery)
+				_, err = tx.Exec(insertTableStatsQuery)
 				if err != nil {
 					log.Errorf("error executing stmt: %v ", err)
 					return false, fmt.Errorf("failed to insert table stats on target db via query-%s: %w",
