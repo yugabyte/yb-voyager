@@ -97,11 +97,27 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		record, err := GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("Failed to get migration status record: %s", err)
+		}
+		importType = record.ExportType
+		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
+	}
+
+	if importerRole == FF_DB_IMPORTER_ROLE {
+		updateFallForwarDBExistsInMetaDB()
+		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
+	}
+
 	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
 		utils.ErrExit("--table-list and --exclude-table-list are not supported for live migration. Re-run the command without these flags.")
 	} else {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
+
 	importData(importFileTasks)
 	if changeStreamingIsEnabled(importType) {
 		startFallforwardSynchronizeIfRequired(importFileTasksToTableNames(importFileTasks))
@@ -312,20 +328,6 @@ func importData(importFileTasks []*ImportFileTask) {
 	err = tdb.CreateVoyagerSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
-	}
-
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		record, err := GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("Failed to get migration status record: %s", err)
-		}
-		importType = record.ExportType
-		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
-	}
-
-	if importerRole == FF_DB_IMPORTER_ROLE {
-		updateFallForwarDBExistsInMetaDB()
-		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
