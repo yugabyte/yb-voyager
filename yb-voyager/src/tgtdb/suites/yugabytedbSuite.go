@@ -24,9 +24,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 )
-
 
 // value converter Function type
 type ConverterFn func(v string, formatIfRequired bool) (string, error)
