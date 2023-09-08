@@ -693,9 +693,15 @@ func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	defaultSourceSchemaName := getDefaultSourceSchemaName()
+
+	var schemaName string
+	if source.Schema != "" {
+		schemaName = source.Schema
+	} else {
+		schemaName = getDefaultSourceSchemaName()
+	}
 	for _, table := range tableList {
-		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSourceSchemaName))
+		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, schemaName))
 	}
 	return result
 }
