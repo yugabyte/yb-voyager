@@ -704,19 +704,10 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			tableName := yb.qualifyTableName(tableName)
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
-			if err != nil {
+			if err != nil || res.RowsAffected() == 0 {
 				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
 				return false, fmt.Errorf("failed to update table stats on target db via query-%s: %w, rowsAffected: %v",
 					updateTableStatsQuery, err, res.RowsAffected())
-			}
-			if res.RowsAffected() == 0 {
-				insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
-				res, err = tx.Exec(context.Background(), insertTableStatsQuery)
-				if err != nil {
-					log.Errorf("error executing stmt: %v, rowsAffected: %v", err, res.RowsAffected())
-					return false, fmt.Errorf("failed to insert table stats on target db via query-%s: %w, rowsAffected: %v",
-						updateTableStatsQuery, err, res.RowsAffected())
-				}
 			}
 			log.Debugf("Updated table stats meta info with query = %s; rows Affected = %d", updateTableStatsQuery, res.RowsAffected())
 		}
