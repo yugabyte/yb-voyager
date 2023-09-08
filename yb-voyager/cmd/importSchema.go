@@ -375,7 +375,7 @@ func createImportSchemaEvent() (cp.ImportSchemaEvent, error) {
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return importSchemaEvent, fmt.Errorf(err)
 	}
 

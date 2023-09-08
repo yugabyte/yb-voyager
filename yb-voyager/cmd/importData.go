@@ -1213,7 +1213,7 @@ func createImportDataEvent() (cp.SnapshotImportEvent, error) {
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return dataImportEvent, fmt.Errorf(err)
 	}
 
@@ -1234,7 +1234,7 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return dataImportTableMetrics, fmt.Errorf(err)
 	}
 

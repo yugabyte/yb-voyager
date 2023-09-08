@@ -1177,7 +1177,7 @@ func createSchemaAnalysisEvent() (cp.SchemaAnalysisEvent, error) {
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return schemaAnalysisEvent, fmt.Errorf(err)
 	}
 
@@ -1198,7 +1198,7 @@ func createSchemaAnalysisReport(report string) (cp.SchemaAnalysisReport, error) 
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return schemaAnalysisReport, fmt.Errorf(err)
 	}
 

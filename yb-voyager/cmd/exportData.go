@@ -769,7 +769,7 @@ func createExportDataEvent() (cp.SnapshotExportEvent, error) {
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return dataExportEvent, fmt.Errorf(err)
 	}
 
@@ -791,7 +791,7 @@ func createExportDataTableMetricsList(tableNames []string) ([]*cp.SnapshotExport
 	if migrationUUID == uuid.Nil {
 		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
 
-		log.Warnf(fmt.Sprintf(err))
+		log.Warnf(fmt.Sprint(err))
 		return dataExportTableMetricsList, fmt.Errorf(err)
 	}
 
