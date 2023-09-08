@@ -140,9 +140,11 @@ func exportData() bool {
 		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 		log.Infof("initial all tables table list for data export: %v", tableList)
 
-		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
+		if !changeStreamingIsEnabled(exportType) {
+			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
+			if len(skippedTableList) != 0 {
+				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
+			}
 		}
 
 		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
