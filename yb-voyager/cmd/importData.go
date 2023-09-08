@@ -139,11 +139,9 @@ func startFallforwardSynchronizeIfRequired() {
 	tableListExportedFromSource := msr.TableListExportedFromSource
 	var unqualifiedTableList []string
 	for _, qualifiedTableName := range tableListExportedFromSource {
-		parts := strings.Split(qualifiedTableName, ".")
-		if len(parts) != 2 {
-			utils.ErrExit("failed to prepare tablelist arg. Expected qualified table names; received %s", qualifiedTableName)
-		}
-		unqualifiedTableList = append(unqualifiedTableList, parts[1])
+		// TODO: handle case sensitivity?
+		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
+		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
 	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
