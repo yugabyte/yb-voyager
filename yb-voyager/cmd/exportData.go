@@ -91,7 +91,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
 	}
 	if changeStreamingIsEnabled(exportType) {
-		utils.PrintAndLog(color.YellowString(`Note: Live migration feature [TECH PREVIEW] is enabled by setting --export-type "%s"`, exportType))
+		utils.PrintAndLog(color.YellowString(`Note: Live migration is a TECH PREVIEW feature. Not meant for production use.`))
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
