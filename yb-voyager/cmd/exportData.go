@@ -616,6 +616,9 @@ func renameDbzmExportedDataFiles() error {
 			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
 		}
 
+		if status.Tables[i].ExportedRowCountSnapshot == 0 {
+			continue
+		}
 		//rename table schema file as well
 		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
 		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")

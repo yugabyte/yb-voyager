@@ -884,7 +884,7 @@ func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string)
 	var snapshotRowCount int64
 	schema := tdb.getTargetSchemaName(tableName)
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
+		query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where schema_name='%s' AND table_name='%s'`,
 			BATCH_METADATA_TABLE_NAME, schema, tableName)
 		err := conn.QueryRowContext(context.Background(), query).Scan(&snapshotRowCount)
 		if err != nil {

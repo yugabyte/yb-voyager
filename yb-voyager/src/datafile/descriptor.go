@@ -114,3 +114,13 @@ func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
 	}
 	return nil
 }
+
+func (dfd *Descriptor) GetEmptyTableFileEntries() []*FileEntry {
+	var fileEntries []*FileEntry
+	for _, fileEntry := range dfd.DataFileList {
+		if fileEntry.RowCount == 0 {
+			fileEntries = append(fileEntries, fileEntry)
+		}
+	}
+	return fileEntries
+}
