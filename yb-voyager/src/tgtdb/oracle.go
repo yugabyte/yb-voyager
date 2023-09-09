@@ -772,10 +772,20 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 			if err != nil {
 				log.Errorf("error executing stmt: %v", err)
 				return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w", updatePerTableEvents, err)
-			} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
-				log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
-				return false, fmt.Errorf("failed to update per table events on target db via query-%s: %w, rowsAffected: %v",
-					updatePerTableEvents, err, rowsAffected)
+			}
+			rowsAffected, err := res.RowsAffected()
+			if err != nil {
+				return false, fmt.Errorf("failed to get number of rows affected in update per table events on target db via query-%s: %w",
+					updatePerTableEvents, err)
+			}
+			if rowsAffected == 0 {
+				insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
+				_, err = tx.Exec(insertTableStatsQuery)
+				if err != nil {
+					log.Errorf("error executing stmt: %v ", err)
+					return false, fmt.Errorf("failed to insert table stats on target db via query-%s: %w",
+						insertTableStatsQuery, err)
+				}
 			}
 		}
 
