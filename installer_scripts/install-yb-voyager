@@ -11,11 +11,11 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.5.0-rc1"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.5.0-rc1"}
+DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.5.0-rc2"}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.5.0-rc2"}
 
-# the hash corresponds to the yb-voyager/v1.5.0-rc1 tag
-YB_VOYAGER_GIT_HASH="766ad0a4e2b98f0318eebe8f95cc0405018e22b1" 
+# the hash corresponds to the yb-voyager/v1.5.0-rc2 tag
+YB_VOYAGER_GIT_HASH="1eb70d51b3a407ac18666f0da03177c15a20ceb8" 
 
 # this is temp variable to be used to get the pg_dump-args.ini file from the correct branch
 # TODO: remove this on release and use the YB_VOYAGER_GIT_HASH variable
