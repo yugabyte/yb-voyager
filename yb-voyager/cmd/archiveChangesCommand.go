@@ -203,13 +203,17 @@ func (m *EventSegmentCopier) copySegmentFile(segment Segment, segmentNewPath str
 }
 
 func (m *EventSegmentCopier) Run() error {
-	importCount, err := m.getImportCount()
-	if err != nil {
-		return fmt.Errorf("getimport count: %v", err)
-	}
-	log.Infof("Import count: %d", importCount)
-
+	var importCount int
 	for {
+		newImportCount, err := m.getImportCount()
+		if err != nil {
+			return fmt.Errorf("get number of importers: %w", err)
+		}
+		if newImportCount != importCount {
+			importCount = newImportCount
+			utils.PrintAndLog("Importer count: %d", importCount)
+		}
+
 		segmentsToArchive, err := metaDB.GetSegmentsToBeArchived(importCount)
 		if err != nil {
 			return fmt.Errorf("get segments to be archived: %v", err)
