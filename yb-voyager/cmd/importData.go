@@ -351,7 +351,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
-	disableGeneratedAlwaysAsIdentityColumns()
+	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	if len(pendingTasks) == 0 {
@@ -426,7 +426,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	fmt.Printf("\nImport data complete.\n")
 }
 
-func disableGeneratedAlwaysAsIdentityColumns() {
+func disableGeneratedAlwaysAsIdentityColumns(importFileTasks []*ImportFileTask) {
 	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
 	if err != nil {
 		utils.ErrExit("failed to get identity columns from meta db: %s", err)
@@ -553,7 +553,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		}
 	}
 
-	if changeStreamingIsEnabled(importType) { 
+	if changeStreamingIsEnabled(importType) {
 		// clearing state from metaDB based on importerRole
 		err := metaDB.ResetQueueSegmentMeta(importerRole)
 		if err != nil {
