@@ -7,12 +7,13 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID      string
-	SourceDBType       string
-	ExportType         string
-	FallForwarDBExists bool
-	TargetDBConf       *tgtdb.TargetConf
-	FallForwardDBConf  *tgtdb.TargetConf
+	MigrationUUID               string
+	SourceDBType                string
+	ExportType                  string
+	FallForwarDBExists          bool
+	TargetDBConf                *tgtdb.TargetConf
+	FallForwardDBConf           *tgtdb.TargetConf
+	TableListExportedFromSource []string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
