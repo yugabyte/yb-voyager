@@ -594,7 +594,8 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 }
 
 func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName string) ([]string, error) {
-	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE table_name = '%s' AND owner = '%s'", tableName, schemaName)
+	// TODO: handle case-sensitivity properly
+	query := fmt.Sprintf("SELECT column_name FROM all_tab_columns WHERE UPPER(table_name) = UPPER('%s') AND owner = '%s'", tableName, schemaName)
 	rows, err := tdb.conn.QueryContext(context.Background(), query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
