@@ -252,7 +252,14 @@ func displayExportedRowCountSnapshot() {
 		sort.Strings(keys)
 		for _, key := range keys {
 			if source.Schema != "" {
-				uitable.AddRow(source.Schema, key, exportedRowCount[key])
+				tableParts := strings.Split(key, ".")
+				table := tableParts[0]
+				schema := getDefaultSourceSchemaName()
+				if len(tableParts) > 1 {
+					schema = tableParts[0]
+					table = tableParts[1]
+				}
+				uitable.AddRow(schema, table, exportedRowCount[key])
 			} else {
 				uitable.AddRow(source.DBName, key, exportedRowCount[key])
 			}
