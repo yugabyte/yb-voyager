@@ -41,7 +41,6 @@ var (
 	dataDir               string
 	fileTableMapping      string
 	hasHeader             bool
-	importFileTasks       []*ImportFileTask
 	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
 	fileOpts              string
 	escapeChar            string
@@ -73,17 +72,17 @@ var importDataFileCmd = &cobra.Command{
 		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)
 		dataStore = datastore.NewDataStore(dataDir)
-		importFileTasks = prepareImportFileTasks()
-		prepareForImportDataCmd()
+		importFileTasks := prepareImportFileTasks()
+		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
 	},
 }
 
-func prepareForImportDataCmd() {
+func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
-	dataFileList := getFileSizeInfo()
+	dataFileList := getFileSizeInfo(importFileTasks)
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:   fileFormat,
 		DataFileList: dataFileList,
@@ -102,11 +101,11 @@ func prepareForImportDataCmd() {
 	}
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
-	setImportTableListFlag()
+	setImportTableListFlag(importFileTasks)
 	createExportDataDoneFlag()
 }
 
-func getFileSizeInfo() []*datafile.FileEntry {
+func getFileSizeInfo(importFileTasks []*ImportFileTask) []*datafile.FileEntry {
 	dataFileList := make([]*datafile.FileEntry, 0)
 	for _, task := range importFileTasks {
 		filePath := task.FilePath
@@ -128,7 +127,7 @@ func getFileSizeInfo() []*datafile.FileEntry {
 	return dataFileList
 }
 
-func setImportTableListFlag() {
+func setImportTableListFlag(importFileTasks []*ImportFileTask) {
 	tableList := map[string]bool{}
 	for _, task := range importFileTasks {
 		tableList[task.TableName] = true
