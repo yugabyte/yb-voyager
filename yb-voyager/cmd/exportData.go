@@ -276,6 +276,14 @@ func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, ta
 	for _, table := range tableList {
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
+		err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+			record.TableListExportedFromSource = dbzmTableList
+		})
+		if err != nil {
+			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
+		}
+	}
 
 	for tableName, columns := range tablesColumnList {
 		for _, column := range columns {

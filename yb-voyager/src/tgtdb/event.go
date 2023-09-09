@@ -309,6 +309,20 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		migrationUUID, tableName, eb.ChanNo)
 }
 
+func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
+	queryTemplate := `INSERT INTO %s 
+	(migration_uuid, table_name, channel_no, total_events, num_inserts, num_updates, num_deletes) 
+	VALUES ('%s', '%s', %d, %d, %d, %d, %d)
+	`
+	return fmt.Sprintf(queryTemplate,
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME,
+		migrationUUID, tableName, eb.ChanNo,
+		eb.EventCountsByTable[tableName].TotalEvents,
+		eb.EventCountsByTable[tableName].NumInserts,
+		eb.EventCountsByTable[tableName].NumUpdates,
+		eb.EventCountsByTable[tableName].NumDeletes)
+}
+
 func (eb *EventBatch) GetTableNames() []string {
 	return lo.Keys(eb.EventCountsByTable)
 }
