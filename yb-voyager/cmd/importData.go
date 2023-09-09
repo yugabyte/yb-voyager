@@ -194,6 +194,7 @@ type ImportFileTask struct {
 	ID        int
 	FilePath  string
 	TableName string
+	RowCount  int64
 }
 
 // func quoteTableNameIfRequired() {
@@ -227,6 +228,7 @@ func discoverFilesToImport() []*ImportFileTask {
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
 			TableName: fileEntry.TableName,
+			RowCount:  fileEntry.RowCount,
 		}
 		result = append(result, task)
 	}
@@ -350,6 +352,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
+	pendingTasks = filterEmptyTableTasks(pendingTasks)
 
 	disableGeneratedAlwaysAsIdentityColumns()
 	defer enableGeneratedAlwaysAsIdentityColumns()
@@ -388,7 +391,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		if changeStreamingIsEnabled(importType) {
 			displayImportedRowCountSnapshot(importFileTasks)
 			color.Blue("streaming changes to target DB...")
-			err = streamChanges()
+			err = streamChanges(importFileTasksToTableNames(importFileTasks))
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
@@ -424,6 +427,17 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+}
+
+func filterEmptyTableTasks(tasks []*ImportFileTask) []*ImportFileTask {
+	var filteredTasks []*ImportFileTask
+	for _, task := range tasks {
+		if task.RowCount == 0 {
+			continue
+		}
+		filteredTasks = append(filteredTasks, task)
+	}
+	return filteredTasks
 }
 
 func disableGeneratedAlwaysAsIdentityColumns() {
