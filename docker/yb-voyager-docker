@@ -35,6 +35,7 @@ do
 	then
 		j=$(( $i + 1))
 		export_dir=${argv[${j}]}
+		export_dir=$(realpath "$export_dir")
 
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]] 
@@ -79,6 +80,7 @@ do
 		else 
 			# If the data-dir is not an S3 bucket
 			# If the OS is macOS
+			data_dir=$(realpath "$data_dir")
 			if [[ $OSTYPE == 'darwin'* ]] 
 			then
 				# Delete the old volume and create a new one it its place attached to the user's data-dir
