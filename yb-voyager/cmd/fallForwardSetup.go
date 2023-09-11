@@ -30,7 +30,6 @@ var fallForwardSetupCmd = &cobra.Command{
 		tconf.TargetDBType = ORACLE
 		importerRole = FF_DB_IMPORTER_ROLE
 		validateFFDBSchemaFlag()
-		validateTargetPortRange()
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},
