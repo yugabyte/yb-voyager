@@ -91,6 +91,8 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&tconf.Port, "target-db-port", YUGABYTEDB_YSQL_DEFAULT_PORT,
 		"port on which the YugabyteDB YSQL API is running")
+	
+	tconf.Port = -1
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
