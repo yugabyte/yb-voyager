@@ -65,8 +65,9 @@ func streamChanges() error {
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
-	defer finalizeStats()
+
 	if !disablePb {
+		defer finalizeStats()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go updateExportedEventsStats(ctx)
