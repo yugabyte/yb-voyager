@@ -38,7 +38,7 @@ type ControlPlane interface {
 	ImportSchemaCompleted(*ImportSchemaEvent)
 
 	SnapshotImportStarted(*SnapshotImportEvent)
-	UpdateImportedRowCount(*SnapshotImportTableMetrics)
+	UpdateImportedRowCount([]*SnapshotImportTableMetrics)
 	SnapshotImportCompleted(*SnapshotImportEvent)
 
 	Finalize()

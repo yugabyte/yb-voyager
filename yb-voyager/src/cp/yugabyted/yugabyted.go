@@ -213,21 +213,22 @@ func (cp *YugabyteD) UpdateExportedRowCount(
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	var exportTableMetricsList []VisualizerTableMetrics
-	for _, snapshotMigrateTableMetrics := range snapshotExportTablesMetrics {
-		exportTableMetrics := CreateVisualzerDBTableMetrics(
-			snapshotMigrateTableMetrics.MigrationUUID,
-			snapshotMigrateTableMetrics.TableName,
-			snapshotMigrateTableMetrics.Schema,
+	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
+	for _, exportTableMetrics := range snapshotExportTablesMetrics {
+		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
+			exportTableMetrics.MigrationUUID,
+			exportTableMetrics.TableName,
+			exportTableMetrics.Schema,
 			MIGRATION_PHASE_MAP["EXPORT DATA"],
-			snapshotMigrateTableMetrics.Status,
-			snapshotMigrateTableMetrics.CountLiveRows,
-			snapshotMigrateTableMetrics.CountTotalRows,
+			exportTableMetrics.Status,
+			exportTableMetrics.CountLiveRows,
+			exportTableMetrics.CountTotalRows,
 			timestamp)
-		exportTableMetricsList = append(exportTableMetricsList, exportTableMetrics)
+		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics,
+			snapshotMigrateTableMetrics)
 	}
 
-	err := cp.sendVisualizerTableMetrics(exportTableMetricsList)
+	err := cp.sendVisualizerTableMetrics(snapshotMigrateAllTableMetrics)
 
 	if err != nil {
 		log.Warnf("Cannot send metadata for visualization. %s", err)
@@ -316,24 +317,28 @@ func (cp *YugabyteD) SnapshotImportStarted(snapshotImportEvent *cp.SnapshotImpor
 }
 
 func (cp *YugabyteD) UpdateImportedRowCount(
-	snapshotImportTableMetrics *cp.SnapshotImportTableMetrics) {
+	snapshotImportTableMetrics []*cp.SnapshotImportTableMetrics) {
 
 	defer utils.WaitGroup.Done()
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	var importTableMetricsList []VisualizerTableMetrics
+	// var importTableMetricsList []VisualizerTableMetrics
 
-	importTableMetricsList = append(importTableMetricsList, CreateVisualzerDBTableMetrics(
-		snapshotImportTableMetrics.MigrationUUID,
-		snapshotImportTableMetrics.TableName,
-		snapshotImportTableMetrics.Schema,
-		MIGRATION_PHASE_MAP["IMPORT DATA"],
-		snapshotImportTableMetrics.Status,
-		snapshotImportTableMetrics.CountLiveRows,
-		snapshotImportTableMetrics.CountTotalRows,
-		timestamp))
+	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
+	for _, importtableMetrics := range snapshotImportTableMetrics {
+		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
+			importtableMetrics.MigrationUUID,
+			importtableMetrics.TableName,
+			importtableMetrics.Schema,
+			MIGRATION_PHASE_MAP["IMPORT DATA"],
+			importtableMetrics.Status,
+			importtableMetrics.CountLiveRows,
+			importtableMetrics.CountTotalRows,
+			timestamp)
+		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics, snapshotMigrateTableMetrics)
+	}
 
-	err := cp.sendVisualizerTableMetrics(importTableMetricsList)
+	err := cp.sendVisualizerTableMetrics(snapshotMigrateAllTableMetrics)
 
 	if err != nil {
 		log.Warnf("Cannot send metadata for visualization. %s", err)

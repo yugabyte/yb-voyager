@@ -453,6 +453,14 @@ func importData(importFileTasks []*ImportFileTask) {
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
+
+			// Create initial entry for each table in the table metrics table
+			importDataAllTableMetrics, err := createInitialImportDataTableMetrics(pendingTasks)
+			if err == nil {
+				utils.WaitGroup.Add(1)
+				go controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
+			}
+
 			for _, task := range pendingTasks {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
@@ -478,9 +486,13 @@ func importData(importFileTasks []*ImportFileTask) {
 						} else {
 							status = 1
 						}
-						utils.WaitGroup.Add(1)
-						createAndSendVisualizerImportTableMetrics(task.TableName, currentProgress,
-							totalProgressAmount, status)
+						importDataTableMetrics, err := createImportDataTableMetrics(task.TableName,
+							currentProgress, totalProgressAmount, status)
+						if err == nil {
+							utils.WaitGroup.Add(1)
+							go controlPlane.UpdateImportedRowCount(
+								[]*cp.SnapshotImportTableMetrics{&importDataTableMetrics})
+						}
 						time.Sleep(time.Second * 5)
 					}
 				}()
@@ -493,7 +505,8 @@ func importData(importFileTasks []*ImportFileTask) {
 					currentProgress, totalProgressAmount, 3)
 				if err == nil {
 					utils.WaitGroup.Add(1)
-					go controlPlane.UpdateImportedRowCount(&importDataTableMetrics)
+					go controlPlane.UpdateImportedRowCount(
+						[]*cp.SnapshotImportTableMetrics{&importDataTableMetrics})
 				}
 				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
@@ -1224,6 +1237,31 @@ func createImportDataEvent() (cp.SnapshotImportEvent, error) {
 	}
 
 	return dataImportEvent, nil
+}
+
+func createInitialImportDataTableMetrics(tasks []*ImportFileTask) ([]*cp.SnapshotImportTableMetrics, error) {
+
+	dataImportTableMetrics := []*cp.SnapshotImportTableMetrics{}
+
+	if migrationUUID == uuid.Nil {
+		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
+
+		log.Warnf(fmt.Sprint(err))
+		return dataImportTableMetrics, fmt.Errorf(err)
+	}
+
+	for _, task := range tasks {
+		dataImportTableMetrics = append(dataImportTableMetrics, &cp.SnapshotImportTableMetrics{
+			MigrationUUID:  migrationUUID,
+			TableName:      task.TableName,
+			Schema:         tconf.Schema,
+			Status:         0,
+			CountLiveRows:  0,
+			CountTotalRows: getTotalProgressAmount(task),
+		})
+	}
+
+	return dataImportTableMetrics, nil
 }
 
 func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
