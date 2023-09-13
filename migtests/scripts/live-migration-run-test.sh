@@ -129,7 +129,7 @@ main() {
 
 	sleep 2m
 
-	step "Shutting down exporter and importer"
+	step "Initiating cutover"
 	
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
