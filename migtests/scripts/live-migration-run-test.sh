@@ -130,8 +130,8 @@ main() {
 	sleep 2m
 
 	step "Shutting down exporter and importer"
-	kill_process -${exp_pid}
-	kill_process -${imp_pid}
+	
+	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	# Resetting the trap command
 	trap - SIGINT SIGTERM EXIT
