@@ -390,7 +390,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		if changeStreamingIsEnabled(importType) {
 			displayImportedRowCountSnapshot(importFileTasks)
 			color.Blue("streaming changes to target DB...")
-			err = streamChanges()
+			err = streamChanges(state)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}

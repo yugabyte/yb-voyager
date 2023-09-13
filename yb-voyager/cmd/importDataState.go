@@ -25,14 +25,20 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
 )
 
 const (
-	BATCH_METADATA_TABLE_NAME            = tgtdb.BATCH_METADATA_TABLE_NAME
-	EVENTS_PER_TABLE_METADATA_TABLE_NAME = tgtdb.EVENTS_PER_TABLE_METADATA_TABLE_NAME
+	// The _v2 is appended in the table name so that the import code doesn't
+	// try to use the similar table created by the voyager 1.3 and earlier.
+	// Voyager 1.4 uses import data state format that is incompatible from
+	// the earlier versions.
+	BATCH_METADATA_TABLE_SCHEMA          = "ybvoyager_metadata"
+	BATCH_METADATA_TABLE_NAME            = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
+	EVENT_CHANNELS_METADATA_TABLE_NAME   = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
+	EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 )
 
 /*
@@ -351,6 +357,17 @@ func (s *ImportDataState) discoverTableFiles(tableName string) ([]string, error)
 		}
 	}
 	return result, nil
+}
+
+func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
+	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
+		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	var numInserts, numUpdates, numDeletes int64
+	err := tdb.QueryRow(query).Scan(&numInserts, &numUpdates, &numDeletes)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+	return numInserts, numUpdates, numDeletes, nil
 }
 
 //============================================================================

@@ -16,6 +16,7 @@ limitations under the License.
 package tgtdb
 
 import (
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -39,7 +40,6 @@ type TargetDB interface {
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
-	GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error)
 	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
@@ -48,6 +48,36 @@ type TargetDB interface {
 	GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
+
+	Query(query string) (Rows, error)
+	QueryRow(query string) Row
+	Exec(query string) (int64, error)
+}
+
+type Rows interface {
+	Row
+	Next() bool
+	Close()
+}
+
+type Row interface {
+	Scan(dest ...interface{}) error
+}
+
+type sqlRowsAdapter struct {
+	rows *sql.Rows
+}
+
+func (s *sqlRowsAdapter) Close() {
+	_ = s.rows.Close()
+}
+
+func (s *sqlRowsAdapter) Next() bool {
+	return s.rows.Next()
+}
+
+func (s *sqlRowsAdapter) Scan(dest ...interface{}) error {
+	return s.rows.Scan(dest...)
 }
 
 const (

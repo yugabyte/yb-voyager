@@ -82,6 +82,28 @@ func (tdb *TargetOracleDB) Init() error {
 	return err
 }
 
+func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
+	rows, err := tdb.conn.QueryContext(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
+	}
+	return &sqlRowsAdapter{rows: rows}, nil
+}
+
+func (tdb *TargetOracleDB) QueryRow(query string) Row {
+	row := tdb.conn.QueryRowContext(context.Background(), query)
+	return row
+}
+
+func (tdb *TargetOracleDB) Exec(query string) (int64, error) {
+	res, err := tdb.conn.ExecContext(context.Background(), query)
+	if err != nil {
+		return 0, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
+	}
+	rowsAffected, _ := res.RowsAffected()
+	return rowsAffected, nil
+}
+
 func (tdb *TargetOracleDB) disconnect() {
 	if tdb.conn != nil {
 		log.Infof("No connection to the target database to close")
@@ -740,17 +762,6 @@ func (tdb *TargetOracleDB) getConnectionString(tconf *TargetConf) string {
 	}
 
 	return connectString
-}
-
-func (tdb *TargetOracleDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
-		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var numInserts, numUpdates, numDeletes int64
-	err := tdb.conn.QueryRowContext(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
-	}
-	return numInserts, numUpdates, numDeletes, nil
 }
 
 func (tdb *TargetOracleDB) MaxBatchSizeInBytes() int64 {

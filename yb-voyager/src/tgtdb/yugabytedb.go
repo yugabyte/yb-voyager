@@ -50,6 +50,27 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return &TargetYugabyteDB{tconf: tconf}
 }
 
+func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
+	return rows, nil
+}
+
+func (yb *TargetYugabyteDB) QueryRow(query string) Row {
+	row := yb.conn_.QueryRow(context.Background(), query)
+	return row
+}
+
+func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
+	res, err := yb.conn_.Exec(context.Background(), query)
+	if err != nil {
+		return 0, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
+	return res.RowsAffected(), nil
+}
+
 func (yb *TargetYugabyteDB) Init() error {
 	err := yb.connect()
 	if err != nil {
@@ -1070,17 +1091,6 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
 	}
 	return nil
-}
-
-func (yb *TargetYugabyteDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
-		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var numInserts, numUpdates, numDeletes int64
-	err := yb.Conn().QueryRow(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
-	}
-	return numInserts, numUpdates, numDeletes, nil
 }
 
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {

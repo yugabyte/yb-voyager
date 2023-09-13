@@ -29,7 +29,6 @@ import (
 	"github.com/gosuri/uilive"
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -50,12 +49,9 @@ func NewStreamImportStatsReporter() *StreamImportStatsReporter {
 	return &StreamImportStatsReporter{}
 }
 
-func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.UUID, metaDB *metadb.MetaDB) error {
+func (s *StreamImportStatsReporter) Init(migrationUUID uuid.UUID, metaDB *metadb.MetaDB,
+	numInserts, numUpdates, numDeletes int64) error {
 	s.migrationUUID = migrationUUID
-	numInserts, numUpdates, numDeletes, err := tdb.GetTotalNumOfEventsImportedByType(migrationUUID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch import stats meta info from target : %w", err)
-	}
 	s.totalEventsImported = numInserts + numUpdates + numDeletes
 	s.startTime = time.Now()
 	s.metaDB = metaDB
