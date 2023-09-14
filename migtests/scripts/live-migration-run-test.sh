@@ -132,12 +132,12 @@ main() {
 
 	sleep 2m
 
+	# Resetting the trap command
+	trap - SIGINT SIGTERM EXIT SIGSEGV
+
 	step "Initiating cutover"
 	
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
-
-	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT SIGSEGV
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data --refresh-mviews
