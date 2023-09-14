@@ -67,11 +67,11 @@ func streamChanges() error {
 	}
 
 	if !disablePb {
-		defer finalizeStats()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go updateExportedEventsStats(ctx)
 		go statsReporter.ReportStats(ctx)
+		defer finalizeStats()
 	}
 
 	eventQueue = NewEventQueue(exportDir)
