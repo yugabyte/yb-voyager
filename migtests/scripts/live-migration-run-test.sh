@@ -101,7 +101,7 @@ main() {
 	exp_pid=$!
 
 	# Killing the export process in case of failure
-	trap "kill_process -${exp_pid} && exit 1" SIGINT SIGTERM EXIT SIGSEGV
+	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
 	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
@@ -120,7 +120,7 @@ main() {
 	imp_pid=$!
 
 	# Updating the trap command to include the importer
-	trap "kill_process -${exp_pid} && kill_process -${imp_pid} | exit 1" SIGINT SIGTERM EXIT SIGSEGV
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 30 
 	
@@ -133,7 +133,7 @@ main() {
 	sleep 2m
 
 	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT SIGSEGV
+	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
 	
