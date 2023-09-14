@@ -101,7 +101,7 @@ main() {
 	exp_pid=$!
 
 	# Killing the export process in case of failure
-	trap "kill_process -${exp_pid}" SIGINT SIGTERM EXIT
+	trap "kill_process -${exp_pid}" SIGINT SIGTERM EXIT SIGSEGV
 
 	# Waiting for snapshot to complete
 	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
@@ -117,7 +117,7 @@ main() {
 	imp_pid=$!
 
 	# Updating the trap command to include the importer
-	trap "kill_process -${exp_pid} && kill_process -${imp_pid}" SIGINT SIGTERM EXIT
+	trap "kill_process -${exp_pid} && kill_process -${imp_pid}" SIGINT SIGTERM EXIT SIGSEGV
 
 	sleep 30 
 	
@@ -134,7 +134,7 @@ main() {
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT
+	trap - SIGINT SIGTERM EXIT SIGSEGV
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data --refresh-mviews
