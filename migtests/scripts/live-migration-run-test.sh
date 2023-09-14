@@ -59,7 +59,7 @@ main() {
 	else
 		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 	fi
-	
+
 	step "Check the Voyager version installed"
 	yb-voyager version
 
@@ -101,7 +101,7 @@ main() {
 	exp_pid=$!
 
 	# Killing the export process in case of failure
-	trap "kill_process -${exp_pid}" SIGINT SIGTERM EXIT
+	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
 	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
@@ -111,13 +111,16 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data &
+	import_data || { 
+		tail_log_file "yb-voyager-import-data.log"
+		exit 1
+	} &
 
 	# Storing the pid for the import data command
 	imp_pid=$!
 
 	# Updating the trap command to include the importer
-	trap "kill_process -${exp_pid} && kill_process -${imp_pid}" SIGINT SIGTERM EXIT
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 30 
 	
@@ -129,12 +132,12 @@ main() {
 
 	sleep 2m
 
-	step "Shutting down exporter and importer"
-	kill_process -${exp_pid}
-	kill_process -${imp_pid}
-
 	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT
+	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+
+	step "Initiating cutover"
+	
+	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data --refresh-mviews
