@@ -120,7 +120,7 @@ main() {
 	imp_pid=$!
 
 	# Updating the trap command to include the importer
-	trap "kill_process -${exp_pid} && kill_process -${imp_pid} && exit 1" SIGINT SIGTERM EXIT SIGSEGV
+	trap "kill_process -${exp_pid} && kill_process -${imp_pid} | exit 1" SIGINT SIGTERM EXIT SIGSEGV
 
 	sleep 30 
 	
