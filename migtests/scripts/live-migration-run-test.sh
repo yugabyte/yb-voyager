@@ -111,7 +111,10 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data &
+	import_data || { 
+		tail_log_file "yb-voyager-import-data.log"
+		exit 1
+	} &
 
 	# Storing the pid for the import data command
 	imp_pid=$!
