@@ -16,12 +16,7 @@ limitations under the License.
 package srcdb
 
 import (
-	"fmt"
-	"path/filepath"
 	"strings"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Source struct {
@@ -104,56 +99,4 @@ func parseSSLString(source *Source) {
 			}
 		}
 	}
-}
-
-func (source *Source) PrepareSSLParamsForDebezium(exportDir string) error {
-	switch source.DBType {
-	case "postgresql", "yugabytedb": //TODO test for yugabytedb
-		if source.SSLKey != "" {
-			targetSslKeyPath := filepath.Join(exportDir, "metainfo", "ssl", ".key.der")
-			err := dbzm.WritePKCS8PrivateKeyPEMasDER(source.SSLKey, targetSslKeyPath)
-			if err != nil {
-				return fmt.Errorf("could not write private key PEM as DER: %w", err)
-			}
-			utils.PrintAndLog("Converted SSL key from PEM to DER format. File saved at %s", targetSslKeyPath)
-			source.SSLKey = targetSslKeyPath
-		}
-	case "mysql":
-		switch source.SSLMode {
-		case "disable":
-			source.SSLMode = "disabled"
-		case "prefer":
-			source.SSLMode = "preferred"
-		case "require":
-			source.SSLMode = "required"
-		case "verify-ca":
-			source.SSLMode = "verify_ca"
-		case "verify-full":
-			source.SSLMode = "verify_identity"
-		}
-		if source.SSLKey != "" {
-			keyStorePath := filepath.Join(exportDir, "metainfo", "ssl", ".keystore.jks")
-			keyStorePassword := utils.GenerateRandomString(8)
-			err := dbzm.WritePKCS8PrivateKeyCertAsJavaKeystore(source.SSLKey, source.SSLCertPath, "mysqlclient", keyStorePassword, keyStorePath)
-			if err != nil {
-				return fmt.Errorf("failed to write java keystore for debezium: %w", err)
-			}
-			utils.PrintAndLog("Converted SSL key, cert to java keystore. File saved at %s", keyStorePath)
-			source.SSLKeyStore = keyStorePath
-			source.SSLKeyStorePassword = keyStorePassword
-		}
-		if source.SSLRootCert != "" {
-			trustStorePath := filepath.Join(exportDir, "metainfo", "ssl", ".truststore.jks")
-			trustStorePassword := utils.GenerateRandomString(8)
-			err := dbzm.WriteRootCertAsJavaTrustStore(source.SSLRootCert, "MySQLCACert", trustStorePassword, trustStorePath)
-			if err != nil {
-				return fmt.Errorf("failed to write java truststore for debezium: %w", err)
-			}
-			utils.PrintAndLog("Converted SSL root cert to java truststore. File saved at %s", trustStorePath)
-			source.SSLTrustStore = trustStorePath
-			source.SSLTrustStorePassword = trustStorePassword
-		}
-	case "oracle":
-	}
-	return nil
 }
