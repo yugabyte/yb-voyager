@@ -40,6 +40,7 @@ var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
+var cutoverComplete bool
 
 func init() {
 	NUM_EVENT_CHANNELS = utils.GetEnvAsInt("NUM_EVENT_CHANNELS", 100)
@@ -49,6 +50,7 @@ func init() {
 }
 
 func streamChanges() error {
+	cutoverComplete = false
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
@@ -136,6 +138,14 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
+		}
+		if event.IsCutover() {
+			cutoverComplete = true
+			continue
+		}
+		if importerRole == FB_DB_IMPORTER_ROLE && !cutoverComplete {
+			// ignore all events before cutover.
+			continue
 		}
 
 		err = handleEvent(event, evChans)

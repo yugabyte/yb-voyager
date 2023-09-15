@@ -354,30 +354,32 @@ func importData(importFileTasks []*ImportFileTask) {
 	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
-	if len(pendingTasks) == 0 {
-		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
-	} else {
-		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-		poolSize := tconf.Parallelism * 2
-		progressReporter := NewImportDataProgressReporter(disablePb)
-		for _, task := range pendingTasks {
-			// The code can produce `poolSize` number of batches at a time. But, it can consume only
-			// `parallelism` number of batches at a time.
-			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+	if importerRole != FB_DB_IMPORTER_ROLE {
+		if len(pendingTasks) == 0 {
+			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
+		} else {
+			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
+			poolSize := tconf.Parallelism * 2
+			progressReporter := NewImportDataProgressReporter(disablePb)
+			for _, task := range pendingTasks {
+				// The code can produce `poolSize` number of batches at a time. But, it can consume only
+				// `parallelism` number of batches at a time.
+				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 
-			totalProgressAmount := getTotalProgressAmount(task)
-			progressReporter.ImportFileStarted(task, totalProgressAmount)
-			importedProgressAmount := getImportedProgressAmount(task, state)
-			progressReporter.AddProgressAmount(task, importedProgressAmount)
-			updateProgressFn := func(progressAmount int64) {
-				progressReporter.AddProgressAmount(task, progressAmount)
+				totalProgressAmount := getTotalProgressAmount(task)
+				progressReporter.ImportFileStarted(task, totalProgressAmount)
+				importedProgressAmount := getImportedProgressAmount(task, state)
+				progressReporter.AddProgressAmount(task, importedProgressAmount)
+				updateProgressFn := func(progressAmount int64) {
+					progressReporter.AddProgressAmount(task, progressAmount)
+				}
+				importFile(state, task, updateProgressFn)
+				batchImportPool.Wait()                // Wait for the file import to finish.
+				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 			}
-			importFile(state, task, updateProgressFn)
-			batchImportPool.Wait()                // Wait for the file import to finish.
-			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+			time.Sleep(time.Second * 2)
 		}
-		time.Sleep(time.Second * 2)
 	}
 
 	callhome.PackAndSendPayload(exportDir)
