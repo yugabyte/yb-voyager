@@ -46,11 +46,16 @@ type TargetDB interface {
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 
+	// NOTE: The following four methods should not be used for arbitrary query
+	// execution on TargetDB. The should be only used from higher level
+	// abstractions like ImportDataState.
 	Query(query string) (Rows, error)
 	QueryRow(query string) Row
 	Exec(query string) (int64, error)
 	WithTx(fn func(tx Tx) error) error
 }
+
+//=============================================================
 
 type Rows interface {
 	Row
@@ -78,9 +83,13 @@ func (s *sqlRowsToTgtdbRowsAdapter) Scan(dest ...interface{}) error {
 	return s.rows.Scan(dest...)
 }
 
+//=============================================================
+
 type Tx interface {
 	Exec(ctx context.Context, query string) (int64, error)
 }
+
+//----------------------------------------------
 
 type pgxTxToTgtdbTxAdapter struct {
 	tx pgx.Tx
@@ -93,6 +102,8 @@ func (t *pgxTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, 
 	}
 	return int64(res.RowsAffected()), err
 }
+
+//----------------------------------------------
 
 type sqlTxToTgtdbTxAdapter struct {
 	tx *sql.Tx
@@ -110,9 +121,7 @@ func (t *sqlTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, 
 	return rowsAffected, err
 }
 
-func (t *sqlTxToTgtdbTxAdapter) Rollback(ctx context.Context) error {
-	return t.tx.Rollback()
-}
+//=============================================================
 
 const (
 	ORACLE     = "oracle"
