@@ -521,6 +521,31 @@ func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) 
 	return snapshotRowCount, nil
 }
 
+type EventChannelMetaInfo struct {
+	ChanNo         int
+	LastAppliedVsn int64
+}
+
+func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
+	metainfo := map[int]EventChannelMetaInfo{}
+
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+
+	for rows.Next() {
+		var chanMetaInfo EventChannelMetaInfo
+		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
+	}
+	return metainfo, nil
+}
+
 //============================================================================
 
 type BatchWriter struct {

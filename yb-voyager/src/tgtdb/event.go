@@ -338,11 +338,6 @@ func (eb *EventBatch) updateCounts(targetSchema string) {
 	}
 }
 
-type EventChannelMetaInfo struct {
-	ChanNo         int
-	LastAppliedVsn int64
-}
-
 type EventCounter struct {
 	TotalEvents int64
 	NumInserts  int64

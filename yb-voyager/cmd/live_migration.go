@@ -56,7 +56,7 @@ func streamChanges(state *ImportDataState) error {
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
-	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
+	eventChannelsMetaInfo, err := state.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
@@ -106,7 +106,13 @@ func streamChanges(state *ImportDataState) error {
 	return nil
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
+func streamChangesFromSegment(
+	segment *EventQueueSegment,
+	evChans []chan *tgtdb.Event,
+	processingDoneChans []chan bool,
+	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
+	statsReporter *reporter.StreamImportStatsReporter) error {
+
 	err := segment.Open()
 	if err != nil {
 		return err
