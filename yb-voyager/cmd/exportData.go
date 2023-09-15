@@ -200,8 +200,18 @@ func exportData() bool {
 			displayExportedRowCountSnapshotAndChanges()
 		}
 		return true
+	} else {
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList)
+		if err != nil {
+			log.Errorf("Export Data failed: %v", err)
+			return false
+		}
+		return true
 	}
 
+}
+
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
@@ -244,12 +254,12 @@ func exportData() bool {
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
-		return false
+		return fmt.Errorf("ctx error(exportData.go): %v\n", ctx.Err())
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	displayExportedRowCountSnapshot()
-	return true
+	return nil
 }
 
 func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
