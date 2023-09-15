@@ -44,7 +44,7 @@ type TargetOracleDB struct {
 	conn  *sql.Conn
 }
 
-func newTargetOracleDB(tconf *TargetConf) TargetDB {
+func newTargetOracleDB(tconf *TargetConf) *TargetOracleDB {
 	return &TargetOracleDB{tconf: tconf}
 }
 
@@ -150,21 +150,6 @@ func (tdb *TargetOracleDB) getTargetSchemaName(tableName string) string {
 		return parts[0]
 	}
 	return tdb.tconf.Schema
-}
-
-func (tdb *TargetOracleDB) CleanFileImportState(filePath, tableName string) error {
-	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for the given file.
-	schemaName := tdb.getTargetSchemaName(tableName)
-	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
-	res, err := tdb.conn.ExecContext(context.Background(), cmd)
-	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
-	}
-	rowsAffected, _ := res.RowsAffected()
-	log.Infof("query: [%s] => rows affected %v", cmd, rowsAffected)
-	return nil
 }
 
 func (tdb *TargetOracleDB) GetVersion() string {

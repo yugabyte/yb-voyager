@@ -171,7 +171,7 @@ func (s *ImportDataState) Clean(filePath string, tableName string) error {
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	err = tdb.CleanFileImportState(filePath, tableName)
+	err = s.cleanFileImportStateFromDB(filePath, tableName)
 	if err != nil {
 		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
 	}
@@ -483,6 +483,20 @@ func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUI
 		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
 	}
 	return rowCount, nil
+}
+
+func (s *ImportDataState) cleanFileImportStateFromDB(filePath, tableName string) error {
+	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
+	schemaName := getTargetSchemaName(tableName)
+	cmd := fmt.Sprintf(
+		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
+		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
+	rowsAffected, err := tdb.Exec(cmd)
+	if err != nil {
+		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+	}
+	log.Infof("query: [%s] => rows affected %v", cmd, rowsAffected)
+	return nil
 }
 
 func qualifyTableName(tableName string) string {
