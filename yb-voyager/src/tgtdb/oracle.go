@@ -87,7 +87,7 @@ func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
 	}
-	return &sqlRowsAdapter{rows: rows}, nil
+	return &sqlRowsToTgtdbRowsAdapter{rows: rows}, nil
 }
 
 func (tdb *TargetOracleDB) QueryRow(query string) Row {
@@ -102,6 +102,23 @@ func (tdb *TargetOracleDB) Exec(query string) (int64, error) {
 	}
 	rowsAffected, _ := res.RowsAffected()
 	return rowsAffected, nil
+}
+
+func (tdb *TargetOracleDB) WithTx(fn func(tx Tx) error) error {
+	tx, err := tdb.conn.BeginTx(context.Background(), &sql.TxOptions{})
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+	err = fn(&sqlTxToTgtdbTxAdapter{tx: tx})
+	if err != nil {
+		return err
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+	return nil
 }
 
 func (tdb *TargetOracleDB) disconnect() {
@@ -163,133 +180,6 @@ func (tdb *TargetOracleDB) GetVersion() string {
 
 func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
-}
-
-func (tdb *TargetOracleDB) clearMigrationStateFromTable(conn *sql.Conn, tableName string, migrationUUID uuid.UUID) error {
-	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableName, migrationUUID)
-	res, err := conn.ExecContext(context.Background(), stmt)
-	if err != nil {
-		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
-	}
-	rowsAffected, _ := res.RowsAffected()
-	log.Infof("Query: %s ==> Rows affected: %d", stmt, rowsAffected)
-	return nil
-}
-
-func (tdb *TargetOracleDB) getEventChannelsRowCount(conn *sql.Conn, migrationUUID uuid.UUID) (int64, error) {
-	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var rowCount int64
-	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
-	if err != nil {
-		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-	}
-	return rowCount, nil
-}
-
-func (tdb *TargetOracleDB) getLiveMigrationMetaInfoByTable(conn *sql.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
-	var rowCount int64
-	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
-		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
-	err := conn.QueryRowContext(context.Background(), rowsStmt).Scan(&rowCount)
-	if err != nil {
-		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-	}
-	return rowCount, nil
-}
-
-func (tdb *TargetOracleDB) initChannelMetaInfo(conn *sql.Conn, migrationUUID uuid.UUID, numChans int) error {
-	// if there are >0 rows, then skip because already been inited.
-	rowCount, err := tdb.getEventChannelsRowCount(conn, migrationUUID)
-	if err != nil {
-		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-	}
-	if rowCount > 0 {
-		log.Info("event channels meta info already created. Skipping init.")
-		return nil
-	}
-	ctx := context.Background()
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("error creating tx: %w", err)
-	}
-	defer tx.Rollback()
-	for c := 0; c < numChans; c++ {
-		insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
-		_, err := tx.Exec(insertStmt)
-		if err != nil {
-			return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
-		}
-		log.Infof("created channels meta info: %s;", insertStmt)
-	}
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("error committing tx: %w", err)
-	}
-	return nil
-}
-
-func (tdb *TargetOracleDB) initEventStatByTableMetainfo(tableNames []string, migrationUUID uuid.UUID, conn *sql.Conn, numChans int) error {
-
-	ctx := context.Background()
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("error creating tx: %w", err)
-	}
-	defer tx.Rollback()
-	for _, tableName := range tableNames {
-		// for handling case-sensitive tablenames as case-insensitive in oracle
-		// TODO: need proper logic and handling for case-sensitive tablenames
-		tableName = tdb.getTargetSchemaName(tableName) + "." + strings.ToUpper(tableName)
-		rowCount, err := tdb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
-		if err != nil {
-			return fmt.Errorf("failed to get table wise meta info: %w", err)
-		}
-		if rowCount > 0 {
-			log.Info("table wise meta info already created. Skipping init.")
-		} else {
-			for c := 0; c < numChans; c++ {
-				insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
-				_, err := tx.Exec(insertStmt)
-				if err != nil {
-					return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
-				}
-				log.Infof("created table wise meta info: %s;", insertStmt)
-			}
-		}
-	}
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("error committing tx: %w", err)
-	}
-	return nil
-}
-
-func (tdb *TargetOracleDB) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		if startClean {
-			err := tdb.clearMigrationStateFromTable(conn, EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-			if err != nil {
-				return false, fmt.Errorf("failed to clear live migration meta info: %w", err)
-			}
-			err = tdb.clearMigrationStateFromTable(conn, EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
-			if err != nil {
-				return false, fmt.Errorf("failed to clear live migration meta info: %w", err)
-			}
-		}
-
-		err := tdb.initChannelMetaInfo(conn, migrationUUID, numChans)
-		if err != nil {
-			return false, fmt.Errorf("failed to init live migration meta info: %w", err)
-		}
-		err = tdb.initEventStatByTableMetainfo(tableNames, migrationUUID, conn, numChans)
-		if err != nil {
-			return false, fmt.Errorf("failed to init table wise meta info: %w", err)
-		}
-		return false, nil
-	})
-	return err
 }
 
 func (tdb *TargetOracleDB) qualifyTableName(tableName string) string {

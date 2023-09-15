@@ -16,12 +16,14 @@ limitations under the License.
 package tgtdb
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 )
 
@@ -30,7 +32,6 @@ type TargetDB interface {
 	Finalize()
 	InitConnPool() error
 	PrepareForStreaming()
-	CleanFileImportState(filePath, tableName string) error
 	GetVersion() string
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []string) []string
@@ -39,19 +40,21 @@ type TargetDB interface {
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
-	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
-	InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (*EventCounter, error)
-	GetImportedSnapshotRowCountForTable(tableName string) (int64, error)
 	GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 
+	CleanFileImportState(filePath, tableName string) error
+	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
+	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (*EventCounter, error)
+	GetImportedSnapshotRowCountForTable(tableName string) (int64, error)
+
 	Query(query string) (Rows, error)
 	QueryRow(query string) Row
 	Exec(query string) (int64, error)
+	WithTx(fn func(tx Tx) error) error
 }
 
 type Rows interface {
@@ -64,20 +67,56 @@ type Row interface {
 	Scan(dest ...interface{}) error
 }
 
-type sqlRowsAdapter struct {
+type sqlRowsToTgtdbRowsAdapter struct {
 	rows *sql.Rows
 }
 
-func (s *sqlRowsAdapter) Close() {
+func (s *sqlRowsToTgtdbRowsAdapter) Close() {
 	_ = s.rows.Close()
 }
 
-func (s *sqlRowsAdapter) Next() bool {
+func (s *sqlRowsToTgtdbRowsAdapter) Next() bool {
 	return s.rows.Next()
 }
 
-func (s *sqlRowsAdapter) Scan(dest ...interface{}) error {
+func (s *sqlRowsToTgtdbRowsAdapter) Scan(dest ...interface{}) error {
 	return s.rows.Scan(dest...)
+}
+
+type Tx interface {
+	Exec(ctx context.Context, query string) (int64, error)
+}
+
+type pgxTxToTgtdbTxAdapter struct {
+	tx pgx.Tx
+}
+
+func (t *pgxTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, error) {
+	res, err := t.tx.Exec(ctx, query)
+	if err != nil {
+		return 0, err
+	}
+	return int64(res.RowsAffected()), err
+}
+
+type sqlTxToTgtdbTxAdapter struct {
+	tx *sql.Tx
+}
+
+func (t *sqlTxToTgtdbTxAdapter) Exec(ctx context.Context, query string) (int64, error) {
+	res, err := t.tx.Exec(query)
+	if err != nil {
+		return 0, err
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return rowsAffected, err
+}
+
+func (t *sqlTxToTgtdbTxAdapter) Rollback(ctx context.Context) error {
+	return t.tx.Rollback()
 }
 
 const (

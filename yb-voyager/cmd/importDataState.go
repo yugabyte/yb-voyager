@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
 )
 
@@ -368,6 +370,126 @@ func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.U
 		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
 	}
 	return numInserts, numUpdates, numDeletes, nil
+}
+
+func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
+
+	if startClean {
+		err := s.clearMigrationStateFromTable(EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+		if err != nil {
+			return fmt.Errorf("error clearing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+		}
+		err = s.clearMigrationStateFromTable(EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
+		if err != nil {
+			return fmt.Errorf("error clearing meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
+		}
+	}
+	err := s.initChannelMetaInfo(migrationUUID, numChans)
+	if err != nil {
+		return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+
+	err = s.initEventStatsByTableMetainfo(migrationUUID, tableNames, numChans)
+	if err != nil {
+		return fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
+	}
+	return nil
+}
+
+func (s *ImportDataState) clearMigrationStateFromTable(tableName string, migrationUUID uuid.UUID) error {
+	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableName, migrationUUID)
+	rowsAffected, err := tdb.Exec(stmt)
+	if err != nil {
+		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+	}
+	log.Infof("Query: %s ==> Rows affected: %d", stmt, rowsAffected)
+	return nil
+}
+
+func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans int) error {
+	// if there are >0 rows, then skip because already been inited.
+	rowCount, err := s.getEventChannelsRowCount(migrationUUID)
+	if err != nil {
+		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+	if rowCount > 0 {
+		log.Info("event channels meta info already created. Skipping init.")
+		return nil
+	}
+	err = tdb.WithTx(func(tx tgtdb.Tx) error {
+		for c := 0; c < numChans; c++ {
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
+			_, err := tx.Exec(context.Background(), insertStmt)
+			if err != nil {
+				return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			}
+			log.Infof("created channels meta info: %s;", insertStmt)
+
+			if err != nil {
+				return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+	return nil
+}
+
+func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int64, error) {
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	var rowCount int64
+	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNames []string, numChans int) error {
+	return tdb.WithTx(func(tx tgtdb.Tx) error {
+		for _, tableName := range tableNames {
+			tableName := qualifyTableName(tableName)
+			rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableName)
+			if err != nil {
+				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+			}
+			if rowCount > 0 {
+				log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableName))
+			} else {
+				for c := 0; c < numChans; c++ {
+					insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
+					_, err := tx.Exec(context.Background(), insertStmt)
+					if err != nil {
+						return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+					}
+					log.Infof("created table wise event meta info: %s;", insertStmt)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUID, tableName string) (int64, error) {
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+	var rowCount int64
+	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func qualifyTableName(tableName string) string {
+	if len(strings.Split(tableName, ".")) != 2 {
+		tableName = fmt.Sprintf("%s.%s", tconf.Schema, tableName)
+	}
+	return tableName
 }
 
 //============================================================================
