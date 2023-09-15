@@ -385,10 +385,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
-		displayImportedRowCountSnapshot(importFileTasks)
+		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			displayImportedRowCountSnapshot(importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks)
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges(state)
 			if err != nil {
@@ -411,7 +411,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
-			displayImportedRowCountSnapshotAndChanges(importFileTasks)
+			displayImportedRowCountSnapshotAndChanges(state, importFileTasks)
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
@@ -421,7 +421,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
-			displayImportedRowCountSnapshot(importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
 	}
 

@@ -48,7 +48,6 @@ type TargetDB interface {
 
 	GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error)
 	GetImportedEventsStatsForTable(tableName string, migrationUuid uuid.UUID) (*EventCounter, error)
-	GetImportedSnapshotRowCountForTable(tableName string) (int64, error)
 
 	Query(query string) (Rows, error)
 	QueryRow(query string) Row

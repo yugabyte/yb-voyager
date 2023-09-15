@@ -506,6 +506,21 @@ func qualifyTableName(tableName string) string {
 	return tableName
 }
 
+func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
+	var snapshotRowCount int64
+	schema := getTargetSchemaName(tableName)
+	query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
+		BATCH_METADATA_TABLE_NAME, schema, tableName)
+	log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
+	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
+	if err != nil {
+		log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
+		return 0, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
+	}
+	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
+	return snapshotRowCount, nil
+}
+
 //============================================================================
 
 type BatchWriter struct {

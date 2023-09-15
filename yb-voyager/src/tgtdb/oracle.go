@@ -663,27 +663,6 @@ func (tdb *TargetOracleDB) GetImportedEventsStatsForTable(tableName string, migr
 	return &eventCounter, nil
 }
 
-func (tdb *TargetOracleDB) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
-	var snapshotRowCount int64
-	schema := tdb.getTargetSchemaName(tableName)
-	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
-		query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
-			BATCH_METADATA_TABLE_NAME, schema, tableName)
-		err := conn.QueryRowContext(context.Background(), query).Scan(&snapshotRowCount)
-		if err != nil {
-			log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
-			return false, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
-		}
-		return false, nil
-	})
-	if err != nil {
-		log.Errorf("error in getting total row count for snapshot import of table %s: %v", tableName, err)
-		return -1, fmt.Errorf("error in getting total row count for snapshot import of table %s: %w", tableName, err)
-	}
-	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
-	return snapshotRowCount, nil
-}
-
 func (tdb *TargetOracleDB) GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error) {
 	schema := tdb.getTargetSchemaName(table)
 	query := fmt.Sprintf(`Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '%s'

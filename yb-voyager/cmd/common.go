@@ -298,7 +298,7 @@ func displayExportedRowCountSnapshot() {
 	fmt.Print("\n")
 }
 
-func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("snapshot and changes import report\n")
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
@@ -309,7 +309,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
-		tableRowCount, err := tdb.GetImportedSnapshotRowCountForTable(tableName)
+		tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
 		if err != nil {
 			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 		}
@@ -340,7 +340,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 	fmt.Printf("\n")
 }
 
-func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("import report\n")
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID(exportDir)
@@ -351,7 +351,7 @@ func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
-		tableRowCount, err := tdb.GetImportedSnapshotRowCountForTable(tableName)
+		tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
 		if err != nil {
 			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 		}
