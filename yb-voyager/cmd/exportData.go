@@ -17,19 +17,15 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/gosuri/uilive"
-	"github.com/magiconair/properties"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -38,7 +34,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -132,6 +127,56 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	finalTableList, tablesColumnList := getFinalTableColumnList()
+
+	if len(finalTableList) == 0 {
+		utils.PrintAndLog("no tables present to export, exiting...")
+		createExportDataDoneFlag()
+		dfd := datafile.Descriptor{
+			ExportDir:    exportDir,
+			DataFileList: make([]*datafile.FileEntry, 0),
+		}
+		dfd.Save()
+		os.Exit(0)
+	}
+
+	if changeStreamingIsEnabled(exportType) || useDebezium {
+		config, tableNametoApproxRowCountMap, err := prepareDebeziumConfig(finalTableList, tablesColumnList)
+		if err != nil {
+			log.Errorf("Failed to prepare dbzm config: %v", err)
+			return false
+		}
+		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
+		if err != nil {
+			log.Errorf("Export Data using debezium failed: %v", err)
+			return false
+		}
+
+		if changeStreamingIsEnabled(exportType) {
+			log.Infof("live migration complete, proceeding to cutover")
+			triggerName, err := getTriggerName(exporterRole)
+			if err != nil {
+				utils.ErrExit("failed to get trigger name after data export: %v", err)
+			}
+			err = createTriggerIfNotExists(triggerName)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
+			displayExportedRowCountSnapshotAndChanges()
+		}
+		return true
+	} else {
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList)
+		if err != nil {
+			log.Errorf("Export Data failed: %v", err)
+			return false
+		}
+		return true
+	}
+
+}
+
+func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
@@ -165,43 +210,10 @@ func exportData() bool {
 		}
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
+	return finalTableList, tablesColumnList
+}
 
-	if len(finalTableList) == 0 {
-		utils.PrintAndLog("no tables present to export, exiting...")
-		createExportDataDoneFlag()
-		dfd := datafile.Descriptor{
-			ExportDir:    exportDir,
-			DataFileList: make([]*datafile.FileEntry, 0),
-		}
-		dfd.Save()
-		os.Exit(0)
-	}
-
-	if changeStreamingIsEnabled(exportType) || useDebezium {
-		finalTableList = filterTablePartitions(finalTableList)
-		fmt.Printf("num tables to export: %d\n", len(finalTableList))
-		utils.PrintAndLog("table list for data export: %v", finalTableList)
-		err := debeziumExportData(ctx, finalTableList, tablesColumnList)
-		if err != nil {
-			log.Errorf("Export Data using debezium failed: %v", err)
-			return false
-		}
-
-		if changeStreamingIsEnabled(exportType) {
-			log.Infof("live migration complete, proceeding to cutover")
-			triggerName, err := getTriggerName(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to get trigger name after data export: %v", err)
-			}
-			err = createTriggerIfNotExists(triggerName)
-			if err != nil {
-				utils.ErrExit("failed to create trigger file after data export: %v", err)
-			}
-			displayExportedRowCountSnapshotAndChanges()
-		}
-		return true
-	}
-
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
@@ -244,401 +256,11 @@ func exportData() bool {
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
-		return false
+		return fmt.Errorf("ctx error(exportData.go): %w", ctx.Err())
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	displayExportedRowCountSnapshot()
-	return true
-}
-
-func debeziumExportData(ctx context.Context, tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
-	runId = time.Now().String()
-	absExportDir, err := filepath.Abs(exportDir)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute path for export dir: %v", err)
-	}
-
-	var snapshotMode string
-
-	switch exportType {
-	case SNAPSHOT_AND_CHANGES:
-		snapshotMode = "initial"
-	case CHANGES_ONLY:
-		snapshotMode = "never"
-	case SNAPSHOT_ONLY:
-		snapshotMode = "initial_only"
-	default:
-		return fmt.Errorf("invalid export type %s", exportType)
-	}
-
-	var dbzmTableList, dbzmColumnList []string
-	for _, table := range tableList {
-		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
-	}
-	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
-			record.TableListExportedFromSource = dbzmTableList
-		})
-		if err != nil {
-			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
-		}
-	}
-
-	for tableName, columns := range tablesColumnList {
-		for _, column := range columns {
-			columnName := fmt.Sprintf("%s.%s", tableName.Qualified.Unquoted, column)
-			if column == "*" {
-				dbzmColumnList = append(dbzmColumnList, columnName) //for all columns <schema>.<table>.*
-				break
-			}
-			dbzmColumnList = append(dbzmColumnList, columnName) // if column is PK, then data for it will come from debezium
-		}
-	}
-
-	var columnSequenceMap []string
-	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	for column, sequence := range colToSeqMap {
-		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
-	}
-	err = source.PrepareSSLParamsForDebezium(absExportDir)
-	if err != nil {
-		return fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
-	}
-
-	config := &dbzm.Config{
-		RunId:          runId,
-		SourceDBType:   source.DBType,
-		ExporterRole:   exporterRole,
-		ExportDir:      absExportDir,
-		MetadataDBPath: getMetaDBPath(absExportDir),
-		Host:           source.Host,
-		Port:           source.Port,
-		Username:       source.User,
-		Password:       source.Password,
-
-		DatabaseName:      source.DBName,
-		SchemaNames:       source.Schema,
-		TableList:         dbzmTableList,
-		ColumnList:        dbzmColumnList,
-		ColumnSequenceMap: columnSequenceMap,
-
-		SSLMode:               source.SSLMode,
-		SSLCertPath:           source.SSLCertPath,
-		SSLKey:                source.SSLKey,
-		SSLRootCert:           source.SSLRootCert,
-		SSLKeyStore:           source.SSLKeyStore,
-		SSLKeyStorePassword:   source.SSLKeyStorePassword,
-		SSLTrustStore:         source.SSLTrustStore,
-		SSLTrustStorePassword: source.SSLTrustStorePassword,
-		SnapshotMode:          snapshotMode,
-	}
-	if source.DBType == "oracle" {
-		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
-		if source.IsOracleCDBSetup() {
-			// uri = cdb uri
-			connectionString := srcdb.GetOracleConnectionString(source.Host, source.Port, source.CDBName, source.CDBSid, source.CDBTNSAlias)
-			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
-			config.PDBName = source.DBName
-		} else {
-			connectionString := srcdb.GetOracleConnectionString(source.Host, source.Port, source.DBName, source.DBSid, source.TNSAlias)
-			config.Uri = fmt.Sprintf("%s%s", jdbcConnectionStringPrefix, connectionString)
-		}
-
-		config.TNSAdmin, err = getTNSAdmin(source)
-		if err != nil {
-			return fmt.Errorf("failed to get tns admin: %w", err)
-		}
-		config.OracleJDBCWalletLocationSet, err = isOracleJDBCWalletLocationSet(source)
-		if err != nil {
-			return fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
-		}
-	} else if source.DBType == "yugabytedb" {
-		if exportType == CHANGES_ONLY {
-			ybServers := source.DB().GetServers()
-			masterPort := "7100"
-			if os.Getenv("YB_MASTER_PORT") != "" {
-				masterPort = os.Getenv("YB_MASTER_PORT")
-			}
-			ybServers = lo.Map(ybServers, (func(s string, _ int) string {
-				return fmt.Sprintf("%s:%s", s, masterPort)
-			}),
-			)
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0])
-			err := ybCDCClient.Init()
-			if err != nil {
-				return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
-			}
-			config.YBMasterNodes, err = ybCDCClient.ListMastersNodes()
-			if err != nil {
-				return fmt.Errorf("failed to list master nodes: %w", err)
-			}
-			if startClean {
-				err = ybCDCClient.DeleteStreamID()
-				if err != nil {
-					return fmt.Errorf("failed to delete stream id: %w", err)
-				}
-				config.YBStreamID, err = ybCDCClient.GenerateAndStoreStreamID()
-				if err != nil {
-					return fmt.Errorf("failed to generate stream id: %w", err)
-				}
-				utils.PrintAndLog("Generated new YugabyteDB CDC stream-id: %s", config.YBStreamID)
-			} else {
-				config.YBStreamID, err = ybCDCClient.GetStreamID()
-				if err != nil {
-					return fmt.Errorf("failed to get stream id: %w", err)
-				}
-			}
-		}
-	}
-
-	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
-	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
-	debezium := dbzm.NewDebezium(config)
-	err = debezium.Start()
-	if err != nil {
-		return fmt.Errorf("failed to start debezium: %w", err)
-	}
-
-	var status *dbzm.ExportStatus
-	snapshotComplete := false
-	for debezium.IsRunning() {
-		status, err = debezium.GetExportStatus()
-		if err != nil {
-			return fmt.Errorf("failed to read export status: %w", err)
-		}
-		if status == nil {
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		progressTracker.UpdateProgress(status)
-		if !snapshotComplete {
-			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
-			if err != nil {
-				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
-			}
-		}
-		time.Sleep(time.Millisecond * 500)
-	}
-	if err := debezium.Error(); err != nil {
-		return fmt.Errorf("debezium failed with error: %w", err)
-	}
-	// handle case where debezium finished before snapshot completion
-	// was handled in above loop
-	if !snapshotComplete {
-		status, err = debezium.GetExportStatus()
-		if err != nil {
-			return fmt.Errorf("failed to read export status: %w", err)
-		}
-		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
-		if !snapshotComplete || err != nil {
-			return fmt.Errorf("snapshot was not completed: %w", err)
-		}
-	}
-
-	log.Info("Debezium exited normally.")
-	return nil
-}
-
-func reportStreamingProgress() {
-	tableWriter := uilive.New()
-	headerWriter := tableWriter.Newline()
-	separatorWriter := tableWriter.Newline()
-	row1Writer := tableWriter.Newline()
-	row2Writer := tableWriter.Newline()
-	row3Writer := tableWriter.Newline()
-	row4Writer := tableWriter.Newline()
-	footerWriter := tableWriter.Newline()
-	tableWriter.Start()
-	for {
-		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEvents(runId)
-		if err != nil {
-			utils.ErrExit("failed to get total exported count from metadb: %w", err)
-		}
-		throughputInLast3Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 3)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
-		throughputInLast10Min, err := metaDB.GetExportedEventsRateInLastNMinutes(runId, 10)
-		if err != nil {
-			utils.ErrExit("failed to get export rate from metadb: %w", err)
-		}
-		fmt.Fprint(tableWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		fmt.Fprint(headerWriter, color.GreenString("| %-40s | %30s |\n", "Metric", "Value"))
-		fmt.Fprint(separatorWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		fmt.Fprint(row1Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events", strconv.FormatInt(totalEventCount, 10)))
-		fmt.Fprint(row2Writer, color.GreenString("| %-40s | %30s |\n", "Total Exported Events (Current Run)", strconv.FormatInt(totalEventCountRun, 10)))
-		fmt.Fprint(row3Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 3 min)", strconv.FormatInt(throughputInLast3Min, 10)+"/sec"))
-		fmt.Fprint(row4Writer, color.GreenString("| %-40s | %30s |\n", "Export Rate(Last 10 min)", strconv.FormatInt(throughputInLast10Min, 10)+"/sec"))
-		fmt.Fprint(footerWriter, color.GreenString("| %-40s | %30s |\n", "---------------------------------------", "-----------------------------"))
-		tableWriter.Flush()
-		time.Sleep(10 * time.Second)
-	}
-}
-
-// oracle wallet location can be optionally set in $TNS_ADMIN/ojdbc.properties as
-// oracle.net.wallet_location=<>
-func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
-	if s.DBType != "oracle" {
-		return false, fmt.Errorf("invalid source db type %s for checking jdbc wallet location", s.DBType)
-	}
-	tnsAdmin, err := getTNSAdmin(s)
-	if err != nil {
-		return false, fmt.Errorf("failed to get tns admin: %w", err)
-	}
-	ojdbcPropertiesFilePath := filepath.Join(tnsAdmin, "ojdbc.properties")
-	if _, err := os.Stat(ojdbcPropertiesFilePath); errors.Is(err, os.ErrNotExist) {
-		// file does not exist
-		return false, nil
-	}
-	ojdbcProperties := properties.MustLoadFile(ojdbcPropertiesFilePath, properties.UTF8)
-	walletLocationKey := "oracle.net.wallet_location"
-	_, present := ojdbcProperties.Get(walletLocationKey)
-	return present, nil
-}
-
-// https://www.orafaq.com/wiki/TNS_ADMIN
-// default is $ORACLE_HOME/network/admin
-func getTNSAdmin(s srcdb.Source) (string, error) {
-	if s.DBType != "oracle" {
-		return "", fmt.Errorf("invalid source db type %s for getting TNS_ADMIN", s.DBType)
-	}
-	tnsAdminEnvVar, present := os.LookupEnv("TNS_ADMIN")
-	if present {
-		return tnsAdminEnvVar, nil
-	} else {
-		return filepath.Join(s.GetOracleHome(), "network", "admin"), nil
-	}
-}
-
-func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
-	var filteredTableList []*sqlname.SourceName
-	for _, table := range finalTableList {
-		if len(tablesColumnList[table]) == 0 {
-			continue
-		}
-		filteredTableList = append(filteredTableList, table)
-	}
-	return filteredTableList
-}
-
-func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
-	if !status.SnapshotExportIsComplete() {
-		return false, nil
-	}
-	progressTracker.Done(status)
-	createExportDataDoneFlag()
-	err := writeDataFileDescriptor(exportDir, status)
-	if err != nil {
-		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
-	}
-	log.Infof("snapshot export is complete.")
-	err = renameDbzmExportedDataFiles()
-	if err != nil {
-		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
-	}
-	displayExportedRowCountSnapshot()
-	if changeStreamingIsEnabled(exportType) {
-		color.Blue("streaming changes to a local queue file...")
-		if !disablePb {
-			go reportStreamingProgress()
-		}
-	}
-	return true, nil
-}
-func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
-	tableNameToApproxRowCountMap := make(map[string]int64)
-	for _, table := range tableList {
-		tableNameToApproxRowCountMap[table.Qualified.Unquoted] = source.DB().GetTableApproxRowCount(table)
-	}
-	return tableNameToApproxRowCountMap
-}
-
-// required only for postgresql since GetAllTables() returns all tables and partitions
-func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	if source.DBType != POSTGRESQL || source.TableList != "" {
-		return tableList
-	}
-
-	filteredTableList := []*sqlname.SourceName{}
-	for _, table := range tableList {
-		if !source.DB().IsTablePartition(table) {
-			filteredTableList = append(filteredTableList, table)
-		}
-	}
-	return filteredTableList
-}
-
-func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {
-	dataFileList := make([]*datafile.FileEntry, 0)
-	for _, table := range status.Tables {
-		// TODO: TableName and FilePath must be quoted by debezium plugin.
-		tableName := quoteIdentifierIfRequired(table.TableName)
-		if source.DBType == POSTGRESQL && table.SchemaName != "public" {
-			tableName = fmt.Sprintf("%s.%s", table.SchemaName, tableName)
-		}
-		fileEntry := &datafile.FileEntry{
-			TableName: tableName,
-			FilePath:  fmt.Sprintf("%s_data.sql", tableName),
-			RowCount:  table.ExportedRowCountSnapshot,
-			FileSize:  -1, // Not available.
-		}
-		dataFileList = append(dataFileList, fileEntry)
-	}
-	dfd := datafile.Descriptor{
-		FileFormat:   datafile.CSV,
-		Delimiter:    ",",
-		HasHeader:    true,
-		NullString:   utils.YB_VOYAGER_NULL_STRING,
-		ExportDir:    exportDir,
-		DataFileList: dataFileList,
-	}
-	dfd.Save()
-	return nil
-}
-
-// handle renaming for tables having case sensitivity and reserved keywords
-func renameDbzmExportedDataFiles() error {
-	status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
-	if err != nil {
-		return fmt.Errorf("failed to read export status during renaming exported data files: %w", err)
-	}
-	if status == nil {
-		return fmt.Errorf("export status is empty during renaming exported data files")
-	}
-
-	for i := 0; i < len(status.Tables); i++ {
-		tableName := status.Tables[i].TableName
-		// either case sensitive(postgresql) or reserved keyword(any source db)
-		if (!sqlname.IsAllLowercase(tableName) && source.DBType == POSTGRESQL) ||
-			sqlname.IsReservedKeywordPG(tableName) {
-			tableName = fmt.Sprintf("\"%s\"", status.Tables[i].TableName)
-		}
-
-		oldFilePath := filepath.Join(exportDir, "data", status.Tables[i].FileName)
-		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
-		}
-
-		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)
-		err = os.Rename(oldFilePath, newFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported data file: %w", err)
-		}
-
-		//rename table schema file as well
-		oldTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, strings.Replace(status.Tables[i].FileName, "_data.sql", "_schema.json", 1))
-		newTableSchemaFilePath := filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, tableName+"_schema.json")
-		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
-			newTableSchemaFilePath = filepath.Join(exportDir, "data", "schemas", SOURCE_DB_EXPORTER_ROLE, status.Tables[i].SchemaName+"."+tableName+"_schema.json")
-		}
-		log.Infof("Renaming %s to %s", oldTableSchemaFilePath, newTableSchemaFilePath)
-		err = os.Rename(oldTableSchemaFilePath, newTableSchemaFilePath)
-		if err != nil {
-			return fmt.Errorf("failed to rename dbzm exported table schema file: %w", err)
-		}
-	}
 	return nil
 }
 
@@ -742,4 +364,19 @@ func checkSourceDBCharset() {
 
 func changeStreamingIsEnabled(s string) bool {
 	return (s == CHANGES_ONLY || s == SNAPSHOT_AND_CHANGES)
+}
+
+func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string]int64 {
+	tableNameToApproxRowCountMap := make(map[string]int64)
+	for _, table := range tableList {
+		tableNameToApproxRowCountMap[table.Qualified.Unquoted] = source.DB().GetTableApproxRowCount(table)
+	}
+	return tableNameToApproxRowCountMap
+}
+
+func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
+	filteredTableList := lo.Reject(finalTableList, func(tableName *sqlname.SourceName, _ int) bool {
+		return len(tablesColumnList[tableName]) == 0
+	})
+	return filteredTableList
 }
