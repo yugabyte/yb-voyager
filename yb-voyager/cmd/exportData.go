@@ -132,39 +132,7 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	var tableList []*sqlname.SourceName
-	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []*sqlname.SourceName
-	excludeTableList := extractTableListFromString(source.ExcludeTableList)
-	if source.TableList != "" {
-		finalTableList = extractTableListFromString(source.TableList)
-	} else {
-		tableList = source.DB().GetAllTableNames()
-		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-		log.Infof("initial all tables table list for data export: %v", tableList)
-
-		if !changeStreamingIsEnabled(exportType) {
-			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-			if len(skippedTableList) != 0 {
-				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
-			}
-		}
-
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
-		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
-		}
-	}
-
-	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
-	if len(unsupportedColumnNames) > 0 {
-		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
-		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
-			"\nDo you want to ignore just these columns' data and continue with export") {
-			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
-		}
-		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
-	}
+	finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -209,6 +177,43 @@ func exportData() bool {
 		return true
 	}
 
+}
+
+func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
+	var tableList []*sqlname.SourceName
+	// store table list after filtering unsupported or unnecessary tables
+	var finalTableList, skippedTableList []*sqlname.SourceName
+	excludeTableList := extractTableListFromString(source.ExcludeTableList)
+	if source.TableList != "" {
+		finalTableList = extractTableListFromString(source.TableList)
+	} else {
+		tableList = source.DB().GetAllTableNames()
+		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+		log.Infof("initial all tables table list for data export: %v", tableList)
+
+		if !changeStreamingIsEnabled(exportType) {
+			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
+			if len(skippedTableList) != 0 {
+				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
+			}
+		}
+
+		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+		if len(skippedTableList) != 0 {
+			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+		}
+	}
+
+	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
+	if len(unsupportedColumnNames) > 0 {
+		log.Infof("preparing column list for the data export without unsupported datatype columns: %v", unsupportedColumnNames)
+		if !utils.AskPrompt("\nThe following columns data export is unsupported:\n" + strings.Join(unsupportedColumnNames, "\n") +
+			"\nDo you want to ignore just these columns' data and continue with export") {
+			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
+		}
+		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
+	}
+	return finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
