@@ -322,7 +322,7 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 		}
-		eventCounter, err := tdb.GetImportedEventsStatsForTable(tableName, migrationUUID)
+		eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 		if err != nil {
 			utils.ErrExit("could not fetch table stats from target db: %v", err)
 		}

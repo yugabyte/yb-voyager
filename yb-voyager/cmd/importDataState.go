@@ -546,6 +546,22 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 	return metainfo, nil
 }
 
+func (s *ImportDataState) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
+	var eventCounter tgtdb.EventCounter
+	tableName = qualifyTableName(tableName)
+	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+	log.Infof("query to get import stats for table %s: %s", tableName, query)
+	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
+		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
+	if err != nil {
+		log.Errorf("error in getting import stats from target db: %v", err)
+		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+	log.Infof("import stats for table %s: %v", tableName, eventCounter)
+	return &eventCounter, nil
+}
+
 //============================================================================
 
 type BatchWriter struct {
