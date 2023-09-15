@@ -87,6 +87,7 @@ func initMetaDB(path string) error {
        file_path TEXT, size_committed INTEGER, 
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_ff_db_importer INTEGER DEFAULT 0, 
+       imported_by_fb_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0,
 	   deleted INTEGER DEFAULT 0,
 	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
@@ -477,4 +478,3 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	}
 	return nil
 }
-
