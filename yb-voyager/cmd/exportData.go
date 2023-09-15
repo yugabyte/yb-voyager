@@ -26,6 +26,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
@@ -374,12 +375,8 @@ func getTableNameToApproxRowCountMap(tableList []*sqlname.SourceName) map[string
 }
 
 func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) []*sqlname.SourceName {
-	var filteredTableList []*sqlname.SourceName
-	for _, table := range finalTableList {
-		if len(tablesColumnList[table]) == 0 {
-			continue
-		}
-		filteredTableList = append(filteredTableList, table)
-	}
+	filteredTableList := lo.Reject(finalTableList, func(tableName *sqlname.SourceName, _ int) bool {
+		return len(tablesColumnList[tableName]) == 0
+	})
 	return filteredTableList
 }
