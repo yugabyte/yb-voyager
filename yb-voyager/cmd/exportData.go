@@ -254,7 +254,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 	if ctx.Err() != nil {
 		fmt.Printf("ctx error(exportData.go): %v\n", ctx.Err())
-		return fmt.Errorf("ctx error(exportData.go): %v\n", ctx.Err())
+		return fmt.Errorf("ctx error(exportData.go): %w", ctx.Err())
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
