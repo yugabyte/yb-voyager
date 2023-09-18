@@ -56,7 +56,7 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 	var err error
 	if eq.SegmentNumToStream == -1 {
 		// called for the first time
-		eq.SegmentNumToStream, err = metaDB.GetSegmentNumToResume()
+		eq.SegmentNumToStream, err = metaDB.GetSegmentNumToResume(importerRole)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
 		}

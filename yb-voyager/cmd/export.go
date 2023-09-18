@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -358,7 +359,7 @@ func validateExportTypeFlag() {
 }
 
 func saveExportTypeInMetaDB() {
-	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+	err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ExportType = exportType
 	})
 	if err != nil {

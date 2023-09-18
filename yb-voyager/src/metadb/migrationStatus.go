@@ -1,9 +1,10 @@
-package cmd
+package metadb
 
 import (
 	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type MigrationStatusRecord struct {
@@ -40,6 +41,6 @@ func InitMigrationStatusRecord(migUUID string) error {
 			return // already initialized
 		}
 		record.MigrationUUID = migUUID
-		record.ExportType = SNAPSHOT_ONLY
+		record.ExportType = utils.SNAPSHOT_ONLY
 	})
 }

@@ -31,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -45,11 +46,11 @@ var importDataStatusCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
 		var err error
-		metaDB, err = NewMetaDB(exportDir)
+		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {
 			utils.ErrExit("error while connecting meta db: %w\n", err)
 		}
-		migrationStatus, err := GetMigrationStatusRecord()
+		migrationStatus, err := metadb.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}

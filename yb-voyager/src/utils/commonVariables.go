@@ -96,3 +96,14 @@ type Issue struct {
 	Suggestion   string `json:"suggestion"`
 	GH           string `json:"GH"`
 }
+
+type Segment struct {
+	Num      int
+	FilePath string
+}
+
+const (
+	SNAPSHOT_ONLY                 = "snapshot-only"
+	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
+	CHANGES_ONLY                  = "changes-only"
+)

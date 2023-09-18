@@ -186,8 +186,7 @@ var (
 	unsupportedCommentRegex2   = re("--", anything, "please edit to match PostgreSQL syntax")
 	typeUnsupportedRegex       = re("Inherited types are not supported", anything, "replacing with inherited table")
 	bulkCollectRegex           = re("BULK COLLECT") // ora2pg unable to convert this oracle feature into a PostgreSQL compatible syntax
-	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent) ,capture(ident), anything, "JSON_ARRAYAGG")
-	
+	jsonFuncRegex              = re("CREATE", opt("OR REPLACE"), capture(unqualifiedIdent), capture(ident), anything, "JSON_ARRAYAGG")
 )
 
 // Reports one case in JSON

@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package cmd
+package metadb
 
 import (
 	"context"
@@ -42,12 +42,12 @@ var (
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
 
-func getMetaDBPath(exportDir string) string {
+func GetMetaDBPath(exportDir string) string {
 	return filepath.Join(exportDir, "metainfo", "meta.db")
 }
 
-func createAndInitMetaDBIfRequired(exportDir string) error {
-	metaDBPath := getMetaDBPath(exportDir)
+func CreateAndInitMetaDBIfRequired(exportDir string) error {
+	metaDBPath := GetMetaDBPath(exportDir)
 	if utils.FileOrFolderExists(metaDBPath) {
 		// already created and initied.
 		return nil
@@ -120,8 +120,8 @@ func initMetaDB(path string) error {
 	return nil
 }
 
-func truncateTablesInMetaDb(exportDir string, tableNames []string) error {
-	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
+func TruncateTablesInMetaDb(exportDir string, tableNames []string) error {
+	conn, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetMetaDBPath(exportDir), SQLITE_OPTIONS))
 	defer func() {
 		err := conn.Close()
 		if err != nil {
@@ -149,14 +149,14 @@ type MetaDB struct {
 }
 
 func NewMetaDB(exportDir string) (*MetaDB, error) {
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", getMetaDBPath(exportDir), SQLITE_OPTIONS))
+	db, err := sql.Open("sqlite3", fmt.Sprintf("%s%s", GetMetaDBPath(exportDir), SQLITE_OPTIONS))
 	if err != nil {
 		return nil, fmt.Errorf("error while opening meta db :%w", err)
 	}
 	return &MetaDB{db: db}, nil
 }
 
-func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
+func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64, importerRole string) error {
 	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole, segmentNum)
 
 	result, err := m.db.Exec(query)
@@ -334,7 +334,7 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 	return nil
 }
 
-func (m *MetaDB) GetSegmentNumToResume() (int64, error) {
+func (m *MetaDB) GetSegmentNumToResume(importerRole string) (int64, error) {
 	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
 	row := m.db.QueryRow(query)
 	var segmentNum int64
@@ -373,7 +373,7 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	}, nil
 }
 
-func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
+func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
 	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer = %d AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
@@ -383,7 +383,7 @@ func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]Segment, error) {
 	return segmentsToBeArchived, nil
 }
 
-func (m *MetaDB) GetSegmentsToBeDeleted() ([]Segment, error) {
+func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE archived = 1 AND deleted = 0 ORDER BY segment_no;
 	predicate := "archived = 1 AND deleted = 0"
 	segmentsToBeDeleted, err := m.querySegments(predicate)
@@ -393,8 +393,8 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]Segment, error) {
 	return segmentsToBeDeleted, nil
 }
 
-func (m *MetaDB) querySegments(predicate string) ([]Segment, error) {
-	var segments []Segment
+func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
+	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)
 	rows, err := m.db.Query(query)
 	if err != nil {
@@ -413,7 +413,7 @@ func (m *MetaDB) querySegments(predicate string) ([]Segment, error) {
 		if err != nil {
 			return nil, fmt.Errorf("scan rows while fetching segments from query %s : %v", query, err)
 		}
-		segment := Segment{
+		segment := utils.Segment{
 			Num:      int(segmentNo),
 			FilePath: filePath,
 		}
@@ -477,4 +477,3 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	}
 	return nil
 }
-

@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -45,7 +46,7 @@ func init() {
 }
 
 func updateFallForwarDBExistsInMetaDB() {
-	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+	err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.FallForwarDBExists = true
 	})
 	if err != nil {
