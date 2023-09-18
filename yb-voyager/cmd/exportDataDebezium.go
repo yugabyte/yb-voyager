@@ -68,7 +68,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.TableListExportedFromSource = dbzmTableList
 		})
 		if err != nil {

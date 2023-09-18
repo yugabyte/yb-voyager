@@ -50,7 +50,7 @@ var importDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while connecting meta db: %w\n", err)
 		}
-		migrationStatus, err := metadb.GetMigrationStatusRecord()
+		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}

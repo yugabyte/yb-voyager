@@ -156,7 +156,7 @@ func NewEventSegmentCopier(dest string) *EventSegmentCopier {
 }
 
 func (m *EventSegmentCopier) getImportCount() (int, error) {
-	msr, err := metadb.GetMigrationStatusRecord()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return 0, fmt.Errorf("get migration status record: %v", err)
 	}

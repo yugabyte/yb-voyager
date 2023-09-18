@@ -359,7 +359,7 @@ func validateExportTypeFlag() {
 }
 
 func saveExportTypeInMetaDB() {
-	err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.ExportType = exportType
 	})
 	if err != nil {

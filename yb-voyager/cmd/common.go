@@ -415,7 +415,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
 
-	err = metadb.InitMigrationStatusRecord(migUUID)
+	err = metaDB.InitMigrationStatusRecord(migUUID)
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
@@ -490,7 +490,7 @@ func getCutoverStatus() string {
 	c := utils.FileOrFolderExists(cutoverTgtFpath)
 	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
 
-	migrationStatusRecord, err := metadb.GetMigrationStatusRecord()
+	migrationStatusRecord, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
@@ -508,7 +508,7 @@ func getCutoverStatus() string {
 
 func checkWithStreamingMode() (bool, error) {
 	var err error
-	migrationStatus, err := metadb.GetMigrationStatusRecord()
+	migrationStatus, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("error while fetching migration status record: %w", err)
 	}

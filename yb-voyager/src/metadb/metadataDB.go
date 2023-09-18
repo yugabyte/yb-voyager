@@ -31,7 +31,6 @@ import (
 )
 
 var (
-	metaDB                                     *MetaDB
 	QUEUE_SEGMENT_META_TABLE_NAME              = "queue_segment_meta"
 	EXPORTED_EVENTS_STATS_TABLE_NAME           = "exported_events_stats"
 	EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table"
@@ -477,3 +476,4 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	}
 	return nil
 }
+

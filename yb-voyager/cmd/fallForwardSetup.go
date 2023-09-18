@@ -46,7 +46,7 @@ func init() {
 }
 
 func updateFallForwarDBExistsInMetaDB() {
-	err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.FallForwarDBExists = true
 	})
 	if err != nil {

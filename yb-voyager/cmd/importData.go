@@ -42,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -100,7 +101,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importFileTasks := discoverFilesToImport()
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		record, err := metadb.GetMigrationStatusRecord()
+		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
@@ -129,7 +130,7 @@ func startFallforwardSynchronizeIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
-	msr, err := metadb.GetMigrationStatusRecord()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
@@ -279,7 +280,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func updateTargetConfInMigrationStatus() {
-	err := metadb.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch tconf.TargetDBType {
 		case YUGABYTEDB:
 			record.TargetDBConf = tconf.Clone()

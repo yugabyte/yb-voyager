@@ -19,13 +19,13 @@ type MigrationStatusRecord struct {
 
 const MIGRATION_STATUS_KEY = "migration_status"
 
-func UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
-	return UpdateJsonObjectInMetaDB(metaDB, MIGRATION_STATUS_KEY, updateFn)
+func(m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
+	return UpdateJsonObjectInMetaDB(m,MIGRATION_STATUS_KEY, updateFn)
 }
 
-func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
+func(m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	record := new(MigrationStatusRecord)
-	found, err := metaDB.GetJsonObject(nil, MIGRATION_STATUS_KEY, record)
+	found, err := m.GetJsonObject(nil, MIGRATION_STATUS_KEY, record)
 	if err != nil {
 		return nil, fmt.Errorf("error while getting migration status record from meta db: %w", err)
 	}
@@ -35,8 +35,8 @@ func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func InitMigrationStatusRecord(migUUID string) error {
-	return UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+func(m *MetaDB) InitMigrationStatusRecord(migUUID string) error {
+	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
