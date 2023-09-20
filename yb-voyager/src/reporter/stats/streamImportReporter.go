@@ -50,18 +50,15 @@ func NewStreamImportStatsReporter() *StreamImportStatsReporter {
 	return &StreamImportStatsReporter{}
 }
 
-func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.UUID, exportDir string) error {
+func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.UUID, metaDB *metadb.MetaDB) error {
 	s.migrationUUID = migrationUUID
 	numInserts, numUpdates, numDeletes, err := tdb.GetTotalNumOfEventsImportedByType(migrationUUID)
-	s.totalEventsImported = numInserts + numUpdates + numDeletes
 	if err != nil {
 		return fmt.Errorf("failed to fetch import stats meta info from target : %w", err)
 	}
+	s.totalEventsImported = numInserts + numUpdates + numDeletes
 	s.startTime = time.Now()
-	s.metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		return fmt.Errorf("failed to create metaDB: %w", err)
-	}
+	s.metaDB = metaDB
 	return nil
 }
 

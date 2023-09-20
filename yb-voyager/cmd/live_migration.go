@@ -61,7 +61,7 @@ func streamChanges() error {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
 	statsReporter = reporter.NewStreamImportStatsReporter()
-	err = statsReporter.Init(tdb, migrationUUID, exportDir)
+	err = statsReporter.Init(tdb, migrationUUID, metaDB)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
