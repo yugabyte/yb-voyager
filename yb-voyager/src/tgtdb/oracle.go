@@ -87,7 +87,7 @@ func (tdb *TargetOracleDB) Query(query string) (Rows, error) {
 	if err != nil {
 		return nil, fmt.Errorf("run query %q on oracle %s: %s", query, tdb.tconf.Host, err)
 	}
-	return &sqlRowsToTgtdbRowsAdapter{rows: rows}, nil
+	return &sqlRowsToTgtdbRowsAdapter{Rows: rows}, nil
 }
 
 func (tdb *TargetOracleDB) QueryRow(query string) Row {

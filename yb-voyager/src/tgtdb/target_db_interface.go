@@ -68,19 +68,11 @@ type Row interface {
 }
 
 type sqlRowsToTgtdbRowsAdapter struct {
-	rows *sql.Rows
+	*sql.Rows // Provides implementation of Scan() and Next().
 }
 
 func (s *sqlRowsToTgtdbRowsAdapter) Close() {
-	_ = s.rows.Close()
-}
-
-func (s *sqlRowsToTgtdbRowsAdapter) Next() bool {
-	return s.rows.Next()
-}
-
-func (s *sqlRowsToTgtdbRowsAdapter) Scan(dest ...interface{}) error {
-	return s.rows.Scan(dest...)
+	_ = s.Rows.Close()
 }
 
 //=============================================================
