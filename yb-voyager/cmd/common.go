@@ -370,7 +370,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
 		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags",
-		"metainfo/conf", "metainfo/ssl", "metainfo/triggers",
+		"metainfo/conf", "metainfo/ssl",
 		"temp", "temp/ora2pg_temp_dir",
 	}
 
@@ -475,21 +475,16 @@ func nameContainsCapitalLetter(name string) bool {
 }
 
 func getCutoverStatus() string {
-	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
-	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
-	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
-	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
-
-	a := utils.FileOrFolderExists(cutoverFpath)
-	b := utils.FileOrFolderExists(cutoverSrcFpath)
-	c := utils.FileOrFolderExists(cutoverTgtFpath)
-	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
-
-	migrationStatusRecord, err := GetMigrationStatusRecord()
+	msr, err := GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+		utils.ErrExit("get migration status record: %v", err)
 	}
-	ffDBExists := migrationStatusRecord.FallForwarDBExists
+
+	a := msr.IsTriggerExists("cutover")
+	b := msr.IsTriggerExists("cutover.source")
+	c := msr.IsTriggerExists("cutover.target")
+	d := msr.IsTriggerExists("fallforward.synchronize.started")
+	ffDBExists := msr.FallForwarDBExists
 	if !a {
 		return NOT_INITIATED
 	} else if !ffDBExists && a && b && c {
@@ -512,13 +507,13 @@ func checkWithStreamingMode() (bool, error) {
 }
 
 func getFallForwardStatus() string {
-	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
-	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
-	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
-
-	a := utils.FileOrFolderExists(fallforwardFPath)
-	b := utils.FileOrFolderExists(fallforwardTargetFPath)
-	c := utils.FileOrFolderExists(fallforwardFFFPath)
+	msr, err := GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	a := msr.IsTriggerExists("fallforward")
+	b := msr.IsTriggerExists("fallforward.target")
+	c := msr.IsTriggerExists("fallforward.ff")
 
 	if !a {
 		return NOT_INITIATED

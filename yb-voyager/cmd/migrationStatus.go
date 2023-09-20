@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"golang.org/x/exp/slices"
 )
 
 type MigrationStatusRecord struct {
@@ -14,6 +15,7 @@ type MigrationStatusRecord struct {
 	TargetDBConf                *tgtdb.TargetConf
 	FallForwardDBConf           *tgtdb.TargetConf
 	TableListExportedFromSource []string
+	Triggers                    []string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
@@ -42,4 +44,8 @@ func InitMigrationStatusRecord(migUUID string) error {
 		record.MigrationUUID = migUUID
 		record.ExportType = SNAPSHOT_ONLY
 	})
+}
+
+func (msr *MigrationStatusRecord) IsTriggerExists(triggerName string) bool {
+	return slices.Contains(msr.Triggers, triggerName)
 }

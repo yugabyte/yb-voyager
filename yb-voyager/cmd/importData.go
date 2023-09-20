@@ -130,7 +130,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	msr, err := GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+		utils.ErrExit("get migration status record: %v", err)
 	}
 	if !msr.FallForwarDBExists {
 		utils.PrintAndLog("No fall-forward db exists. Exiting.")
