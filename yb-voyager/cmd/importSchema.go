@@ -160,7 +160,7 @@ func importSchema() {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialised Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
 	}
 
 	callhome.PackAndSendPayload(exportDir)
@@ -234,7 +234,7 @@ func refreshMViews(conn *pgx.Conn) {
 		rows.Close()
 	}
 	if len(mviewsNotRefreshed) > 0 {
-		utils.PrintAndLog("\nNOTE: Following Materialised Views might not be refreshed - %v, Please verify and refresh them manually if required!", mviewsNotRefreshed)
+		utils.PrintAndLog("\nNOTE: Following Materialized Views might not be refreshed - %v, Please verify and refresh them manually if required!", mviewsNotRefreshed)
 	}
 }
 
