@@ -61,7 +61,7 @@ func streamChanges() error {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
 	statsReporter = reporter.NewStreamImportStatsReporter()
-	err = statsReporter.Init(tdb, migrationUUID)
+	err = statsReporter.Init(tdb, migrationUUID, metaDB)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
@@ -69,9 +69,8 @@ func streamChanges() error {
 	if !disablePb {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go updateExportedEventsStats(ctx)
 		go statsReporter.ReportStats(ctx)
-		defer finalizeStats()
+		defer statsReporter.Finalize()
 	}
 
 	eventQueue = NewEventQueue(exportDir)
@@ -152,7 +151,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		<-processingDoneChans[i]
 	}
 
-	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum)
+	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
 	if err != nil {
 		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
 	}
@@ -247,31 +246,4 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
-}
-
-func updateExportedEventsStats(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			fetchAndUpdateEventsStats()
-		}
-	}
-}
-
-func fetchAndUpdateEventsStats() {
-	totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
-	if err != nil {
-		utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
-	}
-	statsReporter.UpdateRemainingEvents(totalExportedEvents)
-}
-
-func finalizeStats() {
-	fetchAndUpdateEventsStats()
-	statsReporter.Finalize()
 }

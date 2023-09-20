@@ -25,6 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -42,7 +43,7 @@ var archiveChangesCmd = &cobra.Command{
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	var err error
-	metaDB, err = NewMetaDB(exportDir)
+	metaDB, err = metadb.NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
@@ -104,7 +105,7 @@ func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
 	return fsUtilization > d.FSUtilisationThreshold
 }
 
-func (d *EventSegmentDeleter) deleteSegment(segment Segment) error {
+func (d *EventSegmentDeleter) deleteSegment(segment utils.Segment) error {
 	if utils.FileOrFolderExists(segment.FilePath) {
 		err := os.Remove(segment.FilePath)
 		if err != nil {
@@ -148,11 +149,6 @@ type EventSegmentCopier struct {
 	Dest string
 }
 
-type Segment struct {
-	Num      int
-	FilePath string
-}
-
 func NewEventSegmentCopier(dest string) *EventSegmentCopier {
 	return &EventSegmentCopier{
 		Dest: dest,
@@ -160,7 +156,7 @@ func NewEventSegmentCopier(dest string) *EventSegmentCopier {
 }
 
 func (m *EventSegmentCopier) getImportCount() (int, error) {
-	msr, err := GetMigrationStatusRecord()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return 0, fmt.Errorf("get migration status record: %v", err)
 	}
@@ -184,7 +180,7 @@ func (m *EventSegmentCopier) ifExistsDeleteSegmentFileFromArchive(segmentNewPath
 	return nil
 }
 
-func (m *EventSegmentCopier) copySegmentFile(segment Segment, segmentNewPath string) error {
+func (m *EventSegmentCopier) copySegmentFile(segment utils.Segment, segmentNewPath string) error {
 	sourceFile, err := os.Open(segment.FilePath)
 	if err != nil {
 		return fmt.Errorf("open segment file %s : %v", segment.FilePath, err)
