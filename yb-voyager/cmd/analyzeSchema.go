@@ -228,7 +228,7 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 func reportSummary() {
 
 	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	miginfo, err := LoadMigInfo()
 	if err != nil {
 		utils.ErrExit("unable to load migration info: %s", err)
 	}
@@ -845,7 +845,7 @@ func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
 	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	miginfo, err := LoadMigInfo()
 	if err != nil {
 		utils.ErrExit("unable to load migration info: %s", err)
 	}
@@ -957,7 +957,7 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
-	miginfo, err := LoadMigInfo(exportDir)
+	miginfo, err := LoadMigInfo()
 	if err != nil {
 		utils.ErrExit("unable to load migration info: %s", err)
 	}

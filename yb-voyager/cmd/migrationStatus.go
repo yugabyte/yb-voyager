@@ -9,13 +9,13 @@ import (
 
 type MigrationStatusRecord struct {
 	MigrationUUID               string
-	SourceDBType                string
 	ExportType                  string
 	FallForwarDBExists          bool
 	TargetDBConf                *tgtdb.TargetConf
 	FallForwardDBConf           *tgtdb.TargetConf
 	TableListExportedFromSource []string
 	Triggers                    []string
+	MigInfo                     *MigInfo
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
@@ -43,6 +43,7 @@ func InitMigrationStatusRecord(migUUID string) error {
 		}
 		record.MigrationUUID = migUUID
 		record.ExportType = SNAPSHOT_ONLY
+		record.MigInfo = &MigInfo{}
 	})
 }
 

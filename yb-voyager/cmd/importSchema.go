@@ -46,7 +46,12 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		var err error
+		metaDB, err = NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
+		sourceDBType = GetSourceDBTypeFromMigInfo()
 		importSchema()
 	},
 }

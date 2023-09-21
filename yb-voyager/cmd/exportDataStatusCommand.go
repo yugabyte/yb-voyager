@@ -138,7 +138,7 @@ func getSnapshotAndChangesExportStatusRow(tableStatus *dbzm.TableExportStatus) *
 func runExportDataStatusCmd() error {
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
-	dbTypeFlag := ExtractMetaInfo(exportDir).SourceDBType
+	dbTypeFlag := GetSourceDBTypeFromMigInfo()
 	source.DBType = dbTypeFlag
 	if dbTypeFlag == "postgresql" {
 		tableMap = getMappingForTableNameVsTableFileName(dataDir)
