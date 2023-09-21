@@ -18,11 +18,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -51,20 +51,29 @@ func InitiatePrimarySwitch(action string) error {
 }
 
 func createTriggerIfNotExists(triggerName string) error {
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
-	if utils.FileOrFolderExists(triggerFPath) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		log.Errorf("creating trigger(%s): %v", triggerName, err)
+		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
+	}
+
+	if msr != nil && msr.IsTriggerExists(triggerName) {
 		utils.PrintAndLog("%s already initiated, wait for it to complete", triggerName)
 		return nil
 	}
-	file, err := os.Create(triggerFPath)
+
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		
+		if record.Triggers == nil {
+			record.Triggers = []string{triggerName}
+		} else {
+			record.Triggers = append(record.Triggers, triggerName)
+		}
+	})
 	if err != nil {
-		return fmt.Errorf("create trigger file(%s): %w", triggerFPath, err)
+		log.Errorf("creating trigger(%s): %v", triggerName, err)
+		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
 	}
-	err = file.Close()
-	if err != nil {
-		return fmt.Errorf("close trigger file(%s): %w", triggerFPath, err)
-	}
-	log.Infof("created trigger file(%s)", triggerFPath)
 	return nil
 }
 
@@ -87,8 +96,13 @@ func exitIfDBSwitchedOver(triggerName string) {
 	if !dbzm.IsMigrationInStreamingMode(exportDir) {
 		return
 	}
-	triggerFPath := filepath.Join(exportDir, "metainfo", "triggers", triggerName)
-	if utils.FileOrFolderExists(triggerFPath) {
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("checking trigger(%s): %v", triggerName, err)
+	}
+
+	if msr != nil && msr.IsTriggerExists(triggerName) {
 		utils.PrintAndLog("cutover already complete")
 		// Question: do we need to support start clean flag with cutover
 		os.Exit(0)

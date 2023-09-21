@@ -95,7 +95,8 @@ debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
 debezium.sink.ybexporter.exporter.role=%s
-debezium.sink.ybexporter.triggers.dir=%s
+# TODO: remove this directory dependency of debezium
+debezium.sink.ybexporter.triggers.dir=%s 
 `
 
 var postgresSrcConfigTemplate = `
