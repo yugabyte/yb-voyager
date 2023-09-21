@@ -99,9 +99,6 @@ func init() {
 }
 
 func registerCommonGlobalFlags(cmd *cobra.Command) {
-	BoolVar(cmd.Flags(), &source.VerboseMode, "verbose", false,
-		"enable verbose mode for the console output")
-
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 
