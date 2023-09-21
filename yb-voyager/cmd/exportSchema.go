@@ -101,14 +101,14 @@ func exportSchema() {
 
 	setSchemaIsExported(exportDir)
 
-	miginfo := &MigInfo{
+	miginfo := &metadb.MigInfo{
 		SourceDBType:    source.DBType,
 		SourceDBName:    source.DBName,
 		SourceDBSchema:  source.Schema,
 		SourceDBVersion: source.DB().GetVersion(),
 		SourceDBSid:     source.DBSid,
 		SourceTNSAlias:  source.TNSAlias,
-		exportDir:       exportDir,
+		ExportDir:       exportDir,
 	}
 	err = SaveMigInfo(miginfo)
 	if err != nil {
@@ -154,18 +154,14 @@ func clearSchemaIsExported(exportDir string) {
 	os.Remove(flagFilePath)
 }
 
-// clear and set source db type flag
-func setSourceDbType(sourceDbType string, exportDir string) {
-	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
-	for _, supportedSourceDBType := range supportedSourceDBTypes {
-		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", supportedSourceDBType))
-		os.Remove(flagFilePath)
-	}
+func setSourceDbType(sourceDbType string) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if record != nil {
+			record.MigInfo.SourceDBType = sourceDbType
+		}
+	})
 
-	flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
-	fh, err := os.Create(flagFilePath)
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("set source db type in metadb: %v", err)
 	}
-	fh.Close()
 }

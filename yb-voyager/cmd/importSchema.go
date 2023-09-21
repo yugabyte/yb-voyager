@@ -29,6 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -50,7 +51,12 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		var err error
+		metaDB, err = metadb.NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
+		sourceDBType = GetSourceDBTypeFromMigInfo()
 		importSchema()
 	},
 }

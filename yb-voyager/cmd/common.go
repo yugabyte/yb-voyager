@@ -389,8 +389,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	setSourceDbType(dbType, projectDirPath)
-
 	schemaObjectList := utils.GetSchemaObjectList(dbType)
 	// creating subdirs under schema dir
 	for _, schemaObjectType := range schemaObjectList {
@@ -418,6 +416,8 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+
+	setSourceDbType(dbType)
 }
 
 func getMigrationUUIDFilePath(exportDir string) string {

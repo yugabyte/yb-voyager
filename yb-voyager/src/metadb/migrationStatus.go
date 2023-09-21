@@ -17,6 +17,17 @@ type MigrationStatusRecord struct {
 	FallForwardDBConf           *tgtdb.TargetConf
 	TableListExportedFromSource []string
 	Triggers                    []string
+	MigInfo                     *MigInfo
+}
+
+type MigInfo struct {
+	SourceDBType    string
+	SourceDBName    string
+	SourceDBSchema  string
+	SourceDBVersion string
+	SourceDBSid     string
+	SourceTNSAlias  string
+	ExportDir       string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
@@ -44,6 +55,7 @@ func (m *MetaDB) InitMigrationStatusRecord(migUUID string) error {
 		}
 		record.MigrationUUID = migUUID
 		record.ExportType = utils.SNAPSHOT_ONLY
+		record.MigInfo = &MigInfo{}
 	})
 }
 

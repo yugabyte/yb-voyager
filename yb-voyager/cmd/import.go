@@ -302,8 +302,8 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 	if importObjectsString == "" {
 		return
 	}
-	//We cannot access sourceDBType variable at this point, but exportDir has been validated
-	availableObjects := utils.GetSchemaObjectList(ExtractMetaInfo(exportDir).SourceDBType)
+
+	availableObjects := utils.GetSchemaObjectList(GetSourceDBTypeFromMigInfo())
 	objectList := utils.CsvStringToSlice(importObjectsString)
 	for _, object := range objectList {
 		if !slices.Contains(availableObjects, strings.ToUpper(object)) {

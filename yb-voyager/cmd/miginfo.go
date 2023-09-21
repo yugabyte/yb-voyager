@@ -16,12 +16,11 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type MigInfo struct {
@@ -34,42 +33,38 @@ type MigInfo struct {
 	exportDir       string
 }
 
-func SaveMigInfo(miginfo *MigInfo) error {
-
-	file, err := json.MarshalIndent(miginfo, "", " ")
+func SaveMigInfo(miginfo *metadb.MigInfo) error {
+	log.Infof("saving miginfo(%+v) in metadb", miginfo)
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.MigInfo = miginfo
+	})
 	if err != nil {
-		return fmt.Errorf("marshal miginfo: %w", err)
+		return fmt.Errorf("update miginfo in migration status record: %w", err)
 	}
-
-	migInfoFilePath := filepath.Join(miginfo.exportDir, META_INFO_DIR_NAME, "miginfo.json")
-
-	err = os.WriteFile(migInfoFilePath, file, 0644)
-	if err != nil {
-		return fmt.Errorf("write to %q: %w", migInfoFilePath, err)
-	}
-
 	return nil
 }
 
-func LoadMigInfo(exportDir string) (*MigInfo, error) {
-
-	migInfo := &MigInfo{}
-
-	migInfoFilePath := filepath.Join(exportDir, META_INFO_DIR_NAME, "miginfo.json")
-
-	log.Infof("loading db meta info from %q", migInfoFilePath)
-
-	migInfoJson, err := os.ReadFile(migInfoFilePath)
+func LoadMigInfo() (*metadb.MigInfo, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("read %q: %w", migInfoFilePath, err)
+		log.Errorf("loading miginfo: %v", err)
+		return nil, fmt.Errorf("loading miginfo: %w", err)
 	}
 
-	err = json.Unmarshal(migInfoJson, &migInfo)
-	if err != nil {
-		return nil, fmt.Errorf("unmarshal miginfo: %w", err)
+	if msr == nil {
+		panic("migration status record's miginfo field is nil")
 	}
 
-	migInfo.exportDir = exportDir
-	log.Infof("parsed source db meta info: %+v", migInfo)
-	return migInfo, nil
+	msr.MigInfo.ExportDir = exportDir
+	log.Infof("loaded miginfo from metadb: %+v", msr.MigInfo)
+	return msr.MigInfo, nil
+}
+
+// source db type
+func GetSourceDBTypeFromMigInfo() string {
+	miginfo, err := LoadMigInfo()
+	if err != nil {
+		utils.ErrExit("get source db type: loading miginfo: %v", err)
+	}
+	return miginfo.SourceDBType
 }
