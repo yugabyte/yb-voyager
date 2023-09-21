@@ -302,7 +302,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
 		tconf.Schema = strings.ToUpper(tconf.Schema)
 	}
-	err := retrieveMigrationUUID(exportDir)
+	err := RetrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

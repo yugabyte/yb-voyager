@@ -69,7 +69,7 @@ var importObjectsInStraightOrder bool
 var flagRefreshMViews bool
 
 func importSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := RetrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

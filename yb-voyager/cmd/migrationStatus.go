@@ -3,7 +3,9 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
 )
 
@@ -36,12 +38,12 @@ func GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func InitMigrationStatusRecord(migUUID string) error {
+func InitMigrationStatusRecord() error {
 	return UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
-		record.MigrationUUID = migUUID
+		record.MigrationUUID = uuid.New().String()
 		record.ExportType = SNAPSHOT_ONLY
 		record.MigInfo = &MigInfo{}
 	})
@@ -49,4 +51,19 @@ func InitMigrationStatusRecord(migUUID string) error {
 
 func (msr *MigrationStatusRecord) IsTriggerExists(triggerName string) bool {
 	return slices.Contains(msr.Triggers, triggerName)
+}
+
+// sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
+func RetrieveMigrationUUID() error {
+	msr, err := GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("retrieving migration status record: %w", err)
+	}
+	if msr == nil {
+		return fmt.Errorf("migration status record not found")
+	}
+
+	migrationUUID = uuid.MustParse(msr.MigrationUUID)
+	utils.PrintAndLog("migrationID: %s", migrationUUID)
+	return nil
 }

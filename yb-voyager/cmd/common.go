@@ -32,7 +32,6 @@ import (
 
 	"github.com/fatih/color"
 	_ "github.com/godror/godror"
-	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/samber/lo"
@@ -296,7 +295,7 @@ func displayExportedRowCountSnapshot() {
 func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 	fmt.Printf("snapshot and changes import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := RetrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -338,7 +337,7 @@ func displayImportedRowCountSnapshotAndChanges(tasks []*ImportFileTask) {
 func displayImportedRowCountSnapshot(tasks []*ImportFileTask) {
 	fmt.Printf("import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := RetrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -398,71 +397,18 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
-	migUUID, err := generateAndStoreMigrationUUIDIfRequired(exportDir)
-	if err != nil {
-		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
-	}
 
-	err = createAndInitMetaDBIfRequired(exportDir)
+	err := createAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
 
-	err = InitMigrationStatusRecord(migUUID)
+	err = InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
 	setSourceDbType(dbType)
-}
-
-func getMigrationUUIDFilePath(exportDir string) string {
-	return filepath.Join(exportDir, "metainfo", "migration_uuid")
-}
-
-func generateAndStoreMigrationUUIDIfRequired(exportDir string) (string, error) {
-	uuidFilePath := getMigrationUUIDFilePath(exportDir)
-	var migUUID uuid.UUID
-	var err error
-	if !utils.FileOrFolderExists(uuidFilePath) {
-		migUUID, err = uuid.NewUUID()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate uuid :%w", err)
-		}
-		err = storeMigrationUUID(uuidFilePath, migUUID)
-		if err != nil {
-			return "", fmt.Errorf("failed to store UUID: %w", err)
-		}
-	}
-	// convert uuid.UUID to string
-	return migUUID.String(), nil
-}
-
-func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
-	file, err := os.Create(uuidFilePath)
-	if err != nil {
-		return fmt.Errorf(" creating file: %s, error: %s", uuidFilePath, err)
-	}
-	defer file.Close()
-	_, err = file.WriteString(uuid.String())
-	if err != nil {
-		return fmt.Errorf(" writing to file: %s, error: %s", uuidFilePath, err)
-	}
-	return nil
-}
-
-// sets the global variable migrationUUID after retrieving it from exportDir
-func retrieveMigrationUUID(exportDir string) error {
-	if migrationUUID != uuid.Nil {
-		return nil
-	}
-	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
-	if err != nil {
-		return fmt.Errorf("failed to read file :%w", err)
-	}
-	migrationUUID = uuid.MustParse(string(uuidBytes))
-	utils.PrintAndLog("migrationID: %s", migrationUUID)
-	return nil
 }
 
 func nameContainsCapitalLetter(name string) bool {
