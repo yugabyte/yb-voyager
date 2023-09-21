@@ -3,6 +3,7 @@ package metadb
 import (
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
@@ -48,12 +49,12 @@ func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func (m *MetaDB) InitMigrationStatusRecord(migUUID string) error {
+func (m *MetaDB) InitMigrationStatusRecord() error {
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
-		record.MigrationUUID = migUUID
+		record.MigrationUUID = uuid.New().String()
 		record.ExportType = utils.SNAPSHOT_ONLY
 		record.MigInfo = &MigInfo{}
 	})

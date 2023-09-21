@@ -988,7 +988,7 @@ func analyzeSchemaInternal() utils.Report {
 }
 
 func analyzeSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

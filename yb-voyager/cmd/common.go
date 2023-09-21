@@ -301,7 +301,7 @@ func displayExportedRowCountSnapshot() {
 func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("snapshot and changes import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -343,7 +343,7 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -402,17 +402,13 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
-	migUUID, err := generateAndStoreMigrationUUIDIfRequired(exportDir)
-	if err != nil {
-		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
-	}
 
-	err = metadb.CreateAndInitMetaDBIfRequired(exportDir)
+	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
 
-	err = metaDB.InitMigrationStatusRecord(migUUID)
+	err = metaDB.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
@@ -420,51 +416,17 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	setSourceDbType(dbType)
 }
 
-func getMigrationUUIDFilePath(exportDir string) string {
-	return filepath.Join(exportDir, "metainfo", "migration_uuid")
-}
-
-func generateAndStoreMigrationUUIDIfRequired(exportDir string) (string, error) {
-	uuidFilePath := getMigrationUUIDFilePath(exportDir)
-	var migUUID uuid.UUID
-	var err error
-	if !utils.FileOrFolderExists(uuidFilePath) {
-		migUUID, err = uuid.NewUUID()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate uuid :%w", err)
-		}
-		err = storeMigrationUUID(uuidFilePath, migUUID)
-		if err != nil {
-			return "", fmt.Errorf("failed to store UUID: %w", err)
-		}
-	}
-	// convert uuid.UUID to string
-	return migUUID.String(), nil
-}
-
-func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
-	file, err := os.Create(uuidFilePath)
+// sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
+func retrieveMigrationUUID() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf(" creating file: %s, error: %s", uuidFilePath, err)
+		return fmt.Errorf("retrieving migration status record: %w", err)
 	}
-	defer file.Close()
-	_, err = file.WriteString(uuid.String())
-	if err != nil {
-		return fmt.Errorf(" writing to file: %s, error: %s", uuidFilePath, err)
+	if msr == nil {
+		return fmt.Errorf("migration status record not found")
 	}
-	return nil
-}
 
-// sets the global variable migrationUUID after retrieving it from exportDir
-func retrieveMigrationUUID(exportDir string) error {
-	if migrationUUID != uuid.Nil {
-		return nil
-	}
-	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
-	if err != nil {
-		return fmt.Errorf("failed to read file :%w", err)
-	}
-	migrationUUID = uuid.MustParse(string(uuidBytes))
+	migrationUUID = uuid.MustParse(msr.MigrationUUID)
 	utils.PrintAndLog("migrationID: %s", migrationUUID)
 	return nil
 }
