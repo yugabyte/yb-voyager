@@ -47,7 +47,7 @@ type Source struct {
 	SSLTrustStorePassword string
 	Uri                   string
 	NumConnections        int
-	VerboseMode           utils.BoolStr
+	VerboseMode           bool
 	TableList             string
 	ExcludeTableList      string
 	UseOrafce             utils.BoolStr

@@ -78,11 +78,9 @@ func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
 
-	BoolVar(cmd.Flags(), &tconf.VerboseMode, "verbose", false,
-		"verbose mode for some extra details during execution of command")
-
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"If set, this flag will ignore errors and continue with the import")
+	tconf.VerboseMode = bool(VerboseMode)
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {

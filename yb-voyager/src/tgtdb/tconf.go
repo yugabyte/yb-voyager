@@ -42,7 +42,7 @@ type TargetConf struct {
 	Uri                  string        `json:"uri"`
 	ContinueOnError      utils.BoolStr `json:"continue_on_error"`
 	IgnoreIfExists       utils.BoolStr `json:"ignore_if_exists"`
-	VerboseMode          utils.BoolStr `json:"verbose_mode"`
+	VerboseMode          bool `json:"verbose_mode"`
 	TableList            string        `json:"table_list"`
 	ExcludeTableList     string        `json:"exclude_table_list"`
 	ImportMode           bool          `json:"import_mode"`

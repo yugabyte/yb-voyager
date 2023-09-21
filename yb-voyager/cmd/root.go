@@ -37,6 +37,7 @@ var (
 	startClean    utils.BoolStr
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
+	VerboseMode  utils.BoolStr
 )
 
 var rootCmd = &cobra.Command{
@@ -99,6 +100,9 @@ func init() {
 }
 
 func registerCommonGlobalFlags(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &VerboseMode, "verbose", false,
+		"verbose mode for some extra details during execution of command")
+
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 
