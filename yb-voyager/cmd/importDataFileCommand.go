@@ -40,7 +40,7 @@ var (
 	delimiter             string
 	dataDir               string
 	fileTableMapping      string
-	hasHeader             bool
+	hasHeader             utils.BoolStr
 	supportedFileFormats  = []string{datafile.CSV, datafile.TEXT}
 	fileOpts              string
 	escapeChar            string
@@ -87,7 +87,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 		FileFormat:   fileFormat,
 		DataFileList: dataFileList,
 		Delimiter:    delimiter,
-		HasHeader:    hasHeader,
+		HasHeader:    bool(hasHeader),
 		ExportDir:    exportDir,
 		NullString:   nullString,
 	}
@@ -375,7 +375,7 @@ func init() {
 	if err != nil {
 		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
 	}
-	importDataFileCmd.Flags().BoolVar(&hasHeader, "has-header", false,
+	BoolVar(importDataFileCmd.Flags(), &hasHeader, "has-header", false,
 		"true - if first line of data file is a list of columns for rows (default false)\n"+
 			"(Note: only works for csv file type)")
 

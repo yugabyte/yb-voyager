@@ -25,7 +25,7 @@ import (
 )
 
 var moveDestination string
-var deleteSegments bool
+var deleteSegments utils.BoolStr
 var utilizationThreshold int
 
 var archiveCmd = &cobra.Command{
@@ -44,7 +44,7 @@ func registerCommonArchiveFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&moveDestination, "move-to", "",
 		"destination to move exported data to")
 
-	cmd.Flags().BoolVar(&deleteSegments, "delete", false,
+	BoolVar(cmd.Flags(), &deleteSegments, "delete", false,
 		"delete exported data after moving it to destination, default is false")
 
 	cmd.Flags().IntVar(&utilizationThreshold, "fs-utilization-threshold", 70,

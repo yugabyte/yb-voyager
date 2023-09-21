@@ -118,10 +118,10 @@ func init() {
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
 	registerSourceDBConnFlags(exportSchemaCmd)
-	exportSchemaCmd.Flags().BoolVar(&source.UseOrafce, "use-orafce", true,
+	BoolVar(exportSchemaCmd.Flags(), &source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")
 
-	exportSchemaCmd.Flags().BoolVar(&source.CommentsOnObjects, "comments-on-objects", false,
+	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
 }
 

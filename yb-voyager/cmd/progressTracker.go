@@ -59,7 +59,7 @@ func (pt *ProgressTracker) UpdateProgress(status *dbzm.ExportStatus) {
 		// Start new progress-bar.
 		pt.inProgressTableSno = inProgressTableSno
 		pt.inProgressQualifiedTableName = status.GetQualifiedTableName(pt.inProgressTableSno)
-		pt.pb = pbreporter.NewExportPB(pt.mpbProgress, pt.inProgressQualifiedTableName, disablePb)
+		pt.pb = pbreporter.NewExportPB(pt.mpbProgress, pt.inProgressQualifiedTableName, bool(disablePb))
 		pt.pb.SetTotalRowCount(pt.totalRowCount[pt.inProgressQualifiedTableName], false)
 	}
 	exportedRowCount := status.GetTableExportedRowCount(pt.inProgressTableSno)

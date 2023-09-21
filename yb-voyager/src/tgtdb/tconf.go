@@ -23,38 +23,38 @@ import (
 )
 
 type TargetConf struct {
-	TargetDBType         string `json:"target_db_type"`
-	Host                 string `json:"host"`
-	Port                 int    `json:"port"`
-	User                 string `json:"user"`
-	Password             string `json:"password"`
-	DBName               string `json:"db_name"`
-	Schema               string `json:"schema"`
-	SSLMode              string `json:"ssl_mode"`
-	SSLCertPath          string `json:"ssl_cert_path"`
-	SSLKey               string `json:"ssl_key"`
-	SSLRootCert          string `json:"ssl_root_cert"`
-	SSLCRL               string `json:"ssl_crl"`
-	SSLQueryString       string `json:"ssl_query_string"`
-	DBSid                string `json:"db_sid"`
-	TNSAlias             string `json:"tns_alias"`
-	OracleHome           string `json:"oracle_home"`
-	Uri                  string `json:"uri"`
-	ContinueOnError      bool   `json:"continue_on_error"`
-	IgnoreIfExists       bool   `json:"ignore_if_exists"`
-	VerboseMode          bool   `json:"verbose_mode"`
-	TableList            string `json:"table_list"`
-	ExcludeTableList     string `json:"exclude_table_list"`
-	ImportMode           bool   `json:"import_mode"`
-	ImportObjects        string `json:"import_objects"`
-	ExcludeImportObjects string `json:"exclude_import_objects"`
-	DBVersion            string `json:"db_version"`
+	TargetDBType         string        `json:"target_db_type"`
+	Host                 string        `json:"host"`
+	Port                 int           `json:"port"`
+	User                 string        `json:"user"`
+	Password             string        `json:"password"`
+	DBName               string        `json:"db_name"`
+	Schema               string        `json:"schema"`
+	SSLMode              string        `json:"ssl_mode"`
+	SSLCertPath          string        `json:"ssl_cert_path"`
+	SSLKey               string        `json:"ssl_key"`
+	SSLRootCert          string        `json:"ssl_root_cert"`
+	SSLCRL               string        `json:"ssl_crl"`
+	SSLQueryString       string        `json:"ssl_query_string"`
+	DBSid                string        `json:"db_sid"`
+	TNSAlias             string        `json:"tns_alias"`
+	OracleHome           string        `json:"oracle_home"`
+	Uri                  string        `json:"uri"`
+	ContinueOnError      utils.BoolStr `json:"continue_on_error"`
+	IgnoreIfExists       utils.BoolStr `json:"ignore_if_exists"`
+	VerboseMode          utils.BoolStr `json:"verbose_mode"`
+	TableList            string        `json:"table_list"`
+	ExcludeTableList     string        `json:"exclude_table_list"`
+	ImportMode           bool          `json:"import_mode"`
+	ImportObjects        string        `json:"import_objects"`
+	ExcludeImportObjects string        `json:"exclude_import_objects"`
+	DBVersion            string        `json:"db_version"`
 
-	TargetEndpoints            string `json:"target_endpoints"`
-	UsePublicIP                bool   `json:"use_public_ip"`
-	EnableUpsert               bool   `json:"enable_upsert"`
-	DisableTransactionalWrites bool   `json:"disable_transactional_writes"`
-	Parallelism                int    `json:"parallelism"`
+	TargetEndpoints            string        `json:"target_endpoints"`
+	UsePublicIP                utils.BoolStr `json:"use_public_ip"`
+	EnableUpsert               utils.BoolStr `json:"enable_upsert"`
+	DisableTransactionalWrites utils.BoolStr `json:"disable_transactional_writes"`
+	Parallelism                int           `json:"parallelism"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

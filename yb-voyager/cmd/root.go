@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
@@ -33,7 +34,7 @@ import (
 var (
 	cfgFile       string
 	exportDir     string
-	startClean    bool
+	startClean    utils.BoolStr
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
 )
@@ -98,7 +99,7 @@ func init() {
 }
 
 func registerCommonGlobalFlags(cmd *cobra.Command) {
-	cmd.PersistentFlags().BoolVar(&source.VerboseMode, "verbose", false,
+	BoolVar(cmd.Flags(), &source.VerboseMode, "verbose", false,
 		"enable verbose mode for the console output")
 
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
@@ -107,7 +108,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
-	cmd.PersistentFlags().BoolVar(&callhome.SendDiagnostics, "send-diagnostics", true,
+	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to Yugabyte.")
 }
 
@@ -197,4 +198,14 @@ func GetCommandID(c *cobra.Command) string {
 		}
 	}
 	return ""
+}
+
+func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, usage string) {
+	*p = utils.BoolStr(value)
+	flagSet.AddFlag(&pflag.Flag{
+		Name:     name,
+		Usage:    usage,
+		Value:    p,
+		DefValue: fmt.Sprintf("%t", value),
+	})
 }

@@ -27,7 +27,7 @@ import (
 )
 
 var sourceDBType string
-var enableOrafce bool
+var enableOrafce utils.BoolStr
 var importType string
 
 // tconf struct will be populated by CLI arguments parsing
@@ -75,13 +75,13 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&startClean, "start-clean", false,
+	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
 
-	cmd.Flags().BoolVar(&tconf.VerboseMode, "verbose", false,
+	BoolVar(cmd.Flags(), &tconf.VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
 
-	cmd.Flags().BoolVar(&tconf.ContinueOnError, "continue-on-error", false,
+	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"If set, this flag will ignore errors and continue with the import")
 }
 
@@ -172,7 +172,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 }
 
 func registerImportDataFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"list of tables to exclude while importing data (ignored if --table-list is used)")
@@ -191,10 +191,10 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
-	cmd.Flags().BoolVar(&tconf.EnableUpsert, "enable-upsert", true,
+	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")
-	cmd.Flags().BoolVar(&tconf.UsePublicIP, "use-public-ip", false,
+	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
 		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
 			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
@@ -203,13 +203,13 @@ func registerImportDataFlags(cmd *cobra.Command) {
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
 			"Note: use-public-ip flag will be ignored if this is used.")
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
-	cmd.Flags().BoolVar(&tconf.DisableTransactionalWrites, "disable-transactional-writes", false,
+	BoolVar(cmd.Flags(), &tconf.DisableTransactionalWrites, "disable-transactional-writes", false,
 		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
 	cmd.Flags().MarkHidden("disable-transactional-writes")
 
-	cmd.Flags().BoolVar(&truncateSplits, "truncate-splits", true,
+	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
 		"true - to truncate splits after importing\n"+
 			"false - to not truncate splits after importing (required for debugging)")
 	cmd.Flags().MarkHidden("truncate-splits")
@@ -220,16 +220,16 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"list of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-list", "",
 		"list of schema object types to exclude while importing schema (ignored if --object-list is used)")
-	cmd.Flags().BoolVar(&importObjectsInStraightOrder, "straight-order", false,
+	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"If set, objects will be imported in the order specified with the --object-list flag (default false)")
-	cmd.Flags().BoolVar(&flagPostImportData, "post-import-data", false,
+	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
-	cmd.Flags().BoolVar(&tconf.IgnoreIfExists, "ignore-exist", false,
+	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"true - to ignore errors if object already exists\n"+
 			"false - throw those errors to the standard output (default false)")
-	cmd.Flags().BoolVar(&flagRefreshMViews, "refresh-mviews", false,
+	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
 		"If set, refreshes the materialised views on target during post import data phase (default false)")
-	cmd.Flags().BoolVar(&enableOrafce, "enable-orafce", true,
+	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"true - to enable Orafce extension on target(if source db type is Oracle)")
 }
 

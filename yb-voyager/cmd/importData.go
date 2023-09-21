@@ -53,7 +53,7 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits bool                                    // to truncate *.D splits after import
+var truncateSplits utils.BoolStr                                    // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
@@ -360,7 +360,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 		poolSize := tconf.Parallelism * 2
-		progressReporter := NewImportDataProgressReporter(disablePb)
+		progressReporter := NewImportDataProgressReporter(bool(disablePb))
 		for _, task := range pendingTasks {
 			// The code can produce `poolSize` number of batches at a time. But, it can consume only
 			// `parallelism` number of batches at a time.
@@ -908,7 +908,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			// pg_dump generates `CREATE SCHEMA public;` in the schemas.sql. Because the `public`
 			// schema already exists on the target YB db, the create schema statement fails with
 			// "already exists" error. Ignore the error.
-			if tconf.IgnoreIfExists || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
+			if bool(tconf.IgnoreIfExists) || strings.EqualFold(strings.Trim(sqlInfo.stmt, " \n"), "CREATE SCHEMA public;") {
 				err = nil
 			}
 		}

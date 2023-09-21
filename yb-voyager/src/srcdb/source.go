@@ -17,6 +17,8 @@ package srcdb
 
 import (
 	"strings"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Source struct {
@@ -45,11 +47,11 @@ type Source struct {
 	SSLTrustStorePassword string
 	Uri                   string
 	NumConnections        int
-	VerboseMode           bool
+	VerboseMode           utils.BoolStr
 	TableList             string
 	ExcludeTableList      string
-	UseOrafce             bool
-	CommentsOnObjects     bool
+	UseOrafce             utils.BoolStr
+	CommentsOnObjects     utils.BoolStr
 
 	sourceDB SourceDB
 }

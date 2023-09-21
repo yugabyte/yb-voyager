@@ -251,7 +251,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)
-	exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, disablePb)
+	exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, bool(disablePb))
 
 	utils.WaitGroup.Wait() // waiting for the dump and progress bars to complete
 	if ctx.Err() != nil {
