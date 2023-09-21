@@ -28,7 +28,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosuri/uilive"
 	"github.com/samber/lo"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type StreamImportStatsReporter struct {
@@ -41,20 +42,19 @@ type StreamImportStatsReporter struct {
 	remainingEvents        int64
 	estimatedTimeToCatchUp time.Duration
 	uitable                *uilive.Writer
+	metaDB                 *metadb.MetaDB
 }
 
 func NewStreamImportStatsReporter() *StreamImportStatsReporter {
 	return &StreamImportStatsReporter{}
 }
 
-func (s *StreamImportStatsReporter) Init(tdb tgtdb.TargetDB, migrationUUID uuid.UUID) error {
+func (s *StreamImportStatsReporter) Init(migrationUUID uuid.UUID, metaDB *metadb.MetaDB,
+	numInserts, numUpdates, numDeletes int64) error {
 	s.migrationUUID = migrationUUID
-	numInserts, numUpdates, numDeletes, err := tdb.GetTotalNumOfEventsImportedByType(migrationUUID)
 	s.totalEventsImported = numInserts + numUpdates + numDeletes
-	if err != nil {
-		return fmt.Errorf("failed to fetch import stats meta info from target : %w", err)
-	}
 	s.startTime = time.Now()
+	s.metaDB = metaDB
 	return nil
 }
 
@@ -96,6 +96,7 @@ func (s *StreamImportStatsReporter) ReportStats(ctx context.Context) {
 func (s *StreamImportStatsReporter) refreshStats() {
 	elapsedTime := math.Round(time.Since(s.startTime).Minutes()*100) / 100
 	s.slideWindow()
+	s.UpdateRemainingEvents()
 	fmt.Fprint(seperator1, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
 	fmt.Fprint(headerRow, color.GreenString("| %-30s | %30s |\n", "Metric", "Value"))
 	fmt.Fprint(seperator2, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
@@ -144,9 +145,13 @@ func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int
 	return lo.Sum(s.eventsSlidingWindow[1:windowSize]) / n
 }
 
-func (s *StreamImportStatsReporter) UpdateRemainingEvents(totalExportedEvents int64) {
+func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
+	totalExportedEvents, _, err := s.metaDB.GetTotalExportedEvents(time.Now().String())
+	if err != nil {
+		utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+	}
 	s.remainingEvents = totalExportedEvents - s.totalEventsImported
 	lastMinIngestionRate := s.getIngestionRateForLastNMinutes(1)
 	if lastMinIngestionRate > 0 {

@@ -39,8 +39,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -78,7 +80,7 @@ var importDataCmd = &cobra.Command{
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	var err error
-	metaDB, err = NewMetaDB(exportDir)
+	metaDB, err = metadb.NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
@@ -99,17 +101,17 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importFileTasks := discoverFilesToImport()
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		record, err := GetMigrationStatusRecord()
+		record, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
 		importType = record.ExportType
-		identityColumnsMetaDBKey = TARGET_DB_IDENTITY_COLUMNS_KEY
+		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
 		updateFallForwarDBExistsInMetaDB()
-		identityColumnsMetaDBKey = FF_DB_IDENTITY_COLUMNS_KEY
+		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
@@ -128,7 +130,7 @@ func startFallforwardSynchronizeIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
-	msr, err := GetMigrationStatusRecord()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
@@ -278,7 +280,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 }
 
 func updateTargetConfInMigrationStatus() {
-	err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch tconf.TargetDBType {
 		case YUGABYTEDB:
 			record.TargetDBConf = tconf.Clone()
@@ -383,12 +385,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
-		displayImportedRowCountSnapshot(importFileTasks)
+		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			displayImportedRowCountSnapshot(importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks)
 			color.Blue("streaming changes to target DB...")
-			err = streamChanges()
+			err = streamChanges(state)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
@@ -409,7 +411,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
-			displayImportedRowCountSnapshotAndChanges(importFileTasks)
+			displayImportedRowCountSnapshotAndChanges(state, importFileTasks)
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
@@ -419,7 +421,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
-			displayImportedRowCountSnapshot(importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
 	}
 

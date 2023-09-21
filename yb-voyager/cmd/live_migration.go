@@ -48,20 +48,24 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges() error {
+func streamChanges(state *ImportDataState) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
-	err := tdb.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), lo.Keys(TableToColumnNames))
+	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), lo.Keys(TableToColumnNames))
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
-	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
+	eventChannelsMetaInfo, err := state.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
+	numInserts, numUpdates, numDeletes, err := state.GetTotalNumOfEventsImportedByType(migrationUUID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch import stats meta by type: %w", err)
+	}
 	statsReporter = reporter.NewStreamImportStatsReporter()
-	err = statsReporter.Init(tdb, migrationUUID)
+	err = statsReporter.Init(migrationUUID, metaDB, numInserts, numUpdates, numDeletes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
@@ -69,9 +73,8 @@ func streamChanges() error {
 	if !disablePb {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		go updateExportedEventsStats(ctx)
 		go statsReporter.ReportStats(ctx)
-		defer finalizeStats()
+		defer statsReporter.Finalize()
 	}
 
 	eventQueue = NewEventQueue(exportDir)
@@ -103,7 +106,13 @@ func streamChanges() error {
 	return nil
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
+func streamChangesFromSegment(
+	segment *EventQueueSegment,
+	evChans []chan *tgtdb.Event,
+	processingDoneChans []chan bool,
+	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
+	statsReporter *reporter.StreamImportStatsReporter) error {
+
 	err := segment.Open()
 	if err != nil {
 		return err
@@ -152,7 +161,7 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 		<-processingDoneChans[i]
 	}
 
-	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum)
+	err = metaDB.MarkEventQueueSegmentAsProcessed(segment.SegmentNum, importerRole)
 	if err != nil {
 		return fmt.Errorf("error marking segment %s as processed: %v", segment.FilePath, err)
 	}
@@ -247,31 +256,4 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
-}
-
-func updateExportedEventsStats(ctx context.Context) {
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			fetchAndUpdateEventsStats()
-		}
-	}
-}
-
-func fetchAndUpdateEventsStats() {
-	totalExportedEvents, _, err := metaDB.GetTotalExportedEvents(time.Now().String())
-	if err != nil {
-		utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
-	}
-	statsReporter.UpdateRemainingEvents(totalExportedEvents)
-}
-
-func finalizeStats() {
-	fetchAndUpdateEventsStats()
-	statsReporter.Finalize()
 }

@@ -184,8 +184,8 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
 		"maximum number of rows in each batch generated during import.")
-	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. "+
-	"Otherwise, it fall back to using twice the number of nodes in the cluster"
+	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
+		"Otherwise, it fall back to using twice the number of nodes in the cluster"
 	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
 		defaultParallelismMsg = ""
 	}

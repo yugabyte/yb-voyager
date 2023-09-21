@@ -33,6 +33,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -67,7 +68,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
-		err := UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.TableListExportedFromSource = dbzmTableList
 		})
 		if err != nil {
@@ -101,7 +102,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		SourceDBType:   source.DBType,
 		ExporterRole:   exporterRole,
 		ExportDir:      absExportDir,
-		MetadataDBPath: getMetaDBPath(absExportDir),
+		MetadataDBPath: metadb.GetMetaDBPath(absExportDir),
 		Host:           source.Host,
 		Port:           source.Port,
 		Username:       source.User,
