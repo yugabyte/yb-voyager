@@ -189,7 +189,7 @@ run_sqlplus_as_sys() {
 run_sqlplus_as_schema_owner() {
     db_name=$1
     sql=$2
-    conn_string="dt/dt@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
     echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
