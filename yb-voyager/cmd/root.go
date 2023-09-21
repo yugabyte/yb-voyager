@@ -106,7 +106,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
-		"enable or disable the 'send-diagnostics' feature that sends analytics data to Yugabyte.")
+		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.")
 }
 
 // initConfig reads in config file and ENV variables if set.

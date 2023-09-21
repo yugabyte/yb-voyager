@@ -175,7 +175,7 @@ func startFallforwardSynchronizeIfRequired() {
 		cmd = append(cmd, "--yes")
 	}
 	if disablePb {
-		cmd = append(cmd, "--disable-pb")
+		cmd = append(cmd, "--disable-pb=true")
 	}
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
