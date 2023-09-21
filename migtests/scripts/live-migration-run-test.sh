@@ -140,7 +140,7 @@ main() {
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data --refresh-mviews
+	import_schema --post-import-data true --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 

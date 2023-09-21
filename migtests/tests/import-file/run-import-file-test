@@ -45,7 +45,7 @@ main() {
 	export CSV_READER_MAX_BUFFER_SIZE_BYTES=300
 	step "Import data file: FY2021_Survey.csv -> survey"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
-		--file-table-map "FY2021_Survey.csv:survey" --has-header --start-clean
+		--file-table-map "FY2021_Survey.csv:survey" --has-header=true --start-clean true
 
 	step "Import data file: SMSA.txt -> smsa"
 	import_data_file --data-dir ${TEST_DIR} --format text --delimiter '\t' \
@@ -55,12 +55,12 @@ main() {
 	step "Import data file: FY2021_Survey.csv -> survey2 and FY2021_Survey.csv -> survey3"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter ',' \
 		--file-table-map "FY2021_Survey.csv:survey2,FY2021_Survey.csv:survey3" \
-		--has-header --batch-size 1000
+		--has-header=true --batch-size 1000
 
 	# Test for --has-header with --batch-size for a table having bigint and varchar columns
 	step "Import data file: accounts_data.csv -> accounts"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\t' \
-			--file-table-map "accounts_data.csv:accounts" --has-header --batch-size 10000 --null-string "\N"
+			--file-table-map "accounts_data.csv:accounts" --has-header=true --batch-size 10000 --null-string "\N"
 
 	# Next 4 tests are right now supported with a special csv format i.e. without new line
 	# for complete support of csv with newline, track this issue - https://github.com/yugabyte/yb-voyager/issues/748
@@ -138,7 +138,7 @@ main() {
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\b' \
-			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header
+			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header true
 
 	# Test for txt file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace_text.txt -> test_delimiter_backspace_text"
@@ -163,7 +163,7 @@ main() {
 	# Test csv with header import from s3
 	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header
+			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header true
 
 	# Test larger import from s3
 	step "Import large data file from S3: volume.text-> s3_volume"
@@ -220,12 +220,12 @@ main() {
 	# Test csv with header import from GCS buckets
 	step "Import data file from GCS (csv): csv_with_header_test.csv -> gcs_csv_with_header"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header
+			--file-table-map "csv_with_header_test.csv:gcs_csv_with_header" --has-header true
 
 	# Test larger import from GCS buckets
 	step "Import large data file from GCS: volume.csv-> gcs_volume"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
-			--file-table-map "volume.csv:gcs_volume" --has-header --batch-size 10000 --null-string "\N"
+			--file-table-map "volume.csv:gcs_volume" --has-header true --batch-size 10000 --null-string "\N"
 
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
