@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bufio"
+	"context"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -25,14 +26,21 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
 )
 
 const (
-	BATCH_METADATA_TABLE_NAME            = tgtdb.BATCH_METADATA_TABLE_NAME
-	EVENTS_PER_TABLE_METADATA_TABLE_NAME = tgtdb.EVENTS_PER_TABLE_METADATA_TABLE_NAME
+	// The _v2 is appended in the table name so that the import code doesn't
+	// try to use the similar table created by the voyager 1.3 and earlier.
+	// Voyager 1.4 uses import data state format that is incompatible from
+	// the earlier versions.
+	BATCH_METADATA_TABLE_SCHEMA          = "ybvoyager_metadata"
+	BATCH_METADATA_TABLE_NAME            = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
+	EVENT_CHANNELS_METADATA_TABLE_NAME   = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
+	EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 )
 
 /*
@@ -163,7 +171,7 @@ func (s *ImportDataState) Clean(filePath string, tableName string) error {
 		return fmt.Errorf("error while removing %q: %w", fileStateDir, err)
 	}
 
-	err = tdb.CleanFileImportState(filePath, tableName)
+	err = s.cleanFileImportStateFromDB(filePath, tableName)
 	if err != nil {
 		return fmt.Errorf("error while cleaning file import state for %q: %w", tableName, err)
 	}
@@ -351,6 +359,207 @@ func (s *ImportDataState) discoverTableFiles(tableName string) ([]string, error)
 		}
 	}
 	return result, nil
+}
+
+func (s *ImportDataState) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
+	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
+		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	var numInserts, numUpdates, numDeletes int64
+	err := tdb.QueryRow(query).Scan(&numInserts, &numUpdates, &numDeletes)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+	return numInserts, numUpdates, numDeletes, nil
+}
+
+func (s *ImportDataState) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
+
+	if startClean {
+		err := s.clearMigrationStateFromTable(EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+		if err != nil {
+			return fmt.Errorf("error clearing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+		}
+		err = s.clearMigrationStateFromTable(EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
+		if err != nil {
+			return fmt.Errorf("error clearing meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
+		}
+	}
+	err := s.initChannelMetaInfo(migrationUUID, numChans)
+	if err != nil {
+		return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+
+	err = s.initEventStatsByTableMetainfo(migrationUUID, tableNames, numChans)
+	if err != nil {
+		return fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
+	}
+	return nil
+}
+
+func (s *ImportDataState) clearMigrationStateFromTable(tableName string, migrationUUID uuid.UUID) error {
+	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableName, migrationUUID)
+	rowsAffected, err := tdb.Exec(stmt)
+	if err != nil {
+		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
+	}
+	log.Infof("Query: %s ==> Rows affected: %d", stmt, rowsAffected)
+	return nil
+}
+
+func (s *ImportDataState) initChannelMetaInfo(migrationUUID uuid.UUID, numChans int) error {
+	// if there are >0 rows, then skip because already been inited.
+	rowCount, err := s.getEventChannelsRowCount(migrationUUID)
+	if err != nil {
+		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+	if rowCount > 0 {
+		log.Info("event channels meta info already created. Skipping init.")
+		return nil
+	}
+	err = tdb.WithTx(func(tx tgtdb.Tx) error {
+		for c := 0; c < numChans; c++ {
+			insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
+			_, err := tx.Exec(context.Background(), insertStmt)
+			if err != nil {
+				return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+			}
+			log.Infof("created channels meta info: %s;", insertStmt)
+
+			if err != nil {
+				return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+	}
+	return nil
+}
+
+func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int64, error) {
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	var rowCount int64
+	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNames []string, numChans int) error {
+	return tdb.WithTx(func(tx tgtdb.Tx) error {
+		for _, tableName := range tableNames {
+			tableName := qualifyTableName(tableName)
+			rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableName)
+			if err != nil {
+				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
+			}
+			if rowCount > 0 {
+				log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableName))
+			} else {
+				for c := 0; c < numChans; c++ {
+					insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
+					_, err := tx.Exec(context.Background(), insertStmt)
+					if err != nil {
+						return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
+					}
+					log.Infof("created table wise event meta info: %s;", insertStmt)
+				}
+			}
+		}
+		return nil
+	})
+}
+
+func (s *ImportDataState) getLiveMigrationMetaInfoByTable(migrationUUID uuid.UUID, tableName string) (int64, error) {
+	rowsStmt := fmt.Sprintf(
+		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
+		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
+	var rowCount int64
+	err := tdb.QueryRow(rowsStmt).Scan(&rowCount)
+	if err != nil {
+		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
+	}
+	return rowCount, nil
+}
+
+func (s *ImportDataState) cleanFileImportStateFromDB(filePath, tableName string) error {
+	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
+	schemaName := getTargetSchemaName(tableName)
+	cmd := fmt.Sprintf(
+		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
+		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
+	rowsAffected, err := tdb.Exec(cmd)
+	if err != nil {
+		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
+	}
+	log.Infof("query: [%s] => rows affected %v", cmd, rowsAffected)
+	return nil
+}
+
+func qualifyTableName(tableName string) string {
+	if len(strings.Split(tableName, ".")) != 2 {
+		tableName = fmt.Sprintf("%s.%s", tconf.Schema, tableName)
+	}
+	return tableName
+}
+
+func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
+	var snapshotRowCount int64
+	schema := getTargetSchemaName(tableName)
+	query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
+		BATCH_METADATA_TABLE_NAME, schema, tableName)
+	log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
+	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
+	if err != nil {
+		log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
+		return 0, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
+	}
+	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
+	return snapshotRowCount, nil
+}
+
+type EventChannelMetaInfo struct {
+	ChanNo         int
+	LastAppliedVsn int64
+}
+
+func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
+	metainfo := map[int]EventChannelMetaInfo{}
+
+	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
+	}
+
+	for rows.Next() {
+		var chanMetaInfo EventChannelMetaInfo
+		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
+		}
+		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
+	}
+	return metainfo, nil
+}
+
+func (s *ImportDataState) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
+	var eventCounter tgtdb.EventCounter
+	tableName = qualifyTableName(tableName)
+	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
+		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
+	log.Infof("query to get import stats for table %s: %s", tableName, query)
+	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
+		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
+	if err != nil {
+		log.Errorf("error in getting import stats from target db: %v", err)
+		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
+	}
+	log.Infof("import stats for table %s: %v", tableName, eventCounter)
+	return &eventCounter, nil
 }
 
 //============================================================================

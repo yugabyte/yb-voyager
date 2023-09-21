@@ -48,20 +48,24 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges() error {
+func streamChanges(state *ImportDataState) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
-	err := tdb.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
+	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, startClean, lo.Keys(TableToColumnNames))
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
-	eventChannelsMetaInfo, err := tdb.GetEventChannelsMetaInfo(migrationUUID)
+	eventChannelsMetaInfo, err := state.GetEventChannelsMetaInfo(migrationUUID)
 	if err != nil {
 		return fmt.Errorf("failed to fetch event channel meta info from target : %w", err)
 	}
+	numInserts, numUpdates, numDeletes, err := state.GetTotalNumOfEventsImportedByType(migrationUUID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch import stats meta by type: %w", err)
+	}
 	statsReporter = reporter.NewStreamImportStatsReporter()
-	err = statsReporter.Init(tdb, migrationUUID, metaDB)
+	err = statsReporter.Init(migrationUUID, metaDB, numInserts, numUpdates, numDeletes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
 	}
@@ -102,7 +106,13 @@ func streamChanges() error {
 	return nil
 }
 
-func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo, statsReporter *reporter.StreamImportStatsReporter) error {
+func streamChangesFromSegment(
+	segment *EventQueueSegment,
+	evChans []chan *tgtdb.Event,
+	processingDoneChans []chan bool,
+	eventChannelsMetaInfo map[int]EventChannelMetaInfo,
+	statsReporter *reporter.StreamImportStatsReporter) error {
+
 	err := segment.Open()
 	if err != nil {
 		return err

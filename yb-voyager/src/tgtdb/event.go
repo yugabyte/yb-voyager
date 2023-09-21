@@ -249,6 +249,28 @@ func (event *Event) getTableName(targetSchema string) string {
 }
 
 // ==============================================================================================================================
+
+type EventCounter struct {
+	TotalEvents int64
+	NumInserts  int64
+	NumUpdates  int64
+	NumDeletes  int64
+}
+
+func (ec *EventCounter) CountEvent(ev *Event) {
+	ec.TotalEvents++
+	switch ev.Op {
+	case "c":
+		ec.NumInserts++
+	case "u":
+		ec.NumUpdates++
+	case "d":
+		ec.NumDeletes++
+	}
+}
+
+// ==============================================================================================================================
+
 type EventBatch struct {
 	Events             []*Event
 	ChanNo             int
@@ -335,29 +357,5 @@ func (eb *EventBatch) updateCounts(targetSchema string) {
 		}
 		eb.EventCountsByTable[tableName].CountEvent(event)
 		eb.EventCounts.CountEvent(event)
-	}
-}
-
-type EventChannelMetaInfo struct {
-	ChanNo         int
-	LastAppliedVsn int64
-}
-
-type EventCounter struct {
-	TotalEvents int64
-	NumInserts  int64
-	NumUpdates  int64
-	NumDeletes  int64
-}
-
-func (ec *EventCounter) CountEvent(ev *Event) {
-	ec.TotalEvents++
-	switch ev.Op {
-	case "c":
-		ec.NumInserts++
-	case "u":
-		ec.NumUpdates++
-	case "d":
-		ec.NumDeletes++
 	}
 }

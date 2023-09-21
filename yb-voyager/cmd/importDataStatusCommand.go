@@ -262,7 +262,7 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 			percentageComplete: perc,
 		}
 		if streamChanges {
-			eventCounter, err := tdb.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
+			eventCounter, err := state.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
 			if err != nil {
 				return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
 			}

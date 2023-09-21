@@ -50,6 +50,44 @@ func newTargetYugabyteDB(tconf *TargetConf) *TargetYugabyteDB {
 	return &TargetYugabyteDB{tconf: tconf}
 }
 
+func (yb *TargetYugabyteDB) Query(query string) (Rows, error) {
+	rows, err := yb.conn_.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
+	return rows, nil
+}
+
+func (yb *TargetYugabyteDB) QueryRow(query string) Row {
+	row := yb.conn_.QueryRow(context.Background(), query)
+	return row
+}
+
+func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
+	res, err := yb.conn_.Exec(context.Background(), query)
+	if err != nil {
+		return 0, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
+	}
+	return res.RowsAffected(), nil
+}
+
+func (yb *TargetYugabyteDB) WithTx(fn func(tx Tx) error) error {
+	tx, err := yb.conn_.Begin(context.Background())
+	if err != nil {
+		return fmt.Errorf("begin transaction on target %q: %w", yb.tconf.Host, err)
+	}
+	defer tx.Rollback(context.Background())
+	err = fn(&pgxTxToTgtdbTxAdapter{tx: tx})
+	if err != nil {
+		return err
+	}
+	err = tx.Commit(context.Background())
+	if err != nil {
+		return fmt.Errorf("commit transaction on target %q: %w", yb.tconf.Host, err)
+	}
+	return nil
+}
+
 func (yb *TargetYugabyteDB) Init() error {
 	err := yb.connect()
 	if err != nil {
@@ -242,159 +280,11 @@ outer:
 	return nil
 }
 
-func (yb *TargetYugabyteDB) clearMigrationStateFromTable(conn *pgx.Conn, tableName string, migrationUUID uuid.UUID) error {
-	stmt := fmt.Sprintf("DELETE FROM %s where migration_uuid='%s'", tableName, migrationUUID)
-	res, err := conn.Exec(context.Background(), stmt)
-	if err != nil {
-		return fmt.Errorf("error executing stmt - %v: %w", stmt, err)
-	}
-	log.Infof("Query: %s ==> Rows affected: %d", stmt, res.RowsAffected())
-	return nil
-}
-
-func (yb *TargetYugabyteDB) getEventChannelsRowCount(conn *pgx.Conn, migrationUUID uuid.UUID) (int64, error) {
-	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var rowCount int64
-	err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
-	if err != nil {
-		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-	}
-	return rowCount, nil
-}
-
-func (yb *TargetYugabyteDB) getLiveMigrationMetaInfoByTable(conn *pgx.Conn, migrationUUID uuid.UUID, tableName string) (int64, error) {
-	rowsStmt := fmt.Sprintf(
-		"SELECT count(*) FROM %s where migration_uuid='%s' AND table_name='%s'",
-		EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName)
-	var rowCount int64
-	err := conn.QueryRow(context.Background(), rowsStmt).Scan(&rowCount)
-	if err != nil {
-		return 0, fmt.Errorf("error executing stmt - %v: %w", rowsStmt, err)
-	}
-	return rowCount, nil
-}
-
-func (yb *TargetYugabyteDB) initChannelMetaInfo(conn *pgx.Conn, migrationUUID uuid.UUID, numChans int) error {
-	// if there are >0 rows, then skip because already been inited.
-	rowCount, err := yb.getEventChannelsRowCount(conn, migrationUUID)
-	if err != nil {
-		return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-	}
-	if rowCount > 0 {
-		log.Info("event channels meta info already created. Skipping init.")
-		return nil
-	}
-	ctx := context.Background()
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-	for c := 0; c < numChans; c++ {
-		insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', %d, -1, %d, %d, %d)", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID, c, 0, 0, 0)
-		_, err := tx.Exec(context.Background(), insertStmt)
-		if err != nil {
-			return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
-		}
-		log.Infof("created channels meta info: %s;", insertStmt)
-
-		if err != nil {
-			return fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-		}
-	}
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("error committing tx: %w", err)
-	}
-	return nil
-}
-
 func (yb *TargetYugabyteDB) qualifyTableName(tableName string) string {
 	if len(strings.Split(tableName, ".")) != 2 {
 		tableName = fmt.Sprintf("%s.%s", yb.tconf.Schema, tableName)
 	}
 	return tableName
-}
-
-func (yb *TargetYugabyteDB) initEventStatsByTableMetainfo(conn *pgx.Conn, migrationUUID uuid.UUID, tableNames []string, numChans int) error {
-	ctx := context.Background()
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
-	if err != nil {
-		return fmt.Errorf("error creating tx: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
-	for _, tableName := range tableNames {
-		tableName := yb.qualifyTableName(tableName)
-		rowCount, err := yb.getLiveMigrationMetaInfoByTable(conn, migrationUUID, tableName)
-		if err != nil {
-			return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-		}
-		if rowCount > 0 {
-			log.Info(fmt.Sprintf("event stats for %s already created. Skipping init.", tableName))
-		} else {
-			for c := 0; c < numChans; c++ {
-				insertStmt := fmt.Sprintf("INSERT INTO %s VALUES ('%s', '%s', %d, %d, %d, %d, %d)", EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID, tableName, c, 0, 0, 0, 0)
-				_, err := tx.Exec(ctx, insertStmt)
-				if err != nil {
-					return fmt.Errorf("error executing stmt - %v: %w", insertStmt, err)
-				}
-				log.Infof("created table wise event meta info: %s;", insertStmt)
-			}
-		}
-	}
-	err = tx.Commit(ctx)
-	if err != nil {
-		return fmt.Errorf("error committing tx: %w", err)
-	}
-	return nil
-}
-
-func (yb *TargetYugabyteDB) InitLiveMigrationState(migrationUUID uuid.UUID, numChans int, startClean bool, tableNames []string) error {
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		if startClean {
-			err := yb.clearMigrationStateFromTable(conn, EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-			if err != nil {
-				return false, fmt.Errorf("error clearing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-			}
-			err = yb.clearMigrationStateFromTable(conn, EVENTS_PER_TABLE_METADATA_TABLE_NAME, migrationUUID)
-			if err != nil {
-				return false, fmt.Errorf("error clearing meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
-			}
-		}
-		err := yb.initChannelMetaInfo(conn, migrationUUID, numChans)
-		if err != nil {
-			return false, fmt.Errorf("error initializing channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
-		}
-
-		err = yb.initEventStatsByTableMetainfo(conn, migrationUUID, tableNames, numChans)
-		if err != nil {
-			return false, fmt.Errorf("error initializing event stats by table meta info for %s: %w", EVENTS_PER_TABLE_METADATA_TABLE_NAME, err)
-		}
-		return false, nil
-	})
-	return err
-}
-
-func (yb *TargetYugabyteDB) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map[int]EventChannelMetaInfo, error) {
-	metainfo := map[int]EventChannelMetaInfo{}
-
-	query := fmt.Sprintf("SELECT channel_no, last_applied_vsn FROM %s where migration_uuid='%s'", EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	rows, err := yb.Conn().Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query meta info for channels: %w", err)
-	}
-
-	for rows.Next() {
-		var chanMetaInfo EventChannelMetaInfo
-		err := rows.Scan(&(chanMetaInfo.ChanNo), &(chanMetaInfo.LastAppliedVsn))
-		if err != nil {
-			return nil, fmt.Errorf("error while scanning rows returned from DB: %w", err)
-		}
-		metainfo[chanMetaInfo.ChanNo] = chanMetaInfo
-	}
-	return metainfo, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
@@ -415,20 +305,6 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
-}
-
-func (yb *TargetYugabyteDB) CleanFileImportState(filePath, tableName string) error {
-	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
-	schemaName := yb.getTargetSchemaName(tableName)
-	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
-	res, err := yb.Conn().Exec(context.Background(), cmd)
-	if err != nil {
-		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
-	}
-	log.Infof("query: [%s] => rows affected %v", cmd, res.RowsAffected())
-	return nil
 }
 
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
@@ -1072,64 +948,12 @@ func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected
 	return nil
 }
 
-func (yb *TargetYugabyteDB) GetTotalNumOfEventsImportedByType(migrationUUID uuid.UUID) (int64, int64, int64, error) {
-	query := fmt.Sprintf("SELECT SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s where migration_uuid='%s'",
-		EVENT_CHANNELS_METADATA_TABLE_NAME, migrationUUID)
-	var numInserts, numUpdates, numDeletes int64
-	err := yb.Conn().QueryRow(context.Background(), query).Scan(&numInserts, &numUpdates, &numDeletes)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("error in getting import stats from target db: %w", err)
-	}
-	return numInserts, numUpdates, numDeletes, nil
-}
-
 func (yb *TargetYugabyteDB) GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn {
 	return tgtdbsuite.YBValueConverterSuite
 }
 
 func (yb *TargetYugabyteDB) MaxBatchSizeInBytes() int64 {
 	return 200 * 1024 * 1024 // 200 MB
-}
-
-func (yb *TargetYugabyteDB) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*EventCounter, error) {
-	var eventCounter EventCounter
-	tableName = yb.qualifyTableName(tableName)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
-		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
-		log.Infof("query to get import stats for table %s: %s", tableName, query)
-		err = conn.QueryRow(context.Background(), query).Scan(&eventCounter.TotalEvents,
-			&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
-		return false, err
-	})
-	if err != nil {
-		log.Errorf("error in getting import stats from target db: %v", err)
-		return nil, fmt.Errorf("error in getting import stats from target db: %w", err)
-	}
-	log.Infof("import stats for table %s: %v", tableName, eventCounter)
-	return &eventCounter, nil
-}
-
-func (yb *TargetYugabyteDB) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
-	var snapshotRowCount int64
-	schema := yb.getTargetSchemaName(tableName)
-	err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-		query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
-			BATCH_METADATA_TABLE_NAME, schema, tableName)
-		log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
-		err := conn.QueryRow(context.Background(), query).Scan(&snapshotRowCount)
-		if err != nil {
-			log.Errorf("error in querying row_imported for snapshot import of table %s: %v", tableName, err)
-			return false, fmt.Errorf("error in querying row_imported for snapshot import of table %s: %w", tableName, err)
-		}
-		return false, nil
-	})
-	if err != nil {
-		log.Errorf("error in getting total row count for snapshot import of table %s: %v", tableName, err)
-		return -1, fmt.Errorf("error in getting total row count for snapshot import of table %s: %w", tableName, err)
-	}
-	log.Infof("total row count for snapshot import of table %s: %d", tableName, snapshotRowCount)
-	return snapshotRowCount, nil
 }
 
 func (yb *TargetYugabyteDB) GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error) {
