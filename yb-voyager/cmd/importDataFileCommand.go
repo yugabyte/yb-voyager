@@ -63,7 +63,6 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importerRole = IMPORT_FILE_ROLE
-		createInitConnectToMetaDBIfRequired()
 		reportProgressInBytes = true
 		validateBatchSizeFlag(batchSize)
 		checkImportDataFileFlags(cmd)

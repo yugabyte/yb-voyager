@@ -74,7 +74,6 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	createInitConnectToMetaDBIfRequired()
 	triggerName, err := getTriggerName(exporterRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)

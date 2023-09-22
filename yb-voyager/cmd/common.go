@@ -378,7 +378,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		"metainfo/conf", "metainfo/ssl", "temp", "temp/ora2pg_temp_dir",
 	}
 
-	// log.Debugf("Creating a project directory...")
+	log.Info("Creating a project directory if not exists...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
 

@@ -42,7 +42,6 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		createInitConnectToMetaDBIfRequired()
 		exportSchema()
 	},
 }
