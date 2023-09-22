@@ -42,7 +42,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 
 	pgDumpArgs.Schema = source.Schema
 	pgDumpArgs.SchemaTempFilePath = filepath.Join(exportDir, "temp", "schema.sql")
-	pgDumpArgs.NoComments = strconv.FormatBool(!source.CommentsOnObjects)
+	pgDumpArgs.NoComments = strconv.FormatBool(!bool(source.CommentsOnObjects))
 	pgDumpArgs.ExtensionPattern = `"*"`
 
 	args := getPgDumpArgsFromFile("schema")

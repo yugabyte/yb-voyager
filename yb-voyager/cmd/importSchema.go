@@ -59,9 +59,9 @@ func init() {
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
-var flagPostImportData bool
-var importObjectsInStraightOrder bool
-var flagRefreshMViews bool
+var flagPostImportData utils.BoolStr
+var importObjectsInStraightOrder utils.BoolStr
+var flagRefreshMViews utils.BoolStr
 
 func importSchema() {
 	err := retrieveMigrationUUID(exportDir)

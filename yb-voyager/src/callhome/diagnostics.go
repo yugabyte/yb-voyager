@@ -35,7 +35,7 @@ import (
 var (
 	jsonFilePath    string
 	Payload         payload
-	SendDiagnostics bool
+	SendDiagnostics utils.BoolStr
 )
 
 const (

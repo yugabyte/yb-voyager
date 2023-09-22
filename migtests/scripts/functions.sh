@@ -202,7 +202,7 @@ export_schema() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
-		--start-clean
+		--start-clean t
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
@@ -237,10 +237,10 @@ export_data() {
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
-		--disable-pb
+		--disable-pb=true
 		--send-diagnostics=false
 		--yes
-		--start-clean
+		--start-clean 1
 	"
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
@@ -314,9 +314,10 @@ import_data() {
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
 		--target-db-name ${TARGET_DB_NAME} 
 		--target-db-schema ${TARGET_DB_SCHEMA}
-		--disable-pb
+		--disable-pb true
 		--send-diagnostics=false 
-		--start-clean
+		--start-clean 1
+		--truncate-splits true
 		"
 		yb-voyager import data ${args} $*
 }
@@ -329,7 +330,7 @@ import_data_file() {
 		--target-db-schema "public" \
 		--target-db-password ${TARGET_DB_PASSWORD:-''} \
 		--target-db-name ${TARGET_DB_NAME} \
-		--disable-pb \
+		--disable-pb true \
 		--send-diagnostics=false \
 		--parallel-jobs 3 \
 		$* || {

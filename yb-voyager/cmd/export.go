@@ -32,7 +32,7 @@ import (
 var source srcdb.Source
 
 // to disable progress bar during data export and import
-var disablePb bool
+var disablePb utils.BoolStr
 var exportType string
 var useDebezium bool
 var runId string
@@ -48,8 +48,10 @@ func init() {
 }
 
 func registerCommonExportFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&startClean, "start-clean", false,
+	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command")
+
+	source.VerboseMode = bool(VerboseMode)
 }
 
 func registerSourceDBConnFlags(cmd *cobra.Command) {
@@ -146,6 +148,8 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.SSLCRL, "target-ssl-crl", "",
 		"target SSL Root Certificate Revocation List (CRL)")
+
+	source.VerboseMode = bool(VerboseMode)
 }
 
 func setExportFlagsDefaults() {
@@ -219,7 +223,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 }
 
 func registerExportDataFlags(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&disablePb, "disable-pb", false,
+	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
