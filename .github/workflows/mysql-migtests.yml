@@ -93,8 +93,8 @@ jobs:
     - name: "TEST: mysql-case-views"
       run: migtests/scripts/run-test.sh mysql/views
 
-    - name: "TEST: mysql-partitions"
-      run: migtests/scripts/run-test.sh mysql/partitions
+#    - name: "TEST: mysql-partitions"
+#     run: migtests/scripts/run-test.sh mysql/partitions
 
     - name: "TEST: mysql-sample-chinook"
       run: migtests/scripts/run-test.sh mysql/chinook

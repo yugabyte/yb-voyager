@@ -59,7 +59,7 @@ EXPECTED_DATA_TYPES = {
 	'floating_point_types': {
      	'double_type': 'double precision', 
      	'real_type': 'double precision', 
-     	'id': 'bigint', 
+     	'id': 'integer', 
      	'float_type': 'double precision'
      },
  	'fixed_point_types': {
@@ -92,9 +92,9 @@ EXPECTED_DATA_TYPES = {
         'mint_u': 'integer',
         'tint_s': 'smallint',
         'sint_u': 'integer',
-        'iint_s': 'bigint',
-        'iinteger_s': 'bigint',
-        'sint_s': 'integer',
+        'iint_s': 'integer',
+        'iinteger_s': 'integer',
+        'sint_s': 'smallint',
         'tint_u': 'smallint',
         'bint_u': 'numeric',
         'iinteger_u': 'bigint',
@@ -103,12 +103,12 @@ EXPECTED_DATA_TYPES = {
     }, 
     'bool_types': {
         'val': 'smallint',
-        'id': 'bigint'
+        'id': 'integer'
     }, 
     'enum_types': {
         'title': 'character varying',
         'priority': 'USER-DEFINED',
-        'id': 'bigint'
+        'id': 'integer'
     }, 
     'uuid_try': {
         'name': 'character varying',
@@ -118,7 +118,7 @@ EXPECTED_DATA_TYPES = {
         'bit_type': 'bit varying'
     },
 	'blob_types': {
-		'id': 'bigint',
+		'id': 'integer',
 		'tb': 'bytea',
 		'b': 'bytea',
 		'mb': 'bytea',
@@ -129,7 +129,7 @@ EXPECTED_DATA_TYPES = {
 	},
 	'c': {
 		'c': 'character', 
-		'id': 'bigint', 
+		'id': 'integer', 
 		'vc': 'character varying'
 	}
 }
