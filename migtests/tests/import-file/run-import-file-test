@@ -138,7 +138,7 @@ main() {
 	# Test for csv file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace.csv -> test_delimiter_backspace"
 	import_data_file --data-dir ${TEST_DIR} --format csv --delimiter '\b' \
-			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header true
+			--file-table-map "test_delimiter_backspace.csv:test_delimiter_backspace"  --has-header 1
 
 	# Test for txt file with delimiter as backspace char
 	step "Import data file: test_delimiter_backspace_text.txt -> test_delimiter_backspace_text"
@@ -163,7 +163,7 @@ main() {
 	# Test csv with header import from s3
 	step "Import data file from S3 (csv): csv_with_header_test.csv -> s3_csv_with_header"
 	import_data_file --data-dir ${S3_BUCKET} --format csv --delimiter ',' \
-			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header true
+			--file-table-map "csv_with_header_test.csv:s3_csv_with_header" --has-header y
 
 	# Test larger import from s3
 	step "Import large data file from S3: volume.text-> s3_volume"
@@ -225,7 +225,7 @@ main() {
 	# Test larger import from GCS buckets
 	step "Import large data file from GCS: volume.csv-> gcs_volume"
 	import_data_file --data-dir "gs://voyager-automation-data" --format csv --delimiter '\t' \
-			--file-table-map "volume.csv:gcs_volume" --has-header true --batch-size 10000 --null-string "\N"
+			--file-table-map "volume.csv:gcs_volume" --has-header yes --batch-size 10000 --null-string "\N"
 
 	# Test import from GCS buckets with escape/quote characters
 	step "Import data file from GCS (csv): t1_quote_escape_char1.csv -> gcs_quote_escape_char1"
