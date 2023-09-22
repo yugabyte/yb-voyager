@@ -36,6 +36,8 @@ var disablePb utils.BoolStr
 var exportType string
 var useDebezium bool
 var runId string
+var excludeTableListFilePath string
+var tableListFilePath string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -196,11 +198,18 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateSSLMode()
 	validateOracleParams()
 
-	if source.TableList != "" && source.ExcludeTableList != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
-	}
+	validateConflictsBetweenTableListFlags(source.TableList, source.ExcludeTableList)
+
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
+
+	if source.TableList == "" {
+		source.TableList = validateAndExtractTableListFilePathFlag(tableListFilePath, "table-list-file-path")
+	}
+	if source.ExcludeTableList == "" {
+		source.ExcludeTableList = validateAndExtractTableListFilePathFlag(excludeTableListFilePath, "exclude-table-list-file-path")
+	}
+
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
@@ -227,10 +236,16 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while exporting data (ignored if --table-list is used)")
+		"list of tables to exclude while exporting data (ignored if --table-list/--table-list-file-path is used)")
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")
+
+	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
+		"path of the file for list of tables to exclude while exporting data (ignored if --table-list/--table-list-file-path is used)")
+
+	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
+		"path of the file for list of tables to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
@@ -247,6 +262,31 @@ func validateSourceDBType() {
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
 		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: (postgresql, oracle, mysql)", source.DBType)
+	}
+}
+
+func validateConflictsBetweenTableListFlags(tableList string, excludeTableList string) {
+	if tableList != "" && excludeTableList != "" {
+		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
+	}
+
+	if tableList != "" && tableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --table-list and --table-list-file-path are allowed")
+	}
+	if excludeTableList != "" && excludeTableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --exclude-table-list and --exclude-table-list-file-path are allowed")
+	}
+
+	if tableListFilePath != "" && excludeTableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --table-list-file-path and --exclude-table-list-file-path are allowed")
+	}
+
+	if tableList != "" && excludeTableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list-file-path are allowed")
+	}
+
+	if excludeTableList != "" && tableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --exclude-table-list and --table-list-file-path are allowed")
 	}
 }
 

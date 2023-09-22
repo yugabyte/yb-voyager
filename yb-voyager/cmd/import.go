@@ -50,11 +50,20 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
-	if tconf.TableList != "" && tconf.ExcludeTableList != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
-	}
+
+	validateConflictsBetweenTableListFlags(tconf.TableList, tconf.ExcludeTableList)
+
 	validateTableListFlag(tconf.TableList, "table-list")
 	validateTableListFlag(tconf.ExcludeTableList, "exclude-table-list")
+
+	if tconf.TableList == "" {
+		tconf.TableList = validateAndExtractTableListFilePathFlag(tableListFilePath, "table-list-file-path")
+	}
+
+	if tconf.ExcludeTableList == "" {
+		tconf.ExcludeTableList = validateAndExtractTableListFilePathFlag(excludeTableListFilePath, "exclude-table-list-file-path")
+	}
+
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
 		utils.ErrExit("Error: Only one of --object-list and --exclude-object-list are allowed")
 	}
@@ -173,9 +182,14 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while importing data (ignored if --table-list is used)")
+		"list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
+	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
+		"path of the file for list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
+	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
+		"path of the file for list of tables to import data")
+
 	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
 	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
 		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)

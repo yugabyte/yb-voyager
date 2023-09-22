@@ -444,3 +444,24 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
 	return percUtilization, nil
 }
+
+//read the file and return slice of csv 
+func ReadFileToSlice(listFilePath string) []string {
+	file, err := os.Open(listFilePath)
+	if err != nil {
+		ErrExit("error opening file %s: %v", listFilePath, err)
+	}
+	defer file.Close()
+	var list []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) > 0 { //ignore empty lines
+		   list = append(list, CsvStringToSlice(line)...)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		ErrExit("error reading file %s: %v", listFilePath, err)
+	}
+	return list
+}

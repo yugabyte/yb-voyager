@@ -265,19 +265,39 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	return nil
 }
 
-// flagName can be "exclude-table-list" or "table-list"
-func validateTableListFlag(tableListString string, flagName string) {
-	if tableListString == "" {
-		return
-	}
-	tableList := utils.CsvStringToSlice(tableListString)
-	// TODO: update regexp once table name with double quotes are allowed/supported
-	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
+func validateTableListFlag(tableListValue string, flagName string) {
+	if tableListValue == "" {
+		return 
+	} 
+	tableList := utils.CsvStringToSlice(tableListValue)
+	
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided wtih --%s flag", table, flagName)
+			utils.ErrExit("Error: Invalid table name '%v' provided with --%s flag", table, flagName)
 		}
 	}
+	return
+}
+
+// flagName can be "exclude-table-list" or "table-list"
+func validateAndExtractTableListFilePathFlag(filePath string, flagName string) string {
+	var tableList []string
+	if filePath == "" {
+		return ""
+	} 
+	if !utils.FileOrFolderExists(filePath) {
+		utils.ErrExit("Error: Invalid file path '%v' provided with --%s flag", filePath, flagName)
+	}
+	tableList = utils.ReadFileToSlice(filePath)
+
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
+	for _, table := range tableList {
+		if !tableNameRegex.MatchString(table) {
+			utils.ErrExit("Error: Invalid table name '%v' provided in file %s with --%s flag", table, filePath, flagName)
+		}
+	}
+	return strings.Join(tableList, ",")
 }
 
 func checkDataDirs() {
