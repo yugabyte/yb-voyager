@@ -988,6 +988,7 @@ func analyzeSchemaInternal() utils.Report {
 }
 
 func analyzeSchema() {
+	createInitConnectToMetaDBIfRequired()
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)

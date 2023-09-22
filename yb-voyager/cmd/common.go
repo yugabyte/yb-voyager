@@ -403,17 +403,23 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
+	createInitConnectToMetaDBIfRequired()
+	setSourceDbType(dbType)
+}
+
+func createInitConnectToMetaDBIfRequired() {
 	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to initialize meta db: %s", err)
+	}
 	err = metaDB.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
-
-	setSourceDbType(dbType)
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord

@@ -27,7 +27,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -37,11 +36,7 @@ var exportDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("error while connecting meta db: %w\n", err)
-		}
+		createInitConnectToMetaDBIfRequired()
 		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)

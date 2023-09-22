@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -28,13 +27,8 @@ var cutoverInitiateCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("failed to create metaDB: %w", err)
-		}
-
-		err = InitiatePrimarySwitch("cutover")
+		createInitConnectToMetaDBIfRequired()
+		err := InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}

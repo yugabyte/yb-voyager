@@ -20,8 +20,6 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -36,12 +34,8 @@ var cutoverStatusCmd = &cobra.Command{
 	Long:  `Prints status of the cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
 		validateExportDirFlag()
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("failed to create metaDB: %w", err)
-		}
+		createInitConnectToMetaDBIfRequired()
 		checkAndReportCutoverStatus()
 	},
 }

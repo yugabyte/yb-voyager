@@ -25,7 +25,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -42,12 +41,7 @@ var archiveChangesCmd = &cobra.Command{
 }
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
-	var err error
-	metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-
+	createInitConnectToMetaDBIfRequired()
 	moveToChanged := cmd.Flags().Changed("move-to")
 	deleteChanged := cmd.Flags().Changed("delete")
 	if moveToChanged == deleteChanged {
