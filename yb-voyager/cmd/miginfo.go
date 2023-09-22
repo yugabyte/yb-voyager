@@ -23,16 +23,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type MigInfo struct {
-	SourceDBType    string
-	SourceDBName    string
-	SourceDBSchema  string
-	SourceDBVersion string
-	SourceDBSid     string
-	SourceTNSAlias  string
-	exportDir       string
-}
-
 func SaveMigInfo(miginfo *metadb.MigInfo) error {
 	log.Infof("saving miginfo(%+v) in metadb", miginfo)
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
