@@ -153,6 +153,8 @@ func setSourceDbType(sourceDbType string) {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if record != nil {
 			record.MigInfo.SourceDBType = sourceDbType
+		} else {
+			utils.ErrExit("migration status record is nil")
 		}
 	})
 

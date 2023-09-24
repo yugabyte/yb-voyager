@@ -78,6 +78,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	exitIfDBSwitchedOver(triggerName)
 	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
@@ -89,7 +90,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
