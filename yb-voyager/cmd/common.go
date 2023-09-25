@@ -403,11 +403,11 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	createInitConnectToMetaDBIfRequired()
+	initMetaDB()
 	setSourceDbType(dbType)
 }
 
-func createInitConnectToMetaDBIfRequired() {
+func initMetaDB() {
 	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
@@ -452,10 +452,10 @@ func getCutoverStatus() string {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 
-	a := msr.IsTriggerExists("cutover")
-	b := msr.IsTriggerExists("cutover.source")
-	c := msr.IsTriggerExists("cutover.target")
-	d := msr.IsTriggerExists("fallforward.synchronize.started")
+	a := msr.CutoverRequested
+	b := msr.CutoverProcessedBySourceExporter
+	c := msr.CutoverProcessedByTargetImporter
+	d := msr.FallForwardSyncStarted
 	ffDBExists := msr.FallForwarDBExists
 	if !a {
 		return NOT_INITIATED
@@ -483,9 +483,9 @@ func getFallForwardStatus() string {
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	a := msr.IsTriggerExists("fallforward")
-	b := msr.IsTriggerExists("fallforward.target")
-	c := msr.IsTriggerExists("fallforward.ff")
+	a := msr.FallForwardSwitchRequested
+	b := msr.FallForwardSwitchProcessedByTargetExporter
+	c := msr.FallForwardSwitchProcessedByFFImporter
 
 	if !a {
 		return NOT_INITIATED

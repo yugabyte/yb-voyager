@@ -35,7 +35,7 @@ var cutoverStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		createInitConnectToMetaDBIfRequired()
+		initMetaDB()
 		checkAndReportCutoverStatus()
 	},
 }

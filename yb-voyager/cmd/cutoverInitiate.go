@@ -27,7 +27,7 @@ var cutoverInitiateCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		createInitConnectToMetaDBIfRequired()
+		initMetaDB()
 		err := InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)

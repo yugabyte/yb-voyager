@@ -15,7 +15,10 @@ limitations under the License.
 */
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+)
 
 var fallForwardSynchronizeCmd = &cobra.Command{
 	Use:   "synchronize",
@@ -27,7 +30,10 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
-		createTriggerIfNotExists("fallforward.synchronize.started")
+		initMetaDB()
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.FallForwardSyncStarted = true
+		})
 		exportDataCmd.Run(cmd, args)
 	},
 }

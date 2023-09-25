@@ -36,7 +36,7 @@ var exportDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		createInitConnectToMetaDBIfRequired()
+		initMetaDB()
 		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)

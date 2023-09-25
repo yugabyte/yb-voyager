@@ -57,18 +57,13 @@ func createTriggerIfNotExists(triggerName string) error {
 		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
 	}
 
-	if msr != nil && msr.IsTriggerExists(triggerName) {
+	if msr != nil && msr.CheckIfTriggerExists(triggerName) {
 		utils.PrintAndLog("%s already initiated, wait for it to complete", triggerName)
 		return nil
 	}
 
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		
-		if record.Triggers == nil {
-			record.Triggers = []string{triggerName}
-		} else {
-			record.Triggers = append(record.Triggers, triggerName)
-		}
+		record.SetTrigger(triggerName)
 	})
 	if err != nil {
 		log.Errorf("creating trigger(%s): %v", triggerName, err)
@@ -102,7 +97,7 @@ func exitIfDBSwitchedOver(triggerName string) {
 		utils.ErrExit("checking trigger(%s): %v", triggerName, err)
 	}
 
-	if msr != nil && msr.IsTriggerExists(triggerName) {
+	if msr != nil && msr.CheckIfTriggerExists(triggerName) {
 		utils.PrintAndLog("cutover already complete")
 		// Question: do we need to support start clean flag with cutover
 		os.Exit(0)
