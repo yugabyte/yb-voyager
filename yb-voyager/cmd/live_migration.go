@@ -75,8 +75,11 @@ func streamChanges() error {
 		go statsReporter.ReportStats(ctx)
 		defer finalizeStats()
 	}
-
-	eventQueue = NewEventQueue(exportDir)
+	exporterRoleToProcessFrom := SOURCE_DB_EXPORTER_ROLE
+	if importerRole == FB_DB_IMPORTER_ROLE {
+		exporterRoleToProcessFrom = TARGET_DB_EXPORTER_ROLE
+	}
+	eventQueue = NewEventQueue(exportDir, exporterRoleToProcessFrom)
 	// setup target event channels
 	var evChans []chan *tgtdb.Event
 	var processingDoneChans []chan bool
@@ -84,7 +87,23 @@ func streamChanges() error {
 		evChans = append(evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
+	err = streamChangesFromEventqueue(eventQueue, evChans, processingDoneChans, eventChannelsMetaInfo)
+	if err != nil {
+		return fmt.Errorf("error streaming changes for eventqueue %s: %v", eventQueue.QueueDirPath, err)
+	}
+	if importerRole == FF_DB_IMPORTER_ROLE {
+		// start streaming events coming from target
+		eventQueue = NewEventQueue(exportDir, TARGET_DB_EXPORTER_ROLE)
+		err = streamChangesFromEventqueue(eventQueue, evChans, processingDoneChans, eventChannelsMetaInfo)
+		if err != nil {
+			return fmt.Errorf("error streaming changes for eventqueue %s: %v", eventQueue.QueueDirPath, err)
+		}
+	}
 
+	return nil
+}
+
+func streamChangesFromEventqueue(eventQueue *EventQueue, evChans []chan *tgtdb.Event, processingDoneChans []chan bool, eventChannelsMetaInfo map[int]tgtdb.EventChannelMetaInfo) error {
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
 		segment, err := eventQueue.GetNextSegment()
@@ -133,21 +152,17 @@ func streamChangesFromSegment(segment *EventQueueSegment, evChans []chan *tgtdb.
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
+		} else if event.IsCutover() || event.IsFallForward() { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
 		}
-		if event.IsCutover() {
-			cutoverComplete = true
-			continue
-		}
-		if importerRole == FB_DB_IMPORTER_ROLE && !cutoverComplete {
-			// ignore all events before cutover.
-			continue
-		}
-
+		// else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+		// 	event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
+		// 	eventQueue.EndOfQueue = true
+		// 	segment.MarkProcessed()
+		// 	break
+		// }
 		err = handleEvent(event, evChans)
 		if err != nil {
 			return fmt.Errorf("error handling event: %v", err)

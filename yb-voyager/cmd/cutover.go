@@ -78,6 +78,8 @@ func getTriggerName(importerOrExporterRole string) (string, error) {
 		return "fallforward.target", nil
 	case FF_DB_IMPORTER_ROLE:
 		return "fallforward.ff", nil
+	case FB_DB_IMPORTER_ROLE:
+		return "fallback.source", nil
 	default:
 		return "", fmt.Errorf("invalid role %s", importerOrExporterRole)
 	}

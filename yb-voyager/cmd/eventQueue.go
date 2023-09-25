@@ -43,9 +43,9 @@ type EventQueue struct {
 	EndOfQueue         bool
 }
 
-func NewEventQueue(exportDir string) *EventQueue {
+func NewEventQueue(exportDir string, exporterRole string) *EventQueue {
 	return &EventQueue{
-		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME),
+		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME, exporterRole),
 		SegmentNumToStream: -1,
 		EndOfQueue:         false,
 	}

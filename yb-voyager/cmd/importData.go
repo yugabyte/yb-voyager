@@ -82,11 +82,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
 	}
-	// triggerName, err := getTriggerName(importerRole)
-	// if err != nil {
-	// 	utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
-	// }
-	// exitIfDBSwitchedOver(triggerName)
+	triggerName, err := getTriggerName(importerRole)
+	if err != nil {
+		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
+	}
+	exitIfDBSwitchedOver(triggerName)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
