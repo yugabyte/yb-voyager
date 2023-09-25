@@ -23,7 +23,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -95,20 +94,6 @@ func exportSchema() {
 	callhome.PackAndSendPayload(exportDir)
 
 	setSchemaIsExported(exportDir)
-
-	miginfo := &metadb.MigInfo{
-		SourceDBType:    source.DBType,
-		SourceDBName:    source.DBName,
-		SourceDBSchema:  source.Schema,
-		SourceDBVersion: source.DB().GetVersion(),
-		SourceDBSid:     source.DBSid,
-		SourceTNSAlias:  source.TNSAlias,
-		ExportDir:       exportDir,
-	}
-	err = SaveMigInfo(miginfo)
-	if err != nil {
-		utils.ErrExit("unable to save migration info: %s", err)
-	}
 }
 
 func init() {
@@ -147,18 +132,4 @@ func setSchemaIsExported(exportDir string) {
 func clearSchemaIsExported(exportDir string) {
 	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
 	os.Remove(flagFilePath)
-}
-
-func setSourceDbType(sourceDbType string) {
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record != nil {
-			record.MigInfo.SourceDBType = sourceDbType
-		} else {
-			utils.ErrExit("migration status record is nil")
-		}
-	})
-
-	if err != nil {
-		utils.ErrExit("set source db type in metadb: %v", err)
-	}
 }

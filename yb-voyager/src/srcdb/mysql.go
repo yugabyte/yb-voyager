@@ -101,6 +101,7 @@ func (ms *MySQL) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	ms.source.DBVersion = version
 	return version
 }
 

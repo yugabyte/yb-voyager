@@ -404,7 +404,10 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	}
 
 	initMetaDB()
-	setSourceDbType(dbType)
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.SourceDBConf = &source
+		record.SourceDBConf.Password = ""
+	})
 }
 
 func initMetaDB() {
@@ -518,4 +521,15 @@ func addHeader(table *uitable.Table, cols ...string) {
 		return headerfmt(col)
 	})
 	table.AddRow(columns...)
+}
+
+func GetSourceDBTypeFromMSR() string {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr == nil || msr.SourceDBConf == nil {
+		utils.ErrExit("migration status record not found")
+	}
+	return msr.SourceDBConf.DBType
 }

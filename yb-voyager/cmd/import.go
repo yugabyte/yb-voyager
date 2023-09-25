@@ -303,7 +303,7 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 		return
 	}
 
-	availableObjects := utils.GetSchemaObjectList(GetSourceDBTypeFromMigInfo())
+	availableObjects := utils.GetSchemaObjectList(GetSourceDBTypeFromMSR())
 	objectList := utils.CsvStringToSlice(importObjectsString)
 	for _, object := range objectList {
 		if !slices.Contains(availableObjects, strings.ToUpper(object)) {

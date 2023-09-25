@@ -92,7 +92,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-	sourceDBType = GetSourceDBTypeFromMigInfo()
+	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)

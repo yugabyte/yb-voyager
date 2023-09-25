@@ -52,6 +52,7 @@ type Source struct {
 	ExcludeTableList      string
 	UseOrafce             utils.BoolStr
 	CommentsOnObjects     utils.BoolStr
+	DBVersion             string
 
 	sourceDB SourceDB
 }

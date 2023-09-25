@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -16,7 +17,7 @@ type MigrationStatusRecord struct {
 	TargetDBConf                               *tgtdb.TargetConf
 	FallForwardDBConf                          *tgtdb.TargetConf
 	TableListExportedFromSource                []string
-	MigInfo                                    *MigInfo
+	SourceDBConf                               *srcdb.Source
 	CutoverRequested                           bool
 	CutoverProcessedBySourceExporter           bool
 	CutoverProcessedByTargetImporter           bool
@@ -24,16 +25,6 @@ type MigrationStatusRecord struct {
 	FallForwardSwitchRequested                 bool
 	FallForwardSwitchProcessedByTargetExporter bool
 	FallForwardSwitchProcessedByFFImporter     bool
-}
-
-type MigInfo struct {
-	SourceDBType    string
-	SourceDBName    string
-	SourceDBSchema  string
-	SourceDBVersion string
-	SourceDBSid     string
-	SourceTNSAlias  string
-	ExportDir       string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
@@ -61,7 +52,7 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 		}
 		record.MigrationUUID = uuid.New().String()
 		record.ExportType = utils.SNAPSHOT_ONLY
-		record.MigInfo = &MigInfo{}
+		record.SourceDBConf = &srcdb.Source{}
 	})
 }
 

@@ -51,7 +51,7 @@ var importSchemaCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
 		initMetaDB()
-		sourceDBType = GetSourceDBTypeFromMigInfo()
+		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
 }
