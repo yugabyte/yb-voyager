@@ -265,27 +265,27 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	return nil
 }
 
+// flagName can be "exclude-table-list" or "table-list"
 func validateTableListFlag(tableListValue string, flagName string) {
 	if tableListValue == "" {
-		return 
-	} 
+		return
+	}
 	tableList := utils.CsvStringToSlice(tableListValue)
-	
+
 	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
 			utils.ErrExit("Error: Invalid table name '%v' provided with --%s flag", table, flagName)
 		}
 	}
-	return
 }
 
-// flagName can be "exclude-table-list" or "table-list"
-func validateAndExtractTableListFilePathFlag(filePath string, flagName string) string {
+// flagName can be "exclude-table-list-file-path" or "table-list-file-path"
+func validateAndExtractTableListFilePathFlags(filePath string, flagName string) string {
 	var tableList []string
 	if filePath == "" {
 		return ""
-	} 
+	}
 	if !utils.FileOrFolderExists(filePath) {
 		utils.ErrExit("Error: Invalid file path '%v' provided with --%s flag", filePath, flagName)
 	}

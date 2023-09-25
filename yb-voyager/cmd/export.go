@@ -204,10 +204,10 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
 
 	if source.TableList == "" {
-		source.TableList = validateAndExtractTableListFilePathFlag(tableListFilePath, "table-list-file-path")
+		source.TableList = validateAndExtractTableListFilePathFlags(tableListFilePath, "table-list-file-path")
 	}
 	if source.ExcludeTableList == "" {
-		source.ExcludeTableList = validateAndExtractTableListFilePathFlag(excludeTableListFilePath, "exclude-table-list-file-path")
+		source.ExcludeTableList = validateAndExtractTableListFilePathFlags(excludeTableListFilePath, "exclude-table-list-file-path")
 	}
 
 	switch exporterRole {

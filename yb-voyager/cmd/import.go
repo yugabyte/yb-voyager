@@ -57,11 +57,11 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateTableListFlag(tconf.ExcludeTableList, "exclude-table-list")
 
 	if tconf.TableList == "" {
-		tconf.TableList = validateAndExtractTableListFilePathFlag(tableListFilePath, "table-list-file-path")
+		tconf.TableList = validateAndExtractTableListFilePathFlags(tableListFilePath, "table-list-file-path")
 	}
 
 	if tconf.ExcludeTableList == "" {
-		tconf.ExcludeTableList = validateAndExtractTableListFilePathFlag(excludeTableListFilePath, "exclude-table-list-file-path")
+		tconf.ExcludeTableList = validateAndExtractTableListFilePathFlags(excludeTableListFilePath, "exclude-table-list-file-path")
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
