@@ -83,14 +83,16 @@ func initMetaDB(path string) error {
 	cmds := []string{
 
 		fmt.Sprintf(`CREATE TABLE %s 
-      (segment_no INTEGER PRIMARY KEY, 
+      (exporter_role TEXT,
+	   segment_no INTEGER, 
        file_path TEXT, size_committed INTEGER, 
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_ff_db_importer INTEGER DEFAULT 0, 
        imported_by_fb_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0,
 	   deleted INTEGER DEFAULT 0,
-	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
+	   archive_location TEXT
+	   PRIMARY KEY(exporter_role, segment_no) );`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
 			timestamp INTEGER, 
@@ -157,8 +159,9 @@ func NewMetaDB(exportDir string) (*MetaDB, error) {
 	return &MetaDB{db: db}, nil
 }
 
-func (m *MetaDB) MarkEventQueueSegmentAsProcessed(segmentNum int64) error {
-	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE segment_no = %d;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole, segmentNum)
+func (m *MetaDB) MarkEventQueueSegmentAsProcessed(exporterRole string, segmentNum int64) error {
+	query := fmt.Sprintf(`UPDATE %s SET imported_by_%s = 1 WHERE exporter_role='%s' AND segment_no = %d;`,
+		QUEUE_SEGMENT_META_TABLE_NAME, importerRole, exporterRole, segmentNum)
 
 	result, err := m.db.Exec(query)
 	if err != nil {

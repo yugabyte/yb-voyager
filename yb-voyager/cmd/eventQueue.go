@@ -41,6 +41,7 @@ type EventQueue struct {
 	QueueDirPath       string
 	SegmentNumToStream int64
 	EndOfQueue         bool
+	ExporterRole       string
 }
 
 func NewEventQueue(exportDir string, exporterRole string) *EventQueue {
@@ -48,6 +49,7 @@ func NewEventQueue(exportDir string, exporterRole string) *EventQueue {
 		QueueDirPath:       filepath.Join(exportDir, "data", QUEUE_DIR_NAME, exporterRole),
 		SegmentNumToStream: -1,
 		EndOfQueue:         false,
+		ExporterRole:       exporterRole,
 	}
 }
 
@@ -69,26 +71,28 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
 	}
 
-	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	segment := NewEventQueueSegment(segmentFilePath, eq.ExporterRole, eq.SegmentNumToStream)
 	eq.SegmentNumToStream++
 	return segment, nil
 }
 
 type EventQueueSegment struct {
-	FilePath   string
-	SegmentNum int64 // 0-based
-	processed  bool
-	file       *os.File
-	reader     *bufio.Reader
+	FilePath     string
+	ExporterRole string
+	SegmentNum   int64 // 0-based
+	processed    bool
+	file         *os.File
+	reader       *bufio.Reader
 }
 
 var EOFMarker = []byte(`\.`)
 
-func NewEventQueueSegment(filePath string, segmentNum int64) *EventQueueSegment {
+func NewEventQueueSegment(filePath string, exporterRole string, segmentNum int64) *EventQueueSegment {
 	return &EventQueueSegment{
-		FilePath:   filePath,
-		SegmentNum: segmentNum,
-		processed:  false,
+		FilePath:     filePath,
+		SegmentNum:   segmentNum,
+		processed:    false,
+		ExporterRole: exporterRole,
 	}
 }
 
