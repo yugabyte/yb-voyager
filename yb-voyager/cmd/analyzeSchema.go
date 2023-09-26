@@ -995,7 +995,7 @@ func analyzeSchema() {
 	reportFile := "report." + outputFormat
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
-	if !schemaIsExported(exportDir) {
+	if !schemaIsExported() {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
 

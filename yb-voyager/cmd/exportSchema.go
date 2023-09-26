@@ -16,13 +16,13 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -46,7 +46,8 @@ var exportSchemaCmd = &cobra.Command{
 }
 
 func exportSchema() {
-	if schemaIsExported(exportDir) {
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	if schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
@@ -59,7 +60,7 @@ func exportSchema() {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
 
-			clearSchemaIsExported(exportDir)
+			clearSchemaIsExported()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -77,10 +78,7 @@ func exportSchema() {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
-
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
@@ -93,7 +91,7 @@ func exportSchema() {
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)
 
-	setSchemaIsExported(exportDir)
+	setSchemaIsExported()
 }
 
 func init() {
@@ -108,28 +106,29 @@ func init() {
 		"enable export of comments associated with database objects (default false)")
 }
 
-func schemaIsExported(exportDir string) bool {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	_, err := os.Stat(flagFilePath)
+func schemaIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		utils.ErrExit("failed to check if schema import is already done: %s", err)
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
 	}
-	return true
+
+	return msr.ExportSchemaDone
 }
 
-func setSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	fh, err := os.Create(flagFilePath)
+func setSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = true
+	})
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("set schema is exported: update migration status record: %s", err)
 	}
-	fh.Close()
 }
 
-func clearSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
-	os.Remove(flagFilePath)
+func clearSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = false
+	})
+	if err != nil {
+		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+	}
 }

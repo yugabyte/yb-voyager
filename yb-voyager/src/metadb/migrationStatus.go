@@ -25,6 +25,8 @@ type MigrationStatusRecord struct {
 	FallForwardSwitchRequested                 bool
 	FallForwardSwitchProcessedByTargetExporter bool
 	FallForwardSwitchProcessedByFFImporter     bool
+	ExportSchemaDone                           bool
+	ExportDataDone                             bool
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
