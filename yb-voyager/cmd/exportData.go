@@ -51,7 +51,10 @@ var exportDataCmd = &cobra.Command{
 		if exporterRole == "" {
 			exporterRole = SOURCE_DB_EXPORTER_ROLE
 		}
-		validateExportFlags(cmd, exporterRole)
+		err := validateExportFlags(cmd, exporterRole)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 		if changeStreamingIsEnabled(exportType) {
@@ -281,23 +284,25 @@ func validateTableListFlag(tableListValue string, flagName string) {
 }
 
 // flagName can be "exclude-table-list-file-path" or "table-list-file-path"
-func validateAndExtractTableListFilePathFlags(filePath string, flagName string) string {
-	var tableList []string
+func validateAndExtractTableNamesFromFile(filePath string, flagName string) (string, error) {
 	if filePath == "" {
-		return ""
+		return "", nil
 	}
 	if !utils.FileOrFolderExists(filePath) {
-		utils.ErrExit("Error: Invalid file path '%v' provided with --%s flag", filePath, flagName)
+		return "", fmt.Errorf("invalid file path '%v' provided with --%s flag", filePath, flagName)
 	}
-	tableList = utils.ReadFileToSlice(filePath)
+	tableList, err := utils.ReadTableNameListFromFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading table list from file: %w", err)
+	}
 
 	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided in file %s with --%s flag", table, filePath, flagName)
+			return "", fmt.Errorf("invalid table name '%v' provided in file %s with --%s flag", table, filePath, flagName)
 		}
 	}
-	return strings.Join(tableList, ",")
+	return strings.Join(tableList, ","), nil
 }
 
 func checkDataDirs() {

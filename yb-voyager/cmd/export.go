@@ -190,7 +190,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags(cmd *cobra.Command, exporterRole string) {
+func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -202,12 +202,18 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
-
+	var err error
 	if source.TableList == "" {
-		source.TableList = validateAndExtractTableListFilePathFlags(tableListFilePath, "table-list-file-path")
+		source.TableList, err = validateAndExtractTableNamesFromFile(tableListFilePath, "table-list-file-path")
+		if err != nil {
+			return err
+		}
 	}
 	if source.ExcludeTableList == "" {
-		source.ExcludeTableList = validateAndExtractTableListFilePathFlags(excludeTableListFilePath, "exclude-table-list-file-path")
+		source.ExcludeTableList, err = validateAndExtractTableNamesFromFile(excludeTableListFilePath, "exclude-table-list-file-path")
+		if err != nil {
+			return err
+		}
 	}
 
 	switch exporterRole {
@@ -220,15 +226,16 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
 		if source.DBSid != "" {
-			utils.ErrExit("Error: --oracle-db-sid flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
 		}
 		if source.OracleHome != "" {
-			utils.ErrExit("Error: --oracle-home flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-home flag is only valid for 'oracle' db type")
 		}
 		if source.TNSAlias != "" {
-			utils.ErrExit("Error: --oracle-tns-alias flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 	}
+	return nil
 }
 
 func registerExportDataFlags(cmd *cobra.Command) {
@@ -242,10 +249,10 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"list of the tables to export data")
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
-		"path of the file for list of tables to exclude while exporting data (ignored if --table-list/--table-list-file-path is used)")
+		"path of the file containing list of table names to exclude while exporting data (ignored if --table-list/--table-list-file-path is used)")
 
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
-		"path of the file for list of tables to export data")
+		"path of the file containing list of table names to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")

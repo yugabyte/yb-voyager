@@ -46,7 +46,7 @@ func init() {
 }
 
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
-func validateImportFlags(cmd *cobra.Command, importerRole string) {
+func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
@@ -56,16 +56,23 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	validateTableListFlag(tconf.TableList, "table-list")
 	validateTableListFlag(tconf.ExcludeTableList, "exclude-table-list")
 
+	var err error
 	if tconf.TableList == "" {
-		tconf.TableList = validateAndExtractTableListFilePathFlags(tableListFilePath, "table-list-file-path")
+		tconf.TableList, err = validateAndExtractTableNamesFromFile(tableListFilePath, "table-list-file-path")
+		if err != nil {
+			return err
+		}
 	}
 
 	if tconf.ExcludeTableList == "" {
-		tconf.ExcludeTableList = validateAndExtractTableListFilePathFlags(excludeTableListFilePath, "exclude-table-list-file-path")
+		tconf.ExcludeTableList, err = validateAndExtractTableNamesFromFile(excludeTableListFilePath, "exclude-table-list-file-path")
+		if err != nil {
+			return err
+		}
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		utils.ErrExit("Error: Only one of --object-list and --exclude-object-list are allowed")
+		return fmt.Errorf("only one of --object-list and --exclude-object-list are allowed")
 	}
 	validateImportObjectsFlag(tconf.ImportObjects, "object-list")
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
@@ -81,6 +88,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	case FF_DB_IMPORTER_ROLE:
 		getFallForwardDBPassword(cmd)
 	}
+	return nil
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -186,9 +194,9 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
-		"path of the file for list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
+		"path of the file containing for list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
-		"path of the file for list of tables to import data")
+		"path of the file containing the list of table names to import data")
 
 	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
 	if cmd.CommandPath() == "yb-voyager fall-forward setup" {

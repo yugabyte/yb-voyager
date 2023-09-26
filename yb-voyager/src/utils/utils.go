@@ -446,10 +446,10 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 }
 
 //read the file and return slice of csv 
-func ReadFileToSlice(listFilePath string) []string {
-	file, err := os.Open(listFilePath)
+func ReadTableNameListFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
-		ErrExit("error opening file %s: %v", listFilePath, err)
+		return []string{}, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 	var list []string
@@ -461,7 +461,7 @@ func ReadFileToSlice(listFilePath string) []string {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		ErrExit("error reading file %s: %v", listFilePath, err)
+		return []string{}, fmt.Errorf("error reading file %s: %v", filePath, err)
 	}
-	return list
+	return list, nil
 }

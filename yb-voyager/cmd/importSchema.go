@@ -41,7 +41,11 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-		validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
+		
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
