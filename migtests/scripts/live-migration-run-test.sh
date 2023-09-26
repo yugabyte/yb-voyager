@@ -103,9 +103,6 @@ main() {
 	# Killing the export process in case of failure
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	# Waiting for snapshot to complete
-	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
-
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
