@@ -87,7 +87,7 @@ func (eq *EventQueue) resolveSegmentToResumeFrom() error {
 	}
 	for {
 		eq.SegmentNumToStream, err = metaDB.GetMinSegmentNotImportedBy(importerRoles...)
-		if err != nil {
+		if err == nil {
 			break
 		} else if errors.Is(err, metadb.ErrNoQueueSegmentsFound) {
 			time.Sleep(2 * time.Second)
