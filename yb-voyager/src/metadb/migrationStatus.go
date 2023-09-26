@@ -17,7 +17,7 @@ type MigrationStatusRecord struct {
 	TargetDBConf                               *tgtdb.TargetConf
 	FallForwardDBConf                          *tgtdb.TargetConf
 	TableListExportedFromSource                []string
-	SourceDBConf                               *srcdb.Source
+	SourceDBConf                               srcdb.Source
 	CutoverRequested                           bool
 	CutoverProcessedBySourceExporter           bool
 	CutoverProcessedByTargetImporter           bool
@@ -52,7 +52,7 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 		}
 		record.MigrationUUID = uuid.New().String()
 		record.ExportType = utils.SNAPSHOT_ONLY
-		record.SourceDBConf = &srcdb.Source{}
+		record.SourceDBConf = srcdb.Source{}
 	})
 }
 

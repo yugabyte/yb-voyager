@@ -405,7 +405,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 	initMetaDB()
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.SourceDBConf = &source
+		record.SourceDBConf = source
 		record.SourceDBConf.Password = ""
 	})
 }
@@ -528,7 +528,7 @@ func GetSourceDBTypeFromMSR() string {
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	if msr == nil || msr.SourceDBConf == nil {
+	if msr == nil {
 		utils.ErrExit("migration status record not found")
 	}
 	return msr.SourceDBConf.DBType
