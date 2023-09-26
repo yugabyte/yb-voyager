@@ -351,12 +351,15 @@ func (m *MetaDB) GetMinSegmentNotImportedBy(importerRoles ...string) (int64, err
 	}
 
 	row := m.db.QueryRow(query)
-	var segmentNum int64
-	err := row.Scan(&segmentNum)
+	var segmentNum *int64
+	err := row.Scan(segmentNum)
 	if err != nil {
 		return -1, fmt.Errorf("run query on meta db - %s : %w", query, err)
 	}
-	return segmentNum, nil
+	if segmentNum == nil {
+		return -1, fmt.Errorf("no segments found")
+	}
+	return *segmentNum, nil
 }
 
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
