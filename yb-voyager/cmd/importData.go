@@ -42,7 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -55,7 +55,7 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                                    // to truncate *.D splits after import
+var truncateSplits utils.BoolStr                           // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
@@ -356,30 +356,33 @@ func importData(importFileTasks []*ImportFileTask) {
 	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
-	if len(pendingTasks) == 0 {
-		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
-	} else {
-		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-		poolSize := tconf.Parallelism * 2
-		progressReporter := NewImportDataProgressReporter(bool(disablePb))
-		for _, task := range pendingTasks {
-			// The code can produce `poolSize` number of batches at a time. But, it can consume only
-			// `parallelism` number of batches at a time.
-			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+	// Import snapshots
+	if importerRole != FB_DB_IMPORTER_ROLE {
+		if len(pendingTasks) == 0 {
+			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
+		} else {
+			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
+			poolSize := tconf.Parallelism * 2
+			progressReporter := NewImportDataProgressReporter(bool(disablePb))
+			for _, task := range pendingTasks {
+				// The code can produce `poolSize` number of batches at a time. But, it can consume only
+				// `parallelism` number of batches at a time.
+				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 
-			totalProgressAmount := getTotalProgressAmount(task)
-			progressReporter.ImportFileStarted(task, totalProgressAmount)
-			importedProgressAmount := getImportedProgressAmount(task, state)
-			progressReporter.AddProgressAmount(task, importedProgressAmount)
-			updateProgressFn := func(progressAmount int64) {
-				progressReporter.AddProgressAmount(task, progressAmount)
+				totalProgressAmount := getTotalProgressAmount(task)
+				progressReporter.ImportFileStarted(task, totalProgressAmount)
+				importedProgressAmount := getImportedProgressAmount(task, state)
+				progressReporter.AddProgressAmount(task, importedProgressAmount)
+				updateProgressFn := func(progressAmount int64) {
+					progressReporter.AddProgressAmount(task, progressAmount)
+				}
+				importFile(state, task, updateProgressFn)
+				batchImportPool.Wait()                // Wait for the file import to finish.
+				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 			}
-			importFile(state, task, updateProgressFn)
-			batchImportPool.Wait()                // Wait for the file import to finish.
-			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+			time.Sleep(time.Second * 2)
 		}
-		time.Sleep(time.Second * 2)
 	}
 
 	callhome.PackAndSendPayload(exportDir)
@@ -388,7 +391,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			displayImportedRowCountSnapshot(state, importFileTasks)
+			if importerRole != FB_DB_IMPORTER_ROLE {
+				displayImportedRowCountSnapshot(state, importFileTasks)
+			}
 			color.Blue("streaming changes to target DB...")
 			err = streamChanges(state)
 			if err != nil {
