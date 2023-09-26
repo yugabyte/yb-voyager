@@ -241,14 +241,33 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	log.Infof("includeList: %v", includeList)
 	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
+	
+	//TODO: handle with case sensitivity later
+	makeTableNameCaseInsensitive := func(tableName string) string {
+		if !utils.IsQuotedString(tableName) {
+			tableName = strings.ToLower(tableName)
+		}
+		return tableName
+	}
+
+	makeTableListCaseInsensitive := func(tableList []string) []string {
+		result := make([]string, 0, len(tableList))
+		for _, tableName := range tableList {
+			result = append(result, makeTableNameCaseInsensitive(tableName))
+		}
+		return result
+	}
+	
+	includeList = makeTableListCaseInsensitive(includeList)
+	excludeList = makeTableListCaseInsensitive(excludeList)
 
 	allTables := make([]string, 0, len(importFileTasks))
 	for _, task := range importFileTasks {
-		allTables = append(allTables, task.TableName)
+		allTables = append(allTables, makeTableNameCaseInsensitive(task.TableName))
 	}
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
-
+	
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
 		for _, tableName := range tableNames {
@@ -259,18 +278,18 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		if len(unknownTableNames) > 0 {
 			utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
 			utils.PrintAndLog("Valid table names are: %v", allTables)
-			utils.ErrExit("Table names are case-sensitive. Please fix the table names in the %s list and retry.", listName)
+			utils.ErrExit("Table names are case-insensitive. Please fix the table names in the %s list and retry.", listName)
 		}
 	}
 	checkUnknownTableNames(includeList, "include")
 	checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		if len(includeList) > 0 && !slices.Contains(includeList, task.TableName) {
+		if len(includeList) > 0 && !slices.Contains(includeList, makeTableNameCaseInsensitive(task.TableName)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, task.TableName) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, makeTableNameCaseInsensitive(task.TableName)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
