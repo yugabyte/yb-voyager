@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,7 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
+	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
@@ -351,15 +353,15 @@ func (m *MetaDB) GetMinSegmentNotImportedBy(importerRoles ...string) (int64, err
 	}
 
 	row := m.db.QueryRow(query)
-	var segmentNum *int64
-	err := row.Scan(segmentNum)
+	var segmentNum sql.NullInt64
+	err := row.Scan(&segmentNum)
 	if err != nil {
 		return -1, fmt.Errorf("run query on meta db - %s : %w", query, err)
 	}
-	if segmentNum == nil {
-		return -1, fmt.Errorf("no segments found")
+	if !segmentNum.Valid {
+		return -1, ErrNoQueueSegmentsFound
 	}
-	return *segmentNum, nil
+	return segmentNum.Int64, nil
 }
 
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {

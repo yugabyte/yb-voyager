@@ -19,14 +19,17 @@ package cmd
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/goccy/go-json"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -56,18 +59,11 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 	var err error
 	if eq.SegmentNumToStream == -1 {
 		// called for the first time
-		if importerRole == FB_DB_IMPORTER_ROLE {
-			eq.SegmentNumToStream, err = metaDB.GetMinSegmentNotImportedBy(TARGET_DB_IMPORTER_ROLE, FB_DB_IMPORTER_ROLE)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
-			}
-		} else {
-			eq.SegmentNumToStream, err = metaDB.GetMinSegmentNotImportedBy(importerRole)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
-			}
-		}
 
+		err = eq.resolveSegmentToResumeFrom()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
+		}
 		log.Info("segment num to resume: ", eq.SegmentNumToStream)
 	}
 	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
@@ -80,6 +76,32 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
 	eq.SegmentNumToStream++
 	return segment, nil
+}
+
+func (eq *EventQueue) resolveSegmentToResumeFrom() error {
+	var importerRoles []string
+	var err error
+	importerRoles = append(importerRoles, importerRole)
+	if importerRole == FB_DB_IMPORTER_ROLE {
+		importerRoles = append(importerRoles, TARGET_DB_IMPORTER_ROLE)
+	}
+	for {
+		eq.SegmentNumToStream, err = metaDB.GetMinSegmentNotImportedBy(importerRoles...)
+		if err != nil {
+			break
+		} else if errors.Is(err, metadb.ErrNoQueueSegmentsFound) {
+			time.Sleep(2 * time.Second)
+			log.Infof("Did not find any segments to start streaming from. Retrying..")
+			continue
+		} else {
+			return err
+		}
+	}
+
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 type EventQueueSegment struct {
