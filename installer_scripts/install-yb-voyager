@@ -11,8 +11,8 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"voyager-debezium"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"sanyam_triggers-cutover"}
+DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.5.1"}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.5.1"}
 
 # the hash corresponds to the yb-voyager/v1.5.1 tag
 YB_VOYAGER_GIT_HASH="c05d70c201859bc655b230678bb065f8cdc795af" 
