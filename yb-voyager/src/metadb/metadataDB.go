@@ -94,12 +94,13 @@ func initMetaDB(path string) error {
 	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
+			exporter_role TEXT,
 			timestamp INTEGER, 
 			num_total INTEGER, 
 			num_inserts INTEGER, 
 			num_updates INTEGER, 
 			num_deletes INTEGER, 
-			PRIMARY KEY(run_id, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
+			PRIMARY KEY(run_id, exporter_role, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			schema_name TEXT, 
 			table_name TEXT, 
@@ -211,6 +212,20 @@ func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
 	}
 
 	return totalCount, totalCountRun, nil
+}
+
+func (m *MetaDB) GetTotalExportedEventsByExporterRole(exporterRole string) (int64, error) {
+	var totalCount int64
+
+	query := fmt.Sprintf(`SELECT sum(num_total) from %s WHERE exporter_role='%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, exporterRole)
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+
+	return totalCount, nil
 }
 
 func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {

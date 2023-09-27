@@ -64,7 +64,7 @@ func streamChanges(state *ImportDataState) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch import stats meta by type: %w", err)
 	}
-	statsReporter = reporter.NewStreamImportStatsReporter()
+	statsReporter = reporter.NewStreamImportStatsReporter(importerRole)
 	err = statsReporter.Init(migrationUUID, metaDB, numInserts, numUpdates, numDeletes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)

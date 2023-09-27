@@ -35,6 +35,7 @@ import (
 type StreamImportStatsReporter struct {
 	sync.Mutex
 	migrationUUID          uuid.UUID
+	importerRole           string
 	totalEventsImported    int64
 	CurrImportedEvents     int64
 	startTime              time.Time
@@ -45,8 +46,8 @@ type StreamImportStatsReporter struct {
 	metaDB                 *metadb.MetaDB
 }
 
-func NewStreamImportStatsReporter() *StreamImportStatsReporter {
-	return &StreamImportStatsReporter{}
+func NewStreamImportStatsReporter(importerRole string) *StreamImportStatsReporter {
+	return &StreamImportStatsReporter{importerRole: importerRole}
 }
 
 func (s *StreamImportStatsReporter) Init(migrationUUID uuid.UUID, metaDB *metadb.MetaDB,
@@ -148,9 +149,18 @@ func (s *StreamImportStatsReporter) getIngestionRateForLastNMinutes(n int64) int
 func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	s.Mutex.Lock()
 	defer s.Mutex.Unlock()
-	totalExportedEvents, _, err := s.metaDB.GetTotalExportedEvents(time.Now().String())
-	if err != nil {
-		utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+	var totalExportedEvents int64
+	var err error
+	if s.importerRole == "fb_db_importer" {
+		totalExportedEvents, err = s.metaDB.GetTotalExportedEventsByExporterRole("target_db_exporter")
+		if err != nil {
+			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		}
+	} else {
+		totalExportedEvents, _, err = s.metaDB.GetTotalExportedEvents(time.Now().String())
+		if err != nil {
+			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
+		}
 	}
 	s.remainingEvents = totalExportedEvents - s.totalEventsImported
 	lastMinIngestionRate := s.getIngestionRateForLastNMinutes(1)
