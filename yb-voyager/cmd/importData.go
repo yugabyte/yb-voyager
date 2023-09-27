@@ -1019,21 +1019,13 @@ func checkExportDataDoneFlag() {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
 
-	exportDataDonePath := filepath.Join(metaInfoDir, "flags", "exportDataDone")
-	if utils.FileOrFolderExists(exportDataDonePath) {
+	if dataIsExported() {
 		return
 	}
 
 	utils.PrintAndLog("Waiting for snapshot data export to complete...")
-	for {
-		_, err = os.Stat(exportDataDonePath)
-		if err == nil {
-			break
-		} else if os.IsNotExist(err) {
-			time.Sleep(time.Second * 2)
-		} else {
-			utils.ErrExit("error while checking export data done flag: %s", err)
-		}
+	for !dataIsExported() {
+		time.Sleep(time.Second * 2)
 	}
 	utils.PrintAndLog("Snapshot data export is complete.")
 }

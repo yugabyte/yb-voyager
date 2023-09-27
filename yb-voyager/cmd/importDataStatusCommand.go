@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -109,18 +107,13 @@ type tableMigStatusOutputRow struct {
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
 func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
-	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
-	_, err := os.Stat(exportDataDoneFlagFilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `import data status` before data export is done")
-		}
-		return fmt.Errorf("check if data export is done: %w", err)
+	if !dataIsExported() {
+		return fmt.Errorf("cannot run `import data status` before data export is done")
 	}
 	//reinitialise targetDB
 	tconf = *tgtconf
 	tdb = tgtdb.NewTargetDB(tgtconf)
-	err = tdb.Init()
+	err := tdb.Init()
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB: %w", err)
 	}

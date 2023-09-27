@@ -101,7 +101,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
 
-		createExportDataDoneFlag()
+		setDataIsExported()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -129,7 +129,7 @@ func exportData() bool {
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
-		createExportDataDoneFlag()
+		setDataIsExported()
 		dfd := datafile.Descriptor{
 			ExportDir:    exportDir,
 			DataFileList: make([]*datafile.FileEntry, 0),
@@ -301,14 +301,13 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
-		os.Remove(flagFilePath)
+		clearDataIsExported()
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
 		metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
@@ -356,14 +355,6 @@ func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
 	return result
 }
 
-func createExportDataDoneFlag() {
-	exportDoneFlagPath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
-	_, err := os.Create(exportDoneFlagPath)
-	if err != nil {
-		utils.ErrExit("creating exportDataDone flag: %v", err)
-	}
-}
-
 func checkSourceDBCharset() {
 	// If source db does not use unicode character set, ask for confirmation before
 	// proceeding for export.
@@ -399,4 +390,31 @@ func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceNam
 		return len(tablesColumnList[tableName]) == 0
 	})
 	return filteredTableList
+}
+
+func dataIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+	}
+
+	return msr.ExportDataDone
+}
+
+func setDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = true
+	})
+	if err != nil {
+		utils.ErrExit("set schema is exported: update migration status record: %s", err)
+	}
+}
+
+func clearDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = false
+	})
+	if err != nil {
+		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+	}
 }
