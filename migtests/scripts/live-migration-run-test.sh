@@ -103,10 +103,6 @@ main() {
 	# Killing the export process in case of failure
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	ls -l ${EXPORT_DIR}/data
-	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
-	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
-
 	step "Import data."
 	import_data || { 
 		tail_log_file "yb-voyager-import-data.log"

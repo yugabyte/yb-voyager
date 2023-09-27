@@ -24,7 +24,7 @@ def validate_report(report, expected_issues):
 		assert expected_issue in report["issues"], f"expected issue is not reported: {expected_issue}"
 
 	assert len(expected_issues) == len(report["issues"])
-
+	print("Success!")
 
 if __name__ == "__main__":
 	main()

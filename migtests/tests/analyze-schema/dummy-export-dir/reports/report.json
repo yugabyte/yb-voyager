@@ -1,0 +1,594 @@
+{
+    "summary": {
+        "dbName": "dummy_db_name",
+        "schemaName": "public",
+        "dbVersion": "",
+        "notes": null,
+        "databaseObjects": [
+            {
+                "objectType": "SCHEMA",
+                "totalCount": 1,
+                "invalidCount": 0,
+                "objectNames": "hollywood",
+                "details": ""
+            },
+            {
+                "objectType": "TABLE",
+                "totalCount": 23,
+                "invalidCount": 5,
+                "objectNames": "salaries2, test_1, table_1, xyz, table_abc, uritype_test, sales, test_4, test_8, table_xyz, test_7, anydata_test, anytype_test, test_2, test_non_pk_multi_column_list, test_5, test_6, test_interval, anydataset_test, test_3, test_9, newtable, table_test",
+                "details": ""
+            },
+            {
+                "objectType": "INDEX",
+                "totalCount": 5,
+                "invalidCount": 0,
+                "objectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3",
+                "details": "There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "objectType": "PROCEDURE",
+                "totalCount": 2,
+                "invalidCount": 0,
+                "objectNames": "foo, foo1",
+                "details": ""
+            },
+            {
+                "objectType": "VIEW",
+                "totalCount": 2,
+                "invalidCount": 0,
+                "objectNames": "v1, test",
+                "details": ""
+            },
+            {
+                "objectType": "TRIGGER",
+                "totalCount": 3,
+                "invalidCount": 1,
+                "objectNames": "transfer_insert, emp_trig, test",
+                "details": ""
+            }
+        ]
+    },
+    "issues": [
+        {
+            "objectType": "SCHEMA",
+            "objectName": "",
+            "reason": "CREATE SCHEMA with elements not supported yet.",
+            "sqlStatement": "CREATE SCHEMA hollywood\n    CREATE TABLE films (title text, release date, awards text[])\n    CREATE VIEW winners AS\n        SELECT title, release FROM films WHERE awards IS NOT NULL;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/schemas/schema.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10865"
+        },
+        {
+            "objectType": "COLLATION",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP COLLATION IF EXISTS coll1,coll2,coll3;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/collations/collation.sql",
+            "suggestion": "DROP COLLATION coll1;DROP COLLATION coll2;DROP COLLATION coll3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "TYPE",
+            "objectName": "colors",
+            "reason": "ALTER TYPE not supported yet.",
+            "sqlStatement": "ALTER TYPE colors ADD VALUE 'orange' AFTER 'red';",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/types/type.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+        },
+        {
+            "objectType": "TYPE",
+            "objectName": "compfoo",
+            "reason": "ALTER TYPE not supported yet.",
+            "sqlStatement": "ALTER TYPE compfoo ADD ATTRIBUTE f3 int;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/types/type.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1893"
+        },
+        {
+            "objectType": "SEQUENCE",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP SEQUENCE seq1_tbl,seq2_tbl,seq3_tbl;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/sequences/sequence.sql",
+            "suggestion": "DROP SEQUENCE seq1_tbl;DROP SEQUENCE seq2_tbl;DROP SEQUENCE seq3_tbl;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "CONVERSION",
+            "objectName": "myconv",
+            "reason": "CREATE CONVERSION not supported yet",
+            "sqlStatement": "CREATE CONVERSION myconv FOR 'UTF8' TO 'LATIN1' FROM myfunc;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+        },
+        {
+            "objectType": "CONVERSION",
+            "objectName": "myconv",
+            "reason": "ALTER CONVERSION not supported yet",
+            "sqlStatement": "ALTER CONVERSION myconv for  'UTF8' TO 'LATIN1' FROM myfunc1;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/10866"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "salaries2",
+            "reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+            "sqlStatement": "CREATE TABLE salaries2 (\n\temp_no bigint NOT NULL,\n\tsalary bigint NOT NULL,\n\tfrom_date timestamp NOT NULL,\n\tto_date timestamp NOT NULL,\n\tPRIMARY KEY (emp_no,from_date)\n) PARTITION BY RANGE (((from_date)::date - '0001-01-01bc')::integer) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the Constriant from the table definition",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "sales",
+            "reason": "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+            "sqlStatement": "CREATE TABLE sales (\n\tcust_id bigint NOT NULL,\n\tname varchar(40),\n\tstore_id varchar(20) NOT NULL,\n\tbill_no bigint NOT NULL,\n\tbill_date timestamp NOT NULL,\n\tamount decimal(8,2) NOT NULL,\n\tPRIMARY KEY (bill_date)\n) PARTITION BY RANGE (extract(year from date(bill_date))) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the Constriant from the table definition",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/698"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_1",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_2",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE test_2 (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_non_pk_multi_column_list",
+            "reason": "cannot use \"list\" partition strategy with more than one column",
+            "sqlStatement": "CREATE TABLE test_non_pk_multi_column_list (\n\tid numeric NOT NULL PRIMARY KEY,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50)\n) PARTITION BY LIST (country_code, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Make it a single column partition by list or choose other supported Partitioning methods",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/699"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_5",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_5 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_6",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_6 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (country_code, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_7",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_7 (\n\tid numeric NOT NULL,\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id,country_code)\n) PARTITION BY RANGE (descriptions, record_type) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_8",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE test_8 (\n\torder_id bigint NOT NULL,\n\torder_date timestamp,\n\torder_mode varchar(8),\n\tcustomer_id integer,\n\torder_mode smallint,\n\torder_total double precision,\n\tsales_rep_id integer,\n\tpromotion_id integer,\n\tPRIMARY KEY (order_id,order_mode,customer_id,order_total,sales_rep_id)\n) PARTITION BY RANGE (promotion_id, order_date, sales_rep_id) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "e",
+            "reason": "REINDEX is not supported.",
+            "sqlStatement": "REINDEX TABLE my_table;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "Stored generated column is not supported. Column is: id",
+            "sqlStatement": "CREATE TABLE newtable (\n\tid UUID GENERATED ALWAYS AS gen_random_uuid() STORED,\n\torg uuid NOT NULL,\n\tname text,\n\tcreated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP UNIQUE(name, org)\n);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_xyz",
+            "reason": "LIKE clause not supported yet.",
+            "sqlStatement": "CREATE TABLE table_xyz\n  (LIKE xyz INCLUDING DEFAULTS INCLUDING CONSTRAINTS);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_abc",
+            "reason": "LIKE ALL is not supported yet.",
+            "sqlStatement": "CREATE TABLE table_abc\n  (LIKE abc INCLUDING ALL);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10697"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "INHERITS not supported yet.",
+            "sqlStatement": "CREATE TABLE table_1 () INHERITS (xyz);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_test",
+            "reason": "OIDs are not supported for user tables.",
+            "sqlStatement": "Create table table_test (col1 text, col2 int) with (OIDS = TRUE);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10273"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_interval",
+            "reason": "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
+            "sqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1397"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "oldschema.tbl_name",
+            "reason": "ALTER TABLE SET SCHEMA not supported yet.",
+            "sqlStatement": "ALTER TABLE oldschema.tbl_name SET SCHEMA newschema;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/3947"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "table_name",
+            "reason": "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
+            "sqlStatement": "alter table table_name alter column column_name set statistics 100;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test",
+            "reason": "ALTER TABLE ALTER column SET STORAGE not supported yet.",
+            "sqlStatement": "alter table test alter column col set STORAGE EXTERNAL;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_1",
+            "reason": "ALTER TABLE ALTER column SET (attribute = value) not supported yet.",
+            "sqlStatement": "alter table test_1 alter column col1 set (attribute_option=value);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE ALTER CONSTRAINT not supported yet.",
+            "sqlStatement": "ALTER TABLE address ALTER CONSTRAINT zipchk CHECK (char_length(zipcode) = 6);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "test_2",
+            "reason": "ALTER TABLE SET WITH OIDS not supported yet.",
+            "sqlStatement": "ALTER TABLE IF EXISTS test_2 SET WITH OIDS;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE CLUSTER not supported yet.",
+            "sqlStatement": "alter table abc cluster on xyz;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
+            "sqlStatement": "alter table test SET WITHOUT CLUSTER;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE INHERIT not supported yet.",
+            "sqlStatement": "alter table test_3 INHERIT test_2;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "",
+            "reason": "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
+            "sqlStatement": "ALTER TABLE distributors VALIDATE CONSTRAINT distfk;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "abc",
+            "reason": "DEFERRABLE unique constraints are not supported yet.",
+            "sqlStatement": "ALTER TABLE abc\nADD CONSTRAINT cnstr_id\n UNIQUE (id)\nDEFERRABLE;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129"
+        },
+        {
+            "objectType": "",
+            "objectName": "",
+            "reason": "Adding primary key to a partitioned table is not yet implemented.",
+            "sqlStatement": "ALTER TABLE xyz add PRIMARY KEY pk(id);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10074"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anydata_test",
+            "reason": "AnyData datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydata_test (\n\tid numeric,\n\tcontent ANYDATA\n) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the column with AnyData datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anydataset_test",
+            "reason": "AnyDataSet datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anydataset_test (\n\tid numeric,\n\tcontent ANYDATASET\n) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the column with AnyDataSet datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "anytype_test",
+            "reason": "AnyType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE anytype_test (\n\tid numeric,\n\tcontent ANYTYPE\n) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the column with AnyType datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "uritype_test",
+            "reason": "URIType datatype doesn't have a mapping in YugabyteDB",
+            "sqlStatement": "CREATE TABLE uritype_test (\n\tid numeric,\n\tcontent URITYPE\n) ;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "Remove the column with URIType datatype or change it to a relevant supported datatype",
+            "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "party_profile_part",
+            "reason": "ALTER TABLE OF not supported yet.",
+            "sqlStatement": "Alter table only party_profile_part of parent_tbl add constraint party_profile_pk primary key (party_profile_id);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "tbl_p",
+            "reason": "Primary key constraints are not supported on foreign tables.",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_p(\n\tid int PRIMARY KEY\n);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10698"
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "tbl_f",
+            "reason": "Foreign key constraints are not supported on foreign tables.",
+            "sqlStatement": "CREATE FOREIGN TABLE tbl_f(\n\tfid int,\n\tpid int FOREIGN KEY REFERENCES tbl_p(id)\n);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10699"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP INDEX idx1,idx2,idx3;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "DROP INDEX idx1;DROP INDEX idx2;DROP INDEX idx3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "sales_quantity_index",
+            "reason": "DROP INDEX CONCURRENTLY not supported yet",
+            "sqlStatement": "DROP INDEX CONCURRENTLY sales_quantity_index;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "film_fulltext_idx",
+            "reason": "Schema contains gist index which is not supported.",
+            "sqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name1",
+            "reason": "index method 'spgist' not supported yet.",
+            "sqlStatement": "CREATE INDEX idx_name1 ON table_name USING spgist (col1);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name2",
+            "reason": "index method 'rtree' is superceded by 'gist' which is not supported yet.",
+            "sqlStatement": "CREATE INDEX idx_name2 ON table_name USING rtree (col1);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "idx_name3",
+            "reason": "Schema contains gin index on multi column which is not supported.",
+            "sqlStatement": "CREATE INDEX idx_name3 ON schema_name.table_name USING gin (col1,col2,col3);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/7850"
+        },
+        {
+            "objectType": "ACCESS METHOD",
+            "objectName": "heptree",
+            "reason": "CREATE ACCESS METHOD is not supported.",
+            "sqlStatement": "CREATE ACCESS METHOD heptree TYPE INDEX HANDLER heptree_handler;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10693"
+        },
+        {
+            "objectType": "INDEX",
+            "objectName": "abc",
+            "reason": "ALTER INDEX SET not supported yet.",
+            "sqlStatement": "ALTER INDEX abc set TABLESPACE new_tbl;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/tables/INDEXES_table.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124"
+        },
+        {
+            "objectType": "PROCEDURE",
+            "objectName": "foo",
+            "reason": "temporary table is not a supported clause for drop",
+            "sqlStatement": "CREATE OR REPLACE PROCEDURE foo (p_id integer) AS $body$\nBEGIN\n    drop temporary table if exists temp;\n    create temporary table temp(id int, name text);\n    insert into temp(id,name) select id,p_name from bar where p_id=id;\n    select name from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/procedures/procedure.sql",
+            "suggestion": "remove \"temporary\" and change it to \"drop table\"",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/705"
+        },
+        {
+            "objectType": "PROCEDURE",
+            "objectName": "foo1",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE OR REPLACE PROCEDURE foo1 (p_id integer) AS $body$\nBEGIN\n    create temporary table temp(id int, agg bigint);\n    insert into temp(id,agg) select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg FROM test1\n    select agg from temp;\nend;\n$body$\nLANGUAGE PLPGSQL\nSECURITY DEFINER\n;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/procedures/procedure.sql",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "v1",
+            "reason": "Schema containing VIEW WITH CHECK OPTION is not supported yet.",
+            "sqlStatement": "CREATE VIEW v1 AS SELECT * FROM t1 WHERE a \u003c 2\nWITH CHECK OPTION;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/views/view.sql",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "",
+            "reason": "DROP multiple objects not supported yet.",
+            "sqlStatement": "DROP VIEW IF EXISTS view1,view2,view3;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/views/view.sql",
+            "suggestion": "DROP VIEW view1;DROP VIEW view2;DROP VIEW view3;",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/880"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "view_name",
+            "reason": "ALTER VIEW not supported yet.",
+            "sqlStatement": "ALTER VIEW view_name TO select * from test;",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/views/view.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1131"
+        },
+        {
+            "objectType": "VIEW",
+            "objectName": "test",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE OR REPLACE VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/views/view.sql",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "transfer_insert",
+            "reason": "REFERENCING clause (transition tables) not supported yet.",
+            "sqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/triggers/trigger.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1668"
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "some_trig",
+            "reason": "CREATE CONSTRAINT TRIGGER not supported yet.",
+            "sqlStatement": "CREATE CONSTRAINT TRIGGER some_trig\n   AFTER DELETE ON xyz_schema.abc\n   DEFERRABLE INITIALLY DEFERRED\n   FOR EACH ROW EXECUTE PROCEDURE xyz_schema.some_trig();",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/triggers/trigger.sql",
+            "suggestion": "",
+            "GH": "https://github.com/YugaByte/yugabyte-db/issues/1709"
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "test",
+            "reason": "JSON_ARRAYAGG() function is not available in YugabyteDB",
+            "sqlStatement": "CREATE TRIGGER test\n    INSERT on test for each ROW\n    EXECUTE PROCEDURE JSON_ARRAYAGG(trunc(b, 2) order by t desc);",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/triggers/trigger.sql",
+            "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
+            "GH": ""
+        },
+        {
+            "objectType": "TRIGGER",
+            "objectName": "emp_trig",
+            "reason": "Compound Triggers are not supported in YugabyteDB.",
+            "sqlStatement": "CREATE TRIGGER emp_trig\n\tCOMPOUND INSERT ON emp FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_emp_trig();",
+            "filePath": "/home/centos/dev-server-ssinghal/home/centos/code/yb-voyager/migtests/tests/analyze-schema/dummy-export-dir/schema/triggers/trigger.sql",
+            "suggestion": "",
+            "GH": ""
+        }
+    ]
+}
