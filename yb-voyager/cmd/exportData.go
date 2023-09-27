@@ -389,7 +389,7 @@ func startFallBackSetupIfRequired() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
-	if !changeStreamingIsEnabled(exporterRole) {
+	if !changeStreamingIsEnabled(exportType) {
 		return
 	}
 	msr, err := metaDB.GetMigrationStatusRecord()
