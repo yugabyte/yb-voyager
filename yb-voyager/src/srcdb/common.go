@@ -148,9 +148,6 @@ func stripSourceSchemaNames(fileName string, sourceSchema string) error {
 }
 
 func removeReduntantAlterTable(fileName string) error {
-	// Find all statements like  ALTER TABLE tab_nn ALTER COLUMN COL2 SET NOT NULL;
-	// Alter table statements that SET NOT NULL on a column are redundant
-	// Remove them
 	if !utils.FileOrFolderExists(fileName) {
 		return nil
 	}
