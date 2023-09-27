@@ -11,7 +11,8 @@ type MigrationStatusRecord struct {
 	MigrationUUID               string
 	SourceDBType                string
 	ExportType                  string
-	FallForwarDBExists          bool
+	FallForwardEnabled          bool
+	FallbackEnabled             bool
 	TargetDBConf                *tgtdb.TargetConf
 	FallForwardDBConf           *tgtdb.TargetConf
 	TableListExportedFromSource []string
@@ -19,11 +20,11 @@ type MigrationStatusRecord struct {
 
 const MIGRATION_STATUS_KEY = "migration_status"
 
-func(m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
-	return UpdateJsonObjectInMetaDB(m,MIGRATION_STATUS_KEY, updateFn)
+func (m *MetaDB) UpdateMigrationStatusRecord(updateFn func(*MigrationStatusRecord)) error {
+	return UpdateJsonObjectInMetaDB(m, MIGRATION_STATUS_KEY, updateFn)
 }
 
-func(m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
+func (m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	record := new(MigrationStatusRecord)
 	found, err := m.GetJsonObject(nil, MIGRATION_STATUS_KEY, record)
 	if err != nil {
@@ -35,7 +36,7 @@ func(m *MetaDB) GetMigrationStatusRecord() (*MigrationStatusRecord, error) {
 	return record, nil
 }
 
-func(m *MetaDB) InitMigrationStatusRecord(migUUID string) error {
+func (m *MetaDB) InitMigrationStatusRecord(migUUID string) error {
 	return m.UpdateMigrationStatusRecord(func(record *MigrationStatusRecord) {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized

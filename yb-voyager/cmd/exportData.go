@@ -19,9 +19,11 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -107,6 +109,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		createExportDataDoneFlag()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
+		startFallBackSetupIfRequired()
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
@@ -380,4 +383,80 @@ func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceNam
 		return len(tablesColumnList[tableName]) == 0
 	})
 	return filteredTableList
+}
+
+func startFallBackSetupIfRequired() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return
+	}
+	if !changeStreamingIsEnabled(exporterRole) {
+		return
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+	}
+	if !msr.FallbackEnabled {
+		utils.PrintAndLog("No fall-back enabled. Exiting.")
+		return
+	}
+	// tableListExportedFromSource := msr.TableListExportedFromSource
+	// var unqualifiedTableList []string
+	// for _, qualifiedTableName := range tableListExportedFromSource {
+	// 	// TODO: handle case sensitivity?
+	// 	unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
+	// 	unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
+	// }
+
+	cmd := []string{"yb-voyager", "fall-back", "setup",
+		"--export-dir", exportDir,
+		"--source-db-host", source.Host,
+		"--source-db-port", fmt.Sprintf("%d", source.Port),
+		"--source-db-user", source.User,
+		"--source-db-name", source.DBName,
+		"--source-db-schema", source.Schema,
+		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
+	}
+	if source.OracleHome != "" {
+		cmd = append(cmd, "--oracle-home", source.OracleHome)
+	}
+	if source.DBSid != "" {
+		cmd = append(cmd, "--source-db-sid", source.DBSid)
+	} else if source.TNSAlias != "" {
+		cmd = append(cmd, "--oracle-tns-alias", source.TNSAlias)
+	}
+	if source.SSLMode != "" {
+		cmd = append(cmd, "--source-ssl-mode", source.SSLMode)
+	}
+	if source.SSLCertPath != "" {
+		cmd = append(cmd, "--source-ssl-cert", source.SSLCertPath)
+	}
+	if source.SSLKey != "" {
+		cmd = append(cmd, "--source-ssl-key", source.SSLKey)
+	}
+	if source.SSLRootCert != "" {
+		cmd = append(cmd, "--source-ssl-root-cert", source.SSLRootCert)
+	}
+	if source.SSLCRL != "" {
+		cmd = append(cmd, "--source-ssl-crl", source.SSLCRL)
+	}
+	if utils.DoNotPrompt {
+		cmd = append(cmd, "--yes")
+	}
+	if disablePb {
+		cmd = append(cmd, "--disable-pb=true")
+	}
+	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
+
+	utils.PrintAndLog("Starting fall-back setup with command:\n %s", color.GreenString(cmdStr))
+	binary, lookErr := exec.LookPath(os.Args[0])
+	if lookErr != nil {
+		utils.ErrExit("could not find yb-voyager - %w", err)
+	}
+	env := os.Environ()
+	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	execErr := syscall.Exec(binary, cmd, env)
+	if execErr != nil {
+		utils.ErrExit("failed to run yb-voyager fall-back setup - %w\n Please re-run with command :\n%s", err, cmdStr)
+	}
 }

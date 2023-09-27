@@ -500,7 +500,7 @@ func getCutoverStatus() string {
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
-	ffDBExists := migrationStatusRecord.FallForwarDBExists
+	ffDBExists := migrationStatusRecord.FallForwardEnabled
 	if !a {
 		return NOT_INITIATED
 	} else if !ffDBExists && a && b && c {

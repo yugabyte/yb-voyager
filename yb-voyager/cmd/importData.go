@@ -134,8 +134,8 @@ func startFallforwardSynchronizeIfRequired() {
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
-	if !msr.FallForwarDBExists {
-		utils.PrintAndLog("No fall-forward db exists. Exiting.")
+	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
+		utils.PrintAndLog("No fall-forward/back enabled. Exiting.")
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
@@ -146,7 +146,14 @@ func startFallforwardSynchronizeIfRequired() {
 		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
-	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
+	var voyagerCmdPrefix string
+	if msr.FallForwardEnabled {
+		voyagerCmdPrefix = "fall-forward"
+	} else {
+		voyagerCmdPrefix = "fall-back"
+	}
+
+	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
 		"--export-dir", exportDir,
 		"--target-db-host", tconf.Host,
 		"--target-db-port", fmt.Sprintf("%d", tconf.Port),

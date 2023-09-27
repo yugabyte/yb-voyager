@@ -47,7 +47,7 @@ func init() {
 
 func updateFallForwarDBExistsInMetaDB() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.FallForwarDBExists = true
+		record.FallForwardEnabled = true
 	})
 	if err != nil {
 		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)

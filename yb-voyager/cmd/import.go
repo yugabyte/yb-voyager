@@ -71,6 +71,8 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 		getTargetPassword(cmd)
 	case FF_DB_IMPORTER_ROLE:
 		getFallForwardDBPassword(cmd)
+	case FB_DB_IMPORTER_ROLE:
+		getSourceDBPassword(cmd)
 	}
 }
 
@@ -319,6 +321,14 @@ func getFallForwardDBPassword(cmd *cobra.Command) {
 	tconf.Password, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
 	if err != nil {
 		utils.ErrExit("error while getting ff-db-password: %w", err)
+	}
+}
+
+func getSourceDBPassword(cmd *cobra.Command) {
+	var err error
+	tconf.Password, err = getPassword(cmd, "source-db-password", "SOURCE_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("error while getting source-db-password: %w", err)
 	}
 }
 
