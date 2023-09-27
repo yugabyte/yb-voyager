@@ -46,7 +46,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
 		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
-		
+
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
@@ -100,6 +100,10 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 				utils.ErrExit(err.Error())
 			}
 		}
+		if exportObject == "TABLE" {
+			if err := removeReduntantAlterTable(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
+				utils.ErrExit(err.Error())
+			}
+		}
 	}
-
 }
