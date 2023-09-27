@@ -309,9 +309,15 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
-		tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-		if err != nil {
-			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+		var tableRowCount int64
+		if importerRole == FB_DB_IMPORTER_ROLE {
+			// TODO: fix.
+			tableRowCount = 0
+		} else {
+			tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
+			if err != nil {
+				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+			}
 		}
 		snapshotRowCount[tableName] = tableRowCount
 	}
