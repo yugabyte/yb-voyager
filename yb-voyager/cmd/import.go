@@ -123,6 +123,52 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 		"target SSL Root Certificate Revocation List (CRL)")
 }
 
+func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.Host, "source-db-host", "127.0.0.1",
+		"host on which the source DB server is running")
+
+	cmd.Flags().IntVar(&tconf.Port, "source-db-port", -1,
+		"port on which the source DB server is running Default: ORACLE(1521)")
+
+	cmd.Flags().StringVar(&tconf.User, "source-db-user", "",
+		"username with which to connect to the source DB server")
+	cmd.MarkFlagRequired("ff-db-user")
+
+	cmd.Flags().StringVar(&tconf.Password, "source-db-password", "",
+		"password with which to connect to the source DB server")
+
+	cmd.Flags().StringVar(&tconf.DBName, "source-db-name", "",
+		"name of the database on the source DB server on which import needs to be done")
+
+	cmd.Flags().StringVar(&tconf.DBSid, "source-db-sid", "",
+		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
+
+	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
+		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
+
+	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
+		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
+
+	cmd.Flags().StringVar(&tconf.Schema, "source-db-schema", "",
+		"schema name in source DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+
+	// TODO: SSL related more args might come. Need to explore SSL part completely.
+	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-ssl-cert", "",
+		"provide source DB SSL Certificate Path")
+
+	cmd.Flags().StringVar(&tconf.SSLMode, "source-ssl-mode", "prefer",
+		"specify the source DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+
+	cmd.Flags().StringVar(&tconf.SSLKey, "source-ssl-key", "",
+		"source DB SSL Key Path")
+
+	cmd.Flags().StringVar(&tconf.SSLRootCert, "source-ssl-root-cert", "",
+		"source DB SSL Root Certificate Path")
+
+	cmd.Flags().StringVar(&tconf.SSLCRL, "source-ssl-crl", "",
+		"source DB SSL Root Certificate Revocation List (CRL)")
+}
+
 func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
 		"host on which the Fall-forward DB server is running")
@@ -188,7 +234,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		defaultParallelismMsg = ""
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
+		"number of parallel copy command jobs to target database. "+defaultParallelismMsg)
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")

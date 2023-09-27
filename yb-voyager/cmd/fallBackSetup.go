@@ -38,7 +38,7 @@ func init() {
 	fallBackCmd.AddCommand(fallBackSetupCmd)
 	registerCommonGlobalFlags(fallBackSetupCmd)
 	registerCommonImportFlags(fallBackSetupCmd)
-	registerFFDBAsTargetConnFlags(fallBackSetupCmd)
+	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
 	registerImportDataFlags(fallBackSetupCmd)
 	hideFlagsInFallBackCmds(fallBackSetupCmd)
 }
