@@ -350,6 +350,17 @@ tail_log_file() {
 	fi	
 }
 
+cat_log_file() {
+	log_file_name=$1
+	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]
+	then
+		echo "Printing ${log_file_name} file"
+		cat "${EXPORT_DIR}/logs/${log_file_name}"
+	else
+		echo "No ${log_file_name} found."
+	fi	
+}
+
 kill_process() {
 	to_be_killed=$1
 	kill -15 ${to_be_killed}
