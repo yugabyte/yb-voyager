@@ -30,6 +30,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
@@ -42,7 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -55,7 +56,7 @@ var identityColumnsMetaDBKey string
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
-var truncateSplits utils.BoolStr                                    // to truncate *.D splits after import
+var truncateSplits utils.BoolStr                           // to truncate *.D splits after import
 var TableToColumnNames = make(map[string][]string)         // map of table name to columnNames
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
@@ -241,33 +242,33 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	log.Infof("includeList: %v", includeList)
 	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
 	log.Infof("excludeList: %v", excludeList)
-	
+
 	//TODO: handle with case sensitivity later
-	makeTableNameCaseInsensitive := func(tableName string) string {
+	standardizeCaseInsensitiveTableNames := func(tableName string) string {
+		parts := strings.Split(tableName, ".")
+		tableName = parts[len(parts)-1]
 		if !utils.IsQuotedString(tableName) {
 			tableName = strings.ToLower(tableName)
+		}
+		if len(parts) > 1 {
+			return fmt.Sprintf(`%s.%s`, parts[0], tableName)
 		}
 		return tableName
 	}
 
-	makeTableListCaseInsensitive := func(tableList []string) []string {
-		result := make([]string, 0, len(tableList))
-		for _, tableName := range tableList {
-			result = append(result, makeTableNameCaseInsensitive(tableName))
-		}
-		return result
-	}
-	
-	includeList = makeTableListCaseInsensitive(includeList)
-	excludeList = makeTableListCaseInsensitive(excludeList)
+	includeList = lo.Map(includeList, func(tableName string, _ int) string {
+		return standardizeCaseInsensitiveTableNames(tableName)
+	})
+	excludeList = lo.Map(excludeList, func(tableName string, _ int) string {
+		return standardizeCaseInsensitiveTableNames(tableName)
+	})
 
-	allTables := make([]string, 0, len(importFileTasks))
-	for _, task := range importFileTasks {
-		allTables = append(allTables, makeTableNameCaseInsensitive(task.TableName))
-	}
+	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
+		return standardizeCaseInsensitiveTableNames(task.TableName)
+	})
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
-	
+
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
 		for _, tableName := range tableNames {
@@ -278,18 +279,18 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		if len(unknownTableNames) > 0 {
 			utils.PrintAndLog("Unknown table names in the %s list: %v", listName, unknownTableNames)
 			utils.PrintAndLog("Valid table names are: %v", allTables)
-			utils.ErrExit("Table names are case-insensitive. Please fix the table names in the %s list and retry.", listName)
+			utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
 		}
 	}
 	checkUnknownTableNames(includeList, "include")
 	checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		if len(includeList) > 0 && !slices.Contains(includeList, makeTableNameCaseInsensitive(task.TableName)) {
+		if len(includeList) > 0 && !slices.Contains(includeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, makeTableNameCaseInsensitive(task.TableName)) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
