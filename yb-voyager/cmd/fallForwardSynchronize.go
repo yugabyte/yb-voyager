@@ -25,7 +25,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
-		exporterRole = TARGET_DB_EXPORTER_ROLE
+		exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		exportDataCmd.PreRun(cmd, args)
 		createTriggerIfNotExists("fallforward.synchronize.started")
 		exportDataCmd.Run(cmd, args)

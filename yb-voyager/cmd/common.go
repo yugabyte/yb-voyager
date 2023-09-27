@@ -534,23 +534,20 @@ func getFallForwardStatus() string {
 }
 
 func getFallBackStatus() string {
-	// TODO: implement
+	fallbackFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback")
+	fallbackTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback.target")
+	fallbackSourceFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback.source")
+
+	a := utils.FileOrFolderExists(fallbackFPath)
+	b := utils.FileOrFolderExists(fallbackTargetFPath)
+	c := utils.FileOrFolderExists(fallbackSourceFPath)
+
+	if !a {
+		return NOT_INITIATED
+	} else if a && b && c {
+		return COMPLETED
+	}
 	return INITIATED
-
-	// fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
-	// fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
-	// fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
-
-	// a := utils.FileOrFolderExists(fallforwardFPath)
-	// b := utils.FileOrFolderExists(fallforwardTargetFPath)
-	// c := utils.FileOrFolderExists(fallforwardFFFPath)
-
-	// if !a {
-	// 	return NOT_INITIATED
-	// } else if a && b && c {
-	// 	return COMPLETED
-	// }
-	// return INITIATED
 }
 
 func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, error) {

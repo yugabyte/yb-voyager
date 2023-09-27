@@ -49,7 +49,8 @@ const (
 	FB_DB_IMPORTER_ROLE           = "fb_db_importer"
 	TARGET_DB_IMPORTER_ROLE       = "target_db_importer"
 	SOURCE_DB_EXPORTER_ROLE       = "source_db_exporter"
-	TARGET_DB_EXPORTER_ROLE       = "target_db_exporter"
+	TARGET_DB_EXPORTER_FF_ROLE    = "target_db_exporter_ff"
+	TARGET_DB_EXPORTER_FB_ROLE    = "target_db_exporter_fb"
 	IMPORT_FILE_ROLE              = "import_file"
 )
 

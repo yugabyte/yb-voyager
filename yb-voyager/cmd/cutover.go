@@ -74,12 +74,14 @@ func getTriggerName(importerOrExporterRole string) (string, error) {
 		return "cutover.source", nil
 	case TARGET_DB_IMPORTER_ROLE:
 		return "cutover.target", nil
-	case TARGET_DB_EXPORTER_ROLE:
+	case TARGET_DB_EXPORTER_FF_ROLE:
 		return "fallforward.target", nil
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		return "fallback.target", nil
 	case FF_DB_IMPORTER_ROLE:
 		return "fallforward.ff", nil
 	case FB_DB_IMPORTER_ROLE:
-		return "fallback.fb", nil
+		return "fallback.source", nil
 	default:
 		return "", fmt.Errorf("invalid role %s", importerOrExporterRole)
 	}

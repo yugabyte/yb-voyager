@@ -316,7 +316,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
