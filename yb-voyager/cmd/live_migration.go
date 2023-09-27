@@ -141,7 +141,8 @@ func streamChangesFromSegment(
 		if event == nil && segment.IsProcessed() {
 			break
 		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
+			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE ||
+			event.isFallBack() && importerRole == FB_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break

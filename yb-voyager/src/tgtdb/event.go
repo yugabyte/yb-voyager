@@ -52,6 +52,10 @@ func (e *Event) IsFallForward() bool {
 	return e.Op == "fallforward"
 }
 
+func (e *Event) IsFallBack() bool {
+	return e.Op == "fallback"
+}
+
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":
