@@ -132,7 +132,10 @@ main() {
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	step "sleep for 10 seconds to allow for cutover to complete"
-	sleep 10
+	sleep 30
+
+	step "Print cutover status"
+	yb-voyager cutover status --export-dir ${EXPORT_DIR}
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data true --refresh-mviews=true

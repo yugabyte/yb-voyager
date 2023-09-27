@@ -57,7 +57,7 @@ jobs:
         yes | ./install-yb-voyager --install-from-local-source --only-pg-support
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-        DEBEZIUM_VERSION: latest
+        DEBEZIUM_VERSION: sanyam_triggers-cutover
         DEBEZIUM_RELEASE_TAG: voyager-debezium
 
     - name: Test PostgreSQL Connection
