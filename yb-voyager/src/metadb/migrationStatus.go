@@ -15,6 +15,7 @@ type MigrationStatusRecord struct {
 	FallbackEnabled             bool
 	TargetDBConf                *tgtdb.TargetConf
 	FallForwardDBConf           *tgtdb.TargetConf
+	SourceDBAsTargetConf        *tgtdb.TargetConf
 	TableListExportedFromSource []string
 }
 

@@ -72,13 +72,20 @@ var importDataStatusCmd = &cobra.Command{
 			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
-		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, streamChanges)
+		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, false, streamChanges)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
 		if migrationStatus.FallForwardEnabled {
 			color.Cyan("Import Data Status for fall-forward DB\n")
-			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, streamChanges)
+			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, false, streamChanges)
+			if err != nil {
+				utils.ErrExit("error: %s\n", err)
+			}
+		}
+		if migrationStatus.FallbackEnabled {
+			color.Cyan("Import Data Status for source DB (fall-back)\n")
+			err = runImportDataStatusCmd(migrationStatus.SourceDBAsTargetConf, false, true, streamChanges)
 			if err != nil {
 				utils.ErrExit("error: %s\n", err)
 			}
@@ -114,7 +121,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
+func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, isfb, streamChanges bool) error {
 	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
 	_, err := os.Stat(exportDataDoneFlagFilePath)
 	if err != nil {
@@ -135,7 +142,7 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChange
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	table, err := prepareImportDataStatusTable(isffDB, streamChanges)
+	table, err := prepareImportDataStatusTable(isffDB, isfb, streamChanges)
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
