@@ -39,6 +39,7 @@ import (
 
 var targetDbPassword string
 var ffDbPassword string
+var sourceDbPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -70,6 +71,10 @@ var importDataStatusCmd = &cobra.Command{
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = tconf.Password
 			}
+			if migrationStatus.FallForwardEnabled {
+				getSourceDBPassword(cmd)
+				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
+			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
 		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, false, streamChanges)
@@ -97,6 +102,9 @@ func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 
 	importDataStatusCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
+		"password with which to connect to the target fall-forward DB server")
+
+	importDataStatusCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target fall-forward DB server")
 
 	importDataStatusCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
