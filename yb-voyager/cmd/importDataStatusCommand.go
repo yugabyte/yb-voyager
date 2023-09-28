@@ -31,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -200,12 +201,14 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
+func prepareImportDataStatusTable(isffDB bool, isfb bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
 	var err error
 	var dataFileDescriptor *datafile.Descriptor
 	if isffDB {
 		importerRole = FF_DB_IMPORTER_ROLE
+	} else if isfb {
+		importerRole = FB_DB_IMPORTER_ROLE
 	} else {
 		importerRole = TARGET_DB_IMPORTER_ROLE
 	}
@@ -225,22 +228,37 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 		}
 	}
 
+	snapshotRowCount := make(map[string]int64)
+	if importerRole == FB_DB_IMPORTER_ROLE {
+		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+		}
+		for _, tableStatus := range exportStatus.Tables {
+			snapshotRowCount[tableStatus.TableName] = tableStatus.ExportedRowCountSnapshot
+		}
+	}
+
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		var totalCount, importedCount int64
 		var err error
 		var perc float64
 		var status string
 		reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
+		totalCount = dataFile.RowCount
 		if reportProgressInBytes {
-			totalCount = dataFile.FileSize
 			importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
 		} else {
-			totalCount = dataFile.RowCount
-			importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+			if importerRole == FB_DB_IMPORTER_ROLE {
+				importedCount = snapshotRowCount[dataFile.TableName]
+			} else {
+				importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+			}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("compute imported data size: %w", err)
 		}
+
 		if totalCount != 0 {
 			perc = float64(importedCount) * 100.0 / float64(totalCount)
 		}
@@ -265,6 +283,20 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 			eventCounter, err := state.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
 			if err != nil {
 				return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
+			}
+			if importerRole == FB_DB_IMPORTER_ROLE {
+				schemaNameForQuery := ""
+				tableNameForQuery := row.tableName
+				tableParts := strings.Split(row.tableName, ".")
+				if len(tableParts) == 2 {
+					schemaNameForQuery = tableParts[0]
+					tableNameForQuery = tableParts[1]
+				}
+				exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaNameForQuery, tableNameForQuery)
+				if err != nil {
+					utils.ErrExit("could not fetch table stats from meta db: %v", err)
+				}
+				eventCounter.Merge(exportedEventCounter)
 			}
 			row.totalEvents = eventCounter.TotalEvents
 			row.numInserts = eventCounter.NumInserts
