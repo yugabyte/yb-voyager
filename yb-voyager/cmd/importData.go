@@ -250,7 +250,13 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		if !utils.IsQuotedString(tableName) {
 			tableName = strings.ToLower(tableName)
 		}
+
 		if len(parts) > 1 {
+			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf 
+			source.DBType = migInfo.SourceDBType
+			if parts[0] == getDefaultSourceSchemaName() {
+				return tableName
+			}
 			return fmt.Sprintf(`%s.%s`, parts[0], tableName)
 		}
 		return tableName
