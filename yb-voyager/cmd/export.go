@@ -273,27 +273,11 @@ func validateSourceDBType() {
 }
 
 func validateConflictsBetweenTableListFlags(tableList string, excludeTableList string) {
-	if tableList != "" && excludeTableList != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
-	}
-
 	if tableList != "" && tableListFilePath != "" {
 		utils.ErrExit("Error: Only one of --table-list and --table-list-file-path are allowed")
 	}
 	if excludeTableList != "" && excludeTableListFilePath != "" {
 		utils.ErrExit("Error: Only one of --exclude-table-list and --exclude-table-list-file-path are allowed")
-	}
-
-	if tableListFilePath != "" && excludeTableListFilePath != "" {
-		utils.ErrExit("Error: Only one of --table-list-file-path and --exclude-table-list-file-path are allowed")
-	}
-
-	if tableList != "" && excludeTableListFilePath != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list-file-path are allowed")
-	}
-
-	if excludeTableList != "" && tableListFilePath != "" {
-		utils.ErrExit("Error: Only one of --exclude-table-list and --table-list-file-path are allowed")
 	}
 }
 

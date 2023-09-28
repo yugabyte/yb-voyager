@@ -186,23 +186,23 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	var finalTableList, skippedTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
-		finalTableList = extractTableListFromString(source.TableList)
+		tableList = extractTableListFromString(source.TableList)
 	} else {
 		tableList = source.DB().GetAllTableNames()
-		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-		log.Infof("initial all tables table list for data export: %v", tableList)
+	}
+	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	log.Infof("initial all tables table list for data export: %v", tableList)
 
-		if !changeStreamingIsEnabled(exportType) {
-			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-			if len(skippedTableList) != 0 {
-				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
-			}
-		}
-
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if !changeStreamingIsEnabled(exportType) {
+		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
 		}
+	}
+
+	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if len(skippedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
 	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
@@ -289,7 +289,7 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 		return "", nil
 	}
 	if !utils.FileOrFolderExists(filePath) {
-		return "", fmt.Errorf("invalid file path '%v' provided with --%s flag", filePath, flagName)
+		return "", fmt.Errorf("path %q does not exist", filePath)
 	}
 	tableList, err := utils.ReadTableNameListFromFile(filePath)
 	if err != nil {

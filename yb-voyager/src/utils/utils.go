@@ -449,19 +449,19 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return []string{}, fmt.Errorf("error opening file %s: %v", filePath, err)
+		return nil, fmt.Errorf("error opening file %s: %v", filePath, err)
 	}
 	defer file.Close()
 	var list []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
+		line := strings.TrimSpace(scanner.Text())
 		if len(line) > 0 { //ignore empty lines
 		   list = append(list, CsvStringToSlice(line)...)
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		return []string{}, fmt.Errorf("error reading file %s: %v", filePath, err)
+		return nil, fmt.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return list, nil
 }
