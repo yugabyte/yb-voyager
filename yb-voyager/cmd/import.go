@@ -190,11 +190,11 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
+		"list of tables to exclude while importing data")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"list of tables to import data")
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
-		"path of the file containing for list of tables to exclude while importing data (ignored if --table-list/--table-list-file-path is used)")
+		"path of the file containing for list of tables to exclude while importing data")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of table names to import data")
 
