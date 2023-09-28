@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -33,6 +34,7 @@ type SourceDB interface {
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	ExportSchema(exportDir string)
+	ExportSchemaPostProcessing(metaDB *metadb.MetaDB)
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -58,6 +59,7 @@ var (
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent             = `[a-zA-Z0-9_]+`
+	reportOracleRevIdxs          = "%d reverse index(s) i.e. [%s] present in the schema, but they are neither supported in YugabyteDB or exported by yb-voyager."
 )
 
 func cat(tokens ...string) string {
@@ -225,7 +227,6 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
-
 	//reading source db metainfo
 	miginfo, err := LoadMigInfo(exportDir)
 	if err != nil {
@@ -238,12 +239,24 @@ func reportSummary() {
 		reportStruct.Summary.DBVersion = miginfo.SourceDBVersion
 	}
 
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to initialize meta db: %s", err)
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
+	}
+	revIdxs := msr.ReverseIndexes
+	if len(revIdxs) > 0 {
+		summaryMap["INDEX"].details[fmt.Sprintf(reportOracleRevIdxs, len(revIdxs), strings.Join(revIdxs, ","))] = true
+	}
+
 	// requiredJson += `"databaseObjects": [`
 	for _, objType := range sourceObjList {
 		if summaryMap[objType].totalCount == 0 {
 			continue
 		}
-
 		var dbObject utils.DBObject
 		dbObject.ObjectType = objType
 		dbObject.TotalCount = summaryMap[objType].totalCount
@@ -252,6 +265,7 @@ func reportSummary() {
 		dbObject.Details = getMapKeys(summaryMap[objType].details)
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
+
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)

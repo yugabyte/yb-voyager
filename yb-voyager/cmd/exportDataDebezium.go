@@ -124,7 +124,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 		SnapshotMode:          snapshotMode,
 	}
-	if source.DBType == "oracle" {
+	if source.DBType == ORACLE {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
 		if source.IsOracleCDBSetup() {
 			// uri = cdb uri
@@ -144,7 +144,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
 		}
-	} else if source.DBType == "yugabytedb" {
+	} else if source.DBType == YUGABYTEDB {
 		if exportType == CHANGES_ONLY {
 			ybServers := source.DB().GetServers()
 			masterPort := "7100"

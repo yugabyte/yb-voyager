@@ -28,6 +28,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -208,6 +209,10 @@ func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
 
 func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
+}
+
+func (yb *YugabyteDB) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {
+	return
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

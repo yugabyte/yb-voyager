@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -210,6 +211,10 @@ func (pg *PostgreSQL) getConnectionUriWithoutPassword() string {
 func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pg.checkSchemasExists()
 	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
+}
+
+func (pg *PostgreSQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {
+	return
 }
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

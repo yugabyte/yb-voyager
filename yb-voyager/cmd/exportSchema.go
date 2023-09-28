@@ -89,6 +89,7 @@ func exportSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	source.DB().ExportSchema(exportDir)
+	source.DB().ExportSchemaPostProcessing(metaDB)
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)

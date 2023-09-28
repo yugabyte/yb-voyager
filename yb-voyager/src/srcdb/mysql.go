@@ -27,6 +27,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -161,6 +162,10 @@ func (ms *MySQL) getConnectionUri() string {
 
 func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
+}
+
+func (ms *MySQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {
+	return
 }
 
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
