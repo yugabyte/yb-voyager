@@ -164,9 +164,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {
-	return
-}
+func (ms *MySQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {}
 
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)

@@ -213,9 +213,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
 }
 
-func (pg *PostgreSQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {
-	return
-}
+func (pg *PostgreSQL) ExportSchemaPostProcessing(metaDB *metadb.MetaDB) {}
 
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
