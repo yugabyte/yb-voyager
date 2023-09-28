@@ -310,16 +310,20 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
 		var tableRowCount int64
-		if importerRole == FB_DB_IMPORTER_ROLE {
-			// TODO: fix.
-			tableRowCount = 0
-		} else {
-			tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
-			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
-			}
+		tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
+		if err != nil {
+			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
 		}
 		snapshotRowCount[tableName] = tableRowCount
+	}
+	if importerRole == FB_DB_IMPORTER_ROLE {
+		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+		}
+		for _, tableStatus := range exportStatus.Tables {
+			snapshotRowCount[tableStatus.TableName] = tableStatus.ExportedRowCountSnapshot
+		}
 	}
 
 	for i, tableName := range tableList {
@@ -331,6 +335,20 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 		eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 		if err != nil {
 			utils.ErrExit("could not fetch table stats from target db: %v", err)
+		}
+		if importerRole == FB_DB_IMPORTER_ROLE {
+			schemaNameForQuery := ""
+			tableNameForQuery := tableName
+			tableParts := strings.Split(tableName, ".")
+			if len(tableParts) == 2 {
+				schemaNameForQuery = tableParts[0]
+				tableNameForQuery = tableParts[1]
+			}
+			exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaNameForQuery, tableNameForQuery)
+			if err != nil {
+				utils.ErrExit("could not fetch table stats from meta db: %v", err)
+			}
+			eventCounter.Merge(exportedEventCounter)
 		}
 		fullyQualifiedTablename := tableName
 		if len(strings.Split(fullyQualifiedTablename, ".")) < 2 {

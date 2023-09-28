@@ -102,13 +102,14 @@ func initMetaDB(path string) error {
 			num_deletes INTEGER, 
 			PRIMARY KEY(run_id, exporter_role, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
+			exporter_role TEXT,
 			schema_name TEXT, 
 			table_name TEXT, 
 			num_total INTEGER, 
 			num_inserts INTEGER, 
 			num_updates INTEGER, 
 			num_deletes INTEGER, 
-			PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
+			PRIMARY KEY(exporter_role, schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			key TEXT PRIMARY KEY,
 			json_text TEXT);`, JSON_OBJECTS_TABLE_NAME),
@@ -389,6 +390,34 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	 	COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0)
 	  	from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s')`,
 		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName)
+
+	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
+	if err != nil {
+		return &tgtdb.EventCounter{
+			TotalEvents: 0,
+			NumInserts:  0,
+			NumUpdates:  0,
+			NumDeletes:  0,
+		}, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return &tgtdb.EventCounter{
+		TotalEvents: totalCount,
+		NumInserts:  inserts,
+		NumUpdates:  updates,
+		NumDeletes:  deletes,
+	}, nil
+}
+
+func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole string, schemaName string, tableName string) (*tgtdb.EventCounter, error) {
+	var totalCount int64
+	var inserts int64
+	var updates int64
+	var deletes int64
+	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
+	query := fmt.Sprintf(`select COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0),
+	 	COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0)
+	  	from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s') AND exporter_role='%s'`,
+		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName, exporterRole)
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
