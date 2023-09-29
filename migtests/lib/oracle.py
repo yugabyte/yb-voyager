@@ -17,7 +17,7 @@ def new_target_db():
         env.get("FF_DB_HOST", "localhost"),
         env.get("FF_DB_PORT", "1521"),
         env["FF_DB_NAME"],
-        env.get("FF_DB_USER", "c##ybvoyager"),
+        env.get("FF_DB_USER", "FF_SCHEMA"),
         env.get("FF_DB_PASSWORD", "password"))
     
 class OracleDB:
