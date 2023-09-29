@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -241,10 +242,9 @@ func discoverFilesToImport() []*ImportFileTask {
 
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
-	includeList := utils.CsvStringToSlice(tconf.TableList)
-	log.Infof("includeList: %v", includeList)
-	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
-	log.Infof("excludeList: %v", excludeList)
+
+	migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf
+	source.DBType = migInfo.SourceDBType
 
 	//TODO: handle with case sensitivity later
 	standardizeCaseInsensitiveTableNames := func(tableName string) string {
@@ -255,8 +255,6 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		}
 
 		if len(parts) > 1 {
-			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf 
-			source.DBType = migInfo.SourceDBType
 			if parts[0] == getDefaultSourceSchemaName() {
 				return tableName
 			}
@@ -265,18 +263,34 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return tableName
 	}
 
-	includeList = lo.Map(includeList, func(tableName string, _ int) string {
-		return standardizeCaseInsensitiveTableNames(tableName)
-	})
-	excludeList = lo.Map(excludeList, func(tableName string, _ int) string {
-		return standardizeCaseInsensitiveTableNames(tableName)
-	})
-
 	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
 		return standardizeCaseInsensitiveTableNames(task.TableName)
 	})
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
+
+	flatGlobPatternTables := func(globPattern string) []string {
+		globPattern = strings.Replace(globPattern, "*", ".*", -1)
+		reg := regexp.MustCompile(globPattern)
+		result := lo.Filter(allTables, func(tableName string, _ int) bool {
+			return reg.MatchString(tableName)
+		})
+		return result
+	}
+
+	extractTableList := func(flagTableList, listName string) []string {
+		tableList := utils.CsvStringToSlice(flagTableList)
+		var result []string
+		for _, table := range tableList {
+			table = standardizeCaseInsensitiveTableNames(table)
+			result = append(result, flatGlobPatternTables(table)...)
+		}
+		log.Infof("%s tableList: %v", listName, result)
+		return result
+	}
+
+	includeList := extractTableList(tconf.TableList, "include")
+	excludeList := extractTableList(tconf.ExcludeTableList, "exclude")
 
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)

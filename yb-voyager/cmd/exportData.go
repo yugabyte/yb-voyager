@@ -184,11 +184,12 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
-	excludeTableList := extractTableListFromString(source.ExcludeTableList)
+	fullTableList := source.DB().GetAllTableNames()
+	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList)
 	if source.TableList != "" {
-		tableList = extractTableListFromString(source.TableList)
+		tableList = extractTableListFromString(fullTableList, source.TableList)
 	} else {
-		tableList = source.DB().GetAllTableNames()
+		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 	log.Infof("initial all tables table list for data export: %v", tableList)
@@ -343,22 +344,24 @@ func getDefaultSourceSchemaName() string {
 	}
 }
 
-func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
+func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string) []*sqlname.SourceName {
 	result := []*sqlname.SourceName{}
 	if flagTableList == "" {
 		return result
 	}
+	flatGlobPatternTables := func(globPattern string) []*sqlname.SourceName {
+		globPattern = strings.ReplaceAll(globPattern, "*", ".*")
+		reg := regexp.MustCompile(globPattern)
+		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
+			return reg.MatchString(tableName.Qualified.MinQuoted)
+		})
+		return result
+	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-
-	var schemaName string
-	if source.Schema != "" {
-		schemaName = source.Schema
-	} else {
-		schemaName = getDefaultSourceSchemaName()
-	}
 	for _, table := range tableList {
-		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, schemaName))
+		result = append(result, flatGlobPatternTables(table)...)
 	}
+
 	return result
 }
 
