@@ -51,7 +51,10 @@ var exportDataCmd = &cobra.Command{
 		if exporterRole == "" {
 			exporterRole = SOURCE_DB_EXPORTER_ROLE
 		}
-		validateExportFlags(cmd, exporterRole)
+		err := validateExportFlags(cmd, exporterRole)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 		if changeStreamingIsEnabled(exportType) {
@@ -183,23 +186,23 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	var finalTableList, skippedTableList []*sqlname.SourceName
 	excludeTableList := extractTableListFromString(source.ExcludeTableList)
 	if source.TableList != "" {
-		finalTableList = extractTableListFromString(source.TableList)
+		tableList = extractTableListFromString(source.TableList)
 	} else {
 		tableList = source.DB().GetAllTableNames()
-		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-		log.Infof("initial all tables table list for data export: %v", tableList)
+	}
+	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	log.Infof("initial all tables table list for data export: %v", tableList)
 
-		if !changeStreamingIsEnabled(exportType) {
-			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-			if len(skippedTableList) != 0 {
-				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
-			}
-		}
-
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if !changeStreamingIsEnabled(exportType) {
+		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
 		}
+	}
+
+	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if len(skippedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
 	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
@@ -266,18 +269,40 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 }
 
 // flagName can be "exclude-table-list" or "table-list"
-func validateTableListFlag(tableListString string, flagName string) {
-	if tableListString == "" {
+func validateTableListFlag(tableListValue string, flagName string) {
+	if tableListValue == "" {
 		return
 	}
-	tableList := utils.CsvStringToSlice(tableListString)
-	// TODO: update regexp once table name with double quotes are allowed/supported
-	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
+	tableList := utils.CsvStringToSlice(tableListValue)
+
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided wtih --%s flag", table, flagName)
+			utils.ErrExit("Error: Invalid table name '%v' provided with --%s flag", table, flagName)
 		}
 	}
+}
+
+// flagName can be "exclude-table-list-file-path" or "table-list-file-path"
+func validateAndExtractTableNamesFromFile(filePath string, flagName string) (string, error) {
+	if filePath == "" {
+		return "", nil
+	}
+	if !utils.FileOrFolderExists(filePath) {
+		return "", fmt.Errorf("path %q does not exist", filePath)
+	}
+	tableList, err := utils.ReadTableNameListFromFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading table list from file: %w", err)
+	}
+
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
+	for _, table := range tableList {
+		if !tableNameRegex.MatchString(table) {
+			return "", fmt.Errorf("invalid table name '%v' provided in file %s with --%s flag", table, filePath, flagName)
+		}
+	}
+	return strings.Join(tableList, ","), nil
 }
 
 func checkDataDirs() {

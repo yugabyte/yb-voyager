@@ -36,6 +36,8 @@ var disablePb utils.BoolStr
 var exportType string
 var useDebezium bool
 var runId string
+var excludeTableListFilePath string
+var tableListFilePath string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -188,7 +190,7 @@ func setDefaultSSLMode() {
 	}
 }
 
-func validateExportFlags(cmd *cobra.Command, exporterRole string) {
+func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
@@ -196,11 +198,24 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	validateSSLMode()
 	validateOracleParams()
 
-	if source.TableList != "" && source.ExcludeTableList != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
-	}
+	validateConflictsBetweenTableListFlags(source.TableList, source.ExcludeTableList)
+
 	validateTableListFlag(source.TableList, "table-list")
 	validateTableListFlag(source.ExcludeTableList, "exclude-table-list")
+	var err error
+	if source.TableList == "" {
+		source.TableList, err = validateAndExtractTableNamesFromFile(tableListFilePath, "table-list-file-path")
+		if err != nil {
+			return err
+		}
+	}
+	if source.ExcludeTableList == "" {
+		source.ExcludeTableList, err = validateAndExtractTableNamesFromFile(excludeTableListFilePath, "exclude-table-list-file-path")
+		if err != nil {
+			return err
+		}
+	}
+
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
@@ -211,15 +226,16 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) {
 	// checking if wrong flag is given used for a db type
 	if source.DBType != ORACLE {
 		if source.DBSid != "" {
-			utils.ErrExit("Error: --oracle-db-sid flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-db-sid flag is only valid for 'oracle' db type")
 		}
 		if source.OracleHome != "" {
-			utils.ErrExit("Error: --oracle-home flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-home flag is only valid for 'oracle' db type")
 		}
 		if source.TNSAlias != "" {
-			utils.ErrExit("Error: --oracle-tns-alias flag is only valid for 'oracle' db type")
+			return fmt.Errorf("--oracle-tns-alias flag is only valid for 'oracle' db type")
 		}
 	}
+	return nil
 }
 
 func registerExportDataFlags(cmd *cobra.Command) {
@@ -227,10 +243,16 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while exporting data (ignored if --table-list is used)")
+		"list of tables to exclude while exporting data")
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"list of the tables to export data")
+
+	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
+		"path of the file containing list of table names to exclude while exporting data")
+
+	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
+		"path of the file containing list of table names to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
@@ -247,6 +269,15 @@ func validateSourceDBType() {
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
 		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: (postgresql, oracle, mysql)", source.DBType)
+	}
+}
+
+func validateConflictsBetweenTableListFlags(tableList string, excludeTableList string) {
+	if tableList != "" && tableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --table-list and --table-list-file-path are allowed")
+	}
+	if excludeTableList != "" && excludeTableListFilePath != "" {
+		utils.ErrExit("Error: Only one of --exclude-table-list and --exclude-table-list-file-path are allowed")
 	}
 }
 
