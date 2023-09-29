@@ -400,13 +400,6 @@ func startFallBackSetupIfRequired() {
 		utils.PrintAndLog("No fall-back enabled. Exiting.")
 		return
 	}
-	// tableListExportedFromSource := msr.TableListExportedFromSource
-	// var unqualifiedTableList []string
-	// for _, qualifiedTableName := range tableListExportedFromSource {
-	// 	// TODO: handle case sensitivity?
-	// 	unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-	// 	unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	// }
 
 	cmd := []string{"yb-voyager", "fall-back", "setup",
 		"--export-dir", exportDir,
