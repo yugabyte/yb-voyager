@@ -343,6 +343,7 @@ fall_forward_setup() {
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
+	--parallel-jobs 3
 	"
 	yb-voyager fall-forward setup ${args} $*
 }
