@@ -138,7 +138,7 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 1m 
+	sleep 2m 
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"
@@ -146,17 +146,17 @@ main() {
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 1m
+	sleep 2m
 
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	sleep 1m
+	sleep 2m
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 1m
+	sleep 2m
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
