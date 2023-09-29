@@ -27,6 +27,7 @@ source ${TEST_DIR}/env.sh
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
+	source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
@@ -43,13 +44,16 @@ main() {
 	mkdir -p ${EXPORT_DIR}
 	echo "Assigning permissions to the export-dir to execute init-db, cleanup-db scripts"
 	chmod +x ${TEST_DIR}/init-db ${TEST_DIR}/cleanup-db
-
+	
 	step "START: ${TEST_NAME}"
 	print_env
 
 	pushd ${TEST_DIR}
 
-	step "Initialise source database."
+	step "Prepare FF metadata tables"
+	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/fall-forward-prep.sql
+
+	step "Initialise source and fall forward database."
 	./init-db
 
 	step "Grant source database user permissions"
@@ -104,15 +108,14 @@ main() {
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
-	# TODO: check sqlite db for exportDataDone flag in MSR
-	sleep 1m
+	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
-	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data || { 
+	import_data --parallel-jobs 3 || { 
 		tail_log_file "yb-voyager-import-data.log"
 		exit 1
 	} &
@@ -123,43 +126,51 @@ main() {
 	# Updating the trap command to include the importer
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 30 
-	
+	step "Fall Forward Setup"
+	fall_forward_setup || { 
+		tail_log_file "yb-voyager-fall-forward-setup.log"
+		exit 1
+	} &
+
+	# Storing the pid for the fall forward setup command
+	ffs_pid=$!
+
+	# Updating the trap command to include the ff setup
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+
+	sleep 1m 
+
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"
 
-	step "Inserting new events"
+	step "Inserting new events to source"
 	run_sql_file source_delta.sql
 
-	sleep 2m
-
-	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+	sleep 1m
 
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	step "sleep for 30 seconds to allow for cutover to complete"
-	sleep 30
+	sleep 1m
 
-	step "Print cutover status"
-	yb-voyager cutover status --export-dir ${EXPORT_DIR}
-
-	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews=true
-	run_ysql ${TARGET_DB_NAME} "\di"
-	run_ysql ${TARGET_DB_NAME} "\dft" 
-
-	#Added this step to maintain consistency
-	#TODO: Add conditional checks
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
+	sleep 1m
+
+	step "Resetting the trap command"
+	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+
+	step "Initiating Switchover"
+	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
+
+	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
+	import_schema --post-import-data true --refresh-mviews true
+	run_ysql ${TARGET_DB_NAME} "\di"
+	run_ysql ${TARGET_DB_NAME} "\dft" 
+
 	step "Run final validations."
-	if [ -x "${TEST_DIR}/validateAfterChanges" ]
-	then
 	"${TEST_DIR}/validateAfterChanges"
-	fi
 
 	step "Clean up"
 	./cleanup-db
