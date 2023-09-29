@@ -77,20 +77,23 @@ var importDataStatusCmd = &cobra.Command{
 			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
-		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, false, streamChanges)
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, streamChanges)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
 		if migrationStatus.FallForwardEnabled {
 			color.Cyan("Import Data Status for fall-forward DB\n")
-			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, false, streamChanges)
+			importerRole = FF_DB_IMPORTER_ROLE
+			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, streamChanges)
 			if err != nil {
 				utils.ErrExit("error: %s\n", err)
 			}
 		}
 		if migrationStatus.FallbackEnabled {
 			color.Cyan("Import Data Status for source DB (fall-back)\n")
-			err = runImportDataStatusCmd(migrationStatus.SourceDBAsTargetConf, false, true, streamChanges)
+			importerRole = FB_DB_IMPORTER_ROLE
+			err = runImportDataStatusCmd(migrationStatus.SourceDBAsTargetConf, streamChanges)
 			if err != nil {
 				utils.ErrExit("error: %s\n", err)
 			}
@@ -129,7 +132,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, isfb, streamChanges bool) error {
+func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, streamChanges bool) error {
 	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
 	_, err := os.Stat(exportDataDoneFlagFilePath)
 	if err != nil {
@@ -150,7 +153,7 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, isfb, stream
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	table, err := prepareImportDataStatusTable(isffDB, isfb, streamChanges)
+	table, err := prepareImportDataStatusTable(streamChanges)
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
@@ -216,17 +219,11 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func prepareImportDataStatusTable(isffDB bool, isfb bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
+func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
 	var err error
 	var dataFileDescriptor *datafile.Descriptor
-	if isffDB {
-		importerRole = FF_DB_IMPORTER_ROLE
-	} else if isfb {
-		importerRole = FB_DB_IMPORTER_ROLE
-	} else {
-		importerRole = TARGET_DB_IMPORTER_ROLE
-	}
+
 	state := NewImportDataState(exportDir)
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
@@ -318,9 +315,10 @@ func prepareImportDataStatusTable(isffDB bool, isfb bool, streamChanges bool) ([
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
 			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			isffComplete := isffDB && (getFallForwardStatus() == COMPLETED)
-			isCutoverComplete := !isffDB && (getCutoverStatus() == COMPLETED)
-			if isffComplete || isCutoverComplete {
+			isffComplete := importerRole == FF_DB_IMPORTER_ROLE && (getFallForwardStatus() == COMPLETED)
+			isfbComplete := importerRole == FB_DB_IMPORTER_ROLE && (getFallBackStatus() == COMPLETED)
+			isCutoverComplete := importerRole == TARGET_DB_IMPORTER_ROLE && (getCutoverStatus() == COMPLETED)
+			if isffComplete || isCutoverComplete || isfbComplete {
 				row.status = "DONE"
 			} else {
 				row.status = "STREAMING"
