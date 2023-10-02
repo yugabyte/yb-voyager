@@ -29,3 +29,7 @@ export-dir/
 
 # skipping __pycache__ directory and *.pyc files
 __pycache__/
+
+# ignoring logs and report directory of dummy-export-dir test
+migtests/tests/analyze-schema/dummy-export-dir/logs
+migtests/tests/analyze-schema/dummy-export-dir/reports
