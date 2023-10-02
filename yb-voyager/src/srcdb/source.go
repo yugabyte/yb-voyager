@@ -57,6 +57,11 @@ type Source struct {
 	sourceDB SourceDB
 }
 
+func (s *Source) Clone() *Source {
+	newS := *s
+	return &newS
+}
+
 func (s *Source) DB() SourceDB {
 	if s.sourceDB == nil {
 		s.sourceDB = newSourceDB(s)

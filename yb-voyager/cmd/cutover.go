@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -51,19 +50,44 @@ func InitiatePrimarySwitch(action string) error {
 }
 
 func createTriggerIfNotExists(triggerName string) error {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		log.Errorf("creating trigger(%s): %v", triggerName, err)
-		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
-	}
-
-	if msr != nil && msr.CheckIfTriggerExists(triggerName) {
-		utils.PrintAndLog("%s already initiated, wait for it to complete", triggerName)
-		return nil
-	}
-
-	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.SetTrigger(triggerName)
+	cutoverMsg := "cutover already initiated, wait for it to complete"
+	fallforwardMsg := "fallforward already initiated, wait for it to complete"
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch triggerName {
+		case "cutover":
+			if record.CutoverRequested {
+				utils.PrintAndLog(cutoverMsg)
+			}
+			// if the above check fails, we will set this to true otherwise its a no-op
+			record.CutoverRequested = true
+		case "cutover.source":
+			if record.CutoverProcessedBySourceExporter {
+				utils.PrintAndLog(cutoverMsg)
+			}
+			record.CutoverProcessedBySourceExporter = true
+		case "cutover.target":
+			if record.CutoverProcessedByTargetImporter {
+				utils.PrintAndLog(cutoverMsg)
+			}
+			record.CutoverProcessedByTargetImporter = true
+		case "fallforward":
+			if record.FallForwardSwitchRequested {
+				utils.PrintAndLog(fallforwardMsg)
+			}
+			record.FallForwardSwitchRequested = true
+		case "fallforward.target":
+			if record.FallForwardSwitchProcessedByTargetExporter {
+				utils.PrintAndLog(fallforwardMsg)
+			}
+			record.FallForwardSwitchProcessedByTargetExporter = true
+		case "fallforward.ff":
+			if record.FallForwardSwitchProcessedByFFImporter {
+				utils.PrintAndLog(fallforwardMsg)
+			}
+			record.FallForwardSwitchProcessedByFFImporter = true
+		default:
+			panic("invalid trigger name")
+		}
 	})
 	if err != nil {
 		log.Errorf("creating trigger(%s): %v", triggerName, err)
@@ -94,12 +118,28 @@ func exitIfDBSwitchedOver(triggerName string) {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("checking trigger(%s): %v", triggerName, err)
+		utils.ErrExit("exit if db switched over for trigger(%s) exists: load migration status record: %s", triggerName, err)
 	}
-
-	if msr != nil && msr.CheckIfTriggerExists(triggerName) {
-		utils.PrintAndLog("cutover already complete")
-		// Question: do we need to support start clean flag with cutover
-		os.Exit(0)
+	cutoverMsg := "cutover already completed for this migration, aborting..."
+	fallforwardMsg := "fallforward already completed for this migration, aborting..."
+	switch triggerName { // only these trigger names required to be checked for db switch over
+	case "cutover.source":
+		if msr.CutoverProcessedBySourceExporter {
+			utils.ErrExit(cutoverMsg)
+		}
+	case "cutover.target":
+		if msr.CutoverProcessedByTargetImporter {
+			utils.ErrExit(cutoverMsg)
+		}
+	case "fallforward.target":
+		if msr.FallForwardSwitchProcessedByTargetExporter {
+			utils.ErrExit(fallforwardMsg)
+		}
+	case "fallforward.ff":
+		if msr.FallForwardSwitchProcessedByFFImporter {
+			utils.ErrExit(fallforwardMsg)
+		}
+	default:
+		panic("invalid trigger name")
 	}
 }

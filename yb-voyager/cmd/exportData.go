@@ -406,7 +406,7 @@ func setDataIsExported() {
 		record.ExportDataDone = true
 	})
 	if err != nil {
-		utils.ErrExit("set schema is exported: update migration status record: %s", err)
+		utils.ErrExit("set data is exported: update migration status record: %s", err)
 	}
 }
 
@@ -415,6 +415,6 @@ func clearDataIsExported() {
 		record.ExportDataDone = false
 	})
 	if err != nil {
-		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+		utils.ErrExit("clear data is exported: update migration status record: %s", err)
 	}
 }

@@ -103,6 +103,13 @@ main() {
 	# Killing the export process in case of failure
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
+	# Waiting for snapshot to complete
+	# check sqlite db for exportDataDone flag in MSR
+
+	ls -l ${EXPORT_DIR}/data
+	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+
 	step "Import data."
 	import_data || { 
 		tail_log_file "yb-voyager-import-data.log"
@@ -131,7 +138,7 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	step "sleep for 10 seconds to allow for cutover to complete"
+	step "sleep for 30 seconds to allow for cutover to complete"
 	sleep 30
 
 	step "Print cutover status"

@@ -18,6 +18,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var fallForwardSynchronizeCmd = &cobra.Command{
@@ -31,9 +32,12 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
 		initMetaDB()
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.FallForwardSyncStarted = true
 		})
+		if err != nil {
+			utils.ErrExit("failed to update migration status record for fall-forward sync started: %v", err)
+		}
 		exportDataCmd.Run(cmd, args)
 	},
 }
