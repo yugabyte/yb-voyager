@@ -22,7 +22,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -243,19 +242,22 @@ func discoverFilesToImport() []*ImportFileTask {
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
 
-	migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf
+	migInfo, err := LoadMigInfo(exportDir) //TODO: handle with msr.SourceDBConf
+	if err != nil {
+		utils.ErrExit("failed to load migration info: %s", err)
+	}
 	source.DBType = migInfo.SourceDBType
+	source.Schema = migInfo.SourceDBSchema
 
 	//TODO: handle with case sensitivity later
-	standardizeCaseInsensitiveTableNames := func(tableName string) string {
+	standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
 		parts := strings.Split(tableName, ".")
 		tableName = parts[len(parts)-1]
 		if !utils.IsQuotedString(tableName) {
 			tableName = strings.ToLower(tableName)
 		}
-
 		if len(parts) > 1 {
-			if parts[0] == getDefaultSourceSchemaName() {
+			if parts[0] == defaultSourceSchema {
 				return tableName
 			}
 			return fmt.Sprintf(`%s.%s`, parts[0], tableName)
@@ -264,16 +266,16 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	}
 
 	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
-		return standardizeCaseInsensitiveTableNames(task.TableName)
+		defaultSourceSchema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schemas
+		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
 	})
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
 
-	flatGlobPatternTables := func(globPattern string) []string {
-		globPattern = strings.Replace(globPattern, "*", ".*", -1)
-		reg := regexp.MustCompile(globPattern)
+	flattenTables := func(pattern string) []string {
 		result := lo.Filter(allTables, func(tableName string, _ int) bool {
-			return reg.MatchString(tableName)
+			matched, _ := filepath.Match(pattern, tableName)
+			return matched
 		})
 		return result
 	}
@@ -281,9 +283,19 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	extractTableList := func(flagTableList, listName string) []string {
 		tableList := utils.CsvStringToSlice(flagTableList)
 		var result []string
+		defaultSourceSchema, err := getDefaultSourceSchemaName()
+		var unqualifiedTables []string
 		for _, table := range tableList {
-			table = standardizeCaseInsensitiveTableNames(table)
-			result = append(result, flatGlobPatternTables(table)...)
+			if err != nil && len(strings.Split(table, ".")) == 1 {
+				unqualifiedTables = append(unqualifiedTables, table)
+				continue
+			}
+			table = standardizeCaseInsensitiveTableNames(table, defaultSourceSchema)
+			result = append(result, flattenTables(table)...)
+		}
+		if len(unqualifiedTables) > 0 {
+			utils.PrintAndLog("Error: can not qualify table names %v in the %s list. \n%s", unqualifiedTables, listName, err.Error())
+			utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result
@@ -309,11 +321,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		if len(includeList) > 0 && !slices.Contains(includeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
+		defaultSourceSchema, _ := getDefaultSourceSchemaName() 
+		if len(includeList) > 0 && !slices.Contains(includeList, standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}

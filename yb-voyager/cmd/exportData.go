@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -185,9 +186,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
 	fullTableList := source.DB().GetAllTableNames()
-	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList)
+	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if source.TableList != "" {
-		tableList = extractTableListFromString(fullTableList, source.TableList)
+		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
 		tableList = fullTableList
 	}
@@ -244,7 +245,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := source.DB().GetAllSequences()
 		for _, seq := range sequenceList {
-			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
+			name := sqlname.NewSourceNameFromQualifiedName(seq)
 			finalTableList = append(finalTableList, name)
 		}
 	}
@@ -331,37 +332,55 @@ func checkDataDirs() {
 	}
 }
 
-func getDefaultSourceSchemaName() string {
+func getDefaultSourceSchemaName() (string, error) {
 	switch source.DBType {
 	case MYSQL:
-		return source.DBName
+		return source.DBName, nil
 	case POSTGRESQL, YUGABYTEDB:
-		return "public"
+		schemas := strings.Split(source.Schema, "|")
+		if len(schemas) == 1 {
+			return source.Schema, nil
+		} else if slices.Contains(schemas, "public") {
+			return "public", nil
+		} else {
+			return "", fmt.Errorf("for non-public source schemas, all table names in the list must be qualified")
+		}
 	case ORACLE:
-		return source.Schema
+		return source.Schema, nil
 	default:
 		panic("invalid db type")
 	}
 }
 
-func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string) []*sqlname.SourceName {
+func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string, listName string) []*sqlname.SourceName {
 	result := []*sqlname.SourceName{}
 	if flagTableList == "" {
 		return result
 	}
-	flatGlobPatternTables := func(globPattern string) []*sqlname.SourceName {
-		globPattern = strings.ReplaceAll(globPattern, "*", ".*")
-		reg := regexp.MustCompile(globPattern)
+	flattenTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
 		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
-			return reg.MatchString(tableName.Qualified.MinQuoted)
+			table := tableName.Qualified.MinQuoted
+			if tableName.SchemaName.Unquoted == defaultSourceSchema {
+				table = tableName.ObjectName.MinQuoted
+			}
+			matched, _ := filepath.Match(pattern, table)
+			return matched
 		})
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	for _, table := range tableList {
-		result = append(result, flatGlobPatternTables(table)...)
+	var unqualifiedTables []string
+	defaultSourceSchema, err := getDefaultSourceSchemaName()
+	for _, pattern := range tableList {
+		if err != nil && len(strings.Split(pattern, ".")) == 1 {
+			unqualifiedTables = append(unqualifiedTables, pattern)
+			continue
+		}
+		result = append(result, flattenTables(pattern, defaultSourceSchema)...)
 	}
-
+	if len(unqualifiedTables) > 0 {
+		utils.ErrExit("Error: can not qualify table names %v in the %s list. \n%s", unqualifiedTables, listName, err.Error())
+	}
 	return result
 }
 

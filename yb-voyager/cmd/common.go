@@ -259,7 +259,7 @@ func displayExportedRowCountSnapshot() {
 			if source.Schema != "" {
 				tableParts := strings.Split(key, ".")
 				table := tableParts[0]
-				schema := getDefaultSourceSchemaName()
+				schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
 				if len(tableParts) > 1 {
 					schema = tableParts[0]
 					table = tableParts[1]
