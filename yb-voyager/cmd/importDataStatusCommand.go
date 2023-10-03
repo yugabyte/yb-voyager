@@ -42,7 +42,6 @@ var importDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		initMetaDB()
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)

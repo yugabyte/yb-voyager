@@ -45,12 +45,11 @@ var importSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
 		}
-		
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		initMetaDB()
 		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},

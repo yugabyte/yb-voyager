@@ -41,7 +41,6 @@ var archiveChangesCmd = &cobra.Command{
 }
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
-	initMetaDB()
 	moveToChanged := cmd.Flags().Changed("move-to")
 	deleteChanged := cmd.Flags().Changed("delete")
 	if moveToChanged == deleteChanged {

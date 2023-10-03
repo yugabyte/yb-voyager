@@ -31,7 +31,6 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_ROLE
 		exportDataCmd.PreRun(cmd, args)
-		initMetaDB()
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.FallForwardSyncStarted = true
 		})
