@@ -360,6 +360,11 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 	flattenTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
 		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
 			table := tableName.Qualified.MinQuoted
+			sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
+			pattern = sqlNamePattern.Qualified.MinQuoted
+			if sqlNamePattern.SchemaName.Unquoted == defaultSourceSchema {
+				pattern = sqlNamePattern.ObjectName.MinQuoted
+			}
 			if tableName.SchemaName.Unquoted == defaultSourceSchema {
 				table = tableName.ObjectName.MinQuoted
 			}
@@ -371,15 +376,23 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 	tableList := utils.CsvStringToSlice(flagTableList)
 	var unqualifiedTables []string
 	defaultSourceSchema, err := getDefaultSourceSchemaName()
+	var unknownTableNames []string
 	for _, pattern := range tableList {
 		if err != nil && len(strings.Split(pattern, ".")) == 1 {
 			unqualifiedTables = append(unqualifiedTables, pattern)
 			continue
 		}
-		result = append(result, flattenTables(pattern, defaultSourceSchema)...)
+		tables := flattenTables(pattern, defaultSourceSchema)
+		if len(tables) == 0 {
+			unknownTableNames = append(unknownTableNames, pattern)
+		}
+		result = append(result, tables...)
 	}
 	if len(unqualifiedTables) > 0 {
 		utils.ErrExit("Error: can not qualify table names %v in the %s list. \n%s", unqualifiedTables, listName, err.Error())
+	}
+	if len(unknownTableNames) > 0 {
+		utils.ErrExit("Error: unknown table names %v in the %s list", unknownTableNames, listName)
 	}
 	return result
 }
