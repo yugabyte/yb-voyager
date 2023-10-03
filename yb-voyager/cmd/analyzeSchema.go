@@ -823,6 +823,7 @@ func isEndOfSqlStmt(line string) bool {
 }
 
 func initializeSummaryMap() {
+	log.Infof("initializing report summary map")
 	for _, objType := range sourceObjList {
 		summaryMap[objType] = &summaryInfo{
 			objSet:  make(map[string]bool),

@@ -116,6 +116,7 @@ func AskPrompt(args ...string) bool {
 }
 
 func GetSchemaObjectList(sourceDBType string) []string {
+	log.Infof("get schema object list for %q", sourceDBType)
 	var requiredList []string
 	switch sourceDBType {
 	case "oracle":
