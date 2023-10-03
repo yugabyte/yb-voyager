@@ -86,8 +86,8 @@ main() {
 	tail -20 ${EXPORT_DIR}/reports/report.txt
 
 	step "Create target database."
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
-	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
+#	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+#	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 
 	step "Import schema."
 	import_schema
@@ -138,7 +138,9 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 5m 
+	sleep 1
+	
+	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 2m; kill $!
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"
@@ -175,7 +177,7 @@ main() {
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}/*"
-	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+#	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
 main

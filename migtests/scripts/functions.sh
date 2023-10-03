@@ -187,17 +187,18 @@ run_sqlplus_as_sys() {
 
 
 run_sqlplus_as_schema_owner() {
-	if [ "$#" != 4 ]; then
-    	db_name=$1
-    	sql=$2
-    	conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	else
-   		db_name=$1
-   		db_schema=$2
-   		db_password=$3
-   		sql=$4
-   		conn_string="${db_schema}/${db_password}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	fi
+    db_name=$1
+    sql=$2
+    conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    echo exit | sqlplus -f "${conn_string}" @"${sql}"
+}
+
+run_sqlplus() {
+	db_name=$1
+   	db_schema=$2
+   	db_password=$3
+   	sql=$4
+   	conn_string="${db_schema}/${db_password}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
 
 	echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
