@@ -34,7 +34,7 @@ jobs:
         yes | ./installer_scripts/install-yb-voyager --install-from-local-source
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-        DEBEZIUM_VERSION: sanyam_triggers-cutover
+        DEBEZIUM_VERSION: latest
         DEBEZIUM_RELEASE_TAG: voyager-debezium
 
     - name: Start MySQL
