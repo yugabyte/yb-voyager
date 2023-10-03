@@ -140,7 +140,7 @@ main() {
 
 	sleep 1
 
-	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 5m; kill $!
+	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 10m;
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"
