@@ -378,7 +378,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		return false, nil
 	}
 	progressTracker.Done(status)
-	createExportDataDoneFlag()
+	setDataIsExported()
 	err := writeDataFileDescriptor(exportDir, status)
 	if err != nil {
 		return false, fmt.Errorf("failed to write data file descriptor: %w", err)

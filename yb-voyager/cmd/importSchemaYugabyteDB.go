@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -82,38 +81,6 @@ func importDefferedStatements() {
 			}
 		}
 	}
-}
-
-func ExtractMetaInfo(exportDir string) utils.ExportMetaInfo {
-	log.Infof("Extracting the metainfo about the source database.")
-	var metaInfo utils.ExportMetaInfo
-
-	metaInfoDirPath := exportDir + "/metainfo"
-
-	metaInfoDir, err := os.ReadDir(metaInfoDirPath)
-	if err != nil {
-		utils.ErrExit("Failed to read directory %q: %v", metaInfoDirPath, err)
-	}
-
-	for _, metaInfoSubDir := range metaInfoDir {
-		if !metaInfoSubDir.IsDir() {
-			continue
-		}
-		subItemPath := metaInfoDirPath + "/" + metaInfoSubDir.Name()
-		subItems, err := os.ReadDir(subItemPath)
-		if err != nil {
-			utils.ErrExit("Failed to read directory %q: %v", subItemPath, err)
-		}
-		for _, subItem := range subItems {
-			subItemName := subItem.Name()
-			if strings.HasPrefix(subItemName, "source-db-") {
-				splits := strings.Split(subItemName, "-")
-				metaInfo.SourceDBType = splits[len(splits)-1]
-				log.Infof("Extracted source database type: %s", metaInfo.SourceDBType)
-			}
-		}
-	}
-	return metaInfo
 }
 
 func applySchemaObjectFilterFlags(importObjectOrderList []string) []string {

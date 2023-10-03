@@ -83,11 +83,6 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-	var err error
-	metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
 	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
@@ -96,7 +91,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
@@ -255,8 +250,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		}
 
 		if len(parts) > 1 {
-			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf 
-			source.DBType = migInfo.SourceDBType
+			source.DBType = GetSourceDBTypeFromMSR()
 			if parts[0] == getDefaultSourceSchemaName() {
 				return tableName
 			}
@@ -332,7 +326,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
 		tconf.Schema = strings.ToUpper(tconf.Schema)
 	}
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -1023,21 +1017,13 @@ func checkExportDataDoneFlag() {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
 
-	exportDataDonePath := filepath.Join(metaInfoDir, "flags", "exportDataDone")
-	if utils.FileOrFolderExists(exportDataDonePath) {
+	if dataIsExported() {
 		return
 	}
 
 	utils.PrintAndLog("Waiting for snapshot data export to complete...")
-	for {
-		_, err = os.Stat(exportDataDonePath)
-		if err == nil {
-			break
-		} else if os.IsNotExist(err) {
-			time.Sleep(time.Second * 2)
-		} else {
-			utils.ErrExit("error while checking export data done flag: %s", err)
-		}
+	for !dataIsExported() {
+		time.Sleep(time.Second * 2)
 	}
 	utils.PrintAndLog("Snapshot data export is complete.")
 }

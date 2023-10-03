@@ -104,11 +104,12 @@ main() {
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
-	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
+	# TODO: check sqlite db for exportDataDone flag in MSR
+	sleep 1m
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
-	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
 	step "Import data."
 	import_data || { 
@@ -136,8 +137,13 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
+
+	step "sleep for 30 seconds to allow for cutover to complete"
+	sleep 30
+
+	step "Print cutover status"
+	yb-voyager cutover status --export-dir ${EXPORT_DIR}
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data true --refresh-mviews=true

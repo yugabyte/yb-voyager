@@ -45,12 +45,12 @@ var importSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
 		}
-		
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
 }
@@ -68,7 +68,7 @@ var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 
 func importSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

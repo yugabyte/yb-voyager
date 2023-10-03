@@ -225,17 +225,16 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
-
-	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	//reading source db metainfo from msr
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
 	}
 
 	if !tconf.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = miginfo.SourceDBName
-		reportStruct.Summary.SchemaName = miginfo.SourceDBSchema
-		reportStruct.Summary.DBVersion = miginfo.SourceDBVersion
+		reportStruct.Summary.DBName = msr.SourceDBConf.DBName
+		reportStruct.Summary.SchemaName = msr.SourceDBConf.Schema
+		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
 	}
 
 	// requiredJson += `"databaseObjects": [`
@@ -824,6 +823,7 @@ func isEndOfSqlStmt(line string) bool {
 }
 
 func initializeSummaryMap() {
+	log.Infof("initializing report summary map")
 	for _, objType := range sourceObjList {
 		summaryMap[objType] = &summaryInfo{
 			objSet:  make(map[string]bool),
@@ -844,16 +844,16 @@ func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
 	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("generate html report: load migration status record: %s", err)
 	}
 
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(miginfo.SourceDBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -956,14 +956,14 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
-	miginfo, err := LoadMigInfo(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
 
 	reportStruct = utils.Report{}
 	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(miginfo.SourceDBType)
+	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
 		var filePath string
@@ -988,14 +988,14 @@ func analyzeSchemaInternal() utils.Report {
 }
 
 func analyzeSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	reportFile := "report." + outputFormat
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
-	if !schemaIsExported(exportDir) {
+	if !schemaIsExported() {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
 

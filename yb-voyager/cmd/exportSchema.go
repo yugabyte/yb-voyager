@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,17 +41,13 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
-		}
 		exportSchema()
 	},
 }
 
 func exportSchema() {
-	if schemaIsExported(exportDir) {
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	if schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
@@ -65,7 +60,7 @@ func exportSchema() {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
 
-			clearSchemaIsExported(exportDir)
+			clearSchemaIsExported()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
@@ -83,11 +78,8 @@ func exportSchema() {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
-
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err = retrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -99,21 +91,7 @@ func exportSchema() {
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)
 
-	setSchemaIsExported(exportDir)
-
-	miginfo := &MigInfo{
-		SourceDBType:    source.DBType,
-		SourceDBName:    source.DBName,
-		SourceDBSchema:  source.Schema,
-		SourceDBVersion: source.DB().GetVersion(),
-		SourceDBSid:     source.DBSid,
-		SourceTNSAlias:  source.TNSAlias,
-		exportDir:       exportDir,
-	}
-	err = SaveMigInfo(miginfo)
-	if err != nil {
-		utils.ErrExit("unable to save migration info: %s", err)
-	}
+	setSchemaIsExported()
 }
 
 func init() {
@@ -128,44 +106,29 @@ func init() {
 		"enable export of comments associated with database objects (default false)")
 }
 
-func schemaIsExported(exportDir string) bool {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	_, err := os.Stat(flagFilePath)
+func schemaIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		utils.ErrExit("failed to check if schema import is already done: %s", err)
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
 	}
-	return true
+
+	return msr.ExportSchemaDone
 }
 
-func setSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	fh, err := os.Create(flagFilePath)
+func setSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = true
+	})
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("set schema is exported: update migration status record: %s", err)
 	}
-	fh.Close()
 }
 
-func clearSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
-	os.Remove(flagFilePath)
-}
-
-// clear and set source db type flag
-func setSourceDbType(sourceDbType string, exportDir string) {
-	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
-	for _, supportedSourceDBType := range supportedSourceDBTypes {
-		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", supportedSourceDBType))
-		os.Remove(flagFilePath)
-	}
-
-	flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
-	fh, err := os.Create(flagFilePath)
+func clearSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = false
+	})
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
 	}
-	fh.Close()
 }

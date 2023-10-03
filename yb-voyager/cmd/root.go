@@ -37,7 +37,7 @@ var (
 	startClean    utils.BoolStr
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
-	VerboseMode  utils.BoolStr
+	VerboseMode   utils.BoolStr
 )
 
 var rootCmd = &cobra.Command{
@@ -52,6 +52,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				lockExportDir(cmd)
 			}
 			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
+			if metaDBIsCreated(exportDir) {
+				initMetaDB()
+			}
 		}
 	},
 
@@ -209,4 +212,8 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 		Value:    p,
 		DefValue: fmt.Sprintf("%t", value),
 	})
+}
+
+func metaDBIsCreated(exportDir string) bool {
+	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
 }

@@ -109,6 +109,7 @@ func (pg *PostgreSQL) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	pg.source.DBVersion = version
 	return version
 }
 
