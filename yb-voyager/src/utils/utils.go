@@ -130,6 +130,29 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
+func ApplyExportSchemaObjectListFilter(allowedObjects *[]string, expectedObjects string) {
+	if expectedObjects == "" {
+		return
+	}
+	expectedObjectsSlice := strings.Split(expectedObjects, ",")
+	newAllowedObjects := []string{}
+	for _, object := range *allowedObjects {
+		if ContainsString(expectedObjectsSlice, object) {
+			newAllowedObjects = append(newAllowedObjects, object)
+		}
+	}
+	*allowedObjects = newAllowedObjects
+}
+
+func ContainsString(list []string, str string) bool {
+	for _, object := range list {
+		if strings.EqualFold(object, str) {
+			return true
+		}
+	}
+	return false
+}
+
 func IsDirectoryEmpty(pathPattern string) bool {
 	files, _ := filepath.Glob(pathPattern + "/*")
 	return len(files) == 0
@@ -445,7 +468,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	return percUtilization, nil
 }
 
-//read the file and return slice of csv 
+// read the file and return slice of csv
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -457,7 +480,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) > 0 { //ignore empty lines
-		   list = append(list, CsvStringToSlice(line)...)
+			list = append(list, CsvStringToSlice(line)...)
 		}
 	}
 	if err := scanner.Err(); err != nil {

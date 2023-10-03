@@ -64,7 +64,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	}
 
 	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir)
+	returnCode := parseSchemaFile(exportDir, source.ExportObjects)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- returnCode
@@ -97,7 +97,7 @@ func readSchemaFile(path string) []string {
 var sqlInfoCommentRegex = regexp.MustCompile("-- Name:.*; Type:.*; Schema: .*")
 
 // NOTE: This is for case when --schema-only option is provided with pg_dump[Data shouldn't be there]
-func parseSchemaFile(exportDir string) int {
+func parseSchemaFile(exportDir string, exportObjects string) int {
 	log.Info("Begun parsing the schema file.")
 	schemaFilePath := filepath.Join(exportDir, "temp", "schema.sql")
 
@@ -114,6 +114,7 @@ func parseSchemaFile(exportDir string) int {
 	objSqlStmts := make(map[string]*strings.Builder)
 	// initialize the map
 	pgObjList := utils.GetSchemaObjectList("postgresql")
+	utils.ApplyExportSchemaObjectListFilter(&pgObjList, exportObjects)
 	for _, objType := range pgObjList {
 		objSqlStmts[objType] = &strings.Builder{}
 	}
@@ -136,20 +137,28 @@ func parseSchemaFile(exportDir string) int {
 			sqlType := extractSqlTypeFromComment(delimiterLine)
 			switch sqlType {
 			case "SCHEMA", "TYPE", "DOMAIN", "RULE", "FUNCTION",
-				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT":
-				objSqlStmts[sqlType].WriteString(stmts)
+				"AGGREGATE", "PROCEDURE", "VIEW", "TRIGGER", "EXTENSION", "COMMENT", "COLLATION":
+				if utils.ContainsString(pgObjList, sqlType) {
+					objSqlStmts[sqlType].WriteString(stmts)
+				}
 			case "SEQUENCE", "SEQUENCE OWNED BY":
-				objSqlStmts["SEQUENCE"].WriteString(stmts)
+				if utils.ContainsString(pgObjList, "SEQUENCE") {
+					objSqlStmts["SEQUENCE"].WriteString(stmts)
+				}
 			case "INDEX", "INDEX ATTACH":
-				objSqlStmts["INDEX"].WriteString(stmts)
+				if utils.ContainsString(pgObjList, "INDEX") {
+					objSqlStmts["INDEX"].WriteString(stmts)
+				}
 			case "TABLE", "DEFAULT", "CONSTRAINT", "FK CONSTRAINT":
-				objSqlStmts["TABLE"].WriteString(stmts)
+				if utils.ContainsString(pgObjList, "TABLE") {
+					objSqlStmts["TABLE"].WriteString(stmts)
+				}
 			case "TABLE ATTACH":
 				alterAttachPartition.WriteString(stmts)
 			case "MATERIALIZED VIEW":
-				objSqlStmts["MVIEW"].WriteString(stmts)
-			case "COLLATION":
-				objSqlStmts["COLLATION"].WriteString(stmts)
+				if utils.ContainsString(pgObjList, "MVIEW") {
+					objSqlStmts["MVIEW"].WriteString(stmts)
+				}
 			default:
 				uncategorizedSqls.WriteString(stmts)
 			}
@@ -157,7 +166,9 @@ func parseSchemaFile(exportDir string) int {
 	}
 
 	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
-	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
+	if utils.ContainsString(pgObjList, "TABLE") {
+		objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
+	}
 
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {

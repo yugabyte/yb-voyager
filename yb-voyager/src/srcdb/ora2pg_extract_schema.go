@@ -34,6 +34,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
 
 	exportObjectList := utils.GetSchemaObjectList(source.DBType)
+	utils.ApplyExportSchemaObjectListFilter(&exportObjectList, source.ExportObjects)
 
 	for _, exportObject := range exportObjectList {
 		if exportObject == "INDEX" {

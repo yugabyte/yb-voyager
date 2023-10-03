@@ -126,6 +126,8 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
+	exportSchemaCmd.Flags().StringVar(&source.ExportObjects, "object-list", "",
+		"comma separated list of objects to export. ")
 }
 
 func schemaIsExported(exportDir string) bool {
