@@ -251,8 +251,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		}
 
 		if len(parts) > 1 {
-			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf 
-			source.DBType = migInfo.SourceDBType
+			source.DBType = GetSourceDBTypeFromMSR()
 			if parts[0] == getDefaultSourceSchemaName() {
 				return tableName
 			}
