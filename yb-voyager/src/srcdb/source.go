@@ -22,39 +22,39 @@ import (
 )
 
 type Source struct {
-	DBType                string
-	Host                  string
-	Port                  int
-	User                  string
-	Password              string
-	DBName                string
-	CDBName               string
-	DBSid                 string
-	CDBSid                string
-	OracleHome            string
-	TNSAlias              string
-	CDBTNSAlias           string
-	Schema                string
-	SSLMode               string
-	SSLCertPath           string
-	SSLKey                string
-	SSLRootCert           string
-	SSLCRL                string
-	SSLQueryString        string
-	SSLKeyStore           string
-	SSLKeyStorePassword   string
-	SSLTrustStore         string
-	SSLTrustStorePassword string
-	Uri                   string
-	NumConnections        int
-	VerboseMode           bool
-	TableList             string
-	ExcludeTableList      string
-	UseOrafce             utils.BoolStr
-	CommentsOnObjects     utils.BoolStr
-	DBVersion             string
+	DBType                string        `json:"db_type"`
+	Host                  string        `json:"host"`
+	Port                  int           `json:"port"`
+	User                  string        `json:"user"`
+	Password              string        `json:"password"`
+	DBName                string        `json:"db_name"`
+	CDBName               string        `json:"cdb_name"`
+	DBSid                 string        `json:"db_sid"`
+	CDBSid                string        `json:"cdb_sid"`
+	OracleHome            string        `json:"oracle_home"`
+	TNSAlias              string        `json:"tns_alias"`
+	CDBTNSAlias           string        `json:"cdb_tns_alias"`
+	Schema                string        `json:"schema"`
+	SSLMode               string        `json:"ssl_mode"`
+	SSLCertPath           string        `json:"ssl_cert_path"`
+	SSLKey                string        `json:"ssl_key"`
+	SSLRootCert           string        `json:"ssl_root_cert"`
+	SSLCRL                string        `json:"ssl_crl"`
+	SSLQueryString        string        `json:"ssl_query_string"`
+	SSLKeyStore           string        `json:"ssl_keystore"`
+	SSLKeyStorePassword   string        `json:"ssl_keystore_password"`
+	SSLTrustStore         string        `json:"ssl_truststore"`
+	SSLTrustStorePassword string        `json:"ssl_truststore_password"`
+	Uri                   string        `json:"uri"`
+	NumConnections        int           `json:"num_connections"`
+	VerboseMode           bool          `json:"verbose_mode"`
+	TableList             string        `json:"table_list"`
+	ExcludeTableList      string        `json:"exclude_table_list"`
+	UseOrafce             utils.BoolStr `json:"use_orafce"`
+	CommentsOnObjects     utils.BoolStr `json:"comments_on_objects"`
+	DBVersion             string        `json:"db_version"`
 
-	sourceDB SourceDB
+	sourceDB SourceDB `json:"-"`
 }
 
 func (s *Source) Clone() *Source {
