@@ -540,12 +540,14 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			if len(partitionColumnsList) == 1 {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
+					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 					reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
 						"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					continue
 				}
 			}
 			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
+				summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
 					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				continue
