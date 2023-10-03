@@ -138,9 +138,9 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 1
+	sleep 2
 
-	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 10m; kill $!
+	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 5m; kill $!
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"

@@ -9,9 +9,8 @@ echo "Assigning permissions to the validate files"
 chmod +x ${TEST_DIR}/validate
 chmod +x ${TEST_DIR}/validateAfterChanges
 
-echo "Deleting existing data in source and FF database"
+echo "Deleting existing data in source database"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
-run_sqlplus ${SOURCE_DB_NAME} ${FF_DB_SCHEMA} ${FF_DB_PASSWORD} ${TESTS_DIR}/oracle/utils/delete_full_schema
 
 echo "Initialising source database & inserting data"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} snapshot_schema
@@ -19,5 +18,7 @@ run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} snapshot_data
 
 if [ "${FF_DB_SCHEMA}" != "" ]
 then
+	echo "Initialising FF database"
+	run_sqlplus ${SOURCE_DB_NAME} ${FF_DB_SCHEMA} ${FF_DB_PASSWORD} ${TESTS_DIR}/oracle/utils/delete_full_schema
 	run_sqlplus ${SOURCE_DB_NAME} ${FF_DB_SCHEMA} ${FF_DB_PASSWORD} snapshot_schema
 fi
