@@ -371,7 +371,7 @@ tail_log_file() {
 	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]
 	then
 		echo "Printing ${log_file_name} file"
-		tail -n 100 "${EXPORT_DIR}/logs/${log_file_name}"
+		tail -n 150 "${EXPORT_DIR}/logs/${log_file_name}"
 	else
 		echo "No ${log_file_name} found."
 	fi	
