@@ -20,6 +20,7 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
 
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
@@ -127,8 +128,6 @@ main() {
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Fall Forward Setup"
-	export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
-	echo ${PATH}
 	fall_forward_setup || { 
 		tail_log_file "yb-voyager-fall-forward-setup.log"
 		exit 1
@@ -141,8 +140,6 @@ main() {
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 2m
-
-	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 5m; kill $!
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate"
