@@ -127,7 +127,7 @@ main() {
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Fall Forward Setup"
-	export PATH = "${PATH}:/usr/lib/oracle/21/client64/bin"
+	export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
 	fall_forward_setup || { 
 		tail_log_file "yb-voyager-fall-forward-setup.log"
 		exit 1
