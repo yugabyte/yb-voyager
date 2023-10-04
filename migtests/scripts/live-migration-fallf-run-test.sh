@@ -140,7 +140,7 @@ main() {
 	# Updating the trap command to include the ff setup
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 2
+	sleep 2m
 
 	(tail_log_file "yb-voyager-fall-forward-setup.log" &); sleep 5m; kill $!
 

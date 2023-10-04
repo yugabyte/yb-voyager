@@ -11,15 +11,28 @@ def main():
 		migration_completed_checks_oracle()
 
 EXPECTED_ROW_COUNT = {
-	'x':7
+	'x':5
 }
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
-		'id': '133',
-		'id2': '53'
+		'id': '18',
+		'id2': '43'
 	}
 }
+
+if os.environ.get("FF_DB_SCHEMA") is not None:
+
+	EXPECTED_ROW_COUNT = {
+		'x':7
+	}
+
+	EXPECTED_SUM_OF_COLUMN = {
+		'x': {
+			'id': '133',
+			'id2': '53'
+		}
+	}
 
 def migration_completed_checks_yb():
 	print("Running tests on YB")
