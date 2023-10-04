@@ -75,16 +75,11 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	var err error
-	metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-
 	triggerName, err := getTriggerName(exporterRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	exitIfDBSwitchedOver(triggerName)
 	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
@@ -96,8 +91,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err = retrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -108,7 +102,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
 
-		createExportDataDoneFlag()
+		setDataIsExported()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -136,7 +130,7 @@ func exportData() bool {
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
-		createExportDataDoneFlag()
+		setDataIsExported()
 		dfd := datafile.Descriptor{
 			ExportDir:    exportDir,
 			DataFileList: make([]*datafile.FileEntry, 0),
@@ -309,14 +303,13 @@ func validateAndExtractTableNamesFromFile(filePath string, flagName string) (str
 
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
-		os.Remove(flagFilePath)
+		clearDataIsExported()
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
 		metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
@@ -332,21 +325,21 @@ func checkDataDirs() {
 	}
 }
 
-func getDefaultSourceSchemaName() (string, error) {
+func getDefaultSourceSchemaName() (string, bool) {
 	switch source.DBType {
 	case MYSQL:
-		return source.DBName, nil
+		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
 		schemas := strings.Split(source.Schema, "|")
 		if len(schemas) == 1 {
-			return source.Schema, nil
+			return source.Schema, false
 		} else if slices.Contains(schemas, "public") {
-			return "public", nil
+			return "public", false
 		} else {
-			return "", fmt.Errorf("for non-public source schemas, all table names in the list must be qualified")
+			return "", true 
 		}
 	case ORACLE:
-		return source.Schema, nil
+		return source.Schema, false
 	default:
 		panic("invalid db type")
 	}
@@ -357,52 +350,42 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 	if flagTableList == "" {
 		return result
 	}
-	flattenTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
+	findPatternMatchingTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
 		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
 			table := tableName.Qualified.MinQuoted
 			sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
 			pattern = sqlNamePattern.Qualified.MinQuoted
-			if sqlNamePattern.SchemaName.Unquoted == defaultSourceSchema {
-				pattern = sqlNamePattern.ObjectName.MinQuoted
+			matched, err := filepath.Match(pattern, table)
+			if err != nil {
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
 			}
-			if tableName.SchemaName.Unquoted == defaultSourceSchema {
-				table = tableName.ObjectName.MinQuoted
-			}
-			matched, _ := filepath.Match(pattern, table)
 			return matched
 		})
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
 	var unqualifiedTables []string
-	defaultSourceSchema, err := getDefaultSourceSchemaName()
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 	var unknownTableNames []string
 	for _, pattern := range tableList {
-		if err != nil && len(strings.Split(pattern, ".")) == 1 {
+		if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
 			unqualifiedTables = append(unqualifiedTables, pattern)
 			continue
 		}
-		tables := flattenTables(pattern, defaultSourceSchema)
+		tables := findPatternMatchingTables(pattern, defaultSourceSchema)
 		if len(tables) == 0 {
 			unknownTableNames = append(unknownTableNames, pattern)
 		}
 		result = append(result, tables...)
 	}
 	if len(unqualifiedTables) > 0 {
-		utils.ErrExit("Error: can not qualify table names %v in the %s list. \n%s", unqualifiedTables, listName, err.Error())
+		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
 	}
 	if len(unknownTableNames) > 0 {
-		utils.ErrExit("Error: unknown table names %v in the %s list", unknownTableNames, listName)
+		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
+		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
 	return result
-}
-
-func createExportDataDoneFlag() {
-	exportDoneFlagPath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
-	_, err := os.Create(exportDoneFlagPath)
-	if err != nil {
-		utils.ErrExit("creating exportDataDone flag: %v", err)
-	}
 }
 
 func checkSourceDBCharset() {
@@ -440,4 +423,31 @@ func filterTableWithEmptySupportedColumnList(finalTableList []*sqlname.SourceNam
 		return len(tablesColumnList[tableName]) == 0
 	})
 	return filteredTableList
+}
+
+func dataIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+	}
+
+	return msr.ExportDataDone
+}
+
+func setDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = true
+	})
+	if err != nil {
+		utils.ErrExit("set data is exported: update migration status record: %s", err)
+	}
+}
+
+func clearDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = false
+	})
+	if err != nil {
+		utils.ErrExit("clear data is exported: update migration status record: %s", err)
+	}
 }

@@ -57,11 +57,6 @@ var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYP
 var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE"}
 
-type ExportMetaInfo struct {
-	SourceDBType   string
-	ExportToolUsed string
-}
-
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
 
@@ -103,7 +98,7 @@ type Segment struct {
 }
 
 const (
-	SNAPSHOT_ONLY                 = "snapshot-only"
-	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
-	CHANGES_ONLY                  = "changes-only"
+	SNAPSHOT_ONLY        = "snapshot-only"
+	SNAPSHOT_AND_CHANGES = "snapshot-and-changes"
+	CHANGES_ONLY         = "changes-only"
 )

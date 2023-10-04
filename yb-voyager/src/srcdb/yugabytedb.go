@@ -105,6 +105,7 @@ func (yb *YugabyteDB) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	yb.source.DBVersion = version
 	return version
 }
 

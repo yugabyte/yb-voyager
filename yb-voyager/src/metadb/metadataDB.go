@@ -48,7 +48,7 @@ func GetMetaDBPath(exportDir string) string {
 func CreateAndInitMetaDBIfRequired(exportDir string) error {
 	metaDBPath := GetMetaDBPath(exportDir)
 	if utils.FileOrFolderExists(metaDBPath) {
-		// already created and initied.
+		// already created and initiated
 		return nil
 	}
 	err := createMetaDBFile(metaDBPath)
@@ -476,4 +476,3 @@ func (m *MetaDB) ResetQueueSegmentMeta(importerRole string) error {
 	}
 	return nil
 }
-

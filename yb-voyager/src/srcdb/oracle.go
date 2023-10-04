@@ -102,6 +102,7 @@ func (ora *Oracle) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	ora.source.DBVersion	= version
 	return version
 }
 

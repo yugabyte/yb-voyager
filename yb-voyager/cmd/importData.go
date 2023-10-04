@@ -83,11 +83,6 @@ var importDataCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-	var err error
-	metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
 	triggerName, err := getTriggerName(importerRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
@@ -96,7 +91,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
-	sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 	dataStore = datastore.NewDataStore(filepath.Join(exportDir, "data"))
 	dataFileDescriptor = datafile.OpenDescriptor(exportDir)
@@ -242,12 +237,13 @@ func discoverFilesToImport() []*ImportFileTask {
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
 
-	migInfo, err := LoadMigInfo(exportDir) //TODO: handle with msr.SourceDBConf
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("failed to load migration info: %s", err)
+		utils.ErrExit("could not fetch migration status record: %w", err)
 	}
-	source.DBType = migInfo.SourceDBType
-	source.Schema = migInfo.SourceDBSchema
+	source.DBType = msr.SourceDBConf.DBType
+	source.Schema = msr.SourceDBConf.Schema
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 
 	//TODO: handle with case sensitivity later
 	standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
@@ -266,15 +262,17 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	}
 
 	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
-		defaultSourceSchema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schemas
 		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
 	})
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
 
-	flattenTables := func(pattern string) []string {
+	findPatternMatchingTables := func(pattern string) []string {
 		result := lo.Filter(allTables, func(tableName string, _ int) bool {
-			matched, _ := filepath.Match(pattern, tableName)
+			matched, err := filepath.Match(pattern, tableName)
+			if err != nil {
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+			}
 			return matched
 		})
 		return result
@@ -283,19 +281,22 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	extractTableList := func(flagTableList, listName string) []string {
 		tableList := utils.CsvStringToSlice(flagTableList)
 		var result []string
-		defaultSourceSchema, err := getDefaultSourceSchemaName()
 		var unqualifiedTables []string
 		for _, table := range tableList {
-			if err != nil && len(strings.Split(table, ".")) == 1 {
+			if noDefaultSchema && len(strings.Split(table, ".")) == 1 {
 				unqualifiedTables = append(unqualifiedTables, table)
 				continue
 			}
 			table = standardizeCaseInsensitiveTableNames(table, defaultSourceSchema)
-			result = append(result, flattenTables(table)...)
+			matchingTables := findPatternMatchingTables(table)
+			if len(matchingTables) == 0 {
+				result = append(result, table) //so that unknown check can be done later
+			} else {
+				result = append(result, matchingTables...)
+			}
 		}
 		if len(unqualifiedTables) > 0 {
-			utils.PrintAndLog("Error: can not qualify table names %v in the %s list. \n%s", unqualifiedTables, listName, err.Error())
-			utils.ErrExit("Please fix the table names in the %s list and retry.", listName)
+			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result
@@ -321,12 +322,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		defaultSourceSchema, _ := getDefaultSourceSchemaName() 
-		if len(includeList) > 0 && !slices.Contains(includeList, standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)) {
+		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
+		if len(includeList) > 0 && !slices.Contains(includeList,table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
@@ -359,7 +360,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	} else if tconf.TargetDBType == ORACLE && !utils.IsQuotedString(tconf.Schema) {
 		tconf.Schema = strings.ToUpper(tconf.Schema)
 	}
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -1050,21 +1051,13 @@ func checkExportDataDoneFlag() {
 		utils.ErrExit("metainfo dir is missing. Exiting.")
 	}
 
-	exportDataDonePath := filepath.Join(metaInfoDir, "flags", "exportDataDone")
-	if utils.FileOrFolderExists(exportDataDonePath) {
+	if dataIsExported() {
 		return
 	}
 
 	utils.PrintAndLog("Waiting for snapshot data export to complete...")
-	for {
-		_, err = os.Stat(exportDataDonePath)
-		if err == nil {
-			break
-		} else if os.IsNotExist(err) {
-			time.Sleep(time.Second * 2)
-		} else {
-			utils.ErrExit("error while checking export data done flag: %s", err)
-		}
+	for !dataIsExported() {
+		time.Sleep(time.Second * 2)
 	}
 	utils.PrintAndLog("Snapshot data export is complete.")
 }
