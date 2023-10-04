@@ -150,11 +150,6 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
-	#Added this step to maintain consistency
-	#TODO: Add conditional checks
-	step "Inserting new events to YB"
-	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
-
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
