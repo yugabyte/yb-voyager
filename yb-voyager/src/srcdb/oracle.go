@@ -102,7 +102,7 @@ func (ora *Oracle) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
-	ora.source.DBVersion	= version
+	ora.source.DBVersion = version
 	return version
 }
 
@@ -172,6 +172,61 @@ func GetOracleConnectionString(host string, port int, dbname string, dbsid strin
 
 func (ora *Oracle) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ora.source, exportDir)
+}
+
+// return list of jsons having index info like index name, index type, table name, column name
+// TODO: take care of FTS indexes and PARTITION indexes
+func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
+	// TODO(future): once we implement table-list/object-type for export schema
+	// we will have to filter out indexes based on tables or object types that are not being exported
+	query := fmt.Sprintf(`SELECT INDEX_NAME, INDEX_TYPE, TABLE_NAME FROM ALL_INDEXES
+	WHERE OWNER = '%s'`, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		utils.ErrExit("error in querying source database for indexes info: %v", err)
+	}
+	defer rows.Close()
+	var indexesInfo []utils.IndexInfo
+	for rows.Next() {
+		var indexName, indexType, tableName string
+		err = rows.Scan(&indexName, &indexType, &tableName)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for reverse indexes: %v", err)
+		}
+		// skip system indexes
+		if strings.HasPrefix(indexName, "SYS_") {
+			continue
+		}
+
+		query = fmt.Sprintf(`SELECT COLUMN_NAME FROM ALL_IND_COLUMNS 
+		WHERE INDEX_NAME = '%s' and TABLE_NAME = '%s'`, indexName, tableName)
+		rows2, err2 := ora.db.Query(query)
+		if err2 != nil {
+			utils.ErrExit("error in querying source database for columns of indexes: %v", err2)
+		}
+		var columns []string
+		for rows2.Next() {
+			var columnName string
+			err = rows2.Scan(&columnName)
+			if err != nil {
+				utils.ErrExit("error in scanning query rows for columns of indexes: %v", err)
+			}
+			columns = append(columns, columnName)
+		}
+		rows2.Close()
+		indexInfo := utils.IndexInfo{
+			IndexName: indexName,
+			IndexType: indexType,
+			TableName: tableName,
+			Columns:   columns,
+		}
+		indexesInfo = append(indexesInfo, indexInfo)
+	}
+	if len(indexesInfo) == 0 {
+		log.Infof("No indexes found in the source database")
+		return nil
+	}
+	return &indexesInfo
 }
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

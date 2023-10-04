@@ -211,6 +211,10 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
+func (yb *YugabyteDB) GetIndexesInfo() *[]utils.IndexInfo {
+	return nil
+}
+
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	pgdumpExportDataOffline(ctx, yb.source, yb.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }

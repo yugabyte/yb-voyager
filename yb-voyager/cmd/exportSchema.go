@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -87,6 +88,7 @@ func exportSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	source.DB().ExportSchema(exportDir)
+	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
@@ -141,5 +143,17 @@ func clearSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+	}
+}
+
+func updateIndexesInfoInMetaDB() {
+	log.Infof("updating indexes info in meta db\n")
+	indexesInfo := source.DB().GetIndexesInfo()
+	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
+		// updating irrespective of whether indexesInfo is nil or not
+		*record = append(*record, *indexesInfo...)
+	})
+	if err != nil {
+		utils.ErrExit("update indexes info in meta db: %s", err)
 	}
 }

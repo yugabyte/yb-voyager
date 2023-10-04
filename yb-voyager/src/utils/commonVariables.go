@@ -42,6 +42,13 @@ type TableProgressMetadata struct {
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
+type IndexInfo struct {
+	IndexName string
+	IndexType string
+	TableName string
+	Columns   []string
+}
+
 // the list elements order is same as the import objects order
 // TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", "INDEX", "PACKAGE", "VIEW",

@@ -31,6 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -238,7 +239,7 @@ func reportSummary() {
 		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
 	}
 
-	// requiredJson += `"databaseObjects": [`
+	addSummaryDetailsForIndexes()
 	for _, objType := range sourceObjList {
 		if summaryMap[objType].totalCount == 0 {
 			continue
@@ -256,6 +257,29 @@ func reportSummary() {
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+	}
+}
+
+func addSummaryDetailsForIndexes() {
+	var indexesInfo []utils.IndexInfo
+	found, err := metaDB.GetJsonObject(nil, metadb.INDEXES_INFO_KEY, &indexesInfo)
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
+	}
+	if found {
+		indexesPresent := lo.Keys(summaryMap["INDEX"].objSet)
+		unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
+		unexportedIdxsPresent := 0
+		for _, indexInfo := range indexesInfo {
+			exportedIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
+			if !slices.Contains(indexesPresent, strings.ToLower(exportedIdxName)) {
+				unexportedIdxsPresent = 1
+				unexportedIdxsMsg += fmt.Sprintf("\t\tIndex Name=%s, Index Type=%s\n", indexInfo.IndexName, indexInfo.IndexType)
+			}
+		}
+		if unexportedIdxsPresent == 1 {
+			summaryMap["INDEX"].details[unexportedIdxsMsg] = true
+		}
 	}
 }
 
