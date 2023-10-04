@@ -128,6 +128,7 @@ main() {
 
 	step "Fall Forward Setup"
 	export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
+	echo ${PATH}
 	fall_forward_setup || { 
 		tail_log_file "yb-voyager-fall-forward-setup.log"
 		exit 1
