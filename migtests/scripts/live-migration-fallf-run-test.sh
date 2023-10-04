@@ -108,7 +108,7 @@ main() {
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
-	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/flags/exportDataDone ]; do sleep 3; done'
+	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/dataFileDescriptor.json ]; do sleep 3; done'
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
@@ -155,7 +155,10 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	sleep 2m
+	while [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; do
+    echo "Waiting for cutover to be COMPLETED..."
+    sleep 5
+	done
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
@@ -167,6 +170,11 @@ main() {
 
 	step "Initiating Switchover"
 	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
+
+	while [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; do
+    echo "Waiting for switchover to be COMPLETED..."
+    sleep 5
+	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data true --refresh-mviews true

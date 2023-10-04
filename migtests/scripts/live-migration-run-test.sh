@@ -104,8 +104,7 @@ main() {
 	trap "kill_process -${exp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	# Waiting for snapshot to complete
-	# TODO: check sqlite db for exportDataDone flag in MSR
-	sleep 1m
+	timeout 100 bash -c -- 'while [ ! -f ${EXPORT_DIR}/metainfo/dataFileDescriptor.json ]; do sleep 3; done'
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
@@ -139,11 +138,16 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	step "sleep for 30 seconds to allow for cutover to complete"
-	sleep 30
+	while [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; do
+    echo "Waiting for cutover to be COMPLETED..."
+    sleep 5
+	done
 
-	step "Print cutover status"
-	yb-voyager cutover status --export-dir ${EXPORT_DIR}
+	# step "sleep for 30 seconds to allow for cutover to complete"
+	# sleep 30
+
+	# step "Print cutover status"
+	# yb-voyager cutover status --export-dir ${EXPORT_DIR}
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-import-data true --refresh-mviews=true
