@@ -88,7 +88,7 @@ var totalEventsRead = prometheus.NewCounterVec(
 		Name: "events_read_total",
 		Help: "Number of events read.",
 	},
-	[]string{},
+	[]string{"l"},
 )
 
 var totalEventsTransformed = prometheus.NewCounterVec(
@@ -96,21 +96,21 @@ var totalEventsTransformed = prometheus.NewCounterVec(
 		Name: "events_transformed_total",
 		Help: "Number of events transformed.",
 	},
-	[]string{},
+	[]string{"l"},
 )
 var totalEventsAppliedOnTarget = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
 		Name: "events_applied_on_target_total",
 		Help: "Number of events applied on target.",
 	},
-	[]string{},
+	[]string{"l"},
 )
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	var err error
-	prometheus.Register(totalEventsRead)
-	prometheus.Register(totalEventsTransformed)
-	prometheus.Register(totalEventsAppliedOnTarget)
+	prometheus.MustRegister(totalEventsRead)
+	prometheus.MustRegister(totalEventsTransformed)
+	prometheus.MustRegister(totalEventsAppliedOnTarget)
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)

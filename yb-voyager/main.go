@@ -45,8 +45,9 @@ func registerSignalHandlers() {
 }
 
 func setupProm() {
+	http.Handle("/", http.HandlerFunc(handleRequest))
 	http.Handle("/metrics", promhttp.Handler())
-	http.ListenAndServe("0.0.0.0:9090", nil)
+	http.ListenAndServe(":5005", nil)
 	// router := mux.NewRouter()
 
 	// // router.PathPrefix("/").Handler(http.FileServer(http.Dir("./")))
@@ -59,4 +60,11 @@ func setupProm() {
 	// if err != nil {
 	// 	utils.ErrExit("err=%v", err)
 	// }
+}
+
+func handleRequest(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/text")
+	w.Write([]byte("Success"))
+	return
 }
