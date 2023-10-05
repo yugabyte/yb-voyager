@@ -171,12 +171,12 @@ main() {
     sleep 5
 	done
 
-	sleep 1m
+	sleep 3m
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 1m
+	sleep 2m
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -214,6 +214,7 @@ main() {
     tail_log_file "yb-voyager-fall-forward-setup.log"
     tail_log_file "yb-voyager-fall-forward-synchronize.log"
 	tail_log_file "yb-voyager-fall-forward-switchover.log"
+	tail -n 150 "${EXPORT_DIR}/data/queue/segment.0.ndjson"
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
