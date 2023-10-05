@@ -118,6 +118,9 @@ main() {
 	step "Import data."
 	import_data --parallel-jobs 3 || { 
 		tail_log_file "yb-voyager-import-data.log"
+		if [ -f "${EXPORT_DIR}/logs/debezium-target_db_exporter.log" ]; then
+        tail_log_file "debezium-target_db_exporter.log"
+    	fi
 		exit 1
 	} &
 
@@ -157,10 +160,12 @@ main() {
     sleep 5
 	done
 
+	sleep 1m
+
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 2m
+	sleep 1m
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
