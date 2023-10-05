@@ -150,8 +150,10 @@ func updateIndexesInfoInMetaDB() {
 	log.Infof("updating indexes info in meta db\n")
 	indexesInfo := source.DB().GetIndexesInfo()
 	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
-		// updating irrespective of whether indexesInfo is nil or not
-		*record = append(*record, *indexesInfo...)
+		// updating if indexesInfo is not nil
+		if indexesInfo != nil {
+			*record = append(*record, *indexesInfo...)
+		}
 	})
 	if err != nil {
 		utils.ErrExit("update indexes info in meta db: %s", err)
