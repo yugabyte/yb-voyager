@@ -26,9 +26,13 @@ def validate_report_summary(report, expected_summary):
 			continue
 		assert key in report["summary"], f"expected summary field is not reported: {key}"
 		if key != "databaseObjects":
+			print(f"expected summary field for {key}: {expected_summary[key]}")
+			print(f"reported summary field for {key}: {report['summary'][key]}")
 			assert expected_summary[key] == report["summary"][key], f"expected summary field value is not reported correctly: {key}"
 		else:
 			for i in range(len(expected_summary[key])):
+				print(f"expected summary field for {key}: {expected_summary[key][i]}")
+				print(f"reported summary field for {key}: {report['summary'][key][i]}")
 				expected_object_names = expected_summary[key][i]["objectNames"].split(", ")
 				reported_object_names = report["summary"][key][i]["objectNames"].split(", ")
 				assert expected_summary[key][i]["objectType"] == report["summary"][key][i]["objectType"], f"expected summary field value is not reported correctly: {key}"
