@@ -28,7 +28,7 @@ import (
 
 var exportSchemaCmd = &cobra.Command{
 	Use:   "schema",
-	Short: "This command is used to export the schema from source database into .sql files",
+	Short: "Export schema from source database into export-dir as .sql files",
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
@@ -98,7 +98,7 @@ func init() {
 	exportCmd.AddCommand(exportSchemaCmd)
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
-	registerSourceDBConnFlags(exportSchemaCmd)
+	registerSourceDBConnFlags(exportSchemaCmd, false)
 	BoolVar(exportSchemaCmd.Flags(), &source.UseOrafce, "use-orafce", true,
 		"enable using orafce extension in export schema")
 
