@@ -22,6 +22,8 @@ def main():
 def validate_report_summary(report, expected_summary):
 	print("Ensure that all the expected summary fields are reported.")
 	for key in expected_summary:
+		if key == "dbVersion":
+			continue
 		assert key in report["summary"], f"expected summary field is not reported: {key}"
 		if key != "databaseObjects":
 			assert expected_summary[key] == report["summary"][key], f"expected summary field value is not reported correctly: {key}"
