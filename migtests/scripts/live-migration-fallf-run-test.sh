@@ -117,21 +117,22 @@ main() {
 
 	step "Import data."
 	import_data --parallel-jobs 3 || { 
-		tail_log_file "yb-voyager-import-data.log"
-		for i in {1..3}; do
-        sleep 5
-        if [ -f "${EXPORT_DIR}/logs/yb-voyager-fall-forward-synchronize.log" ]; then
-            tail_log_file "yb-voyager-fall-forward-synchronize.log"
-            break
-        fi
-		for i in {1..3}; do
-        sleep 5
-        if [ -f "${EXPORT_DIR}/logs/debezium-target_db_exporter.log" ]; then
-            tail_log_file "debezium-target_db_exporter.log"
-            break
-        fi
-    done
-		exit 1
+    	tail_log_file "yb-voyager-import-data.log"
+    	for i in {1..3}; do
+    	    sleep 5
+    	    if [ -f "${EXPORT_DIR}/logs/yb-voyager-fall-forward-synchronize.log" ]; then
+    	        tail_log_file "yb-voyager-fall-forward-synchronize.log"
+    	        break
+    	    fi
+    	done
+    	for i in {1..3}; do
+    	    sleep 5
+    	    if [ -f "${EXPORT_DIR}/logs/debezium-target_db_exporter.log" ]; then
+    	        tail_log_file "debezium-target_db_exporter.log"
+    	        break
+    	    fi
+    	done
+    	exit 1
 	} &
 
 	# Storing the pid for the import data command
