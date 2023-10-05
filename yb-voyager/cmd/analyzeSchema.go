@@ -1078,7 +1078,7 @@ func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
-		"allowed report formats: html | txt | json | xml")
+		"format in which report will be generated: (html, txt, json, xml)")
 }
 
 func validateReportOutputFormat() {
