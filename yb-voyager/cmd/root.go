@@ -84,6 +84,13 @@ func startPprofServer() {
 	if err != nil {
 		fmt.Println("Error starting pprof server")
 	}
+	/*
+	Steps to use pprof for profiling yb-voyager:
+	1. install graphviz on the machine using - sudo yum install graphviz gv
+	2. start voyager with profile flag - yb-voyager ... --profile true
+	3. use the following command to start a web ui for the profile data- 
+		go tool pprof -http=[<client_machine_ip>:<port>] http://localhost:6060/debug/pprof/profile
+	*/
 }
 
 func shouldLock(cmd *cobra.Command) bool {
