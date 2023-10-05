@@ -17,8 +17,10 @@ package cmd
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	_ "net/http/pprof"
 
 	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
@@ -38,6 +40,7 @@ var (
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
 	VerboseMode   utils.BoolStr
+	perfProfile       utils.BoolStr
 )
 
 var rootCmd = &cobra.Command{
@@ -55,6 +58,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if metaDBIsCreated(exportDir) {
 				initMetaDB()
 			}
+			if (perfProfile) {
+				go startPprofServer()
+			}
 		}
 	},
 
@@ -70,6 +76,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			unlockExportDir()
 		}
 	},
+}
+
+func startPprofServer() {
+    // Server for pprof
+    err := http.ListenAndServe("localhost:6060", nil)
+	if err != nil {
+		fmt.Println("Error starting pprof server")
+	}
 }
 
 func shouldLock(cmd *cobra.Command) bool {
@@ -105,6 +119,10 @@ func init() {
 func registerCommonGlobalFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &VerboseMode, "verbose", false,
 		"verbose mode for some extra details during execution of command")
+
+	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
+		"profile yb-voyager for performance analysis")
+	cmd.Flags().MarkHidden("profile")
 
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
