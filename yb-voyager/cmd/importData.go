@@ -30,6 +30,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -82,8 +83,34 @@ var importDataCmd = &cobra.Command{
 	Run: importDataCommandFn,
 }
 
+var totalEventsRead = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "events_read_total",
+		Help: "Number of events read.",
+	},
+	[]string{},
+)
+
+var totalEventsTransformed = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "events_transformed_total",
+		Help: "Number of events transformed.",
+	},
+	[]string{},
+)
+var totalEventsAppliedOnTarget = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "events_applied_on_target_total",
+		Help: "Number of events applied on target.",
+	},
+	[]string{},
+)
+
 func importDataCommandFn(cmd *cobra.Command, args []string) {
 	var err error
+	prometheus.Register(totalEventsRead)
+	prometheus.Register(totalEventsTransformed)
+	prometheus.Register(totalEventsAppliedOnTarget)
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize meta db: %s", err)
@@ -255,7 +282,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		}
 
 		if len(parts) > 1 {
-			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf 
+			migInfo := ExtractMetaInfo(exportDir) //TODO: handle with msr.SourceDBConf
 			source.DBType = migInfo.SourceDBType
 			if parts[0] == getDefaultSourceSchemaName() {
 				return tableName

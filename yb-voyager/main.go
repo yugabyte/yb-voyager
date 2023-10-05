@@ -16,9 +16,12 @@ limitations under the License.
 package main
 
 import (
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
@@ -27,6 +30,7 @@ import (
 
 func main() {
 	registerSignalHandlers()
+	go setupProm()
 	cmd.Execute()
 }
 
@@ -38,4 +42,21 @@ func registerSignalHandlers() {
 		utils.PrintAndLog("Received signal %s. Exiting...", sig)
 		atexit.Exit(0)
 	}()
+}
+
+func setupProm() {
+	http.Handle("/metrics", promhttp.Handler())
+	http.ListenAndServe("0.0.0.0:9090", nil)
+	// router := mux.NewRouter()
+
+	// // router.PathPrefix("/").Handler(http.FileServer(http.Dir("./")))
+
+	// // Prometheus endpoint
+	// router.PathPrefix("/").Handler(promhttp.Handler())
+
+	// fmt.Println("Serving requests on port 9090")
+	// err := http.ListenAndServe("localhost:9090", router)
+	// if err != nil {
+	// 	utils.ErrExit("err=%v", err)
+	// }
 }

@@ -210,7 +210,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		defaultParallelismMsg = ""
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
+		"number of parallel copy command jobs to target database. "+defaultParallelismMsg)
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")

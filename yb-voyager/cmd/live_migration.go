@@ -137,7 +137,7 @@ func streamChangesFromSegment(
 		if err != nil {
 			return err
 		}
-
+		totalEventsRead.WithLabelValues().Inc()
 		if event == nil && segment.IsProcessed() {
 			break
 		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
@@ -192,6 +192,8 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	h := hashEvent(event)
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
+
+	totalEventsTransformed.WithLabelValues().Inc()
 	return nil
 }
 
@@ -254,6 +256,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",
 			chanNo, len(batch), time.Since(start).String())
+		totalEventsAppliedOnTarget.WithLabelValues().Add(float64(eventBatch.EventCounts.TotalEvents))
 	}
 	done <- true
 }
