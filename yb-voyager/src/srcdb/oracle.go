@@ -193,8 +193,8 @@ func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for reverse indexes: %v", err)
 		}
-		// skip system indexes
-		if strings.HasPrefix(indexName, "SYS_") {
+		// skip system indexes or domain indexes (all internal	)
+		if strings.HasPrefix(indexName, "SYS_") || strings.HasPrefix(indexName, "DR$") {
 			continue
 		}
 
