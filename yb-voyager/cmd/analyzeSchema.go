@@ -250,7 +250,7 @@ func reportSummary() {
 		dbObject.TotalCount = summaryMap[objType].totalCount
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
-		dbObject.Details = getMapKeysString(summaryMap[objType].details)
+		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
@@ -997,10 +997,10 @@ func analyzeSchemaInternal() utils.Report {
 			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
 		} else {
 			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
-			filePath = utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(filePath, "PARTITION_INDEX")...)
-			filePath = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(filePath, "FTS_INDEX")...)
+			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "PARTITION_INDEX")...)
+			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "FTS_INDEX")...)
 		}
 		checker(sqlInfoArr, filePath)
 	}
