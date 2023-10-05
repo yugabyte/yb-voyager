@@ -635,7 +635,9 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks whether the script, fpath, can be migrated to YB
 func checker(sqlInfoArr []sqlInfo, fpath string) {
-
+	if !utils.FileOrFolderExists(fpath) {
+		return
+	}
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
@@ -718,10 +720,11 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 
 func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
-
 	var sqlInfoArr []sqlInfo
+	if !utils.FileOrFolderExists(path) {
+		return sqlInfoArr
+	}
 	reportNextSql := 0
-
 	file, err := os.ReadFile(path)
 	if err != nil {
 		utils.ErrExit("Error while reading %q: %s", path, err)
@@ -988,19 +991,17 @@ func analyzeSchemaInternal() utils.Report {
 	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
-		var filePath string
-		if objType == "INDEX" {
-			filePath = filepath.Join(schemaDir, "tables", "INDEXES_table.sql")
+		var sqlInfoArr []sqlInfo
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		if objType != "INDEX" {
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
 		} else {
-			filePath = filepath.Join(schemaDir, strings.ToLower(objType)+"s")
-			filePath = filepath.Join(filePath, strings.ToLower(objType)+".sql")
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
+			filePath = utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(filePath, "PARTITION_INDEX")...)
+			filePath = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(filePath, "FTS_INDEX")...)
 		}
-
-		if !utils.FileOrFolderExists(filePath) {
-			continue
-		}
-
-		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
 		checker(sqlInfoArr, filePath)
 	}
 

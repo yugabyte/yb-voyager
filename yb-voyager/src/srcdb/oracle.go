@@ -175,7 +175,6 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 }
 
 // return list of jsons having index info like index name, index type, table name, column name
-// TODO: take care of FTS indexes and PARTITION indexes
 func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 	// TODO(future): once we implement table-list/object-type for export schema
 	// we will have to filter out indexes based on tables or object types that are not being exported
