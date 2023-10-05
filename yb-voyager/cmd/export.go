@@ -246,11 +246,11 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
-			`In case the table names are case sensitive, double-quote them. For example orders,"Products",items`)
+			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"comma-separated list of the table names to export data.\n"+
-			`In case the table names are case sensitive, double-quote them. For example orders,"Products",items`)
+			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
 		"path of the file containing comma-separated list of table names to exclude while exporting data")
