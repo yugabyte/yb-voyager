@@ -184,9 +184,28 @@ main() {
 	step "Initiating Switchover"
 	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
 
+	not_completed_count=0
+
+	for ((i=1; i<=5; i++)); do
+	    # Check the condition and wait
+	    if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
+	        echo "Waiting for switchover to be COMPLETED... (Attempt $i/5)"
+	        sleep 10
+	        ((not_completed_count++))
+	    else
+	        not_completed_count=0
+	    fi
+	done
+
+	if [ "$not_completed_count" -ge 5 ]; then
+	    tail_log_file "yb-voyager-fall-forward-setup.log"
+	    tail_log_file "yb-voyager-fall-forward-synchronize.log"
+	    tail_log_file "yb-voyager-fall-forward-switchover.log"
+	fi
+
 	while [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; do
     echo "Waiting for switchover to be COMPLETED..."
-    sleep 5
+    sleep 10
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
