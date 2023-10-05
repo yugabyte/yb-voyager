@@ -37,7 +37,7 @@ var tdb tgtdb.TargetDB
 
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
+	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL) into YugabyteDB",
 	Long:  `Import has various sub-commands i.e. import schema and import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
 }
 
@@ -210,7 +210,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		defaultParallelismMsg = ""
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
+		"number of parallel copy command jobs to target database. "+defaultParallelismMsg)
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")
