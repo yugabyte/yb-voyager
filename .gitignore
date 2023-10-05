@@ -30,6 +30,7 @@ export-dir/
 # skipping __pycache__ directory and *.pyc files
 __pycache__/
 
-# ignoring logs and report directory of dummy-export-dir test
-migtests/tests/analyze-schema/dummy-export-dir/logs
-migtests/tests/analyze-schema/dummy-export-dir/reports
+# skipping export-dir directories for analyze schema automation tests
+migtests/tests/analyze-schema/dummy-export-dir/reports/
+migtests/tests/analyze-schema/dummy-export-dir/logs/
+migtests/tests/analyze-schema/dummy-export-dir/.*.lck

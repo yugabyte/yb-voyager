@@ -1,3 +1,11 @@
+-- cases for insufficient columns in PK constraint definition in CREATE TABLE to be reported in analyze-schema
+CREATE TABLE sales_data (
+        sales_id numeric NOT NULL,
+        sales_date timestamp,
+        sales_amount numeric,
+        PRIMARY KEY (sales_id)
+) PARTITION BY RANGE (sales_date) ;
+
 -- cases for partition by expression cannot contain PK/Unique Key to be reported in analyze-schema 
 CREATE TABLE salaries2 (
 	emp_no bigint NOT NULL,

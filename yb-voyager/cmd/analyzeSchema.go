@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
@@ -35,7 +36,7 @@ import (
 
 type summaryInfo struct {
 	totalCount   int
-	invalidCount int
+	invalidCount map[string]bool
 	objSet       map[string]bool
 	details      map[string]bool //any details about the object type
 }
@@ -211,7 +212,7 @@ func reportAddingPrimaryKey(fpath string, tbl string, line string) {
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
 	if comment == 1 {
 		reportCase(fpath, "Unsupported, please edit to match PostgreSQL syntax", issue, suggestion, objType, objName, line)
-		summaryMap[objType].invalidCount++
+		summaryMap[objType].invalidCount[objName] = true
 	} else if comment == 2 {
 		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType)
 		summaryMap["PACKAGE"].objSet[objName] = true
@@ -246,9 +247,9 @@ func reportSummary() {
 		var dbObject utils.DBObject
 		dbObject.ObjectType = objType
 		dbObject.TotalCount = summaryMap[objType].totalCount
-		dbObject.InvalidCount = summaryMap[objType].invalidCount
-		dbObject.ObjectNames = getMapKeys(summaryMap[objType].objSet)
-		dbObject.Details = getMapKeys(summaryMap[objType].details)
+		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
+		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
+		dbObject.Details = getMapKeysString(summaryMap[objType].details)
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
@@ -403,11 +404,11 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := tblPartitionRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -421,15 +422,15 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			}
 			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "INHERITS not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := intvlRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1397", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := alterOfRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -504,7 +505,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if tbl := cLangRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
-			summaryMap["FUNCTION"].invalidCount++
+			summaryMap["FUNCTION"].invalidCount[sqlInfo.objName] = true
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id,country_code) ) PARTITION BY RANGE (country_code, record_type) ;
 			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ;
@@ -539,12 +540,14 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			if len(partitionColumnsList) == 1 {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
+					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 					reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
 						"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					continue
 				}
 			}
 			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
+				summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
 					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				continue
@@ -554,6 +557,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			}
 			for _, partitionColumn := range partitionColumnsList {
 				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK
+					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
 						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					break
@@ -599,7 +603,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
 			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
 				"", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
-			summaryMap["TRIGGER"].invalidCount++
+			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
 	}
 
@@ -617,15 +621,8 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkRemaining(sqlInfoArr, fpath)
 }
 
-func getMapKeys(receivedMap map[string]bool) string {
-	keyString := ""
-	for key := range receivedMap {
-		keyString += key + ", "
-	}
-
-	if keyString != "" {
-		keyString = keyString[0 : len(keyString)-2] //popping last comma and space
-	}
+func getMapKeysString(receivedMap map[string]bool) string {
+	keyString := strings.Join(lo.Keys(receivedMap), ", ")
 	return keyString
 }
 
@@ -826,8 +823,9 @@ func initializeSummaryMap() {
 	log.Infof("initializing report summary map")
 	for _, objType := range sourceObjList {
 		summaryMap[objType] = &summaryInfo{
-			objSet:  make(map[string]bool),
-			details: make(map[string]bool),
+			invalidCount: make(map[string]bool),
+			objSet:       make(map[string]bool),
+			details:      make(map[string]bool),
 		}
 
 		//executes only in case of oracle
@@ -979,7 +977,6 @@ func analyzeSchemaInternal() utils.Report {
 		}
 
 		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
-		// fmt.Printf("SqlStrArray for '%s' is: %v\n", objType, sqlInfoArr)
 		checker(sqlInfoArr, filePath)
 	}
 
