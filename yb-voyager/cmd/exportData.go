@@ -102,6 +102,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.PackAndSendPayload(exportDir)
 
 		setDataIsExported()
+		updateSourceDBConfInMSR()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -135,6 +136,7 @@ func exportData() bool {
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
+		updateSourceDBConfInMSR()
 		os.Exit(0)
 	}
 
@@ -417,4 +419,16 @@ func clearDataIsExported() {
 	if err != nil {
 		utils.ErrExit("clear data is exported: update migration status record: %s", err)
 	}
+}
+
+func updateSourceDBConfInMSR() {
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if record.SourceDBConf == nil {
+			record.SourceDBConf = source.Clone()
+			record.SourceDBConf.Password = ""
+		} else {
+			// currently db type is only required for import data commands
+			record.SourceDBConf.DBType = source.DBType
+		}
+	})
 }
