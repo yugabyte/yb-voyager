@@ -215,6 +215,9 @@ main() {
     tail_log_file "yb-voyager-fall-forward-synchronize.log"
 	tail_log_file "yb-voyager-fall-forward-switchover.log"
 	tail -n 150 "${EXPORT_DIR}/data/queue/segment.0.ndjson"
+	if [ -f "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt" ]; then
+    	    cat "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt"
+    fi 
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
