@@ -20,6 +20,7 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
 
 # Order of env.sh import matters.
 source ${TEST_DIR}/env.sh
@@ -27,6 +28,7 @@ source ${TEST_DIR}/env.sh
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
+	source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
@@ -43,13 +45,16 @@ main() {
 	mkdir -p ${EXPORT_DIR}
 	echo "Assigning permissions to the export-dir to execute init-db, cleanup-db scripts"
 	chmod +x ${TEST_DIR}/init-db ${TEST_DIR}/cleanup-db
-
+	
 	step "START: ${TEST_NAME}"
 	print_env
 
 	pushd ${TEST_DIR}
 
-	step "Initialise source database."
+	step "Prepare FF metadata tables"
+	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/fall-forward-prep.sql
+
+	step "Initialise source and fall forward database."
 	./init-db
 
 	step "Grant source database user permissions"
@@ -108,11 +113,14 @@ main() {
 
 	ls -l ${EXPORT_DIR}/data
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
-	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
+	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
 	step "Import data."
-	import_data || { 
+	import_data --parallel-jobs 3 || { 
 		tail_log_file "yb-voyager-import-data.log"
+		if [ -f "${EXPORT_DIR}/logs/debezium-target_db_exporter.log" ]; then
+        tail_log_file "debezium-target_db_exporter.log"
+    	fi
 		exit 1
 	} &
 
@@ -122,18 +130,27 @@ main() {
 	# Updating the trap command to include the importer
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	sleep 30 
-	
-	step "Run snapshot validations."
-	"${TEST_DIR}/validate"
+	step "Fall Forward Setup"
+	fall_forward_setup || { 
+		tail_log_file "yb-voyager-fall-forward-setup.log"
+		exit 1
+	} &
 
-	step "Inserting new events"
-	run_sql_file source_delta.sql
+	# Storing the pid for the fall forward setup command
+	ffs_pid=$!
+
+	# Updating the trap command to include the ff setup
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 2m
 
-	# Resetting the trap command
-	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+	step "Run snapshot validations."
+	"${TEST_DIR}/validate"
+
+	step "Inserting new events to source"
+	run_sql_file source_delta.sql
+
+	sleep 2m
 
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
@@ -142,17 +159,32 @@ main() {
     echo "Waiting for cutover to be COMPLETED..."
     sleep 5
 	done
-	
+
+	sleep 1m
+
+	step "Inserting new events to YB"
+	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
+
+	sleep 1m
+
+	step "Resetting the trap command"
+	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
+
+	step "Initiating Switchover"
+	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
+
+	while [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; do
+    echo "Waiting for switchover to be COMPLETED..."
+    sleep 5
+	done
+
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews=true
+	import_schema --post-import-data true --refresh-mviews true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	if [ -x "${TEST_DIR}/validateAfterChanges" ]
-	then
 	"${TEST_DIR}/validateAfterChanges"
-	fi
 
 	step "Clean up"
 	./cleanup-db
