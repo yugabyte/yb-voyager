@@ -166,12 +166,22 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	while [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; do
-    echo "Waiting for cutover to be COMPLETED..."
-    sleep 5
+
+	for ((i = 0; i < 5; i++)); do
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
+        echo "Waiting for cutover to be COMPLETED..."
+        sleep 20
+        if [ "$i" -eq 4 ]; then
+            tail_log_file "yb-voyager-export-data.log"
+            tail_log_file "yb-voyager-import-data.log"
+			exit 1
+        fi
+    else
+        break
+    fi
 	done
 
-	sleep 3m
+	sleep 2m
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
@@ -184,40 +194,20 @@ main() {
 	step "Initiating Switchover"
 	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
 
-	# not_completed_count=0
+	counter=0
 
-	# while true; do
-    # # Check the condition and wait
-    # if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
-    #     echo "Waiting for switchover to be COMPLETED... (Attempts: $((not_completed_count + 1))/5)"
-    #     sleep 10
-    #     ((not_completed_count++))
-    # else
-    #     not_completed_count=0
-    # fi
-
-    # if [ "$not_completed_count" -ge 5 ]; then
-    #     # Execute the tail_log_file commands
-    #     tail_log_file "yb-voyager-fall-forward-setup.log"
-    #     tail_log_file "yb-voyager-fall-forward-synchronize.log"
-    #     tail_log_file "yb-voyager-fall-forward-switchover.log"
-        
-    #     # Break the loop after 5 consecutive failures
-    #     break
-    # fi
-	# done
-
-	# num_checks=0
-	while [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; do
-    echo "Waiting for switchover to be COMPLETED..."
-    sleep 1m
-    tail_log_file "yb-voyager-fall-forward-setup.log"
-    tail_log_file "yb-voyager-fall-forward-synchronize.log"
-	tail_log_file "yb-voyager-fall-forward-switchover.log"
-	tail -n 150 "${EXPORT_DIR}/data/queue/segment.0.ndjson"
-	if [ -f "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt" ]; then
-    	    cat "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt"
-    fi 
+	for ((i = 0; i < 5; i++)); do
+    if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
+        echo "Waiting for switchover to be COMPLETED..."
+        sleep 20
+        if [ "$i" -eq 4 ]; then
+            tail_log_file "yb-voyager-fall-forward-setup.log"
+            tail_log_file "yb-voyager-fall-forward-synchronize.log"
+			exit 1
+        fi
+    else
+        break
+    fi
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
@@ -229,9 +219,12 @@ main() {
 	"${TEST_DIR}/validateAfterChanges"
 
 	step "Clean up"
+
 	./cleanup-db
+	stream_id=$(cat "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt")
+	java -jar /opt/yb-voyager/debezium-server/debezium-server-1.9.5/yb-client-cdc-stream-wrapper.jar -delete_stream $stream_id -master_addresses yb-master-n1:7100
 	rm -rf "${EXPORT_DIR}/*"
-	#run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
+	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
 main

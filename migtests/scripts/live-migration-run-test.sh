@@ -138,9 +138,18 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-	while [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; do
-    echo "Waiting for cutover to be COMPLETED..."
-    sleep 5
+	for ((i = 0; i < 5; i++)); do
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
+        echo "Waiting for cutover to be COMPLETED..."
+        sleep 20
+        if [ "$i" -eq 4 ]; then
+            tail_log_file "yb-voyager-export-data.log"
+            tail_log_file "yb-voyager-import-data.log"
+			exit 1
+        fi
+    else
+        break
+    fi
 	done
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
