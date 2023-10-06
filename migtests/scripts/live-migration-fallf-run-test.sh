@@ -166,7 +166,6 @@ main() {
 	step "Initiating cutover"
 	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
-
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
@@ -181,7 +180,7 @@ main() {
     fi
 	done
 
-	sleep 2m
+	sleep 1m
 
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
@@ -193,8 +192,6 @@ main() {
 
 	step "Initiating Switchover"
 	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
-
-	counter=0
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
