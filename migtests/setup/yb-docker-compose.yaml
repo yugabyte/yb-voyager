@@ -17,6 +17,7 @@ services:
                 "--replication_factor=1"]
       ports:
       - "7000:7000"
+      - "7100:7100"
       environment:
         SERVICE_7000_NAME: yb-master
 
@@ -34,6 +35,7 @@ services:
       - "9042:9042"
       - "5433:5433"
       - "9000:9000"
+      - "9100:9100"
       environment:
         SERVICE_5433_NAME: ysql
         SERVICE_9042_NAME: ycql
