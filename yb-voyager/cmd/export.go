@@ -243,10 +243,10 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"comma separated list of tables names or regular expressions for table names to exclude while exporting data")
+		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to exclude while exporting data")
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"comma separated list of tables names or regular expressions for table names to export data")
+		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to export data")
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
 		"path of the file containing list of table names to exclude while exporting data")

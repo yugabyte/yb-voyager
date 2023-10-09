@@ -241,8 +241,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	if err != nil {
 		utils.ErrExit("could not fetch migration status record: %w", err)
 	}
-	source.DBType = msr.SourceDBConf.DBType
-	source.Schema = msr.SourceDBConf.Schema
+	source = *msr.SourceDBConf
 	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 
 	//TODO: handle with case sensitivity later
