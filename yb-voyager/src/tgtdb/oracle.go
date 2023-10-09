@@ -489,8 +489,109 @@ func (tdb *TargetOracleDB) getListOfTableAttributes(schemaName string, tableName
 	return columns, nil
 }
 
-// execute all events sequentially one by one in a single transaction
+var cachePreparedStmtToExec = make(map[string]*sql.Stmt)
+
+func (tdb *TargetOracleDB) getPreparedStmtToExec(stmt string) *sql.Stmt {
+	if _, ok := cachePreparedStmtToExec[stmt]; ok {
+		return cachePreparedStmtToExec[stmt]
+	}
+	preparedStmt, err := tdb.conn.PrepareContext(context.Background(), stmt)
+	if err != nil {
+		utils.ErrExit("prepare stmt %q on target %q: %s", stmt, tdb.tconf.Host, err)
+	}
+	cachePreparedStmtToExec[stmt] = preparedStmt
+	return preparedStmt
+}
+
 func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
+	log.Infof("executing batch of %d events", len(batch.Events))
+	tx, err := tdb.oraDB.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: execute batch: %w", err)
+	}
+	defer func() {
+		err2 := tx.Rollback()
+		if err2 != nil {
+			log.Errorf("failed to rollback transaction for ExecuteBatch: %v", err2)
+		}
+	}()
+
+	for i := 0; i < len(batch.Events); i++ {
+		event := batch.Events[i]
+		if event.Op == "u" {
+			stmt := event.GetSQLStmt(tdb.tconf.Schema)
+			_, err := tx.Exec(stmt)
+			if err != nil {
+				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
+				return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
+			}
+		} else {
+			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+			args := event.GetParams()
+			if event.Op == "c" && tdb.tconf.EnableUpsert {
+				// converting to an UPSERT
+				event.Op = "u"
+				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
+				args = append(args, event.GetParams()...)
+				event.Op = "c" // reverting state
+			}
+
+			preparedStmt := tdb.getPreparedStmtToExec(stmt)
+			preparedStmt = tx.Stmt(preparedStmt)
+			_, err := preparedStmt.Exec(args...)
+			if err != nil {
+				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
+				return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
+			}
+			return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
+		}
+	}
+
+	updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
+	res, err := tx.Exec(updateVsnQuery)
+	if err != nil {
+		log.Errorf("error executing stmt: %v", err)
+		return fmt.Errorf("failed to update vsn on target db via query-%s: %w", updateVsnQuery, err)
+	} else if rowsAffected, err := res.RowsAffected(); rowsAffected == 0 || err != nil {
+		log.Errorf("error executing stmt: %v, rowsAffected: %v", err, rowsAffected)
+		return fmt.Errorf("failed to update vsn on target db via query-%s: %w, rowsAffected: %v",
+			updateVsnQuery, err, rowsAffected)
+	}
+
+	tableNames := batch.GetTableNames()
+	for _, tableName := range tableNames {
+		tableName := tdb.qualifyTableName(tableName)
+		updatePerTableEvents := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
+		res, err = tx.Exec(updatePerTableEvents)
+		if err != nil {
+			log.Errorf("error executing stmt: %v", err)
+			return fmt.Errorf("failed to update per table events on target db via query-%s: %w", updatePerTableEvents, err)
+		}
+		rowsAffected, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("failed to get number of rows affected in update per table events on target db via query-%s: %w",
+				updatePerTableEvents, err)
+		}
+		if rowsAffected == 0 {
+			insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
+			_, err = tx.Exec(insertTableStatsQuery)
+			if err != nil {
+				log.Errorf("error executing stmt: %v ", err)
+				return fmt.Errorf("failed to insert table stats on target db via query-%s: %w",
+					insertTableStatsQuery, err)
+			}
+		}
+	}
+
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction : %w", err)
+	}
+	return nil
+}
+
+// execute all events sequentially one by one in a single transaction
+func (tdb *TargetOracleDB) ExecuteBatchOld(migrationUUID uuid.UUID, batch *EventBatch) error {
 	// TODO: figure out how to avoid round trips to Oracle DB
 	log.Infof("executing batch of %d events", len(batch.Events))
 	err := tdb.WithConn(func(conn *sql.Conn) (bool, error) {
@@ -498,15 +599,20 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 		if err != nil {
 			return false, fmt.Errorf("begin transaction: %w", err)
 		}
-		defer tx.Rollback()
+		defer func() {
+			err2 := tx.Rollback()
+			if err2 != nil {
+				log.Errorf("failed to rollback transaction for ExecuteBatch: %v", err2)
+			}
+		}()
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetSQLStmt(tdb.tconf.Schema)
+			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetSQLStmt(tdb.tconf.Schema)
+				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
