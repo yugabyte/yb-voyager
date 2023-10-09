@@ -19,7 +19,7 @@ import "github.com/spf13/cobra"
 
 var fallForwardCmd = &cobra.Command{
 	Use:   "fall-forward",
-	Short: "Manage the fall-forward backup strategy for live migration by setting up a source-replica DB and synchronizing it with the source/target",
+	Short: "Manage the fall-forward backup strategy for live migration by setting up a fall-forward DB and synchronizing it with the source/target",
 	Long:  ``,
 }
 
