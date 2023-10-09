@@ -10,13 +10,6 @@ jobs:
   common-steps:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
-        # https://github.com/actions/setup-java
-        with:
-          distribution: 'temurin'
-          java-version: '11'
-          check-latest: true
       - name: Install python3 and psycopg2
         run: |
           sudo apt install -y python3
@@ -114,6 +107,13 @@ jobs:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        # https://github.com/actions/setup-java
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          check-latest: true
       - name: Run common steps
         uses: ./.github/workflows/common-steps
 
@@ -127,5 +127,12 @@ jobs:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        # https://github.com/actions/setup-java
+        with:
+          distribution: 'temurin'
+          java-version: '11'
+          check-latest: true
       - name: Run common steps
         uses: ./.github/workflows/common-steps
