@@ -114,7 +114,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run common steps
-        uses: common-steps
+        uses: ./.github/workflows/common-steps
 
   run-mysql-migration-tests-push:
     if: ${{ github.event_name == 'push' }}
@@ -127,4 +127,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run common steps
-        uses: common-steps
+        uses: ./.github/workflows/common-steps
