@@ -65,7 +65,7 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
+func (e *Event) GetPreparedSQLStmt(targetSchema string, dbType string) string {
 	psName := e.GetPreparedStmtName(targetSchema)
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
@@ -73,11 +73,11 @@ func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(targetSchema)
+		ps = e.getPreparedInsertStmt(targetSchema, dbType)
 	case "u":
-		ps = e.getPreparedUpdateStmt(targetSchema)
+		ps = e.getPreparedUpdateStmt(targetSchema, dbType)
 	case "d":
-		ps = e.getPreparedDeleteStmt(targetSchema)
+		ps = e.getPreparedDeleteStmt(targetSchema, dbType)
 	default:
 		panic("unknown op: " + e.Op)
 	}
@@ -170,14 +170,14 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt(targetSchema string) string {
+func (event *Event) getPreparedInsertStmt(targetSchema string, dbType string) string {
 	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
 	for pos, key := range keys {
 		columnList = append(columnList, key)
-		valueList = append(valueList, fmt.Sprintf("$%d", pos+1))
+		valueList = append(valueList, getParameterPlaceholder(dbType, pos+1))
 	}
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
@@ -186,31 +186,33 @@ func (event *Event) getPreparedInsertStmt(targetSchema string) string {
 }
 
 // NOTE: PS for each event of same table can be different as it depends on columns being updated
-func (event *Event) getPreparedUpdateStmt(targetSchema string) string {
+func (event *Event) getPreparedUpdateStmt(targetSchema string, dbType string) string {
 	tableName := event.getTableName(targetSchema)
 	setClauses := make([]string, 0, len(event.Fields))
 	keys := utils.GetMapKeysSorted(event.Fields)
+	posOffset := len(event.Fields) // special handling for oracle UPSERT stmts
 	for pos, key := range keys {
-		setClauses = append(setClauses, fmt.Sprintf("%s = $%d", key, pos+1))
+		placeholderPos := pos + 1 + posOffset
+		setClauses = append(setClauses, fmt.Sprintf("%s = %s", key, getParameterPlaceholder(dbType, placeholderPos)))
 	}
 	setClause := strings.Join(setClauses, ", ")
 
 	whereClauses := make([]string, 0, len(event.Key))
 	keys = utils.GetMapKeysSorted(event.Key)
 	for i, key := range keys {
-		pos := i + 1 + len(event.Fields)
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos))
+		pos := i + 1 + posOffset + len(event.Fields)
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", key, getParameterPlaceholder(dbType, pos)))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
 }
 
-func (event *Event) getPreparedDeleteStmt(targetSchema string) string {
+func (event *Event) getPreparedDeleteStmt(targetSchema string, dbType string) string {
 	tableName := event.getTableName(targetSchema)
 	whereClauses := make([]string, 0, len(event.Key))
 	keys := utils.GetMapKeysSorted(event.Key)
 	for pos, key := range keys {
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = $%d", key, pos+1))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", key, getParameterPlaceholder(dbType, pos+1)))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
@@ -229,6 +231,19 @@ func (event *Event) getUpdateParams() []interface{} {
 
 func (event *Event) getDeleteParams() []interface{} {
 	return getMapValuesForQuery(event.Key)
+}
+
+func getParameterPlaceholder(dbType string, pos int) string {
+	switch dbType {
+	case "postgresql", "yugabytedb":
+		return fmt.Sprintf("$%d", pos)
+	case "mysql":
+		return "?"
+	case "oracle":
+		return fmt.Sprintf(":%d", pos)
+	default:
+		panic("unknown db type: " + dbType)
+	}
 }
 
 func getMapValuesForQuery(m map[string]*string) []interface{} {

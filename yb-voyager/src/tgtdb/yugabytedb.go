@@ -528,7 +528,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			stmt := event.GetSQLStmt(yb.tconf.Schema)
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
+			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema, yb.tconf.TargetDBType)
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
 				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt

@@ -526,12 +526,12 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 				return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
 			}
 		} else {
-			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema, tdb.tconf.TargetDBType)
 			args := event.GetParams()
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema, tdb.tconf.TargetDBType)
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				args = append(args, event.GetParams()...)
 				event.Op = "c" // reverting state
@@ -544,7 +544,6 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
 				return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
 			}
-			return fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
 		}
 	}
 
@@ -608,17 +607,17 @@ func (tdb *TargetOracleDB) ExecuteBatchOld(migrationUUID uuid.UUID, batch *Event
 
 		for i := 0; i < len(batch.Events); i++ {
 			event := batch.Events[i]
-			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+			stmt := event.GetPreparedSQLStmt(tdb.tconf.Schema, tdb.tconf.TargetDBType)
 			if event.Op == "c" && tdb.tconf.EnableUpsert {
 				// converting to an UPSERT
 				event.Op = "u"
-				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema)
+				updateStmt := event.GetPreparedSQLStmt(tdb.tconf.Schema, tdb.tconf.TargetDBType)
 				stmt = fmt.Sprintf("BEGIN %s; EXCEPTION WHEN dup_val_on_index THEN %s; END;", stmt, updateStmt)
 				event.Op = "c" // reverting state
 			}
 			_, err = tx.Exec(stmt)
 			if err != nil {
-				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %v", event.Vsn, stmt, err)
+				log.Errorf("error executing stmt for event with vsn(%d) via query-%s: %s", event.Vsn, stmt, err)
 				return false, fmt.Errorf("failed to execute stmt for event with vsn(%d) via query-%s: %w", event.Vsn, stmt, err)
 			}
 		}
