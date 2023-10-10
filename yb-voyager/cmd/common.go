@@ -428,6 +428,9 @@ func initMetaDB() {
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
 func retrieveMigrationUUID() error {
+	if migrationUUID != uuid.Nil {
+		return nil
+	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("retrieving migration status record: %w", err)
