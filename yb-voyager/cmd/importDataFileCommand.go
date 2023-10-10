@@ -348,10 +348,10 @@ func init() {
 	registerImportDataFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
-		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
+		fmt.Sprintf("supported data file types: (%v)", strings.Join(supportedFileFormats, ",")))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "",
-		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
+		`character used as delimiter in rows of the table(s) (default for csv: "," (comma), for TEXT: "\t" (tab) )`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory which contains data files to import into table(s)\n"+
@@ -365,21 +365,22 @@ func init() {
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in '--data-dir' to a table in database")
+		"comma separated list of mapping between file name in '--data-dir' to a table in database\n"+
+			"You can import multiple files in one table either by providing one entry for each file 'fileName1:tableName,fileName2:tableName' OR by passing a glob expression in place of the file name. 'fileName*:tableName'")
 
 	err = importDataFileCmd.MarkFlagRequired("file-table-map")
 	if err != nil {
 		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
 	}
 	BoolVar(importDataFileCmd.Flags(), &hasHeader, "has-header", false,
-		"true - if first line of data file is a list of columns for rows (default false)\n"+
+		"Indicate that the first line of data file is a header row (default false)\n"+
 			"(Note: only works for csv file type)")
 
 	importDataFileCmd.Flags().StringVar(&escapeChar, "escape-char", "",
-		`escape character (default double quotes '"') only applicable to CSV file format`)
+		`escape character. Note: only applicable to CSV file format (default double quotes '"')`)
 
 	importDataFileCmd.Flags().StringVar(&quoteChar, "quote-char", "",
-		`character used to quote the values (default double quotes '"') only applicable to CSV file format`)
+		`character used to quote the values. Note: only applicable to CSV file format (default double quotes '"')`)
 
 	importDataFileCmd.Flags().StringVar(&fileOpts, "file-opts", "",
 		`comma separated options for csv file format:

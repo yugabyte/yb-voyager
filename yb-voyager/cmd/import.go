@@ -185,7 +185,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 
 func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"Fisable progress bar during data import and stats printing during streaming phase (default false)")
+		"Disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to exclude while importing data")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
@@ -211,7 +211,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"Enable UPSERT mode on target tables")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
-		"true - to use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
+		"Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
 			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
 	cmd.Flags().StringVar(&tconf.TargetEndpoints, "target-endpoints", "",
@@ -220,14 +220,13 @@ func registerImportDataFlags(cmd *cobra.Command) {
 			"Note: use-public-ip flag will be ignored if this is used.")
 	// flag existence depends on fix of this gh issue: https://github.com/yugabyte/yugabyte-db/issues/12464
 	BoolVar(cmd.Flags(), &tconf.DisableTransactionalWrites, "disable-transactional-writes", false,
-		"true - to disable transactional writes in tables for faster data ingestion (default false)\n"+
+		"Disable transactional writes in tables for faster data ingestion (default false)\n"+
 			"(Note: this is a interim flag until the issues related to 'yb_disable_transactional_writes' session variable are fixed. Refer: https://github.com/yugabyte/yugabyte-db/issues/12464)")
 	// Hidden for beta2.0 release (and onwards until further notice).
 	cmd.Flags().MarkHidden("disable-transactional-writes")
 
 	BoolVar(cmd.Flags(), &truncateSplits, "truncate-splits", true,
-		"true - to truncate splits after importing\n"+
-			"false - to not truncate splits after importing (required for debugging)")
+		"Truncate splits after importing")
 	cmd.Flags().MarkHidden("truncate-splits")
 }
 
