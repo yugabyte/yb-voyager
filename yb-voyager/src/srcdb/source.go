@@ -22,37 +22,38 @@ import (
 )
 
 type Source struct {
-	DBType                string
-	Host                  string
-	Port                  int
-	User                  string
-	Password              string
-	DBName                string
-	CDBName               string
-	DBSid                 string
-	CDBSid                string
-	OracleHome            string
-	TNSAlias              string
-	CDBTNSAlias           string
-	Schema                string
-	SSLMode               string
-	SSLCertPath           string
-	SSLKey                string
-	SSLRootCert           string
-	SSLCRL                string
-	SSLQueryString        string
-	SSLKeyStore           string
-	SSLKeyStorePassword   string
-	SSLTrustStore         string
-	SSLTrustStorePassword string
-	Uri                   string
-	NumConnections        int
-	VerboseMode           bool
-	TableList             string
-	ExcludeTableList      string
-	UseOrafce             utils.BoolStr
-	CommentsOnObjects     utils.BoolStr
-	ExportObjects         string
+	DBType                   string
+	Host                     string
+	Port                     int
+	User                     string
+	Password                 string
+	DBName                   string
+	CDBName                  string
+	DBSid                    string
+	CDBSid                   string
+	OracleHome               string
+	TNSAlias                 string
+	CDBTNSAlias              string
+	Schema                   string
+	SSLMode                  string
+	SSLCertPath              string
+	SSLKey                   string
+	SSLRootCert              string
+	SSLCRL                   string
+	SSLQueryString           string
+	SSLKeyStore              string
+	SSLKeyStorePassword      string
+	SSLTrustStore            string
+	SSLTrustStorePassword    string
+	Uri                      string
+	NumConnections           int
+	VerboseMode              bool
+	TableList                string
+	ExcludeTableList         string
+	UseOrafce                utils.BoolStr
+	CommentsOnObjects        utils.BoolStr
+	StrExportObjectTypesList string
+	ExportObjectTypesList    []string
 
 	sourceDB SourceDB
 }
@@ -74,6 +75,22 @@ func (s *Source) GetOracleHome() string {
 
 func (s *Source) IsOracleCDBSetup() bool {
 	return (s.CDBName != "" || s.CDBTNSAlias != "" || s.CDBSid != "")
+}
+
+func (s *Source) ApplyExportSchemaObjectListFilter() {
+	allowedObjects := utils.GetSchemaObjectList(s.DBType)
+	if s.StrExportObjectTypesList == "" {
+		s.ExportObjectTypesList = allowedObjects
+		return
+	}
+	expectedObjectsSlice := strings.Split(s.StrExportObjectTypesList, ",")
+	newAllowedObjects := []string{}
+	for _, object := range allowedObjects {
+		if utils.ContainsString(expectedObjectsSlice, object) {
+			newAllowedObjects = append(newAllowedObjects, object)
+		}
+	}
+	s.ExportObjectTypesList = newAllowedObjects
 }
 
 func parseSSLString(source *Source) {
