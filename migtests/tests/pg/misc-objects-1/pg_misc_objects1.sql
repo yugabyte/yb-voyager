@@ -98,3 +98,13 @@ insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_add
 
 select * from "Case_Sensitive_Columns";
 
+CREATE TABLE "group" (
+    id int PRIMARY KEY,
+    name varchar(10)
+);
+
+INSERT into "group" values(1, 'abc');
+INSERT into "group" values(2, 'abc');
+INSERT into "group" values(3, 'abc');
+INSERT into "group" values(4, 'abc');
+INSERT into "group" values(5, 'abc');
