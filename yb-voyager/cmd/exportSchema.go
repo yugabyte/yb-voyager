@@ -41,6 +41,7 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		source.ApplyExportSchemaObjectListFilter()
 		exportSchema()
 	},
 }
@@ -104,6 +105,9 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
+
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+		"comma separated list of objects to export. ")
 }
 
 func schemaIsExported() bool {
