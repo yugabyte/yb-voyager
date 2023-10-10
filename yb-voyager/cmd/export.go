@@ -71,7 +71,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command) {
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
-		"source password to connect as the specified user")
+		"source password to connect as the specified user. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
@@ -127,7 +127,7 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
-		"password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")

@@ -112,7 +112,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "target-db-password", "",
-		"password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&tconf.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
@@ -149,7 +149,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("ff-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
-		"password with which to connect to the Fall-forward DB server")
+		"password with which to connect to the Fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&tconf.DBName, "ff-db-name", "",
 		"name of the database on the Fall-forward DB server on which import needs to be done")

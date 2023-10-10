@@ -395,4 +395,10 @@ func init() {
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
+
+	importDataFileCmd.Flags().Lookup("start-clean").Usage =
+		`Starts a fresh import with data files present in the data directory. 
+If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncaating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from the --file-table-map or truncate those tables manually before using the start-clean flag`
 }
