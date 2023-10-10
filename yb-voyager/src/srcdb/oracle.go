@@ -178,8 +178,13 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 	// TODO(future): once we implement table-list/object-type for export schema
 	// we will have to filter out indexes based on tables or object types that are not being exported
-	query := fmt.Sprintf(`SELECT INDEX_NAME, INDEX_TYPE, TABLE_NAME FROM ALL_INDEXES
-	WHERE OWNER = '%s'`, ora.source.Schema)
+	query := fmt.Sprintf(`SELECT AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME, 
+		   LISTAGG(AIC.COLUMN_NAME, ', ') WITHIN GROUP (ORDER BY AIC.COLUMN_POSITION) AS COLUMNS
+	FROM ALL_INDEXES AIN
+	INNER JOIN ALL_IND_COLUMNS AIC ON AIN.INDEX_NAME = AIC.INDEX_NAME
+	WHERE AIN.OWNER = '%s'
+		AND NOT (AIN.INDEX_NAME LIKE 'SYS%%' OR AIN.INDEX_NAME LIKE 'DR$%%')
+	GROUP BY AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME`, ora.source.Schema)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for indexes info: %v", err)
@@ -187,37 +192,17 @@ func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 	defer rows.Close()
 	var indexesInfo []utils.IndexInfo
 	for rows.Next() {
-		var indexName, indexType, tableName string
-		err = rows.Scan(&indexName, &indexType, &tableName)
+		var indexName, indexType, tableName, columns string
+		err = rows.Scan(&indexName, &indexType, &tableName, &columns)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for reverse indexes: %v", err)
 		}
-		// skip system indexes or domain indexes (all internal	)
-		if strings.HasPrefix(indexName, "SYS_") || strings.HasPrefix(indexName, "DR$") {
-			continue
-		}
-
-		query = fmt.Sprintf(`SELECT COLUMN_NAME FROM ALL_IND_COLUMNS 
-		WHERE INDEX_NAME = '%s' and TABLE_NAME = '%s'`, indexName, tableName)
-		rows2, err2 := ora.db.Query(query)
-		if err2 != nil {
-			utils.ErrExit("error in querying source database for columns of indexes: %v", err2)
-		}
-		var columns []string
-		for rows2.Next() {
-			var columnName string
-			err = rows2.Scan(&columnName)
-			if err != nil {
-				utils.ErrExit("error in scanning query rows for columns of indexes: %v", err)
-			}
-			columns = append(columns, columnName)
-		}
-		rows2.Close()
+		fmt.Printf("indexName: %s, indexType: %s, tableName: %s, columns: %v\n", indexName, indexType, tableName, columns)
 		indexInfo := utils.IndexInfo{
 			IndexName: indexName,
 			IndexType: indexType,
 			TableName: tableName,
-			Columns:   columns,
+			Columns:   strings.Split(columns, ", "),
 		}
 		indexesInfo = append(indexesInfo, indexInfo)
 	}
