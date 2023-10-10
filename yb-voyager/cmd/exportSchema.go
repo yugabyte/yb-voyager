@@ -46,8 +46,7 @@ var exportSchemaCmd = &cobra.Command{
 }
 
 func exportSchema() {
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	if schemaIsExported() {
+	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
@@ -67,7 +66,10 @@ func exportSchema() {
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the exported schema.\n")
 			return
 		}
+	} else if startClean {
+		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n")
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err := source.DB().Connect()
