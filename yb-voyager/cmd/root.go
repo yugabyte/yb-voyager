@@ -18,9 +18,9 @@ package cmd
 import (
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"path/filepath"
-	_ "net/http/pprof"
 
 	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
@@ -40,7 +40,7 @@ var (
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
 	VerboseMode   utils.BoolStr
-	perfProfile       utils.BoolStr
+	perfProfile   utils.BoolStr
 )
 
 var rootCmd = &cobra.Command{
@@ -58,7 +58,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if metaDBIsCreated(exportDir) {
 				initMetaDB()
 			}
-			if (perfProfile) {
+			if perfProfile {
 				go startPprofServer()
 			}
 		}
@@ -79,17 +79,17 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 }
 
 func startPprofServer() {
-    // Server for pprof
-    err := http.ListenAndServe("localhost:6060", nil)
+	// Server for pprof
+	err := http.ListenAndServe("localhost:6060", nil)
 	if err != nil {
 		fmt.Println("Error starting pprof server")
 	}
 	/*
-	Steps to use pprof for profiling yb-voyager:
-	1. install graphviz on the machine using - sudo yum install graphviz gv
-	2. start voyager with profile flag - yb-voyager ... --profile true
-	3. use the following command to start a web ui for the profile data- 
-		go tool pprof -http=[<client_machine_ip>:<port>] http://localhost:6060/debug/pprof/profile
+		Steps to use pprof for profiling yb-voyager:
+		1. install graphviz on the machine using - sudo yum install graphviz gv
+		2. start voyager with profile flag - yb-voyager ... --profile true
+		3. use the following command to start a web ui for the profile data-
+			go tool pprof -http=[<client_machine_ip>:<port>] http://localhost:6060/debug/pprof/profile
 	*/
 }
 

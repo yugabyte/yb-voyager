@@ -155,9 +155,7 @@ func parseSchemaFile(exportDir string, exportObjectTypesList []string) int {
 	}
 
 	// merging TABLE ATTACH later with TABLE - to avoid alter add PK on partitioned tables
-	if utils.ContainsString(exportObjectTypesList, "TABLE") {
-		objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
-	}
+	objSqlStmts["TABLE"].WriteString(alterAttachPartition.String())
 
 	schemaDirPath := filepath.Join(exportDir, "schema")
 	for objType, sqlStmts := range objSqlStmts {

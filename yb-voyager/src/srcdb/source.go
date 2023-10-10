@@ -18,6 +18,7 @@ package srcdb
 import (
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -90,13 +91,7 @@ func (s *Source) ApplyExportSchemaObjectListFilter() {
 		return
 	}
 	expectedObjectsSlice := strings.Split(s.StrExportObjectTypesList, ",")
-	newAllowedObjects := []string{}
-	for _, object := range allowedObjects {
-		if utils.ContainsString(expectedObjectsSlice, object) {
-			newAllowedObjects = append(newAllowedObjects, object)
-		}
-	}
-	s.ExportObjectTypesList = newAllowedObjects
+	s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return utils.ContainsString(expectedObjectsSlice, objType) })
 }
 
 func parseSSLString(source *Source) {
