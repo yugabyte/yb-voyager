@@ -395,7 +395,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
+	utils.PrintAndLog("\nimport of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -437,7 +437,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-	utils.PrintAndLog("snapshot data import complete\n")
+	utils.PrintAndLog("snapshot data import complete\n\n")
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
