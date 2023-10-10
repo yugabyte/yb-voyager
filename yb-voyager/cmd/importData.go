@@ -64,8 +64,8 @@ var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
 	Use:   "data",
-	Short: "This command imports data into YugabyteDB database",
-	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
+	Short: "Import data into target YugabyteDB database",
+	Long:  `Import the data exported from the source database into the target IYugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
@@ -322,7 +322,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	for _, task := range importFileTasks {
 		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		if len(includeList) > 0 && !slices.Contains(includeList,table) {
+		if len(includeList) > 0 && !slices.Contains(includeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
