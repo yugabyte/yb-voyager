@@ -194,7 +194,16 @@ insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, 
 
 Select * from "Mixed_Case_Table_Name_Test";
 
+CREATE TABLE "group" (
+    id int PRIMARY KEY,
+    name varchar(10)
+);
 
+INSERT into "group" values(1, 'abc');
+INSERT into "group" values(2, 'abc');
+INSERT into "group" values(3, 'abc');
+INSERT into "group" values(4, 'abc');
+INSERT into "group" values(5, 'abc');
 
 /*******************************************************/
 -- Creating and populating the second schema
@@ -405,6 +414,16 @@ insert into "Mixed_Case_Table_Name_Test" (first_name, last_name, email, gender, 
 
 Select * from "Mixed_Case_Table_Name_Test";
 
+CREATE TABLE "group" (
+    id int PRIMARY KEY,
+    name varchar(10)
+);
+
+INSERT into "group" values(1, 'abc');
+INSERT into "group" values(2, 'abc');
+INSERT into "group" values(3, 'abc');
+INSERT into "group" values(4, 'abc');
+INSERT into "group" values(5, 'abc');
 
 
 

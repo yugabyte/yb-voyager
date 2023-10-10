@@ -14,13 +14,14 @@ EXPECTED_ROW_COUNT = {
 	'audit': 4,
 	'recipients': 1,    
 	'session_log': 0,
-	'Mixed_Case_Table_Name_Test': 5
+	'Mixed_Case_Table_Name_Test': 5,
+	'group':5
 }
 
 def check_validations_per_schema(tgt,schema_name):
 	table_list = tgt.get_table_names(schema_name)
 	print("table_list:", table_list)
-	assert len(table_list) == 6 
+	assert len(table_list) == 7 
 
 	got_row_count = tgt.row_count_of_all_tables(schema_name)
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
