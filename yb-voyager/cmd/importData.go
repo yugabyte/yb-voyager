@@ -322,7 +322,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 	for _, task := range importFileTasks {
 		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
-		if len(includeList) > 0 && !slices.Contains(includeList,table) {
+		if len(includeList) > 0 && !slices.Contains(includeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
@@ -395,7 +395,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
+	utils.PrintAndLog("\nimport of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -437,7 +437,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-
+	utils.PrintAndLog("snapshot data import complete\n\n")
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
