@@ -97,4 +97,3 @@ insert into "Case_Sensitive_Columns" ("user", "Last_Name", email, gender, ip_add
 \d "Case_Sensitive_Columns"
 
 select * from "Case_Sensitive_Columns";
-
