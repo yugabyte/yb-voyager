@@ -6,6 +6,7 @@ GRANT CONNECT, RESOURCE TO ybvoyager_metadata;
 ALTER USER ybvoyager_metadata QUOTA UNLIMITED ON USERS;
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
+            migration_uuid VARCHAR2(36),
             data_file_name VARCHAR2(250),
             batch_number NUMBER(10),
             schema_name VARCHAR2(250),
