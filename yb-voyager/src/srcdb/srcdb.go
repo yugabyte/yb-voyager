@@ -33,6 +33,7 @@ type SourceDB interface {
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	ExportSchema(exportDir string)
+	GetIndexesInfo() []utils.IndexInfo
 	ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string)
 	ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata)
 	GetCharset() (string, error)
