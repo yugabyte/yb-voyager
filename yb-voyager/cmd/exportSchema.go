@@ -68,7 +68,7 @@ func exportSchema() {
 			return
 		}
 	} else if startClean {
-		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n")
+		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 
