@@ -362,7 +362,11 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		table := tableName
+		if len(strings.Split(tableName, ".")) == 2 {
+			table = strings.Split(tableName, ".")[1]
+		}
+		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
