@@ -33,9 +33,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
 
-	exportObjectList := utils.GetSchemaObjectList(source.DBType)
-
-	for _, exportObject := range exportObjectList {
+	for _, exportObject := range source.ExportObjectTypesList {
 		if exportObject == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}

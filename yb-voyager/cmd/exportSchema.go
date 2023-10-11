@@ -41,6 +41,7 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		source.ApplyExportSchemaObjectListFilter()
 		exportSchema()
 	},
 }
@@ -58,7 +59,6 @@ func exportSchema() {
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
-
 			clearSchemaIsExported()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
@@ -70,6 +70,7 @@ func exportSchema() {
 		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n")
 	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err := source.DB().Connect()
@@ -111,6 +112,9 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
+
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+		"comma separated list of objects to export. ")
 }
 
 func schemaIsExported() bool {
