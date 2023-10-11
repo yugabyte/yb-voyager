@@ -227,6 +227,7 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
 		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			migration_uuid uuid,
 			data_file_name VARCHAR(250),
 			batch_number INT,
 			schema_name VARCHAR(250),
