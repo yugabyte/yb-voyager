@@ -336,7 +336,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 		} else if slices.Contains(schemas, "public") {
 			return "public", false
 		} else {
-			return "", true 
+			return "", true
 		}
 	case ORACLE:
 		return source.Schema, false
@@ -385,7 +385,7 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
-	return result
+	return lo.Uniq(result)
 }
 
 func checkSourceDBCharset() {
