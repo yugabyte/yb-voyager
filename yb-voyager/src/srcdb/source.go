@@ -55,9 +55,9 @@ type Source struct {
 	CommentsOnObjects        utils.BoolStr `json:"comments_on_objects"`
 	DBVersion                string        `json:"db_version"`
 	StrExportObjectTypesList string        `json:"str_export_object_types_list"`
-	ExportObjectTypesList    []string      `json:"export_object_types_list"`
 
-	sourceDB SourceDB `json:"-"`
+	ExportObjectTypesList []string `json:"-"`
+	sourceDB              SourceDB `json:"-"`
 }
 
 func (s *Source) Clone() *Source {
