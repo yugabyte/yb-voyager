@@ -43,10 +43,10 @@ type TableProgressMetadata struct {
 }
 
 type IndexInfo struct {
-	IndexName string
-	IndexType string
-	TableName string
-	Columns   []string
+	IndexName string   `json:"IndexName"`
+	IndexType string   `json:"IndexType"`
+	TableName string   `json:"TableName"`
+	Columns   []string `json:"Columns"`
 }
 
 // the list elements order is same as the import objects order

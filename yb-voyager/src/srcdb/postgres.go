@@ -213,7 +213,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
 }
 
-func (pg *PostgreSQL) GetIndexesInfo() *[]utils.IndexInfo {
+func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 

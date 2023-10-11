@@ -262,24 +262,25 @@ func reportSummary() {
 
 func addSummaryDetailsForIndexes() {
 	var indexesInfo []utils.IndexInfo
-	found, err := metaDB.GetJsonObject(nil, metadb.SOURCES_INDEXES_INFO_KEY, &indexesInfo)
+	found, err := metaDB.GetJsonObject(nil, metadb.SOURCE_INDEXES_INFO_KEY, &indexesInfo)
 	if err != nil {
 		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
 	}
-	if found {
-		exportedIndexes := lo.Keys(summaryMap["INDEX"].objSet)
-		unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
-		unexportedIdxsPresent := false
-		for _, indexInfo := range indexesInfo {
-			sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
-			if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
-				unexportedIdxsPresent = true
-				unexportedIdxsMsg += fmt.Sprintf("\t\tIndex Name=%s, Index Type=%s\n", indexInfo.IndexName, indexInfo.IndexType)
-			}
+	if !found {
+		return
+	}
+	exportedIndexes := lo.Keys(summaryMap["INDEX"].objSet)
+	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
+	unexportedIdxsPresent := false
+	for _, indexInfo := range indexesInfo {
+		sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
+		if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
+			unexportedIdxsPresent = true
+			unexportedIdxsMsg += fmt.Sprintf("\t\tIndex Name=%s, Index Type=%s\n", indexInfo.IndexName, indexInfo.IndexType)
 		}
-		if unexportedIdxsPresent {
-			summaryMap["INDEX"].details[unexportedIdxsMsg] = true
-		}
+	}
+	if unexportedIdxsPresent {
+		summaryMap["INDEX"].details[unexportedIdxsMsg] = true
 	}
 }
 

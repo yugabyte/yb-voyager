@@ -175,7 +175,7 @@ func (ora *Oracle) ExportSchema(exportDir string) {
 }
 
 // return list of jsons having index info like index name, index type, table name, column name
-func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
+func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	// TODO(future): once we implement table-list/object-type for export schema
 	// we will have to filter out indexes based on tables or object types that are not being exported
 	query := fmt.Sprintf(`SELECT AIN.INDEX_NAME, AIN.INDEX_TYPE, AIN.TABLE_NAME, 
@@ -197,7 +197,6 @@ func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for reverse indexes: %v", err)
 		}
-		fmt.Printf("indexName: %s, indexType: %s, tableName: %s, columns: %v\n", indexName, indexType, tableName, columns)
 		indexInfo := utils.IndexInfo{
 			IndexName: indexName,
 			IndexType: indexType,
@@ -210,7 +209,8 @@ func (ora *Oracle) GetIndexesInfo() *[]utils.IndexInfo {
 		log.Infof("No indexes found in the source database")
 		return nil
 	}
-	return &indexesInfo
+	log.Infof("Indexes Info: %+v", indexesInfo)
+	return indexesInfo
 }
 
 func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

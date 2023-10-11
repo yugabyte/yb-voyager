@@ -211,7 +211,7 @@ func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
 }
 
-func (yb *YugabyteDB) GetIndexesInfo() *[]utils.IndexInfo {
+func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 

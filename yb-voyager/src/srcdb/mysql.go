@@ -164,7 +164,7 @@ func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
 }
 
-func (ms *MySQL) GetIndexesInfo() *[]utils.IndexInfo {
+func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
