@@ -53,7 +53,7 @@ LANGUAGE SQL
 
 AS $$
 
-INSERT INTO public."tt" VALUES ("i");
+INSERT INTO "tt" VALUES ("i");
 
 $$;
 
