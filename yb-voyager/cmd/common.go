@@ -404,12 +404,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	}
 
 	initMetaDB()
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.SourceDBConf == nil {
-			record.SourceDBConf = source.Clone()
-			record.SourceDBConf.Password = ""
-		}
-	})
 }
 
 func initMetaDB() {
