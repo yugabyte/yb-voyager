@@ -339,18 +339,6 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 	}
 }
 
-func Uniq(slice []string) []string {
-	keys := make(map[string]bool)
-	var list []string
-	for _, entry := range slice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
 func HumanReadableByteCount(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {

@@ -258,6 +258,7 @@ func IsCaseSensitive(s string, sourceDbType string) bool {
 	panic("invalid source db type")
 }
 
+
 var PgReservedKeywords = []string{"all", "analyse", "analyze", "and", "any", "array",
 	"as", "asc", "asymmetric", "both", "case", "cast", "check", "collate", "column",
 	"constraint", "create", "current_catalog", "current_date", "current_role",

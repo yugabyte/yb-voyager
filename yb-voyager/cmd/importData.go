@@ -557,7 +557,7 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	for _, t := range tasks {
 		tableNames = append(tableNames, t.TableName)
 	}
-	return utils.Uniq(tableNames)
+	return lo.Uniq(tableNames)
 }
 
 func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
