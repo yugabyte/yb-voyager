@@ -149,11 +149,11 @@ func clearSchemaIsExported() {
 func updateIndexesInfoInMetaDB() {
 	log.Infof("updating indexes info in meta db\n")
 	indexesInfo := source.DB().GetIndexesInfo()
-	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
-		// updating if indexesInfo is not nil
-		if indexesInfo != nil {
-			*record = append(*record, *indexesInfo...)
-		}
+	if indexesInfo == nil {
+		return
+	}
+	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.SOURCES_INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
+		*record = append(*record, *indexesInfo...)
 	})
 	if err != nil {
 		utils.ErrExit("update indexes info in meta db: %s", err)

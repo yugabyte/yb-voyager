@@ -262,7 +262,7 @@ func reportSummary() {
 
 func addSummaryDetailsForIndexes() {
 	var indexesInfo []utils.IndexInfo
-	found, err := metaDB.GetJsonObject(nil, metadb.INDEXES_INFO_KEY, &indexesInfo)
+	found, err := metaDB.GetJsonObject(nil, metadb.SOURCES_INDEXES_INFO_KEY, &indexesInfo)
 	if err != nil {
 		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
 	}
