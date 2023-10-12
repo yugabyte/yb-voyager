@@ -191,11 +191,11 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
-			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
 		"comma-separated list of the table names to export data.\n"+
-			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
