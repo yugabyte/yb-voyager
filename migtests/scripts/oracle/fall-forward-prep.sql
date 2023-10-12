@@ -6,7 +6,6 @@ GRANT CONNECT, RESOURCE TO ybvoyager_metadata;
 ALTER USER ybvoyager_metadata QUOTA UNLIMITED ON USERS;
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
-            migration_uuid VARCHAR2(36),
             data_file_name VARCHAR2(250),
             batch_number NUMBER(10),
             schema_name VARCHAR2(250),
@@ -14,6 +13,8 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
             rows_imported NUMBER(19),
             PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
         );
+
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); --After 1.6 release
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),
@@ -36,7 +37,7 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_imported_event_count_by_table (
         PRIMARY KEY (migration_uuid, table_name, channel_no)
     );
 
-// Grant all privileges on ybvoyager_metadata schema table to user ybvoyager
+-- Grant all privileges on ybvoyager_metadata schema table to user ybvoyager
 
 DECLARE
    v_sql VARCHAR2(4000);
