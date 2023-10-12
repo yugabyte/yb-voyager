@@ -30,6 +30,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -102,6 +103,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.PackAndSendPayload(exportDir)
 
 		setDataIsExported()
+		updateSourceDBConfInMSR()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 	} else {
@@ -135,6 +137,7 @@ func exportData() bool {
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
+		updateSourceDBConfInMSR()
 		os.Exit(0)
 	}
 
@@ -178,11 +181,12 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
-	excludeTableList := extractTableListFromString(source.ExcludeTableList)
+	fullTableList := source.DB().GetAllTableNames()
+	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if source.TableList != "" {
-		tableList = extractTableListFromString(source.TableList)
+		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
-		tableList = source.DB().GetAllTableNames()
+		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 	log.Infof("initial all tables table list for data export: %v", tableList)
@@ -237,7 +241,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := source.DB().GetAllSequences()
 		for _, seq := range sequenceList {
-			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
+			name := sqlname.NewSourceNameFromQualifiedName(seq)
 			finalTableList = append(finalTableList, name)
 		}
 	}
@@ -323,36 +327,67 @@ func checkDataDirs() {
 	}
 }
 
-func getDefaultSourceSchemaName() string {
+func getDefaultSourceSchemaName() (string, bool) {
 	switch source.DBType {
 	case MYSQL:
-		return source.DBName
+		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return "public"
+		schemas := strings.Split(source.Schema, "|")
+		if len(schemas) == 1 {
+			return source.Schema, false
+		} else if slices.Contains(schemas, "public") {
+			return "public", false
+		} else {
+			return "", true
+		}
 	case ORACLE:
-		return source.Schema
+		return source.Schema, false
 	default:
 		panic("invalid db type")
 	}
 }
 
-func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
+func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string, listName string) []*sqlname.SourceName {
 	result := []*sqlname.SourceName{}
 	if flagTableList == "" {
 		return result
 	}
+	findPatternMatchingTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
+		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
+			table := tableName.Qualified.MinQuoted
+			sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
+			pattern = sqlNamePattern.Qualified.MinQuoted
+			matched, err := filepath.Match(pattern, table)
+			if err != nil {
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+			}
+			return matched
+		})
+		return result
+	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-
-	var schemaName string
-	if source.Schema != "" {
-		schemaName = source.Schema
-	} else {
-		schemaName = getDefaultSourceSchemaName()
+	var unqualifiedTables []string
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	var unknownTableNames []string
+	for _, pattern := range tableList {
+		if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
+			unqualifiedTables = append(unqualifiedTables, pattern)
+			continue
+		}
+		tables := findPatternMatchingTables(pattern, defaultSourceSchema)
+		if len(tables) == 0 {
+			unknownTableNames = append(unknownTableNames, pattern)
+		}
+		result = append(result, tables...)
 	}
-	for _, table := range tableList {
-		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, schemaName))
+	if len(unqualifiedTables) > 0 {
+		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
 	}
-	return result
+	if len(unknownTableNames) > 0 {
+		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
+		utils.ErrExit("Valid table names are %v", fullTableList)
+	}
+	return lo.Uniq(result)
 }
 
 func checkSourceDBCharset() {
@@ -417,4 +452,16 @@ func clearDataIsExported() {
 	if err != nil {
 		utils.ErrExit("clear data is exported: update migration status record: %s", err)
 	}
+}
+
+func updateSourceDBConfInMSR() {
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if record.SourceDBConf == nil {
+			record.SourceDBConf = source.Clone()
+			record.SourceDBConf.Password = ""
+		} else {
+			// currently db type is only required for import data commands
+			record.SourceDBConf.DBType = source.DBType
+		}
+	})
 }

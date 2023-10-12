@@ -236,22 +236,23 @@ func discoverFilesToImport() []*ImportFileTask {
 
 func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	result := []*ImportFileTask{}
-	includeList := utils.CsvStringToSlice(tconf.TableList)
-	log.Infof("includeList: %v", includeList)
-	excludeList := utils.CsvStringToSlice(tconf.ExcludeTableList)
-	log.Infof("excludeList: %v", excludeList)
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch migration status record: %w", err)
+	}
+	source = *msr.SourceDBConf
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
 
 	//TODO: handle with case sensitivity later
-	standardizeCaseInsensitiveTableNames := func(tableName string) string {
+	standardizeCaseInsensitiveTableNames := func(tableName string, defaultSourceSchema string) string {
 		parts := strings.Split(tableName, ".")
 		tableName = parts[len(parts)-1]
 		if !utils.IsQuotedString(tableName) {
 			tableName = strings.ToLower(tableName)
 		}
-
 		if len(parts) > 1 {
-			source.DBType = GetSourceDBTypeFromMSR()
-			if parts[0] == getDefaultSourceSchemaName() {
+			if parts[0] == defaultSourceSchema {
 				return tableName
 			}
 			return fmt.Sprintf(`%s.%s`, parts[0], tableName)
@@ -259,18 +260,49 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		return tableName
 	}
 
-	includeList = lo.Map(includeList, func(tableName string, _ int) string {
-		return standardizeCaseInsensitiveTableNames(tableName)
-	})
-	excludeList = lo.Map(excludeList, func(tableName string, _ int) string {
-		return standardizeCaseInsensitiveTableNames(tableName)
-	})
-
 	allTables := lo.Map(importFileTasks, func(task *ImportFileTask, _ int) string {
-		return standardizeCaseInsensitiveTableNames(task.TableName)
+		return standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
 	})
 	slices.Sort(allTables)
 	log.Infof("allTables: %v", allTables)
+
+	findPatternMatchingTables := func(pattern string) []string {
+		result := lo.Filter(allTables, func(tableName string, _ int) bool {
+			matched, err := filepath.Match(pattern, tableName)
+			if err != nil {
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+			}
+			return matched
+		})
+		return result
+	}
+
+	extractTableList := func(flagTableList, listName string) []string {
+		tableList := utils.CsvStringToSlice(flagTableList)
+		var result []string
+		var unqualifiedTables []string
+		for _, table := range tableList {
+			if noDefaultSchema && len(strings.Split(table, ".")) == 1 {
+				unqualifiedTables = append(unqualifiedTables, table)
+				continue
+			}
+			table = standardizeCaseInsensitiveTableNames(table, defaultSourceSchema)
+			matchingTables := findPatternMatchingTables(table)
+			if len(matchingTables) == 0 {
+				result = append(result, table) //so that unknown check can be done later
+			} else {
+				result = append(result, matchingTables...)
+			}
+		}
+		if len(unqualifiedTables) > 0 {
+			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
+		}
+		log.Infof("%s tableList: %v", listName, result)
+		return result
+	}
+
+	includeList := extractTableList(tconf.TableList, "include")
+	excludeList := extractTableList(tconf.ExcludeTableList, "exclude")
 
 	checkUnknownTableNames := func(tableNames []string, listName string) {
 		unknownTableNames := make([]string, 0)
@@ -289,11 +321,12 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 	checkUnknownTableNames(excludeList, "exclude")
 
 	for _, task := range importFileTasks {
-		if len(includeList) > 0 && !slices.Contains(includeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
+		table := standardizeCaseInsensitiveTableNames(task.TableName, defaultSourceSchema)
+		if len(includeList) > 0 && !slices.Contains(includeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is not in the include list", task.TableName, task.FilePath)
 			continue
 		}
-		if len(excludeList) > 0 && slices.Contains(excludeList, standardizeCaseInsensitiveTableNames(task.TableName)) {
+		if len(excludeList) > 0 && slices.Contains(excludeList, table) {
 			log.Infof("Skipping table %q (fileName: %s) as it is in the exclude list", task.TableName, task.FilePath)
 			continue
 		}
@@ -362,7 +395,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to create voyager metadata schema on target DB: %s", err)
 	}
 
-	utils.PrintAndLog("import of data in %q database started", tconf.DBName)
+	utils.PrintAndLog("\nimport of data in %q database started", tconf.DBName)
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
@@ -404,7 +437,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 		time.Sleep(time.Second * 2)
 	}
-
+	utils.PrintAndLog("snapshot data import complete\n\n")
 	callhome.PackAndSendPayload(exportDir)
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
@@ -524,7 +557,7 @@ func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	for _, t := range tasks {
 		tableNames = append(tableNames, t.TableName)
 	}
-	return utils.Uniq(tableNames)
+	return lo.Uniq(tableNames)
 }
 
 func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {

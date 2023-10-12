@@ -27,8 +27,8 @@ import (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "cutover has further subcommands 'initiate' and 'status' for cutover to YugabyteDB",
-	Long:  "cutover has further subcommands 'initiate' and 'status' for cutover to YugabyteDB",
+	Short: "Transition from source DB to target YugabyteDB during live migration.",
+	Long:  "",
 }
 
 func init() {

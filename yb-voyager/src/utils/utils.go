@@ -131,6 +131,15 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
+func ContainsString(list []string, str string) bool {
+	for _, object := range list {
+		if strings.EqualFold(object, str) {
+			return true
+		}
+	}
+	return false
+}
+
 func IsDirectoryEmpty(pathPattern string) bool {
 	files, _ := filepath.Glob(pathPattern + "/*")
 	return len(files) == 0
@@ -339,18 +348,6 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 	}
 }
 
-func Uniq(slice []string) []string {
-	keys := make(map[string]bool)
-	var list []string
-	for _, entry := range slice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
 func HumanReadableByteCount(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -446,7 +443,7 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 	return percUtilization, nil
 }
 
-//read the file and return slice of csv 
+// read the file and return slice of csv
 func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
@@ -458,7 +455,7 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if len(line) > 0 { //ignore empty lines
-		   list = append(list, CsvStringToSlice(line)...)
+			list = append(list, CsvStringToSlice(line)...)
 		}
 	}
 	if err := scanner.Err(); err != nil {

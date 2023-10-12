@@ -19,11 +19,11 @@ EXPECTED_ROW_COUNT = {
 }
 
 def migration_completed_checks(tgt):
-	table_list = tgt.get_table_names("reserved_words")
+	table_list = tgt.get_table_names("misc_tests")
 	print("table_list:", table_list)
 	assert len(table_list) == 7
 
-	got_row_count = tgt.row_count_of_all_tables("reserved_words")
+	got_row_count = tgt.row_count_of_all_tables("misc_tests")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}, expected row_count: {row_count}")
 		assert row_count == got_row_count[table_name]

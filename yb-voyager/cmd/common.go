@@ -259,7 +259,7 @@ func displayExportedRowCountSnapshot() {
 			if source.Schema != "" {
 				tableParts := strings.Split(key, ".")
 				table := tableParts[0]
-				schema := getDefaultSourceSchemaName()
+				schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
 				if len(tableParts) > 1 {
 					schema = tableParts[0]
 					table = tableParts[1]
@@ -362,7 +362,11 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		table := tableName
+		if len(strings.Split(tableName, ".")) == 2 {
+			table = strings.Split(tableName, ".")[1]
+		}
+		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
@@ -389,9 +393,8 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	schemaObjectList := utils.GetSchemaObjectList(dbType)
 	// creating subdirs under schema dir
-	for _, schemaObjectType := range schemaObjectList {
+	for _, schemaObjectType := range source.ExportObjectTypesList {
 		if schemaObjectType == "INDEX" { //no separate dir for indexes
 			continue
 		}
@@ -404,12 +407,6 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	}
 
 	initMetaDB()
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.SourceDBConf == nil {
-			record.SourceDBConf = source.Clone()
-			record.SourceDBConf.Password = ""
-		}
-	})
 }
 
 func initMetaDB() {
@@ -429,6 +426,9 @@ func initMetaDB() {
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
 func retrieveMigrationUUID() error {
+	if migrationUUID != uuid.Nil {
+		return nil
+	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("retrieving migration status record: %w", err)

@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -41,13 +42,13 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		source.ApplyExportSchemaObjectListFilter()
 		exportSchema()
 	},
 }
 
 func exportSchema() {
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	if schemaIsExported() {
+	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
@@ -59,7 +60,6 @@ func exportSchema() {
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
-
 			clearSchemaIsExported()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
@@ -67,7 +67,11 @@ func exportSchema() {
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the exported schema.\n")
 			return
 		}
+	} else if startClean {
+		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err := source.DB().Connect()
@@ -84,6 +88,7 @@ func exportSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	source.DB().ExportSchema(exportDir)
+	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
@@ -91,6 +96,11 @@ func exportSchema() {
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)
 
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		// setting irrespective of the current value
+		record.SourceDBConf = source.Clone()
+		record.SourceDBConf.Password = ""
+	})
 	setSchemaIsExported()
 }
 
@@ -104,6 +114,9 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
+
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+		"comma separated list of objects to export. ")
 }
 
 func schemaIsExported() bool {
@@ -130,5 +143,19 @@ func clearSchemaIsExported() {
 	})
 	if err != nil {
 		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+	}
+}
+
+func updateIndexesInfoInMetaDB() {
+	log.Infof("updating indexes info in meta db")
+	indexesInfo := source.DB().GetIndexesInfo()
+	if indexesInfo == nil {
+		return
+	}
+	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.SOURCE_INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
+		*record = indexesInfo
+	})
+	if err != nil {
+		utils.ErrExit("update indexes info in meta db: %s", err)
 	}
 }

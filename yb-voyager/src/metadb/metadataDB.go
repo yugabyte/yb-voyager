@@ -37,6 +37,7 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
+	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"

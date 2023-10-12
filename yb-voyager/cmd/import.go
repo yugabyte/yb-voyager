@@ -37,7 +37,7 @@ var tdb tgtdb.TargetDB
 
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
+	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL) into YugabyteDB",
 	Long:  `Import has various sub-commands i.e. import schema and import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
 }
 
@@ -190,9 +190,14 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while importing data")
+		"comma-separated list of the table names to exclude while exporting data.\n"+
+			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
-		"list of tables to import data")
+		"comma-separated list of the table names to export data.\n"+
+			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
+
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
 		"path of the file containing for list of tables to exclude while importing data")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
@@ -210,7 +215,7 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		defaultParallelismMsg = ""
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+ defaultParallelismMsg)
+		"number of parallel copy command jobs to target database. "+defaultParallelismMsg)
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"true - to enable UPSERT mode on target tables\n"+
 			"false - to disable UPSERT mode on target tables")

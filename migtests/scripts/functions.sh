@@ -193,6 +193,16 @@ run_sqlplus_as_schema_owner() {
     echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
+run_sqlplus() {
+	db_name=$1
+   	db_schema=$2
+   	db_password=$3
+   	sql=$4
+   	conn_string="${db_schema}/${db_password}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+
+	echo exit | sqlplus -f "${conn_string}" @"${sql}"
+}
+
 export_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
@@ -301,6 +311,7 @@ import_schema() {
 		--target-db-schema ${TARGET_DB_SCHEMA} 
 		--yes
 		--send-diagnostics=false
+		--start-clean 1
 		"
 		yb-voyager import schema ${args} $*
 }
@@ -320,6 +331,22 @@ import_data() {
 		--truncate-splits true
 		"
 		yb-voyager import data ${args} $*
+}
+
+fall_forward_setup() {
+	args="
+	--export-dir ${EXPORT_DIR}
+	--ff-db-user ${FF_DB_USER}
+	--ff-db-host ${FF_DB_HOST} 
+	--ff-db-name ${FF_DB_NAME} 
+	--ff-db-password ${FF_DB_PASSWORD} 
+	--ff-db-schema ${FF_DB_SCHEMA} 
+	--start-clean true
+	--disable-pb true
+	--send-diagnostics=false
+	--parallel-jobs 3
+	"
+	yb-voyager fall-forward setup ${args} $*
 }
 
 import_data_file() {
@@ -344,7 +371,7 @@ tail_log_file() {
 	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]
 	then
 		echo "Printing ${log_file_name} file"
-		tail -n 100 "${EXPORT_DIR}/logs/${log_file_name}"
+		tail -n 150 "${EXPORT_DIR}/logs/${log_file_name}"
 	else
 		echo "No ${log_file_name} found."
 	fi	

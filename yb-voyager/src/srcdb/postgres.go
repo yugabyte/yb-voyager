@@ -213,6 +213,10 @@ func (pg *PostgreSQL) ExportSchema(exportDir string) {
 	pgdumpExtractSchema(pg.source, pg.getConnectionUriWithoutPassword(), exportDir)
 }
 
+func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
+	return nil
+}
+
 func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
 	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
 }
@@ -308,20 +312,20 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
 	}
 	defer rows.Close()
 
-	var sequenceName string
+	var sequenceName, sequenceSchema string
 	for rows.Next() {
-		err = rows.Scan(&sequenceName)
+		err = rows.Scan(&sequenceSchema, &sequenceName)
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
 		}
-		sequenceNames = append(sequenceNames, sequenceName)
+		sequenceNames = append(sequenceNames, fmt.Sprintf("%s.%s", sequenceSchema, sequenceName))
 	}
 	return sequenceNames
 }

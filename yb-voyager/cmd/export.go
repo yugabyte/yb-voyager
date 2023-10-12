@@ -246,10 +246,12 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
+			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
 		"comma-separated list of the table names to export data.\n"+
+			"Table names can include glob wild characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",

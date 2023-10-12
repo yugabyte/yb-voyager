@@ -10,23 +10,23 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID                              string
-	SourceDBType                               string
-	ExportType                                 string
-	FallForwarDBExists                         bool
-	TargetDBConf                               *tgtdb.TargetConf
-	FallForwardDBConf                          *tgtdb.TargetConf
-	TableListExportedFromSource                []string
-	SourceDBConf                               *srcdb.Source
-	CutoverRequested                           bool
-	CutoverProcessedBySourceExporter           bool
-	CutoverProcessedByTargetImporter           bool
-	FallForwardSyncStarted                     bool
-	FallForwardSwitchRequested                 bool
-	FallForwardSwitchProcessedByTargetExporter bool
-	FallForwardSwitchProcessedByFFImporter     bool
-	ExportSchemaDone                           bool
-	ExportDataDone                             bool
+	MigrationUUID                              string            `json:"MigrationUUID"`
+	SourceDBType                               string            `json:"SourceDBType"`
+	ExportType                                 string            `json:"ExportType"`
+	FallForwarDBExists                         bool              `json:"FallForwarDBExists"`
+	TargetDBConf                               *tgtdb.TargetConf `json:"TargetDBConf"`
+	FallForwardDBConf                          *tgtdb.TargetConf `json:"FallForwardDBConf"`
+	TableListExportedFromSource                []string          `json:"TableListExportedFromSource"`
+	SourceDBConf                               *srcdb.Source     `json:"SourceDBConf"`
+	CutoverRequested                           bool              `json:"CutoverRequested"`
+	CutoverProcessedBySourceExporter           bool              `json:"CutoverProcessedBySourceExporter"`
+	CutoverProcessedByTargetImporter           bool              `json:"CutoverProcessedByTargetImporter"`
+	FallForwardSyncStarted                     bool              `json:"FallForwardSyncStarted"`
+	FallForwardSwitchRequested                 bool              `json:"FallForwardSwitchRequested"`
+	FallForwardSwitchProcessedByTargetExporter bool              `json:"FallForwardSwitchProcessedByTargetExporter"`
+	FallForwardSwitchProcessedByFFImporter     bool              `json:"FallForwardSwitchProcessedByFFImporter"`
+	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
+	ExportDataDone                             bool              `json:"ExportDataDone"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
