@@ -14,7 +14,8 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
             PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
         );
 
-ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); --After 1.6 release
+-- added this step after 1.6 release
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); 
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),
