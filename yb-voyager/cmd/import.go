@@ -93,7 +93,11 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
-		"import schema: delete all existing schema objects \nimport data / import data file: starts a fresh import of data or incremental data load")
+		"import schema: delete all existing schema objects \n"+
+			`import data / import data file: Starts a fresh import with data files present in the data directory. 
+If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncaating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from the --exclude-file-list/--file-table-map or truncate those tables manually before using the start-clean flag`)
 
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
