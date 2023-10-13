@@ -41,6 +41,7 @@ func init() {
 	registerCommonGlobalFlags(fallForwardSetupCmd)
 	registerCommonImportFlags(fallForwardSetupCmd)
 	registerFFDBAsTargetConnFlags(fallForwardSetupCmd)
+	registerImportDataCommonFlags(fallForwardSetupCmd)
 	registerImportDataFlags(fallForwardSetupCmd)
 	hideFlagsInFallFowardCmds(fallForwardSetupCmd)
 }

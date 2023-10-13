@@ -65,7 +65,7 @@ var TableNameToSchema map[string]map[string]map[string]string
 var importDataCmd = &cobra.Command{
 	Use:   "data",
 	Short: "Import data into target YugabyteDB database",
-	Long:  `Import the data exported from the source database into the target IYugabyteDB database.`,
+	Long:  `Import the data exported from the source database into the target YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
@@ -1066,5 +1066,6 @@ func init() {
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataCmd)
+	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
 }

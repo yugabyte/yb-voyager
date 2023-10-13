@@ -92,13 +92,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
-	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
-		"import schema: delete all existing schema objects \n"+
-			`import data / import data file: Starts a fresh import with data files present in the data directory. 
-If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
-If you go ahead without truncaating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
-Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from the --exclude-file-list/--file-table-map or truncate those tables manually before using the start-clean flag`)
-
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
 	tconf.VerboseMode = bool(VerboseMode)
@@ -126,19 +119,19 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "target-ssl-cert", "",
-		"provide target SSL Certificate Path")
+		"Path of file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "target-ssl-mode", "prefer",
 		"specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full)")
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "target-ssl-key", "",
-		"target SSL Key Path")
+		"Path of file containing target SSL Key")
 
 	cmd.Flags().StringVar(&tconf.SSLRootCert, "target-ssl-root-cert", "",
-		"target SSL Root Certificate Path")
+		"Path of file containing target SSL Root Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLCRL, "target-ssl-crl", "",
-		"target SSL Root Certificate Revocation List (CRL) Path")
+		"Path of file containing target SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
@@ -172,22 +165,22 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
-		"provide Fall-forward DB SSL Certificate Path")
+		"Path of the file containing Fall-forward DB SSL Certificate Path")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "ff-ssl-mode", "prefer",
 		"specify the Fall-forward DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "ff-ssl-key", "",
-		"Fall-forward DB SSL Key Path")
+		"Path of the file containing Fall-forward DB SSL Key")
 
 	cmd.Flags().StringVar(&tconf.SSLRootCert, "ff-ssl-root-cert", "",
-		"Fall-forward DB SSL Root Certificate Path")
+		"Path of the file containing Fall-forward DB SSL Root Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLCRL, "ff-ssl-crl", "",
-		"Fall-forward DB SSL Root Certificate Revocation List (CRL)")
+		"Path of the file containing Fall-forward DB SSL Root Certificate Revocation List (CRL)")
 }
 
-func registerImportDataFlags(cmd *cobra.Command) {
+func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
@@ -234,7 +227,18 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("truncate-splits")
 }
 
+func registerImportDataFlags(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
+		`Starts a fresh import with exported data files present in the export-dir/data directory. 
+If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag`)
+
+}
+
 func registerImportSchemaFlags(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
+		"Delete all schema objects and start a fresh import")
 	cmd.Flags().StringVar(&tconf.ImportObjects, "object-list", "",
 		"comma separated list of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-list", "",

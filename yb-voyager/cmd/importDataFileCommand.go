@@ -345,7 +345,7 @@ func init() {
 	registerCommonImportFlags(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
-	registerImportDataFlags(importDataFileCmd)
+	registerImportDataCommonFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
 		fmt.Sprintf("supported data file types: (%v)", strings.Join(supportedFileFormats, ",")))
@@ -392,6 +392,12 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
+
+	BoolVar(importDataFileCmd.Flags(), &startClean, "start-clean", false,
+		`Starts a fresh import with data files present in the data directory. 
+If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag`)
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
