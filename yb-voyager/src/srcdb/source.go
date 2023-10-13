@@ -87,10 +87,12 @@ func (s *Source) IsOracleCDBSetup() bool {
 
 func (s *Source) ApplyExportSchemaObjectListFilter() {
 	allowedObjects := utils.GetSchemaObjectList(s.DBType)
+
 	if s.StrExportObjectTypesList == "" && s.StrExcludeObjectTypesList == "" {
 		s.ExportObjectTypesList = allowedObjects
 		return
 	}
+
 	if s.StrExcludeObjectTypesList != "" {
 		excludedObjectsSlice := utils.CsvStringToSlice(s.StrExcludeObjectTypesList)
 		s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return !utils.ContainsString(excludedObjectsSlice, objType) })
