@@ -218,7 +218,7 @@ main() {
 	step "Clean up"
 
 	./cleanup-db
-	stream_id=$(cat "${EXPORT_DIR}/metainfo/yb_cdc_stream_id.txt")
+	stream_id=$(sqlite3 ${EXPORT_DIR}/metainfo/meta.db "select json_text from json_objects where key='migration_status';" | grep -oP '"YBCDCStreamID":"\K[^"]*')
 	java -jar /opt/yb-voyager/debezium-server/debezium-server-1.9.5/yb-client-cdc-stream-wrapper.jar -delete_stream $stream_id -master_addresses yb-master-n1:7100
 	rm -rf "${EXPORT_DIR}/*"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
