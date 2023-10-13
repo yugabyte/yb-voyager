@@ -37,7 +37,7 @@ var tdb tgtdb.TargetDB
 
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
+	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL) into YugabyteDB",
 	Long:  `Import has various sub-commands i.e. import schema and import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
 }
 
@@ -46,17 +46,33 @@ func init() {
 }
 
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
-func validateImportFlags(cmd *cobra.Command, importerRole string) {
+func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
-	if tconf.TableList != "" && tconf.ExcludeTableList != "" {
-		utils.ErrExit("Error: Only one of --table-list and --exclude-table-list are allowed")
-	}
+
+	validateConflictsBetweenTableListFlags(tconf.TableList, tconf.ExcludeTableList)
+
 	validateTableListFlag(tconf.TableList, "table-list")
 	validateTableListFlag(tconf.ExcludeTableList, "exclude-table-list")
+
+	var err error
+	if tconf.TableList == "" {
+		tconf.TableList, err = validateAndExtractTableNamesFromFile(tableListFilePath, "table-list-file-path")
+		if err != nil {
+			return err
+		}
+	}
+
+	if tconf.ExcludeTableList == "" {
+		tconf.ExcludeTableList, err = validateAndExtractTableNamesFromFile(excludeTableListFilePath, "exclude-table-list-file-path")
+		if err != nil {
+			return err
+		}
+	}
+
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		utils.ErrExit("Error: Only one of --object-list and --exclude-object-list are allowed")
+		return fmt.Errorf("only one of --object-list and --exclude-object-list are allowed")
 	}
 	validateImportObjectsFlag(tconf.ImportObjects, "object-list")
 	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
@@ -74,6 +90,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) {
 	case FB_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
+	return nil
 }
 
 func registerCommonImportFlags(cmd *cobra.Command) {
@@ -221,9 +238,14 @@ func registerImportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"true - to disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"list of tables to exclude while importing data (ignored if --table-list is used)")
+		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to exclude while importing data")
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
-		"list of tables to import data")
+		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to import data")
+	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
+		"path of the file containing for list of tables to exclude while importing data")
+	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
+		"path of the file containing the list of table names to import data")
+
 	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
 	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
 		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
@@ -336,8 +358,8 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 	if importObjectsString == "" {
 		return
 	}
-	//We cannot access sourceDBType variable at this point, but exportDir has been validated
-	availableObjects := utils.GetSchemaObjectList(ExtractMetaInfo(exportDir).SourceDBType)
+
+	availableObjects := utils.GetSchemaObjectList(GetSourceDBTypeFromMSR())
 	objectList := utils.CsvStringToSlice(importObjectsString)
 	for _, object := range objectList {
 		if !slices.Contains(availableObjects, strings.ToUpper(object)) {

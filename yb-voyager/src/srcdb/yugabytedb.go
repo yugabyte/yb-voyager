@@ -105,6 +105,7 @@ func (yb *YugabyteDB) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	yb.source.DBVersion = version
 	return version
 }
 
@@ -208,6 +209,10 @@ func (yb *YugabyteDB) getConnectionUriWithoutPassword() string {
 
 func (yb *YugabyteDB) ExportSchema(exportDir string) {
 	panic("not implemented")
+}
+
+func (yb *YugabyteDB) GetIndexesInfo() []utils.IndexInfo {
+	return nil
 }
 
 func (yb *YugabyteDB) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

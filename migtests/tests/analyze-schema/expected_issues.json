@@ -478,5 +478,13 @@
             "sqlStatement": "CREATE TRIGGER test\n    INSERT on test for each ROW\n    EXECUTE PROCEDURE JSON_ARRAYAGG(trunc(b, 2) order by t desc);",
             "suggestion": "Rename the function to YugabyteDB's equivalent JSON_AGG()",
             "GH": ""
+        },
+        {
+            "objectType": "TABLE",
+            "objectName": "sales_data",
+            "reason": "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+            "sqlStatement": "CREATE TABLE sales_data (\n        sales_id numeric NOT NULL,\n        sales_date timestamp,\n        sales_amount numeric,\n        PRIMARY KEY (sales_id)\n) PARTITION BY RANGE (sales_date) ;",
+            "suggestion": "Add all Partition columns to Primary Key",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
         }
 ]

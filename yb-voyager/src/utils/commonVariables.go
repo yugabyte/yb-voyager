@@ -42,6 +42,13 @@ type TableProgressMetadata struct {
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
+type IndexInfo struct {
+	IndexName string   `json:"IndexName"`
+	IndexType string   `json:"IndexType"`
+	TableName string   `json:"TableName"`
+	Columns   []string `json:"Columns"`
+}
+
 // the list elements order is same as the import objects order
 // TODO: Need to make each of the list comprehensive, not missing any database object category
 var oracleSchemaObjectList = []string{"TYPE", "SEQUENCE", "TABLE", "PARTITION", "INDEX", "PACKAGE", "VIEW",
@@ -56,11 +63,6 @@ var postgresSchemaObjectList = []string{"SCHEMA", "COLLATION", "EXTENSION", "TYP
 // In MYSQL, TYPE and SEQUENCE are not supported
 var mysqlSchemaObjectList = []string{"TABLE", "PARTITION", "INDEX", "VIEW", /*"GRANT*/
 	"TRIGGER", "FUNCTION", "PROCEDURE"}
-
-type ExportMetaInfo struct {
-	SourceDBType   string
-	ExportToolUsed string
-}
 
 var WaitGroup sync.WaitGroup
 var WaitChannel = make(chan int)
@@ -103,7 +105,7 @@ type Segment struct {
 }
 
 const (
-	SNAPSHOT_ONLY                 = "snapshot-only"
-	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
-	CHANGES_ONLY                  = "changes-only"
+	SNAPSHOT_ONLY        = "snapshot-only"
+	SNAPSHOT_AND_CHANGES = "snapshot-and-changes"
+	CHANGES_ONLY         = "changes-only"
 )

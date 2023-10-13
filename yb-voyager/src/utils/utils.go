@@ -116,6 +116,7 @@ func AskPrompt(args ...string) bool {
 }
 
 func GetSchemaObjectList(sourceDBType string) []string {
+	log.Infof("get schema object list for %q", sourceDBType)
 	var requiredList []string
 	switch sourceDBType {
 	case "oracle":
@@ -128,6 +129,15 @@ func GetSchemaObjectList(sourceDBType string) []string {
 		ErrExit("Unsupported %q source db type\n", sourceDBType)
 	}
 	return requiredList
+}
+
+func ContainsString(list []string, str string) bool {
+	for _, object := range list {
+		if strings.EqualFold(object, str) {
+			return true
+		}
+	}
+	return false
 }
 
 func IsDirectoryEmpty(pathPattern string) bool {
@@ -338,18 +348,6 @@ func PrintSqlStmtIfDDL(stmt string, fileName string) {
 	}
 }
 
-func Uniq(slice []string) []string {
-	keys := make(map[string]bool)
-	var list []string
-	for _, entry := range slice {
-		if _, value := keys[entry]; !value {
-			keys[entry] = true
-			list = append(list, entry)
-		}
-	}
-	return list
-}
-
 func HumanReadableByteCount(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
@@ -443,4 +441,25 @@ func GetFSUtilizationPercentage(path string) (int, error) {
 
 	percUtilization := 100 - int((stats.Bavail*100)/stats.Blocks)
 	return percUtilization, nil
+}
+
+// read the file and return slice of csv
+func ReadTableNameListFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file %s: %v", filePath, err)
+	}
+	defer file.Close()
+	var list []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) > 0 { //ignore empty lines
+			list = append(list, CsvStringToSlice(line)...)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file %s: %v", filePath, err)
+	}
+	return list, nil
 }

@@ -25,17 +25,19 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type summaryInfo struct {
 	totalCount   int
-	invalidCount int
+	invalidCount map[string]bool
 	objSet       map[string]bool
 	details      map[string]bool //any details about the object type
 }
@@ -211,7 +213,7 @@ func reportAddingPrimaryKey(fpath string, tbl string, line string) {
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
 	if comment == 1 {
 		reportCase(fpath, "Unsupported, please edit to match PostgreSQL syntax", issue, suggestion, objType, objName, line)
-		summaryMap[objType].invalidCount++
+		summaryMap[objType].invalidCount[objName] = true
 	} else if comment == 2 {
 		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType)
 		summaryMap["PACKAGE"].objSet[objName] = true
@@ -225,20 +227,19 @@ func reportBasedOnComment(comment int, fpath string, issue string, suggestion st
 
 // adding migration summary info to reportStruct from summaryMap
 func reportSummary() {
-
-	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	//reading source db metainfo from msr
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
 	}
 
 	if !tconf.ImportMode { // this info is available only if we are exporting from source
-		reportStruct.Summary.DBName = miginfo.SourceDBName
-		reportStruct.Summary.SchemaName = miginfo.SourceDBSchema
-		reportStruct.Summary.DBVersion = miginfo.SourceDBVersion
+		reportStruct.Summary.DBName = msr.SourceDBConf.DBName
+		reportStruct.Summary.SchemaName = msr.SourceDBConf.Schema
+		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
 	}
 
-	// requiredJson += `"databaseObjects": [`
+	addSummaryDetailsForIndexes()
 	for _, objType := range sourceObjList {
 		if summaryMap[objType].totalCount == 0 {
 			continue
@@ -247,15 +248,39 @@ func reportSummary() {
 		var dbObject utils.DBObject
 		dbObject.ObjectType = objType
 		dbObject.TotalCount = summaryMap[objType].totalCount
-		dbObject.InvalidCount = summaryMap[objType].invalidCount
-		dbObject.ObjectNames = getMapKeys(summaryMap[objType].objSet)
-		dbObject.Details = getMapKeys(summaryMap[objType].details)
+		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
+		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
+		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+	}
+}
+
+func addSummaryDetailsForIndexes() {
+	var indexesInfo []utils.IndexInfo
+	found, err := metaDB.GetJsonObject(nil, metadb.SOURCE_INDEXES_INFO_KEY, &indexesInfo)
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
+	}
+	if !found {
+		return
+	}
+	exportedIndexes := lo.Keys(summaryMap["INDEX"].objSet)
+	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
+	unexportedIdxsPresent := false
+	for _, indexInfo := range indexesInfo {
+		sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
+		if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
+			unexportedIdxsPresent = true
+			unexportedIdxsMsg += fmt.Sprintf("\t\tIndex Name=%s, Index Type=%s\n", indexInfo.IndexName, indexInfo.IndexType)
+		}
+	}
+	if unexportedIdxsPresent {
+		summaryMap["INDEX"].details[unexportedIdxsMsg] = true
 	}
 }
 
@@ -404,11 +429,11 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			reportCase(fpath, "Stored generated column is not supported. Column is: "+col[1],
 				"https://github.com/yugabyte/yugabyte-db/issues/10695", "", "TABLE", "", sqlInfo.formattedStmt)
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE ALL is not supported yet.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := likeRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "LIKE clause not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := tblPartitionRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -422,15 +447,15 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			}
 			primaryCons[tbl[2]] = fpath
 		} else if tbl := inheritRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "INHERITS not supported yet.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[3], sqlInfo.formattedStmt)
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "OIDs are not supported for user tables.",
 				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := intvlRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			summaryMap["TABLE"].invalidCount++
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 			reportCase(fpath, "PRIMARY KEY containing column of type 'INTERVAL' not yet supported.",
 				"https://github.com/YugaByte/yugabyte-db/issues/1397", "", "TABLE", tbl[2], sqlInfo.formattedStmt)
 		} else if tbl := alterOfRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
@@ -505,7 +530,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 		} else if tbl := cLangRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			reportCase(fpath, "LANGUAGE C not supported yet.",
 				"", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt)
-			summaryMap["FUNCTION"].invalidCount++
+			summaryMap["FUNCTION"].invalidCount[sqlInfo.objName] = true
 		} else if regMatch := partitionColumnsRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			// example1 - CREATE TABLE example1( 	id numeric NOT NULL, 	country_code varchar(3), 	record_type varchar(5), PRIMARY KEY (id,country_code) ) PARTITION BY RANGE (country_code, record_type) ;
 			// example2 - CREATE TABLE example2 ( 	id numeric NOT NULL PRIMARY KEY, 	country_code varchar(3), 	record_type varchar(5) ) PARTITION BY RANGE (country_code, record_type) ;
@@ -540,12 +565,14 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			if len(partitionColumnsList) == 1 {
 				expressionChk := partitionColumnsList[0]
 				if strings.ContainsAny(expressionChk, "()[]{}|/!@$#%^&*-+=") {
+					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 					reportCase(fpath, "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
 						"https://github.com/yugabyte/yb-voyager/issues/698", "Remove the Constriant from the table definition", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					continue
 				}
 			}
 			if strings.ToLower(regMatch[4]) == "list" && len(partitionColumnsList) > 1 {
+				summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 				reportCase(fpath, `cannot use "list" partition strategy with more than one column`,
 					"https://github.com/yugabyte/yb-voyager/issues/699", "Make it a single column partition by list or choose other supported Partitioning methods", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 				continue
@@ -555,6 +582,7 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string) {
 			}
 			for _, partitionColumn := range partitionColumnsList {
 				if !slices.Contains(primaryKeyColumnsList, partitionColumn) { //partition key not in PK
+					summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 					reportCase(fpath, "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
 						"https://github.com/yugabyte/yb-voyager/issues/578", "Add all Partition columns to Primary Key", "TABLE", regMatch[2], sqlInfo.formattedStmt)
 					break
@@ -600,7 +628,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
 			reportCase(fpath, "Compound Triggers are not supported in YugabyteDB.",
 				"", "", "TRIGGER", trig[2], sqlInfo.formattedStmt)
-			summaryMap["TRIGGER"].invalidCount++
+			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
 	}
 
@@ -608,7 +636,9 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks whether the script, fpath, can be migrated to YB
 func checker(sqlInfoArr []sqlInfo, fpath string) {
-
+	if !utils.FileOrFolderExists(fpath) {
+		return
+	}
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
@@ -618,15 +648,8 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkRemaining(sqlInfoArr, fpath)
 }
 
-func getMapKeys(receivedMap map[string]bool) string {
-	keyString := ""
-	for key := range receivedMap {
-		keyString += key + ", "
-	}
-
-	if keyString != "" {
-		keyString = keyString[0 : len(keyString)-2] //popping last comma and space
-	}
+func getMapKeysString(receivedMap map[string]bool) string {
+	keyString := strings.Join(lo.Keys(receivedMap), ", ")
 	return keyString
 }
 
@@ -698,10 +721,11 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 
 func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
-
 	var sqlInfoArr []sqlInfo
+	if !utils.FileOrFolderExists(path) {
+		return sqlInfoArr
+	}
 	reportNextSql := 0
-
 	file, err := os.ReadFile(path)
 	if err != nil {
 		utils.ErrExit("Error while reading %q: %s", path, err)
@@ -824,10 +848,12 @@ func isEndOfSqlStmt(line string) bool {
 }
 
 func initializeSummaryMap() {
+	log.Infof("initializing report summary map")
 	for _, objType := range sourceObjList {
 		summaryMap[objType] = &summaryInfo{
-			objSet:  make(map[string]bool),
-			details: make(map[string]bool),
+			invalidCount: make(map[string]bool),
+			objSet:       make(map[string]bool),
+			details:      make(map[string]bool),
 		}
 
 		//executes only in case of oracle
@@ -844,16 +870,16 @@ func generateHTMLReport(Report utils.Report) string {
 	//appending to doc line by line for better readability
 
 	//reading source db metainfo
-	miginfo, err := LoadMigInfo(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("generate html report: load migration status record: %s", err)
 	}
 
 	//Broad details
 	htmlstring := "<html><body bgcolor='#EFEFEF'><h1>Database Migration Report</h1>"
 	htmlstring += "<table><tr><th>Database Name</th><td>" + Report.Summary.DBName + "</td></tr>"
 	htmlstring += "<tr><th>Schema Name</th><td>" + Report.Summary.SchemaName + "</td></tr>"
-	htmlstring += "<tr><th>" + strings.ToUpper(miginfo.SourceDBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
+	htmlstring += "<tr><th>" + strings.ToUpper(msr.SourceDBConf.DBType) + " Version</th><td>" + Report.Summary.DBVersion + "</td></tr></table>"
 
 	//Summary of report
 	htmlstring += "<br><table width='100%' table-layout='fixed'><tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>"
@@ -956,30 +982,27 @@ func generateTxtReport(Report utils.Report) string {
 
 // add info to the 'reportStruct' variable and return
 func analyzeSchemaInternal() utils.Report {
-	miginfo, err := LoadMigInfo(exportDir)
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("unable to load migration info: %s", err)
+		utils.ErrExit("analyze schema : load migration status record: %s", err)
 	}
 
 	reportStruct = utils.Report{}
 	schemaDir := filepath.Join(exportDir, "schema")
-	sourceObjList = utils.GetSchemaObjectList(miginfo.SourceDBType)
+	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
-		var filePath string
-		if objType == "INDEX" {
-			filePath = filepath.Join(schemaDir, "tables", "INDEXES_table.sql")
+		var sqlInfoArr []sqlInfo
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		if objType != "INDEX" {
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
 		} else {
-			filePath = filepath.Join(schemaDir, strings.ToLower(objType)+"s")
-			filePath = filepath.Join(filePath, strings.ToLower(objType)+".sql")
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
+			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "PARTITION_INDEX")...)
+			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "FTS_INDEX")...)
 		}
-
-		if !utils.FileOrFolderExists(filePath) {
-			continue
-		}
-
-		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
-		// fmt.Printf("SqlStrArray for '%s' is: %v\n", objType, sqlInfoArr)
 		checker(sqlInfoArr, filePath)
 	}
 
@@ -988,14 +1011,14 @@ func analyzeSchemaInternal() utils.Report {
 }
 
 func analyzeSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	reportFile := "report." + outputFormat
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
-	if !schemaIsExported(exportDir) {
+	if !schemaIsExported() {
 		utils.ErrExit("run export schema before running analyze-schema")
 	}
 
@@ -1062,7 +1085,7 @@ func analyzeSchema() {
 
 var analyzeSchemaCmd = &cobra.Command{
 	Use:   "analyze-schema",
-	Short: "Analyze source database schema and generate report about YB incompatible constructs",
+	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs",
 	Long:  ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat()
@@ -1078,7 +1101,7 @@ func init() {
 	rootCmd.AddCommand(analyzeSchemaCmd)
 	registerCommonGlobalFlags(analyzeSchemaCmd)
 	analyzeSchemaCmd.PersistentFlags().StringVar(&outputFormat, "output-format", "txt",
-		"allowed report formats: html | txt | json | xml")
+		"format in which report will be generated: (html, txt, json, xml)")
 }
 
 func validateReportOutputFormat() {

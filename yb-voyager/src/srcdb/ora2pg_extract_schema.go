@@ -33,9 +33,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 	configFilePath := filepath.Join(exportDir, "temp", ".ora2pg.conf")
 	populateOra2pgConfigFile(configFilePath, getDefaultOra2pgConfig(source))
 
-	exportObjectList := utils.GetSchemaObjectList(source.DBType)
-
-	for _, exportObject := range exportObjectList {
+	for _, exportObject := range source.ExportObjectTypesList {
 		if exportObject == "INDEX" {
 			continue // INDEX are exported along with TABLE in ora2pg
 		}
@@ -46,7 +44,7 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 
 		exportObjectFileName := utils.GetObjectFileName(schemaDirPath, exportObject)
 		exportObjectDirPath := utils.GetObjectDirPath(schemaDirPath, exportObject)
-		
+
 		var exportSchemaObjectCommand *exec.Cmd
 		if source.DBType == "oracle" {
 			exportSchemaObjectCommand = exec.Command("ora2pg", "-p", "-q", "-t", exportObject, "-o",
@@ -100,6 +98,10 @@ func ora2pgExtractSchema(source *Source, exportDir string) {
 				utils.ErrExit(err.Error())
 			}
 		}
+		if exportObject == "TABLE" {
+			if err := removeReduntantAlterTable(utils.GetObjectFilePath(schemaDirPath, exportObject)); err != nil {
+				utils.ErrExit(err.Error())
+			}
+		}
 	}
-
 }

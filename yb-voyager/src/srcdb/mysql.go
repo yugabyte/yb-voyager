@@ -101,6 +101,7 @@ func (ms *MySQL) GetVersion() string {
 	if err != nil {
 		utils.ErrExit("run query %q on source: %s", query, err)
 	}
+	ms.source.DBVersion = version
 	return version
 }
 
@@ -161,6 +162,10 @@ func (ms *MySQL) getConnectionUri() string {
 
 func (ms *MySQL) ExportSchema(exportDir string) {
 	ora2pgExtractSchema(ms.source, exportDir)
+}
+
+func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
+	return nil
 }
 
 func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {

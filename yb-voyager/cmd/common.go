@@ -259,7 +259,7 @@ func displayExportedRowCountSnapshot() {
 			if source.Schema != "" {
 				tableParts := strings.Split(key, ".")
 				table := tableParts[0]
-				schema := getDefaultSourceSchemaName()
+				schema, _ := getDefaultSourceSchemaName() // err can be ignored as these table names will be qualified for non-public schema
 				if len(tableParts) > 1 {
 					schema = tableParts[0]
 					table = tableParts[1]
@@ -301,7 +301,7 @@ func displayExportedRowCountSnapshot() {
 func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("snapshot and changes import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -349,7 +349,7 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	fmt.Printf("import report\n")
 	tableList := importFileTasksToTableNames(tasks)
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
 	}
@@ -368,7 +368,11 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		if i == 0 {
 			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
 		}
-		uitable.AddRow(getTargetSchemaName(tableName), tableName, snapshotRowCount[tableName])
+		table := tableName
+		if len(strings.Split(tableName, ".")) == 2 {
+			table = strings.Split(tableName, ".")[1]
+		}
+		uitable.AddRow(getTargetSchemaName(tableName), table, snapshotRowCount[tableName])
 	}
 	fmt.Printf("\n")
 	fmt.Println(uitable)
@@ -381,11 +385,10 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
 		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags",
-		"metainfo/conf", "metainfo/ssl", "metainfo/triggers",
-		"temp", "temp/ora2pg_temp_dir",
+		"metainfo/conf", "metainfo/ssl", "temp", "temp/ora2pg_temp_dir",
 	}
 
-	// log.Debugf("Creating a project directory...")
+	log.Info("Creating a project directory if not exists...")
 	//Assuming export directory as a project directory
 	projectDirPath := exportDir
 
@@ -396,11 +399,8 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 		}
 	}
 
-	setSourceDbType(dbType, projectDirPath)
-
-	schemaObjectList := utils.GetSchemaObjectList(dbType)
 	// creating subdirs under schema dir
-	for _, schemaObjectType := range schemaObjectList {
+	for _, schemaObjectType := range source.ExportObjectTypesList {
 		if schemaObjectType == "INDEX" { //no separate dir for indexes
 			continue
 		}
@@ -411,67 +411,39 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 			utils.ErrExit("couldn't create sub-directories under %q: %v", filepath.Join(projectDirPath, "schema"), err)
 		}
 	}
-	migUUID, err := generateAndStoreMigrationUUIDIfRequired(exportDir)
-	if err != nil {
-		utils.ErrExit("couldn't generate/store migration UUID: %w", err)
-	}
 
-	err = metadb.CreateAndInitMetaDBIfRequired(exportDir)
+	initMetaDB()
+}
+
+func initMetaDB() {
+	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		utils.ErrExit("could not create and init meta db: %w", err)
 	}
-
-	err = metaDB.InitMigrationStatusRecord(migUUID)
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("failed to initialize meta db: %s", err)
+	}
+	err = metaDB.InitMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 }
 
-func getMigrationUUIDFilePath(exportDir string) string {
-	return filepath.Join(exportDir, "metainfo", "migration_uuid")
-}
-
-func generateAndStoreMigrationUUIDIfRequired(exportDir string) (string, error) {
-	uuidFilePath := getMigrationUUIDFilePath(exportDir)
-	var migUUID uuid.UUID
-	var err error
-	if !utils.FileOrFolderExists(uuidFilePath) {
-		migUUID, err = uuid.NewUUID()
-		if err != nil {
-			return "", fmt.Errorf("failed to generate uuid :%w", err)
-		}
-		err = storeMigrationUUID(uuidFilePath, migUUID)
-		if err != nil {
-			return "", fmt.Errorf("failed to store UUID: %w", err)
-		}
-	}
-	// convert uuid.UUID to string
-	return migUUID.String(), nil
-}
-
-func storeMigrationUUID(uuidFilePath string, uuid uuid.UUID) error {
-	file, err := os.Create(uuidFilePath)
-	if err != nil {
-		return fmt.Errorf(" creating file: %s, error: %s", uuidFilePath, err)
-	}
-	defer file.Close()
-	_, err = file.WriteString(uuid.String())
-	if err != nil {
-		return fmt.Errorf(" writing to file: %s, error: %s", uuidFilePath, err)
-	}
-	return nil
-}
-
-// sets the global variable migrationUUID after retrieving it from exportDir
-func retrieveMigrationUUID(exportDir string) error {
+// sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
+func retrieveMigrationUUID() error {
 	if migrationUUID != uuid.Nil {
 		return nil
 	}
-	uuidBytes, err := os.ReadFile(getMigrationUUIDFilePath(exportDir))
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("failed to read file :%w", err)
+		return fmt.Errorf("retrieving migration status record: %w", err)
 	}
-	migrationUUID = uuid.MustParse(string(uuidBytes))
+	if msr == nil {
+		return fmt.Errorf("migration status record not found")
+	}
+
+	migrationUUID = uuid.MustParse(msr.MigrationUUID)
 	utils.PrintAndLog("migrationID: %s", migrationUUID)
 	return nil
 }
@@ -486,21 +458,16 @@ func nameContainsCapitalLetter(name string) bool {
 }
 
 func getCutoverStatus() string {
-	cutoverFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover")
-	cutoverSrcFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.source")
-	cutoverTgtFpath := filepath.Join(exportDir, "metainfo", "triggers", "cutover.target")
-	fallforwardSynchronizeStartedFpath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.synchronize.started")
-
-	a := utils.FileOrFolderExists(cutoverFpath)
-	b := utils.FileOrFolderExists(cutoverSrcFpath)
-	c := utils.FileOrFolderExists(cutoverTgtFpath)
-	d := utils.FileOrFolderExists(fallforwardSynchronizeStartedFpath)
-
-	migrationStatusRecord, err := metaDB.GetMigrationStatusRecord()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+		utils.ErrExit("get migration status record: %v", err)
 	}
-	ffDBExists := migrationStatusRecord.FallForwardEnabled
+
+	a := msr.CutoverRequested
+	b := msr.CutoverProcessedBySourceExporter
+	c := msr.CutoverProcessedByTargetImporter
+	d := msr.FallForwardSyncStarted
+	ffDBExists := msr.FallForwardEnabled
 	if !a {
 		return NOT_INITIATED
 	} else if !ffDBExists && a && b && c {
@@ -523,13 +490,13 @@ func checkWithStreamingMode() (bool, error) {
 }
 
 func getFallForwardStatus() string {
-	fallforwardFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward")
-	fallforwardTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.target")
-	fallforwardFFFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallforward.ff")
-
-	a := utils.FileOrFolderExists(fallforwardFPath)
-	b := utils.FileOrFolderExists(fallforwardTargetFPath)
-	c := utils.FileOrFolderExists(fallforwardFFFPath)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	a := msr.FallForwardSwitchRequested
+	b := msr.FallForwardSwitchProcessedByTargetExporter
+	c := msr.FallForwardSwitchProcessedByFFImporter
 
 	if !a {
 		return NOT_INITIATED
@@ -579,4 +546,15 @@ func addHeader(table *uitable.Table, cols ...string) {
 		return headerfmt(col)
 	})
 	table.AddRow(columns...)
+}
+
+func GetSourceDBTypeFromMSR() string {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr == nil {
+		utils.ErrExit("migration status record not found")
+	}
+	return msr.SourceDBConf.DBType
 }

@@ -11,12 +11,38 @@ def main():
 		expected_issues = json.load(fh)
 		print(json.dumps(expected_issues, indent=4))
 
-	validate_report(report, expected_issues)
+	with open("summary.json") as fh:
+		expected_summary = json.load(fh)
+		print(json.dumps(expected_summary, indent=4))
 
+	validate_report_summary(report, expected_summary)
+	validate_report_issues(report, expected_issues)
+	print("All validations passed.")
 
-def validate_report(report, expected_issues):
-	# filePath reported in the report can be different depending on the machine
-	# where the test is running. Hence, do not considere it for result matching.
+def validate_report_summary(report, expected_summary):
+	print("Ensure that all the expected summary fields are reported.")
+	for key in expected_summary:
+		if key == "dbVersion":
+			continue
+		assert key in report["summary"], f"expected summary field is not reported: {key}"
+		if key != "databaseObjects":
+			print(f"expected summary field for {key}: {expected_summary[key]}")
+			print(f"reported summary field for {key}: {report['summary'][key]}")
+			assert expected_summary[key] == report["summary"][key], f"expected summary field value is not reported correctly: {key}"
+		else:
+			for i in range(len(expected_summary[key])):
+				print(f"expected summary field for {key}: {expected_summary[key][i]}")
+				print(f"reported summary field for {key}: {report['summary'][key][i]}")
+				expected_object_names = expected_summary[key][i]["objectNames"].split(", ")
+				reported_object_names = report["summary"][key][i]["objectNames"].split(", ")
+				assert expected_summary[key][i]["objectType"] == report["summary"][key][i]["objectType"], f"expected summary field value is not reported correctly: {key}"
+				assert expected_summary[key][i]["totalCount"] == report["summary"][key][i]["totalCount"], f"expected summary field value is not reported correctly: {key}"
+				assert expected_summary[key][i]["details"] == report["summary"][key][i]["details"], f"expected summary field value is not reported correctly: {key}"
+				assert expected_object_names.sort() == reported_object_names.sort(), f"expected summary field value is not reported correctly: {key}"
+
+def validate_report_issues(report, expected_issues):
+    # filePath reported in the report can be different depending on the machine
+	# where the test is running. Hence, do not consider it for result matching.
 	for issue in report["issues"]:
 		del issue["filePath"]
 	print("Ensure that all the expected issues are reported.")
@@ -24,7 +50,7 @@ def validate_report(report, expected_issues):
 		assert expected_issue in report["issues"], f"expected issue is not reported: {expected_issue}"
 
 	assert len(expected_issues) == len(report["issues"])
-
+	print("Success!")
 
 if __name__ == "__main__":
 	main()

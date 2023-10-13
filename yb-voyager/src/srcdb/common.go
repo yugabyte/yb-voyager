@@ -146,3 +146,27 @@ func stripSourceSchemaNames(fileName string, sourceSchema string) error {
 	}
 	return nil
 }
+
+func removeReduntantAlterTable(fileName string) error {
+	if !utils.FileOrFolderExists(fileName) {
+		return nil
+	}
+	tmpFileName := fileName + ".tmp"
+	fileContent, err := os.ReadFile(fileName)
+	if err != nil {
+		return fmt.Errorf("reading %q: %w", fileName, err)
+	}
+	regStr := `(?i)ALTER TABLE ([a-zA-Z0-9_"]+) ALTER COLUMN ([a-zA-Z0-9_"]+) SET NOT NULL;`
+	reg := regexp.MustCompile(regStr)
+	transformedContent := reg.ReplaceAllString(string(fileContent), "")
+	err = os.WriteFile(tmpFileName, []byte(transformedContent), 0644)
+	if err != nil {
+		return fmt.Errorf("writing to %q: %w", tmpFileName, err)
+	}
+	// Rename tmpFile to fileName.
+	err = os.Rename(tmpFileName, fileName)
+	if err != nil {
+		return fmt.Errorf("rename %q as %q: %w", tmpFileName, fileName, err)
+	}
+	return nil
+}
