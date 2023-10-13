@@ -232,9 +232,14 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar during data import and stats printing during streaming phase (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to exclude while importing data")
+		"comma-separated list of the table names to exclude while exporting data.\n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
-		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to import data")
+		"comma-separated list of the table names to export data.\n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
+
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
 		"path of the file containing for list of tables to exclude while importing data")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
