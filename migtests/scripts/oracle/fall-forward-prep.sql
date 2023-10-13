@@ -14,6 +14,9 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
             PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
         );
 
+-- added this step after 1.6 release
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); 
+
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),
             channel_no INT,
@@ -35,7 +38,7 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_imported_event_count_by_table (
         PRIMARY KEY (migration_uuid, table_name, channel_no)
     );
 
-// Grant all privileges on ybvoyager_metadata schema table to user ybvoyager
+-- Grant all privileges on ybvoyager_metadata schema table to user ybvoyager
 
 DECLARE
    v_sql VARCHAR2(4000);

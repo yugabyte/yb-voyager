@@ -35,8 +35,9 @@ import (
 )
 
 var importSchemaCmd = &cobra.Command{
-	Use:   "schema",
-	Short: "This command imports schema into the target YugabyteDB database",
+	Use: "schema",
+	Short: "Import schema into the target YugabyteDB database\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {

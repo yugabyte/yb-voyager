@@ -63,9 +63,10 @@ var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
-	Use:   "data",
-	Short: "This command imports data into YugabyteDB database",
-	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
+	Use: "data",
+	Short: "Import data into target YugabyteDB database.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
+	Long: `Import the data exported from the source database into the target YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
@@ -1066,5 +1067,6 @@ func init() {
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataCmd)
+	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
 }

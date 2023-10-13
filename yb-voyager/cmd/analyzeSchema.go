@@ -1084,9 +1084,10 @@ func analyzeSchema() {
 }
 
 var analyzeSchemaCmd = &cobra.Command{
-	Use:   "analyze-schema",
-	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs",
-	Long:  ``,
+	Use: "analyze-schema",
+	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
+	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat()
 		validateExportDirFlag()

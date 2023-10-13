@@ -28,9 +28,10 @@ import (
 )
 
 var exportSchemaCmd = &cobra.Command{
-	Use:   "schema",
-	Short: "Export schema from source database into export-dir as .sql files",
-	Long:  ``,
+	Use: "schema",
+	Short: "Export schema from source database into export-dir as .sql files\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/",
+	Long: ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()

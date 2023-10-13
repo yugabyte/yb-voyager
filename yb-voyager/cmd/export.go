@@ -71,7 +71,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
-		"source password to connect as the specified user")
+		"source password to connect as the specified user. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
@@ -102,19 +102,19 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
-		"source SSL Certificate Path")
+		"Path of the file containing source SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
 		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
-		"source SSL Key Path")
+		"Path of the file containing source SSL Key")
 
 	cmd.Flags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
-		"source SSL Root Certificate Path")
+		"Path of the file containing source SSL Root Certificate")
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
-		"source SSL Root Certificate Revocation List (CRL) Path")
+		"Path of the file containing source SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
@@ -129,7 +129,7 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
-		"password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
@@ -139,19 +139,19 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&source.SSLCertPath, "target-ssl-cert", "",
-		"provide target SSL Certificate Path")
+		"Path of the file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "prefer",
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&source.SSLKey, "target-ssl-key", "",
-		"target SSL Key Path")
+		"Path of the file containing target SSL Key")
 
 	cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
-		"target SSL Root Certificate Path")
+		"Path of the file containing target SSL Root Certificate")
 
 	cmd.Flags().StringVar(&source.SSLCRL, "target-ssl-crl", "",
-		"target SSL Root Certificate Revocation List (CRL)")
+		"Path of the file containing target SSL Root Certificate Revocation List (CRL)")
 
 	source.VerboseMode = bool(VerboseMode)
 }
@@ -242,7 +242,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 
 func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
+		"Disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
