@@ -509,13 +509,8 @@ func qualifyTableName(tableName string) string {
 func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
 	var snapshotRowCount int64
 	schema := getTargetSchemaName(tableName)
-<<<<<<< HEAD
-	query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where schema_name='%s' AND table_name='%s'`,
-		BATCH_METADATA_TABLE_NAME, schema, tableName)
-=======
-	query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
+	query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
 		BATCH_METADATA_TABLE_NAME, migrationUUID, schema, tableName)
->>>>>>> aneesh/fall-back
 	log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
 	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
 	if err != nil {

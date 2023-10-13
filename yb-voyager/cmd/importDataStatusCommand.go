@@ -29,11 +29,9 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-<<<<<<< HEAD
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-=======
->>>>>>> aneesh/fall-back
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -128,20 +126,9 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-<<<<<<< HEAD
-func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, streamChanges bool) error {
-	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
-	_, err := os.Stat(exportDataDoneFlagFilePath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cannot run `import data status` before data export is done")
-		}
-		return fmt.Errorf("check if data export is done: %w", err)
-=======
 func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
 	if !dataIsExported() {
 		return fmt.Errorf("cannot run `import data status` before data export is done")
->>>>>>> aneesh/fall-back
 	}
 	//reinitialise targetDB
 	tconf = *tgtconf

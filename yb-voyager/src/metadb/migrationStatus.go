@@ -10,17 +10,6 @@ import (
 )
 
 type MigrationStatusRecord struct {
-<<<<<<< HEAD
-	MigrationUUID               string
-	SourceDBType                string
-	ExportType                  string
-	FallForwardEnabled          bool
-	FallbackEnabled             bool
-	TargetDBConf                *tgtdb.TargetConf
-	FallForwardDBConf           *tgtdb.TargetConf
-	SourceDBAsTargetConf        *tgtdb.TargetConf
-	TableListExportedFromSource []string
-=======
 	MigrationUUID string `json:"MigrationUUID"`
 	SourceDBType  string `json:"SourceDBType"`
 	ExportType    string `json:"ExportType"`
@@ -29,6 +18,7 @@ type MigrationStatusRecord struct {
 	FallbackEnabled                            bool              `json:"FallbackEnabled"`
 	TargetDBConf                               *tgtdb.TargetConf `json:"TargetDBConf"`
 	FallForwardDBConf                          *tgtdb.TargetConf `json:"FallForwardDBConf"`
+	SourceDBAsTargetConf                       *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
 	TableListExportedFromSource                []string          `json:"TableListExportedFromSource"`
 	SourceDBConf                               *srcdb.Source     `json:"SourceDBConf"`
 	CutoverRequested                           bool              `json:"CutoverRequested"`
@@ -44,7 +34,6 @@ type MigrationStatusRecord struct {
 	FallBackSwitchProcessedByFBImporter        bool              `json:"FallBackSwitchProcessedByFFImporter"`
 	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
 	ExportDataDone                             bool              `json:"ExportDataDone"`
->>>>>>> aneesh/fall-back
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
