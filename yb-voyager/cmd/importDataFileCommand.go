@@ -52,8 +52,9 @@ var (
 )
 
 var importDataFileCmd = &cobra.Command{
-	Use:   "file",
-	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.",
+	Use: "file",
+	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/bulk-data-load/import-data-file/",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
@@ -345,13 +346,13 @@ func init() {
 	registerCommonImportFlags(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
-	registerImportDataFlags(importDataFileCmd)
+	registerImportDataCommonFlags(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
-		fmt.Sprintf("supported data file types: %v", supportedFileFormats))
+		fmt.Sprintf("supported data file types: (%v)", strings.Join(supportedFileFormats, ",")))
 
 	importDataFileCmd.Flags().StringVar(&delimiter, "delimiter", "",
-		`character used as delimiter in rows of the table(s)(default is comma for CSV and tab for TEXT format)`)
+		`character used as delimiter in rows of the table(s) (default for csv: "," (comma), for TEXT: "\t" (tab) )`)
 
 	importDataFileCmd.Flags().StringVar(&dataDir, "data-dir", "",
 		"path to the directory which contains data files to import into table(s)\n"+
@@ -365,21 +366,22 @@ func init() {
 	}
 
 	importDataFileCmd.Flags().StringVar(&fileTableMapping, "file-table-map", "",
-		"comma separated list of mapping between file name in '--data-dir' to a table in database")
+		"comma separated list of mapping between file name in '--data-dir' to a table in database\n"+
+			"You can import multiple files in one table either by providing one entry for each file 'fileName1:tableName,fileName2:tableName' OR by passing a glob expression in place of the file name. 'fileName*:tableName'")
 
 	err = importDataFileCmd.MarkFlagRequired("file-table-map")
 	if err != nil {
 		utils.ErrExit("mark 'file-table-map' flag required: %v", err)
 	}
 	BoolVar(importDataFileCmd.Flags(), &hasHeader, "has-header", false,
-		"true - if first line of data file is a list of columns for rows (default false)\n"+
+		"Indicate that the first line of data file is a header row (default false)\n"+
 			"(Note: only works for csv file type)")
 
 	importDataFileCmd.Flags().StringVar(&escapeChar, "escape-char", "",
-		`escape character (default double quotes '"') only applicable to CSV file format`)
+		`escape character. Note: only applicable to CSV file format (default double quotes '"')`)
 
 	importDataFileCmd.Flags().StringVar(&quoteChar, "quote-char", "",
-		`character used to quote the values (default double quotes '"') only applicable to CSV file format`)
+		`character used to quote the values. Note: only applicable to CSV file format (default double quotes '"')`)
 
 	importDataFileCmd.Flags().StringVar(&fileOpts, "file-opts", "",
 		`comma separated options for csv file format:
@@ -391,6 +393,12 @@ func init() {
 
 	importDataFileCmd.Flags().StringVar(&nullString, "null-string", "",
 		`string that represents null value in the data file (default for csv: ""(empty string), for text: '\N')`)
+
+	BoolVar(importDataFileCmd.Flags(), &startClean, "start-clean", false,
+		`Starts a fresh import with data files present in the data directory. 
+If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag`)
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")

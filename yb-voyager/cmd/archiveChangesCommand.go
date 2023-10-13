@@ -29,9 +29,10 @@ import (
 )
 
 var archiveChangesCmd = &cobra.Command{
-	Use:   "changes",
-	Short: "This command will archive the streaming data from the source database",
-	Long:  `This command will archive the streaming data from the source database.`,
+	Use: "changes",
+	Short: "This command will archive the streaming data from the source database.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
+	Long: `This command will archive the streaming data from the source database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateCommonArchiveFlags()

@@ -99,13 +99,13 @@ func init() {
 	importDataCmd.AddCommand(importDataStatusCmd)
 
 	importDataStatusCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
-		"password with which to connect to the target fall-forward DB server")
+		"password with which to connect to the target fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	importDataStatusCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target fall-forward DB server")
 
 	importDataStatusCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
-		"password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
