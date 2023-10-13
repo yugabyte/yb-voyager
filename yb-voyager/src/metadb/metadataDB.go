@@ -19,6 +19,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,6 +38,8 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
+	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
+	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 
 const SQLITE_OPTIONS = "?_txlock=exclusive&_timeout=30000"
@@ -86,25 +89,28 @@ func initMetaDB(path string) error {
        file_path TEXT, size_committed INTEGER, 
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_ff_db_importer INTEGER DEFAULT 0, 
+       imported_by_fb_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0,
 	   deleted INTEGER DEFAULT 0,
 	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			run_id TEXT, 
+			exporter_role TEXT,
 			timestamp INTEGER, 
 			num_total INTEGER, 
 			num_inserts INTEGER, 
 			num_updates INTEGER, 
 			num_deletes INTEGER, 
-			PRIMARY KEY(run_id, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
+			PRIMARY KEY(run_id, exporter_role, timestamp) );`, EXPORTED_EVENTS_STATS_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
+			exporter_role TEXT,
 			schema_name TEXT, 
 			table_name TEXT, 
 			num_total INTEGER, 
 			num_inserts INTEGER, 
 			num_updates INTEGER, 
 			num_deletes INTEGER, 
-			PRIMARY KEY(schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
+			PRIMARY KEY(exporter_role, schema_name, table_name) );`, EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE %s (
 			key TEXT PRIMARY KEY,
 			json_text TEXT);`, JSON_OBJECTS_TABLE_NAME),
@@ -208,6 +214,20 @@ func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
 	}
 
 	return totalCount, totalCountRun, nil
+}
+
+func (m *MetaDB) GetTotalExportedEventsByExporterRole(exporterRole string) (int64, error) {
+	var totalCount int64
+
+	query := fmt.Sprintf(`SELECT sum(num_total) from %s WHERE exporter_role='%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, exporterRole)
+	err := m.db.QueryRow(query).Scan(&totalCount)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+
+	return totalCount, nil
 }
 
 func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {
@@ -333,15 +353,32 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 	return nil
 }
 
-func (m *MetaDB) GetSegmentNumToResume(importerRole string) (int64, error) {
-	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE imported_by_%s = 0;`, QUEUE_SEGMENT_META_TABLE_NAME, importerRole)
+func (m *MetaDB) GetMinSegmentNotImportedBy(importerRoles ...string) (int64, error) {
+	if len(importerRoles) == 0 {
+		return -1, fmt.Errorf("invalid importerRole %s. At least one importerRole required", importerRoles)
+	}
+	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE`, QUEUE_SEGMENT_META_TABLE_NAME)
+	for i, importerRole := range importerRoles {
+		if i == 0 {
+			query = fmt.Sprintf("%s imported_by_%s = 0", query, importerRole)
+		} else {
+			query = fmt.Sprintf("%s AND imported_by_%s = 0", query, importerRole)
+		}
+		if i == (len(importerRoles) - 1) {
+			query = fmt.Sprintf("%s;", query)
+		}
+	}
+
 	row := m.db.QueryRow(query)
-	var segmentNum int64
+	var segmentNum sql.NullInt64
 	err := row.Scan(&segmentNum)
 	if err != nil {
 		return -1, fmt.Errorf("run query on meta db - %s : %w", query, err)
 	}
-	return segmentNum, nil
+	if !segmentNum.Valid {
+		return -1, ErrNoQueueSegmentsFound
+	}
+	return segmentNum.Int64, nil
 }
 
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
@@ -372,9 +409,32 @@ func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName str
 	}, nil
 }
 
+func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole string, schemaName string, tableName string) (*tgtdb.EventCounter, error) {
+	var totalCount int64
+	var inserts int64
+	var updates int64
+	var deletes int64
+	// Using SUM + LOWER case comparison here to deal with case sensitivity across stats published by source (ORACLE) and target (YB) (in ff workflow)
+	query := fmt.Sprintf(`select COALESCE(SUM(num_total), 0), COALESCE(SUM(num_inserts),0),
+	 	COALESCE(SUM(num_updates),0), COALESCE(SUM(num_deletes),0)
+	  	from %s WHERE LOWER(schema_name)=LOWER('%s') AND LOWER(table_name)=LOWER('%s') AND exporter_role='%s'`,
+		EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME, schemaName, tableName, exporterRole)
+
+	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
+	if err != nil {
+		return nil, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+	}
+	return &tgtdb.EventCounter{
+		TotalEvents: totalCount,
+		NumInserts:  inserts,
+		NumUpdates:  updates,
+		NumDeletes:  deletes,
+	}, nil
+}
+
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
 	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
-	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer = %d AND archived = 0`, importCount)
+	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = %d AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch segments to be archived: %v", err)

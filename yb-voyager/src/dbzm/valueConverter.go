@@ -32,9 +32,9 @@ type ValueConverter interface {
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (ValueConverter, error) {
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (ValueConverter, error) {
 	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb, targetConf)
+		return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
 	} else {
 		return &NoOpValueConverter{}, nil
 	}
@@ -69,13 +69,20 @@ type DebeziumValueConverter struct {
 	buf                  bytes.Buffer
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
 	schemaRegistrySource := NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	schemaRegistryTarget := NewSchemaRegistry(exportDir, "target_db_exporter")
+	var schemaRegistryTarget *SchemaRegistry
+	switch importerRole {
+	case "ff_db_importer":
+		schemaRegistryTarget = NewSchemaRegistry(exportDir, "target_db_exporter_ff")
+	case "fb_db_importer":
+		schemaRegistryTarget = NewSchemaRegistry(exportDir, "target_db_exporter_fb")
+	}
+
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
 	return &DebeziumValueConverter{
@@ -175,8 +182,8 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
-		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType,"io.debezium.time.Interval") {
-			colType, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes()) 
+		if !checkSourceExporter(exportSourceType) && strings.EqualFold(colType, "io.debezium.time.Interval") {
+			colType, err = conv.schemaRegistrySource.GetColumnType(strings.ToUpper(tableName), strings.ToUpper(column), conv.shouldFormatAsPerSourceDatatypes())
 			//assuming table name/column name is case insensitive TODO: handle this case sensitivity properly
 			if err != nil {
 				return fmt.Errorf("fetch column schema: %w", err)
@@ -197,7 +204,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 func (conv *DebeziumValueConverter) GetTableNameToSchema() map[string]map[string]map[string]string {
 
 	//need to create explicit map with required details only as can't use TableSchema directly in import area because of cyclic dependency
-	//TODO: fix this cyclic dependency maybe using DataFileDescriptor 
+	//TODO: fix this cyclic dependency maybe using DataFileDescriptor
 	var tableToSchema = make(map[string]map[string]map[string]string)
 	// tableToSchema {<table>: {<column>:<parameters>}}
 	for table, col := range conv.schemaRegistrySource.tableNameToSchema {

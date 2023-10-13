@@ -52,6 +52,10 @@ func (e *Event) IsFallForward() bool {
 	return e.Op == "fallforward"
 }
 
+func (e *Event) IsFallBack() bool {
+	return e.Op == "fallback"
+}
+
 func (e *Event) GetSQLStmt(targetSchema string) string {
 	switch e.Op {
 	case "c":
@@ -267,6 +271,13 @@ func (ec *EventCounter) CountEvent(ev *Event) {
 	case "d":
 		ec.NumDeletes++
 	}
+}
+
+func (ec *EventCounter) Merge(ec2 *EventCounter) {
+	ec.TotalEvents += ec2.TotalEvents
+	ec.NumInserts += ec2.NumInserts
+	ec.NumUpdates += ec2.NumUpdates
+	ec.NumDeletes += ec2.NumDeletes
 }
 
 // ==============================================================================================================================

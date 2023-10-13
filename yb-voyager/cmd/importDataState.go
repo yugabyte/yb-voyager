@@ -489,8 +489,8 @@ func (s *ImportDataState) cleanFileImportStateFromDB(filePath, tableName string)
 	// Delete all entries from ${BATCH_METADATA_TABLE_NAME} for this table.
 	schemaName := getTargetSchemaName(tableName)
 	cmd := fmt.Sprintf(
-		`DELETE FROM %s WHERE data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
-		BATCH_METADATA_TABLE_NAME, filePath, schemaName, tableName)
+		`DELETE FROM %s WHERE migration_uuid = '%s' AND data_file_name = '%s' AND schema_name = '%s' AND table_name = '%s'`,
+		BATCH_METADATA_TABLE_NAME, migrationUUID, filePath, schemaName, tableName)
 	rowsAffected, err := tdb.Exec(cmd)
 	if err != nil {
 		return fmt.Errorf("remove %q related entries from %s: %w", tableName, BATCH_METADATA_TABLE_NAME, err)
@@ -509,8 +509,8 @@ func qualifyTableName(tableName string) string {
 func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
 	var snapshotRowCount int64
 	schema := getTargetSchemaName(tableName)
-	query := fmt.Sprintf(`SELECT SUM(rows_imported) FROM %s where schema_name='%s' AND table_name='%s'`,
-		BATCH_METADATA_TABLE_NAME, schema, tableName)
+	query := fmt.Sprintf(`SELECT COALESCE(SUM(rows_imported),0) FROM %s where migration_uuid='%s' AND schema_name='%s' AND table_name='%s'`,
+		BATCH_METADATA_TABLE_NAME, migrationUUID, schema, tableName)
 	log.Infof("query to get total row count for snapshot import of table %s: %s", tableName, query)
 	err := tdb.QueryRow(query).Scan(&snapshotRowCount)
 	if err != nil {
@@ -733,8 +733,8 @@ func (batch *Batch) GetQueryIsBatchAlreadyImported() string {
 	schemaName := getTargetSchemaName(batch.TableName)
 	query := fmt.Sprintf(
 		"SELECT rows_imported FROM %s "+
-			"WHERE data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
-		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
+			"WHERE migration_uuid = '%s' AND data_file_name = '%s' AND batch_number = %d AND schema_name = '%s' AND table_name = '%s'",
+		BATCH_METADATA_TABLE_NAME, migrationUUID, batch.BaseFilePath, batch.Number, schemaName, batch.TableName)
 
 	return query
 }
@@ -743,9 +743,9 @@ func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 	// Record an entry in ${BATCH_METADATA_TABLE_NAME}, that the split is imported.
 	schemaName := getTargetSchemaName(batch.TableName)
 	cmd := fmt.Sprintf(
-		`INSERT INTO %s (data_file_name, batch_number, schema_name, table_name, rows_imported)
-			VALUES ('%s', %d, '%s', '%s', %v)`,
-		BATCH_METADATA_TABLE_NAME, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
+		`INSERT INTO %s (migration_uuid, data_file_name, batch_number, schema_name, table_name, rows_imported)
+			VALUES ('%s', '%s', %d, '%s', '%s', %v)`,
+		BATCH_METADATA_TABLE_NAME, migrationUUID, batch.BaseFilePath, batch.Number, schemaName, batch.TableName, rowsAffected)
 
 	return cmd
 }

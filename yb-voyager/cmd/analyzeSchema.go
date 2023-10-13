@@ -31,6 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -238,7 +239,7 @@ func reportSummary() {
 		reportStruct.Summary.DBVersion = msr.SourceDBConf.DBVersion
 	}
 
-	// requiredJson += `"databaseObjects": [`
+	addSummaryDetailsForIndexes()
 	for _, objType := range sourceObjList {
 		if summaryMap[objType].totalCount == 0 {
 			continue
@@ -249,13 +250,37 @@ func reportSummary() {
 		dbObject.TotalCount = summaryMap[objType].totalCount
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = getMapKeysString(summaryMap[objType].objSet)
-		dbObject.Details = getMapKeysString(summaryMap[objType].details)
+		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
 		reportStruct.Summary.DBObjects = append(reportStruct.Summary.DBObjects, dbObject)
 	}
 	filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 	if utils.FileOrFolderExists(filePath) {
 		note := fmt.Sprintf("Review and manually import the DDL statements from the file %s", filePath)
 		reportStruct.Summary.Notes = append(reportStruct.Summary.Notes, note)
+	}
+}
+
+func addSummaryDetailsForIndexes() {
+	var indexesInfo []utils.IndexInfo
+	found, err := metaDB.GetJsonObject(nil, metadb.SOURCE_INDEXES_INFO_KEY, &indexesInfo)
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
+	}
+	if !found {
+		return
+	}
+	exportedIndexes := lo.Keys(summaryMap["INDEX"].objSet)
+	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
+	unexportedIdxsPresent := false
+	for _, indexInfo := range indexesInfo {
+		sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
+		if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
+			unexportedIdxsPresent = true
+			unexportedIdxsMsg += fmt.Sprintf("\t\tIndex Name=%s, Index Type=%s\n", indexInfo.IndexName, indexInfo.IndexType)
+		}
+	}
+	if unexportedIdxsPresent {
+		summaryMap["INDEX"].details[unexportedIdxsMsg] = true
 	}
 }
 
@@ -611,7 +636,9 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 
 // Checks whether the script, fpath, can be migrated to YB
 func checker(sqlInfoArr []sqlInfo, fpath string) {
-
+	if !utils.FileOrFolderExists(fpath) {
+		return
+	}
 	checkViews(sqlInfoArr, fpath)
 	checkSql(sqlInfoArr, fpath)
 	checkGist(sqlInfoArr, fpath)
@@ -694,10 +721,11 @@ func processCollectedSql(fpath string, stmt string, formattedStmt string, objTyp
 
 func createSqlStrInfoArray(path string, objType string) []sqlInfo {
 	log.Infof("Reading %s in dir %s", objType, path)
-
 	var sqlInfoArr []sqlInfo
+	if !utils.FileOrFolderExists(path) {
+		return sqlInfoArr
+	}
 	reportNextSql := 0
-
 	file, err := os.ReadFile(path)
 	if err != nil {
 		utils.ErrExit("Error while reading %q: %s", path, err)
@@ -964,19 +992,17 @@ func analyzeSchemaInternal() utils.Report {
 	sourceObjList = utils.GetSchemaObjectList(msr.SourceDBConf.DBType)
 	initializeSummaryMap()
 	for _, objType := range sourceObjList {
-		var filePath string
-		if objType == "INDEX" {
-			filePath = filepath.Join(schemaDir, "tables", "INDEXES_table.sql")
+		var sqlInfoArr []sqlInfo
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		if objType != "INDEX" {
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
 		} else {
-			filePath = filepath.Join(schemaDir, strings.ToLower(objType)+"s")
-			filePath = filepath.Join(filePath, strings.ToLower(objType)+".sql")
+			sqlInfoArr = createSqlStrInfoArray(filePath, objType)
+			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "PARTITION_INDEX")...)
+			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "FTS_INDEX")...)
 		}
-
-		if !utils.FileOrFolderExists(filePath) {
-			continue
-		}
-
-		sqlInfoArr := createSqlStrInfoArray(filePath, objType)
 		checker(sqlInfoArr, filePath)
 	}
 
@@ -1058,9 +1084,10 @@ func analyzeSchema() {
 }
 
 var analyzeSchemaCmd = &cobra.Command{
-	Use:   "analyze-schema",
-	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs",
-	Long:  ``,
+	Use: "analyze-schema",
+	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
+	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat()
 		validateExportDirFlag()

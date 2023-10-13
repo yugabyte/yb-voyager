@@ -26,7 +26,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -48,11 +47,11 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func streamChanges(state *ImportDataState) error {
+func streamChanges(state *ImportDataState, tableNames []string) error {
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	tdb.PrepareForStreaming()
-	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), lo.Keys(TableToColumnNames))
+	err := state.InitLiveMigrationState(migrationUUID, NUM_EVENT_CHANNELS, bool(startClean), tableNames)
 	if err != nil {
 		utils.ErrExit("Failed to init event channels metadata table on target DB: %s", err)
 	}
@@ -64,7 +63,7 @@ func streamChanges(state *ImportDataState) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch import stats meta by type: %w", err)
 	}
-	statsReporter = reporter.NewStreamImportStatsReporter()
+	statsReporter = reporter.NewStreamImportStatsReporter(importerRole)
 	err = statsReporter.Init(migrationUUID, metaDB, numInserts, numUpdates, numDeletes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
@@ -141,7 +140,8 @@ func streamChangesFromSegment(
 		if event == nil && segment.IsProcessed() {
 			break
 		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
+			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE ||
+			event.IsFallBack() && importerRole == FB_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -174,7 +174,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 		tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutover() || event.IsFallForward() {
+	if event.IsCutover() || event.IsFallForward() || event.IsFallBack() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}

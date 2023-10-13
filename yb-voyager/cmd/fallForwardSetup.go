@@ -22,9 +22,10 @@ import (
 )
 
 var fallForwardSetupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "This command will set up and import data into fall forward database",
-	Long:  `This command connects to the fall forward database using the parameters provided and starts the importing process.`,
+	Use: "setup",
+	Short: "This command will set up and import data into fall forward database.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/fall-forward/fall-forward-setup/",
+	Long: `This command connects to the fall forward database using the parameters provided and starts the importing process.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
@@ -41,13 +42,14 @@ func init() {
 	registerCommonGlobalFlags(fallForwardSetupCmd)
 	registerCommonImportFlags(fallForwardSetupCmd)
 	registerFFDBAsTargetConnFlags(fallForwardSetupCmd)
+	registerImportDataCommonFlags(fallForwardSetupCmd)
 	registerImportDataFlags(fallForwardSetupCmd)
 	hideFlagsInFallFowardCmds(fallForwardSetupCmd)
 }
 
 func updateFallForwarDBExistsInMetaDB() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.FallForwarDBExists = true
+		record.FallForwardEnabled = true
 	})
 	if err != nil {
 		utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
