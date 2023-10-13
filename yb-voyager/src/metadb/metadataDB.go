@@ -422,12 +422,7 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 
 	err := m.db.QueryRow(query).Scan(&totalCount, &inserts, &updates, &deletes)
 	if err != nil {
-		return &tgtdb.EventCounter{
-			TotalEvents: 0,
-			NumInserts:  0,
-			NumUpdates:  0,
-			NumDeletes:  0,
-		}, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		return nil, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 	}
 	return &tgtdb.EventCounter{
 		TotalEvents: totalCount,
