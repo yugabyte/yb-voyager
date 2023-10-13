@@ -72,10 +72,10 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-list and --exclude-object-list are allowed")
+		return fmt.Errorf("only one of --object-types-list and --exclude-object-types-list are allowed")
 	}
-	validateImportObjectsFlag(tconf.ImportObjects, "object-list")
-	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
+	validateImportObjectsFlag(tconf.ImportObjects, "object-types-list")
+	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-types-list")
 	validateTargetSchemaFlag()
 	// For beta2.0 release (and onwards until further notice)
 	if tconf.DisableTransactionalWrites {
@@ -236,12 +236,12 @@ func registerImportDataFlags(cmd *cobra.Command) {
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.ImportObjects, "object-list", "",
+	cmd.Flags().StringVar(&tconf.ImportObjects, "object-types-list", "",
 		"list of schema object types to include while importing schema")
-	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-list", "",
-		"list of schema object types to exclude while importing schema (ignored if --object-list is used)")
+	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-types-list", "",
+		"list of schema object types to exclude while importing schema (ignored if --object-types-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
-		"If set, objects will be imported in the order specified with the --object-list flag (default false)")
+		"If set, objects will be imported in the order specified with the --object-types-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
