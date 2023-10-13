@@ -117,7 +117,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func exportData() bool {
-	updateSourceDBConfInMSR()
+
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -125,7 +125,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-
+	updateSourceDBConfInMSR()
 	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
