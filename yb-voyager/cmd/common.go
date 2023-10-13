@@ -308,14 +308,7 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 	uitable := uitable.New()
 
 	snapshotRowCount := make(map[string]int64)
-	for _, tableName := range tableList {
-		var tableRowCount int64
-		tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
-		if err != nil {
-			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
-		}
-		snapshotRowCount[tableName] = tableRowCount
-	}
+
 	if importerRole == FB_DB_IMPORTER_ROLE {
 		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 		if err != nil {
@@ -323,6 +316,15 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 		}
 		for _, tableStatus := range exportStatus.Tables {
 			snapshotRowCount[tableStatus.TableName] = tableStatus.ExportedRowCountSnapshot
+		}
+	} else {
+		for _, tableName := range tableList {
+			var tableRowCount int64
+			tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
+			if err != nil {
+				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+			}
+			snapshotRowCount[tableName] = tableRowCount
 		}
 	}
 
