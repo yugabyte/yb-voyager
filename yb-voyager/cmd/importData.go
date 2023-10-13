@@ -347,6 +347,7 @@ func updateTargetConfInMigrationStatus() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch importerRole {
 		case TARGET_DB_IMPORTER_ROLE:
+		case IMPORT_FILE_ROLE:
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
 		case FF_DB_IMPORTER_ROLE:
