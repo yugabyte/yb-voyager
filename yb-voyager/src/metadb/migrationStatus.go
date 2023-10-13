@@ -27,6 +27,7 @@ type MigrationStatusRecord struct {
 	FallForwardSwitchProcessedByFFImporter     bool
 	ExportSchemaDone                           bool
 	ExportDataDone                             bool
+	YBCDCStreamID                              string
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

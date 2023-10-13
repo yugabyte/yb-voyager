@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -32,20 +32,22 @@ type YugabyteDBCDCClient struct {
 	exportDir string
 	ybServers string
 	dbName    string
-	//Any table name in the database is required by yb-client createCDCStream(...) API
+	//Any one table name in the database is required by yb-client createCDCStream(...) API
 	tableName          string
 	sslRootCert        string
 	ybCdcClientJarPath string
 	ybMasterNodes      string
+	metaDB             *metadb.MetaDB
 }
 
-func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName string) *YugabyteDBCDCClient {
+func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName string, metaDB *metadb.MetaDB) *YugabyteDBCDCClient {
 	return &YugabyteDBCDCClient{
 		exportDir:   exportDir,
 		ybServers:   ybServers,
 		dbName:      dbName,
 		tableName:   tableName,
 		sslRootCert: sslRootCert,
+		metaDB:      metaDB,
 	}
 }
 
@@ -87,30 +89,24 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 	}
 	//stdout - CDC Stream ID: <stream_id>
 	streamID := strings.Trim(strings.Split(stdout, ":")[1], " \n")
-	//storing streamID in a file
-	streamIDFile := filepath.Join(ybc.exportDir, "metainfo", "yb_cdc_stream_id.txt")
-	file, err := os.Create(streamIDFile)
+	err = ybc.metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.YBCDCStreamID = streamID
+	})
 	if err != nil {
-		return "", fmt.Errorf("creating file: %s, error: %s", streamIDFile, err)
-	}
-	defer file.Close()
-	_, err = file.WriteString(streamID)
-	if err != nil {
-		return "", fmt.Errorf("writing to file: %s, error: %s", streamIDFile, err)
+		return "", fmt.Errorf("failed to update migration status record: %w", err)
 	}
 	return streamID, nil
 }
 
 func (ybc *YugabyteDBCDCClient) readYBStreamID() (string, error) {
-	streamIDFilePath := filepath.Join(ybc.exportDir, "metainfo", "yb_cdc_stream_id.txt")
-	if utils.FileOrFolderExists(streamIDFilePath) {
-		streamID, err := os.ReadFile(streamIDFilePath)
-		if err != nil {
-			return "", fmt.Errorf("failed to read stream id file: %w", err)
-		}
-		return string(streamID), nil
+	msr, err := ybc.metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", fmt.Errorf("failed to get migration status record: %w", err)
 	}
-	return "", fmt.Errorf("yugabytedb cdc stream id not found at %s", streamIDFilePath)
+	if msr != nil && msr.YBCDCStreamID != "" {
+		return msr.YBCDCStreamID, nil
+	}
+	return "", fmt.Errorf("yugabytedb cdc stream id not found in msr" )
 }
 
 func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
@@ -129,6 +125,12 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	_, err = ybc.runCommand(args)
 	if err != nil {
 		return fmt.Errorf("running command with args: %s, error: %s", args, err)
+	}
+	err = ybc.metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.YBCDCStreamID = ""
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update migration status record: %w", err)
 	}
 	utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", streamID)
 	return nil
