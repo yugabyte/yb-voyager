@@ -97,17 +97,23 @@ func (s *Source) ApplyExportSchemaObjectListFilter() {
 		excludedObjectsSlice := utils.CsvStringToSlice(s.StrExcludeObjectTypesList)
 		s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return !utils.ContainsString(excludedObjectsSlice, objType) })
 		filteredObjects := lo.Filter(excludedObjectsSlice, func(objType string, _ int) bool { return !utils.ContainsString(allowedObjects, objType) })
-		if len(filteredObjects) > 0 {
-			utils.PrintAndLog("Ignoring invalid object types: %s\n", strings.Join(filteredObjects, ", "))
-		}
+		printAndCheckFilteredObjects(filteredObjects, s)
 		return
 	}
 
 	expectedObjectsSlice := utils.CsvStringToSlice(s.StrExportObjectTypesList)
 	s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return utils.ContainsString(expectedObjectsSlice, objType) })
 	filteredObjects := lo.Filter(expectedObjectsSlice, func(objType string, _ int) bool { return !utils.ContainsString(allowedObjects, objType) })
+	printAndCheckFilteredObjects(filteredObjects, s)
+}
+
+func printAndCheckFilteredObjects(filteredObjects []string, s *Source) {
 	if len(filteredObjects) > 0 {
 		utils.PrintAndLog("Ignoring invalid object types: %s\n", strings.Join(filteredObjects, ", "))
+	}
+	if !utils.ContainsString(s.ExportObjectTypesList, "TABLE") && utils.ContainsString(s.ExportObjectTypesList, "INDEX") {
+		s.ExportObjectTypesList = lo.Filter(s.ExportObjectTypesList, func(objType string, _ int) bool { return objType != "INDEX" })
+		utils.PrintAndLog("Ignoring INDEX object type as TABLE object type is not selected\n")
 	}
 }
 
