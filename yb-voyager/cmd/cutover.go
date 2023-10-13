@@ -52,6 +52,7 @@ func InitiatePrimarySwitch(action string) error {
 func createTriggerIfNotExists(triggerName string) error {
 	cutoverMsg := "cutover already initiated, wait for it to complete"
 	fallforwardMsg := "fallforward already initiated, wait for it to complete"
+	fallbackMsg := "fallback already initiated, wait for it to complete"
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch triggerName {
 		case "cutover":
@@ -85,6 +86,21 @@ func createTriggerIfNotExists(triggerName string) error {
 				utils.PrintAndLog(fallforwardMsg)
 			}
 			record.FallForwardSwitchProcessedByFFImporter = true
+		case "fallback":
+			if record.FallBackSwitchRequested {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchRequested = true
+		case "fallback.target":
+			if record.FallBackSwitchProcessedByTargetExporter {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchProcessedByTargetExporter = true
+		case "fallback.source":
+			if record.FallBackSwitchProcessedByFBImporter {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchProcessedByFBImporter = true
 		default:
 			panic("invalid trigger name")
 		}

@@ -27,6 +27,10 @@ type MigrationStatusRecord struct {
 	FallForwardSwitchRequested                 bool              `json:"FallForwardSwitchRequested"`
 	FallForwardSwitchProcessedByTargetExporter bool              `json:"FallForwardSwitchProcessedByTargetExporter"`
 	FallForwardSwitchProcessedByFFImporter     bool              `json:"FallForwardSwitchProcessedByFFImporter"`
+	FallBackSyncStarted                        bool              `json:"FallBackSyncStarted"`
+	FallBackSwitchRequested                    bool              `json:"FallBackSwitchRequested"`
+	FallBackSwitchProcessedByTargetExporter    bool              `json:"FallBackSwitchProcessedByTargetExporter"`
+	FallBackSwitchProcessedByFBImporter        bool              `json:"FallBackSwitchProcessedByFFImporter"`
 	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
 	ExportDataDone                             bool              `json:"ExportDataDone"`
 }

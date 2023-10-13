@@ -507,13 +507,13 @@ func getFallForwardStatus() string {
 }
 
 func getFallBackStatus() string {
-	fallbackFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback")
-	fallbackTargetFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback.target")
-	fallbackSourceFPath := filepath.Join(exportDir, "metainfo", "triggers", "fallback.source")
-
-	a := utils.FileOrFolderExists(fallbackFPath)
-	b := utils.FileOrFolderExists(fallbackTargetFPath)
-	c := utils.FileOrFolderExists(fallbackSourceFPath)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	a := msr.FallBackSwitchRequested
+	b := msr.FallBackSwitchProcessedByTargetExporter
+	c := msr.FallBackSwitchProcessedByFBImporter
 
 	if !a {
 		return NOT_INITIATED
