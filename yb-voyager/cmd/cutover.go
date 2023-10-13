@@ -159,7 +159,15 @@ func exitIfDBSwitchedOver(triggerName string) {
 		if msr.FallForwardSwitchProcessedByFFImporter {
 			utils.ErrExit(fallforwardMsg)
 		}
+	case "fallback.source":
+		if msr.FallBackSwitchProcessedByFBImporter {
+			utils.ErrExit(fallforwardMsg)
+		}
+	case "fallback.target":
+		if msr.FallForwardSwitchProcessedByTargetExporter {
+			utils.ErrExit(fallforwardMsg)
+		}
 	default:
-		panic("invalid trigger name")
+		panic("invalid trigger name - " + triggerName)
 	}
 }

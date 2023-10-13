@@ -117,6 +117,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func exportData() bool {
+	updateSourceDBConfInMSR()
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
