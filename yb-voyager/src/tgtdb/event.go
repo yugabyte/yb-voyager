@@ -273,6 +273,13 @@ func (ec *EventCounter) CountEvent(ev *Event) {
 	}
 }
 
+func (ec *EventCounter) Merge(ec2 *EventCounter) {
+	ec.TotalEvents += ec2.TotalEvents
+	ec.NumInserts += ec2.NumInserts
+	ec.NumUpdates += ec2.NumUpdates
+	ec.NumDeletes += ec2.NumDeletes
+}
+
 // ==============================================================================================================================
 
 type EventBatch struct {

@@ -345,15 +345,19 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func updateTargetConfInMigrationStatus() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch tconf.TargetDBType {
-		case YUGABYTEDB:
+		switch importerRole {
+		case TARGET_DB_IMPORTER_ROLE:
+		case IMPORT_FILE_ROLE:
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
-		case ORACLE:
+		case FF_DB_IMPORTER_ROLE:
 			record.FallForwardDBConf = tconf.Clone()
 			record.FallForwardDBConf.Password = ""
+		case FB_DB_IMPORTER_ROLE:
+			record.SourceDBAsTargetConf = tconf.Clone()
+			record.SourceDBAsTargetConf.Password = ""
 		default:
-			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))
+			panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
 		}
 	})
 	if err != nil {
@@ -459,7 +463,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to target DB...")
-			err = streamChanges(state)
+			err = streamChanges(state, importFileTasksToTableNames(importFileTasks))
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}

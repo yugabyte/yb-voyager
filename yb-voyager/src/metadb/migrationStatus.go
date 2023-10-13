@@ -18,6 +18,7 @@ type MigrationStatusRecord struct {
 	FallbackEnabled                            bool              `json:"FallbackEnabled"`
 	TargetDBConf                               *tgtdb.TargetConf `json:"TargetDBConf"`
 	FallForwardDBConf                          *tgtdb.TargetConf `json:"FallForwardDBConf"`
+	SourceDBAsTargetConf                       *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
 	TableListExportedFromSource                []string          `json:"TableListExportedFromSource"`
 	SourceDBConf                               *srcdb.Source     `json:"SourceDBConf"`
 	CutoverRequested                           bool              `json:"CutoverRequested"`

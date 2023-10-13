@@ -29,12 +29,16 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var targetDbPassword string
 var ffDbPassword string
+var sourceDbPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
@@ -61,15 +65,29 @@ var importDataStatusCmd = &cobra.Command{
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = tconf.Password
 			}
+			if migrationStatus.FallbackEnabled {
+				getSourceDBPassword(cmd)
+				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
+			}
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
-		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, false, streamChanges)
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		err = runImportDataStatusCmd(migrationStatus.TargetDBConf, streamChanges)
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
 		if migrationStatus.FallForwardEnabled {
 			color.Cyan("Import Data Status for fall-forward DB\n")
-			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, streamChanges)
+			importerRole = FF_DB_IMPORTER_ROLE
+			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, streamChanges)
+			if err != nil {
+				utils.ErrExit("error: %s\n", err)
+			}
+		}
+		if migrationStatus.FallbackEnabled {
+			color.Cyan("Import Data Status for source DB (fall-back)\n")
+			importerRole = FB_DB_IMPORTER_ROLE
+			err = runImportDataStatusCmd(migrationStatus.SourceDBAsTargetConf, streamChanges)
 			if err != nil {
 				utils.ErrExit("error: %s\n", err)
 			}
@@ -82,6 +100,9 @@ func init() {
 
 	importDataStatusCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
 		"password with which to connect to the target fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+
+	importDataStatusCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
+		"password with which to connect to the target fall-forward DB server")
 
 	importDataStatusCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
@@ -105,7 +126,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
+func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, streamChanges bool) error {
 	if !dataIsExported() {
 		return fmt.Errorf("cannot run `import data status` before data export is done")
 	}
@@ -121,7 +142,7 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChange
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	table, err := prepareImportDataStatusTable(isffDB, streamChanges)
+	table, err := prepareImportDataStatusTable(streamChanges)
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
@@ -187,15 +208,11 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	return &dataFileDescriptor, nil
 }
 
-func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigStatusOutputRow, error) {
+func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRow, error) {
 	var table []*tableMigStatusOutputRow
 	var err error
 	var dataFileDescriptor *datafile.Descriptor
-	if isffDB {
-		importerRole = FF_DB_IMPORTER_ROLE
-	} else {
-		importerRole = TARGET_DB_IMPORTER_ROLE
-	}
+
 	state := NewImportDataState(exportDir)
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
@@ -212,22 +229,37 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 		}
 	}
 
+	snapshotRowCount := make(map[string]int64)
+	if importerRole == FB_DB_IMPORTER_ROLE {
+		exportStatus, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
+		if err != nil {
+			utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
+		}
+		for _, tableStatus := range exportStatus.Tables {
+			snapshotRowCount[tableStatus.TableName] = tableStatus.ExportedRowCountSnapshot
+		}
+	}
+
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		var totalCount, importedCount int64
 		var err error
 		var perc float64
 		var status string
 		reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
+		totalCount = dataFile.RowCount
 		if reportProgressInBytes {
-			totalCount = dataFile.FileSize
 			importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
 		} else {
-			totalCount = dataFile.RowCount
-			importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+			if importerRole == FB_DB_IMPORTER_ROLE {
+				importedCount = snapshotRowCount[dataFile.TableName]
+			} else {
+				importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+			}
 		}
 		if err != nil {
 			return nil, fmt.Errorf("compute imported data size: %w", err)
 		}
+
 		if totalCount != 0 {
 			perc = float64(importedCount) * 100.0 / float64(totalCount)
 		}
@@ -253,14 +285,29 @@ func prepareImportDataStatusTable(isffDB bool, streamChanges bool) ([]*tableMigS
 			if err != nil {
 				return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
 			}
+			if importerRole == FB_DB_IMPORTER_ROLE {
+				schemaNameForQuery := ""
+				tableNameForQuery := row.tableName
+				tableParts := strings.Split(row.tableName, ".")
+				if len(tableParts) == 2 {
+					schemaNameForQuery = tableParts[0]
+					tableNameForQuery = tableParts[1]
+				}
+				exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaNameForQuery, tableNameForQuery)
+				if err != nil {
+					utils.ErrExit("could not fetch table stats from meta db: %v", err)
+				}
+				eventCounter.Merge(exportedEventCounter)
+			}
 			row.totalEvents = eventCounter.TotalEvents
 			row.numInserts = eventCounter.NumInserts
 			row.numUpdates = eventCounter.NumUpdates
 			row.numDeletes = eventCounter.NumDeletes
 			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			isffComplete := isffDB && (getFallForwardStatus() == COMPLETED)
-			isCutoverComplete := !isffDB && (getCutoverStatus() == COMPLETED)
-			if isffComplete || isCutoverComplete {
+			isffComplete := importerRole == FF_DB_IMPORTER_ROLE && (getFallForwardStatus() == COMPLETED)
+			isfbComplete := importerRole == FB_DB_IMPORTER_ROLE && (getFallBackStatus() == COMPLETED)
+			isCutoverComplete := importerRole == TARGET_DB_IMPORTER_ROLE && (getCutoverStatus() == COMPLETED)
+			if isffComplete || isCutoverComplete || isfbComplete {
 				row.status = "DONE"
 			} else {
 				row.status = "STREAMING"
