@@ -22,9 +22,10 @@ import (
 )
 
 var fallForwardSynchronizeCmd = &cobra.Command{
-	Use:   "synchronize",
-	Short: "This command exports the changes from YugabyteDB.",
-	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall forward database.`,
+	Use: "synchronize",
+	Short: "This command exports the changes from YugabyteDB.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/fall-forward/fall-forward-synchronize/",
+	Long: `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall forward database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		source.DBType = YUGABYTEDB
