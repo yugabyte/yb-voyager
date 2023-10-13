@@ -17,8 +17,11 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var prepareForFallBack utils.BoolStr
 
 var cutoverInitiateCmd = &cobra.Command{
 	Use:   "initiate",
@@ -27,7 +30,15 @@ var cutoverInitiateCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		err := InitiatePrimarySwitch("cutover")
+		var err error
+		metaDB, err = metadb.NewMetaDB(exportDir)
+		if err != nil {
+			utils.ErrExit("Failed to initialize meta db: %s", err)
+		}
+		if prepareForFallBack {
+			updateFallBackEnabledInMetaDB()
+		}
+		err = InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}
@@ -38,4 +49,15 @@ func init() {
 	cutoverCmd.AddCommand(cutoverInitiateCmd)
 	cutoverInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	BoolVar(cutoverInitiateCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
+		"prepare for fallback by streaming changes from target DB to source DB (default false)")
+}
+
+func updateFallBackEnabledInMetaDB() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.FallbackEnabled = true
+	})
+	if err != nil {
+		utils.ErrExit("error while updating fall back enabled in meta db: %v", err)
+	}
 }

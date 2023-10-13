@@ -64,7 +64,7 @@ func streamChanges(state *ImportDataState) error {
 	if err != nil {
 		return fmt.Errorf("failed to fetch import stats meta by type: %w", err)
 	}
-	statsReporter = reporter.NewStreamImportStatsReporter()
+	statsReporter = reporter.NewStreamImportStatsReporter(importerRole)
 	err = statsReporter.Init(migrationUUID, metaDB, numInserts, numUpdates, numDeletes)
 	if err != nil {
 		return fmt.Errorf("failed to initialize stats reporter: %w", err)
@@ -141,7 +141,8 @@ func streamChangesFromSegment(
 		if event == nil && segment.IsProcessed() {
 			break
 		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE { // cutover or fall-forward command
+			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE ||
+			event.IsFallBack() && importerRole == FB_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -174,7 +175,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 		tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutover() || event.IsFallForward() {
+	if event.IsCutover() || event.IsFallForward() || event.IsFallBack() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}

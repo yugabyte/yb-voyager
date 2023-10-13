@@ -52,6 +52,7 @@ func InitiatePrimarySwitch(action string) error {
 func createTriggerIfNotExists(triggerName string) error {
 	cutoverMsg := "cutover already initiated, wait for it to complete"
 	fallforwardMsg := "fallforward already initiated, wait for it to complete"
+	fallbackMsg := "fallback already initiated, wait for it to complete"
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch triggerName {
 		case "cutover":
@@ -85,6 +86,21 @@ func createTriggerIfNotExists(triggerName string) error {
 				utils.PrintAndLog(fallforwardMsg)
 			}
 			record.FallForwardSwitchProcessedByFFImporter = true
+		case "fallback":
+			if record.FallBackSwitchRequested {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchRequested = true
+		case "fallback.target":
+			if record.FallBackSwitchProcessedByTargetExporter {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchProcessedByTargetExporter = true
+		case "fallback.source":
+			if record.FallBackSwitchProcessedByFBImporter {
+				utils.PrintAndLog(fallbackMsg)
+			}
+			record.FallBackSwitchProcessedByFBImporter = true
 		default:
 			panic("invalid trigger name")
 		}
@@ -102,10 +118,14 @@ func getTriggerName(importerOrExporterRole string) (string, error) {
 		return "cutover.source", nil
 	case TARGET_DB_IMPORTER_ROLE:
 		return "cutover.target", nil
-	case TARGET_DB_EXPORTER_ROLE:
+	case TARGET_DB_EXPORTER_FF_ROLE:
 		return "fallforward.target", nil
+	case TARGET_DB_EXPORTER_FB_ROLE:
+		return "fallback.target", nil
 	case FF_DB_IMPORTER_ROLE:
 		return "fallforward.ff", nil
+	case FB_DB_IMPORTER_ROLE:
+		return "fallback.source", nil
 	default:
 		return "", fmt.Errorf("invalid role %s", importerOrExporterRole)
 	}
@@ -139,7 +159,15 @@ func exitIfDBSwitchedOver(triggerName string) {
 		if msr.FallForwardSwitchProcessedByFFImporter {
 			utils.ErrExit(fallforwardMsg)
 		}
+	case "fallback.source":
+		if msr.FallBackSwitchProcessedByFBImporter {
+			utils.ErrExit(fallforwardMsg)
+		}
+	case "fallback.target":
+		if msr.FallForwardSwitchProcessedByTargetExporter {
+			utils.ErrExit(fallforwardMsg)
+		}
 	default:
-		panic("invalid trigger name")
+		panic("invalid trigger name - " + triggerName)
 	}
 }

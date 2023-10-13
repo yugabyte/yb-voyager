@@ -309,9 +309,15 @@ func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*
 
 	snapshotRowCount := make(map[string]int64)
 	for _, tableName := range tableList {
-		tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-		if err != nil {
-			utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+		var tableRowCount int64
+		if importerRole == FB_DB_IMPORTER_ROLE {
+			// TODO: fix.
+			tableRowCount = 0
+		} else {
+			tableRowCount, err = state.GetImportedSnapshotRowCountForTable(tableName)
+			if err != nil {
+				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+			}
 		}
 		snapshotRowCount[tableName] = tableRowCount
 	}
@@ -461,7 +467,7 @@ func getCutoverStatus() string {
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
 	d := msr.FallForwardSyncStarted
-	ffDBExists := msr.FallForwarDBExists
+	ffDBExists := msr.FallForwardEnabled
 	if !a {
 		return NOT_INITIATED
 	} else if !ffDBExists && a && b && c {
@@ -491,6 +497,23 @@ func getFallForwardStatus() string {
 	a := msr.FallForwardSwitchRequested
 	b := msr.FallForwardSwitchProcessedByTargetExporter
 	c := msr.FallForwardSwitchProcessedByFFImporter
+
+	if !a {
+		return NOT_INITIATED
+	} else if a && b && c {
+		return COMPLETED
+	}
+	return INITIATED
+}
+
+func getFallBackStatus() string {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	a := msr.FallBackSwitchRequested
+	b := msr.FallBackSwitchProcessedByTargetExporter
+	c := msr.FallBackSwitchProcessedByFBImporter
 
 	if !a {
 		return NOT_INITIATED

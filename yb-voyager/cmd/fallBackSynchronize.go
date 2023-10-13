@@ -21,36 +21,35 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallForwardSynchronizeCmd = &cobra.Command{
-	Use: "synchronize",
-	Short: "This command exports the changes from YugabyteDB.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/fall-forward/fall-forward-synchronize/",
-	Long: `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall forward database.`,
+var fallBackSynchronizeCmd = &cobra.Command{
+	Use:   "synchronize",
+	Short: "This command exports the changes from YugabyteDB.",
+	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
-		exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		exportDataCmd.PreRun(cmd, args)
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.FallForwardSyncStarted = true
+			record.FallBackSyncStarted = true
 		})
 		if err != nil {
-			utils.ErrExit("failed to update migration status record for fall-forward sync started: %v", err)
+			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
 		}
 		exportDataCmd.Run(cmd, args)
 	},
 }
 
 func init() {
-	fallForwardCmd.AddCommand(fallForwardSynchronizeCmd)
-	registerCommonGlobalFlags(fallForwardSynchronizeCmd)
-	registerTargetDBAsSourceConnFlags(fallForwardSynchronizeCmd)
-	registerExportDataFlags(fallForwardSynchronizeCmd)
-	hideFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
-	hideExportFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
+	fallBackCmd.AddCommand(fallBackSynchronizeCmd)
+	registerCommonGlobalFlags(fallBackSynchronizeCmd)
+	registerTargetDBAsSourceConnFlags(fallBackSynchronizeCmd)
+	registerExportDataFlags(fallBackSynchronizeCmd)
+	hideFlagsInFallFowardCmds(fallBackSynchronizeCmd)
+	hideExportFlagsInFallBackCmds(fallBackSynchronizeCmd)
 }
 
-func hideExportFlagsInFallFowardCmds(cmd *cobra.Command) {
+func hideExportFlagsInFallBackCmds(cmd *cobra.Command) {
 	cmd.Flags().Lookup("parallel-jobs").Hidden = true
 }

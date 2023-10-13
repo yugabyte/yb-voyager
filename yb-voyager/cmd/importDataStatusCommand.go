@@ -57,7 +57,7 @@ var importDataStatusCmd = &cobra.Command{
 		if streamChanges {
 			getTargetPassword(cmd)
 			migrationStatus.TargetDBConf.Password = tconf.Password
-			if migrationStatus.FallForwarDBExists {
+			if migrationStatus.FallForwardEnabled {
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = tconf.Password
 			}
@@ -67,7 +67,7 @@ var importDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
-		if migrationStatus.FallForwarDBExists {
+		if migrationStatus.FallForwardEnabled {
 			color.Cyan("Import Data Status for fall-forward DB\n")
 			err = runImportDataStatusCmd(migrationStatus.FallForwardDBConf, true, streamChanges)
 			if err != nil {

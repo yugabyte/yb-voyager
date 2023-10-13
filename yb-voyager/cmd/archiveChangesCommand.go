@@ -157,7 +157,7 @@ func (m *EventSegmentCopier) getImportCount() (int, error) {
 	if msr == nil {
 		return 0, fmt.Errorf("migration status record not found")
 	}
-	if msr.FallForwarDBExists {
+	if msr.FallForwardEnabled {
 		return 2, nil
 	}
 	return 1, nil
