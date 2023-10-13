@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"sort"
@@ -31,8 +29,11 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+<<<<<<< HEAD
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+=======
+>>>>>>> aneesh/fall-back
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -47,11 +48,6 @@ var importDataStatusCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("error while connecting meta db: %w\n", err)
-		}
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
@@ -132,6 +128,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
+<<<<<<< HEAD
 func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, streamChanges bool) error {
 	exportDataDoneFlagFilePath := filepath.Join(exportDir, "metainfo/flags/exportDataDone")
 	_, err := os.Stat(exportDataDoneFlagFilePath)
@@ -140,11 +137,16 @@ func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, streamChanges bool) error
 			return fmt.Errorf("cannot run `import data status` before data export is done")
 		}
 		return fmt.Errorf("check if data export is done: %w", err)
+=======
+func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf, isffDB bool, streamChanges bool) error {
+	if !dataIsExported() {
+		return fmt.Errorf("cannot run `import data status` before data export is done")
+>>>>>>> aneesh/fall-back
 	}
 	//reinitialise targetDB
 	tconf = *tgtconf
 	tdb = tgtdb.NewTargetDB(tgtconf)
-	err = tdb.Init()
+	err := tdb.Init()
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB: %w", err)
 	}

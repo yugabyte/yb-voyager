@@ -16,11 +16,11 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -34,22 +34,21 @@ var exportSchemaCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		setExportFlagsDefaults()
-		validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
+		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
 		markFlagsRequired(cmd)
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
-		}
+		source.ApplyExportSchemaObjectListFilter()
 		exportSchema()
 	},
 }
 
 func exportSchema() {
-	if schemaIsExported(exportDir) {
+	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the " +
@@ -61,15 +60,18 @@ func exportSchema() {
 			for _, dirName := range []string{"schema", "reports", "temp", "metainfo/schema"} {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
-
-			clearSchemaIsExported(exportDir)
+			clearSchemaIsExported()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
 				"CAUTION: Using --start-clean will overwrite any manual changes done to the exported schema.\n")
 			return
 		}
+	} else if startClean {
+		utils.PrintAndLog("Schema is not exported yet. Ignoring --start-clean flag.\n\n")
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err := source.DB().Connect()
@@ -80,15 +82,13 @@ func exportSchema() {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	sourceDBVersion := source.DB().GetVersion()
-
 	utils.PrintAndLog("%s version: %s\n", source.DBType, sourceDBVersion)
-
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err = retrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	source.DB().ExportSchema(exportDir)
+	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
@@ -96,21 +96,12 @@ func exportSchema() {
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)
 
-	setSchemaIsExported(exportDir)
-
-	miginfo := &MigInfo{
-		SourceDBType:    source.DBType,
-		SourceDBName:    source.DBName,
-		SourceDBSchema:  source.Schema,
-		SourceDBVersion: source.DB().GetVersion(),
-		SourceDBSid:     source.DBSid,
-		SourceTNSAlias:  source.TNSAlias,
-		exportDir:       exportDir,
-	}
-	err = SaveMigInfo(miginfo)
-	if err != nil {
-		utils.ErrExit("unable to save migration info: %s", err)
-	}
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		// setting irrespective of the current value
+		record.SourceDBConf = source.Clone()
+		record.SourceDBConf.Password = ""
+	})
+	setSchemaIsExported()
 }
 
 func init() {
@@ -123,46 +114,48 @@ func init() {
 
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
+
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+		"comma separated list of objects to export. ")
 }
 
-func schemaIsExported(exportDir string) bool {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	_, err := os.Stat(flagFilePath)
+func schemaIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false
-		}
-		utils.ErrExit("failed to check if schema import is already done: %s", err)
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
 	}
-	return true
+
+	return msr.ExportSchemaDone
 }
 
-func setSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportSchemaDone")
-	fh, err := os.Create(flagFilePath)
+func setSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = true
+	})
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("set schema is exported: update migration status record: %s", err)
 	}
-	fh.Close()
 }
 
-func clearSchemaIsExported(exportDir string) {
-	flagFilePath := filepath.Join(exportDir+"metainfo", "flags", "exportSchemaDone")
-	os.Remove(flagFilePath)
-}
-
-// clear and set source db type flag
-func setSourceDbType(sourceDbType string, exportDir string) {
-	// remove any possible source-db-* flags, as there could be some previous from indepedent migration
-	for _, supportedSourceDBType := range supportedSourceDBTypes {
-		flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", supportedSourceDBType))
-		os.Remove(flagFilePath)
-	}
-
-	flagFilePath := filepath.Join(exportDir, "metainfo", "schema", fmt.Sprintf("source-db-%s", sourceDbType))
-	fh, err := os.Create(flagFilePath)
+func clearSchemaIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportSchemaDone = false
+	})
 	if err != nil {
-		utils.ErrExit("create %q: %s", flagFilePath, err)
+		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
 	}
-	fh.Close()
+}
+
+func updateIndexesInfoInMetaDB() {
+	log.Infof("updating indexes info in meta db")
+	indexesInfo := source.DB().GetIndexesInfo()
+	if indexesInfo == nil {
+		return
+	}
+	err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.SOURCE_INDEXES_INFO_KEY, func(record *[]utils.IndexInfo) {
+		*record = indexesInfo
+	})
+	if err != nil {
+		utils.ErrExit("update indexes info in meta db: %s", err)
+	}
 }

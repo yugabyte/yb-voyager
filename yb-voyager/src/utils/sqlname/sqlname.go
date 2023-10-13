@@ -86,13 +86,9 @@ func NewSourceNameFromQualifiedName(qualifiedName string) *SourceName {
 
 func NewSourceNameFromMaybeQualifiedName(qualifiedName string, defaultSchemaName string) *SourceName {
 	parts := strings.Split(qualifiedName, ".")
-	schemaParts := strings.Split(defaultSchemaName, "|")
 	if len(parts) == 2 {
 		return NewSourceName(parts[0], parts[1])
 	} else if len(parts) == 1 {
-		if len(schemaParts) > 1 {
-			panic(fmt.Sprintf("can not qualify table name %s with multiple schemas %s", parts[0], defaultSchemaName))
-		}
 		return NewSourceName(defaultSchemaName, parts[0])
 	} else {
 		panic(fmt.Sprintf("invalid qualified name: %s", qualifiedName))
@@ -261,6 +257,7 @@ func IsCaseSensitive(s string, sourceDbType string) bool {
 	}
 	panic("invalid source db type")
 }
+
 
 var PgReservedKeywords = []string{"all", "analyse", "analyze", "and", "any", "array",
 	"as", "asc", "asymmetric", "both", "case", "cast", "check", "collate", "column",

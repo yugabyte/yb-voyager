@@ -234,6 +234,10 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s 
+			ADD COLUMN IF NOT EXISTS 
+			migration_uuid uuid`, 
+			BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,

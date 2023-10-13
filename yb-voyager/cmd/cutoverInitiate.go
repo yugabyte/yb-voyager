@@ -21,7 +21,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var withFallBack bool
+var prepareForFallBack utils.BoolStr
 
 var cutoverInitiateCmd = &cobra.Command{
 	Use:   "initiate",
@@ -35,7 +35,7 @@ var cutoverInitiateCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %s", err)
 		}
-		if withFallBack {
+		if prepareForFallBack {
 			updateFallBackEnabledInMetaDB()
 		}
 		err = InitiatePrimarySwitch("cutover")
@@ -49,8 +49,8 @@ func init() {
 	cutoverCmd.AddCommand(cutoverInitiateCmd)
 	cutoverInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
-	cutoverInitiateCmd.Flags().BoolVar(&withFallBack, "with-fall-back", false,
-		"assume answer as yes for all questions during migration (default false)")
+	BoolVar(cutoverInitiateCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
+		"prepare for fallback by streaming changes from target DB to source DB (default false)")
 }
 
 func updateFallBackEnabledInMetaDB() {

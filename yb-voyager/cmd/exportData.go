@@ -32,6 +32,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -53,7 +54,10 @@ var exportDataCmd = &cobra.Command{
 		if exporterRole == "" {
 			exporterRole = SOURCE_DB_EXPORTER_ROLE
 		}
-		validateExportFlags(cmd, exporterRole)
+		err := validateExportFlags(cmd, exporterRole)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
 		validateExportTypeFlag()
 		markFlagsRequired(cmd)
 		if changeStreamingIsEnabled(exportType) {
@@ -73,16 +77,11 @@ func init() {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	var err error
-	metaDB, err = metadb.NewMetaDB(exportDir)
-	if err != nil {
-		utils.ErrExit("Failed to initialize meta db: %s", err)
-	}
-
 	triggerName, err := getTriggerName(exporterRole)
 	if err != nil {
 		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
 	}
+	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 	exitIfDBSwitchedOver(triggerName)
 	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
@@ -94,8 +93,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	err = retrieveMigrationUUID(exportDir)
+	err = retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
@@ -106,7 +104,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.UpdateDataStats(exportDir, tableRowCount)
 		callhome.PackAndSendPayload(exportDir)
 
-		createExportDataDoneFlag()
+		setDataIsExported()
+		updateSourceDBConfInMSR()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
@@ -118,6 +117,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func exportData() bool {
+
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -125,7 +125,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-
+	updateSourceDBConfInMSR()
 	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -135,12 +135,13 @@ func exportData() bool {
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
-		createExportDataDoneFlag()
+		setDataIsExported()
 		dfd := datafile.Descriptor{
 			ExportDir:    exportDir,
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
+		updateSourceDBConfInMSR()
 		os.Exit(0)
 	}
 
@@ -184,25 +185,26 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
 	var finalTableList, skippedTableList []*sqlname.SourceName
-	excludeTableList := extractTableListFromString(source.ExcludeTableList)
+	fullTableList := source.DB().GetAllTableNames()
+	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
 	if source.TableList != "" {
-		finalTableList = extractTableListFromString(source.TableList)
+		tableList = extractTableListFromString(fullTableList, source.TableList, "include")
 	} else {
-		tableList = source.DB().GetAllTableNames()
-		finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-		log.Infof("initial all tables table list for data export: %v", tableList)
+		tableList = fullTableList
+	}
+	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	log.Infof("initial all tables table list for data export: %v", tableList)
 
-		if !changeStreamingIsEnabled(exportType) {
-			finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
-			if len(skippedTableList) != 0 {
-				utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
-			}
-		}
-
-		finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if !changeStreamingIsEnabled(exportType) {
+		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
-			utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
+			utils.PrintAndLog("skipping empty tables: %v", skippedTableList)
 		}
+	}
+
+	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(finalTableList, useDebezium)
+	if len(skippedTableList) != 0 {
+		utils.PrintAndLog("skipping unsupported tables: %v", skippedTableList)
 	}
 
 	tablesColumnList, unsupportedColumnNames := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
@@ -243,7 +245,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		//need to export setval() calls to resume sequence value generation
 		sequenceList := source.DB().GetAllSequences()
 		for _, seq := range sequenceList {
-			name := sqlname.NewSourceNameFromMaybeQualifiedName(seq, "public")
+			name := sqlname.NewSourceNameFromQualifiedName(seq)
 			finalTableList = append(finalTableList, name)
 		}
 	}
@@ -269,30 +271,51 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 }
 
 // flagName can be "exclude-table-list" or "table-list"
-func validateTableListFlag(tableListString string, flagName string) {
-	if tableListString == "" {
+func validateTableListFlag(tableListValue string, flagName string) {
+	if tableListValue == "" {
 		return
 	}
-	tableList := utils.CsvStringToSlice(tableListString)
-	// TODO: update regexp once table name with double quotes are allowed/supported
-	tableNameRegex := regexp.MustCompile("[a-zA-Z0-9_.]+")
+	tableList := utils.CsvStringToSlice(tableListValue)
+
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided wtih --%s flag", table, flagName)
+			utils.ErrExit("Error: Invalid table name '%v' provided with --%s flag", table, flagName)
 		}
 	}
 }
 
+// flagName can be "exclude-table-list-file-path" or "table-list-file-path"
+func validateAndExtractTableNamesFromFile(filePath string, flagName string) (string, error) {
+	if filePath == "" {
+		return "", nil
+	}
+	if !utils.FileOrFolderExists(filePath) {
+		return "", fmt.Errorf("path %q does not exist", filePath)
+	}
+	tableList, err := utils.ReadTableNameListFromFile(filePath)
+	if err != nil {
+		return "", fmt.Errorf("reading table list from file: %w", err)
+	}
+
+	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
+	for _, table := range tableList {
+		if !tableNameRegex.MatchString(table) {
+			return "", fmt.Errorf("invalid table name '%v' provided in file %s with --%s flag", table, filePath, flagName)
+		}
+	}
+	return strings.Join(tableList, ","), nil
+}
+
 func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
-	flagFilePath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
-		os.Remove(flagFilePath)
+		clearDataIsExported()
 		os.Remove(dfdFilePath)
 		os.Remove(propertiesFilePath)
 		metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
@@ -308,44 +331,67 @@ func checkDataDirs() {
 	}
 }
 
-func getDefaultSourceSchemaName() string {
+func getDefaultSourceSchemaName() (string, bool) {
 	switch source.DBType {
 	case MYSQL:
-		return source.DBName
+		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return "public"
+		schemas := strings.Split(source.Schema, "|")
+		if len(schemas) == 1 {
+			return source.Schema, false
+		} else if slices.Contains(schemas, "public") {
+			return "public", false
+		} else {
+			return "", true
+		}
 	case ORACLE:
-		return source.Schema
+		return source.Schema, false
 	default:
 		panic("invalid db type")
 	}
 }
 
-func extractTableListFromString(flagTableList string) []*sqlname.SourceName {
+func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableList string, listName string) []*sqlname.SourceName {
 	result := []*sqlname.SourceName{}
 	if flagTableList == "" {
 		return result
 	}
+	findPatternMatchingTables := func(pattern string, defaultSourceSchema string) []*sqlname.SourceName {
+		result := lo.Filter(fullTableList, func(tableName *sqlname.SourceName, _ int) bool {
+			table := tableName.Qualified.MinQuoted
+			sqlNamePattern := sqlname.NewSourceNameFromMaybeQualifiedName(pattern, defaultSourceSchema)
+			pattern = sqlNamePattern.Qualified.MinQuoted
+			matched, err := filepath.Match(pattern, table)
+			if err != nil {
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+			}
+			return matched
+		})
+		return result
+	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-
-	var schemaName string
-	if source.Schema != "" {
-		schemaName = source.Schema
-	} else {
-		schemaName = getDefaultSourceSchemaName()
+	var unqualifiedTables []string
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	var unknownTableNames []string
+	for _, pattern := range tableList {
+		if noDefaultSchema && len(strings.Split(pattern, ".")) == 1 {
+			unqualifiedTables = append(unqualifiedTables, pattern)
+			continue
+		}
+		tables := findPatternMatchingTables(pattern, defaultSourceSchema)
+		if len(tables) == 0 {
+			unknownTableNames = append(unknownTableNames, pattern)
+		}
+		result = append(result, tables...)
 	}
-	for _, table := range tableList {
-		result = append(result, sqlname.NewSourceNameFromMaybeQualifiedName(table, schemaName))
+	if len(unqualifiedTables) > 0 {
+		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
 	}
-	return result
-}
-
-func createExportDataDoneFlag() {
-	exportDoneFlagPath := filepath.Join(exportDir, "metainfo", "flags", "exportDataDone")
-	_, err := os.Create(exportDoneFlagPath)
-	if err != nil {
-		utils.ErrExit("creating exportDataDone flag: %v", err)
+	if len(unknownTableNames) > 0 {
+		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
+		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
+	return lo.Uniq(result)
 }
 
 func checkSourceDBCharset() {
@@ -400,13 +446,6 @@ func startFallBackSetupIfRequired() {
 		utils.PrintAndLog("No fall-back enabled. Exiting.")
 		return
 	}
-	// tableListExportedFromSource := msr.TableListExportedFromSource
-	// var unqualifiedTableList []string
-	// for _, qualifiedTableName := range tableListExportedFromSource {
-	// 	// TODO: handle case sensitivity?
-	// 	unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-	// 	unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	// }
 
 	cmd := []string{"yb-voyager", "fall-back", "setup",
 		"--export-dir", exportDir,
@@ -459,4 +498,43 @@ func startFallBackSetupIfRequired() {
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager fall-back setup - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
+}
+
+func dataIsExported() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+	}
+
+	return msr.ExportDataDone
+}
+
+func setDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = true
+	})
+	if err != nil {
+		utils.ErrExit("set data is exported: update migration status record: %s", err)
+	}
+}
+
+func clearDataIsExported() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ExportDataDone = false
+	})
+	if err != nil {
+		utils.ErrExit("clear data is exported: update migration status record: %s", err)
+	}
+}
+
+func updateSourceDBConfInMSR() {
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if record.SourceDBConf == nil {
+			record.SourceDBConf = source.Clone()
+			record.SourceDBConf.Password = ""
+		} else {
+			// currently db type is only required for import data commands
+			record.SourceDBConf.DBType = source.DBType
+		}
+	})
 }

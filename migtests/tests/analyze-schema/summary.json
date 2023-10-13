@@ -1,0 +1,50 @@
+{
+        "dbName": "dummy_db_name",
+        "schemaName": "public",
+        "dbVersion": "12.0",
+        "notes": null,
+        "databaseObjects": [
+            {
+                "objectType": "SCHEMA",
+                "totalCount": 1,
+                "invalidCount": 0,
+                "objectNames": "hollywood",
+                "details": ""
+            },
+            {
+                "objectType": "TABLE",
+                "totalCount": 24,
+                "invalidCount": 10,
+                "objectNames": "sales, test_2, test_7, test_8, table_abc, table_1, test_interval, sales_data, test_6, newtable, table_test, xyz, anydata_test, anytype_test, salaries2, test_3, uritype_test, test_1, test_non_pk_multi_column_list, test_4, test_5, test_9, table_xyz, anydataset_test",
+                "details": ""
+            },
+            {
+                "objectType": "INDEX",
+                "totalCount": 5,
+                "invalidCount": 0,
+                "objectNames": "film_fulltext_idx, idx_actor_last_name, idx_name1, idx_name2, idx_name3",
+                "details": "There are some gin indexes present in the schema, but gin indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
+            },
+            {
+                "objectType": "PROCEDURE",
+                "totalCount": 2,
+                "invalidCount": 0,
+                "objectNames": "foo, foo1",
+                "details": ""
+            },
+            {
+                "objectType": "VIEW",
+                "totalCount": 2,
+                "invalidCount": 0,
+                "objectNames": "v1, test",
+                "details": ""
+            },
+            {
+                "objectType": "TRIGGER",
+                "totalCount": 3,
+                "invalidCount": 1,
+                "objectNames": "transfer_insert, emp_trig, test",
+                "details": ""
+            }
+        ]
+}

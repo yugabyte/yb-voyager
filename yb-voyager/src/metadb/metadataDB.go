@@ -38,6 +38,7 @@ var (
 	JSON_OBJECTS_TABLE_NAME                    = "json_objects"
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
+	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
 	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 
@@ -50,7 +51,7 @@ func GetMetaDBPath(exportDir string) string {
 func CreateAndInitMetaDBIfRequired(exportDir string) error {
 	metaDBPath := GetMetaDBPath(exportDir)
 	if utils.FileOrFolderExists(metaDBPath) {
-		// already created and initied.
+		// already created and initiated
 		return nil
 	}
 	err := createMetaDBFile(metaDBPath)

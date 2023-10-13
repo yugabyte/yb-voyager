@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
@@ -41,12 +42,17 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
-		validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+		if err != nil {
+			utils.ErrExit("Error: %s", err.Error())
+		}
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = ExtractMetaInfo(exportDir).SourceDBType
+		checkExportSchemaDoneFlag()
+		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
 }
@@ -63,8 +69,20 @@ var flagPostImportData utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 
+func checkExportSchemaDoneFlag() {
+	if schemaIsExported() {
+		return
+	}
+
+	utils.PrintAndLog("Waiting for schema export to complete...")
+	for !schemaIsExported() {
+		time.Sleep(time.Second * 2)
+	}
+	utils.PrintAndLog("Schema export is complete.")
+}
+
 func importSchema() {
-	err := retrieveMigrationUUID(exportDir)
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}

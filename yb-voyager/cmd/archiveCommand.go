@@ -30,8 +30,8 @@ var utilizationThreshold int
 
 var archiveCmd = &cobra.Command{
 	Use:   "archive",
-	Short: "This command will archive the streaming data from the source database",
-	Long:  `This command currently has one subcommand to archive streaming data: changes.`,
+	Short: "Archive exported data that is saved in export-dir",
+	Long:  ``,
 }
 
 func init() {
