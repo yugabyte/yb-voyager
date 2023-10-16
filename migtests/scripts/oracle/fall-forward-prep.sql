@@ -17,6 +17,16 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
 -- added this step after 1.6 release
 ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); 
 
+BEGIN
+   FOR R IN (SELECT constraint_name FROM user_constraints WHERE owner=UPPER('ybvoyager_metadata') and table_name = UPPER('ybvoyager_import_data_batches_metainfo_v2')) LOOP
+         EXECUTE IMMEDIATE 'ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 DROP CONSTRAINT '||R.constraint_name;
+   END LOOP;
+END;
+/
+
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD CONSTRAINT ybvoyager_import_data_batches_metainfo_v2_pk PRIMARY KEY (data_file_name, batch_number, schema_name, table_name, migration_uuid);
+
+
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),
             channel_no INT,
