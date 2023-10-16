@@ -341,6 +341,7 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 		}
 	} else {
 		query := fmt.Sprintf(`UPDATE %s SET json_text = ? WHERE key = ?`, JSON_OBJECTS_TABLE_NAME)
+		utils.PrintAndLog("query to update MSR: %s", query)
 		_, err = tx.Exec(query, string(newJsonText), key)
 		if err != nil {
 			return fmt.Errorf("error while running query on meta db - %s :%w", query, err)
