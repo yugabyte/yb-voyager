@@ -63,9 +63,10 @@ var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
-	Use:   "data",
-	Short: "This command imports data into YugabyteDB database",
-	Long:  `This command will import the data exported from the source database into YugabyteDB database.`,
+	Use: "data",
+	Short: "Import data into target YugabyteDB database.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
+	Long: `Import the data exported from the source database into the target YugabyteDB database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
@@ -133,8 +134,8 @@ func startFallforwardSynchronizeIfRequired() {
 	if err != nil {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
-	if !msr.FallForwarDBExists {
-		utils.PrintAndLog("No fall-forward db exists. Exiting.")
+	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
+		utils.PrintAndLog("No fall-forward/back enabled. Exiting.")
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
@@ -145,7 +146,14 @@ func startFallforwardSynchronizeIfRequired() {
 		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
-	cmd := []string{"yb-voyager", "fall-forward", "synchronize",
+	var voyagerCmdPrefix string
+	if msr.FallForwardEnabled {
+		voyagerCmdPrefix = "fall-forward"
+	} else {
+		voyagerCmdPrefix = "fall-back"
+	}
+
+	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
 		"--export-dir", exportDir,
 		"--target-db-host", tconf.Host,
 		"--target-db-port", fmt.Sprintf("%d", tconf.Port),
@@ -337,15 +345,19 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 
 func updateTargetConfInMigrationStatus() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch tconf.TargetDBType {
-		case YUGABYTEDB:
+		switch importerRole {
+		case TARGET_DB_IMPORTER_ROLE:
+		case IMPORT_FILE_ROLE:
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
-		case ORACLE:
+		case FF_DB_IMPORTER_ROLE:
 			record.FallForwardDBConf = tconf.Clone()
 			record.FallForwardDBConf.Password = ""
+		case FB_DB_IMPORTER_ROLE:
+			record.SourceDBAsTargetConf = tconf.Clone()
+			record.SourceDBAsTargetConf.Password = ""
 		default:
-			panic(fmt.Sprintf("unsupported target db type: %s", tconf.TargetDBType))
+			panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
 		}
 	})
 	if err != nil {
@@ -372,7 +384,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf)
+	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -412,30 +424,33 @@ func importData(importFileTasks []*ImportFileTask) {
 	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
-	if len(pendingTasks) == 0 {
-		utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
-	} else {
-		utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-		prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-		poolSize := tconf.Parallelism * 2
-		progressReporter := NewImportDataProgressReporter(bool(disablePb))
-		for _, task := range pendingTasks {
-			// The code can produce `poolSize` number of batches at a time. But, it can consume only
-			// `parallelism` number of batches at a time.
-			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+	// Import snapshots
+	if importerRole != FB_DB_IMPORTER_ROLE {
+		if len(pendingTasks) == 0 {
+			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
+		} else {
+			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
+			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
+			poolSize := tconf.Parallelism * 2
+			progressReporter := NewImportDataProgressReporter(bool(disablePb))
+			for _, task := range pendingTasks {
+				// The code can produce `poolSize` number of batches at a time. But, it can consume only
+				// `parallelism` number of batches at a time.
+				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 
-			totalProgressAmount := getTotalProgressAmount(task)
-			progressReporter.ImportFileStarted(task, totalProgressAmount)
-			importedProgressAmount := getImportedProgressAmount(task, state)
-			progressReporter.AddProgressAmount(task, importedProgressAmount)
-			updateProgressFn := func(progressAmount int64) {
-				progressReporter.AddProgressAmount(task, progressAmount)
+				totalProgressAmount := getTotalProgressAmount(task)
+				progressReporter.ImportFileStarted(task, totalProgressAmount)
+				importedProgressAmount := getImportedProgressAmount(task, state)
+				progressReporter.AddProgressAmount(task, importedProgressAmount)
+				updateProgressFn := func(progressAmount int64) {
+					progressReporter.AddProgressAmount(task, progressAmount)
+				}
+				importFile(state, task, updateProgressFn)
+				batchImportPool.Wait()                // Wait for the file import to finish.
+				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
 			}
-			importFile(state, task, updateProgressFn)
-			batchImportPool.Wait()                // Wait for the file import to finish.
-			progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+			time.Sleep(time.Second * 2)
 		}
-		time.Sleep(time.Second * 2)
 	}
 	utils.PrintAndLog("snapshot data import complete\n\n")
 	callhome.PackAndSendPayload(exportDir)
@@ -444,9 +459,11 @@ func importData(importFileTasks []*ImportFileTask) {
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			displayImportedRowCountSnapshot(state, importFileTasks)
+			if importerRole != FB_DB_IMPORTER_ROLE {
+				displayImportedRowCountSnapshot(state, importFileTasks)
+			}
 			color.Blue("streaming changes to target DB...")
-			err = streamChanges(state)
+			err = streamChanges(state, importFileTasksToTableNames(importFileTasks))
 			if err != nil {
 				utils.ErrExit("Failed to stream changes from source DB: %s", err)
 			}
@@ -1066,5 +1083,6 @@ func init() {
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonImportFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataCmd)
+	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataFlags(importDataCmd)
 }

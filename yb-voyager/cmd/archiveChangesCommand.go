@@ -29,9 +29,10 @@ import (
 )
 
 var archiveChangesCmd = &cobra.Command{
-	Use:   "changes",
-	Short: "This command will archive the streaming data from the source database",
-	Long:  `This command will archive the streaming data from the source database.`,
+	Use: "changes",
+	Short: "This command will archive the streaming data from the source database.\n" +
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
+	Long: `This command will archive the streaming data from the source database.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateCommonArchiveFlags()
@@ -156,7 +157,7 @@ func (m *EventSegmentCopier) getImportCount() (int, error) {
 	if msr == nil {
 		return 0, fmt.Errorf("migration status record not found")
 	}
-	if msr.FallForwarDBExists {
+	if msr.FallForwardEnabled {
 		return 2, nil
 	}
 	return 1, nil

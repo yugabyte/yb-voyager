@@ -56,7 +56,7 @@ func registerCommonExportFlags(cmd *cobra.Command) {
 	source.VerboseMode = bool(VerboseMode)
 }
 
-func registerSourceDBConnFlags(cmd *cobra.Command) {
+func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 	cmd.Flags().StringVar(&source.DBType, "source-db-type", "",
 		"source database type: (oracle, mysql, postgresql)\n")
 
@@ -71,7 +71,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command) {
 
 	// TODO: All sensitive parameters can be taken from the environment variable
 	cmd.Flags().StringVar(&source.Password, "source-db-password", "",
-		"source password to connect as the specified user")
+		"source password to connect as the specified user. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "source-db-name", "",
 		"source database name to be migrated to YugabyteDB")
@@ -85,34 +85,36 @@ func registerSourceDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",
-		"[For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database. Note: This is only required for live migration.")
+	if includeOracleCDBFlags {
+		cmd.Flags().StringVar(&source.CDBName, "oracle-cdb-name", "",
+			"[For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database. Note: This is only required for live migration.")
 
-	cmd.Flags().StringVar(&source.CDBSid, "oracle-cdb-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) of the Container Database that you wish to use while exporting data from Oracle instances.  Note: This is only required for live migration.")
+		cmd.Flags().StringVar(&source.CDBSid, "oracle-cdb-sid", "",
+			"[For Oracle Only] Oracle System Identifier (SID) of the Container Database that you wish to use while exporting data from Oracle instances.  Note: This is only required for live migration.")
 
-	cmd.Flags().StringVar(&source.CDBTNSAlias, "oracle-cdb-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases. Note: This is only required for live migration.")
+		cmd.Flags().StringVar(&source.CDBTNSAlias, "oracle-cdb-tns-alias", "",
+			"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases. Note: This is only required for live migration.")
+	}
 
 	cmd.Flags().StringVar(&source.Schema, "source-db-schema", "",
 		"source schema name to export (valid for Oracle, PostgreSQL)\n"+
-			"Note: in case of PostgreSQL, it can be a single or comma separated list of schemas")
+			`Note: in case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"`)
 
 	// TODO SSL related more args will come. Explore them later.
 	cmd.Flags().StringVar(&source.SSLCertPath, "source-ssl-cert", "",
-		"source SSL Certificate Path")
+		"Path of the file containing source SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full. \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
+		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
-		"source SSL Key Path")
+		"Path of the file containing source SSL Key")
 
 	cmd.Flags().StringVar(&source.SSLRootCert, "source-ssl-root-cert", "",
-		"source SSL Root Certificate Path")
+		"Path of the file containing source SSL Root Certificate")
 
 	cmd.Flags().StringVar(&source.SSLCRL, "source-ssl-crl", "",
-		"source SSL Root Certificate Revocation List (CRL)")
+		"Path of the file containing source SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
@@ -127,7 +129,7 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("target-db-user")
 
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
-		"password with which to connect to the target YugabyteDB server")
+		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&source.DBName, "target-db-name", "",
 		"name of the database on the target YugabyteDB server on which import needs to be done")
@@ -137,19 +139,19 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&source.SSLCertPath, "target-ssl-cert", "",
-		"provide target SSL Certificate Path")
+		"Path of the file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "prefer",
 		"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
 	cmd.Flags().StringVar(&source.SSLKey, "target-ssl-key", "",
-		"target SSL Key Path")
+		"Path of the file containing target SSL Key")
 
 	cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
-		"target SSL Root Certificate Path")
+		"Path of the file containing target SSL Root Certificate")
 
 	cmd.Flags().StringVar(&source.SSLCRL, "target-ssl-crl", "",
-		"target SSL Root Certificate Revocation List (CRL)")
+		"Path of the file containing target SSL Root Certificate Revocation List (CRL)")
 
 	source.VerboseMode = bool(VerboseMode)
 }
@@ -219,7 +221,8 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
-	case TARGET_DB_EXPORTER_ROLE:
+	case TARGET_DB_EXPORTER_FF_ROLE:
+	case TARGET_DB_EXPORTER_FB_ROLE:
 		getAndStoreTargetDBPasswordInSourceConf(cmd)
 	}
 
@@ -240,25 +243,29 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 
 func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"true - to disable progress bar during data export and stats printing during streaming phase (default false)")
+		"Disable progress bar during data export and stats printing during streaming phase (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
-		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to exclude while exporting data")
+		"comma-separated list of the table names to exclude while exporting data.\n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&source.TableList, "table-list", "",
-		"comma separated list of tables names or regular expressions for table names where '?' matches one character and '*' matches zero or more character(s) to export data")
+		"comma-separated list of the table names to export data.\n"+
+			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
+			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
-		"path of the file containing list of table names to exclude while exporting data")
+		"path of the file containing comma-separated list of table names to exclude while exporting data")
 
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
-		"path of the file containing list of table names to export data")
+		"path of the file containing comma-separated list of table names to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
 		"number of Parallel Jobs to extract data from source database")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
-		fmt.Sprintf("export type: %s, %s[TECH PREVIEW]", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
+		fmt.Sprintf("export type: (%s, %s[TECH PREVIEW])", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
 }
 
 func validateSourceDBType() {
