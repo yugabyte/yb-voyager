@@ -155,7 +155,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 				return fmt.Sprintf("%s:%s", s, masterPort)
 			}),
 			)
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
 			err := ybCDCClient.Init()
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
