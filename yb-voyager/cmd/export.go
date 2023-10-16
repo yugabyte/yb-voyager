@@ -221,8 +221,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
 		getAndStoreSourceDBPasswordInSourceConf(cmd)
-	case TARGET_DB_EXPORTER_FF_ROLE:
-	case TARGET_DB_EXPORTER_FB_ROLE:
+	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		getAndStoreTargetDBPasswordInSourceConf(cmd)
 	}
 
