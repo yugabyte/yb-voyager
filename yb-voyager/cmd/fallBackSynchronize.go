@@ -16,9 +16,13 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var fallBackSynchronizeCmd = &cobra.Command{
@@ -52,4 +56,35 @@ func init() {
 
 func hideExportFlagsInFallBackCmds(cmd *cobra.Command) {
 	cmd.Flags().Lookup("parallel-jobs").Hidden = true
+}
+
+func initSourceConfFromTargetConf() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %v", err)
+	}
+	targetConf := msr.TargetDBConf
+	source.DBType = targetConf.TargetDBType
+	source.Host = targetConf.Host
+	source.Port = targetConf.Port
+	source.User = targetConf.User
+	source.DBName = targetConf.DBName
+	source.Schema = targetConf.Schema
+	source.SSLMode = targetConf.SSLMode
+	source.SSLCertPath = targetConf.SSLCertPath
+	source.SSLKey = targetConf.SSLKey
+	source.SSLRootCert = targetConf.SSLRootCert
+	source.SSLCRL = targetConf.SSLCRL
+	source.SSLQueryString = targetConf.SSLQueryString
+	source.Uri = targetConf.Uri
+	tableListExportedFromSource := msr.TableListExportedFromSource
+	var unqualifiedTableList []string
+	for _, qualifiedTableName := range tableListExportedFromSource {
+		// TODO: handle case sensitivity?
+		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
+		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
+	}
+	source.TableList = strings.Join(unqualifiedTableList, ",")
+
+	return nil
 }
