@@ -160,7 +160,7 @@ func startFallforwardSynchronizeIfRequired() {
 		// "--target-db-user", tconf.User,
 		// "--target-db-name", tconf.DBName,
 		// "--target-db-schema", tconf.Schema,
-		// "--table-list", strings.Join(unqualifiedTableList, ","),
+		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	// if tconf.SSLMode != "" {

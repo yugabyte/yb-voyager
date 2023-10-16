@@ -17,12 +17,10 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var fallBackSynchronizeCmd = &cobra.Command{
@@ -81,15 +79,5 @@ func initSourceConfFromTargetConf() error {
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri
-	tableListExportedFromSource := msr.TableListExportedFromSource
-	var unqualifiedTableList []string
-	sqlname.SourceDBType = source.DBType
-	for _, qualifiedTableName := range tableListExportedFromSource {
-		// TODO: handle case sensitivity?
-		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	}
-	source.TableList = strings.Join(unqualifiedTableList, ",")
-
 	return nil
 }
