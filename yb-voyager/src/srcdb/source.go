@@ -54,8 +54,8 @@ type Source struct {
 	UseOrafce                utils.BoolStr `json:"use_orafce"`
 	CommentsOnObjects        utils.BoolStr `json:"comments_on_objects"`
 	DBVersion                string        `json:"db_version"`
-	StrExportObjectTypeList  string        `json:"str_export_object_types_list"`
-	StrExcludeObjectTypeList string        `json:"str_exclude_object_types"`
+	StrExportObjectTypeList  string        `json:"str_export_object_type_list"`
+	StrExcludeObjectTypeList string        `json:"str_exclude_object_type_list"`
 
 	ExportObjectTypeList []string `json:"-"`
 	sourceDB             SourceDB `json:"-"`
