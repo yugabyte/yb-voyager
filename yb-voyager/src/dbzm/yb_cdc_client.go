@@ -93,7 +93,7 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 		record.YBCDCStreamID = streamID
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to update migration status record: %w", err)
+		return "", fmt.Errorf("failed to save the newly created CDC stream id %s in the msr: %w", streamID, err)
 	}
 	return streamID, nil
 }
@@ -106,7 +106,7 @@ func (ybc *YugabyteDBCDCClient) readYBStreamID() (string, error) {
 	if msr != nil && msr.YBCDCStreamID != "" {
 		return msr.YBCDCStreamID, nil
 	}
-	return "", fmt.Errorf("yugabytedb cdc stream id not found in msr" )
+	return "", fmt.Errorf("yugabytedb cdc stream id not found in msr")
 }
 
 func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
@@ -130,7 +130,7 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 		record.YBCDCStreamID = ""
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update migration status record: %w", err)
+		return fmt.Errorf("failed to clear CDC stream id from the msr: %w", err)
 	}
 	utils.PrintAndLog("Deleted YugabyteDB CDC stream-id: %s", streamID)
 	return nil

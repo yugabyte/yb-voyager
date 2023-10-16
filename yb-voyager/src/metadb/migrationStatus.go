@@ -34,7 +34,7 @@ type MigrationStatusRecord struct {
 	FallBackSwitchProcessedByFBImporter        bool              `json:"FallBackSwitchProcessedByFFImporter"`
 	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
 	ExportDataDone                             bool              `json:"ExportDataDone"`
-	YBCDCStreamID                              string
+	YBCDCStreamID                              string            `json:"YBCDCStreamID"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
