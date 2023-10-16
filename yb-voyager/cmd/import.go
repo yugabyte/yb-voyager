@@ -72,10 +72,10 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-list and --exclude-object-list are allowed")
+		return fmt.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
 	}
-	validateImportObjectsFlag(tconf.ImportObjects, "object-list")
-	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
+	validateImportObjectsFlag(tconf.ImportObjects, "object-type-list")
+	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-type-list")
 	validateTargetSchemaFlag()
 	// For beta2.0 release (and onwards until further notice)
 	if tconf.DisableTransactionalWrites {
@@ -292,12 +292,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"Delete all schema objects and start a fresh import")
-	cmd.Flags().StringVar(&tconf.ImportObjects, "object-list", "",
+	cmd.Flags().StringVar(&tconf.ImportObjects, "object-type-list", "",
 		"comma separated list of schema object types to include while importing schema")
-	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-list", "",
-		"comma separated list of schema object types to exclude while importing schema (ignored if --object-list is used)")
+	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-type-list", "",
+		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
-		"Import objectes in the order specified by the --object-list flag (default false)")
+		"Import objectes in the order specified by the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
