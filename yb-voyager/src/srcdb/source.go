@@ -23,42 +23,42 @@ import (
 )
 
 type Source struct {
-	DBType                    string        `json:"db_type"`
-	Host                      string        `json:"host"`
-	Port                      int           `json:"port"`
-	User                      string        `json:"user"`
-	Password                  string        `json:"password"`
-	DBName                    string        `json:"db_name"`
-	CDBName                   string        `json:"cdb_name"`
-	DBSid                     string        `json:"db_sid"`
-	CDBSid                    string        `json:"cdb_sid"`
-	OracleHome                string        `json:"oracle_home"`
-	TNSAlias                  string        `json:"tns_alias"`
-	CDBTNSAlias               string        `json:"cdb_tns_alias"`
-	Schema                    string        `json:"schema"`
-	SSLMode                   string        `json:"ssl_mode"`
-	SSLCertPath               string        `json:"ssl_cert_path"`
-	SSLKey                    string        `json:"ssl_key"`
-	SSLRootCert               string        `json:"ssl_root_cert"`
-	SSLCRL                    string        `json:"ssl_crl"`
-	SSLQueryString            string        `json:"ssl_query_string"`
-	SSLKeyStore               string        `json:"ssl_keystore"`
-	SSLKeyStorePassword       string        `json:"ssl_keystore_password"`
-	SSLTrustStore             string        `json:"ssl_truststore"`
-	SSLTrustStorePassword     string        `json:"ssl_truststore_password"`
-	Uri                       string        `json:"uri"`
-	NumConnections            int           `json:"num_connections"`
-	VerboseMode               bool          `json:"verbose_mode"`
-	TableList                 string        `json:"table_list"`
-	ExcludeTableList          string        `json:"exclude_table_list"`
-	UseOrafce                 utils.BoolStr `json:"use_orafce"`
-	CommentsOnObjects         utils.BoolStr `json:"comments_on_objects"`
-	DBVersion                 string        `json:"db_version"`
-	StrExportObjectTypesList  string        `json:"str_export_object_types_list"`
-	StrExcludeObjectTypesList string        `json:"str_exclude_object_types"`
+	DBType                   string        `json:"db_type"`
+	Host                     string        `json:"host"`
+	Port                     int           `json:"port"`
+	User                     string        `json:"user"`
+	Password                 string        `json:"password"`
+	DBName                   string        `json:"db_name"`
+	CDBName                  string        `json:"cdb_name"`
+	DBSid                    string        `json:"db_sid"`
+	CDBSid                   string        `json:"cdb_sid"`
+	OracleHome               string        `json:"oracle_home"`
+	TNSAlias                 string        `json:"tns_alias"`
+	CDBTNSAlias              string        `json:"cdb_tns_alias"`
+	Schema                   string        `json:"schema"`
+	SSLMode                  string        `json:"ssl_mode"`
+	SSLCertPath              string        `json:"ssl_cert_path"`
+	SSLKey                   string        `json:"ssl_key"`
+	SSLRootCert              string        `json:"ssl_root_cert"`
+	SSLCRL                   string        `json:"ssl_crl"`
+	SSLQueryString           string        `json:"ssl_query_string"`
+	SSLKeyStore              string        `json:"ssl_keystore"`
+	SSLKeyStorePassword      string        `json:"ssl_keystore_password"`
+	SSLTrustStore            string        `json:"ssl_truststore"`
+	SSLTrustStorePassword    string        `json:"ssl_truststore_password"`
+	Uri                      string        `json:"uri"`
+	NumConnections           int           `json:"num_connections"`
+	VerboseMode              bool          `json:"verbose_mode"`
+	TableList                string        `json:"table_list"`
+	ExcludeTableList         string        `json:"exclude_table_list"`
+	UseOrafce                utils.BoolStr `json:"use_orafce"`
+	CommentsOnObjects        utils.BoolStr `json:"comments_on_objects"`
+	DBVersion                string        `json:"db_version"`
+	StrExportObjectTypeList  string        `json:"str_export_object_types_list"`
+	StrExcludeObjectTypeList string        `json:"str_exclude_object_types"`
 
-	ExportObjectTypesList []string `json:"-"`
-	sourceDB              SourceDB `json:"-"`
+	ExportObjectTypeList []string `json:"-"`
+	sourceDB             SourceDB `json:"-"`
 }
 
 func (s *Source) Clone() *Source {
@@ -88,31 +88,33 @@ func (s *Source) IsOracleCDBSetup() bool {
 func (s *Source) ApplyExportSchemaObjectListFilter() {
 	allowedObjects := utils.GetSchemaObjectList(s.DBType)
 
-	if s.StrExportObjectTypesList == "" && s.StrExcludeObjectTypesList == "" {
-		s.ExportObjectTypesList = allowedObjects
+	if s.StrExportObjectTypeList == "" && s.StrExcludeObjectTypeList == "" {
+		s.ExportObjectTypeList = allowedObjects
 		return
 	}
 
-	if s.StrExcludeObjectTypesList != "" {
-		excludedObjectsSlice := utils.CsvStringToSlice(s.StrExcludeObjectTypesList)
-		s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return !utils.ContainsString(excludedObjectsSlice, objType) })
-		filteredObjects := lo.Filter(excludedObjectsSlice, func(objType string, _ int) bool { return !utils.ContainsString(allowedObjects, objType) })
-		printAndCheckFilteredObjects(filteredObjects, s)
+	if s.StrExcludeObjectTypeList != "" {
+		var filteredObjects []string
+		excludedObjectsSlice := utils.CsvStringToSlice(s.StrExcludeObjectTypeList)
+		excludedObjectsSlice = lo.Map(excludedObjectsSlice, func(objType string, _ int) string { return strings.ToUpper(objType) })
+		s.ExportObjectTypeList, filteredObjects = lo.Difference(allowedObjects, excludedObjectsSlice)
+		printAndCheckFilteredObjects(allowedObjects, filteredObjects, s)
 		return
 	}
 
-	expectedObjectsSlice := utils.CsvStringToSlice(s.StrExportObjectTypesList)
-	s.ExportObjectTypesList = lo.Filter(allowedObjects, func(objType string, _ int) bool { return utils.ContainsString(expectedObjectsSlice, objType) })
-	filteredObjects := lo.Filter(expectedObjectsSlice, func(objType string, _ int) bool { return !utils.ContainsString(allowedObjects, objType) })
-	printAndCheckFilteredObjects(filteredObjects, s)
+	expectedObjectsSlice := utils.CsvStringToSlice(s.StrExportObjectTypeList)
+	expectedObjectsSlice = lo.Map(expectedObjectsSlice, func(objType string, _ int) string { return strings.ToUpper(objType) })
+	s.ExportObjectTypeList = lo.Intersect(allowedObjects, expectedObjectsSlice)
+	_, filteredObjects := lo.Difference(allowedObjects, expectedObjectsSlice)
+	printAndCheckFilteredObjects(allowedObjects, filteredObjects, s)
 }
 
-func printAndCheckFilteredObjects(filteredObjects []string, s *Source) {
+func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []string, s *Source) {
 	if len(filteredObjects) > 0 {
-		utils.PrintAndLog("Ignoring invalid object types: %s\n", strings.Join(filteredObjects, ", "))
+		utils.ErrExit("Error: invalid object types: %s\n Valid objects types are: %s\n", strings.Join(filteredObjects, ", "), strings.Join(allowedObjects, ", "))
 	}
-	if !utils.ContainsString(s.ExportObjectTypesList, "TABLE") && utils.ContainsString(s.ExportObjectTypesList, "INDEX") {
-		s.ExportObjectTypesList = lo.Filter(s.ExportObjectTypesList, func(objType string, _ int) bool { return objType != "INDEX" })
+	if !utils.ContainsString(s.ExportObjectTypeList, "TABLE") && utils.ContainsString(s.ExportObjectTypeList, "INDEX") {
+		s.ExportObjectTypeList = lo.Filter(s.ExportObjectTypeList, func(objType string, _ int) bool { return objType != "INDEX" })
 		utils.PrintAndLog("Ignoring INDEX object type as TABLE object type is not selected\n")
 	}
 }

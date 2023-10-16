@@ -394,7 +394,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	}
 
 	// creating subdirs under schema dir
-	for _, schemaObjectType := range source.ExportObjectTypesList {
+	for _, schemaObjectType := range source.ExportObjectTypeList {
 		if schemaObjectType == "INDEX" { //no separate dir for indexes
 			continue
 		}

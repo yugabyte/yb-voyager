@@ -33,8 +33,8 @@ var exportSchemaCmd = &cobra.Command{
 	Long:  ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		if source.StrExportObjectTypesList != "" && source.StrExcludeObjectTypesList != "" {
-			utils.ErrExit("Error: only one of --object-types-list and --exclude-object-types-list is allowed")
+		if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {
+			utils.ErrExit("Error: only one of --object-type-list and --exclude-object-type-list is allowed")
 		}
 		setExportFlagsDefaults()
 		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
@@ -118,10 +118,10 @@ func init() {
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
 
-	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypeList, "object-type-list", "",
 		"comma separated list of objects to export. ")
 
-	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypesList, "exclude-object-types-list", "",
+	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
 		"comma separated list of objects to exclude from export. ")
 }
 
