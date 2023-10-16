@@ -83,6 +83,7 @@ func initSourceConfFromTargetConf() error {
 	source.Uri = targetConf.Uri
 	tableListExportedFromSource := msr.TableListExportedFromSource
 	var unqualifiedTableList []string
+	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range tableListExportedFromSource {
 		// TODO: handle case sensitivity?
 		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
