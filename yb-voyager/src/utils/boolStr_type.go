@@ -3,7 +3,6 @@ package utils
 import (
 	"fmt"
 	"strings"
-
 )
 
 //Handling Bool flags with an explicit type
@@ -33,4 +32,3 @@ func (b *BoolStr) String() string {
 	}
 	return "false"
 }
-

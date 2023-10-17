@@ -24,6 +24,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 
@@ -445,4 +446,8 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
 	}
 	return partitions
+}
+
+func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	panic("ClearMigrationState() not implemented for YugabyteDB yet")
 }

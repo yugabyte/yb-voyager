@@ -46,6 +46,7 @@ type TargetDB interface {
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
+	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level

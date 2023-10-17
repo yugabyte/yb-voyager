@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -447,4 +448,16 @@ func (ora *Oracle) GetServers() []string {
 
 func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
 	panic("not implemented")
-} 
+}
+
+func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	_, err := ora.db.Exec("DROP TABLE LOG_MINING_FLUSH")
+	if err != nil {
+		if strings.Contains(err.Error(), "ORA-00942") {
+			// Table does not exist, so nothing to drop
+			return nil
+		}
+		return err
+	}
+	return nil
+}

@@ -690,3 +690,72 @@ func (tdb *TargetOracleDB) alterColumns(tableColumnsMap map[string][]string, alt
 	}
 	return nil
 }
+
+func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
+	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'", schema)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		utils.ErrExit("error checking if schema %s exists: %v", schema, err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		log.Infof("schema %s does not exist in target db", schema)
+		return false
+	}
+	return true
+}
+
+func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
+	var schema, table string
+	if strings.Contains(qualifiedTableName, ".") {
+		parts := strings.Split(qualifiedTableName, ".")
+		schema = parts[0]
+		table = parts[1]
+	} else {
+		schema = tdb.tconf.Schema
+		table = qualifiedTableName
+	}
+
+	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", table, schema)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		utils.ErrExit("error checking if table %s exists: %v", qualifiedTableName, err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		log.Infof("table %s does not exist in target db", qualifiedTableName)
+		return false
+	}
+	return true
+}
+
+// this will be only called by FallForward or FallBack DBs
+func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
+	schema := BATCH_METADATA_TABLE_SCHEMA
+	if !tdb.isSchemaExists(schema) {
+		log.Infof("schema %s does not exist in target db, nothing to clear for migration state", schema)
+		return nil
+	}
+
+	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA
+	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	for _, table := range tables {
+		if !tdb.isTableExists(table) {
+			continue
+		}
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s", table, migrationUUID)
+		_, err := tdb.conn.ExecContext(context.Background(), query, migrationUUID)
+		if err != nil {
+			log.Errorf("error cleaning up table %s: %v", table, err)
+			return fmt.Errorf("error cleaning up table %s: %w", table, err)
+		}
+	}
+
+	// manually delete the USER in case of Oracle
+	utils.PrintAndLog(`Please manually delete the user '%s' from the '%s' host using the following SQL statement:
+		DROP USER %s CASCADE`, tdb.tconf.Schema, tdb.tconf.Host, tdb.tconf.Schema)
+	return nil
+}

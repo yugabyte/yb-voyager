@@ -235,6 +235,19 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s 
+			ADD COLUMN IF NOT EXISTS 
+			migration_uuid uuid`,
+			BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s 
+			DROP CONSTRAINT 
+			ybvoyager_import_data_batches_metainfo_v2_pkey;`,
+			BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s
+			ADD CONSTRAINT
+			ybvoyager_import_data_batches_metainfo_v2_pkey
+			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name);`,
+			BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
@@ -1035,5 +1048,82 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 			return err
 		}
 	}
+	return nil
+}
+
+func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
+	query := fmt.Sprintf("SELECT true FROM information_schema.schemata WHERE schema_name = '%s'", schema)
+	rows, err := yb.Query(query)
+	if err != nil {
+		utils.ErrExit("error checking if schema %s exists: %v", schema, err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		log.Infof("schema %s does not exist", schema)
+		return false
+	}
+	return true
+}
+
+func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
+	var schema, table string
+	if strings.Contains(qualifiedTableName, ".") {
+		parts := strings.Split(qualifiedTableName, ".")
+		schema = parts[0]
+		table = parts[1]
+	} else {
+		schema = yb.tconf.Schema
+		table = qualifiedTableName
+	}
+
+	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
+	rows, err := yb.Query(query)
+	if err != nil {
+		utils.ErrExit("error checking if table %s exists: %v", qualifiedTableName, err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		log.Infof("table %s does not exist", qualifiedTableName)
+		return false
+	}
+	return true
+}
+
+func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
+	schema := BATCH_METADATA_TABLE_SCHEMA
+	if !yb.isSchemaExists(schema) {
+		log.Infof("schema %s does not exist, nothing to clear migration state", schema)
+		return nil
+	}
+
+	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA for given migrationUUID
+	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	for _, table := range tables {
+		if !yb.isTableExists(table) {
+			continue
+		}
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s", table, migrationUUID)
+		_, err := yb.Exec(query)
+		if err != nil {
+			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)
+			return fmt.Errorf("error cleaning up table %s for migrationUUID=%s: %w", table, migrationUUID, err)
+		}
+	}
+
+	nonEmptyTables := yb.GetNonEmptyTables(tables)
+	if len(nonEmptyTables) != 0 {
+		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
+		utils.PrintAndLog("removed the current migration state from the target DB. "+"But could not remove the schema %s as it is not empty", schema)
+	}
+
+	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
+	_, err := yb.conn_.Exec(context.Background(), query)
+	if err != nil {
+		log.Errorf("error dropping schema %s: %v", schema, err)
+		return fmt.Errorf("error dropping schema %s: %w", schema, err)
+	}
+
 	return nil
 }
