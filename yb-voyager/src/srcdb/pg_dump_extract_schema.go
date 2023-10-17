@@ -64,7 +64,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	}
 
 	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypesList)
+	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypeList)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- returnCode

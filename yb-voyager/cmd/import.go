@@ -72,10 +72,10 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 
 	if tconf.ImportObjects != "" && tconf.ExcludeImportObjects != "" {
-		return fmt.Errorf("only one of --object-list and --exclude-object-list are allowed")
+		return fmt.Errorf("only one of --object-type-list and --exclude-object-type-list are allowed")
 	}
-	validateImportObjectsFlag(tconf.ImportObjects, "object-list")
-	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-list")
+	validateImportObjectsFlag(tconf.ImportObjects, "object-type-list")
+	validateImportObjectsFlag(tconf.ExcludeImportObjects, "exclude-object-type-list")
 	validateTargetSchemaFlag()
 	// For beta2.0 release (and onwards until further notice)
 	if tconf.DisableTransactionalWrites {
@@ -137,49 +137,8 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 }
 
 func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.Host, "source-db-host", "127.0.0.1",
-		"host on which the source DB server is running")
-
-	cmd.Flags().IntVar(&tconf.Port, "source-db-port", -1,
-		"port on which the source DB server is running Default: ORACLE(1521)")
-
-	cmd.Flags().StringVar(&tconf.User, "source-db-user", "",
-		"username with which to connect to the source DB server")
-	cmd.MarkFlagRequired("ff-db-user")
-
 	cmd.Flags().StringVar(&tconf.Password, "source-db-password", "",
 		"password with which to connect to the source DB server")
-
-	cmd.Flags().StringVar(&tconf.DBName, "source-db-name", "",
-		"name of the database on the source DB server on which import needs to be done")
-
-	cmd.Flags().StringVar(&tconf.DBSid, "source-db-sid", "",
-		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
-
-	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
-		"[For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin")
-
-	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
-		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
-
-	cmd.Flags().StringVar(&tconf.Schema, "source-db-schema", "",
-		"schema name in source DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
-
-	// TODO: SSL related more args might come. Need to explore SSL part completely.
-	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-ssl-cert", "",
-		"provide source DB SSL Certificate Path")
-
-	cmd.Flags().StringVar(&tconf.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
-
-	cmd.Flags().StringVar(&tconf.SSLKey, "source-ssl-key", "",
-		"source DB SSL Key Path")
-
-	cmd.Flags().StringVar(&tconf.SSLRootCert, "source-ssl-root-cert", "",
-		"source DB SSL Root Certificate Path")
-
-	cmd.Flags().StringVar(&tconf.SSLCRL, "source-ssl-crl", "",
-		"source DB SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
@@ -292,12 +251,12 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"Delete all schema objects and start a fresh import")
-	cmd.Flags().StringVar(&tconf.ImportObjects, "object-list", "",
+	cmd.Flags().StringVar(&tconf.ImportObjects, "object-type-list", "",
 		"comma separated list of schema object types to include while importing schema")
-	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-list", "",
-		"comma separated list of schema object types to exclude while importing schema (ignored if --object-list is used)")
+	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-type-list", "",
+		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
-		"Import objectes in the order specified by the --object-list flag (default false)")
+		"Import objectes in the order specified by the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"If set, creates indexes, foreign-keys, and triggers in target db")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
