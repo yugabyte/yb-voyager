@@ -59,7 +59,10 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-	tableList = modifyTablePartitionsList(tableList)
+	tableList, err = modifyTablePartitionsList(tableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to modify table partitions list: %w", err)
+	}
 	fmt.Printf("num tables to export: %d\n", len(tableList))
 	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -192,18 +195,21 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func modifyTablePartitionsList(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+func modifyTablePartitionsList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
 	requiredForSource := func(sourceDBType string) bool {
 		return sourceDBType == "postgresql" || sourceDBType == "yugabytedb"
 	}
 	if !requiredForSource(source.DBType) {
-		return tableList
+		return tableList, nil
 	}
 
 	modifiedTableList := []*sqlname.SourceName{}
 
 	for _, table := range tableList {
-		rootTable := GetRootTableOfPartition(table)
+		rootTable, err := GetRootTableOfPartition(table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
+		}
 		allChildPartitions := GetAllPartitions(table)
 		if len(allChildPartitions) == 0 {
 			if rootTable != table { //child table is present in list through table-list flag
@@ -217,15 +223,19 @@ func modifyTablePartitionsList(tableList []*sqlname.SourceName) []*sqlname.Sourc
 			modifiedTableList = append(modifiedTableList, allChildPartitions...)
 		}
 	}
-	return lo.Uniq(modifiedTableList)
+	return lo.Uniq(modifiedTableList), nil
 }
 
-func GetRootTableOfPartition(table *sqlname.SourceName) *sqlname.SourceName {
+func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error){
 	parentTable := source.DB().ParentTableOfPartition(table)
 	if parentTable == "" {
-		return table
+		return table, nil
 	}
-	return GetRootTableOfPartition(sqlname.NewSourceName(table.SchemaName.MinQuoted, parentTable)) //TODO: check for across schema partition case
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	if noDefaultSchema {
+		return nil, fmt.Errorf("default schema not found")
+	}
+	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
 }
 
 func GetAllPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
