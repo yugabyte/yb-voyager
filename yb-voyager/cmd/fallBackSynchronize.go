@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -30,8 +32,12 @@ var fallBackSynchronizeCmd = &cobra.Command{
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		err := initSourceConfFromTargetConf()
+		if err != nil {
+			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
+		}
 		exportDataCmd.PreRun(cmd, args)
-		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.FallBackSyncStarted = true
 		})
 		if err != nil {
@@ -52,4 +58,26 @@ func init() {
 
 func hideExportFlagsInFallBackCmds(cmd *cobra.Command) {
 	cmd.Flags().Lookup("parallel-jobs").Hidden = true
+}
+
+func initSourceConfFromTargetConf() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %v", err)
+	}
+	targetConf := msr.TargetDBConf
+	source.DBType = targetConf.TargetDBType
+	source.Host = targetConf.Host
+	source.Port = targetConf.Port
+	source.User = targetConf.User
+	source.DBName = targetConf.DBName
+	source.Schema = targetConf.Schema
+	source.SSLMode = targetConf.SSLMode
+	source.SSLCertPath = targetConf.SSLCertPath
+	source.SSLKey = targetConf.SSLKey
+	source.SSLRootCert = targetConf.SSLRootCert
+	source.SSLCRL = targetConf.SSLCRL
+	source.SSLQueryString = targetConf.SSLQueryString
+	source.Uri = targetConf.Uri
+	return nil
 }
