@@ -11,7 +11,7 @@ YugabyteDB Voyager manages the entire lifecycle of a database migration, includi
 
 <img src="docs/voyager_architecture.png" align="center" alt="YugabyteDB Voyager Architecture"/>
 
-You can migrate data to any one of the three YugabyteDB products (Stable versions 2.14.5.0 and later, and preview versions 2.17.0.0 and later). The following cluster types are supported: [Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/), [YugabyteDB Anywhere](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/), [YugabyteDB Managed](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
+You can migrate data to any one of the three YugabyteDB products (2.16.0.0 and later). The following cluster types are supported: [Local YugabyteDB clusters](https://docs.yugabyte.com/preview/quick-start/), [YugabyteDB Anywhere](https://docs.yugabyte.com/preview/yugabyte-platform/create-deployments/), [YugabyteDB Managed](https://docs.yugabyte.com/preview/yugabyte-cloud/cloud-basics/)
 
 * [Highlights](#highlights)
 * [Prerequisites and Install](#prerequisites-and-install)
@@ -23,7 +23,7 @@ You can migrate data to any one of the three YugabyteDB products (Stable version
 
 # Highlights
 - Free and completely open source
-- Identical steps and unfied experience for all sources and destinations
+- Identical steps and unified experience for all sources and destinations
 - Optimized for distributed databases 
   - Chunks the source files
   - Scales and auto tunes based on cluster size
@@ -38,9 +38,9 @@ You can migrate data to any one of the three YugabyteDB products (Stable version
 - Direct data import from CSV and text files
 
 # Prerequisites and Install
-For prerequisits like supported operating system, machine requirements,  please refer to the [Prerequisites section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#prerequisites)
+For prerequisites like supported operating system, machine requirements,  please refer to the [Prerequisites section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#prerequisites)
 
-Once the prerequisites are satisifed, you can install yb-voyager on a machine with operating systems like RHEL, Ubuntu, macOS, or even in Airgapped, or Docker enviornment or build using source. For detailed instructions, refer [Install section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#install-yb-voyager)
+Once the prerequisites are satisifed, you can install yb-voyager on a machine with operating systems like RHEL, Ubuntu, macOS, or even in Airgapped, or Docker environment or build using source. For detailed instructions, refer [Install section](https://docs.yugabyte.com/preview/migrate/install-yb-voyager/#install-yb-voyager)
 
 # Migration Steps
 
