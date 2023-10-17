@@ -10,7 +10,7 @@ jobs:
   run-mysql-migration-tests:
     strategy:
       matrix:
-        version: [2.14.13.0-b13,2.19.2.0-b121,2.16.7.0-b59,2.18.3.0-b75]
+        version: [2.19.2.0-b121,2.16.7.0-b59,2.18.3.0-b75]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
