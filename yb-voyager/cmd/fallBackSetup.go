@@ -16,7 +16,10 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 var fallBackSetupCmd = &cobra.Command{
@@ -26,8 +29,11 @@ var fallBackSetupCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
-		tconf.TargetDBType = ORACLE
 		importerRole = FB_DB_IMPORTER_ROLE
+		err := initTargetConfFromSourceConf()
+		if err != nil {
+			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
+		}
 		validateFFDBSchemaFlag()
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
@@ -41,4 +47,30 @@ func init() {
 	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
 	registerImportDataFlags(fallBackSetupCmd)
 	hideFlagsInFallBackCmds(fallBackSetupCmd)
+}
+
+func initTargetConfFromSourceConf() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %v", err)
+	}
+	sconf := msr.SourceDBConf
+	tconf.TargetDBType = sconf.DBType
+	tconf.Host = sconf.Host
+	tconf.Port = sconf.Port
+	tconf.User = sconf.User
+	tconf.DBName = sconf.DBName
+	tconf.Schema = sconf.Schema
+	tconf.SSLMode = sconf.SSLMode
+	tconf.SSLMode = sconf.SSLMode
+	tconf.SSLCertPath = sconf.SSLCertPath
+	tconf.SSLKey = sconf.SSLKey
+	tconf.SSLRootCert = sconf.SSLRootCert
+	tconf.SSLCRL = sconf.SSLCRL
+	tconf.SSLQueryString = sconf.SSLQueryString
+	tconf.DBSid = sconf.DBSid
+	tconf.TNSAlias = sconf.TNSAlias
+	tconf.OracleHome = sconf.OracleHome
+	tconf.Uri = sconf.Uri
+	return nil
 }

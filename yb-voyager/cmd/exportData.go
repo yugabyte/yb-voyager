@@ -450,35 +450,7 @@ func startFallBackSetupIfRequired() {
 
 	cmd := []string{"yb-voyager", "fall-back", "setup",
 		"--export-dir", exportDir,
-		"--source-db-host", source.Host,
-		"--source-db-port", fmt.Sprintf("%d", source.Port),
-		"--source-db-user", source.User,
-		"--source-db-name", source.DBName,
-		"--source-db-schema", source.Schema,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-	}
-	if source.OracleHome != "" {
-		cmd = append(cmd, "--oracle-home", source.OracleHome)
-	}
-	if source.DBSid != "" {
-		cmd = append(cmd, "--source-db-sid", source.DBSid)
-	} else if source.TNSAlias != "" {
-		cmd = append(cmd, "--oracle-tns-alias", source.TNSAlias)
-	}
-	if source.SSLMode != "" {
-		cmd = append(cmd, "--source-ssl-mode", source.SSLMode)
-	}
-	if source.SSLCertPath != "" {
-		cmd = append(cmd, "--source-ssl-cert", source.SSLCertPath)
-	}
-	if source.SSLKey != "" {
-		cmd = append(cmd, "--source-ssl-key", source.SSLKey)
-	}
-	if source.SSLRootCert != "" {
-		cmd = append(cmd, "--source-ssl-root-cert", source.SSLRootCert)
-	}
-	if source.SSLCRL != "" {
-		cmd = append(cmd, "--source-ssl-crl", source.SSLCRL)
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
