@@ -45,6 +45,7 @@ type Config struct {
 	SchemaNames                 string
 	TableList                   []string
 	ColumnSequenceMap           []string
+	PartitionsToRootTableMap    []string
 	ColumnList                  []string
 	Uri                         string
 	TNSAdmin                    string
@@ -91,6 +92,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.rename_tables=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
@@ -247,6 +249,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
+			strings.Join(c.PartitionsToRootTableMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -273,6 +276,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
+			strings.Join(c.PartitionsToRootTableMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -296,6 +300,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
+			strings.Join(c.PartitionsToRootTableMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -324,6 +329,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			strings.Join(c.ColumnSequenceMap, ","),
+			strings.Join(c.PartitionsToRootTableMap, ","),
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,

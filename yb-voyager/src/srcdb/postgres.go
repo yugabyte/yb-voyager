@@ -374,7 +374,7 @@ func (pg *PostgreSQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 	return nil, nil
 }
 
-func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
+func (pg *PostgreSQL) ParentTableOfPartition(table *sqlname.SourceName) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
@@ -386,7 +386,7 @@ func (pg *PostgreSQL) IsTablePartition(table *sqlname.SourceName) bool {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
 
-	return parentTable != ""
+	return parentTable
 }
 
 func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
@@ -469,3 +469,32 @@ func generateSSLQueryStringIfNotExists(s *Source) string {
 func (pg *PostgreSQL) GetServers() []string {
 	return []string{pg.source.Host}
 }
+
+func (pg *PostgreSQL) GetChildPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+	childPartitions := make([]*sqlname.SourceName, 0)
+	query := fmt.Sprintf(`SELECT
+    nmsp_child.nspname  AS child_schema,
+    child.relname       AS child
+FROM pg_inherits
+    JOIN pg_class parent            ON pg_inherits.inhparent = parent.oid
+    JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
+    JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
+    JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.MinQuoted, tableName.SchemaName.MinQuoted)
+
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		log.Infof("Query to find child partitions: %s", query)
+		utils.ErrExit("Error in query=%s for child partitions of table=%s: %v", query, tableName, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var childSchema, childTable string
+		err := rows.Scan(&childSchema, &childTable)
+		if err != nil {
+			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
+		}
+		childPartitions = append(childPartitions, sqlname.NewSourceName(childSchema, childTable))
+	}
+	return childPartitions
+} 

@@ -39,6 +39,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var PartitionsToRootTableMap = make(map[string]string)
+
 func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
@@ -57,8 +59,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-
-	tableList = filterTablePartitions(tableList)
+	tableList = modifyTablePartitionsList(tableList)
 	fmt.Printf("num tables to export: %d\n", len(tableList))
 	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -96,6 +97,10 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
+	var partitionsToRootTable []string
+	for partition, rootTable := range PartitionsToRootTableMap {
+		partitionsToRootTable = append(partitionsToRootTable, fmt.Sprintf("%s:%s", partition, rootTable))
+	}
 
 	config := &dbzm.Config{
 		RunId:          runId,
@@ -108,11 +113,12 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		Username:       source.User,
 		Password:       source.Password,
 
-		DatabaseName:      source.DBName,
-		SchemaNames:       source.Schema,
-		TableList:         dbzmTableList,
-		ColumnList:        dbzmColumnList,
-		ColumnSequenceMap: columnSequenceMap,
+		DatabaseName:             source.DBName,
+		SchemaNames:              source.Schema,
+		TableList:                dbzmTableList,
+		ColumnList:               dbzmColumnList,
+		ColumnSequenceMap:        columnSequenceMap,
+		PartitionsToRootTableMap: partitionsToRootTable,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -185,19 +191,50 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	return config, tableNameToApproxRowCountMap, nil
 }
 
-// required only for postgresql since GetAllTables() returns all tables and partitions
-func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	if source.DBType != POSTGRESQL || source.TableList != "" {
+// required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
+func modifyTablePartitionsList(tableList []*sqlname.SourceName) []*sqlname.SourceName {
+	requiredForSource := func(sourceDBType string) bool {
+		return sourceDBType == "postgresql" || sourceDBType == "yugabytedb"
+	}
+	if !requiredForSource(source.DBType) {
 		return tableList
 	}
 
-	filteredTableList := []*sqlname.SourceName{}
+	modifiedTableList := []*sqlname.SourceName{}
+
 	for _, table := range tableList {
-		if !source.DB().IsTablePartition(table) {
-			filteredTableList = append(filteredTableList, table)
+		rootTable := GetRootTableOfPartition(table)
+		allChildPartitions := GetAllPartitions(table)
+		if len(allChildPartitions) == 0 {
+			if rootTable != table { //child table is present in list through table-list flag
+				PartitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			}
+			modifiedTableList = append(modifiedTableList, table)
+		} else {
+			for _, childPartition := range allChildPartitions {
+				PartitionsToRootTableMap[childPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			}
+			modifiedTableList = append(modifiedTableList, allChildPartitions...)
 		}
 	}
-	return filteredTableList
+	return lo.Uniq(modifiedTableList)
+}
+
+func GetRootTableOfPartition(table *sqlname.SourceName) *sqlname.SourceName {
+	parentTable := source.DB().ParentTableOfPartition(table)
+	if parentTable == "" {
+		return table
+	}
+	return GetRootTableOfPartition(sqlname.NewSourceName(table.SchemaName.MinQuoted, parentTable)) //TODO: check for across schema partition case
+}
+
+func GetAllPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
+	allChildPartitions := []*sqlname.SourceName{}
+	childPartitions := source.DB().GetChildPartitions(table)
+	for _, childPartition := range childPartitions {
+		allChildPartitions = append(allChildPartitions, GetAllPartitions(childPartition)...)
+	}
+	return append(allChildPartitions, childPartitions...)
 }
 
 func prepareSSLParamsForDebezium(exportDir string) error {

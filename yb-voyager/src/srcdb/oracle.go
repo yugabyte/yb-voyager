@@ -357,7 +357,7 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
 }
 
-func (ora *Oracle) IsTablePartition(table *sqlname.SourceName) bool {
+func (ora *Oracle) ParentTableOfPartition(table *sqlname.SourceName) string {
 	panic("not implemented")
 }
 
@@ -444,3 +444,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }
+
+func (ora *Oracle) GetChildPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+	panic("not implemented")
+} 
