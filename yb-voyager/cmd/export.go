@@ -118,40 +118,8 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 }
 
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
-	// cmd.Flags().StringVar(&source.Host, "target-db-host", "127.0.0.1",
-	// 	"host on which the YugabyteDB server is running")
-
-	// cmd.Flags().IntVar(&source.Port, "target-db-port", -1,
-	// 	"port on which the YugabyteDB YSQL API is running")
-
-	// cmd.Flags().StringVar(&source.User, "target-db-user", "",
-	// 	"username with which to connect to the target YugabyteDB server")
-	// cmd.MarkFlagRequired("target-db-user")
-
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
-
-	// cmd.Flags().StringVar(&source.DBName, "target-db-name", "",
-	// 	"name of the database on the target YugabyteDB server on which import needs to be done")
-
-	// cmd.Flags().StringVar(&source.Schema, "target-db-schema", "",
-	// 	"target schema name in YugabyteDB")
-
-	// // TODO: SSL related more args might come. Need to explore SSL part completely.
-	// cmd.Flags().StringVar(&source.SSLCertPath, "target-ssl-cert", "",
-	// 	"Path of the file containing target SSL Certificate")
-
-	// cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "prefer",
-	// 	"specify the target SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
-
-	// cmd.Flags().StringVar(&source.SSLKey, "target-ssl-key", "",
-	// 	"Path of the file containing target SSL Key")
-
-	// cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
-	// 	"Path of the file containing target SSL Root Certificate")
-
-	// cmd.Flags().StringVar(&source.SSLCRL, "target-ssl-crl", "",
-	// 	"Path of the file containing target SSL Root Certificate Revocation List (CRL)")
 
 	source.VerboseMode = bool(VerboseMode)
 }

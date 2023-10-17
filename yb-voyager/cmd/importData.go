@@ -155,29 +155,9 @@ func startFallforwardSynchronizeIfRequired() {
 
 	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
 		"--export-dir", exportDir,
-		// "--target-db-host", tconf.Host,
-		// "--target-db-port", fmt.Sprintf("%d", tconf.Port),
-		// "--target-db-user", tconf.User,
-		// "--target-db-name", tconf.DBName,
-		// "--target-db-schema", tconf.Schema,
 		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
-	// if tconf.SSLMode != "" {
-	// 	cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
-	// }
-	// if tconf.SSLCertPath != "" {
-	// 	cmd = append(cmd, "--target-ssl-cert", tconf.SSLCertPath)
-	// }
-	// if tconf.SSLKey != "" {
-	// 	cmd = append(cmd, "--target-ssl-key", tconf.SSLKey)
-	// }
-	// if tconf.SSLRootCert != "" {
-	// 	cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
-	// }
-	// if tconf.SSLCRL != "" {
-	// 	cmd = append(cmd, "--target-ssl-crl", tconf.SSLCRL)
-	// }
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
