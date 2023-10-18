@@ -20,7 +20,7 @@ import (
 var (
 	backupSchemaFiles    utils.BoolStr
 	backupDataFiles      utils.BoolStr
-	backupMigrationFiles utils.BoolStr
+	saveMigrationReports utils.BoolStr
 	backupLogFiles       utils.BoolStr
 	backupDir            string
 )
@@ -48,14 +48,14 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	checkIfEndCommandCanBePerformed()
-
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("end migration: getting migration status record: %v", err)
 	} else if msr == nil {
 		utils.ErrExit("end migration: migration status record not found. Is the migration initialized?")
 	}
+	retrieveMigrationUUID()
+	checkIfEndCommandCanBePerformed(msr)
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
@@ -64,116 +64,17 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	cleanupFallBackDB(msr)
 
 	// backing up the state from the export directory
-	retrieveMigrationUUID()
 	backupSchemaFilesFn(msr)
 	backupDataFilesFn()
-	backupMigrationReportsFn()
+	saveMigrationReportsFn()
 	backupLogFilesFn()
 
 	utils.CleanDir(exportDir)
 	utils.PrintAndLog("Migration ended successfully")
 }
 
-func backupSchemaFilesFn(msr *metadb.MigrationStatusRecord) {
-	if !bool(backupSchemaFiles) || !msr.ExportSchemaDone {
-		return
-	}
-
-	log.Infof("backing up schema files to %s", backupDir)
-	err := os.MkdirAll(filepath.Join(backupDir, "schema-backup"), 0755)
-	if err != nil {
-		utils.ErrExit("end migration: creating schema backup directory: %v", err)
-	}
-
-	cmd := exec.Command("mv", filepath.Join(exportDir, "schema"), filepath.Join(backupDir, "schema-backup"))
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		utils.ErrExit("end migration: moving schema files: %s:\n%v", string(output), err)
-	}
-}
-
-func backupDataFilesFn() {
-	if !bool(backupDataFiles) {
-		return
-	}
-
-	log.Infof("backing up sql data files to %s", backupDir)
-	err := os.MkdirAll(filepath.Join(backupDir, "data-backup"), 0755)
-	if err != nil {
-		utils.ErrExit("end migration: creating data backup directory: %v", err)
-	}
-
-	files, err := os.ReadDir(filepath.Join(exportDir, "data"))
-	if err != nil {
-		utils.ErrExit("end migration: reading data directory: %v", err)
-	}
-	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), ".sql") {
-			continue
-		}
-
-		err = os.Rename(filepath.Join(exportDir, "data", file.Name()), filepath.Join(backupDir, "data-backup", file.Name()))
-		if err != nil {
-			utils.ErrExit("end migration: moving data files: %v", err)
-		}
-	}
-}
-
-func backupMigrationReportsFn() {
-	if !bool(backupMigrationFiles) {
-		return
-	}
-	log.Infof("backing up migration reports to %s", backupDir)
-	err := os.MkdirAll(filepath.Join(backupDir, "reports-backup"), 0755)
-	if err != nil {
-		utils.ErrExit("end migration: creating reports backup directory: %v", err)
-	}
-
-	err = os.Rename(filepath.Join(exportDir, "reports"), filepath.Join(backupDir, "reports-backup"))
-	if err != nil {
-		utils.ErrExit("end migration: moving migration reports: %v", err)
-	}
-
-	utils.PrintAndLog("backing up export data status report...")
-	file, err := os.Create(filepath.Join(backupDir, "reports", "export_data_status.txt"))
-	if err != nil {
-		utils.ErrExit("end migration: creating export data status report: %v", err)
-	}
-	originalStdout := os.Stdout
-	os.Stdout = file
-	exportDataStatusCmd.Run(exportDataStatusCmd, nil)
-	os.Stdout = originalStdout
-	file.Close()
-
-	utils.PrintAndLog("backing up export data status report...")
-	file, err = os.Create(filepath.Join(backupDir, "reports", "import_data_status.txt"))
-	if err != nil {
-		utils.ErrExit("end migration: creating import data status report: %v", err)
-	}
-	originalStdout = os.Stdout
-	os.Stdout = file
-	importDataStatusCmd.Run(importDataStatusCmd, nil)
-	os.Stdout = originalStdout
-	file.Close()
-}
-
-func backupLogFilesFn() {
-	if !bool(backupLogFiles) {
-		return
-	}
-	log.Infof("backing up log files to %s", backupDir)
-	// err := os.MkdirAll(filepath.Join(backupDir, "logs-backup"), 0755)
-	// if err != nil {
-	// 	utils.ErrExit("end migration: creating logs backup directory: %v", err)
-	// }
-
-	err := os.Rename(filepath.Join(exportDir, "logs"), filepath.Join(backupDir, "logs-backup"))
-	if err != nil {
-		utils.ErrExit("end migration: moving log files: %v", err)
-	}
-}
-
 func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
+	utils.PrintAndLog("cleaning up source db...")
 	source := msr.SourceDBConf
 	if source == nil {
 		log.Infof("source db conf is not set. skipping cleanup")
@@ -193,6 +94,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
+	utils.PrintAndLog("cleaning up target db...")
 	if msr.TargetDBConf == nil {
 		log.Infof("target db conf is not set. skipping cleanup")
 		return
@@ -208,6 +110,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 	if msr.FallForwardEnabled {
+		utils.PrintAndLog("cleaning up fall-forward db...")
 		ffdb := tgtdb.NewTargetDB(msr.FallForwardDBConf)
 		err := ffdb.Init()
 		if err != nil {
@@ -220,6 +123,7 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 
 func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	if msr.FallbackEnabled {
+		utils.PrintAndLog("cleaning up fallback db...")
 		fbdb := tgtdb.NewTargetDB(msr.SourceDBAsTargetConf)
 		err := fbdb.Init()
 		if err != nil {
@@ -230,8 +134,98 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
+func backupSchemaFilesFn(msr *metadb.MigrationStatusRecord) {
+	if !bool(backupSchemaFiles) {
+		return
+	}
+
+	log.Infof("backing up schema files to %s", backupDir)
+	err := os.MkdirAll(filepath.Join(backupDir, "schema-backup"), 0755)
+	if err != nil {
+		utils.ErrExit("end migration: creating schema backup directory: %v", err)
+	}
+
+	cmd := exec.Command("mv", filepath.Join(exportDir, "schema"), filepath.Join(backupDir, "schema-backup"))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		utils.ErrExit("end migration: moving schema files: %s: %v", string(output), err)
+	}
+}
+
+func backupDataFilesFn() {
+	if !bool(backupDataFiles) {
+		return
+	}
+
+	log.Infof("backing up sql data files to %s", backupDir)
+	err := os.MkdirAll(filepath.Join(backupDir, "data-backup"), 0755)
+	if err != nil {
+		utils.ErrExit("end migration: creating data backup directory: %v", err)
+	}
+
+	files, err := os.ReadDir(filepath.Join(exportDir, "data"))
+	if err != nil {
+		utils.ErrExit("end migration: reading data directory: %v", err)
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".sql") {
+			continue
+		}
+
+		err = os.Rename(filepath.Join(exportDir, "data", file.Name()), filepath.Join(backupDir, "data-backup", file.Name()))
+		if err != nil {
+			utils.ErrExit("end migration: moving data files: %v", err)
+		}
+	}
+}
+
+func saveMigrationReportsFn() {
+	if !bool(saveMigrationReports) {
+		return
+	}
+	log.Infof("saving up migration reports to %s", backupDir)
+	// TODO: what if there is report.txt generated from analyze-schema step
+	err := os.Rename(filepath.Join(exportDir, "reports"), filepath.Join(backupDir, "reports-backup"))
+	if err != nil {
+		utils.ErrExit("end migration: moving migration reports: %v", err)
+	}
+
+	utils.PrintAndLog("saving data export reports...")
+	file, err := os.Create(filepath.Join(backupDir, "reports", "export_data_report.txt"))
+	if err != nil {
+		utils.ErrExit("end migration: creating export data status report: %v", err)
+	}
+	originalStdout := os.Stdout
+	os.Stdout = file
+	exportDataStatusCmd.Run(exportDataStatusCmd, nil)
+	os.Stdout = originalStdout
+	file.Close()
+
+	utils.PrintAndLog("saving data import reports...")
+	file, err = os.Create(filepath.Join(backupDir, "reports", "import_data_report.txt"))
+	if err != nil {
+		utils.ErrExit("end migration: creating import data status report: %v", err)
+	}
+	originalStdout = os.Stdout
+	os.Stdout = file
+	importDataStatusCmd.Run(importDataStatusCmd, nil)
+	os.Stdout = originalStdout
+	file.Close()
+}
+
+func backupLogFilesFn() {
+	if !bool(backupLogFiles) {
+		return
+	}
+	log.Infof("backing up log files to %s", backupDir)
+	err := os.Rename(filepath.Join(exportDir, "logs"), filepath.Join(backupDir, "logs-backup"))
+	if err != nil {
+		utils.ErrExit("end migration: moving log files: %v", err)
+	}
+}
+
 func validateEndMigrationFlags(cmd *cobra.Command) error {
-	flags := []string{"backup-schema-files", "backup-data-files", "backup-migration-reports", "backup-log-files"}
+	flags := []string{"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files"}
 	for _, flag := range flags {
 		if cmd.Flag(flag).Value.String() == "true" && !cmd.Flag("backup-dir").Changed {
 			return fmt.Errorf("flag %s requires --backup-dir flag to be set", flag)
@@ -240,8 +234,9 @@ func validateEndMigrationFlags(cmd *cobra.Command) error {
 	return nil
 }
 
-func checkIfEndCommandCanBePerformed() {
+func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	// check if any ongoing voyager command
+	// TODO: but this will not work if the command is run but not waited for completion like status commands
 	matches, err := filepath.Glob(filepath.Join(exportDir, ".*.lck"))
 	if err != nil {
 		utils.ErrExit("end migration: checking for ongoing voyager commands: %v", err)
@@ -251,7 +246,7 @@ func checkIfEndCommandCanBePerformed() {
 		for _, match := range matches {
 			match = strings.TrimPrefix(match, ".")
 			match = strings.TrimSuffix(match, "Lockfile.lck")
-			if match == "end-migration" {
+			if match == "end-migration" || strings.HasSuffix(match, "StatusCmd") {
 				continue
 			}
 			ongoingCmds = append(ongoingCmds, match)
@@ -264,7 +259,15 @@ func checkIfEndCommandCanBePerformed() {
 		log.Infof("no ongoing voyager commands found")
 	}
 
+	if bool(backupSchemaFiles) && !msr.ExportSchemaDone {
+		utils.ErrExit("backup schema files flag is set but schema export is not done")
+	}
+
 	if backupDataFiles {
+		if !msr.ExportDataDone {
+			utils.ErrExit("backup data files flag is set but data export is not done")
+		}
+
 		// verify that the size of backup-data dir to be greater the export-dir/data dir
 		exportDirDataSize, err := calculateDirSizeWithPattern(exportDir, "data/*.sql")
 		if err != nil {
@@ -282,8 +285,6 @@ func checkIfEndCommandCanBePerformed() {
 
 		}
 	}
-
-	// TODO: more checks like if the migration is in progress or not
 }
 
 func calculateDirSizeWithPattern(dirPath string, filePattern string) (int64, error) {
@@ -323,8 +324,7 @@ func init() {
 
 	BoolVar(endMigrationCmd.Flags(), &backupSchemaFiles, "backup-schema-files", false, "backup migration schema files")
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup migration data files")
-	// Name of flag: backup-migration-reports or save-migration-reports
-	BoolVar(endMigrationCmd.Flags(), &backupMigrationFiles, "backup-migration-reports", false, "backup migration reports")
+	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save schema and data migration reports")
 	BoolVar(endMigrationCmd.Flags(), &backupLogFiles, "backup-log-files", false, "backup migration log files")
 	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory")
 	endMigrationCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
@@ -332,7 +332,7 @@ func init() {
 
 	endMigrationCmd.MarkFlagRequired("backup-schema-files")
 	endMigrationCmd.MarkFlagRequired("backup-data-files")
-	endMigrationCmd.MarkFlagRequired("backup-migration-reports")
+	endMigrationCmd.MarkFlagRequired("save-migration-reports")
 	endMigrationCmd.MarkFlagRequired("backup-log-files")
 	endMigrationCmd.MarkFlagRequired("export-dir")
 }

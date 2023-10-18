@@ -754,7 +754,8 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 		}
 	}
 
-	// manually delete the USER in case of Oracle
+	// ask to manually delete the USER in case of FF or FB
+	// TODO: check and inform user if there is another migrationUUID data in metadata schema tables before cleaning up the schema
 	utils.PrintAndLog(`Please manually delete the user '%s' from the '%s' host using the following SQL statement:
 		DROP USER %s CASCADE`, tdb.tconf.Schema, tdb.tconf.Host, tdb.tconf.Schema)
 	return nil
