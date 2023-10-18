@@ -75,6 +75,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	err = proc.Wait()
 	if err != nil {
 		fmt.Printf("pg_dump failed to export data with error: %v. For more details check '%s/yb-voyager-export-data.log'.\n", err, exportDir)
+		log.Infof("pg_dump failed to export data with output: %s", outbuf.String())
 		log.Infof("pg_dump failed to export data with error: %v\n%s", err, errbuf.String())
 		quitChan <- true
 		runtime.Goexit()
