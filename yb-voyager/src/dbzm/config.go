@@ -30,6 +30,7 @@ import (
 )
 
 type Config struct {
+	MigrationUUID  string
 	RunId          string
 	SourceDBType   string
 	ExporterRole   string
@@ -152,6 +153,7 @@ debezium.source.database.history=io.debezium.relational.history.FileDatabaseHist
 debezium.source.database.history.file.filename=%s
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
+log.mining.flush.table.name=%s
 debezium.source.schema.history.internal.skip.unparseable.ddl=true
 debezium.source.schema.history.internal.store.only.captured.tables.ddl=true
 debezium.source.schema.history.internal.store.only.captured.databases.ddl=true
@@ -249,6 +251,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
 		// defaults to 1GB
@@ -331,6 +334,7 @@ func (c *Config) String() string {
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+			fmt.Sprintf("LOG_MINING_FLUSH_%s", c.MigrationUUID),
 
 			dataDir,
 			c.ColumnSequenceMapping,
