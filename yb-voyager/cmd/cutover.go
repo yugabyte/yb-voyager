@@ -142,6 +142,7 @@ func exitIfDBSwitchedOver(triggerName string) {
 	}
 	cutoverMsg := "cutover already completed for this migration, aborting..."
 	fallforwardMsg := "fallforward already completed for this migration, aborting..."
+	fallbackMsg := "fallback already completed for this migration, aborting..."
 	switch triggerName { // only these trigger names required to be checked for db switch over
 	case "cutover.source":
 		if msr.CutoverProcessedBySourceExporter {
@@ -161,11 +162,11 @@ func exitIfDBSwitchedOver(triggerName string) {
 		}
 	case "fallback.source":
 		if msr.FallBackSwitchProcessedByFBImporter {
-			utils.ErrExit(fallforwardMsg)
+			utils.ErrExit(fallbackMsg)
 		}
 	case "fallback.target":
-		if msr.FallForwardSwitchProcessedByTargetExporter {
-			utils.ErrExit(fallforwardMsg)
+		if msr.FallBackSwitchProcessedByTargetExporter {
+			utils.ErrExit(fallbackMsg)
 		}
 	default:
 		panic("invalid trigger name - " + triggerName)

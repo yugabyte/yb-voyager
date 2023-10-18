@@ -166,7 +166,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting %s synchronize with command:\n %s", voyagerCmdPrefix, color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -175,7 +175,7 @@ func startFallforwardSynchronizeIfRequired() {
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager %s synchronize - %w\n Please re-run with command :\n%s", voyagerCmdPrefix, err, cmdStr)
 	}
 }
 
@@ -397,7 +397,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		if err != nil {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
-		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
 	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
@@ -405,6 +404,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	// Import snapshots
 	if importerRole != FB_DB_IMPORTER_ROLE {
+		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
@@ -430,9 +430,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			time.Sleep(time.Second * 2)
 		}
+		utils.PrintAndLog("snapshot data import complete\n\n")
+		callhome.PackAndSendPayload(exportDir)
 	}
-	utils.PrintAndLog("snapshot data import complete\n\n")
-	callhome.PackAndSendPayload(exportDir)
+
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
@@ -441,10 +442,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != FB_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-			color.Blue("streaming changes to target DB...")
+			color.Blue("streaming changes to %s DB...", tconf.TargetDBType)
 			err = streamChanges(state, importFileTasksToTableNames(importFileTasks))
 			if err != nil {
-				utils.ErrExit("Failed to stream changes from source DB: %s", err)
+				utils.ErrExit("Failed to stream changes to %s DB: %s", tconf.TargetDBType, err)
 			}
 
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
@@ -457,7 +458,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
 
-			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
+			utils.PrintAndLog("Completed streaming all relevant changes to %s DB", tconf.TargetDBType)
 			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
