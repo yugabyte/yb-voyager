@@ -14,8 +14,14 @@ CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
             PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
         );
 
--- added this step after 1.6 release
+-- added three steps after 1.6 release
+
 ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); 
+
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 DROP PRIMARY KEY;
+
+ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD CONSTRAINT ybvoyager_import_data_batches_metainfo_v2_pk PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name);
+
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),
