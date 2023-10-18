@@ -73,6 +73,5 @@ func initTargetConfFromSourceConf() error {
 	tconf.DBSid = sconf.DBSid
 	tconf.TNSAlias = sconf.TNSAlias
 	tconf.OracleHome = sconf.OracleHome
-	// tconf.Uri = sconf.Uri
 	return nil
 }

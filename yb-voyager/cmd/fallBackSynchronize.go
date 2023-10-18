@@ -29,6 +29,7 @@ var fallBackSynchronizeCmd = &cobra.Command{
 	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateExportDirFlag()
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
@@ -78,6 +79,5 @@ func initSourceConfFromTargetConf() error {
 	source.SSLRootCert = targetConf.SSLRootCert
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
-	// source.Uri = targetConf.Uri
 	return nil
 }
