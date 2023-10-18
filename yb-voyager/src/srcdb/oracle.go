@@ -290,7 +290,7 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useD
 	}
 
 	for _, table := range tableList {
-		if !slices.Contains(unsupportedTableList, table) {
+		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != "LOG_MINING_FLUSH" {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}
