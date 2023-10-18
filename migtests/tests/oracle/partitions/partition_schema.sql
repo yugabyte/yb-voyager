@@ -65,3 +65,34 @@ CREATE TABLE SALES_HASH
   );
 
 ALTER TABLE SALES_HASH ADD (CONSTRAINT s_prod_id_pk PRIMARY KEY (s_productid, s_custid));
+
+
+--Multi Level partitions
+
+create table sub_par_test(emp_name varchar2(30),job_id varchar2(30),hire_date date, PRIMARY KEY(hire_date, job_id))
+   partition by range(hire_date) 
+   subpartition by list(job_id)(
+   Partition P1 Values Less Than(To_Date('01-01-2003','dd-mm-yyyy'))
+   (
+    Subpartition Sp1 Values('HR_REP','PU_MAN'),
+    Subpartition Sp11 Values(Default)
+    ),
+   Partition P2 Values Less Than(To_Date('01-01-2004','dd-mm-yyyy'))
+   (
+    subpartition sp2 values('AC_ACCOUNT','FI_ACCOUNT') ,
+    Subpartition Sp22 Values(Default)
+   ),
+    Partition P3 Values Less Than(To_Date('01-01-2005','dd-mm-yyyy'))
+    (
+    subpartition sp3 values('SH_CLERK','ST_CLERK'),
+    subpartition sp33 values(default)
+   ),
+   Partition P4 Values Less Than(To_Date('01-01-2006','dd-mm-yyyy'))(
+    subpartition sp4 values('SA_MAN','PU_MAN'),
+    subpartition sp44 values(default)
+   ),
+   partition p5 values less than(maxvalue)(
+    subpartition sp5 values(default)
+)) ;
+
+
