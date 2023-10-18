@@ -155,7 +155,7 @@ func clearSchemaIsExported() {
 
 func updateIndexesInfoInMetaDB() {
 	log.Infof("updating indexes info in metaDB")
-	if !utils.ContainsString(source.ExportObjectTypesList, "TABLE") {
+	if !utils.ContainsString(source.ExportObjectTypeList, "TABLE") {
 		log.Infof("skipping updating indexes info in metaDB since TABLE object type is not being exported")
 		return
 	}
