@@ -502,13 +502,16 @@ func clearDataIsExported() {
 
 func updateSourceDBConfInMSR() {
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.SourceDBConf == nil {
-			record.SourceDBConf = source.Clone()
-			record.SourceDBConf.Password = ""
-			record.SourceDBConf.Uri = ""
-		} else {
-			// currently db type is only required for import data commands
-			record.SourceDBConf.DBType = source.DBType
+		switch exporterRole {
+		case SOURCE_DB_EXPORTER_ROLE:
+			if record.SourceDBConf == nil {
+				record.SourceDBConf = source.Clone()
+				record.SourceDBConf.Password = ""
+				record.SourceDBConf.Uri = ""
+			} else {
+				// currently db type is only required for import data commands
+				record.SourceDBConf.DBType = source.DBType
+			}
 		}
 	})
 }
