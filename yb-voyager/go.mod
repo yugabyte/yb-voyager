@@ -14,6 +14,7 @@ require (
 	github.com/fatih/color v1.13.0
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/godror/godror v0.30.2
+	github.com/gofrs/uuid v4.3.1+incompatible
 	github.com/google/uuid v1.3.0
 	github.com/gosuri/uilive v0.0.4
 	github.com/gosuri/uitable v0.0.4

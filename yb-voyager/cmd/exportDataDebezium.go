@@ -105,7 +105,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}), ",")
 
 	config := &dbzm.Config{
-		MigrationUUID:  migrationUUID.String(),
+		MigrationUUID:  migrationUUID,
 		RunId:          runId,
 		SourceDBType:   source.DBType,
 		ExporterRole:   exporterRole,

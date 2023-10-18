@@ -25,12 +25,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Config struct {
-	MigrationUUID  string
+	MigrationUUID  uuid.UUID
 	RunId          string
 	SourceDBType   string
 	ExporterRole   string
@@ -251,6 +252,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
+	logMiningFlushTable := fmt.Sprintf("LOG_MINING_FLUSH_%s", strings.Replace(c.MigrationUUID.String(), "-", "_", -1))
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
@@ -334,7 +336,7 @@ func (c *Config) String() string {
 			schemaNames,
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
-			fmt.Sprintf("LOG_MINING_FLUSH_%s", c.MigrationUUID),
+			logMiningFlushTable,
 
 			dataDir,
 			c.ColumnSequenceMapping,

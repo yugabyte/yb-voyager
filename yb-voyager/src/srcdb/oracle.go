@@ -269,7 +269,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 	return charset, nil
 }
 
-func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	var filteredTableList, unsupportedTableList []*sqlname.SourceName
 
 	// query to find unsupported queue tables
@@ -301,8 +301,9 @@ func (ora *Oracle) FilterUnsupportedTables(tableList []*sqlname.SourceName, useD
 		}
 	}
 
+	logMiningFlushTable := fmt.Sprintf("LOG_MINING_FLUSH_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
 	for _, table := range tableList {
-		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != "LOG_MINING_FLUSH" {
+		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != logMiningFlushTable {
 			filteredTableList = append(filteredTableList, table)
 		}
 	}

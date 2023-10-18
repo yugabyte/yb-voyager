@@ -388,7 +388,7 @@ func (pg *PostgreSQL) GetCharset() (string, error) {
 	return encoding, nil
 }
 
-func (pg *PostgreSQL) FilterUnsupportedTables(tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
+func (pg *PostgreSQL) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []*sqlname.SourceName, useDebezium bool) ([]*sqlname.SourceName, []*sqlname.SourceName) {
 	return tableList, nil
 }
 
