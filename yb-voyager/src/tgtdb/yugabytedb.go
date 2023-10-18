@@ -219,7 +219,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 // Voyager 1.4 uses import data state format that is incompatible from
 // the earlier versions.
 const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
-const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
+const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 
@@ -227,26 +227,14 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
 		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			migration_uuid uuid,
 			data_file_name VARCHAR(250),
 			batch_number INT,
 			schema_name VARCHAR(250),
 			table_name VARCHAR(250),
 			rows_imported BIGINT,
-			PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
+			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s 
-			ADD COLUMN IF NOT EXISTS 
-			migration_uuid uuid`, 
-			BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s 
-			DROP CONSTRAINT 
-			ybvoyager_import_data_batches_metainfo_v2_pkey;`,
-			BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s
-			ADD CONSTRAINT
-			ybvoyager_import_data_batches_metainfo_v2_pkey
-			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name);`,
-			BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
