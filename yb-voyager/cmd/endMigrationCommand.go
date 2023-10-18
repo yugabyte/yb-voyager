@@ -57,6 +57,8 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
+	saveMigrationReportsFn()
+
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
 	cleanupTargetDB(msr)
@@ -66,10 +68,9 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// backing up the state from the export directory
 	backupSchemaFilesFn(msr)
 	backupDataFilesFn()
-	saveMigrationReportsFn()
 	backupLogFilesFn()
 
-	utils.CleanDir(exportDir)
+	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 }
 
@@ -131,6 +132,17 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		}
 		defer fbdb.Finalize()
 		fbdb.ClearMigrationState(migrationUUID, exportDir)
+	}
+}
+
+func cleanupExportDir() {
+	utils.PrintAndLog("cleaning up export dir...")
+	subdirs := []string{"schema", "data", "logs", "reports", "temp", "metainfo"}
+	for _, subdir := range subdirs {
+		err := os.RemoveAll(filepath.Join(exportDir, subdir))
+		if err != nil {
+			utils.ErrExit("end migration: removing %s directory: %v", subdir, err)
+		}
 	}
 }
 
