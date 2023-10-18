@@ -78,6 +78,6 @@ func initSourceConfFromTargetConf() error {
 	source.SSLRootCert = targetConf.SSLRootCert
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
-	source.Uri = targetConf.Uri
+	// source.Uri = targetConf.Uri
 	return nil
 }

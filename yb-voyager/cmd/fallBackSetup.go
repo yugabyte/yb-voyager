@@ -28,8 +28,10 @@ var fallBackSetupCmd = &cobra.Command{
 	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateExportDirFlag()
 		importType = SNAPSHOT_AND_CHANGES
 		importerRole = FB_DB_IMPORTER_ROLE
+
 		err := initTargetConfFromSourceConf()
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
@@ -71,6 +73,6 @@ func initTargetConfFromSourceConf() error {
 	tconf.DBSid = sconf.DBSid
 	tconf.TNSAlias = sconf.TNSAlias
 	tconf.OracleHome = sconf.OracleHome
-	tconf.Uri = sconf.Uri
+	// tconf.Uri = sconf.Uri
 	return nil
 }
