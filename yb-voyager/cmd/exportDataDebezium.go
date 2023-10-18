@@ -388,7 +388,9 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
-	displayExportedRowCountSnapshot()
+	if !isTargetDBExporter(exporterRole) {
+		displayExportedRowCountSnapshot()
+	}
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
@@ -396,6 +398,10 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		}
 	}
 	return true, nil
+}
+
+func isTargetDBExporter(exporterRole string) bool {
+	return exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {

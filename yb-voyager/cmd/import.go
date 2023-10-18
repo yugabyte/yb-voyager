@@ -222,7 +222,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
 		"Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import (default false)\n"+
 			"Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.\n"+
-			"Refer: https://docs.yugabyte.com/latest/reference/configuration/yb-tserver/#server-broadcast-addresses")
+			"Refer: https://docs.yugabyte.com/preview/reference/configuration/yb-tserver/#server-broadcast-addresses")
 	cmd.Flags().StringVar(&tconf.TargetEndpoints, "target-endpoints", "",
 		"comma separated list of node's endpoint to use for parallel import of data(default is to use all the nodes in the cluster).\n"+
 			"For example: \"host1:port1,host2:port2\" or \"host1,host2\"\n"+
