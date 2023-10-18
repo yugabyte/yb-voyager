@@ -305,7 +305,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
 	result := []string{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %q is empty.", table)
+		log.Infof("checking if table %q is empty.", table)
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
 		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
@@ -1104,7 +1104,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 		if !yb.isTableExists(table) {
 			continue
 		}
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
 		_, err := yb.Exec(query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)
@@ -1116,8 +1116,9 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
 		utils.PrintAndLog("removed the current migration state from the target DB. "+"But could not remove the schema %s as it is not empty", schema)
+		return nil
 	}
-
+	log.Infof("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := yb.conn_.Exec(context.Background(), query)
 	if err != nil {

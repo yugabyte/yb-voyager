@@ -185,7 +185,7 @@ func saveMigrationReportsFn() {
 	}
 	log.Infof("saving up migration reports to %s", backupDir)
 	// TODO: what if there is report.txt generated from analyze-schema step
-	err := os.Rename(filepath.Join(exportDir, "reports"), filepath.Join(backupDir, "reports-backup"))
+	err := os.Rename(filepath.Join(exportDir, "reports"), filepath.Join(backupDir, "reports"))
 	if err != nil {
 		utils.ErrExit("end migration: moving migration reports: %v", err)
 	}
