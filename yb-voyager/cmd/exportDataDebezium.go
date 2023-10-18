@@ -242,9 +242,14 @@ func GetAllPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
 	allChildPartitions := []*sqlname.SourceName{}
 	childPartitions := source.DB().GetChildPartitions(table)
 	for _, childPartition := range childPartitions {
-		allChildPartitions = append(allChildPartitions, GetAllPartitions(childPartition)...)
+		grandChildPartitions := GetAllPartitions(childPartition)
+		if len(grandChildPartitions) == 0 {
+			allChildPartitions = append(allChildPartitions, childPartition)
+		} else {
+			allChildPartitions = append(allChildPartitions, grandChildPartitions...)
+		}
 	}
-	return append(allChildPartitions, childPartitions...)
+	return allChildPartitions
 }
 
 func prepareSSLParamsForDebezium(exportDir string) error {
