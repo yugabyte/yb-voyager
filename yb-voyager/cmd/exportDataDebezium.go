@@ -59,9 +59,9 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-	tableList, err = modifyTablePartitionsList(tableList)
+	tableList, err = addLeafPartitionsInTableList(tableList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to modify table partitions list: %w", err)
+		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
 	}
 	fmt.Printf("num tables to export: %d\n", len(tableList))
 	utils.PrintAndLog("table list for data export: %v", tableList)
@@ -195,32 +195,31 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func modifyTablePartitionsList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
-	requiredForSource := func(sourceDBType string) bool {
-		return sourceDBType == "postgresql" || sourceDBType == "yugabytedb"
-	}
-	if !requiredForSource(source.DBType) {
+func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
+	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
+	if !requiredForSource  {
 		return tableList, nil
 	}
 
 	modifiedTableList := []*sqlname.SourceName{}
-
+	//TODO: test when we upgrade to PG13+ as partitions are handled with root table 
+	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
 		}
-		allChildPartitions := GetAllPartitions(table)
-		if len(allChildPartitions) == 0 {
+		allLeafPartitions := GetAllLeafPartitions(table)
+		if len(allLeafPartitions) == 0 {
 			if rootTable != table { //child table is present in list through table-list flag
 				PartitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
 			}
 			modifiedTableList = append(modifiedTableList, table)
 		} else {
-			for _, childPartition := range allChildPartitions {
+			for _, childPartition := range allLeafPartitions {
 				PartitionsToRootTableMap[childPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
 			}
-			modifiedTableList = append(modifiedTableList, allChildPartitions...)
+			modifiedTableList = append(modifiedTableList, allLeafPartitions...)
 		}
 	}
 	return lo.Uniq(modifiedTableList), nil
@@ -238,18 +237,18 @@ func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, er
 	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
 }
 
-func GetAllPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
-	allChildPartitions := []*sqlname.SourceName{}
+func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
+	allLeafPartitions := []*sqlname.SourceName{}
 	childPartitions := source.DB().GetChildPartitions(table)
 	for _, childPartition := range childPartitions {
-		grandChildPartitions := GetAllPartitions(childPartition)
-		if len(grandChildPartitions) == 0 {
-			allChildPartitions = append(allChildPartitions, childPartition)
+		leafPartitions := GetAllLeafPartitions(childPartition)
+		if len(leafPartitions) == 0 {
+			allLeafPartitions = append(allLeafPartitions, childPartition)
 		} else {
-			allChildPartitions = append(allChildPartitions, grandChildPartitions...)
+			allLeafPartitions = append(allLeafPartitions, leafPartitions...)
 		}
 	}
-	return allChildPartitions
+	return allLeafPartitions
 }
 
 func prepareSSLParamsForDebezium(exportDir string) error {
