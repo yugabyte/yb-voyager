@@ -599,7 +599,7 @@ func GetSourceDBTypeFromMSR() string {
 
 func getImportTableList(sourceTableList []string) []string {
 	var tableList  []string
-	sqlname.SourceDBType = ORACLE
+	sqlname.SourceDBType = ORACLE //TODO: for now just test the flow, will change it to source.DBType after fix of rewritten source type after synchronize
 	for _, qualifiedTableName := range sourceTableList {
 		// TODO: handle case sensitivity?
 		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)

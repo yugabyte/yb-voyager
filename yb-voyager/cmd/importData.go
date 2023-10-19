@@ -404,7 +404,9 @@ func importData(importFileTasks []*ImportFileTask) {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
 	sourceTableList := msr.TableListExportedFromSource
-	source = *msr.SourceDBConf
+	if msr.SourceDBConf != nil {
+		source = *msr.SourceDBConf
+	}
 	importTableList := getImportTableList(sourceTableList)
 
 	disableGeneratedAlwaysAsIdentityColumns(importTableList)
