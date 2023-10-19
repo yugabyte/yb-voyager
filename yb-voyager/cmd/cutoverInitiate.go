@@ -46,12 +46,12 @@ var cutoverInitiateCmd = &cobra.Command{
 				utils.ErrExit(`required flag "prepare-for-fall-back" not set`)
 			}
 		}
-		if prepareForFallBack {
-			updateFallBackEnabledInMetaDB()
-		}
 		err = InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
+		}
+		if prepareForFallBack {
+			updateFallBackEnabledInMetaDB()
 		}
 	},
 }
