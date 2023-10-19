@@ -399,7 +399,24 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
+	sourceTableList := msr.TableListExportedFromSource
+	source = *msr.SourceDBConf
+	var unqualifiedTableList []string
+	for _, qualifiedTableName := range sourceTableList {
+		// TODO: handle case sensitivity?
+		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
+		table := tableName.ObjectName.MinQuoted
+		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
+			table = tableName.Qualified.MinQuoted
+		}
+		unqualifiedTableList = append(unqualifiedTableList, table)
+	}
+
+	disableGeneratedAlwaysAsIdentityColumns(unqualifiedTableList)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	// Import snapshots
@@ -481,13 +498,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	fmt.Printf("\nImport data complete.\n")
 }
 
-func disableGeneratedAlwaysAsIdentityColumns(importFileTasks []*ImportFileTask) {
+func disableGeneratedAlwaysAsIdentityColumns(tables []string) {
 	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &TableToIdentityColumnNames)
 	if err != nil {
 		utils.ErrExit("failed to get identity columns from meta db: %s", err)
 	}
 	if !found {
-		tables := importFileTasksToTableNames(importFileTasks)
 		TableToIdentityColumnNames = getGeneratedAlwaysAsIdentityColumnNamesForTables(tables)
 		// saving in metadb for handling restarts
 		metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, TableToIdentityColumnNames)
