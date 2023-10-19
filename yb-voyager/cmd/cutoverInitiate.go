@@ -35,6 +35,17 @@ var cutoverInitiateCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to initialize meta db: %s", err)
 		}
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("get migration status record: %v", err)
+		}
+		if !msr.FallForwardEnabled {
+			// --prepare-for-fall-back is mandatory in this case.
+			prepareForFallBackSpecified := cmd.Flags().Changed("prepare-for-fall-back")
+			if !prepareForFallBackSpecified {
+				utils.ErrExit(`required flag "prepare-for-fall-back" not set`)
+			}
+		}
 		if prepareForFallBack {
 			updateFallBackEnabledInMetaDB()
 		}
