@@ -240,7 +240,23 @@ func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRo
 		}
 	}
 
-	for _, dataFile := range dataFileDescriptor.DataFileList {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	source = *msr.SourceDBConf
+	importTableList := getImportTableList(msr.TableListExportedFromSource)
+
+	for _, tableName := range importTableList {
+		dataFile := dataFileDescriptor.GetDataFileEntry(tableName)
+		if dataFile == nil {
+			dataFile = &datafile.FileEntry{
+				FilePath:  "None", //TODO: check what should be appropriate to mention here
+				TableName: tableName,
+				FileSize:  0,
+				RowCount:  0,
+			}
+		}
 		var totalCount, importedCount int64
 		var err error
 		var perc float64

@@ -82,11 +82,30 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
 	var row *exportTableMigStatusOutputRow
-	for _, tableStatus := range status.Tables {
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
+	}
+	source = *msr.SourceDBConf
+	tableList := msr.TableListExportedFromSource
+
+	for _, table := range tableList {
+		schemaName := strings.Split(table, ".")[0]
+		tableName := strings.Split(table, ".")[1]
+		tableStatus := status.GetTableStatus(tableName, schemaName)
+		if tableStatus == nil {
+			tableStatus = &dbzm.TableExportStatus{
+				TableName: tableName,
+				SchemaName: schemaName,
+				ExportedRowCountSnapshot: 0,
+				FileName: "None",
+			}
+		}
 		if streamChanges {
-			row = getSnapshotAndChangesExportStatusRow(&tableStatus)
+			row = getSnapshotAndChangesExportStatusRow(tableStatus)
 		} else {
-			row = getSnapshotExportStatusRow(&tableStatus)
+			row = getSnapshotExportStatusRow(tableStatus)
 		}
 		rows = append(rows, row)
 	}

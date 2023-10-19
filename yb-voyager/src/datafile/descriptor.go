@@ -114,3 +114,12 @@ func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
 	}
 	return nil
 }
+
+func (dfd *Descriptor) GetDataFileEntry(tableName string) *FileEntry {
+	for _, fileEntry := range dfd.DataFileList {
+		if fileEntry.TableName == tableName {
+			return fileEntry
+		}
+	}
+	return nil
+}

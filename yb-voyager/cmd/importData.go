@@ -405,18 +405,9 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	sourceTableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
-	var unqualifiedTableList []string
-	for _, qualifiedTableName := range sourceTableList {
-		// TODO: handle case sensitivity?
-		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
-		table := tableName.ObjectName.MinQuoted
-		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
-			table = tableName.Qualified.MinQuoted
-		}
-		unqualifiedTableList = append(unqualifiedTableList, table)
-	}
+	importTableList := getImportTableList(sourceTableList)
 
-	disableGeneratedAlwaysAsIdentityColumns(unqualifiedTableList)
+	disableGeneratedAlwaysAsIdentityColumns(importTableList)
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	// Import snapshots
@@ -481,7 +472,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
-			displayImportedRowCountSnapshotAndChanges(state, importFileTasks)
+			displayImportedRowCountSnapshotAndChanges(state, importTableList)
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
