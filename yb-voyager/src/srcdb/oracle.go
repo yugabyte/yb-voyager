@@ -301,7 +301,7 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 		}
 	}
 
-	logMiningFlushTable := fmt.Sprintf("LOG_MINING_FLUSH_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
+	logMiningFlushTable := utils.GetLogMiningFlushTableName(migrationUUID)
 	for _, table := range tableList {
 		if !slices.Contains(unsupportedTableList, table) && table.ObjectName.MinQuoted != logMiningFlushTable {
 			filteredTableList = append(filteredTableList, table)

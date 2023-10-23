@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yosssi/gohtml"
@@ -486,4 +487,10 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 		return nil, fmt.Errorf("error reading file %s: %v", filePath, err)
 	}
 	return list, nil
+}
+
+func GetLogMiningFlushTableName(migrationUUID uuid.UUID) string {
+	// SQL tables doesn't support '-' in the name
+	convertedMigUUID := strings.Replace(migrationUUID.String(), "-", "_", -1)
+	return fmt.Sprintf("YBVOYAGER_LOG_MINING_FLUSH_%s", convertedMigUUID)
 }

@@ -252,7 +252,7 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-	logMiningFlushTable := fmt.Sprintf("LOG_MINING_FLUSH_%s", strings.Replace(c.MigrationUUID.String(), "-", "_", -1))
+	logMiningFlushTable := utils.GetLogMiningFlushTableName(c.MigrationUUID)
 	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
