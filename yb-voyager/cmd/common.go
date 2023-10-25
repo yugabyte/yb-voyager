@@ -209,7 +209,7 @@ func displayExportedRowCountSnapshotAndChanges() {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
-	
+
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
@@ -220,13 +220,13 @@ func displayExportedRowCountSnapshotAndChanges() {
 	for i, table := range tableList {
 		schemaName := strings.Split(table, ".")[0]
 		tableName := strings.Split(table, ".")[1]
-		tableStatus := exportStatus.GetTableStatus(tableName, schemaName)
+		tableStatus := exportStatus.GetTableStatusByTableName(tableName, schemaName)
 		if tableStatus == nil {
 			tableStatus = &dbzm.TableExportStatus{
-				TableName: tableName,
-				SchemaName: schemaName,
+				TableName:                tableName,
+				SchemaName:               schemaName,
 				ExportedRowCountSnapshot: 0,
-				FileName: "None",
+				FileName:                 "None",
 			}
 		}
 		if i == 0 {
@@ -596,10 +596,12 @@ func GetSourceDBTypeFromMSR() string {
 	return msr.SourceDBConf.DBType
 }
 
-
 func getImportTableList(sourceTableList []string) []string {
-	var tableList  []string
-	sqlname.SourceDBType = ORACLE //TODO: for now just test the flow, will change it to source.DBType after fix of rewritten source type after synchronize
+	if importerRole == IMPORT_FILE_ROLE {
+		return nil
+	}
+	var tableList []string
+	sqlname.SourceDBType = source.DBType
 	for _, qualifiedTableName := range sourceTableList {
 		// TODO: handle case sensitivity?
 		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
