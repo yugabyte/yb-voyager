@@ -542,6 +542,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 				return false, fmt.Errorf("failed to get number of rows affected in update per table events on target db via query-%s: %w",
 					updatePerTableEvents, err)
 			}
+			//TODO: confirm do we really need to keep this
 			if rowsAffected == 0 {
 				insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
 				_, err = tx.Exec(insertTableStatsQuery)

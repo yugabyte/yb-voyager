@@ -453,7 +453,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s DB...", tconf.TargetDBType)
-			err = streamChanges(state, importFileTasksToTableNames(importFileTasks))
+			err = streamChanges(state, importTableList)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s DB: %s", tconf.TargetDBType, err)
 			}
