@@ -452,10 +452,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != FB_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-			color.Blue("streaming changes to %s DB...", tconf.TargetDBType)
+			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 			err = streamChanges(state, importTableList)
 			if err != nil {
-				utils.ErrExit("Failed to stream changes to %s DB: %s", tconf.TargetDBType, err)
+				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 			}
 
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
@@ -468,7 +468,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
 
-			utils.PrintAndLog("Completed streaming all relevant changes to %s DB", tconf.TargetDBType)
+			utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
