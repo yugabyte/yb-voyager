@@ -421,12 +421,8 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		return result, nil
 	}
 	// SLOW PATH.
-	schemaName := yb.tconf.Schema
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		schemaName = parts[0]
-		tableName = parts[1]
-	}
+	var schemaName string
+	schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -1051,6 +1047,14 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 	return nil
 }
 
+func (yb *TargetYugabyteDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
+	if strings.Contains(tableName, ".") {
+		parts := strings.Split(tableName, ".")
+		return parts[0], parts[1]
+	}
+	return yb.tconf.Schema, tableName
+}
+
 func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 	query := fmt.Sprintf("SELECT true FROM information_schema.schemata WHERE schema_name = '%s'", schema)
 	rows, err := yb.Query(query)
@@ -1058,24 +1062,12 @@ func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 		utils.ErrExit("error checking if schema %s exists: %v", schema, err)
 	}
 	defer rows.Close()
-	if !rows.Next() {
-		log.Infof("schema %s does not exist", schema)
-		return false
-	}
-	return true
+
+	return rows.Next()
 }
 
 func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
-	var schema, table string
-	if strings.Contains(qualifiedTableName, ".") {
-		parts := strings.Split(qualifiedTableName, ".")
-		schema = parts[0]
-		table = parts[1]
-	} else {
-		schema = yb.tconf.Schema
-		table = qualifiedTableName
-	}
-
+	schema, table := yb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
 	rows, err := yb.Query(query)
 	if err != nil {
@@ -1083,11 +1075,7 @@ func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
 	}
 	defer rows.Close()
 
-	if !rows.Next() {
-		log.Infof("table %s does not exist", qualifiedTableName)
-		return false
-	}
-	return true
+	return rows.Next()
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
@@ -1102,6 +1090,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
 	for _, table := range tables {
 		if !yb.isTableExists(table) {
+			log.Infof("table %s does not exist, nothing to clear migration state", table)
 			continue
 		}
 		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)

@@ -437,12 +437,8 @@ func (tdb *TargetOracleDB) IfRequiredQuoteColumnNames(tableName string, columns 
 		return result, nil
 	}
 	// SLOW PATH.
-	schemaName := tdb.tconf.Schema
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		schemaName = parts[0]
-		tableName = parts[1]
-	}
+	var schemaName string
+	schemaName, tableName = tdb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := tdb.getListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -699,24 +695,19 @@ func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
 	}
 	defer rows.Close()
 
-	if !rows.Next() {
-		log.Infof("schema %s does not exist in target db", schema)
-		return false
+	return rows.Next()
+}
+
+func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
+	parts := strings.Split(tableName, ".")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
 	}
-	return true
+	return tdb.tconf.Schema, tableName
 }
 
 func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
-	var schema, table string
-	if strings.Contains(qualifiedTableName, ".") {
-		parts := strings.Split(qualifiedTableName, ".")
-		schema = parts[0]
-		table = parts[1]
-	} else {
-		schema = tdb.tconf.Schema
-		table = qualifiedTableName
-	}
-
+	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", table, schema)
 	rows, err := tdb.Query(query)
 	if err != nil {
@@ -724,11 +715,7 @@ func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
 	}
 	defer rows.Close()
 
-	if !rows.Next() {
-		log.Infof("table %s does not exist in target db", qualifiedTableName)
-		return false
-	}
-	return true
+	return rows.Next()
 }
 
 // this will be only called by FallForward or FallBack DBs
@@ -736,7 +723,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
 	schema := BATCH_METADATA_TABLE_SCHEMA
 	if !tdb.isSchemaExists(schema) {
-		log.Infof("schema %s does not exist in target db, nothing to clear for migration state", schema)
+		log.Infof("schema %s does not exist, nothing to clear for migration state", schema)
 		return nil
 	}
 
@@ -744,6 +731,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
 	for _, table := range tables {
 		if !tdb.isTableExists(table) {
+			log.Infof("table %s does not exist, nothing to clear for migration state", table)
 			continue
 		}
 		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s", table, migrationUUID)
