@@ -168,6 +168,12 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
+			if isTargetDBExporter(exporterRole) {
+				err = ybCDCClient.DeleteStreamID()
+				if err != nil {
+					utils.ErrExit("failed to delete stream id after data export: %v", err)
+				}
+			}
 			displayExportedRowCountSnapshotAndChanges()
 		}
 		return true
