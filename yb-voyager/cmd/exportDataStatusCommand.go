@@ -87,27 +87,32 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	if err != nil {
 		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
 	}
-	source = *msr.SourceDBConf
-	tableList := msr.TableListExportedFromSource
+	if msr.SourceDBConf != nil {
+		source = *msr.SourceDBConf
+	}
 
-	for _, table := range tableList {
-		schemaName := strings.Split(table, ".")[0]
-		tableName := strings.Split(table, ".")[1]
-		tableStatus := status.GetTableStatusByTableName(tableName, schemaName)
-		if tableStatus == nil {
-			tableStatus = &dbzm.TableExportStatus{
-				TableName:                tableName,
-				SchemaName:               schemaName,
-				ExportedRowCountSnapshot: 0,
-				FileName:                 "None",
+	if streamChanges {	
+		tableList := msr.TableListExportedFromSource
+		for _, table := range tableList {
+			schemaName := strings.Split(table, ".")[0]
+			tableName := strings.Split(table, ".")[1]
+			tableStatus := status.GetTableStatusByTableName(tableName, schemaName)
+			if tableStatus == nil {
+				tableStatus = &dbzm.TableExportStatus{
+					TableName:                tableName,
+					SchemaName:               schemaName,
+					ExportedRowCountSnapshot: 0,
+					FileName:                 "None",
+				}
 			}
-		}
-		if streamChanges {
 			row = getSnapshotAndChangesExportStatusRow(tableStatus)
-		} else {
-			row = getSnapshotExportStatusRow(tableStatus)
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
+	} else {
+        for _, tableStatus := range status.Tables {
+			row = getSnapshotExportStatusRow(&tableStatus)
+			rows = append(rows, row)
+		}
 	}
 
 	displayExportDataStatus(rows, streamChanges)
