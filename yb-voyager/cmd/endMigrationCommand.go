@@ -122,11 +122,22 @@ func saveMigrationReportsFn() {
 	if !saveMigrationReports {
 		return
 	}
+
+	// TODO: what if there is no report.txt generated from analyze-schema step
 	utils.PrintAndLog("saving schema analysis report")
-	// TODO: what if there is report.txt generated from analyze-schema step
-	err := os.Rename(filepath.Join(exportDir, "reports"), filepath.Join(backupDir, "reports"))
+	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
-		utils.ErrExit("end migration: moving migration reports: %v", err)
+		utils.ErrExit("end migration: reading reports directory: %v", err)
+	}
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "report.") {
+			continue
+		}
+
+		err = os.Rename(filepath.Join(exportDir, "reports", file.Name()), filepath.Join(backupDir, "reports", file.Name()))
+		if err != nil {
+			utils.ErrExit("end migration: moving migration reports: %v", err)
+		}
 	}
 
 	utils.PrintAndLog("saving data export reports...")
@@ -167,6 +178,7 @@ func backupLogFilesFn() {
 		return
 	}
 	utils.PrintAndLog("backing up log files")
+	// TODO: in case of failures when cmd is executed again, even if logs were backed up, new log file for end migration will come up
 	err := os.Rename(filepath.Join(exportDir, "logs"), filepath.Join(backupDir, "logs"))
 	if err != nil {
 		utils.ErrExit("end migration: moving log files: %v", err)
