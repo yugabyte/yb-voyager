@@ -33,9 +33,9 @@ import (
 )
 
 var liveMigrationReportCmd = &cobra.Command{
-	Use: "report",
+	Use:   "report",
 	Short: "This command will print the report of any live migration workflow.",
-	Long: `This command will print the report of the live migration or live migration with fall-forward or live migration with fall-back.`,
+	Long:  `This command will print the report of the live migration or live migration with fall-forward or live migration with fall-back.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateExportDirFlag()
@@ -79,7 +79,6 @@ type rowData struct {
 	InsertsOut       int64
 	UpdatesOut       int64
 	DeletesOut       int64
-	FinalRowCount    int64
 }
 
 var fBEnabled, fFEnabled bool
@@ -124,7 +123,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.FinalRowCount)
+		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "Target"
@@ -138,7 +137,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting OUT counts for target DB: %w\n", err)
 			}
 		}
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.FinalRowCount)
+		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
 
 		if fFEnabled {
 			row = rowData{}
@@ -148,7 +147,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting IN counts for fall-forward DB: %w\n", err)
 			}
-			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.FinalRowCount)
+			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
 		}
 	}
 
@@ -204,17 +203,9 @@ func updateRowForInCounts(row *rowData, tableName string, schemaName string, tar
 	if err != nil {
 		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", row.TableName, row.DBType, err)
 	}
-	if importerRole == FB_DB_IMPORTER_ROLE {
-		exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaName, tableName)
-		if err != nil {
-			utils.ErrExit("could not fetch table stats from meta db: %v", err)
-		}
-		eventCounter.Merge(exportedEventCounter)
-	}
 	row.InsertsIn = eventCounter.NumInserts
 	row.UpdatesIn = eventCounter.NumUpdates
 	row.DeletesIn = eventCounter.NumDeletes
-	row.FinalRowCount = row.SnapshotRowCount + eventCounter.NumInserts - eventCounter.NumDeletes
 	return nil
 }
 
@@ -236,8 +227,11 @@ func updateRowForOutCounts(row *rowData, tableName string, schemaName string) er
 	row.InsertsOut = eventCounter.NumInserts
 	row.UpdatesOut = eventCounter.NumUpdates
 	row.DeletesOut = eventCounter.NumDeletes
-	row.FinalRowCount = row.SnapshotRowCount + eventCounter.NumInserts - eventCounter.NumDeletes
 	return nil
+}
+
+func getFinalRowCount(row rowData) int64 {
+	return row.SnapshotRowCount + row.InsertsIn + row.InsertsOut - row.DeletesIn - row.DeletesOut
 }
 
 func init() {
