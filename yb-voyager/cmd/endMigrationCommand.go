@@ -63,7 +63,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
-	backupSchemaFilesFn(msr)
+	backupSchemaFilesFn()
 	backupDataFilesFn()
 	backupLogFilesFn()
 	saveMigrationReportsFn()
@@ -78,8 +78,8 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("Migration ended successfully")
 }
 
-func backupSchemaFilesFn(msr *metadb.MigrationStatusRecord) {
-	if !backupSchemaFiles {
+func backupSchemaFilesFn() {
+	if !bool(backupSchemaFiles) || !utils.FileOrFolderExists(filepath.Join(exportDir, "schema")) {
 		return
 	}
 

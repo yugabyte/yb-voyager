@@ -105,6 +105,8 @@ func shouldLock(cmd *cobra.Command) bool {
 		"yb-voyager fall-forward status",
 		"yb-voyager cutover initiate",
 		"yb-voyager fall-forward switchover",
+		"yb-voyager end",
+		"yb-voyager end migration",
 	}
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
 }
