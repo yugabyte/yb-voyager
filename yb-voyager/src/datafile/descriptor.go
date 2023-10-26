@@ -114,3 +114,12 @@ func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
 	}
 	return nil
 }
+
+func (dfd *Descriptor) GetDataFileEntryByTableName(tableName string) *FileEntry { //until this PR https://github.com/yugabyte/yb-voyager/pull/1164 is not merged
+	for _, fileEntry := range dfd.DataFileList {
+		if fileEntry.TableName == tableName {
+			return fileEntry
+		}
+	}
+	return nil
+}
