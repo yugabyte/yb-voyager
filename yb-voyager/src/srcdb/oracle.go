@@ -451,6 +451,8 @@ func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.Sourc
 }
 
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	log.Infof("Clearing migration state for migration %q", migrationUUID)
+	log.Infof("Dropping table LOG_MINING_FLUSH")
 	_, err := ora.db.Exec("DROP TABLE LOG_MINING_FLUSH")
 	if err != nil {
 		if strings.Contains(err.Error(), "ORA-00942") {
