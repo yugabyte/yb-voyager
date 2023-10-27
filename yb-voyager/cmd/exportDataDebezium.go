@@ -39,7 +39,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var PartitionsToRootTableMap = make(map[string]string)
+var partitionsToRootTableMap = make(map[string]string)
 
 func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
@@ -91,19 +91,19 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		}
 	}
 
-	var columnSequenceMap []string
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	for column, sequence := range colToSeqMap {
-		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
-	}
+	columnSequenceMapping := strings.Join(lo.MapToSlice(colToSeqMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
+
 	err = prepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
-	var partitionsToRootTable []string
-	for partition, rootTable := range PartitionsToRootTableMap {
-		partitionsToRootTable = append(partitionsToRootTable, fmt.Sprintf("%s:%s", partition, rootTable))
-	}
+
+	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
 
 	config := &dbzm.Config{
 		RunId:          runId,
@@ -116,12 +116,12 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		Username:       source.User,
 		Password:       source.Password,
 
-		DatabaseName:             source.DBName,
-		SchemaNames:              source.Schema,
-		TableList:                dbzmTableList,
-		ColumnList:               dbzmColumnList,
-		ColumnSequenceMap:        columnSequenceMap,
-		PartitionsToRootTableMap: partitionsToRootTable,
+		DatabaseName:          source.DBName,
+		SchemaNames:           source.Schema,
+		TableList:             dbzmTableList,
+		ColumnList:            dbzmColumnList,
+		ColumnSequenceMapping: columnSequenceMapping,
+		TableRenameMapping:    tableRenameMapping,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -197,12 +197,15 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
 func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
-	if !requiredForSource  {
+	if !requiredForSource {
 		return tableList, nil
 	}
 
 	modifiedTableList := []*sqlname.SourceName{}
-	//TODO: test when we upgrade to PG13+ as partitions are handled with root table 
+
+	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
+
+	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
 	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
 		rootTable, err := GetRootTableOfPartition(table)
@@ -210,36 +213,28 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
 		}
 		allLeafPartitions := GetAllLeafPartitions(table)
-		if len(allLeafPartitions) == 0 {
-			if rootTable != table { //child table is present in list through table-list flag
-				PartitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
-			}
+		switch true {
+		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
+			partitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
 			modifiedTableList = append(modifiedTableList, table)
-		} else {
-			for _, childPartition := range allLeafPartitions {
-				PartitionsToRootTableMap[childPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
-			}
-			modifiedTableList = append(modifiedTableList, allLeafPartitions...)
+		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
+			modifiedTableList = append(modifiedTableList, table)
 		}
 	}
-	return lo.Uniq(modifiedTableList), nil
+	return modifiedTableList, nil
 }
 
-func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error){
+func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
 	if parentTable == "" {
 		return table, nil
 	}
-	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
-	if noDefaultSchema {
-		return nil, fmt.Errorf("default schema not found")
-	}
-	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
+	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, table.SchemaName.Unquoted))
 }
 
 func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
 	allLeafPartitions := []*sqlname.SourceName{}
-	childPartitions := source.DB().GetChildPartitions(table)
+	childPartitions := source.DB().GetPartitions(table)
 	for _, childPartition := range childPartitions {
 		leafPartitions := GetAllLeafPartitions(childPartition)
 		if len(leafPartitions) == 0 {

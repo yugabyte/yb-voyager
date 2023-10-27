@@ -470,8 +470,8 @@ func (pg *PostgreSQL) GetServers() []string {
 	return []string{pg.source.Host}
 }
 
-func (pg *PostgreSQL) GetChildPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
-	childPartitions := make([]*sqlname.SourceName, 0)
+func (pg *PostgreSQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+	partitions := make([]*sqlname.SourceName, 0)
 	query := fmt.Sprintf(`SELECT
     nmsp_child.nspname  AS child_schema,
     child.relname       AS child
@@ -480,12 +480,12 @@ FROM pg_inherits
     JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
     JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
     JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
-WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.MinQuoted, tableName.SchemaName.MinQuoted)
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
 
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		log.Infof("Query to find child partitions: %s", query)
-		utils.ErrExit("Error in query=%s for child partitions of table=%s: %v", query, tableName, err)
+		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
+		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -494,7 +494,10 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 		if err != nil {
 			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
 		}
-		childPartitions = append(childPartitions, sqlname.NewSourceName(childSchema, childTable))
+		partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
 	}
-	return childPartitions
+	if rows.Err() != nil {
+		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
+	}
+	return partitions
 } 

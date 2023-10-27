@@ -44,8 +44,8 @@ type Config struct {
 	PDBName                     string
 	SchemaNames                 string
 	TableList                   []string
-	ColumnSequenceMap           []string
-	PartitionsToRootTableMap    []string
+	ColumnSequenceMapping       string
+	TableRenameMapping          string
 	ColumnList                  []string
 	Uri                         string
 	TNSAdmin                    string
@@ -248,8 +248,8 @@ func (c *Config) String() string {
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
-			strings.Join(c.PartitionsToRootTableMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -275,8 +275,8 @@ func (c *Config) String() string {
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
-			strings.Join(c.PartitionsToRootTableMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -299,8 +299,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
-			strings.Join(c.PartitionsToRootTableMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -328,8 +328,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
-			strings.Join(c.PartitionsToRootTableMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,

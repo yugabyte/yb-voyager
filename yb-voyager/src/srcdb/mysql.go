@@ -342,6 +342,6 @@ func (ms *MySQL) GetServers() []string {
 	return []string{ms.source.Host}
 }
 
-func (ms *MySQL) GetChildPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
 	panic("not implemented")
 } 

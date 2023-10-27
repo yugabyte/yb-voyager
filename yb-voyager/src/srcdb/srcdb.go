@@ -45,7 +45,7 @@ type SourceDB interface {
 	GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string
 	GetAllSequences() []string
 	GetServers() []string
-	GetChildPartitions(table *sqlname.SourceName) []*sqlname.SourceName
+	GetPartitions(table *sqlname.SourceName) []*sqlname.SourceName
 }
 
 func newSourceDB(source *Source) SourceDB {

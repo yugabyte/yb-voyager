@@ -445,6 +445,6 @@ func (ora *Oracle) GetServers() []string {
 	return []string{ora.source.Host}
 }
 
-func (ora *Oracle) GetChildPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
 	panic("not implemented")
 } 
