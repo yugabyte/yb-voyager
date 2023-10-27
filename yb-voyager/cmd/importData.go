@@ -329,12 +329,15 @@ func updateTargetConfInMigrationStatus() {
 		case TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE:
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
+			record.TargetDBConf.Uri = ""
 		case FF_DB_IMPORTER_ROLE:
 			record.FallForwardDBConf = tconf.Clone()
 			record.FallForwardDBConf.Password = ""
+			record.FallForwardDBConf.Uri = ""
 		case FB_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""
+			record.SourceDBAsTargetConf.Uri = ""
 		default:
 			panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
 		}

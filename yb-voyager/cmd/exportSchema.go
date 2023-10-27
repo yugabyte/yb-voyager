@@ -104,6 +104,7 @@ func exportSchema() {
 		// setting irrespective of the current value
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
+		record.SourceDBConf.Uri = ""
 	})
 	setSchemaIsExported()
 }
