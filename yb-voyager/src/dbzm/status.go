@@ -131,8 +131,11 @@ func (status *ExportStatus) GetTableExportedRowCount(tableSno int) int64 {
 }
 
 func (status *ExportStatus) GetTableExportStatus(tableName, schemaName string) *TableExportStatus {
-	result, _ := lo.Find(status.Tables, func(tableStatus TableExportStatus) bool {
+	result, found := lo.Find(status.Tables, func(tableStatus TableExportStatus) bool {
 		return tableStatus.TableName == tableName && tableStatus.SchemaName == schemaName
 	})
-	return &result
+	if found {
+		return &result
+	}
+	return nil
 }

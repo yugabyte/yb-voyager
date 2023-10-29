@@ -94,8 +94,8 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	if streamChanges {
 		tableList := msr.TableListExportedFromSource
 		for _, table := range tableList {
-			schemaName := strings.Split(table, ".")[0]
-			tableName := strings.Split(table, ".")[1]
+			parts := strings.Split(table, ".")
+			schemaName, tableName := parts[0], parts[1]
 			tableStatus := status.GetTableExportStatus(tableName, schemaName)
 			if tableStatus == nil {
 				tableStatus = &dbzm.TableExportStatus{
