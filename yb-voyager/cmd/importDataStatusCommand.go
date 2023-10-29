@@ -249,22 +249,22 @@ func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRo
 	}
 	importTableList := getImportTableList(msr.TableListExportedFromSource)
 	if streamChanges {
-			for _, tableName := range importTableList {
-				dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
-				if dataFile == nil {
-					dataFile = &datafile.FileEntry{
-						FilePath:  "None", //TODO: check what should be appropriate to mention here
-						TableName: tableName,
-						FileSize:  0,
-						RowCount:  0,
-					}
+		for _, tableName := range importTableList {
+			dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
+			if dataFile == nil {
+				dataFile = &datafile.FileEntry{
+					FilePath:  "",
+					TableName: tableName,
+					FileSize:  0,
+					RowCount:  0,
 				}
-				row, err := prepareRowWithDatafile(dataFile, snapshotRowCount[dataFile.TableName], state, streamChanges)
-				if err != nil {
-					return nil, fmt.Errorf("prepare row with datafile: %w", err)
-				}
-				table = append(table, row)
 			}
+			row, err := prepareRowWithDatafile(dataFile, snapshotRowCount[dataFile.TableName], state, streamChanges)
+			if err != nil {
+				return nil, fmt.Errorf("prepare row with datafile: %w", err)
+			}
+			table = append(table, row)
+		}
 	} else {
 		for _, dataFile := range dataFileDescriptor.DataFileList {
 			row, err := prepareRowWithDatafile(dataFile, snapshotRowCount[dataFile.TableName], state, streamChanges)

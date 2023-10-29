@@ -91,25 +91,25 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 		source = *msr.SourceDBConf
 	}
 
-	if streamChanges {	
+	if streamChanges {
 		tableList := msr.TableListExportedFromSource
 		for _, table := range tableList {
 			schemaName := strings.Split(table, ".")[0]
 			tableName := strings.Split(table, ".")[1]
-			tableStatus := status.GetTableStatusByTableName(tableName, schemaName)
+			tableStatus := status.GetTableExportStatus(tableName, schemaName)
 			if tableStatus == nil {
 				tableStatus = &dbzm.TableExportStatus{
 					TableName:                tableName,
 					SchemaName:               schemaName,
 					ExportedRowCountSnapshot: 0,
-					FileName:                 "None",
+					FileName:                 "",
 				}
 			}
 			row = getSnapshotAndChangesExportStatusRow(tableStatus)
 			rows = append(rows, row)
 		}
 	} else {
-        for _, tableStatus := range status.Tables {
+		for _, tableStatus := range status.Tables {
 			row = getSnapshotExportStatusRow(&tableStatus)
 			rows = append(rows, row)
 		}

@@ -218,15 +218,15 @@ func displayExportedRowCountSnapshotAndChanges() {
 	tableList := msr.TableListExportedFromSource
 
 	for i, table := range tableList {
-		schemaName := strings.Split(table, ".")[0]
-		tableName := strings.Split(table, ".")[1]
-		tableStatus := exportStatus.GetTableStatusByTableName(tableName, schemaName)
+		parts := strings.Split(table, ".")
+		schemaName, tableName := parts[0], parts[1]
+		tableStatus := exportStatus.GetTableExportStatus(tableName, schemaName)
 		if tableStatus == nil {
 			tableStatus = &dbzm.TableExportStatus{
 				TableName:                tableName,
 				SchemaName:               schemaName,
 				ExportedRowCountSnapshot: 0,
-				FileName:                 "None",
+				FileName:                 "",
 			}
 		}
 		if i == 0 {

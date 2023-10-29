@@ -501,9 +501,6 @@ func clearDataIsExported() {
 }
 
 func updateSourceDBConfInMSR() {
-	if isTargetDBExporter(exporterRole) { //TODO: till it is not fixed in main
-		return
-	} 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if record.SourceDBConf == nil {
 			record.SourceDBConf = source.Clone()
