@@ -60,11 +60,12 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string)
 	if err != nil {
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
-		utils.ErrExit("data export unsuccessful: %v", err)
+		log.Infof("pg_dump failed to export schema with output: %s", string(stdout))
+		utils.ErrExit("data export unsuccessful: %v. For more details check '%s/yb-voyager-export-schema.log'.\n", err, exportDir)
 	}
 
 	//Parsing the single file to generate multiple database object files
-	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypesList)
+	returnCode := parseSchemaFile(exportDir, source.ExportObjectTypeList)
 
 	log.Info("Export of schema completed.")
 	utils.WaitChannel <- returnCode

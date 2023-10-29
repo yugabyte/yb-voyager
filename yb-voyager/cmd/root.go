@@ -233,7 +233,7 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 	*p = utils.BoolStr(value)
 	flagSet.AddFlag(&pflag.Flag{
 		Name:     name,
-		Usage:    usage,
+		Usage:    usage + "; accepted values (true, false, yes, no, 0, 1)",
 		Value:    p,
 		DefValue: fmt.Sprintf("%t", value),
 	})

@@ -373,7 +373,7 @@ tail_log_file() {
 		echo "Printing ${log_file_name} file"
 		tail -n 150 "${EXPORT_DIR}/logs/${log_file_name}"
 	else
-		echo "No ${log_file_name} found."
+		echo "No ${log_file_name} found." 
 	fi	
 }
 
@@ -408,4 +408,10 @@ run_sql_file() {
 	else
 		echo "Invalid source database."
 	fi
+}
+
+get_value_from_msr(){
+  jq_filter=$1
+  val=`sqlite3 ${EXPORT_DIR}/metainfo/meta.db "select json_text from json_objects where key='migration_status';" | jq $jq_filter`
+  echo $val
 }

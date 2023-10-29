@@ -155,28 +155,8 @@ func startFallforwardSynchronizeIfRequired() {
 
 	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
 		"--export-dir", exportDir,
-		"--target-db-host", tconf.Host,
-		"--target-db-port", fmt.Sprintf("%d", tconf.Port),
-		"--target-db-user", tconf.User,
-		"--target-db-name", tconf.DBName,
-		"--target-db-schema", tconf.Schema,
 		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-	}
-	if tconf.SSLMode != "" {
-		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
-	}
-	if tconf.SSLCertPath != "" {
-		cmd = append(cmd, "--target-ssl-cert", tconf.SSLCertPath)
-	}
-	if tconf.SSLKey != "" {
-		cmd = append(cmd, "--target-ssl-key", tconf.SSLKey)
-	}
-	if tconf.SSLRootCert != "" {
-		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
-	}
-	if tconf.SSLCRL != "" {
-		cmd = append(cmd, "--target-ssl-crl", tconf.SSLCRL)
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
@@ -186,7 +166,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting fall-forward synchronize with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting %s synchronize with command:\n %s", voyagerCmdPrefix, color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -195,7 +175,7 @@ func startFallforwardSynchronizeIfRequired() {
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager fall-forward synchronize - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager %s synchronize - %w\n Please re-run with command :\n%s", voyagerCmdPrefix, err, cmdStr)
 	}
 }
 
@@ -346,16 +326,18 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 func updateTargetConfInMigrationStatus() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch importerRole {
-		case TARGET_DB_IMPORTER_ROLE:
-		case IMPORT_FILE_ROLE:
+		case TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE:
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
+			record.TargetDBConf.Uri = ""
 		case FF_DB_IMPORTER_ROLE:
 			record.FallForwardDBConf = tconf.Clone()
 			record.FallForwardDBConf.Password = ""
+			record.FallForwardDBConf.Uri = ""
 		case FB_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""
+			record.SourceDBAsTargetConf.Uri = ""
 		default:
 			panic(fmt.Sprintf("unsupported importer role: %s", importerRole))
 		}
@@ -418,7 +400,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		if err != nil {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
-		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 	}
 
 	disableGeneratedAlwaysAsIdentityColumns(importFileTasks)
@@ -426,6 +407,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 	// Import snapshots
 	if importerRole != FB_DB_IMPORTER_ROLE {
+		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
@@ -451,9 +433,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			time.Sleep(time.Second * 2)
 		}
+		utils.PrintAndLog("snapshot data import complete\n\n")
+		callhome.PackAndSendPayload(exportDir)
 	}
-	utils.PrintAndLog("snapshot data import complete\n\n")
-	callhome.PackAndSendPayload(exportDir)
+
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
 		executePostImportDataSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
@@ -462,10 +445,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			if importerRole != FB_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
-			color.Blue("streaming changes to target DB...")
+			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 			err = streamChanges(state, importFileTasksToTableNames(importFileTasks))
 			if err != nil {
-				utils.ErrExit("Failed to stream changes from source DB: %s", err)
+				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 			}
 
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
@@ -478,7 +461,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to restore sequences: %s", err)
 			}
 
-			utils.PrintAndLog("streamed all the present changes to target DB, proceeding to cutover/fall-forward")
+			utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
 			triggerName, err := getTriggerName(importerRole)
 			if err != nil {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)

@@ -404,8 +404,8 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	// TODO: add a check/prompt if any directories apart from required ones are present in export-dir
 	var projectSubdirs = []string{
 		"schema", "data", "reports",
-		"metainfo", "metainfo/data", "metainfo/schema", "metainfo/flags",
-		"metainfo/conf", "metainfo/ssl", "temp", "temp/ora2pg_temp_dir",
+		"metainfo", "metainfo/data", "metainfo/conf", "metainfo/ssl",
+		"temp", "temp/ora2pg_temp_dir",
 	}
 
 	log.Info("Creating a project directory if not exists...")
@@ -420,7 +420,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	}
 
 	// creating subdirs under schema dir
-	for _, schemaObjectType := range source.ExportObjectTypesList {
+	for _, schemaObjectType := range source.ExportObjectTypeList {
 		if schemaObjectType == "INDEX" { //no separate dir for indexes
 			continue
 		}

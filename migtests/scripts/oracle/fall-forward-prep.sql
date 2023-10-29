@@ -5,17 +5,16 @@ CREATE USER ybvoyager_metadata IDENTIFIED BY "password";
 GRANT CONNECT, RESOURCE TO ybvoyager_metadata;
 ALTER USER ybvoyager_metadata QUOTA UNLIMITED ON USERS;
 
-CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 (
+-- upgraded to _v3 to avoid conflict after 1.6
+CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v3 ( 
+            migration_uuid VARCHAR2(36),
             data_file_name VARCHAR2(250),
             batch_number NUMBER(10),
             schema_name VARCHAR2(250),
             table_name VARCHAR2(250),
             rows_imported NUMBER(19),
-            PRIMARY KEY (data_file_name, batch_number, schema_name, table_name)
+            PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
         );
-
--- added this step after 1.6 release
-ALTER TABLE ybvoyager_metadata.ybvoyager_import_data_batches_metainfo_v2 ADD  migration_uuid VARCHAR2(36); 
 
 CREATE TABLE ybvoyager_metadata.ybvoyager_import_data_event_channels_metainfo (
             migration_uuid VARCHAR2(36),

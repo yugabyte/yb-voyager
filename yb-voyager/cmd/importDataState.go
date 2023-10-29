@@ -38,7 +38,7 @@ const (
 	// Voyager 1.4 uses import data state format that is incompatible from
 	// the earlier versions.
 	BATCH_METADATA_TABLE_SCHEMA          = "ybvoyager_metadata"
-	BATCH_METADATA_TABLE_NAME            = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v2"
+	BATCH_METADATA_TABLE_NAME            = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 	EVENT_CHANNELS_METADATA_TABLE_NAME   = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 	EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 )

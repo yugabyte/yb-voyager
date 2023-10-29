@@ -40,6 +40,7 @@ import (
 )
 
 var partitionsToRootTableMap = make(map[string]string)
+var ybCDCClient *dbzm.YugabyteDBCDCClient
 
 func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
@@ -164,7 +165,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 				return fmt.Sprintf("%s:%s", s, masterPort)
 			}),
 			)
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0])
+			ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
 			err := ybCDCClient.Init()
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
@@ -434,7 +435,9 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 	if err != nil {
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
-	displayExportedRowCountSnapshot()
+	if !isTargetDBExporter(exporterRole) {
+		displayExportedRowCountSnapshot()
+	}
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
@@ -442,6 +445,10 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		}
 	}
 	return true, nil
+}
+
+func isTargetDBExporter(exporterRole string) bool {
+	return exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE
 }
 
 func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error {

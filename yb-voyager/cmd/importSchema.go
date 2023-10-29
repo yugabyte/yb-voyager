@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/fatih/color"
 	"github.com/jackc/pgx/v4"
@@ -40,6 +39,9 @@ var importSchemaCmd = &cobra.Command{
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if !schemaIsExported() {
+			utils.ErrExit("Error: schema is not exported yet.")
+		}
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
@@ -52,7 +54,6 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		checkExportSchemaDoneFlag()
 		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
@@ -69,18 +70,6 @@ func init() {
 var flagPostImportData utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
-
-func checkExportSchemaDoneFlag() {
-	if schemaIsExported() {
-		return
-	}
-
-	utils.PrintAndLog("Waiting for schema export to complete...")
-	for !schemaIsExported() {
-		time.Sleep(time.Second * 2)
-	}
-	utils.PrintAndLog("Schema export is complete.")
-}
 
 func importSchema() {
 	err := retrieveMigrationUUID()

@@ -108,7 +108,18 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 }
 
 func getSnapshotAndChangesExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
-	eventCounter, err := metaDB.GetExportedEventsStatsForTable(tableStatus.SchemaName, tableStatus.TableName)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
+	}
+	source = *msr.SourceDBConf
+	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
+	schemaName := tableStatus.SchemaName
+	if sourceSchemaCount <= 1 {
+		schemaName = ""
+	}
+
+	eventCounter, err := metaDB.GetExportedEventsStatsForTable(schemaName, tableStatus.TableName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		utils.ErrExit("could not fetch table stats from meta DB: %w", err)
 	}

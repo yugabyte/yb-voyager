@@ -34,6 +34,9 @@ var exportSchemaCmd = &cobra.Command{
 	Long: ``,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {
+			utils.ErrExit("Error: only one of --object-type-list and --exclude-object-type-list is allowed")
+		}
 		setExportFlagsDefaults()
 		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
 		if err != nil {
@@ -101,6 +104,7 @@ func exportSchema() {
 		// setting irrespective of the current value
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
+		record.SourceDBConf.Uri = ""
 	})
 	setSchemaIsExported()
 }
@@ -116,11 +120,17 @@ func init() {
 	BoolVar(exportSchemaCmd.Flags(), &source.CommentsOnObjects, "comments-on-objects", false,
 		"enable export of comments associated with database objects (default false)")
 
-	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypesList, "object-types-list", "",
+	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypeList, "object-type-list", "",
 		"comma separated list of objects to export. ")
+
+	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
+		"comma separated list of objects to exclude from export. ")
 }
 
 func schemaIsExported() bool {
+	if !metaDBIsCreated(exportDir) {
+		return false
+	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
@@ -148,7 +158,11 @@ func clearSchemaIsExported() {
 }
 
 func updateIndexesInfoInMetaDB() {
-	log.Infof("updating indexes info in meta db")
+	log.Infof("updating indexes info in metaDB")
+	if !utils.ContainsString(source.ExportObjectTypeList, "TABLE") {
+		log.Infof("skipping updating indexes info in metaDB since TABLE object type is not being exported")
+		return
+	}
 	indexesInfo := source.DB().GetIndexesInfo()
 	if indexesInfo == nil {
 		return
