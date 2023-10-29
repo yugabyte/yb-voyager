@@ -168,6 +168,12 @@ func exportData() bool {
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
+			if isTargetDBExporter(exporterRole) {
+				err = ybCDCClient.DeleteStreamID()
+				if err != nil {
+					utils.ErrExit("failed to delete stream id after data export: %v", err)
+				}
+			}
 			displayExportedRowCountSnapshotAndChanges()
 		}
 		return true
@@ -501,10 +507,14 @@ func clearDataIsExported() {
 }
 
 func updateSourceDBConfInMSR() {
+	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
+		return
+	}
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if record.SourceDBConf == nil {
 			record.SourceDBConf = source.Clone()
 			record.SourceDBConf.Password = ""
+			record.SourceDBConf.Uri = ""
 		} else {
 			// currently db type is only required for import data commands
 			record.SourceDBConf.DBType = source.DBType
