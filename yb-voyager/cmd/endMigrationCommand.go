@@ -28,8 +28,8 @@ var (
 
 var endMigrationCmd = &cobra.Command{
 	Use:   "migration",
-	Short: "End the current migration and cleanup all metadata stored in databases(Target, FF and FB) and export-dir",
-	Long:  "End the current migration and cleanup all metadata stored in databases(Target, FF and FB) and export-dir",
+	Short: "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Fall-Back) and export-dir",
+	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Fall-Back) and export-dir",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		err := validateEndMigrationFlags(cmd)
@@ -49,7 +49,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	if utils.AskPrompt("Migration can't be resumed or continued after this.", "Are you sure you want to end the migration") {
 		log.Info("ending the migration")
 	} else {
-		log.Info("Aborting the end migration command")
+		utils.PrintAndLog("aborting the end migration command")
 		return
 	}
 
@@ -79,12 +79,13 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func backupSchemaFilesFn() {
-	if !bool(backupSchemaFiles) || !utils.FileOrFolderExists(filepath.Join(exportDir, "schema")) {
+	schemaDirPath := filepath.Join(exportDir, "schema")
+	if !bool(backupSchemaFiles) || !utils.FileOrFolderExists(schemaDirPath) {
 		return
 	}
 
 	utils.PrintAndLog("backing up schema files")
-	cmd := exec.Command("mv", filepath.Join(exportDir, "schema"), backupDir)
+	cmd := exec.Command("mv", schemaDirPath, backupDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("end migration: moving schema files: %s: %v", string(output), err)
@@ -111,7 +112,9 @@ func backupDataFilesFn() {
 			continue
 		}
 
-		err = os.Rename(filepath.Join(exportDir, "data", file.Name()), filepath.Join(backupDir, "data", file.Name()))
+		dataFilePath := filepath.Join(exportDir, "data", file.Name())
+		backupFilePath := filepath.Join(backupDir, "data", file.Name())
+		err = os.Rename(dataFilePath, backupFilePath)
 		if err != nil {
 			utils.ErrExit("end migration: moving data files: %v", err)
 		}
@@ -141,12 +144,9 @@ func saveMigrationReportsFn() {
 	}
 
 	utils.PrintAndLog("saving data export reports...")
-	file, err := os.Create(filepath.Join(backupDir, "reports", "export_data_report.txt"))
-	if err != nil {
-		utils.ErrExit("end migration: creating export data status report: %v", err)
-	}
-	exportDataStatusCmd := exec.Command("bash", "-c", fmt.Sprintf("yb-voyager export data status -e %s", exportDir))
-	exportDataStatusCmd.Stdout = file
+	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
+	strCmd := fmt.Sprintf("yb-voyager export data status -e %s > %q", exportDir, exportDataReportFilePath)
+	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	var outbuf bytes.Buffer
 	exportDataStatusCmd.Stderr = &outbuf
 	err = exportDataStatusCmd.Run()
@@ -154,15 +154,11 @@ func saveMigrationReportsFn() {
 		log.Errorf("end migration: running export data status command: %s: %v", outbuf.String(), err)
 		utils.ErrExit("end migration: running export data status command: %v", err)
 	}
-	file.Close()
 
 	utils.PrintAndLog("saving data import reports...")
-	file, err = os.Create(filepath.Join(backupDir, "reports", "import_data_report.txt"))
-	if err != nil {
-		utils.ErrExit("end migration: creating import data status report: %v", err)
-	}
-	importDataStatusCmd := exec.Command("bash", "-c", fmt.Sprintf("yb-voyager import data status -e %s", exportDir))
-	importDataStatusCmd.Stdout = file
+	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
+	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
+	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
 	err = importDataStatusCmd.Run()
@@ -170,7 +166,6 @@ func saveMigrationReportsFn() {
 		log.Errorf("end migration: running import data status command: %s: %v", outbuf.String(), err)
 		utils.ErrExit("end migration: running import data status command: %v", err)
 	}
-	file.Close()
 }
 
 func backupLogFilesFn() {
@@ -189,7 +184,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up source db...")
 	source := msr.SourceDBConf
 	if source == nil {
-		log.Infof("source db conf is not set. skipping cleanup")
+		log.Info("source db conf is not set. skipping cleanup")
 		return
 	}
 	err := source.DB().Connect()
@@ -203,7 +198,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	if msr.YBCDCStreamID == "" {
-		log.Infof("yugabytedb cdc stream id is not set. skipping deleting stream id")
+		log.Info("yugabytedb cdc stream id is not set. skipping deleting stream id")
 		return
 	}
 	ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", source.SSLRootCert, source.DBName, strings.Split(source.TableList, ",")[0], metaDB)
@@ -217,7 +212,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up target db...")
 	if msr.TargetDBConf == nil {
-		log.Infof("target db conf is not set. skipping cleanup")
+		log.Info("target db conf is not set. skipping cleanup")
 		return
 	}
 	tdb := tgtdb.NewTargetDB(msr.TargetDBConf)
@@ -310,11 +305,11 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 			ongoingCmds = append(ongoingCmds, match)
 		}
 		if len(ongoingCmds) > 0 &&
-			!utils.AskPrompt(fmt.Sprintf("found ongoing voyager commands: %s. Do you want to continue", strings.Join(ongoingCmds, ", "))) {
+			!utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command", strings.Join(ongoingCmds, ", "))) {
 			utils.ErrExit("aborting the end migration command")
 		}
 	} else {
-		log.Infof("no ongoing voyager commands found")
+		log.Info("no ongoing voyager commands found")
 	}
 
 	if bool(backupSchemaFiles) && !msr.ExportSchemaDone {

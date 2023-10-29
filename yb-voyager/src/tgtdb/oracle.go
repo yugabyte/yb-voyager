@@ -687,17 +687,6 @@ func (tdb *TargetOracleDB) alterColumns(tableColumnsMap map[string][]string, alt
 	return nil
 }
 
-func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
-	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'", schema)
-	rows, err := tdb.Query(query)
-	if err != nil {
-		utils.ErrExit("error checking if schema %s exists: %v", schema, err)
-	}
-	defer rows.Close()
-
-	return rows.Next()
-}
-
 func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
 	parts := strings.Split(tableName, ".")
 	if len(parts) == 2 {
@@ -706,16 +695,25 @@ func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (strin
 	return tdb.tconf.Schema, tableName
 }
 
+func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
+	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'", schema)
+	return tdb.isQueryResultEmpty(query)
+}
+
 func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
 	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", table, schema)
+	return tdb.isQueryResultEmpty(query)
+}
+
+func (tdb *TargetOracleDB) isQueryResultEmpty(query string) bool {
 	rows, err := tdb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if table %s exists: %v", qualifiedTableName, err)
+		utils.ErrExit("error checking if query %s is empty: %v", query, err)
 	}
 	defer rows.Close()
 
-	return rows.Next()
+	return !rows.Next()
 }
 
 // this will be only called by FallForward or FallBack DBs

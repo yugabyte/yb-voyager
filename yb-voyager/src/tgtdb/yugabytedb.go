@@ -1044,25 +1044,23 @@ func (yb *TargetYugabyteDB) splitMaybeQualifiedTableName(tableName string) (stri
 
 func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 	query := fmt.Sprintf("SELECT true FROM information_schema.schemata WHERE schema_name = '%s'", schema)
-	rows, err := yb.Query(query)
-	if err != nil {
-		utils.ErrExit("error checking if schema %s exists: %v", schema, err)
-	}
-	defer rows.Close()
-
-	return rows.Next()
+	return yb.isQueryResultEmpty(query)
 }
 
 func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
 	schema, table := yb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
+	return yb.isQueryResultEmpty(query)
+}
+
+func (yb *TargetYugabyteDB) isQueryResultEmpty(query string) bool {
 	rows, err := yb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if table %s exists: %v", qualifiedTableName, err)
+		utils.ErrExit("error checking if query %s is empty: %v", query, err)
 	}
 	defer rows.Close()
 
-	return rows.Next()
+	return !rows.Next()
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
