@@ -220,9 +220,16 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
+		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list 
+			for _, leafPartition := range allLeafPartitions {
+				modifiedTableList = append(modifiedTableList, leafPartition)
+				partitionsToRootTableMap[leafPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			}
 		}
 	}
-	return modifiedTableList, nil
+	return lo.UniqBy(modifiedTableList, func (table *sqlname.SourceName) string {
+		return table.Qualified.MinQuoted
+	}), nil
 }
 
 func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
