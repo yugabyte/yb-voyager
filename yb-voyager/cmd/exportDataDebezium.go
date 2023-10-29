@@ -237,7 +237,11 @@ func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, er
 	if parentTable == "" {
 		return table, nil
 	}
-	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, table.SchemaName.Unquoted))
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	if noDefaultSchema {
+		return nil, fmt.Errorf("default schema not found")
+	}
+	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
 }
 
 func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
