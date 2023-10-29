@@ -44,7 +44,7 @@ func init() {
 	registerFFDBAsTargetConnFlags(fallForwardSetupCmd)
 	registerImportDataCommonFlags(fallForwardSetupCmd)
 	registerImportDataFlags(fallForwardSetupCmd)
-	hideFlagsInFallFowardCmds(fallForwardSetupCmd)
+	hideFlagsInFallForwardOrBackCmds(fallForwardSetupCmd)
 }
 
 func updateFallForwarDBExistsInMetaDB() {

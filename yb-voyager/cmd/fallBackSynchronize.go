@@ -52,7 +52,7 @@ func init() {
 	registerCommonGlobalFlags(fallBackSynchronizeCmd)
 	registerTargetDBAsSourceConnFlags(fallBackSynchronizeCmd)
 	registerExportDataFlags(fallBackSynchronizeCmd)
-	hideFlagsInFallFowardCmds(fallBackSynchronizeCmd)
+	hideFlagsInFallForwardOrBackCmds(fallBackSynchronizeCmd)
 	hideExportFlagsInFallBackCmds(fallBackSynchronizeCmd)
 }
 
