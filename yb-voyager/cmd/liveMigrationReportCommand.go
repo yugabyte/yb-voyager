@@ -89,8 +89,10 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	tableList := msr.TableListExportedFromSource
 	reportTable := uitable.New()
 	reportTable.MaxColWidth = 50
-	addHeader(reportTable, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "INSERTS IN", "UPDATES IN", "DELETES IN", "INSERTS OUT", "UPDATES OUT", "DELETES OUT", "FINAL ROW COUNT")
+	reportTable.Separator = " | " 
 
+	addHeader(reportTable, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
+	addHeader(reportTable, "", "", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -103,6 +105,14 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
 		tableExportStatus := status.GetTableStatusByTableName(tableName, schemaName)
+		if tableExportStatus == nil {
+			tableExportStatus = &dbzm.TableExportStatus{
+				TableName:                tableName,
+				SchemaName:               schemaName,
+				ExportedRowCountSnapshot: 0,
+				FileName:                 "",
+			}
+		}
 		row.SnapshotRowCount = tableExportStatus.ExportedRowCountSnapshot
 		source = *msr.SourceDBConf
 		sourceSchemaCount := len(strings.Split(source.Schema, "|"))
@@ -123,7 +133,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
+		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "Target"
@@ -137,8 +147,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 				utils.ErrExit("error while getting OUT counts for target DB: %w\n", err)
 			}
 		}
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
-
+		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row)) 
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
@@ -147,16 +156,15 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting IN counts for fall-forward DB: %w\n", err)
 			}
-			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsIn, row.UpdatesIn, row.DeletesIn, row.InsertsOut, row.UpdatesOut, row.DeletesOut, getFinalRowCount(row))
+			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 		}
 	}
-
 	if len(tableList) > 0 {
 		fmt.Print("\n")
 		fmt.Println(reportTable)
 		fmt.Print("\n")
 	}
-
+	
 }
 
 func updateRowForInCounts(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
@@ -191,6 +199,14 @@ func updateRowForInCounts(row *rowData, tableName string, schemaName string, tar
 	}
 
 	dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
+	if dataFile == nil {
+		dataFile = &datafile.FileEntry{
+			FilePath:  "",
+			TableName: tableName,
+			FileSize:  0,
+			RowCount:  0,
+		}
+	}
 
 	if importerRole != FB_DB_IMPORTER_ROLE {
 		row.SnapshotRowCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
