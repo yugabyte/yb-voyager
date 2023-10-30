@@ -613,3 +613,23 @@ func getImportTableList(sourceTableList []string) []string {
 	}
 	return tableList
 }
+func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
+	var flags = []string{"target-db-type", "import-type", "target-endpoints", "use-public-ip", "continue-on-error", "table-list",
+	"table-list-file-path", "exclude-table-list","exclude-table-list-file-path", "enable-upsert"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag != nil {
+			flag.Hidden = true
+		}
+	}
+}
+
+func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
+	var flags = []string{"source-db-type", "export-type", "parallel-jobs", "start-clean"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag != nil {
+			flag.Hidden = true
+		}
+	}
+}

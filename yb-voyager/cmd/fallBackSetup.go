@@ -45,8 +45,8 @@ func init() {
 	registerCommonGlobalFlags(fallBackSetupCmd)
 	registerCommonImportFlags(fallBackSetupCmd)
 	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
-	registerImportDataFlags(fallBackSetupCmd)
-	hideFlagsInFallBackCmds(fallBackSetupCmd)
+	registerImportDataCommonFlags(fallBackSetupCmd)
+	hideImportFlagsInFallForwardOrBackCmds(fallBackSetupCmd)
 }
 
 func initTargetConfFromSourceConf() error {
