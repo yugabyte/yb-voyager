@@ -586,7 +586,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				return false, fmt.Errorf("failed to update table stats on target db via query-%s: %w, rowsAffected: %v",
 					updateTableStatsQuery, err, res.RowsAffected())
 			}
-			//TODO: confirm do we really need to keep this
 			if res.RowsAffected() == 0 {
 				insertTableStatsQuery := batch.GetQueriesToInsertEventStatsByTable(migrationUUID, tableName)
 				res, err = tx.Exec(context.Background(), insertTableStatsQuery)
