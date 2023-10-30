@@ -123,7 +123,8 @@ func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []str
 	} else if s.DBType == "mysql" {
 		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"PARTITION", "INDEX"})
 	} else {
-		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "DOMAIN", "SEQUENCE", "INDEX"})
+		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE"})
+		includeObjectsIfCertainObjectIsSelected(s, "VIEW", []string{"RULE"})
 		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "SCHEMA")
 		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "COLLATION")
 		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "EXTENSION")
