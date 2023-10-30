@@ -66,7 +66,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	backupSchemaFilesFn()
 	backupDataFilesFn()
 	backupLogFilesFn()
-	saveMigrationReportsFn()
+	saveMigrationReportsFn(cmd)
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
@@ -121,9 +121,14 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn() {
+func saveMigrationReportsFn(cmd *cobra.Command) {
 	if !saveMigrationReports {
 		return
+	}
+
+	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
+	if err != nil {
+		utils.ErrExit("end migration: creating reports directory for backup: %v", err)
 	}
 
 	// TODO: what if there is no report.txt generated from analyze-schema step
@@ -156,9 +161,14 @@ func saveMigrationReportsFn() {
 	}
 
 	utils.PrintAndLog("saving data import reports...")
+	targetPassword, err := getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("end migration: getting target db password: %v", err)
+	}
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
 	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
+	importDataStatusCmd.Env = append(os.Environ(), fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetPassword))
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
 	err = importDataStatusCmd.Run()
