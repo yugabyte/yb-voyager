@@ -51,10 +51,5 @@ func init() {
 	registerCommonGlobalFlags(fallForwardSynchronizeCmd)
 	registerTargetDBAsSourceConnFlags(fallForwardSynchronizeCmd)
 	registerExportDataFlags(fallForwardSynchronizeCmd)
-	hideFlagsInFallForwardOrBackCmds(fallForwardSynchronizeCmd)
-	hideExportFlagsInFallFowardCmds(fallForwardSynchronizeCmd)
-}
-
-func hideExportFlagsInFallFowardCmds(cmd *cobra.Command) {
-	cmd.Flags().Lookup("parallel-jobs").Hidden = true
+	hideExportFlagsInFallForwardOrBackCmds(fallForwardSynchronizeCmd)
 }
