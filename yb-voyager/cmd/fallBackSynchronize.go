@@ -52,13 +52,9 @@ func init() {
 	registerCommonGlobalFlags(fallBackSynchronizeCmd)
 	registerTargetDBAsSourceConnFlags(fallBackSynchronizeCmd)
 	registerExportDataFlags(fallBackSynchronizeCmd)
-	hideFlagsInFallFowardCmds(fallBackSynchronizeCmd)
-	hideExportFlagsInFallBackCmds(fallBackSynchronizeCmd)
+	hideExportFlagsInFallForwardOrBackCmds(fallBackSynchronizeCmd)
 }
 
-func hideExportFlagsInFallBackCmds(cmd *cobra.Command) {
-	cmd.Flags().Lookup("parallel-jobs").Hidden = true
-}
 
 func initSourceConfFromTargetConf() error {
 	msr, err := metaDB.GetMigrationStatusRecord()
