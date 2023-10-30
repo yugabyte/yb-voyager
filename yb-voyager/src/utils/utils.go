@@ -131,6 +131,22 @@ func GetSchemaObjectList(sourceDBType string) []string {
 	return requiredList
 }
 
+func GetExportSchemaObjectList(sourceDBType string) []string {
+	log.Infof("get schema object list for %q", sourceDBType)
+	var requiredList []string
+	switch sourceDBType {
+	case "oracle":
+		requiredList = oracleSchemaObjectListForExport
+	case "postgresql", "yugabytedb":
+		requiredList = postgresSchemaObjectListForExport
+	case "mysql":
+		requiredList = mysqlSchemaObjectListForExport
+	default:
+		ErrExit("Unsupported %q source db type\n", sourceDBType)
+	}
+	return requiredList
+}
+
 func ContainsString(list []string, str string) bool {
 	for _, object := range list {
 		if strings.EqualFold(object, str) {
