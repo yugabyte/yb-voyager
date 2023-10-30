@@ -39,20 +39,24 @@ var cutoverInitiateCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("get migration status record: %v", err)
 		}
+		if msr == nil {
+			utils.ErrExit("migration status record not found")
+		}
 		if !msr.FallForwardEnabled {
 			// --prepare-for-fall-back is mandatory in this case.
 			prepareForFallBackSpecified := cmd.Flags().Changed("prepare-for-fall-back")
 			if !prepareForFallBackSpecified {
-				utils.ErrExit(`required flag "prepare-for-fall-back" not set`)
+				utils.ErrExit(`missing required flag "--prepare-for-fall-back [yes|no]"`)
 			}
+		}
+		if prepareForFallBack {
+			updateFallBackEnabledInMetaDB()
 		}
 		err = InitiatePrimarySwitch("cutover")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}
-		if prepareForFallBack {
-			updateFallBackEnabledInMetaDB()
-		}
+
 	},
 }
 
