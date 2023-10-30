@@ -89,7 +89,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	tableList := msr.TableListExportedFromSource
 	reportTable := uitable.New()
 	reportTable.MaxColWidth = 50
-	reportTable.Separator = " | " 
+	reportTable.Separator = " | "
 
 	addHeader(reportTable, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
 	addHeader(reportTable, "", "", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
@@ -124,12 +124,12 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.DBType = "Source"
 		err := updateRowForOutCounts(&row, tableName, schemaName) //source OUT counts
 		if err != nil {
-			utils.ErrExit("error while getting OUT counts for source DB: %w\n", err)
+			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
 		if fBEnabled {
 			err = updateRowForInCounts(&row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
 			if err != nil {
-				utils.ErrExit("error while getting IN counts for source DB in case of fall-back: %w\n", err)
+				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
 
@@ -139,22 +139,22 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.DBType = "Target"
 		err = updateRowForInCounts(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
 		if err != nil {
-			utils.ErrExit("error while getting IN counts for target DB: %w\n", err)
+			utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 		}
 		if fFEnabled || fBEnabled {
 			err = updateRowForOutCounts(&row, tableName, schemaName) // target OUT counts
 			if err != nil {
-				utils.ErrExit("error while getting OUT counts for target DB: %w\n", err)
+				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
 		}
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row)) 
+		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
 			row.DBType = "Fall Forward"
 			err = updateRowForInCounts(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
 			if err != nil {
-				utils.ErrExit("error while getting IN counts for fall-forward DB: %w\n", err)
+				utils.ErrExit("error while getting imported events for fall-forward DB: %w\n", err)
 			}
 			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 		}
@@ -164,7 +164,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		fmt.Println(reportTable)
 		fmt.Print("\n")
 	}
-	
+
 }
 
 func updateRowForInCounts(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
@@ -211,13 +211,13 @@ func updateRowForInCounts(row *rowData, tableName string, schemaName string, tar
 	if importerRole != FB_DB_IMPORTER_ROLE {
 		row.SnapshotRowCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
 		if err != nil {
-			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", row.TableName, row.DBType, err)
+			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)
 		}
 	}
 
 	eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 	if err != nil {
-		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", row.TableName, row.DBType, err)
+		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
 	}
 	row.InsertsIn = eventCounter.NumInserts
 	row.UpdatesIn = eventCounter.NumUpdates

@@ -464,7 +464,8 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
 			}
 			createTriggerIfNotExists(triggerName)
-			displayImportedRowCountSnapshotAndChanges(state, importFileTasks)
+			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
+				color.CyanString("yb-voyager live-migration report --export-dir %s", exportDir))
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
