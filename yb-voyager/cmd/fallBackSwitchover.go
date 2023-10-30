@@ -26,7 +26,6 @@ var fallBackSwitchoverCmd = &cobra.Command{
 	Long:  `Initiates the switchover to fall-back DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		err := InitiatePrimarySwitch("fallback")
 		if err != nil {
 			utils.ErrExit("failed to initiate fallback: %v", err)

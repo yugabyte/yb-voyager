@@ -578,3 +578,9 @@ func GetSourceDBTypeFromMSR() string {
 	}
 	return msr.SourceDBConf.DBType
 }
+
+func validateMetaDBCreated() {
+	if !metaDBIsCreated(exportDir) {
+		utils.ErrExit("no metadb found in export-dir")
+	}
+}

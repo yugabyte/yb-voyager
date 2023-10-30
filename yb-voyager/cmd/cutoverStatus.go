@@ -34,7 +34,6 @@ var cutoverStatusCmd = &cobra.Command{
 	Long:  `Prints status of the cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		checkAndReportCutoverStatus()
 	},
 }

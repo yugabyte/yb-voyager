@@ -159,7 +159,6 @@ func prepareImportFileTasks() []*ImportFileTask {
 }
 
 func checkImportDataFileFlags(cmd *cobra.Command) {
-	validateExportDirFlag()
 	fileFormat = strings.ToLower(fileFormat)
 	checkFileFormat()
 	checkDataDirFlag()

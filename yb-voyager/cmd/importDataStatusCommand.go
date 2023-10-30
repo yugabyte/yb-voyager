@@ -45,7 +45,6 @@ var importDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed import data/fall-forward setup.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)

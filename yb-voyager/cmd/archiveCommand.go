@@ -52,7 +52,6 @@ func registerCommonArchiveFlags(cmd *cobra.Command) {
 }
 
 func validateCommonArchiveFlags() {
-	validateExportDirFlag()
 	validateMoveToFlag()
 }
 
