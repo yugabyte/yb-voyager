@@ -338,7 +338,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceNa
 	return nil, nil
 }
 
-func (yb *YugabyteDB) IsTablePartition(table *sqlname.SourceName) bool {
+func (yb *YugabyteDB) ParentTableOfPartition(table *sqlname.SourceName) string {
 	var parentTable string
 	// For this query in case of case sensitive tables, minquoting is required
 	query := fmt.Sprintf(`SELECT inhparent::pg_catalog.regclass
@@ -350,7 +350,7 @@ func (yb *YugabyteDB) IsTablePartition(table *sqlname.SourceName) bool {
 		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
 	}
 
-	return parentTable != ""
+	return parentTable
 }
 
 func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) map[string]string {
@@ -413,4 +413,36 @@ func (yb *YugabyteDB) GetServers() []string {
 		ybServers = append(ybServers, ybServer)
 	}
 	return ybServers
+}
+
+func (yb *YugabyteDB) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+	partitions := make([]*sqlname.SourceName, 0)
+	query := fmt.Sprintf(`SELECT
+    nmsp_child.nspname  AS child_schema,
+    child.relname       AS child
+FROM pg_inherits
+    JOIN pg_class parent            ON pg_inherits.inhparent = parent.oid
+    JOIN pg_class child             ON pg_inherits.inhrelid   = child.oid
+    JOIN pg_namespace nmsp_parent   ON nmsp_parent.oid  = parent.relnamespace
+    JOIN pg_namespace nmsp_child    ON nmsp_child.oid   = child.relnamespace
+WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName.Unquoted, tableName.SchemaName.Unquoted)
+
+	rows, err := yb.conn.Query(context.Background(), query)
+	if err != nil {
+		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
+		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var childSchema, childTable string
+		err := rows.Scan(&childSchema, &childTable)
+		if err != nil {
+			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
+		}
+		partitions = append(partitions, sqlname.NewSourceName(childSchema, childTable))
+	}
+	if rows.Err() != nil {
+		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
+	}
+	return partitions
 }

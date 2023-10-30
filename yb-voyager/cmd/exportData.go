@@ -398,7 +398,9 @@ func extractTableListFromString(fullTableList []*sqlname.SourceName, flagTableLi
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
 		utils.ErrExit("Valid table names are %v", fullTableList)
 	}
-	return lo.Uniq(result)
+	return lo.UniqBy(result, func(tableName *sqlname.SourceName) string {
+		return tableName.Qualified.MinQuoted
+	})
 }
 
 func checkSourceDBCharset() {

@@ -42,9 +42,10 @@ type TargetDB interface {
 	GetDebeziumValueConverterSuite() map[string]tgtdbsuite.ConverterFn
 	MaxBatchSizeInBytes() int64
 	RestoreSequences(sequencesLastValue map[string]int64) error
-	GetGeneratedAlwaysAsIdentityColumnNamesForTable(table string) ([]string, error)
+	GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error)
 	DisableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
 	EnableGeneratedAlwaysAsIdentityColumns(tableColumnsMap map[string][]string) error
+	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
 
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
