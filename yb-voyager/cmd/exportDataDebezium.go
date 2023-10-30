@@ -406,7 +406,7 @@ func reportStreamingProgress() {
 	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
 	for {
-		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEvents(runId)
+		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}
