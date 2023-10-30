@@ -342,7 +342,6 @@ func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUI
 		migrationUUID, tableName, eb.ChanNo)
 }
 
-//TODO: confirm do we really need to keep this
 func (eb *EventBatch) GetQueriesToInsertEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
 	queryTemplate := `INSERT INTO %s 
 	(migration_uuid, table_name, channel_no, total_events, num_inserts, num_updates, num_deletes) 
