@@ -125,20 +125,13 @@ func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []str
 	} else {
 		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE"})
 		includeObjectsIfCertainObjectIsSelected(s, "VIEW", []string{"RULE"})
-		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "SCHEMA")
-		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "COLLATION")
-		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "EXTENSION")
+		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "SCHEMA", "COLLATION", "EXTENSION")
 	}
 }
 
 func includeObjectsIfCertainObjectIsSelected(s *Source, objectIncluded string, objectsToBeIncluded []string) {
 	if utils.ContainsString(s.ExportObjectTypeList, objectIncluded) {
-		for _, obj := range objectsToBeIncluded {
-			if !utils.ContainsString(s.ExportObjectTypeList, obj) {
-				s.ExportObjectTypeList = append(s.ExportObjectTypeList, obj)
-				utils.PrintAndLog("Adding %s object type as %s object type is selected\n", obj, objectIncluded)
-			}
-		}
+		lo.Union(s.ExportObjectTypeList, objectsToBeIncluded)
 	}
 }
 
