@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -113,4 +114,11 @@ func (dfd *Descriptor) GetFileEntry(filePath, tableName string) *FileEntry {
 		}
 	}
 	return nil
+}
+
+func (dfd *Descriptor) GetDataFileEntryByTableName(tableName string) *FileEntry {
+	result, _ := lo.Find(dfd.DataFileList, func(fileEntry *FileEntry) bool {
+		return fileEntry.TableName == tableName
+	})
+	return result
 }

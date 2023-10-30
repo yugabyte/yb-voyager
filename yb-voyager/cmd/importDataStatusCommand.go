@@ -240,80 +240,39 @@ func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRo
 		}
 	}
 
-	for _, dataFile := range dataFileDescriptor.DataFileList {
-		var totalCount, importedCount int64
-		var err error
-		var perc float64
-		var status string
-		reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
-		totalCount = dataFile.RowCount
-		if reportProgressInBytes {
-			importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
-		} else {
-			if importerRole == FB_DB_IMPORTER_ROLE {
-				importedCount = snapshotRowCount[dataFile.TableName]
-			} else {
-				importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("get migration status record: %w", err)
+	}
+	if msr.SourceDBConf != nil {
+		source = *msr.SourceDBConf
+	}
+	importTableList := getImportTableList(msr.TableListExportedFromSource)
+	if streamChanges {
+		for _, tableName := range importTableList {
+			dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
+			if dataFile == nil {
+				dataFile = &datafile.FileEntry{
+					FilePath:  "",
+					TableName: tableName,
+					FileSize:  0,
+					RowCount:  0,
+				}
 			}
-		}
-		if err != nil {
-			return nil, fmt.Errorf("compute imported data size: %w", err)
-		}
-
-		if totalCount != 0 {
-			perc = float64(importedCount) * 100.0 / float64(totalCount)
-		}
-		switch true {
-		case importedCount == totalCount:
-			status = "DONE"
-		case importedCount == 0:
-			status = "NOT_STARTED"
-		case importedCount < totalCount:
-			status = "MIGRATING"
-		}
-		row := &tableMigStatusOutputRow{
-			tableName:          dataFile.TableName,
-			schemaName:         getTargetSchemaName(dataFile.TableName),
-			fileName:           path.Base(dataFile.FilePath),
-			status:             status,
-			totalCount:         totalCount,
-			importedCount:      importedCount,
-			percentageComplete: perc,
-		}
-		if streamChanges {
-			eventCounter, err := state.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
+			row, err := prepareRowWithDatafile(dataFile, snapshotRowCount[dataFile.TableName], state, streamChanges)
 			if err != nil {
-				return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
+				return nil, fmt.Errorf("prepare row with datafile: %w", err)
 			}
-			if importerRole == FB_DB_IMPORTER_ROLE {
-				schemaNameForQuery := ""
-				tableNameForQuery := row.tableName
-				tableParts := strings.Split(row.tableName, ".")
-				if len(tableParts) == 2 {
-					schemaNameForQuery = tableParts[0]
-					tableNameForQuery = tableParts[1]
-				}
-				exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaNameForQuery, tableNameForQuery)
-				if err != nil {
-					utils.ErrExit("could not fetch table stats from meta db: %v", err)
-				}
-				eventCounter.Merge(exportedEventCounter)
-			}
-			row.totalEvents = eventCounter.TotalEvents
-			row.numInserts = eventCounter.NumInserts
-			row.numUpdates = eventCounter.NumUpdates
-			row.numDeletes = eventCounter.NumDeletes
-			row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
-			isffComplete := importerRole == FF_DB_IMPORTER_ROLE && (getFallForwardStatus() == COMPLETED)
-			isfbComplete := importerRole == FB_DB_IMPORTER_ROLE && (getFallBackStatus() == COMPLETED)
-			isCutoverComplete := importerRole == TARGET_DB_IMPORTER_ROLE && (getCutoverStatus() == COMPLETED)
-			if isffComplete || isCutoverComplete || isfbComplete {
-				row.status = "DONE"
-			} else {
-				row.status = "STREAMING"
-			}
+			table = append(table, row)
 		}
-		table = append(table, row)
+	} else {
+		for _, dataFile := range dataFileDescriptor.DataFileList {
+			row, err := prepareRowWithDatafile(dataFile, snapshotRowCount[dataFile.TableName], state, streamChanges)
+			if err != nil {
+				return nil, fmt.Errorf("prepare row with datafile: %w", err)
+			}
+			table = append(table, row)
+		}
 	}
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
@@ -332,4 +291,82 @@ func prepareImportDataStatusTable(streamChanges bool) ([]*tableMigStatusOutputRo
 	})
 
 	return table, nil
+}
+
+func prepareRowWithDatafile(dataFile *datafile.FileEntry, snapshotRowCount int64, state *ImportDataState, streamChanges bool) (*tableMigStatusOutputRow, error) {
+	var totalCount, importedCount int64
+	var err error
+	var perc float64
+	var status string
+	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
+
+	if reportProgressInBytes {
+		totalCount = dataFile.FileSize
+		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFile.TableName)
+	} else {
+		totalCount = dataFile.RowCount
+		if importerRole == FB_DB_IMPORTER_ROLE {
+			importedCount = snapshotRowCount
+		} else {
+			importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("compute imported data size: %w", err)
+	}
+
+	if totalCount != 0 {
+		perc = float64(importedCount) * 100.0 / float64(totalCount)
+	}
+	switch true {
+	case importedCount == totalCount:
+		status = "DONE"
+	case importedCount == 0:
+		status = "NOT_STARTED"
+	case importedCount < totalCount:
+		status = "MIGRATING"
+	}
+	row := &tableMigStatusOutputRow{
+		tableName:          dataFile.TableName,
+		schemaName:         getTargetSchemaName(dataFile.TableName),
+		fileName:           path.Base(dataFile.FilePath),
+		status:             status,
+		totalCount:         totalCount,
+		importedCount:      importedCount,
+		percentageComplete: perc,
+	}
+	if streamChanges {
+		eventCounter, err := state.GetImportedEventsStatsForTable(row.tableName, migrationUUID)
+		if err != nil {
+			return nil, fmt.Errorf("get imported events stats for table %q: %w", row.tableName, err)
+		}
+		if importerRole == FB_DB_IMPORTER_ROLE {
+			schemaNameForQuery := ""
+			tableNameForQuery := row.tableName
+			tableParts := strings.Split(row.tableName, ".")
+			if len(tableParts) == 2 {
+				schemaNameForQuery = tableParts[0]
+				tableNameForQuery = tableParts[1]
+			}
+			exportedEventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(SOURCE_DB_EXPORTER_ROLE, schemaNameForQuery, tableNameForQuery)
+			if err != nil {
+				utils.ErrExit("could not fetch table stats from meta db: %v", err)
+			}
+			eventCounter.Merge(exportedEventCounter)
+		}
+		row.totalEvents = eventCounter.TotalEvents
+		row.numInserts = eventCounter.NumInserts
+		row.numUpdates = eventCounter.NumUpdates
+		row.numDeletes = eventCounter.NumDeletes
+		row.finalRowCount = row.importedCount + row.numInserts - row.numDeletes
+		isffComplete := importerRole == FF_DB_IMPORTER_ROLE && (getFallForwardStatus() == COMPLETED)
+		isfbComplete := importerRole == FB_DB_IMPORTER_ROLE && (getFallBackStatus() == COMPLETED)
+		isCutoverComplete := importerRole == TARGET_DB_IMPORTER_ROLE && (getCutoverStatus() == COMPLETED)
+		if isffComplete || isCutoverComplete || isfbComplete {
+			row.status = "DONE"
+		} else {
+			row.status = "STREAMING"
+		}
+	}
+	return row, nil
 }

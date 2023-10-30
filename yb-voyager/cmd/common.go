@@ -209,13 +209,31 @@ func displayExportedRowCountSnapshotAndChanges() {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
-	for i, tableStatus := range exportStatus.Tables {
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
+	}
+	source = *msr.SourceDBConf
+	tableList := msr.TableListExportedFromSource
+
+	for i, table := range tableList {
+		parts := strings.Split(table, ".")
+		schemaName, tableName := parts[0], parts[1]
+		tableStatus := exportStatus.GetTableExportStatus(tableName, schemaName)
+		if tableStatus == nil {
+			tableStatus = &dbzm.TableExportStatus{
+				TableName:                tableName,
+				SchemaName:               schemaName,
+				ExportedRowCountSnapshot: 0,
+				FileName:                 "",
+			}
+		}
 		if i == 0 {
 			addHeader(uitable, "TABLE", "SNAPSHOT ROW COUNT", "TOTAL CHANGES EVENTS",
 				"INSERTS", "UPDATES", "DELETES",
 				"FINAL ROW COUNT(SNAPSHOT + CHANGES)")
 		}
-		schemaName := tableStatus.SchemaName
 		if sourceSchemaCount <= 1 {
 			schemaName = ""
 		}
@@ -298,9 +316,8 @@ func displayExportedRowCountSnapshot() {
 	fmt.Print("\n")
 }
 
-func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshotAndChanges(state *ImportDataState, tableList []string) {
 	fmt.Printf("snapshot and changes import report\n")
-	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("could not retrieve migration UUID: %w", err)
@@ -579,6 +596,23 @@ func GetSourceDBTypeFromMSR() string {
 	return msr.SourceDBConf.DBType
 }
 
+func getImportTableList(sourceTableList []string) []string {
+	if importerRole == IMPORT_FILE_ROLE {
+		return nil
+	}
+	var tableList []string
+	sqlname.SourceDBType = source.DBType
+	for _, qualifiedTableName := range sourceTableList {
+		// TODO: handle case sensitivity?
+		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
+		table := tableName.ObjectName.MinQuoted
+		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
+			table = tableName.Qualified.MinQuoted
+		}
+		tableList = append(tableList, table)
+	}
+	return tableList
+}
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	var flags = []string{"target-db-type", "import-type", "target-endpoints", "use-public-ip", "continue-on-error", "table-list",
 	"table-list-file-path", "exclude-table-list","exclude-table-list-file-path", "enable-upsert"}
