@@ -260,7 +260,7 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 	return tableColumnMap, unsupportedColumnNames
 }
 
-func (ms *MySQL) IsTablePartition(table *sqlname.SourceName) bool {
+func (ms *MySQL) ParentTableOfPartition(table *sqlname.SourceName) string {
 	panic("not implemented")
 }
 
@@ -341,3 +341,7 @@ func createTLSConf(source *Source) tls.Config {
 func (ms *MySQL) GetServers() []string {
 	return []string{ms.source.Host}
 }
+
+func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
+	panic("not implemented")
+} 

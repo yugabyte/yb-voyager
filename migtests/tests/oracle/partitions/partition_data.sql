@@ -81,6 +81,7 @@ BEGIN
   Insert into ORDER_ITEMS_RANGE_PARTITIONED (ORDER_ID,ORDER_DATETIME,CUSTOMER_ID,STORE_ID,ORDER_STATUS) values (79,to_timestamp('29-MAR-2018 03.35.02.671013150','DD-MON-YYYY HH24.MI.SS.FF'),14,1,'COMPLETE');
 END;
 /
+COMMIT;
 
 -- LIST PARTITIONED DATA
 BEGIN
@@ -128,6 +129,7 @@ BEGIN
     Insert into ACCOUNTS_LIST_PARTITIONED values (22, 122, 32,300,'AZ','C');
 END;
 /
+COMMIT;
 
 -- INTERVAL PARTITION DATA
 BEGIN
@@ -238,6 +240,7 @@ BEGIN
     Insert into ORDERS_INTERVAL_PARTITION (ORDER_ID,CUSTOMER_ID,STATUS,SALESMAN_ID,ORDER_DATE) values (104,18,'Shipped',60,to_date('01-FEB-17','DD-MON-RR'));
 END;
 /
+COMMIT;
 
 -- HASH PARTITION DATA
 BEGIN
@@ -271,6 +274,37 @@ BEGIN
     Insert into sales_hash values (15, DATE'26-04-01', 198, 9689.17);
     Insert into sales_hash values (9, DATE'26-11-03', 102, 774.95); 
     Insert into sales_hash values (9, DATE'30-06-11', 106, 424.9); 
+END;
+/
+
+COMMIT;
+
+
+--multi level partition data
+
+BEGIN
+    Insert into sub_par_test values ('emp_1','HR_REP',TO_DATE('18-11-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_2','AC_ACCOUNT',TO_DATE('18-11-2003', 'dd-mm-yyyy'));
+    Insert into sub_par_test values ('emp_3','SH_CLERK',TO_DATE('18-11-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_4','SA_MAN',TO_DATE('18-11-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_5','PU_MAN',TO_DATE('18-10-2002', 'dd-mm-yyyy'));
+    Insert into sub_par_test values ('emp_6','FI_ACCOUNT',TO_DATE('18-10-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_7','ST_CLERK',TO_DATE('18-10-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_8','PU_MAN',TO_DATE('18-10-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_9','OTHERS',TO_DATE('18-12-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_10','OTHERS',TO_DATE('18-12-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_11','OTHERS',TO_DATE('18-12-2004', 'dd-mm-yyyy'));
+    Insert into sub_par_test values ('emp_12','PU_MAN',TO_DATE('18-12-2005', 'dd-mm-yyyy'));
+    Insert into sub_par_test values ('emp_13','OTHERS',TO_DATE('18-09-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_14','FI_ACCOUNT',TO_DATE('18-09-2003', 'dd-mm-yyyy'));
+    Insert into sub_par_test values ('emp_15','OTHERS',TO_DATE('18-09-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_16','OTHERS',TO_DATE('18-09-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_17','OTHERS',TO_DATE('18-08-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_18','OTHERS',TO_DATE('18-08-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_19','ST_CLERK',TO_DATE('18-08-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_20','OTHERS',TO_DATE('18-08-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_21','HR_REP',TO_DATE('18-07-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values ('emp_22','HR_REP',TO_DATE('18-07-2006', 'dd-mm-yyyy')); 
 END;
 /
 

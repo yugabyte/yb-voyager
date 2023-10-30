@@ -26,7 +26,22 @@ EXPECTED_ROW_COUNT = {
 	'sales_hash_p1': 17,
 	'sales_hash_p2': 7,
 	'sales_hash_p3': 6,
-	'sales_hash_p4': 0
+	'sales_hash_p4': 0,
+	'sub_par_test': 22,
+	'sub_par_test_p1': 6,
+	'sub_par_test_p1_sp1': 2,
+	'sub_par_test_p1_sp11': 4,
+	'sub_par_test_p2': 5,
+	'sub_par_test_p2_sp2': 1,
+	'sub_par_test_p2_sp22': 4,
+	'sub_par_test_p3': 5,
+	'sub_par_test_p3_sp3': 1,
+	'sub_par_test_p3_sp33': 4,
+	'sub_par_test_p4': 5,
+	'sub_par_test_p4_sp4': 1,
+	'sub_par_test_p4_sp44': 4,
+	'sub_par_test_p5': 1,
+	'sub_par_test_p5_sp5': 1,
 }
 
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
@@ -45,6 +60,10 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"Hash" : {
 		"query": " Insert into SALES_HASH values (400, to_date('26-NOV-03','DD-MON-YY'), 104, 2129.55);",
 		"partition_table_name": "sales_hash_p4",
+	},
+	"Sub_Partition": {
+		"query": " Insert into sub_par_test values ('emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
+		"partition_table_name": "sub_par_test_p5_sp5",
 	}
 }
 
