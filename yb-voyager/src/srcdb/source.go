@@ -131,7 +131,9 @@ func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []str
 
 func includeObjectsIfCertainObjectIsSelected(s *Source, objectIncluded string, objectsToBeIncluded []string) {
 	if utils.ContainsString(s.ExportObjectTypeList, objectIncluded) {
-		lo.Union(s.ExportObjectTypeList, objectsToBeIncluded)
+		objectsToAdd := lo.Intersect(s.ExportObjectTypeList, objectsToBeIncluded)
+		utils.PrintAndLog("Including %s object types as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
+		s.ExportObjectTypeList = lo.Union(s.ExportObjectTypeList, objectsToBeIncluded)
 	}
 }
 
