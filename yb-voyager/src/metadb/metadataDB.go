@@ -224,7 +224,7 @@ func (m *MetaDB) GetTotalExportedEventsByExporterRole(exporterRole string, runId
 	err := m.db.QueryRow(query).Scan(&totalCount)
 	if err != nil {
 		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
-			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 		}
 	}
 
