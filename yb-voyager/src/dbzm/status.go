@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -127,4 +128,14 @@ func (status *ExportStatus) GetTableExportedRowCount(tableSno int) int64 {
 		}
 	}
 	panic("table sno not found in export status")
+}
+
+func (status *ExportStatus) GetTableExportStatus(tableName, schemaName string) *TableExportStatus {
+	result, found := lo.Find(status.Tables, func(tableStatus TableExportStatus) bool {
+		return tableStatus.TableName == tableName && tableStatus.SchemaName == schemaName
+	})
+	if found {
+		return &result
+	}
+	return nil
 }
