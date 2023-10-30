@@ -29,7 +29,6 @@ var cutoverInitiateCmd = &cobra.Command{
 	Long:  `Initiate cutover to YugabyteDB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		var err error
 		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {

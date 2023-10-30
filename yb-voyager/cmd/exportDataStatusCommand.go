@@ -35,7 +35,6 @@ var exportDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed data export.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)

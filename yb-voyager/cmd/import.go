@@ -47,7 +47,6 @@ func init() {
 
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command, importerRole string) error {
-	validateExportDirFlag()
 	checkOrSetDefaultTargetSSLMode()
 	validateTargetPortRange()
 

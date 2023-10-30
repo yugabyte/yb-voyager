@@ -596,6 +596,12 @@ func GetSourceDBTypeFromMSR() string {
 	return msr.SourceDBConf.DBType
 }
 
+func validateMetaDBCreated() {
+	if !metaDBIsCreated(exportDir) {
+		utils.ErrExit("ERROR: no metadb found in export-dir")
+	}
+}
+
 func getImportTableList(sourceTableList []string) []string {
 	if importerRole == IMPORT_FILE_ROLE {
 		return nil
@@ -613,6 +619,7 @@ func getImportTableList(sourceTableList []string) []string {
 	}
 	return tableList
 }
+
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	var flags = []string{"target-db-type", "import-type", "target-endpoints", "use-public-ip", "continue-on-error", "table-list",
 	"table-list-file-path", "exclude-table-list","exclude-table-list-file-path", "enable-upsert"}

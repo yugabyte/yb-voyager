@@ -28,6 +28,7 @@ var fallForwardSynchronizeCmd = &cobra.Command{
 	Long: `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall forward database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateMetaDBCreated()
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_FF_ROLE
