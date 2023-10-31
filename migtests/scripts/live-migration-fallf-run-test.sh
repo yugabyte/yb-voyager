@@ -164,7 +164,7 @@ main() {
 	sleep 2m
 
 	step "Initiating cutover"
-	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR} --prepare-for-fall-back false
+	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
