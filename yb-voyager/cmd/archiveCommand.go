@@ -42,7 +42,7 @@ func registerCommonArchiveFlags(cmd *cobra.Command) {
 	registerCommonGlobalFlags(cmd)
 
 	cmd.Flags().StringVar(&moveDestination, "move-to", "",
-		"destination to move exported data to. This also deletes the exported changes from export-dir if the disk utilization threshold is exceeded")
+		"destination to move exported data to. This also deletes the exported changes from export-dir if the disk utilization threshold is exceeded once the data has been archived.")
 
 	BoolVar(cmd.Flags(), &deleteSegments, "delete-changes-without-archiving", false,
 		"delete exported changes without archiving them if the disk utilization threshold is exceeded, default is false")
