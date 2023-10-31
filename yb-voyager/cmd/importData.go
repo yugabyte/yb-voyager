@@ -153,7 +153,7 @@ func startFallforwardSynchronizeIfRequired() {
 		voyagerCmdPrefix = "fall-back"
 	}
 
-	unlockExportDir() // unlock export dir from import data cmd before starting ff/fb sync cmd
+	unlockExportDir() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(unqualifiedTableList, ","),
