@@ -43,9 +43,12 @@ var archiveChangesCmd = &cobra.Command{
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	moveToChanged := cmd.Flags().Changed("move-to")
-	deleteChanged := cmd.Flags().Changed("delete")
+	deleteChanged := cmd.Flags().Changed("delete-changes-without-archiving")
 	if moveToChanged == deleteChanged {
-		utils.ErrExit("Either --move-to or --delete flag should be specified")
+		utils.ErrExit("Either --move-to or --delete-changes-without-archiving flag should be set")
+	}
+	if !moveToChanged && deleteSegments.String() == "false" {
+		utils.ErrExit("--delete-changes-without-archiving flag is set to false and --move-to flag is not set. Must set either one of them.")
 	}
 
 	copier := NewEventSegmentCopier(moveDestination)
