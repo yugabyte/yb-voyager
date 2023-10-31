@@ -209,13 +209,14 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
 		"maximum number of rows in each batch generated during import of snapshot.")
-	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
-		"Otherwise, it fall back to using twice the number of nodes in the cluster"
-	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
-		defaultParallelismMsg = ""
+	defaultParallelismMsg := "(default - oracle: 16)"
+	if cmd.CommandPath() == "yb-voyager import data" {
+		defaultParallelismMsg = "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
+			"Otherwise, it fall back to using twice the number of nodes in the cluster."
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
-		"number of parallel copy command jobs to target database. "+defaultParallelismMsg)
+		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
+
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"Enable UPSERT mode on target tables")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
