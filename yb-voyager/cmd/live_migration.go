@@ -231,6 +231,10 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
 					continue
 				}
+				if importerRole == FB_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+					log.Tracef("ignoring event %v because importer role is FB_DB_IMPORTER_ROLE and event exporter role is not TARGET_DB_EXPORTER_FB_ROLE.", event)
+					continue
+				}
 				batch = append(batch, event)
 				if len(batch) >= MAX_EVENTS_PER_BATCH {
 					break Batching
