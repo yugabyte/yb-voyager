@@ -30,9 +30,9 @@ import (
 
 var archiveChangesCmd = &cobra.Command{
 	Use: "changes",
-	Short: "This command will archive the streaming data from the source database.\n" +
+	Short: "This command archives and deletes the streaming data exported from the source database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
-	Long: `This command will archive the streaming data from the source database.`,
+	Long: `This command archives and deletes the streaming data exported from the source database. The data is deleted only if the disk utilization threshold is exceeded. Also, if the --move-to flag is used, only the archived data is deleted.`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateCommonArchiveFlags()
