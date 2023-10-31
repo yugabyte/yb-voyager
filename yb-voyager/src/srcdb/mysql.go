@@ -348,5 +348,6 @@ func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceN
 }
 
 func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
-	panic("ClearMigrationState() not implemented for MySQL yet")
+	log.Infof("ClearMigrationState not implemented yet for MySQL")
+	return nil
 }

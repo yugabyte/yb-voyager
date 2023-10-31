@@ -504,5 +504,6 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 }
 
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
-	panic("ClearMigrationState() not implemented for PostgreSQL yet")
+	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
+	return nil
 }

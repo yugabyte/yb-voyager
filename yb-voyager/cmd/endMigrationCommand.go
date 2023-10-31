@@ -322,7 +322,7 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 		User:           tconf.User,
 		Password:       tconf.Password,
 		DBName:         tconf.DBName,
-		Schema:      tconf.Schema,
+		Schema:         tconf.Schema,
 		SSLMode:        tconf.SSLMode,
 		SSLCertPath:    tconf.SSLCertPath,
 		SSLKey:         tconf.SSLKey,
@@ -444,6 +444,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	if len(matches) > 0 {
 		var ongoingCmds []string
 		for _, match := range matches {
+			match = filepath.Base(match)
 			match = strings.TrimPrefix(match, ".")
 			match = strings.TrimSuffix(match, "Lockfile.lck")
 			if match == "end-migration" {

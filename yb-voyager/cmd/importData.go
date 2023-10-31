@@ -424,7 +424,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-			prepareTableToColumns(pendingTasks)                                                  //prepare the tableToColumns map
+			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 			for _, task := range pendingTasks {
