@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/term"
@@ -276,17 +277,6 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("end migration: clearing migration state from source db: %v", err)
 	}
-
-	if msr.YBCDCStreamID == "" {
-		log.Info("yugabytedb cdc stream id is not set. skipping deleting stream id")
-		return
-	}
-	ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", source.SSLRootCert, source.DBName, strings.Split(source.TableList, ",")[0], metaDB)
-	// TODO: check the error once streamID is expirted and ignore it
-	err = ybCDCClient.DeleteStreamID()
-	if err != nil {
-		utils.ErrExit("end migration: deleting yugabytedb cdc stream id: %v", err)
-	}
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
@@ -314,6 +304,55 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 	err = tdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("end migration: clearing migration state from target db: %v", err)
+	}
+
+	if msr.YBCDCStreamID == "" {
+		log.Info("yugabytedb cdc stream id is not set. skipping deleting stream id")
+		return
+	}
+	deleteCDCStreamIDForEndMigration(tconf)
+}
+
+func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
+	utils.PrintAndLog("Deleting YugabyteDB CDC stream id\n")
+	source := srcdb.Source{
+		DBType:         tconf.TargetDBType,
+		Host:           tconf.Host,
+		Port:           tconf.Port,
+		User:           tconf.User,
+		Password:       tconf.Password,
+		DBName:         tconf.DBName,
+		Schema:      tconf.Schema,
+		SSLMode:        tconf.SSLMode,
+		SSLCertPath:    tconf.SSLCertPath,
+		SSLKey:         tconf.SSLKey,
+		SSLRootCert:    tconf.SSLRootCert,
+		SSLCRL:         tconf.SSLCRL,
+		SSLQueryString: tconf.SSLQueryString,
+		Uri:            tconf.Uri,
+	}
+	err := source.DB().Connect()
+	if err != nil {
+		utils.ErrExit("end migration: connecting to YB as source db for deleting stream id: %v", err)
+	}
+	defer source.DB().Disconnect()
+
+	ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(source.DB().GetServers(), ","),
+		source.SSLRootCert, source.DBName, strings.Split(source.TableList, ",")[0], metaDB)
+	err = ybCDCClient.Init()
+	if err != nil {
+		utils.ErrExit("end migration: initializing yugabytedb cdc client: %v", err)
+	}
+
+	_, err = ybCDCClient.ListMastersNodes()
+	if err != nil {
+		utils.ErrExit("end migration: listing yugabytedb master nodes: %v", err)
+	}
+
+	// TODO: check the error once streamID is expirted and ignore it
+	err = ybCDCClient.DeleteStreamID()
+	if err != nil {
+		utils.ErrExit("end migration: deleting yugabytedb cdc stream id: %v", err)
 	}
 }
 
