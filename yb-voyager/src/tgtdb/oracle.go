@@ -567,7 +567,7 @@ func (tdb *TargetOracleDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBat
 
 func (tdb *TargetOracleDB) InitConnPool() error {
 	if tdb.tconf.Parallelism == -1 {
-		tdb.tconf.Parallelism = 1
+		tdb.tconf.Parallelism = 16
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", tdb.tconf.Parallelism)
 	}
 	tdb.oraDB.SetMaxIdleConns(tdb.tconf.Parallelism + 1)
