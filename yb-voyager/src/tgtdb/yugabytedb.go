@@ -1093,7 +1093,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 			"But could not remove the schema %s as it still contains state of other migrations in '%s' database", schema, yb.tconf.DBName)
 		return nil
 	}
-	log.Infof("dropping schema %s", schema)
+	utils.PrintAndLog("dropping schema %s", schema)
 	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
 	_, err := yb.conn_.Exec(context.Background(), query)
 	if err != nil {

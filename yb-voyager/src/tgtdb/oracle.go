@@ -732,8 +732,8 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 			log.Infof("table %s does not exist, nothing to clear for migration state", table)
 			continue
 		}
-		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s", table, migrationUUID)
-		_, err := tdb.conn.ExecContext(context.Background(), query, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		_, err := tdb.conn.ExecContext(context.Background(), query)
 		if err != nil {
 			log.Errorf("error cleaning up table %s: %v", table, err)
 			return fmt.Errorf("error cleaning up table %s: %w", table, err)
@@ -742,7 +742,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 
 	// ask to manually delete the USER in case of FF or FB
 	// TODO: check and inform user if there is another migrationUUID data in metadata schema tables before cleaning up the schema
-	utils.PrintAndLog(`Please manually delete the user '%s' from the '%s' host using the following SQL statement:
-		DROP USER %s CASCADE`, tdb.tconf.Schema, tdb.tconf.Host, tdb.tconf.Schema)
+	utils.PrintAndLog(`Please manually delete the user '%s' from the '%s' host using the following SQL statement(after making sure no other migration is IN-PROGRESS):
+DROP USER %s CASCADE`, tdb.tconf.Schema, tdb.tconf.Host, tdb.tconf.Schema)
 	return nil
 }

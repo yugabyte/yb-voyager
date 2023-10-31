@@ -16,14 +16,18 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/term"
 )
 
 var (
-	backupSchemaFiles    utils.BoolStr
-	backupDataFiles      utils.BoolStr
-	saveMigrationReports utils.BoolStr
-	backupLogFiles       utils.BoolStr
-	backupDir            string
+	backupSchemaFiles     utils.BoolStr
+	backupDataFiles       utils.BoolStr
+	saveMigrationReports  utils.BoolStr
+	backupLogFiles        utils.BoolStr
+	backupDir             string
+	targetDBPassword      string
+	fallForwardDBPassword string
+	sourceDBPassword      string
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -65,8 +69,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// backing up the state from the export directory
 	backupSchemaFilesFn()
 	backupDataFilesFn()
-	backupLogFilesFn()
-	saveMigrationReportsFn(cmd)
+	saveMigrationReportsFn(msr)
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
@@ -74,6 +77,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	cleanupFallForwardDB(msr)
 	cleanupFallBackDB(msr)
 
+	backupLogFilesFn()
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 }
@@ -121,7 +125,7 @@ func backupDataFilesFn() {
 	}
 }
 
-func saveMigrationReportsFn(cmd *cobra.Command) {
+func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
 		return
 	}
@@ -161,14 +165,31 @@ func saveMigrationReportsFn(cmd *cobra.Command) {
 	}
 
 	utils.PrintAndLog("saving data import reports...")
-	targetPassword, err := getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
-	if err != nil {
-		utils.ErrExit("end migration: getting target db password: %v", err)
-	}
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
 	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	importDataStatusCmd.Env = append(os.Environ(), fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetPassword))
+	targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("end migration: getting target db password: %v", err)
+	}
+	importDataStatusCmd.Env = append(os.Environ(), fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword))
+
+	if msr.FallForwardEnabled {
+		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting fall-forward db password: %v", err)
+		}
+		importDataStatusCmd.Env = append(importDataStatusCmd.Env, fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword))
+	}
+
+	if msr.FallbackEnabled {
+		sourceDBPassword, err = askPassword("fall-back DB", "", "SOURCE_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting fall-back db password: %v", err)
+		}
+		importDataStatusCmd.Env = append(importDataStatusCmd.Env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword))
+	}
+
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
 	err = importDataStatusCmd.Run()
@@ -182,29 +203,78 @@ func backupLogFilesFn() {
 	if !backupLogFiles {
 		return
 	}
-	utils.PrintAndLog("backing up log files")
 	// TODO: in case of failures when cmd is executed again, even if logs were backed up, new log file for end migration will come up
-	err := os.Rename(filepath.Join(exportDir, "logs"), filepath.Join(backupDir, "logs"))
+
+	backupLogDir := filepath.Join(backupDir, "logs")
+	err := os.MkdirAll(backupLogDir, 0755)
 	if err != nil {
-		utils.ErrExit("end migration: moving log files: %v", err)
+		utils.ErrExit("end migration: creating logs directory for backup: %v", err)
+	}
+
+	utils.PrintAndLog("backing up log files")
+	files, err := os.ReadDir(filepath.Join(exportDir, "logs"))
+	if err != nil {
+		utils.ErrExit("end migration: reading logs directory: %v", err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".log") {
+			continue
+		}
+
+		logFilePath := filepath.Join(exportDir, "logs", file.Name())
+		backupFilePath := filepath.Join(backupDir, "logs", file.Name())
+		err = os.Rename(logFilePath, backupFilePath)
+		if err != nil {
+			utils.ErrExit("end migration: moving log files: %v", err)
+		}
 	}
 }
 
+func askPassword(destination string, user string, envVar string) (string, error) {
+	if os.Getenv(envVar) != "" {
+		return os.Getenv(envVar), nil
+	}
+
+	if user == "" {
+		fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable '%s'): ",
+			destination, envVar)
+	} else {
+		fmt.Printf("Password to connect to '%s' user of %s (In addition, you can also set the password using the environment variable '%s'): ",
+			user, destination, envVar)
+	}
+	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+	if err != nil {
+		return "", fmt.Errorf("reading password: %w", err)
+	}
+	fmt.Print("\n")
+	return string(bytePassword), nil
+}
+
 func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("cleaning up source db...")
+	utils.PrintAndLog("cleaning up voyager state from source db...")
 	source := msr.SourceDBConf
 	if source == nil {
 		log.Info("source db conf is not set. skipping cleanup")
 		return
 	}
-	err := source.DB().Connect()
+
+	var err error
+	source.Password = sourceDBPassword
+	if sourceDBPassword == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting source db password: %v", err)
+		}
+	}
+	err = source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("end migration: connecting to source db: %v", err)
 	}
 	defer source.DB().Disconnect()
 	err = source.DB().ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.PrintAndLog("end migration: clearing migration state from source db: %v", err)
+		utils.ErrExit("end migration: clearing migration state from source db: %v", err)
 	}
 
 	if msr.YBCDCStreamID == "" {
@@ -220,20 +290,30 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("cleaning up target db...")
+	utils.PrintAndLog("cleaning up voyager state from target db...")
 	if msr.TargetDBConf == nil {
 		log.Info("target db conf is not set. skipping cleanup")
 		return
 	}
-	tdb := tgtdb.NewTargetDB(msr.TargetDBConf)
-	err := tdb.Init()
+
+	var err error
+	tconf := msr.TargetDBConf
+	tconf.Password = targetDBPassword
+	if targetDBPassword == "" {
+		tconf.Password, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting target db password: %v", err)
+		}
+	}
+	tdb := tgtdb.NewTargetDB(tconf)
+	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("end migration: initializing target db: %v", err)
 	}
 	defer tdb.Finalize()
 	err = tdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.PrintAndLog("end migration: clearing migration state from target db: %v", err)
+		utils.ErrExit("end migration: clearing migration state from target db: %v", err)
 	}
 }
 
@@ -242,16 +322,25 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("cleaning up fall-forward db...")
-	ffdb := tgtdb.NewTargetDB(msr.FallForwardDBConf)
-	err := ffdb.Init()
+	utils.PrintAndLog("cleaning up voyager state from fall-forward db...")
+	var err error
+	ffconf := msr.FallForwardDBConf
+	ffconf.Password = fallForwardDBPassword
+	if fallForwardDBPassword == "" {
+		ffconf.Password, err = askPassword("fall-forward DB", ffconf.User, "FF_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting fall-forward db password: %v", err)
+		}
+	}
+	ffdb := tgtdb.NewTargetDB(ffconf)
+	err = ffdb.Init()
 	if err != nil {
 		utils.ErrExit("end migration: initializing fallforward db: %v", err)
 	}
 	defer ffdb.Finalize()
 	err = ffdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.PrintAndLog("end migration: clearing migration state from fallforward db: %v", err)
+		utils.ErrExit("end migration: clearing migration state from fallforward db: %v", err)
 	}
 }
 
@@ -260,22 +349,31 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("cleaning up fallback db...")
-	fbdb := tgtdb.NewTargetDB(msr.SourceDBAsTargetConf)
-	err := fbdb.Init()
+	utils.PrintAndLog("cleaning up voyager state from fallback db...")
+	var err error
+	fbconf := msr.SourceDBAsTargetConf
+	fbconf.Password = sourceDBPassword
+	if sourceDBPassword == "" {
+		fbconf.Password, err = askPassword("fallback DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("end migration: getting fallback db password: %v", err)
+		}
+	}
+	fbdb := tgtdb.NewTargetDB(fbconf)
+	err = fbdb.Init()
 	if err != nil {
 		utils.ErrExit("end migration: initializing fallback db: %v", err)
 	}
 	defer fbdb.Finalize()
 	err = fbdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.PrintAndLog("end migration: clearing migration state from fallback db: %v", err)
+		utils.ErrExit("end migration: clearing migration state from fallback db: %v", err)
 	}
 }
 
 func cleanupExportDir() {
 	utils.PrintAndLog("cleaning up export dir...")
-	subdirs := []string{"schema", "data", "logs", "reports", "temp", "metainfo"}
+	subdirs := []string{"schema", "data", "logs", "reports", "temp", "metainfo", "sqlldr"}
 	for _, subdir := range subdirs {
 		err := os.RemoveAll(filepath.Join(exportDir, subdir))
 		if err != nil {

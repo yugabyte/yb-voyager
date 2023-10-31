@@ -132,7 +132,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
 		utils.PrintAndLog("No fall-forward/back enabled. Exiting.")
