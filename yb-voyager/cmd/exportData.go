@@ -452,7 +452,6 @@ func startFallBackSetupIfRequired() {
 		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
 	}
 	if !msr.FallbackEnabled {
-		utils.PrintAndLog("No fall-back enabled. Exiting.")
 		return
 	}
 
