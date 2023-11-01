@@ -133,7 +133,9 @@ func includeObjectsIfCertainObjectIsSelected(s *Source, objectIncluded string, o
 	if utils.ContainsString(s.ExportObjectTypeList, objectIncluded) {
 		objectsToAdd, _ := lo.Difference(objectsToBeIncluded, s.ExportObjectTypeList)
 		if len(objectsToAdd) > 0 {
-			utils.PrintAndLog("Including %s object type as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
+			if s.StrExportObjectTypeList != "" || s.StrExcludeObjectTypeList != "" {
+				utils.PrintAndLog("Including %s object type as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
+			}
 			s.ExportObjectTypeList = append(s.ExportObjectTypeList, objectsToAdd...)
 		}
 	}
