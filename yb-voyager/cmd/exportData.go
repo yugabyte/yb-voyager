@@ -169,7 +169,7 @@ func exportData() bool {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-				color.CyanString("yb-voyager live-migration report --export-dir %s\n", exportDir))
+				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
 		}
 		return true
 	} else {

@@ -64,7 +64,7 @@ var liveMigrationReportCmd = &cobra.Command{
 			}
 			liveMigrationStatusCmdFn(migrationStatus)
 		} else {
-			utils.ErrExit("export-type 'snapshot-and-changes' is not enabled for this migration")
+			utils.ErrExit("live-migration report is only applicable when export-type is 'snapshot-and-changes' in the migration")
 		}
 	},
 }
@@ -87,24 +87,28 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
-	reportTable := uitable.New()
-	reportTable.MaxColWidth = 50
-	reportTable.Separator = " | "
+	uitbl := uitable.New()
+	uitbl.MaxColWidth = 50
+	uitbl.Separator = " | "
 
-	addHeader(reportTable, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
-	addHeader(reportTable, "", "", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
+	addHeader(uitbl, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
+	addHeader(uitbl, "", "", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
+	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+
+	source = *msr.SourceDBConf
+	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
+
 	for _, table := range tableList {
-		reportTable.AddRow() // blank row
+		uitbl.AddRow() // blank row
 
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
-		tableExportStatus := status.GetTableStatusByTableName(tableName, schemaName)
+		tableExportStatus := dbzmStatus.GetTableStatusByTableName(tableName, schemaName)
 		if tableExportStatus == nil {
 			tableExportStatus = &dbzm.TableExportStatus{
 				TableName:                tableName,
@@ -114,60 +118,62 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 		row.SnapshotRowCount = tableExportStatus.ExportedRowCountSnapshot
-		source = *msr.SourceDBConf
-		sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
 			schemaName = ""
 			row.TableName = tableName
 		}
 		row.DBType = "Source"
-		err := updateRowForOutCounts(&row, tableName, schemaName) //source OUT counts
+		err := updateExportedEventsCountsInTheRow(&row, tableName, schemaName) //source OUT counts
 		if err != nil {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
 		if fBEnabled {
-			err = updateRowForInCounts(&row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
+		addRowInTheTable(uitbl, row)
 
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 		row = rowData{}
 		row.TableName = ""
 		row.DBType = "Target"
-		err = updateRowForInCounts(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
+		err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
 		if err != nil {
 			utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 		}
 		if fFEnabled || fBEnabled {
-			err = updateRowForOutCounts(&row, tableName, schemaName) // target OUT counts
+			err = updateExportedEventsCountsInTheRow(&row, tableName, schemaName) // target OUT counts
 			if err != nil {
 				utils.ErrExit("error while getting exported events for target DB: %w\n", err)
 			}
 		}
-		reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
+		addRowInTheTable(uitbl, row)
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
 			row.DBType = "Fall Forward"
-			err = updateRowForInCounts(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for fall-forward DB: %w\n", err)
 			}
-			reportTable.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
+			addRowInTheTable(uitbl, row)
 		}
 	}
 	if len(tableList) > 0 {
 		fmt.Print("\n")
-		fmt.Println(reportTable)
+		fmt.Println(uitbl)
 		fmt.Print("\n")
 	}
 
 }
 
-func updateRowForInCounts(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
+func addRowInTheTable(uitbl *uitable.Table, row rowData) {
+	uitbl.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
+}
+
+func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
 	switch row.DBType {
 	case "Target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -225,7 +231,7 @@ func updateRowForInCounts(row *rowData, tableName string, schemaName string, tar
 	return nil
 }
 
-func updateRowForOutCounts(row *rowData, tableName string, schemaName string) error {
+func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string) error {
 	switch row.DBType {
 	case "Source":
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
