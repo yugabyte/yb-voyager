@@ -38,7 +38,6 @@ var liveMigrationReportCmd = &cobra.Command{
 	Long:  `This command will print the report of the live migration or live migration with fall-forward or live migration with fall-back.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
@@ -108,7 +107,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
-		tableExportStatus := dbzmStatus.GetTableStatusByTableName(tableName, schemaName)
+		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
 		if tableExportStatus == nil {
 			tableExportStatus = &dbzm.TableExportStatus{
 				TableName:                tableName,
