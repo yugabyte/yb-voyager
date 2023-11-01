@@ -30,9 +30,12 @@ import (
 
 var archiveChangesCmd = &cobra.Command{
 	Use: "changes",
-	Short: "This command archives and deletes the streaming data exported from the source database.\n" +
+	Short: "Delete the already imported changes and optionally archive them before deleting.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
-	Long: `This command archives and deletes the streaming data exported from the source database. The data is deleted only if the disk utilization threshold is exceeded. Also, if the --move-to flag is used, only the archived data is deleted.`,
+	Long: `This command limits the disk space used by the locally queued CDC events. Once the changes from the local queue are applied on the target DB (and source-replica DB), they are eligible for deletion. The command gives an option to archive the changes before deleting by moving them to some other directory.
+
+Note that: even if some changes are applied to the target databases, they are deleted only after the disk space utilisation exceeds 70%.
+	`,
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateCommonArchiveFlags()
@@ -42,13 +45,11 @@ var archiveChangesCmd = &cobra.Command{
 }
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
-	moveToChanged := cmd.Flags().Changed("move-to")
-	deleteChanged := cmd.Flags().Changed("delete-changes-without-archiving")
-	if moveToChanged == deleteChanged {
-		utils.ErrExit("Either --move-to or --delete-changes-without-archiving flag should be set")
+	if moveDestination != "" && deleteSegments {
+		utils.ErrExit("only one of the --move-to and --delete-changes-without-archiving should be set")
 	}
-	if !moveToChanged && deleteSegments.String() == "false" {
-		utils.ErrExit("--delete-changes-without-archiving flag is set to false and --move-to flag is not set. Must set either one of them.")
+	if moveDestination == "" && !deleteSegments {
+		utils.ErrExit("one of the --move-to and --delete-changes-without-archiving must be set")
 	}
 
 	copier := NewEventSegmentCopier(moveDestination)
