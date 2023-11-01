@@ -152,7 +152,7 @@ func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	var totalExportedEvents int64
 	var err error
 	if s.importerRole == "fb_db_importer" {
-		totalExportedEvents, err = s.metaDB.GetTotalExportedEventsByExporterRole("target_db_exporter_fb")
+		totalExportedEvents, _, err = s.metaDB.GetTotalExportedEventsByExporterRole("target_db_exporter_fb", time.Now().String())
 		if err != nil {
 			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)
 		}

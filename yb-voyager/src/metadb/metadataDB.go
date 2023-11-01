@@ -216,18 +216,26 @@ func (m *MetaDB) GetTotalExportedEvents(runId string) (int64, int64, error) {
 	return totalCount, totalCountRun, nil
 }
 
-func (m *MetaDB) GetTotalExportedEventsByExporterRole(exporterRole string) (int64, error) {
+func (m *MetaDB) GetTotalExportedEventsByExporterRole(exporterRole string, runId string) (int64, int64, error) {
 	var totalCount int64
+	var totalCountRun int64
 
 	query := fmt.Sprintf(`SELECT sum(num_total) from %s WHERE exporter_role='%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, exporterRole)
 	err := m.db.QueryRow(query).Scan(&totalCount)
 	if err != nil {
 		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
-			return 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
 		}
 	}
 
-	return totalCount, nil
+	query = fmt.Sprintf(`SELECT sum(num_total) from %s WHERE exporter_role='%s' AND run_id = '%s'`, EXPORTED_EVENTS_STATS_TABLE_NAME, exporterRole, runId)
+	err = m.db.QueryRow(query).Scan(&totalCountRun)
+	if err != nil {
+		if !strings.Contains(err.Error(), "converting NULL to int64 is unsupported") {
+			return 0, 0, fmt.Errorf("error while running query on meta db -%s :%w", query, err)
+		}
+	}
+	return totalCount, totalCountRun, nil
 }
 
 func (m *MetaDB) GetExportedEventsRateInLastNMinutes(runId string, n int) (int64, error) {

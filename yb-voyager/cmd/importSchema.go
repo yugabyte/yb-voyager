@@ -39,6 +39,9 @@ var importSchemaCmd = &cobra.Command{
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		if !schemaIsExported() {
+			utils.ErrExit("Error: schema is not exported yet.")
+		}
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}

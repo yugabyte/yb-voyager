@@ -39,6 +39,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var partitionsToRootTableMap = make(map[string]string)
+var ybCDCClient *dbzm.YugabyteDBCDCClient
+
 func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) (*dbzm.Config, map[string]int64, error) {
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
@@ -57,8 +60,10 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-
-	tableList = filterTablePartitions(tableList)
+	tableList, err = addLeafPartitionsInTableList(tableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
+	}
 	fmt.Printf("num tables to export: %d\n", len(tableList))
 	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -87,15 +92,19 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		}
 	}
 
-	var columnSequenceMap []string
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
-	for column, sequence := range colToSeqMap {
-		columnSequenceMap = append(columnSequenceMap, fmt.Sprintf("%s:%s", column, sequence))
-	}
+	columnSequenceMapping := strings.Join(lo.MapToSlice(colToSeqMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
+
 	err = prepareSSLParamsForDebezium(absExportDir)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to prepare ssl params for debezium: %w", err)
 	}
+
+	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
+		return fmt.Sprintf("%s:%s", k, v)
+	}), ",")
 
 	config := &dbzm.Config{
 		RunId:          runId,
@@ -108,11 +117,12 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		Username:       source.User,
 		Password:       source.Password,
 
-		DatabaseName:      source.DBName,
-		SchemaNames:       source.Schema,
-		TableList:         dbzmTableList,
-		ColumnList:        dbzmColumnList,
-		ColumnSequenceMap: columnSequenceMap,
+		DatabaseName:          source.DBName,
+		SchemaNames:           source.Schema,
+		TableList:             dbzmTableList,
+		ColumnList:            dbzmColumnList,
+		ColumnSequenceMapping: columnSequenceMapping,
+		TableRenameMapping:    tableRenameMapping,
 
 		SSLMode:               source.SSLMode,
 		SSLCertPath:           source.SSLCertPath,
@@ -155,7 +165,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 				return fmt.Sprintf("%s:%s", s, masterPort)
 			}),
 			)
-			ybCDCClient := dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
+			ybCDCClient = dbzm.NewYugabyteDBCDCClient(exportDir, strings.Join(ybServers, ","), config.SSLRootCert, config.DatabaseName, config.TableList[0], metaDB)
 			err := ybCDCClient.Init()
 			if err != nil {
 				return nil, nil, fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
@@ -185,19 +195,67 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	return config, tableNameToApproxRowCountMap, nil
 }
 
-// required only for postgresql since GetAllTables() returns all tables and partitions
-func filterTablePartitions(tableList []*sqlname.SourceName) []*sqlname.SourceName {
-	if source.DBType != POSTGRESQL || source.TableList != "" {
-		return tableList
+// required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
+func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
+	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
+	if !requiredForSource {
+		return tableList, nil
 	}
 
-	filteredTableList := []*sqlname.SourceName{}
+	modifiedTableList := []*sqlname.SourceName{}
+
+	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
+
+	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
+	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
 	for _, table := range tableList {
-		if !source.DB().IsTablePartition(table) {
-			filteredTableList = append(filteredTableList, table)
+		rootTable, err := GetRootTableOfPartition(table)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
+		}
+		allLeafPartitions := GetAllLeafPartitions(table)
+		switch true {
+		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
+			partitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			modifiedTableList = append(modifiedTableList, table)
+		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
+			modifiedTableList = append(modifiedTableList, table)
+		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list 
+			for _, leafPartition := range allLeafPartitions {
+				modifiedTableList = append(modifiedTableList, leafPartition)
+				partitionsToRootTableMap[leafPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			}
 		}
 	}
-	return filteredTableList
+	return lo.UniqBy(modifiedTableList, func (table *sqlname.SourceName) string {
+		return table.Qualified.MinQuoted
+	}), nil
+}
+
+func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
+	parentTable := source.DB().ParentTableOfPartition(table)
+	if parentTable == "" {
+		return table, nil
+	}
+	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
+	if noDefaultSchema {
+		return nil, fmt.Errorf("default schema not found")
+	}
+	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
+}
+
+func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
+	allLeafPartitions := []*sqlname.SourceName{}
+	childPartitions := source.DB().GetPartitions(table)
+	for _, childPartition := range childPartitions {
+		leafPartitions := GetAllLeafPartitions(childPartition)
+		if len(leafPartitions) == 0 {
+			allLeafPartitions = append(allLeafPartitions, childPartition)
+		} else {
+			allLeafPartitions = append(allLeafPartitions, leafPartitions...)
+		}
+	}
+	return allLeafPartitions
 }
 
 func prepareSSLParamsForDebezium(exportDir string) error {
@@ -348,7 +406,7 @@ func reportStreamingProgress() {
 	footerWriter := tableWriter.Newline()
 	tableWriter.Start()
 	for {
-		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEvents(runId)
+		totalEventCount, totalEventCountRun, err := metaDB.GetTotalExportedEventsByExporterRole(exporterRole, runId)
 		if err != nil {
 			utils.ErrExit("failed to get total exported count from metadb: %w", err)
 		}

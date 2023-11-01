@@ -50,18 +50,21 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if exportDir != "" && utils.FileOrFolderExists(exportDir) {
-			if shouldLock(cmd) {
-				lockExportDir(cmd)
-			}
-			InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
-			if metaDBIsCreated(exportDir) {
-				initMetaDB()
-			}
-			if perfProfile {
-				go startPprofServer()
-			}
+		if cmd.CommandPath() == "yb-voyager version" {
+			return
 		}
+		validateExportDirFlag()
+		if shouldLock(cmd) {
+			lockExportDir(cmd)
+		}
+		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
+		if metaDBIsCreated(exportDir) {
+			initMetaDB()
+		}
+		if perfProfile {
+			go startPprofServer()
+		}
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

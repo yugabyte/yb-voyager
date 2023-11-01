@@ -44,7 +44,8 @@ type Config struct {
 	PDBName                     string
 	SchemaNames                 string
 	TableList                   []string
-	ColumnSequenceMap           []string
+	ColumnSequenceMapping       string
+	TableRenameMapping          string
 	ColumnList                  []string
 	Uri                         string
 	TNSAdmin                    string
@@ -91,6 +92,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.tables.rename=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
 debezium.sink.ybexporter.run.id=%s
@@ -246,7 +248,8 @@ func (c *Config) String() string {
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -272,7 +275,8 @@ func (c *Config) String() string {
 			schemaNames,
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -295,7 +299,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
@@ -323,7 +328,8 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 
 			dataDir,
-			strings.Join(c.ColumnSequenceMap, ","),
+			c.ColumnSequenceMapping,
+			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,

@@ -104,6 +104,7 @@ func exportSchema() {
 		// setting irrespective of the current value
 		record.SourceDBConf = source.Clone()
 		record.SourceDBConf.Password = ""
+		record.SourceDBConf.Uri = ""
 	})
 	setSchemaIsExported()
 }
@@ -127,6 +128,9 @@ func init() {
 }
 
 func schemaIsExported() bool {
+	if !metaDBIsCreated(exportDir) {
+		return false
+	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("check if schema is exported: load migration status record: %s", err)

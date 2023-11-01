@@ -161,7 +161,6 @@ func setDefaultSSLMode() {
 }
 
 func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
-	validateExportDirFlag()
 	validateSourceDBType()
 	validateSourceSchema()
 	validatePortRange()

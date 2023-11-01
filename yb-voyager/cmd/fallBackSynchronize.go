@@ -29,6 +29,7 @@ var fallBackSynchronizeCmd = &cobra.Command{
 	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateMetaDBCreated()
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
 		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
@@ -52,13 +53,9 @@ func init() {
 	registerCommonGlobalFlags(fallBackSynchronizeCmd)
 	registerTargetDBAsSourceConnFlags(fallBackSynchronizeCmd)
 	registerExportDataFlags(fallBackSynchronizeCmd)
-	hideFlagsInFallFowardCmds(fallBackSynchronizeCmd)
-	hideExportFlagsInFallBackCmds(fallBackSynchronizeCmd)
+	hideExportFlagsInFallForwardOrBackCmds(fallBackSynchronizeCmd)
 }
 
-func hideExportFlagsInFallBackCmds(cmd *cobra.Command) {
-	cmd.Flags().Lookup("parallel-jobs").Hidden = true
-}
 
 func initSourceConfFromTargetConf() error {
 	msr, err := metaDB.GetMigrationStatusRecord()

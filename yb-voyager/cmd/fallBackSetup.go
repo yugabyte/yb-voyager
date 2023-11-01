@@ -28,6 +28,7 @@ var fallBackSetupCmd = &cobra.Command{
 	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		validateMetaDBCreated()
 		importType = SNAPSHOT_AND_CHANGES
 		importerRole = FB_DB_IMPORTER_ROLE
 		err := initTargetConfFromSourceConf()
@@ -45,8 +46,8 @@ func init() {
 	registerCommonGlobalFlags(fallBackSetupCmd)
 	registerCommonImportFlags(fallBackSetupCmd)
 	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
-	registerImportDataFlags(fallBackSetupCmd)
-	hideFlagsInFallBackCmds(fallBackSetupCmd)
+	registerImportDataCommonFlags(fallBackSetupCmd)
+	hideImportFlagsInFallForwardOrBackCmds(fallBackSetupCmd)
 }
 
 func initTargetConfFromSourceConf() error {

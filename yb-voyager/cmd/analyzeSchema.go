@@ -1090,7 +1090,6 @@ var analyzeSchemaCmd = &cobra.Command{
 	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		validateReportOutputFormat()
-		validateExportDirFlag()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {

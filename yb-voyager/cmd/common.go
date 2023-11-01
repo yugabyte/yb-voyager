@@ -466,3 +466,48 @@ func GetSourceDBTypeFromMSR() string {
 	}
 	return msr.SourceDBConf.DBType
 }
+
+func validateMetaDBCreated() {
+	if !metaDBIsCreated(exportDir) {
+		utils.ErrExit("ERROR: no metadb found in export-dir")
+	}
+}
+
+func getImportTableList(sourceTableList []string) []string {
+	if importerRole == IMPORT_FILE_ROLE {
+		return nil
+	}
+	var tableList []string
+	sqlname.SourceDBType = source.DBType
+	for _, qualifiedTableName := range sourceTableList {
+		// TODO: handle case sensitivity?
+		tableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName)
+		table := tableName.ObjectName.MinQuoted
+		if source.DBType == POSTGRESQL && tableName.SchemaName.MinQuoted != "public" {
+			table = tableName.Qualified.MinQuoted
+		}
+		tableList = append(tableList, table)
+	}
+	return tableList
+}
+
+func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
+	var flags = []string{"target-db-type", "import-type", "target-endpoints", "use-public-ip", "continue-on-error", "table-list",
+	"table-list-file-path", "exclude-table-list","exclude-table-list-file-path", "enable-upsert"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag != nil {
+			flag.Hidden = true
+		}
+	}
+}
+
+func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
+	var flags = []string{"source-db-type", "export-type", "parallel-jobs", "start-clean"}
+	for _, flagName := range flags {
+		flag := cmd.Flags().Lookup(flagName)
+		if flag != nil {
+			flag.Hidden = true
+		}
+	}
+}

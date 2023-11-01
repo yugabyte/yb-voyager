@@ -86,10 +86,11 @@ func (s *Source) IsOracleCDBSetup() bool {
 }
 
 func (s *Source) ApplyExportSchemaObjectListFilter() {
-	allowedObjects := utils.GetSchemaObjectList(s.DBType)
+	allowedObjects := utils.GetExportSchemaObjectList(s.DBType)
 
 	if s.StrExportObjectTypeList == "" && s.StrExcludeObjectTypeList == "" {
 		s.ExportObjectTypeList = allowedObjects
+		printAndCheckFilteredObjects(allowedObjects, []string{}, s)
 		return
 	}
 
@@ -116,6 +117,25 @@ func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []str
 	if !utils.ContainsString(s.ExportObjectTypeList, "TABLE") && utils.ContainsString(s.ExportObjectTypeList, "INDEX") {
 		s.ExportObjectTypeList = lo.Filter(s.ExportObjectTypeList, func(objType string, _ int) bool { return objType != "INDEX" })
 		utils.PrintAndLog("Ignoring INDEX object type as TABLE object type is not selected\n")
+	}
+	if s.DBType == "oracle" {
+		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "SEQUENCE", "PARTITION", "INDEX"})
+	} else if s.DBType == "mysql" {
+		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"PARTITION", "INDEX"})
+	} else {
+		includeObjectsIfCertainObjectIsSelected(s, "TABLE", []string{"TYPE", "DOMAIN", "SEQUENCE", "INDEX", "RULE"})
+		includeObjectsIfCertainObjectIsSelected(s, "VIEW", []string{"RULE"})
+		s.ExportObjectTypeList = append(s.ExportObjectTypeList, "SCHEMA", "COLLATION", "EXTENSION")
+	}
+}
+
+func includeObjectsIfCertainObjectIsSelected(s *Source, objectIncluded string, objectsToBeIncluded []string) {
+	if utils.ContainsString(s.ExportObjectTypeList, objectIncluded) {
+		objectsToAdd, _ := lo.Difference(objectsToBeIncluded, s.ExportObjectTypeList)
+		if len(objectsToAdd) > 0 {
+			utils.PrintAndLog("Including %s object type as %s object type is selected\n", strings.Join(objectsToAdd, ", "), objectIncluded)
+			s.ExportObjectTypeList = append(s.ExportObjectTypeList, objectsToAdd...)
+		}
 	}
 }
 

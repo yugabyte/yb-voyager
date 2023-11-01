@@ -35,7 +35,6 @@ var exportDataStatusCmd = &cobra.Command{
 	Short: "Print status of an ongoing/completed data export.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		validateExportDirFlag()
 		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
@@ -82,13 +81,37 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
 	var row *exportTableMigStatusOutputRow
-	for _, tableStatus := range status.Tables {
-		if streamChanges {
-			row = getSnapshotAndChangesExportStatusRow(&tableStatus)
-		} else {
-			row = getSnapshotExportStatusRow(&tableStatus)
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("could not fetch migration status from meta DB: %w", err)
+	}
+	if msr.SourceDBConf != nil {
+		source = *msr.SourceDBConf
+	}
+
+	if streamChanges {
+		tableList := msr.TableListExportedFromSource
+		for _, table := range tableList {
+			parts := strings.Split(table, ".")
+			schemaName, tableName := parts[0], parts[1]
+			tableStatus := status.GetTableExportStatus(tableName, schemaName)
+			if tableStatus == nil {
+				tableStatus = &dbzm.TableExportStatus{
+					TableName:                tableName,
+					SchemaName:               schemaName,
+					ExportedRowCountSnapshot: 0,
+					FileName:                 "",
+				}
+			}
+			row = getSnapshotAndChangesExportStatusRow(tableStatus)
+			rows = append(rows, row)
 		}
-		rows = append(rows, row)
+	} else {
+		for _, tableStatus := range status.Tables {
+			row = getSnapshotExportStatusRow(&tableStatus)
+			rows = append(rows, row)
+		}
 	}
 
 	displayExportDataStatus(rows, streamChanges)
