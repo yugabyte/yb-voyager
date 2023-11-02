@@ -32,10 +32,15 @@ func main() {
 
 func registerSignalHandlers() {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR2)
 	go func() {
 		sig := <-sigs
-		utils.PrintAndLog("Received signal %s. Exiting...", sig)
+		switch sig {
+		case syscall.SIGINT, syscall.SIGTERM:
+			utils.PrintAndLog("Received signal %s. Exiting...", sig)
+		case syscall.SIGUSR2:
+			utils.PrintAndLog("Received signal to terminate due to end migration command. Exiting...")
+		}
 		atexit.Exit(0)
 	}()
 }

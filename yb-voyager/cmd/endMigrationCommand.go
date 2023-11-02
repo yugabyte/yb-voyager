@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -444,17 +445,45 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	if len(matches) > 0 {
 		var ongoingCmds []string
 		for _, match := range matches {
-			match = filepath.Base(match)
-			match = strings.TrimPrefix(match, ".")
-			match = strings.TrimSuffix(match, "Lockfile.lck")
-			if match == "end-migration" {
-				continue
-			}
-			ongoingCmds = append(ongoingCmds, match)
+			ongoingCmd := getCmdNameFromLockFile(match)
+			ongoingCmds = append(ongoingCmds, ongoingCmd)
 		}
-		if len(ongoingCmds) > 0 &&
-			!utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command", strings.Join(ongoingCmds, ", "))) {
-			utils.ErrExit("aborting the end migration command")
+		if len(ongoingCmds) > 0 {
+			if utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by killing them", strings.Join(ongoingCmds, ", "))) {
+				for _, match := range matches {
+					ongoingCmd := getCmdNameFromLockFile(match)
+					utils.PrintAndLog("killing the ongoing %q command", ongoingCmd)
+					bytes, err := os.ReadFile(match)
+					if err != nil { // file might have been deleted by the ongoing command in the meantime
+						log.Warnf("end migration: reading lock file %q: %v", match, err)
+					}
+
+					ongoingCmdPID, err := strconv.Atoi(string(bytes))
+					if err != nil {
+						utils.ErrExit("end migration: converting ongoing command PID %q to int: %v", string(bytes), err)
+					}
+					utils.PrintAndLog("end migration: killing ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
+
+					process, err := os.FindProcess(ongoingCmdPID)
+					if err != nil {
+						log.Warnf("end migration: finding process with PID=%d: %v", ongoingCmdPID, err)
+						continue
+					}
+
+					err = process.Signal(syscall.SIGUSR2)
+					if err != nil {
+						log.Warnf("end migration: sending SIGUSR2 signal to process with PID=%d: %v", ongoingCmdPID, err)
+						continue
+					}
+
+					_, err = process.Wait()
+					if err != nil {
+						log.Warnf("end migration: waiting for process with PID=%d: %v", ongoingCmdPID, err)
+					}
+				}
+			} else {
+				utils.ErrExit("aborting the end migration command")
+			}
 		}
 	} else {
 		log.Info("no ongoing voyager commands found")
