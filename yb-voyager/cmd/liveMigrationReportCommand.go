@@ -32,6 +32,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var targetDbPassword string
+var ffDbPassword string
+var sourceDbPassword string
+
 var liveMigrationReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "This command will print the report of any live migration workflow.",
@@ -59,7 +63,7 @@ var liveMigrationReportCmd = &cobra.Command{
 			}
 			if migrationStatus.FallbackEnabled {
 				getSourceDBPassword(cmd)
-				migrationStatus.SourceDBAsTargetConf.Password = source.Password
+				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
 			liveMigrationStatusCmdFn(migrationStatus)
 		} else {
@@ -69,16 +73,16 @@ var liveMigrationReportCmd = &cobra.Command{
 }
 
 type rowData struct {
-	TableName        string
-	DBType           string
-	ExportedRows     int64
-	ImportedRows     int64
-	InsertsIn        int64
-	UpdatesIn        int64
-	DeletesIn        int64
-	InsertsOut       int64
-	UpdatesOut       int64
-	DeletesOut       int64
+	TableName       string
+	DBType          string
+	ExportedRows    int64
+	ImportedRows    int64
+	ImportedInserts int64
+	ImportedUpdates int64
+	ImportedDeletes int64
+	ExportedInserts int64
+	ExportedUpdates int64
+	ExportedDeletes int64
 }
 
 var fBEnabled, fFEnabled bool
@@ -91,7 +95,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
 
-	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
+	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED SNAPSHOT", "IMPORTED SNAPSHOT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
 	addHeader(uitbl, "", "", "ROWS", "ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
@@ -118,7 +122,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 		row.ExportedRows = tableExportStatus.ExportedRowCountSnapshot
-		row.ImportedRows = 0 
+		row.ImportedRows = 0
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
 			schemaName = ""
@@ -172,7 +176,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func addRowInTheTable(uitbl *uitable.Table, row rowData) {
-	uitbl.AddRow(row.TableName, row.DBType, row.ExportedRows, row.ImportedRows, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
+	uitbl.AddRow(row.TableName, row.DBType, row.ExportedRows, row.ImportedRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
 func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
@@ -227,9 +231,9 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 	if err != nil {
 		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
 	}
-	row.InsertsIn = eventCounter.NumInserts
-	row.UpdatesIn = eventCounter.NumUpdates
-	row.DeletesIn = eventCounter.NumDeletes
+	row.ImportedInserts = eventCounter.NumInserts
+	row.ImportedUpdates = eventCounter.NumUpdates
+	row.ImportedDeletes = eventCounter.NumDeletes
 	return nil
 }
 
@@ -248,17 +252,17 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("could not fetch table stats from meta DB: %w", err)
 	}
-	row.InsertsOut = eventCounter.NumInserts
-	row.UpdatesOut = eventCounter.NumUpdates
-	row.DeletesOut = eventCounter.NumDeletes
+	row.ExportedInserts = eventCounter.NumInserts
+	row.ExportedUpdates = eventCounter.NumUpdates
+	row.ExportedDeletes = eventCounter.NumDeletes
 	return nil
 }
 
 func getFinalRowCount(row rowData) int64 {
 	if row.DBType == "Source" {
-		return row.ExportedRows + row.InsertsOut + row.InsertsIn - row.DeletesOut - row.DeletesIn
-	} 
-	return row.ImportedRows + row.InsertsIn + row.InsertsOut - row.DeletesIn - row.DeletesOut
+		return row.ExportedRows + row.ExportedInserts + row.ImportedInserts - row.ExportedDeletes - row.ImportedDeletes
+	}
+	return row.ImportedRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
 }
 
 func init() {

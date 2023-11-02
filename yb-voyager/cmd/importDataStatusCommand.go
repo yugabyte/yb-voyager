@@ -23,29 +23,20 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var targetDbPassword string
-var ffDbPassword string
-var sourceDbPassword string
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed import data/fall-forward setup.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		migrationStatus, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("error while getting migration status: %w\n", err)
-		}
 		streamChanges, err := checkWithStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
@@ -54,13 +45,9 @@ var importDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n"+
 				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
 		}
-		migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
-		if err != nil {
-			utils.ErrExit("error while parsing migration UUID: %w\n", err)
-		}
 		color.Cyan("Import Data Status for TargetDB\n")
 		importerRole = TARGET_DB_IMPORTER_ROLE
-		err = runImportDataStatusCmd(migrationStatus.TargetDBConf)
+		err = runImportDataStatusCmd()
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
 		}
@@ -84,7 +71,7 @@ type tableMigStatusOutputRow struct {
 
 // Note that the `import data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `import data` process.
-func runImportDataStatusCmd(tgtconf *tgtdb.TargetConf) error {
+func runImportDataStatusCmd() error {
 	if !dataIsExported() {
 		return fmt.Errorf("cannot run `import data status` before data export is done")
 	}
