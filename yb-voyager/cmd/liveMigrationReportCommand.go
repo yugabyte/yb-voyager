@@ -71,7 +71,8 @@ var liveMigrationReportCmd = &cobra.Command{
 type rowData struct {
 	TableName        string
 	DBType           string
-	SnapshotRowCount int64
+	ExportedRows     int64
+	ImportedRows     int64
 	InsertsIn        int64
 	UpdatesIn        int64
 	DeletesIn        int64
@@ -90,8 +91,8 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
 
-	addHeader(uitbl, "TABLE", "DB TYPE", "SNAPSHOT ROW COUNT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
-	addHeader(uitbl, "", "", "", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
+	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
+	addHeader(uitbl, "", "", "ROWS", "ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -116,7 +117,8 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 				FileName:                 "",
 			}
 		}
-		row.SnapshotRowCount = tableExportStatus.ExportedRowCountSnapshot
+		row.ExportedRows = tableExportStatus.ExportedRowCountSnapshot
+		row.ImportedRows = 0 
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
 			schemaName = ""
@@ -135,9 +137,9 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 		addRowInTheTable(uitbl, row)
 
-		row = rowData{}
 		row.TableName = ""
 		row.DBType = "Target"
+		row.ExportedRows = 0
 		err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
 		if err != nil {
 			utils.ErrExit("error while getting imported events for target DB: %w\n", err)
@@ -153,6 +155,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			row = rowData{}
 			row.TableName = ""
 			row.DBType = "Fall Forward"
+			row.ExportedRows = 0
 			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for fall-forward DB: %w\n", err)
@@ -169,7 +172,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func addRowInTheTable(uitbl *uitable.Table, row rowData) {
-	uitbl.AddRow(row.TableName, row.DBType, row.SnapshotRowCount, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
+	uitbl.AddRow(row.TableName, row.DBType, row.ExportedRows, row.ImportedRows, row.InsertsOut, row.UpdatesOut, row.DeletesOut, row.InsertsIn, row.UpdatesIn, row.DeletesIn, getFinalRowCount(row))
 }
 
 func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
@@ -214,7 +217,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 	}
 
 	if importerRole != FB_DB_IMPORTER_ROLE {
-		row.SnapshotRowCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
+		row.ImportedRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
 		if err != nil {
 			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)
 		}
@@ -252,7 +255,10 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 }
 
 func getFinalRowCount(row rowData) int64 {
-	return row.SnapshotRowCount + row.InsertsIn + row.InsertsOut - row.DeletesIn - row.DeletesOut
+	if row.DBType == "Source" {
+		return row.ExportedRows + row.InsertsOut + row.InsertsIn - row.DeletesOut - row.DeletesIn
+	} 
+	return row.ImportedRows + row.InsertsIn + row.InsertsOut - row.DeletesIn - row.DeletesOut
 }
 
 func init() {
