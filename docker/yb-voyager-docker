@@ -139,6 +139,29 @@ do
 		argv[$j]='/source-ssl-key-dir/'$source_ssl_key_file
 	fi
 
+	# If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
+	if [[ ${argv[${i}]} == "--source-ssl-root-cert" ]]
+	then
+		j=$(( $i + 1))
+		source_ssl_root_cert=${argv[${j}]}
+		# SSL root cert will be like /home/ubuntu/.mysql/ca.pem
+		# We need to map the directory /home/ubuntu/.mysql to the container
+		# and then use the root cert file name in the container
+		source_ssl_root_cert_dir=$(dirname "$source_ssl_root_cert")
+		source_ssl_root_cert_dir=$(realpath "$source_ssl_root_cert_dir")
+		source_ssl_root_cert_file=$(basename "$source_ssl_root_cert")
+		if [[ $OSTYPE == 'darwin'* ]]
+		then
+			docker volume rm voyager-source-ssl-root-cert-dir
+			docker volume create --driver local --opt type=none --opt device="${source_ssl_root_cert_dir}" --opt o=bind voyager-source-ssl-root-cert-dir
+			source_ssl_root_cert_vol="-v voyager-source-ssl-root-cert-dir:/source-ssl-root-cert-dir"
+		else
+			source_ssl_root_cert_vol="-v ${source_ssl_root_cert_dir}:/source-ssl-root-cert-dir"
+		fi
+		argv[$j]='/source-ssl-root-cert-dir/'$source_ssl_root_cert_file
+	fi
+
+
     i=$(( $i + 1))
 done
 
@@ -147,7 +170,7 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
