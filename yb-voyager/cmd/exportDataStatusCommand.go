@@ -62,8 +62,6 @@ type exportTableMigStatusOutputRow struct {
 	tableName     string
 	status        string
 	exportedCount int64
-	//streaming stats
-	schemaName    string
 }
 
 var InProgressTableSno int
