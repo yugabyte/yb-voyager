@@ -456,6 +456,7 @@ func startFallBackSetupIfRequired() {
 		return
 	}
 
+	unlockExportDir() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
 	cmd := []string{"yb-voyager", "fall-back", "setup",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
