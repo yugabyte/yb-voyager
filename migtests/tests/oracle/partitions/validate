@@ -62,7 +62,7 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 		"partition_table_name": "sales_hash_p4",
 	},
 	"Sub_Partition": {
-		"query": " Insert into sub_par_test values ('emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
+		"query": " Insert into sub_par_test values (23,'emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
 		"partition_table_name": "sub_par_test_p5_sp5",
 	}
 }

@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+
+import os
+import yb
+import collections
+import oracle
+
+def main():
+	migration_completed_checks_yb()
+	if os.environ.get("FF_DB_SCHEMA") is not None:
+		migration_completed_checks_oracle()
+
+EXPECTED_ROW_COUNT = {
+	'order_items_range_partitioned': 79,
+	'accounts_list_partitioned': 42,
+	'orders_interval_partition': 105,
+	'sales_hash': 30,
+	'sub_par_test': 22,
+	'empty_partition_table':4,
+	'empty_partition_table2':4
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'order_items_range_partitioned': {
+		'order_id': 3464 
+	},
+	'accounts_list_partitioned': {
+		'id': 963
+	},
+	'orders_interval_partition': {
+		'order_id': 5800
+	},
+	'sales_hash': {
+		's_productid': 280
+	},
+	'sub_par_test': {
+		'id': 300
+	},
+	'empty_partition_table': {
+		'id': 10
+	}
+	'empty_partition_table2': {
+		'id': 10
+	}
+}
+
+#=============================================================================
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	global db_schema
+	db_schema="public"
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_oracle():
+	print("Running tests on Oracle")
+	global db_schema
+	db_schema = os.environ.get("FF_DB_SCHEMA")
+	oracle.run_checks(migration_completed_checks)
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	got_row_count = tgt.row_count_of_all_tables(db_schema)
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {db_schema}.{table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, db_schema)
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+if __name__ == "__main__":
+	main()
