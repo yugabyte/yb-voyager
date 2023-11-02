@@ -213,22 +213,11 @@ func backupLogFilesFn() {
 	}
 
 	utils.PrintAndLog("backing up log files")
-	files, err := os.ReadDir(filepath.Join(exportDir, "logs"))
+	cmdStr := fmt.Sprintf("mv %s/logs/*.log %s", exportDir, backupLogDir)
+	cmd := exec.Command("bash", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("end migration: reading logs directory: %v", err)
-	}
-
-	for _, file := range files {
-		if file.IsDir() || !strings.HasSuffix(file.Name(), ".log") {
-			continue
-		}
-
-		logFilePath := filepath.Join(exportDir, "logs", file.Name())
-		backupFilePath := filepath.Join(backupDir, "logs", file.Name())
-		err = os.Rename(logFilePath, backupFilePath)
-		if err != nil {
-			utils.ErrExit("end migration: moving log files: %v", err)
-		}
+		utils.ErrExit("end migration: moving log files: %s: %v", string(output), err)
 	}
 }
 
