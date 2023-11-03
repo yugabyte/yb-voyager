@@ -171,6 +171,20 @@ do
 				oracle_tns_admin_vol="-v ${tns_admin}:/oracle-tns-admin"
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 			fi
+		else 
+			# The TNS admin variable will be $$ORACLE_HOME/network/admin
+			# Create a volume for this location and then pass the exported variable TNS_ADMIN with the volume name.
+			tns_admin = "$ORACLE_HOME/network/admin"
+			if [[ $OSTYPE == 'darwin'* ]]
+			then 
+				docker volume rm voyager-oracle-tns-admin
+				docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
+				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
+				oracle_tns_admin_vol="-v voyager-oracle-tns-admin:/oracle-tns-admin"
+			else
+				oracle_tns_admin_vol="-v ${tns_admin}:/oracle-tns-admin"
+				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
+			fi
 		fi
 	fi
 			
