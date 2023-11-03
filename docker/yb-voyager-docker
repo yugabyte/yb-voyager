@@ -180,7 +180,7 @@ do
 			cp -r $tns_admin /tmp/oracle-tns-admin
 			tns_admin="/tmp/oracle-tns-admin"
 			# Read DIRECTORY in sqlnet.ora file and save it in a variable.
-			wallet_dir=$(cat $tns_admin/sqlnet.ora | grep -E '^DIRECTORY' | cut -d '=' -f2 | tr -d ' ')
+			wallet_dir=$(awk -F'"' '/\(DIRECTORY =".*"\)/ {print $2}' $tns_admin/sqlnet.ora)
 			echo $wallet_dir
 			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
 			cat $tns_admin/sqlnet.ora
