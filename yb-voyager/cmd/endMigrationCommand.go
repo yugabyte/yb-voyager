@@ -171,34 +171,52 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
 	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
+
 	targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
 	if err != nil {
 		utils.ErrExit("getting target db password: %v", err)
 	}
-	importDataStatusCmd.Env = append(os.Environ(), fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword))
-
 	if msr.FallForwardEnabled {
 		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting fall-forward db password: %v", err)
 		}
-		importDataStatusCmd.Env = append(importDataStatusCmd.Env, fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword))
 	}
-
 	if msr.FallbackEnabled {
 		sourceDBPassword, err = askPassword("fall-back DB", "", "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting fall-back db password: %v", err)
 		}
-		importDataStatusCmd.Env = append(importDataStatusCmd.Env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword))
 	}
 
+	passwordsEnvVars := []string{
+		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
+		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
+		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
+	}
+	importDataStatusCmd.Env = append(os.Environ(), passwordsEnvVars...)
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
 	err = importDataStatusCmd.Run()
 	if err != nil {
 		log.Errorf("running import data status command: %s: %v", outbuf.String(), err)
 		utils.ErrExit("running import data status command: %v", err)
+	}
+
+	if msr.ExportType != "snapshot-and-changes" {
+		return
+	}
+	utils.PrintAndLog("save live migration reports...")
+	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "live_migration_report.txt")
+	strCmd = fmt.Sprintf("yb-voyager live-migration report -e %s > %q", exportDir, liveMigrationReportFilePath)
+	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
+	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
+	outbuf = bytes.Buffer{}
+	liveMigrationReportCmd.Stderr = &outbuf
+	err = liveMigrationReportCmd.Run()
+	if err != nil {
+		log.Errorf("end migration: running live migration report command: %s: %v", outbuf.String(), err)
+		utils.ErrExit("end migration: running live migration report command: %v", err)
 	}
 }
 
