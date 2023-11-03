@@ -161,14 +161,23 @@ do
 		tns_admin=$(env | grep -E '^TNS_ADMIN')	
 		if [[ -n "$tns_admin" ]]; then
 			tns_admin=$(echo $tns_admin | cut -d '=' -f2)
+			rm -rf /tmp/oracle-tns-admin
+			cp -r $tns_admin /tmp/oracle-tns-admin
+			tns_admin="/tmp/oracle-tns-admin"
+			wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' /tmp/oracle-tns-admin/sqlnet.ora)
+			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
 			if [[ $OSTYPE == 'darwin'* ]]
 			then
 				docker volume rm voyager-oracle-tns-admin
 				docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
+				docker volume rm voyager-oracle-wallet-dir
+				docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 				oracle_tns_admin_vol="-v voyager-oracle-tns-admin:/oracle-tns-admin"
+				oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:/oracle-wallet-dir"
 			else
 				oracle_tns_admin_vol="-v ${tns_admin}:/oracle-tns-admin"
+				oracle_wallet_dir_vol="-v ${wallet_dir}:/oracle-wallet-dir"
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 			fi
 		else 
@@ -183,11 +192,7 @@ do
 			tns_admin="/tmp/oracle-tns-admin"
 			# Read DIRECTORY in sqlnet.ora file and save it in a variable.
 			wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' /tmp/oracle-tns-admin/sqlnet.ora)
-			echo $wallet_dir
 			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
-			cat $tns_admin/sqlnet.ora
-			cat $tns_admin/tnsnames.ora
-			docker run yugabytedb/yb-voyager yb-voyager version
 			if [[ $OSTYPE == 'darwin'* ]]
 			then
 				docker volume rm voyager-oracle-tns-admin
