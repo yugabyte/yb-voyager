@@ -179,7 +179,10 @@ do
 			tns_admin="${ORACLE_HOME}/network/admin"
 			cp -r $tns_admin /tmp/oracle-tns-admin
 			tns_admin="/tmp/oracle-tns-admin"
-			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-tns-admin")|' $tns_admin/sqlnet.ora
+			# Read DIRECTORY in sqlnet.ora file and save it in a variable.
+			wallet_dir=$(cat $tns_admin/sqlnet.ora | grep -E '^DIRECTORY' | cut -d '=' -f2 | tr -d ' ')
+			echo $wallet_dir
+			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
 			cat $tns_admin/sqlnet.ora
 			cat $tns_admin/tnsnames.ora
 			docker run yugabytedb/yb-voyager yb-voyager version
@@ -187,10 +190,16 @@ do
 			then
 				docker volume rm voyager-oracle-tns-admin
 				docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
+				# Create a volume for the wallet directory and map it to the container.
+				docker volume rm voyager-oracle-wallet-dir
+				docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 				oracle_tns_admin_vol="-v voyager-oracle-tns-admin:/oracle-tns-admin"
+				oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:/oracle-wallet-dir"
 			else
 				oracle_tns_admin_vol="-v ${tns_admin}:/oracle-tns-admin"
+				# Create a volume for the wallet directory and map it to the container.
+				oracle_wallet_dir_vol="-v ${wallet_dir}:/oracle-wallet-dir"
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 			fi
 		fi
@@ -204,7 +213,7 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} ${oracle_tns_admin_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} ${oracle_tns_admin_vol} ${oracle_wallet_dir_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
