@@ -1,4 +1,6 @@
 #!/bin/bash
+#Display all the commands when they are run
+set -x
 
 argv=( "$@" )
 
