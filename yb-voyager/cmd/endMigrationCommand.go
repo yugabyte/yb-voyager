@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	log "github.com/sirupsen/logrus"
@@ -458,29 +459,18 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 						log.Warnf("end migration: reading lock file %q: %v", match, err)
 					}
 
-					ongoingCmdPID, err := strconv.Atoi(string(bytes))
+					ongoingCmdPID, err := strconv.Atoi(strings.Trim(string(bytes), " \n"))
 					if err != nil {
 						utils.ErrExit("end migration: converting ongoing command PID %q to int: %v", string(bytes), err)
 					}
-					utils.PrintAndLog("end migration: killing ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
 
-					process, err := os.FindProcess(ongoingCmdPID)
+					log.Infof("end migration: killing ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
+					err = killProcessWithPID(ongoingCmdPID)
 					if err != nil {
-						log.Warnf("end migration: finding process with PID=%d: %v", ongoingCmdPID, err)
-						continue
-					}
-
-					err = process.Signal(syscall.SIGUSR2)
-					if err != nil {
-						log.Warnf("end migration: sending SIGUSR2 signal to process with PID=%d: %v", ongoingCmdPID, err)
-						continue
-					}
-
-					_, err = process.Wait()
-					if err != nil {
-						log.Warnf("end migration: waiting for process with PID=%d: %v", ongoingCmdPID, err)
+						log.Warnf("end migration: killing ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 					}
 				}
+				time.Sleep(time.Second * 2) // wait for the ongoing commands to completely exit
 			} else {
 				utils.ErrExit("aborting the end migration command")
 			}
@@ -521,6 +511,28 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 			Please provide a backup directory with more free space than the export directory data size(%s).`, humanize.Bytes(uint64(exportDirDataSize)))
 		}
 	}
+}
+
+// this function wait for process to exit after signalling kill to it
+func killProcessWithPID(pid int) error {
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+
+	err := process.Signal(syscall.SIGUSR2)
+	if err != nil {
+		return fmt.Errorf("sending SIGUSR2 signal to process with PID=%d: %w", pid, err)
+	}
+
+	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
+	// Poll for 10 sec to make sure process is terminated
+	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	for i := 0; i <= 10; i++ {
+		time.Sleep(time.Second * 1)
+		err = process.Signal(syscall.Signal(0))
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
 }
 
 // NOTE: function is for Linux only (Windows won't work)
