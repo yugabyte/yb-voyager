@@ -182,6 +182,7 @@ do
 			sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-tns-admin")|' $tns_admin/sqlnet.ora
 			cat $tns_admin/sqlnet.ora
 			cat $tns_admin/tnsnames.ora
+			docker run yugabytedb/yb-voyager yb-voyager version
 			if [[ $OSTYPE == 'darwin'* ]]
 			then
 				docker volume rm voyager-oracle-tns-admin
