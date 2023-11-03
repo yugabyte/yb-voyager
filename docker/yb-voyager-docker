@@ -180,6 +180,7 @@ do
 			cp -r $tns_admin /tmp/oracle-tns-admin
 			tns_admin="/tmp/oracle-tns-admin"
 			sed -i 's/DIRECTORY *= *"\*"/DIRECTORY = "\/oracle-tns-admin"/g' $tns_admin/sqlnet.ora
+			cat $tns_admin/sqlnet.ora
 			if [[ $OSTYPE == 'darwin'* ]]
 			then
 				docker volume rm voyager-oracle-tns-admin
