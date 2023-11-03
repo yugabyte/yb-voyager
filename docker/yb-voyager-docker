@@ -175,6 +175,8 @@ do
 			# The TNS admin variable will be $$ORACLE_HOME/network/admin
 			# Create a volume for this location and then pass the exported variable TNS_ADMIN with the volume name.
 			tns_admin="$ORACLE_HOME/network/admin"
+			ls -l $tns_admin
+			cat $ORACLE_HOME/network/admin/sqlnet.ora
 			if [[ $OSTYPE == 'darwin'* ]]
 			then 
 				docker volume rm voyager-oracle-tns-admin
