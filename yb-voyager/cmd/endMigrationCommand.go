@@ -441,6 +441,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		if len(ongoingCmds) > 0 {
 			if utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by killing them", strings.Join(ongoingCmds, ", "))) {
 				for _, match := range matches {
+					log.Infof("end migration: killing ongoing voyager command for match=%q", match)
 					ongoingCmd := getCmdNameFromLockFile(match)
 					utils.PrintAndLog("killing the ongoing %q command", ongoingCmd)
 					bytes, err := os.ReadFile(match)
@@ -580,8 +581,8 @@ func init() {
 	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save schema and data migration reports")
 	BoolVar(endMigrationCmd.Flags(), &backupLogFiles, "backup-log-files", false, "backup yb-voyager log files for this migration")
 	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory")
-	endMigrationCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+
+	registerCommonGlobalFlags(endMigrationCmd)
 
 	endMigrationCmd.MarkFlagRequired("backup-schema-files")
 	endMigrationCmd.MarkFlagRequired("backup-data-files")
