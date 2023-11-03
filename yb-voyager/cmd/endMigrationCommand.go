@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	log "github.com/sirupsen/logrus"
@@ -433,17 +435,34 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	if len(matches) > 0 {
 		var ongoingCmds []string
 		for _, match := range matches {
-			match = filepath.Base(match)
-			match = strings.TrimPrefix(match, ".")
-			match = strings.TrimSuffix(match, "Lockfile.lck")
-			if match == "end-migration" {
-				continue
-			}
-			ongoingCmds = append(ongoingCmds, match)
+			ongoingCmd := getCmdNameFromLockFile(match)
+			ongoingCmds = append(ongoingCmds, ongoingCmd)
 		}
-		if len(ongoingCmds) > 0 &&
-			!utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command", strings.Join(ongoingCmds, ", "))) {
-			utils.ErrExit("aborting the end migration command")
+		if len(ongoingCmds) > 0 {
+			if utils.AskPrompt(fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by killing them", strings.Join(ongoingCmds, ", "))) {
+				for _, match := range matches {
+					ongoingCmd := getCmdNameFromLockFile(match)
+					utils.PrintAndLog("killing the ongoing %q command", ongoingCmd)
+					bytes, err := os.ReadFile(match)
+					if err != nil { // file might have been deleted by the ongoing command in the meantime
+						log.Warnf("end migration: reading lock file %q: %v", match, err)
+					}
+
+					ongoingCmdPID, err := strconv.Atoi(strings.Trim(string(bytes), " \n"))
+					if err != nil {
+						utils.ErrExit("end migration: converting ongoing command PID %q to int: %v", string(bytes), err)
+					}
+
+					log.Infof("end migration: killing ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
+					err = killProcessWithPID(ongoingCmdPID)
+					if err != nil {
+						log.Warnf("end migration: killing ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
+					}
+				}
+				time.Sleep(time.Second * 2) // wait for the ongoing commands to completely exit
+			} else {
+				utils.ErrExit("aborting the end migration command")
+			}
 		}
 	} else {
 		log.Info("no ongoing voyager commands found")
@@ -481,6 +500,28 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 			Please provide a backup directory with more free space than the export directory data size(%s).`, humanize.Bytes(uint64(exportDirDataSize)))
 		}
 	}
+}
+
+// this function wait for process to exit after signalling kill to it
+func killProcessWithPID(pid int) error {
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+
+	err := process.Signal(syscall.SIGUSR2)
+	if err != nil {
+		return fmt.Errorf("sending SIGUSR2 signal to process with PID=%d: %w", pid, err)
+	}
+
+	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
+	// Poll for 10 sec to make sure process is terminated
+	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	for i := 0; i <= 10; i++ {
+		time.Sleep(time.Second * 1)
+		err = process.Signal(syscall.Signal(0))
+		if err != nil {
+			return nil
+		}
+	}
+	return nil
 }
 
 // NOTE: function is for Linux only (Windows won't work)
