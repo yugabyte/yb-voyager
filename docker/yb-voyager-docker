@@ -177,6 +177,8 @@ do
 			# Create a volume for this location and then pass the exported variable TNS_ADMIN with the volume name.
 			# Change the value of (DIRECTORY ="*") to (DIRECTORY ="/oracle-tns-admin") in sqlnet.ora file.
 			tns_admin="${ORACLE_HOME}/network/admin"
+			# Remove the old directory if it exists.
+			rm -rf /tmp/oracle-tns-admin
 			cp -r $tns_admin /tmp/oracle-tns-admin
 			tns_admin="/tmp/oracle-tns-admin"
 			# Read DIRECTORY in sqlnet.ora file and save it in a variable.
