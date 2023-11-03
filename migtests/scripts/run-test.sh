@@ -107,6 +107,9 @@ main() {
 		 "${TEST_DIR}/validate"
 	fi
 
+	step "End Migration: clearing metainfo about state of migration from everywhere."
+	end_migration --yes
+
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}/*"

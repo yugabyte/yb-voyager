@@ -420,7 +420,7 @@ func validateEndMigrationFlags(cmd *cobra.Command) error {
 		}
 	}
 
-	if !utils.FileOrFolderExists(backupDir) {
+	if backupDir != "" && !utils.FileOrFolderExists(backupDir) { // ignoring the case where backupDir is not set/required
 		return fmt.Errorf("backup-dir %q doesn't exists", backupDir)
 	}
 	return nil

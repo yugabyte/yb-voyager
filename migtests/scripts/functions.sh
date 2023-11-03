@@ -366,6 +366,12 @@ import_data_file() {
 		}
 }
 
+end_migration() {
+	yb-voyager end migration --export-dir ${EXPORT_DIR} \
+	--backup-schema-files false --backup-data-files false \
+	--backup-log-files false --save-migration-reports false
+}
+
 tail_log_file() {
 	log_file_name=$1
 	if [ -f "${EXPORT_DIR}/logs/${log_file_name}" ]
