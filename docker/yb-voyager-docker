@@ -173,12 +173,15 @@ do
 			fi
 		else 
 			# The TNS admin variable will be $$ORACLE_HOME/network/admin
+			# Copy this directory to a new location.
 			# Create a volume for this location and then pass the exported variable TNS_ADMIN with the volume name.
-			tns_admin="$ORACLE_HOME/network/admin"
-			ls -l $tns_admin
-			cat $ORACLE_HOME/network/admin/sqlnet.ora
+			# Change the value of (DIRECTORY ="*") to (DIRECTORY ="/oracle-tns-admin") in sqlnet.ora file.
+			tns_admin="${ORACLE_HOME}/network/admin"
+			cp -r $tns_admin /tmp/oracle-tns-admin
+			tns_admin="/tmp/oracle-tns-admin"
+			sed -i 's/DIRECTORY *= *"\*"/DIRECTORY = "\/oracle-tns-admin"/g' $tns_admin/sqlnet.ora
 			if [[ $OSTYPE == 'darwin'* ]]
-			then 
+			then
 				docker volume rm voyager-oracle-tns-admin
 				docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
 				exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
