@@ -179,7 +179,7 @@ do
 			tns_admin="${ORACLE_HOME}/network/admin"
 			cp -r $tns_admin /tmp/oracle-tns-admin
 			tns_admin="/tmp/oracle-tns-admin"
-			sed -i '/^ *DIRECTORY *=/s|[^"]*|"/oracle-tns-admin"|' $tns_admin/sqlnet.ora
+			sed -i 's|\(DIRECTORY *= \)"[^"]*"|\1"/oracle-tns-admin"|' $tns_admin/sqlnet.ora
 			cat $tns_admin/sqlnet.ora
 			cat $tns_admin/tnsnames.ora
 			if [[ $OSTYPE == 'darwin'* ]]
