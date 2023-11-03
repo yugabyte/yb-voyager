@@ -438,11 +438,11 @@ func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, err
 	if os.Getenv(envVarName) != "" {
 		return os.Getenv(envVarName), nil
 	}
-	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable `%s`): ", strings.TrimSuffix(cliArgName, "-password"), envVarName)
+	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable `%s`): ",
+		strings.TrimSuffix(cliArgName, "-password"), envVarName)
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return "", err
+		return "", fmt.Errorf("read password: %w", err)
 	}
 	fmt.Print("\n")
 	return string(bytePassword), nil
