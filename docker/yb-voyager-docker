@@ -168,6 +168,9 @@ do
 		tns_admin="/tmp/oracle-tns-admin"
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' /tmp/oracle-tns-admin/sqlnet.ora)
 		sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
+		sed -i 's|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=${ORACLE_HOME}/wallets/test))|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/oracle-wallet-dir)))|' $tns_admin/ojdbc.properties
+
+
 		if [[ $OSTYPE == 'darwin'* ]]
 		then
 			docker volume rm voyager-oracle-tns-admin
