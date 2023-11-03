@@ -181,6 +181,7 @@ do
 			tns_admin="/tmp/oracle-tns-admin"
 			sed -i 's/DIRECTORY *= *"\*"/DIRECTORY = "\/oracle-tns-admin"/g' $tns_admin/sqlnet.ora
 			cat $tns_admin/sqlnet.ora
+			cat $tns_admin/tnsnames.ora
 			if [[ $OSTYPE == 'darwin'* ]]
 			then
 				docker volume rm voyager-oracle-tns-admin
