@@ -24,11 +24,9 @@ import (
 )
 
 var fallBackSynchronizeCmd = &cobra.Command{
-	Use:       "target",
-	Short:     "This command exports the changes from YugabyteDB.",
-	Long:      `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
-	ValidArgs: []string{"target"},
-	Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+	Use:   "target",
+	Short: "This command exports the changes from YugabyteDB.",
+	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.PrintAndLog("in fallback sync")
