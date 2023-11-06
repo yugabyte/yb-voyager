@@ -46,9 +46,9 @@ create_ssl_vol() {
   	if [[ $OSTYPE == 'darwin'* ]]; then
     	docker volume rm "voyager-$flag_name-dir"
     	docker volume create --driver local --opt type=none --opt device="$source_dir" --opt o=bind "voyager-$flag_name-dir"
-		volume="-v voyager-$flag_name-dir:/$flag_name-dir"
+		$flag_name_vol="-v voyager-$flag_name-dir:/$flag_name-dir"		 
  	else
-    	volume="-v $source_dir:/$flag_name-dir"
+    	$flag_name_vol="-v $source_dir:/$flag_name-dir"
   	fi
 	argv[$j]="/$flag_name-dir/$source_file"
 }
