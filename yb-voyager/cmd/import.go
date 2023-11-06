@@ -188,7 +188,7 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 
 func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"Disable progress bar during data import and stats printing during streaming phase (default false)")
+		"Disable progress bar/stats during data import (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
@@ -208,11 +208,11 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
 	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
-		"maximum number of rows in each batch generated during import of snapshot.")
-	defaultParallelismMsg := "(default - oracle: 16)"
-	if cmd.CommandPath() == "yb-voyager import data" {
-		defaultParallelismMsg = "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
-			"Otherwise, it fall back to using twice the number of nodes in the cluster."
+		"Size of batches in the number of rows generated for ingestion during import.")
+	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
+		"Otherwise, it fall back to using twice the number of nodes in the cluster."
+	if cmd.CommandPath() == "yb-voyager fall-back setup" || cmd.CommandPath() == "yb-voyager fall-forward setup" {
+		defaultParallelismMsg = "(default - oracle: 16)"
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
@@ -258,7 +258,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Import objectes in the order specified by the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
-		"If set, creates indexes, foreign-keys, and triggers in target db")
+		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
