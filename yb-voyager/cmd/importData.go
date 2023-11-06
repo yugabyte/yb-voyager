@@ -67,7 +67,7 @@ var importDataCmd = &cobra.Command{
 	Short: "Import data into target YugabyteDB database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
 	Long: `Import the data exported from the source database into the target YugabyteDB database.`,
-
+	Args: cobra.NoArgs,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
@@ -81,6 +81,23 @@ var importDataCmd = &cobra.Command{
 		}
 	},
 	Run: importDataCommandFn,
+}
+
+var importDataToCmd = &cobra.Command{
+	Use:   "to",
+	Short: "import data to",
+	Long:  `import data to`,
+}
+
+var importDataToTargetCmd = &cobra.Command{
+	Use:   "target",
+	Short: importDataCmd.Short,
+	Long:  importDataCmd.Long,
+	Args:  importDataCmd.Args,
+
+	PreRun: importDataCmd.PreRun,
+
+	Run: importDataCmd.Run,
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
@@ -1086,9 +1103,17 @@ func checkExportDataDoneFlag() {
 
 func init() {
 	importCmd.AddCommand(importDataCmd)
+	importDataCmd.AddCommand(importDataToCmd)
+	importDataToCmd.AddCommand(importDataToTargetCmd)
+
 	registerCommonGlobalFlags(importDataCmd)
+	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)
+	registerCommonImportFlags(importDataToTargetCmd)
 	registerTargetDBConnFlags(importDataCmd)
+	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
+	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportDataFlags(importDataCmd)
+	registerImportDataFlags(importDataToTargetCmd)
 }

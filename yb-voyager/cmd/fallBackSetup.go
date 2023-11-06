@@ -23,7 +23,7 @@ import (
 )
 
 var fallBackSetupCmd = &cobra.Command{
-	Use:   "setup",
+	Use:   "src",
 	Short: "This command will set up and import data into fall back database",
 	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
 
@@ -42,7 +42,7 @@ var fallBackSetupCmd = &cobra.Command{
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSetupCmd)
+	importDataToCmd.AddCommand(fallBackSetupCmd)
 	registerCommonGlobalFlags(fallBackSetupCmd)
 	registerCommonImportFlags(fallBackSetupCmd)
 	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
