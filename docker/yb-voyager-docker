@@ -119,11 +119,11 @@ do
 		fi
 	fi	
 
-	if [ "$flag" == "--source-ssl-cert" ]; then
+	if [[ "$flag" == "--source-ssl-cert" ]]; then
     	create_ssl_vol "source-ssl-cert" "${argv[j]}"
-  	elif [ "$flag" == "--source-ssl-key" ]; then
+  	elif [[ "$flag" == "--source-ssl-key" ]]; then
     	create_ssl_vol "source-ssl-key" "${argv[j]}"
-  	elif [ "$flag" == "--source-ssl-root-cert" ]; then
+  	elif [[ "$flag" == "--source-ssl-root-cert" ]]; then
     	create_ssl_vol "source-ssl-root-cert" "${argv[j]}"
   	fi
 
