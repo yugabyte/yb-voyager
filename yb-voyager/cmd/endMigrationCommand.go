@@ -155,6 +155,29 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
+	askAndStorePasswords(msr)
+	passwordsEnvVars := []string{
+		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
+		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
+		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
+	}
+
+	if msr.ExportType == "snapshot-and-changes" { // streaming changes case
+		utils.PrintAndLog("save live migration reports...")
+		liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "live_migration_report.txt")
+		strCmd := fmt.Sprintf("yb-voyager live-migration report -e %s > %q", exportDir, liveMigrationReportFilePath)
+		liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
+		liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
+		var outbuf bytes.Buffer
+		liveMigrationReportCmd.Stderr = &outbuf
+		err = liveMigrationReportCmd.Run()
+		if err != nil {
+			log.Errorf("end migration: running live migration report command: %s: %v", outbuf.String(), err)
+			utils.ErrExit("end migration: running live migration report command: %v", err)
+		}
+		return
+	}
+
 	utils.PrintAndLog("saving data export reports...")
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
 	strCmd := fmt.Sprintf("yb-voyager export data status -e %s > %q", exportDir, exportDataReportFilePath)
@@ -172,28 +195,6 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
 
-	targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
-	if err != nil {
-		utils.ErrExit("getting target db password: %v", err)
-	}
-	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
-		if err != nil {
-			utils.ErrExit("getting fall-forward db password: %v", err)
-		}
-	}
-	if msr.FallbackEnabled {
-		sourceDBPassword, err = askPassword("fall-back DB", "", "SOURCE_DB_PASSWORD")
-		if err != nil {
-			utils.ErrExit("getting fall-back db password: %v", err)
-		}
-	}
-
-	passwordsEnvVars := []string{
-		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
-		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
-		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
-	}
 	importDataStatusCmd.Env = append(os.Environ(), passwordsEnvVars...)
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
@@ -201,22 +202,6 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		log.Errorf("running import data status command: %s: %v", outbuf.String(), err)
 		utils.ErrExit("running import data status command: %v", err)
-	}
-
-	if msr.ExportType != "snapshot-and-changes" {
-		return
-	}
-	utils.PrintAndLog("save live migration reports...")
-	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "live_migration_report.txt")
-	strCmd = fmt.Sprintf("yb-voyager live-migration report -e %s > %q", exportDir, liveMigrationReportFilePath)
-	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
-	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	outbuf = bytes.Buffer{}
-	liveMigrationReportCmd.Stderr = &outbuf
-	err = liveMigrationReportCmd.Run()
-	if err != nil {
-		log.Errorf("end migration: running live migration report command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("end migration: running live migration report command: %v", err)
 	}
 }
 
@@ -238,6 +223,26 @@ func backupLogFilesFn() {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving log files: %s: %v", string(output), err)
+	}
+}
+
+func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
+	var err error
+	targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
+	if err != nil {
+		utils.ErrExit("getting target db password: %v", err)
+	}
+	if msr.FallForwardEnabled {
+		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("getting fall-forward db password: %v", err)
+		}
+	}
+	if msr.FallbackEnabled {
+		sourceDBPassword, err = askPassword("source DB", "", "SOURCE_DB_PASSWORD")
+		if err != nil {
+			utils.ErrExit("getting source password: %v", err)
+		}
 	}
 }
 
@@ -475,12 +480,11 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 					}
 
 					log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
-					err = killProcessWithPID(ongoingCmdPID)
+					err = stopProcessWithPID(ongoingCmdPID)
 					if err != nil {
 						log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 					}
 				}
-				time.Sleep(time.Second * 2) // wait for the ongoing commands to completely exit
 			} else {
 				utils.ErrExit("aborting the end migration command")
 			}
@@ -523,8 +527,8 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-// this function wait for process to exit after signalling kill to it
-func killProcessWithPID(pid int) error {
+// this function wait for process to exit after signalling it to stop
+func stopProcessWithPID(pid int) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
 
 	err := process.Signal(syscall.SIGUSR2)

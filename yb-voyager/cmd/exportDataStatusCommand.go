@@ -43,6 +43,7 @@ var exportDataStatusCmd = &cobra.Command{
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
+		fmt.Printf("useDebezium: %v\n", useDebezium)
 		if useDebezium {
 			err = runExportDataStatusCmdDbzm(streamChanges)
 		} else {
@@ -82,7 +83,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 		row = getSnapshotExportStatusRow(&tableStatus)
 		rows = append(rows, row)
 	}
-
+	fmt.Printf("displaying exported rows")
 	displayExportDataStatus(rows)
 	return nil
 }
