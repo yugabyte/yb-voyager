@@ -370,21 +370,15 @@ end_migration() {
 	BACKUP_DIR=${EXPORT_DIR}/backup-dir
 	mkdir ${BACKUP_DIR}  # temporary place to store the backup
 
-	# setting env vars for passwords to be used for saving reports'
+	# setting env vars for passwords to be used for saving reports
 	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
 	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
 	export FF_DB_PASSWORD=${FF_DB_PASSWORD}
-
-	echo "Priting password for saving reports part of end migration cmd"
-	echo "SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}"
-	echo "TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}"
-	echo "FF_DB_PASSWORD=${FF_DB_PASSWORD}"
 
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
 	--backup-data-files true --backup-log-files true \
 	--save-migration-reports true $* || {
-		cat ${BACKUP_DIR}/reports/export_data_report.txt
 		cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
 		exit 1
 	}
