@@ -367,9 +367,13 @@ import_data_file() {
 }
 
 end_migration() {
+	BACKUP_DIR = ${EXPORT_DIR}/backup-dir
+	mkdir ${BACKUP_DIR}  # temporary place to store the backup
+
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
-	--backup-schema-files false --backup-data-files false \
-	--backup-log-files false --save-migration-reports false $*
+	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
+	--backup-data-files true --backup-log-files true \
+	--save-migration-reports true $*
 }
 
 tail_log_file() {
