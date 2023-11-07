@@ -21,9 +21,9 @@ import (
 )
 
 var fallBackSwitchoverCmd = &cobra.Command{
-	Use:   "switchover",
-	Short: "Initiates the switchover to fall-back DB",
-	Long:  `Initiates the switchover to fall-back DB`,
+	Use:   "source",
+	Short: "Initiates the switchover to source DB",
+	Long:  `Initiates the switchover to source DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		err := InitiatePrimarySwitch("fallback")
@@ -34,7 +34,7 @@ var fallBackSwitchoverCmd = &cobra.Command{
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSwitchoverCmd)
+	cutoverToCmd.AddCommand(fallBackSwitchoverCmd)
 	fallBackSwitchoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }

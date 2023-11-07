@@ -31,8 +31,15 @@ var cutoverCmd = &cobra.Command{
 	Long:  "",
 }
 
+var cutoverToCmd = &cobra.Command{
+	Use:   "to",
+	Short: "Cutover to",
+	Long:  "",
+}
+
 func init() {
 	rootCmd.AddCommand(cutoverCmd)
+	cutoverCmd.AddCommand(cutoverToCmd)
 }
 
 func InitiatePrimarySwitch(action string) error {

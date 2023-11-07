@@ -24,7 +24,7 @@ import (
 var prepareForFallBack utils.BoolStr
 
 var cutoverInitiateCmd = &cobra.Command{
-	Use:   "initiate",
+	Use:   "target",
 	Short: "Initiate cutover to YugabyteDB",
 	Long:  `Initiate cutover to YugabyteDB`,
 
@@ -63,7 +63,7 @@ var cutoverInitiateCmd = &cobra.Command{
 }
 
 func init() {
-	cutoverCmd.AddCommand(cutoverInitiateCmd)
+	cutoverToCmd.AddCommand(cutoverInitiateCmd)
 	cutoverInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 	BoolVar(cutoverInitiateCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
