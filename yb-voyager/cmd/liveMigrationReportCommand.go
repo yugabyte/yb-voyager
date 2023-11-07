@@ -95,8 +95,8 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
 
-	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED SNAPSHOT", "IMPORTED SNAPSHOT", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
-	addHeader(uitbl, "", "", "ROWS", "ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
+	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
+	addHeader(uitbl, "", "", "SNAPSHOT ROWS", "SNAPSHOT ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -108,7 +108,6 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 
 	for _, table := range tableList {
 		uitbl.AddRow() // blank row
-
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
@@ -140,7 +139,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 		}
 		addRowInTheTable(uitbl, row)
-
+		row = rowData{}
 		row.TableName = ""
 		row.DBType = "Target"
 		row.ExportedSnapshotRows = 0
