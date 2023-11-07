@@ -367,7 +367,7 @@ import_data_file() {
 }
 
 end_migration() {
-	BACKUP_DIR = ${EXPORT_DIR}/backup-dir
+	BACKUP_DIR=${EXPORT_DIR}/backup-dir
 	mkdir ${BACKUP_DIR}  # temporary place to store the backup
 
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
