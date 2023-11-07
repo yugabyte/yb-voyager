@@ -373,7 +373,10 @@ end_migration() {
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
 	--backup-data-files true --backup-log-files true \
-	--save-migration-reports true $*
+	--save-migration-reports true $* || {
+		cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
+		exit 1
+	}
 }
 
 tail_log_file() {
