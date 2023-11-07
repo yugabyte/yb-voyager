@@ -21,6 +21,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/nightlyone/lockfile"
@@ -220,6 +221,12 @@ func unlockExportDir() {
 	if err != nil {
 		utils.ErrExit("Unable to unlock %q: %v\n", lockFile, err)
 	}
+}
+
+func getCmdNameFromLockFile(fpath string) string {
+	file := filepath.Base(fpath)
+	cmdName := file[1 : len(file)-len("Lockfile.lck")]
+	return strings.Replace(cmdName, "-", " ", -1)
 }
 
 func GetCommandID(c *cobra.Command) string {

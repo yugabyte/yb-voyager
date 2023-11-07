@@ -215,10 +215,11 @@ main() {
 	step "Run final validations."
 	"${TEST_DIR}/validateAfterChanges"
 
-	step "Clean up"
+	step "End Migration: clearing metainfo about state of migration from everywhere."
+	end_migration --yes
 
+	step "Clean up"
 	./cleanup-db
-	
 	rm -rf "${EXPORT_DIR}/*"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
