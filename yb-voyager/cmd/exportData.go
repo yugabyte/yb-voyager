@@ -63,7 +63,7 @@ var exportDataFromCmd = &cobra.Command{
 }
 
 var exportDataFromSrcCmd = &cobra.Command{
-	Use:   "src",
+	Use:   "source",
 	Short: exportDataCmd.Short,
 	Long:  exportDataCmd.Long,
 	Args:  exportDataCmd.Args,
@@ -484,7 +484,7 @@ func startFallBackSetupIfRequired() {
 	}
 
 	unlockExportDir() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
-	cmd := []string{"yb-voyager", "import", "data", "to", "src",
+	cmd := []string{"yb-voyager", "import", "data", "to", "source",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}

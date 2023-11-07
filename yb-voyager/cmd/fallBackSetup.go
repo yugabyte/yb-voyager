@@ -23,7 +23,7 @@ import (
 )
 
 var fallBackSetupCmd = &cobra.Command{
-	Use:   "src",
+	Use:   "source",
 	Short: "This command will set up and import data into fall back database",
 	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
 
