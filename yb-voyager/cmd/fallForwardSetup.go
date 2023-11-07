@@ -22,7 +22,7 @@ import (
 )
 
 var fallForwardSetupCmd = &cobra.Command{
-	Use: "src-replica",
+	Use: "source-replica",
 	Short: "This command will set up and import data into fall forward database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/fall-forward/fall-forward-setup/",
 	Long: `This command connects to the fall forward database using the parameters provided and starts the importing process.`,
