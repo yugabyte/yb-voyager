@@ -116,17 +116,20 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		record, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("Failed to get migration status record: %s", err)
-		}
+
 		importType = record.ExportType
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
+		if record.FallbackEnabled {
+			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
+		}
 		updateFallForwarDBExistsInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}

@@ -33,14 +33,27 @@ var fallBackSynchronizeCmd = &cobra.Command{
 		validateMetaDBCreated()
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
-		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
-		err := initSourceConfFromTargetConf()
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("get migration status record: %v", err)
+		}
+		if msr.FallbackEnabled {
+			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+		} else {
+			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+		}
+		err = initSourceConfFromTargetConf()
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
 		exportDataCmd.PreRun(cmd, args)
 		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.FallBackSyncStarted = true
+			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				record.FallBackSyncStarted = true
+			} else {
+				record.FallForwardSyncStarted = true
+			}
+
 		})
 		if err != nil {
 			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
