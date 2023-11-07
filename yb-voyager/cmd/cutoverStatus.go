@@ -20,6 +20,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -46,7 +47,7 @@ func init() {
 
 func checkAndReportCutoverStatus() {
 	status := getCutoverStatus()
-	fmt.Printf("cutover status: ")
+	fmt.Printf("cutover to target status: ")
 	switch status {
 	case NOT_INITIATED:
 		color.Red("%s\n", NOT_INITIATED)
@@ -54,5 +55,15 @@ func checkAndReportCutoverStatus() {
 		color.Yellow("%s\n", INITIATED)
 	case COMPLETED:
 		color.Green("%s\n", COMPLETED)
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
+	}
+	if msr.FallbackEnabled {
+		reportFallBackStatus()
+	} else if msr.FallForwardEnabled {
+		reportFallForwardStatus()
 	}
 }

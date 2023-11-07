@@ -40,7 +40,7 @@ func init() {
 
 func reportFallForwardStatus() {
 	status := getFallForwardStatus()
-	fmt.Printf("fall-forward status: ")
+	fmt.Printf("cutover to source-replica status: ")
 	switch status {
 	case NOT_INITIATED:
 		color.Red("%s\n", status)

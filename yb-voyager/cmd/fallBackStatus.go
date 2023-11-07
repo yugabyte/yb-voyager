@@ -40,7 +40,7 @@ func init() {
 
 func reportFallBackStatus() {
 	status := getFallBackStatus()
-	fmt.Printf("fall-back status: ")
+	fmt.Printf("cutover to source status: ")
 	switch status {
 	case NOT_INITIATED:
 		color.Red("%s\n", status)
