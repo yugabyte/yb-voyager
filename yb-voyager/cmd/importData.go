@@ -166,15 +166,8 @@ func startFallforwardSynchronizeIfRequired() {
 		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
-	var voyagerCmdPrefix string
-	if msr.FallForwardEnabled {
-		voyagerCmdPrefix = "fall-forward"
-	} else {
-		voyagerCmdPrefix = "fall-back"
-	}
-
 	unlockExportDir() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
-	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
+	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
@@ -187,7 +180,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting %s synchronize with command:\n %s", voyagerCmdPrefix, color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -196,7 +189,7 @@ func startFallforwardSynchronizeIfRequired() {
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager %s synchronize - %w\n Please re-run with command :\n%s", voyagerCmdPrefix, err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 

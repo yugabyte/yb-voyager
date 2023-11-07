@@ -484,7 +484,7 @@ func startFallBackSetupIfRequired() {
 	}
 
 	unlockExportDir() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
-	cmd := []string{"yb-voyager", "fall-back", "setup",
+	cmd := []string{"yb-voyager", "import", "data", "to", "src",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
@@ -496,7 +496,7 @@ func startFallBackSetupIfRequired() {
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting fall-back setup with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -505,7 +505,7 @@ func startFallBackSetupIfRequired() {
 	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager fall-back setup - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 
