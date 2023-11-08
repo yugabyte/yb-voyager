@@ -238,7 +238,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
 		} else {
 			//in case import streaming is not started yet, metadata will not be initialized
-			log.Errorf("streaming ingestion is not started yet for table %q for DB type %s", tableName, row.DBType)
+			log.Warnf("streaming ingestion is not started yet for table %q for DB type %s", tableName, row.DBType)
 			eventCounter = &tgtdb.EventCounter{
 				NumInserts: 0,
 				NumUpdates: 0,
