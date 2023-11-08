@@ -696,13 +696,15 @@ func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (strin
 }
 
 func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
-	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'", schema)
+	// TODO: handle case-sensitivity properly
+	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = UPPER('%s')", schema)
 	return tdb.isQueryResultNonEmpty(query)
 }
 
 func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
 	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
-	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", table, schema)
+	// TODO: handle case-sensitivity properly
+	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = UPPER('%s') AND OWNER = UPPER('%s')", table, schema)
 	return tdb.isQueryResultNonEmpty(query)
 }
 
@@ -743,7 +745,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 
 	// ask to manually delete the USER in case of FF or FB
 	// TODO: check and inform user if there is another migrationUUID data in metadata schema tables before cleaning up the schema
-	utils.PrintAndLog(`Please manually delete the user '%s' from the '%s' host using the following SQL statement(after making sure no other migration is IN-PROGRESS):
-DROP USER %s CASCADE`, tdb.tconf.Schema, tdb.tconf.Host, tdb.tconf.Schema)
+	utils.PrintAndLog(`Please manually delete the metadata schema '%s' from the '%s' host using the following SQL statement(after making sure no other migration is IN-PROGRESS):
+	DROP USER %s CASCADE`, schema, tdb.tconf.Host, schema)
 	return nil
 }
