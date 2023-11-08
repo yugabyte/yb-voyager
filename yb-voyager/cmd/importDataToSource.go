@@ -22,7 +22,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSetupCmd = &cobra.Command{
+var importDataToSourceCmd = &cobra.Command{
 	Use:   "source",
 	Short: "This command will set up and import data into fall back database",
 	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
@@ -42,12 +42,12 @@ var fallBackSetupCmd = &cobra.Command{
 }
 
 func init() {
-	importDataToCmd.AddCommand(fallBackSetupCmd)
-	registerCommonGlobalFlags(fallBackSetupCmd)
-	registerCommonImportFlags(fallBackSetupCmd)
-	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
-	registerImportDataCommonFlags(fallBackSetupCmd)
-	hideImportFlagsInFallForwardOrBackCmds(fallBackSetupCmd)
+	importDataToCmd.AddCommand(importDataToSourceCmd)
+	registerCommonGlobalFlags(importDataToSourceCmd)
+	registerCommonImportFlags(importDataToSourceCmd)
+	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
+	registerImportDataCommonFlags(importDataToSourceCmd)
+	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
 }
 
 func initTargetConfFromSourceConf() error {

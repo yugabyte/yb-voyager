@@ -21,7 +21,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallForwardSetupCmd = &cobra.Command{
+var importDataToSourceReplicaCmd = &cobra.Command{
 	Use: "source-replica",
 	Short: "This command will set up and import data into fall forward database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/fall-forward/fall-forward-setup/",
@@ -38,13 +38,13 @@ var fallForwardSetupCmd = &cobra.Command{
 }
 
 func init() {
-	importDataToCmd.AddCommand(fallForwardSetupCmd)
-	registerCommonGlobalFlags(fallForwardSetupCmd)
-	registerCommonImportFlags(fallForwardSetupCmd)
-	registerFFDBAsTargetConnFlags(fallForwardSetupCmd)
-	registerImportDataCommonFlags(fallForwardSetupCmd)
-	registerImportDataFlags(fallForwardSetupCmd)
-	hideImportFlagsInFallForwardOrBackCmds(fallForwardSetupCmd)
+	importDataToCmd.AddCommand(importDataToSourceReplicaCmd)
+	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
+	registerCommonImportFlags(importDataToSourceReplicaCmd)
+	registerFFDBAsTargetConnFlags(importDataToSourceReplicaCmd)
+	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
+	registerImportDataFlags(importDataToSourceReplicaCmd)
+	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
 }
 
 func updateFallForwarDBExistsInMetaDB() {

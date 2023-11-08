@@ -23,7 +23,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSynchronizeCmd = &cobra.Command{
+var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
 	Short: "This command exports the changes from YugabyteDB.",
 	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
@@ -63,11 +63,11 @@ var fallBackSynchronizeCmd = &cobra.Command{
 }
 
 func init() {
-	exportDataFromCmd.AddCommand(fallBackSynchronizeCmd)
-	registerCommonGlobalFlags(fallBackSynchronizeCmd)
-	registerTargetDBAsSourceConnFlags(fallBackSynchronizeCmd)
-	registerExportDataFlags(fallBackSynchronizeCmd)
-	hideExportFlagsInFallForwardOrBackCmds(fallBackSynchronizeCmd)
+	exportDataFromCmd.AddCommand(exportDataFromTargetCmd)
+	registerCommonGlobalFlags(exportDataFromTargetCmd)
+	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
+	registerExportDataFlags(exportDataFromTargetCmd)
+	hideExportFlagsInFallForwardOrBackCmds(exportDataFromTargetCmd)
 }
 
 func initSourceConfFromTargetConf() error {
