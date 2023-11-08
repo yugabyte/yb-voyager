@@ -41,7 +41,7 @@ func init() {
 	importDataToCmd.AddCommand(importDataToSourceReplicaCmd)
 	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
-	registerFFDBAsTargetConnFlags(importDataToSourceReplicaCmd)
+	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)
 	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
 	registerImportDataFlags(importDataToSourceReplicaCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
