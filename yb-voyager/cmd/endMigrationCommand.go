@@ -35,8 +35,8 @@ var (
 
 var endMigrationCmd = &cobra.Command{
 	Use:   "migration",
-	Short: "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Fall-Back) and export-dir",
-	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Fall-Back) and export-dir",
+	Short: "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Source) and export-dir",
+	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Source) and export-dir",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		err := validateEndMigrationFlags(cmd)
@@ -402,25 +402,25 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("cleaning up voyager state from fallback db...")
+	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
 	fbconf.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		fbconf.Password, err = askPassword("fallback DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		fbconf.Password, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting fallback db password: %v", err)
+			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
 	fbdb := tgtdb.NewTargetDB(fbconf)
 	err = fbdb.Init()
 	if err != nil {
-		utils.ErrExit("initializing fallback db: %v", err)
+		utils.ErrExit("initializing source db: %v", err)
 	}
 	defer fbdb.Finalize()
 	err = fbdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from fallback db: %v", err)
+		utils.ErrExit("clearing migration state from source db: %v", err)
 	}
 }
 

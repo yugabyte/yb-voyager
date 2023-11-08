@@ -83,7 +83,6 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 		row = getSnapshotExportStatusRow(&tableStatus)
 		rows = append(rows, row)
 	}
-	fmt.Printf("displaying exported rows")
 	displayExportDataStatus(rows)
 	return nil
 }
@@ -158,7 +157,6 @@ func runExportDataStatusCmd() error {
 	}
 
 	displayExportDataStatus(outputRows)
-
 	return nil
 }
 
