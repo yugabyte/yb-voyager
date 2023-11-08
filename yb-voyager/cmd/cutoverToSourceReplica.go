@@ -22,8 +22,8 @@ import (
 
 var cutoverToSourceReplicaCmd = &cobra.Command{
 	Use:   "source-replica",
-	Short: "Initiates the switchover to fall-forward DB",
-	Long:  `Initiates the switchover to fall-forward DB`,
+	Short: "Initiate the cutover to source-replica DB",
+	Long:  `Initiate the cutover to source-replica DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		err := InitiatePrimarySwitch("fallforward")

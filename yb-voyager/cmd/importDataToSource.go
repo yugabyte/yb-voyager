@@ -24,8 +24,8 @@ import (
 
 var importDataToSourceCmd = &cobra.Command{
 	Use:   "source",
-	Short: "This command will set up and import data into fall back database",
-	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
+	Short: "Import data into the source DB in the fall-back workflow.",
+	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()

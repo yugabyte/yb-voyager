@@ -25,8 +25,8 @@ var prepareForFallBack utils.BoolStr
 
 var cutoverToTargetCmd = &cobra.Command{
 	Use:   "target",
-	Short: "Initiate cutover to YugabyteDB",
-	Long:  `Initiate cutover to YugabyteDB`,
+	Short: "Initiate cutover to target DB",
+	Long:  `Initiate cutover to target DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error

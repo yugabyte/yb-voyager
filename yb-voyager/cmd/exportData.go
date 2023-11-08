@@ -58,8 +58,8 @@ var exportDataCmd = &cobra.Command{
 
 var exportDataFromCmd = &cobra.Command{
 	Use:   "from",
-	Short: "export data from",
-	Long:  `export data from`,
+	Short: exportDataCmd.Short,
+	Long:  exportDataCmd.Long,
 }
 
 var exportDataFromSrcCmd = &cobra.Command{

@@ -25,11 +25,10 @@ import (
 
 var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
-	Short: "This command exports the changes from YugabyteDB.",
-	Long:  `This command connects to YugabyteDB and exports the changes received by it so that they can be imported into the fall back database.`,
+	Short: "Export data from target Yugabyte DB in the fall-back/fall-forward workflows.",
+	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		utils.PrintAndLog("in fallback sync")
 		validateMetaDBCreated()
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY

@@ -27,14 +27,14 @@ import (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Transition from source DB to target YugabyteDB during live migration.",
+	Short: "Prepare to point your application to a different database during live migration.",
 	Long:  "",
 }
 
 var cutoverToCmd = &cobra.Command{
 	Use:   "to",
-	Short: "Cutover to",
-	Long:  "",
+	Short: cutoverCmd.Short,
+	Long:  cutoverCmd.Long,
 }
 
 func init() {
