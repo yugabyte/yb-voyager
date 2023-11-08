@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -55,8 +56,10 @@ var liveMigrationReportCmd = &cobra.Command{
 			utils.ErrExit("error while parsing migration UUID: %w\n", err)
 		}
 		if streamChanges {
-			getTargetPassword(cmd)
-			migrationStatus.TargetDBConf.Password = tconf.Password
+			if migrationStatus.TargetDBConf != nil {
+				getTargetPassword(cmd)
+				migrationStatus.TargetDBConf.Password = tconf.Password
+			}
 			if migrationStatus.FallForwardEnabled {
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = tconf.Password
@@ -144,9 +147,11 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.TableName = ""
 		row.DBType = "Target"
 		row.ExportedSnapshotRows = 0
-		err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
-		if err != nil {
-			utils.ErrExit("error while getting imported events for target DB: %w\n", err)
+		if msr.TargetDBConf != nil { // In case import is not started yet, target DB conf will be nil
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
+			if err != nil {
+				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
+			}
 		}
 		if fFEnabled || fBEnabled {
 			err = updateExportedEventsCountsInTheRow(&row, tableName, schemaName) // target OUT counts
@@ -229,7 +234,17 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 
 	eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 	if err != nil {
-		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
+		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") {
+			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
+		} else {
+			//in case import streaming is not started yet, metadata will not be initialized
+			log.Errorf("streaming ingestion is not started yet for table %q for DB type %s", tableName, row.DBType)
+			eventCounter = &tgtdb.EventCounter{
+				NumInserts: 0,
+				NumUpdates: 0,
+				NumDeletes: 0,
+			}
+		}
 	}
 	row.ImportedInserts = eventCounter.NumInserts
 	row.ImportedUpdates = eventCounter.NumUpdates
