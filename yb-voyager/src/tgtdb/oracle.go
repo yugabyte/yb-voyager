@@ -697,23 +697,23 @@ func (tdb *TargetOracleDB) splitMaybeQualifiedTableName(tableName string) (strin
 
 func (tdb *TargetOracleDB) isSchemaExists(schema string) bool {
 	query := fmt.Sprintf("SELECT 1 FROM ALL_USERS WHERE USERNAME = '%s'", schema)
-	return tdb.isQueryResultEmpty(query)
+	return tdb.isQueryResultNonEmpty(query)
 }
 
 func (tdb *TargetOracleDB) isTableExists(qualifiedTableName string) bool {
 	schema, table := tdb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT 1 FROM ALL_TABLES WHERE TABLE_NAME = '%s' AND OWNER = '%s'", table, schema)
-	return tdb.isQueryResultEmpty(query)
+	return tdb.isQueryResultNonEmpty(query)
 }
 
-func (tdb *TargetOracleDB) isQueryResultEmpty(query string) bool {
+func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := tdb.Query(query)
 	if err != nil {
 		utils.ErrExit("error checking if query %s is empty: %v", query, err)
 	}
 	defer rows.Close()
 
-	return !rows.Next()
+	return rows.Next()
 }
 
 // this will be only called by FallForward or FallBack DBs
@@ -732,6 +732,7 @@ func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDi
 			log.Infof("table %s does not exist, nothing to clear for migration state", table)
 			continue
 		}
+		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
 		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
 		_, err := tdb.conn.ExecContext(context.Background(), query)
 		if err != nil {
