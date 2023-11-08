@@ -2,9 +2,9 @@ name: Go
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
 
 jobs:
 
