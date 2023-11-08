@@ -95,7 +95,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
-	tconf.VerboseMode = bool(VerboseMode)
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {

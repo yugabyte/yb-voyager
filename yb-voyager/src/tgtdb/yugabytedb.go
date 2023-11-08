@@ -630,7 +630,6 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 
 	if tconf.TargetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", tconf.TargetEndpoints)
-		utils.PrintIfTrue(msg, bool(tconf.VerboseMode))
 		log.Infof(msg)
 
 		ybServers := utils.CsvStringToSlice(tconf.TargetEndpoints)

@@ -52,8 +52,6 @@ func init() {
 func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command")
-
-	source.VerboseMode = bool(VerboseMode)
 }
 
 func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
@@ -120,8 +118,6 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
-
-	source.VerboseMode = bool(VerboseMode)
 }
 
 func setExportFlagsDefaults() {
