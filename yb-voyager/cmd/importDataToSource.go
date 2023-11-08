@@ -24,7 +24,7 @@ import (
 
 var importDataToSourceCmd = &cobra.Command{
 	Use:   "source",
-	Short: "Import data into the source DB in the fall-back workflow.",
+	Short: "Import data into the source DB to prepare for fall-back.",
 	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
