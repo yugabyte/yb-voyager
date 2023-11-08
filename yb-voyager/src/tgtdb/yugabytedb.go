@@ -1044,23 +1044,23 @@ func (yb *TargetYugabyteDB) splitMaybeQualifiedTableName(tableName string) (stri
 
 func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
 	query := fmt.Sprintf("SELECT true FROM information_schema.schemata WHERE schema_name = '%s'", schema)
-	return yb.isQueryResultEmpty(query)
+	return yb.isQueryResultNonEmpty(query)
 }
 
 func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
 	schema, table := yb.splitMaybeQualifiedTableName(qualifiedTableName)
 	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
-	return yb.isQueryResultEmpty(query)
+	return yb.isQueryResultNonEmpty(query)
 }
 
-func (yb *TargetYugabyteDB) isQueryResultEmpty(query string) bool {
+func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := yb.Query(query)
 	if err != nil {
 		utils.ErrExit("error checking if query %s is empty: %v", query, err)
 	}
 	defer rows.Close()
 
-	return !rows.Next()
+	return rows.Next()
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
@@ -1078,6 +1078,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 			log.Infof("table %s does not exist, nothing to clear migration state", table)
 			continue
 		}
+		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
 		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
 		_, err := yb.Exec(query)
 		if err != nil {
