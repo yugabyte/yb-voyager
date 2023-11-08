@@ -141,9 +141,9 @@ main() {
 	# Updating the trap command to include the importer
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	step "Fall Forward Setup"
-	fall_forward_setup || { 
-		tail_log_file "yb-voyager-fall-forward-setup.log"
+	step "Import Data to source Replica"
+	import_data_to_source_replica || { 
+		tail_log_file "yb-voyager-import-data-to-source-replica.log.log"
 		exit 1
 	} &
 
@@ -164,10 +164,10 @@ main() {
 	sleep 2m
 
 	step "Initiating cutover"
-	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
+	yes | yb-voyager cutover to target --export-dir ${EXPORT_DIR}
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
@@ -190,16 +190,16 @@ main() {
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	step "Initiating Switchover"
-	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
+	step "Initiating cutover to source-replica"
+	yes | yb-voyager cutover to source-replica --export-dir ${EXPORT_DIR}
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source-replica status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
-            tail_log_file "yb-voyager-fall-forward-setup.log"
-            tail_log_file "yb-voyager-fall-forward-synchronize.log"
+            tail_log_file "yb-voyager-import-data-to-source-replica.log"
+            tail_log_file "yb-voyager-export-data-from-target.log"
 			exit 1
         fi
     else
