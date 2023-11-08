@@ -21,12 +21,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var liveMigrationCommand = &cobra.Command{
-	Use:   "live-migration",
-	Short: "This command will display the report of any live migration workflow",
-	Long:  ``,
+var getCommand = &cobra.Command{
+	Use:   "get",
+	Short: "Gets the report of the migration.",
+	Long:  "Gets the report of the migration.",
 }
 
 func init() {
-	rootCmd.AddCommand(liveMigrationCommand)
+	rootCmd.AddCommand(getCommand)
 }

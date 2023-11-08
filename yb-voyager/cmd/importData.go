@@ -481,7 +481,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			createTriggerIfNotExists(triggerName)
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-				color.CyanString("yb-voyager live-migration report --export-dir %q", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {

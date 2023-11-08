@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -36,10 +37,10 @@ var targetDbPassword string
 var ffDbPassword string
 var sourceDbPassword string
 
-var liveMigrationReportCmd = &cobra.Command{
-	Use:   "report",
-	Short: "This command will print the report of any live migration workflow.",
-	Long:  `This command will print the report of the live migration or live migration with fall-forward or live migration with fall-back.`,
+var getDataMigrationReportCmd = &cobra.Command{
+	Use:   "data-migration-report",
+	Short: "This command will print the consolidated report of migration of data.",
+	Long:  `This command will print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
@@ -55,8 +56,10 @@ var liveMigrationReportCmd = &cobra.Command{
 			utils.ErrExit("error while parsing migration UUID: %w\n", err)
 		}
 		if streamChanges {
-			getTargetPassword(cmd)
-			migrationStatus.TargetDBConf.Password = tconf.Password
+			if migrationStatus.TargetDBConf != nil {
+				getTargetPassword(cmd)
+				migrationStatus.TargetDBConf.Password = tconf.Password
+			}
 			if migrationStatus.FallForwardEnabled {
 				getFallForwardDBPassword(cmd)
 				migrationStatus.FallForwardDBConf.Password = tconf.Password
@@ -65,9 +68,9 @@ var liveMigrationReportCmd = &cobra.Command{
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
-			liveMigrationStatusCmdFn(migrationStatus)
+			getDataMigrationReportCmdFn(migrationStatus)
 		} else {
-			utils.ErrExit("live-migration report is only applicable when export-type is 'snapshot-and-changes' in the migration")
+			utils.ErrExit("Error: data-migration report is only applicable when export-type is 'snapshot-and-changes' in the migration")
 		}
 	},
 }
@@ -87,7 +90,7 @@ type rowData struct {
 
 var fBEnabled, fFEnabled bool
 
-func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
+func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
 	tableList := msr.TableListExportedFromSource
@@ -108,6 +111,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 
 	for _, table := range tableList {
 		uitbl.AddRow() // blank row
+
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
@@ -127,7 +131,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 			schemaName = ""
 			row.TableName = tableName
 		}
-		row.DBType = "Source"
+		row.DBType = "source"
 		err := updateExportedEventsCountsInTheRow(&row, tableName, schemaName) //source OUT counts
 		if err != nil {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
@@ -141,11 +145,13 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		addRowInTheTable(uitbl, row)
 		row = rowData{}
 		row.TableName = ""
-		row.DBType = "Target"
+		row.DBType = "target"
 		row.ExportedSnapshotRows = 0
-		err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
-		if err != nil {
-			utils.ErrExit("error while getting imported events for target DB: %w\n", err)
+		if msr.TargetDBConf != nil { // In case import is not started yet, target DB conf will be nil
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf) //target IN counts
+			if err != nil {
+				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
+			}
 		}
 		if fFEnabled || fBEnabled {
 			err = updateExportedEventsCountsInTheRow(&row, tableName, schemaName) // target OUT counts
@@ -157,7 +163,7 @@ func liveMigrationStatusCmdFn(msr *metadb.MigrationStatusRecord) {
 		if fFEnabled {
 			row = rowData{}
 			row.TableName = ""
-			row.DBType = "Fall Forward"
+			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
 			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
 			if err != nil {
@@ -180,11 +186,11 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 
 func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
 	switch row.DBType {
-	case "Target":
+	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
-	case "Fall Forward":
+	case "source-replica":
 		importerRole = FF_DB_IMPORTER_ROLE
-	case "Source":
+	case "source":
 		importerRole = FB_DB_IMPORTER_ROLE
 	}
 	//reinitialise targetDB
@@ -228,7 +234,17 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 
 	eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)
 	if err != nil {
-		return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
+		if !strings.Contains(err.Error(), "cannot assign NULL to *int64") {
+			return fmt.Errorf("get imported events stats for table %q for DB type %s: %w", tableName, row.DBType, err)
+		} else {
+			//in case import streaming is not started yet, metadata will not be initialized
+			log.Errorf("streaming ingestion is not started yet for table %q for DB type %s", tableName, row.DBType)
+			eventCounter = &tgtdb.EventCounter{
+				NumInserts: 0,
+				NumUpdates: 0,
+				NumDeletes: 0,
+			}
+		}
 	}
 	row.ImportedInserts = eventCounter.NumInserts
 	row.ImportedUpdates = eventCounter.NumUpdates
@@ -238,9 +254,9 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 
 func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string) error {
 	switch row.DBType {
-	case "Source":
+	case "source":
 		exporterRole = SOURCE_DB_EXPORTER_ROLE
-	case "Target":
+	case "target":
 		if fFEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		} else if fBEnabled {
@@ -258,21 +274,21 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 }
 
 func getFinalRowCount(row rowData) int64 {
-	if row.DBType == "Source" {
+	if row.DBType == "source" {
 		return row.ExportedSnapshotRows + row.ExportedInserts + row.ImportedInserts - row.ExportedDeletes - row.ImportedDeletes
 	}
 	return row.ImportedSnapshotRows + row.ImportedInserts + row.ExportedInserts - row.ImportedDeletes - row.ExportedDeletes
 }
 
 func init() {
-	liveMigrationCommand.AddCommand(liveMigrationReportCmd)
-	registerCommonGlobalFlags(liveMigrationReportCmd)
-	liveMigrationReportCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
+	getCommand.AddCommand(getDataMigrationReportCmd)
+	registerCommonGlobalFlags(getDataMigrationReportCmd)
+	getDataMigrationReportCmd.Flags().StringVar(&ffDbPassword, "ff-db-password", "",
 		"password with which to connect to the target fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
-	liveMigrationReportCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
+	getDataMigrationReportCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes")
 
-	liveMigrationReportCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
+	getDataMigrationReportCmd.Flags().StringVar(&targetDbPassword, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }

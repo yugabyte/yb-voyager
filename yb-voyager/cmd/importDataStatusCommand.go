@@ -43,7 +43,7 @@ var importDataStatusCmd = &cobra.Command{
 		}
 		if streamChanges {
 			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n"+
-				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		color.Cyan("Import Data Status for TargetDB\n")
 		importerRole = TARGET_DB_IMPORTER_ROLE
