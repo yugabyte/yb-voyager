@@ -40,7 +40,6 @@ var (
 	startClean    utils.BoolStr
 	lockFile      lockfile.Lockfile
 	migrationUUID uuid.UUID
-	VerboseMode   utils.BoolStr
 	perfProfile   utils.BoolStr
 )
 
@@ -130,9 +129,6 @@ func init() {
 }
 
 func registerCommonGlobalFlags(cmd *cobra.Command) {
-	BoolVar(cmd.Flags(), &VerboseMode, "verbose", false,
-		"verbose mode for some extra details during execution of command")
-
 	BoolVar(cmd.Flags(), &perfProfile, "profile", false,
 		"profile yb-voyager for performance analysis")
 	cmd.Flags().MarkHidden("profile")

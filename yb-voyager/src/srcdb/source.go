@@ -48,7 +48,6 @@ type Source struct {
 	SSLTrustStorePassword    string        `json:"ssl_truststore_password"`
 	Uri                      string        `json:"uri"`
 	NumConnections           int           `json:"num_connections"`
-	VerboseMode              bool          `json:"verbose_mode"`
 	TableList                string        `json:"table_list"`
 	ExcludeTableList         string        `json:"exclude_table_list"`
 	UseOrafce                utils.BoolStr `json:"use_orafce"`
