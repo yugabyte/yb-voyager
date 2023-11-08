@@ -70,9 +70,9 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
+	saveMigrationReportsFn(msr)
 	backupSchemaFilesFn()
 	backupDataFilesFn()
-	saveMigrationReportsFn(msr)
 
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
