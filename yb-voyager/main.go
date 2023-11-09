@@ -37,9 +37,9 @@ func registerSignalHandlers() {
 		sig := <-sigs
 		switch sig {
 		case syscall.SIGINT, syscall.SIGTERM:
-			utils.PrintAndLog("Received signal %s. Exiting...", sig)
+			utils.PrintAndLog("\nReceived signal %s. Exiting...", sig)
 		case syscall.SIGUSR2:
-			utils.PrintAndLog("Received signal to terminate due to end migration command. Exiting...")
+			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
 		}
 		atexit.Exit(0)
 	}()
