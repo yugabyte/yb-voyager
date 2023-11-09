@@ -11,8 +11,10 @@ chmod +x ${TEST_DIR}/validate
 echo "Deleting existing data in target database"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
 
-echo "Initialising source database & inserting data"
+echo "Initialising source database"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} sequence_schema.sql
+
+echo "Inserting data in the source database"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} sequence_data.sql
 
 if [ "${FF_DB_SCHEMA}" != "" ]

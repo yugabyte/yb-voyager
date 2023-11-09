@@ -77,9 +77,9 @@ class OracleDB:
         try:
             cur.execute(query)
         except cx_Oracle.DatabaseError as error:
-            error_code = str(error.code)
+            code = str(error.args[0].code)
             self.conn.rollback()
-            return error_code == str(error_code)
+            return error_code == str(code)
         return False
 
 		 

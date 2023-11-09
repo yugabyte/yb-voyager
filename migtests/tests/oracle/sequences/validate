@@ -4,11 +4,7 @@ import yb
 import os
 
 def main():
-    if os.environ.get("FF_DB_SCHEMA") is not None:
-        os.environ["BETA_FAST_DATA_EXPORT"] = "1"
-        yb.run_checks(migration_completed_checks)
-    else:
-        yb.run_checks(migration_completed_checks)
+    yb.run_checks(migration_completed_checks)
 
 
 #=============================================================================
