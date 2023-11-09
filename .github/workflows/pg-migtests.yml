@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
+    branches: [ main ]
 
 jobs:
   run-pg-migration-tests:

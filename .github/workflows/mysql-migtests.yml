@@ -2,9 +2,9 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, aneesh/ff-fb-ux-changes-refactor ]
+    branches: [ main ]
 
 jobs:
   run-mysql-migration-tests:
