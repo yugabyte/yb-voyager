@@ -143,7 +143,7 @@ main() {
 
 	step "Import Data to source Replica"
 	import_data_to_source_replica || { 
-		tail_log_file "yb-voyager-import-data-to-source-replica.log.log"
+		tail_log_file "yb-voyager-import-data-to-source-replica.log"
 		exit 1
 	} &
 
