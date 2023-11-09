@@ -136,10 +136,10 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR} --prepare-for-fall-back false
+	yes | yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back false
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then

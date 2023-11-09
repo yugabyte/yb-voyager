@@ -20,21 +20,21 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSwitchoverCmd = &cobra.Command{
-	Use:   "switchover",
-	Short: "Initiates the switchover to fall-back DB",
-	Long:  `Initiates the switchover to fall-back DB`,
+var cutoverToSourceReplicaCmd = &cobra.Command{
+	Use:   "source-replica",
+	Short: "Initiate the cutover to source-replica DB",
+	Long:  `Initiate the cutover to source-replica DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch("fallback")
+		err := InitiatePrimarySwitch("fallforward")
 		if err != nil {
-			utils.ErrExit("failed to initiate fallback: %v", err)
+			utils.ErrExit("failed to initiate fallforward: %v", err)
 		}
 	},
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSwitchoverCmd)
-	fallBackSwitchoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+	cutoverToCmd.AddCommand(cutoverToSourceReplicaCmd)
+	cutoverToSourceReplicaCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }

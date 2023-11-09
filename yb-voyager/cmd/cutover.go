@@ -27,12 +27,26 @@ import (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Transition from source DB to target YugabyteDB during live migration.",
+	Short: "Prepare to point your application to a different database during live migration.",
 	Long:  "",
 }
 
+var cutoverRootCmd = &cobra.Command{
+	Use:   cutoverCmd.Use,
+	Short: cutoverCmd.Short,
+	Long:  cutoverCmd.Long,
+}
+
+var cutoverToCmd = &cobra.Command{
+	Use:   "to",
+	Short: cutoverCmd.Short,
+	Long:  cutoverCmd.Long,
+}
+
 func init() {
-	rootCmd.AddCommand(cutoverCmd)
+	rootCmd.AddCommand(cutoverRootCmd)
+	initiateCmd.AddCommand(cutoverCmd)
+	cutoverCmd.AddCommand(cutoverToCmd)
 }
 
 func InitiatePrimarySwitch(action string) error {

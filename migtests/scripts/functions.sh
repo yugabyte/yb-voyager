@@ -333,20 +333,20 @@ import_data() {
 		yb-voyager import data ${args} $*
 }
 
-fall_forward_setup() {
+import_data_to_source_replica() {
 	args="
 	--export-dir ${EXPORT_DIR}
-	--ff-db-user ${FF_DB_USER}
-	--ff-db-host ${FF_DB_HOST} 
-	--ff-db-name ${FF_DB_NAME} 
-	--ff-db-password ${FF_DB_PASSWORD} 
-	--ff-db-schema ${FF_DB_SCHEMA} 
+	--source-replica-db-user ${FF_DB_USER}
+	--source-replica-db-host ${FF_DB_HOST} 
+	--source-replica-db-name ${FF_DB_NAME} 
+	--source-replica-db-password ${FF_DB_PASSWORD} 
+	--source-replica-db-schema ${FF_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
 	"
-	yb-voyager fall-forward setup ${args} $*
+	yb-voyager import data to source-replica ${args} $*
 }
 
 import_data_file() {

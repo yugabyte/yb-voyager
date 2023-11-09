@@ -139,24 +139,24 @@ func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
 		"password with which to connect to the source DB server")
 }
 
-func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
-		"host on which the Fall-forward DB server is running")
+func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.Host, "source-replica-db-host", "127.0.0.1",
+		"host on which the Source-Replica DB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
-		"port on which the Fall-forward DB server is running Default: ORACLE(1521)")
+	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", -1,
+		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
 
-	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
-		"username with which to connect to the Fall-forward DB server")
-	cmd.MarkFlagRequired("ff-db-user")
+	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
+		"username with which to connect to the Source-Replica DB server")
+	cmd.MarkFlagRequired("source-replica-db-user")
 
-	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
-		"password with which to connect to the Fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
+		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
-	cmd.Flags().StringVar(&tconf.DBName, "ff-db-name", "",
-		"name of the database on the Fall-forward DB server on which import needs to be done")
+	cmd.Flags().StringVar(&tconf.DBName, "source-replica-db-name", "",
+		"name of the database on the Source-Replica DB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.DBSid, "ff-db-sid", "",
+	cmd.Flags().StringVar(&tconf.DBSid, "source-replica-db-sid", "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
 
 	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
@@ -165,24 +165,24 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
-		"schema name in Fall-forward DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
+		"schema name in Source-Replica DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
-	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
-		"Path of the file containing Fall-forward DB SSL Certificate Path")
+	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
+		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
-	cmd.Flags().StringVar(&tconf.SSLMode, "ff-ssl-mode", "prefer",
-		"specify the Fall-forward DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
+		"specify the Source-Replica DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
-	cmd.Flags().StringVar(&tconf.SSLKey, "ff-ssl-key", "",
-		"Path of the file containing Fall-forward DB SSL Key")
+	cmd.Flags().StringVar(&tconf.SSLKey, "source-replica-ssl-key", "",
+		"Path of the file containing Source-Replica DB SSL Key")
 
-	cmd.Flags().StringVar(&tconf.SSLRootCert, "ff-ssl-root-cert", "",
-		"Path of the file containing Fall-forward DB SSL Root Certificate")
+	cmd.Flags().StringVar(&tconf.SSLRootCert, "source-replica-ssl-root-cert", "",
+		"Path of the file containing Source-Replica DB SSL Root Certificate")
 
-	cmd.Flags().StringVar(&tconf.SSLCRL, "ff-ssl-crl", "",
-		"Path of the file containing Fall-forward DB SSL Root Certificate Revocation List (CRL)")
+	cmd.Flags().StringVar(&tconf.SSLCRL, "source-replica-ssl-crl", "",
+		"Path of the file containing Source-Replica DB SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerImportDataCommonFlags(cmd *cobra.Command) {
@@ -365,6 +365,6 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 
 func validateFFDBSchemaFlag() {
 	if tconf.Schema == "" {
-		utils.ErrExit("Error: --ff-db-schema flag is mandatory for fall-forward setup")
+		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }
