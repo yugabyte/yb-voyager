@@ -166,7 +166,7 @@ func startFallforwardSynchronizeIfRequired() {
 		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
-	unlockExportDir() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(unqualifiedTableList, ","),

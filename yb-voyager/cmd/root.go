@@ -21,16 +21,15 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
-	"github.com/nightlyone/lockfile"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -38,7 +37,7 @@ var (
 	cfgFile       string
 	exportDir     string
 	startClean    utils.BoolStr
-	lockFile      lockfile.Lockfile
+	lockFile      *lockfile.Lockfile
 	migrationUUID uuid.UUID
 	perfProfile   utils.BoolStr
 )
@@ -55,7 +54,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		validateExportDirFlag()
 		if shouldLock(cmd) {
-			lockExportDir(cmd)
+			lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
+			lockFile = lockfile.NewLockfile(lockFPath)
+			lockFile.Lock()
 		}
 		InitLogging(exportDir, cmd.Use == "status", GetCommandID(cmd))
 		if metaDBIsCreated(exportDir) {
@@ -76,7 +77,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {
 		if shouldLock(cmd) {
-			unlockExportDir()
+			lockFile.Unlock()
 		}
 	},
 }
@@ -96,18 +97,19 @@ func startPprofServer() {
 	*/
 }
 
+var noLockNeededList = []string{
+	"yb-voyager version",
+	"yb-voyager import data status",
+	"yb-voyager export data status",
+	"yb-voyager cutover status",
+	"yb-voyager fall-forward status",
+	"yb-voyager cutover initiate",
+	"yb-voyager fall-forward switchover",
+	"yb-voyager end",
+	"yb-voyager end migration",
+}
+
 func shouldLock(cmd *cobra.Command) bool {
-	noLockNeededList := []string{
-		"yb-voyager version",
-		"yb-voyager import data status",
-		"yb-voyager export data status",
-		"yb-voyager cutover status",
-		"yb-voyager fall-forward status",
-		"yb-voyager cutover initiate",
-		"yb-voyager fall-forward switchover",
-		"yb-voyager end",
-		"yb-voyager end migration",
-	}
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
 }
 
@@ -182,47 +184,6 @@ func validateExportDirFlag() {
 		exportDir = filepath.Clean(exportDir)
 		fmt.Printf("Note: Using %q as export directory\n", exportDir)
 	}
-}
-
-func lockExportDir(cmd *cobra.Command) {
-	// locking export-dir per command TODO: revisit this
-	lockFileName := fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd))
-
-	lockFilePath, err := filepath.Abs(filepath.Join(exportDir, lockFileName))
-	if err != nil {
-		utils.ErrExit("Failed to get absolute path for lockfile %q: %v\n", lockFileName, err)
-	}
-	createLock(lockFilePath)
-}
-
-func createLock(lockFileName string) {
-	var err error
-	lockFile, err = lockfile.New(lockFileName)
-	if err != nil {
-		utils.ErrExit("Failed to create lockfile %q: %v\n", lockFileName, err)
-	}
-
-	err = lockFile.TryLock()
-	if err == nil {
-		return
-	} else if err == lockfile.ErrBusy {
-		utils.ErrExit("Another instance of yb-voyager is running in the export-dir = %s\n", exportDir)
-	} else {
-		utils.ErrExit("Unable to lock the export-dir: %v\n", err)
-	}
-}
-
-func unlockExportDir() {
-	err := lockFile.Unlock()
-	if err != nil {
-		utils.ErrExit("Unable to unlock %q: %v\n", lockFile, err)
-	}
-}
-
-func getCmdNameFromLockFile(fpath string) string {
-	file := filepath.Base(fpath)
-	cmdName := file[1 : len(file)-len("Lockfile.lck")]
-	return strings.Replace(cmdName, "-", " ", -1)
 }
 
 func GetCommandID(c *cobra.Command) string {
