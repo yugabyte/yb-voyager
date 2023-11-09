@@ -102,9 +102,9 @@ var noLockNeededList = []string{
 	"yb-voyager import data status",
 	"yb-voyager export data status",
 	"yb-voyager cutover status",
-	"yb-voyager fall-forward status",
-	"yb-voyager cutover initiate",
-	"yb-voyager fall-forward switchover",
+	"yb-voyager initiate cutover to source",
+	"yb-voyager initiate cutover to target",
+	"yb-voyager initiate cutover to source-replica",
 	"yb-voyager end",
 	"yb-voyager end migration",
 }
