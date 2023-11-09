@@ -205,7 +205,7 @@ func saveDataExportImportReports(msr *metadb.MigrationStatusRecord) {
 	}
 
 	if !dataIsExported() {
-		log.Infof("data is not exported. skipping data export/import reports")
+		log.Infof("data is not exported. skipping data import report")
 		return
 	}
 	utils.PrintAndLog("saving data import report...")
