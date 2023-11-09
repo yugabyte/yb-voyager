@@ -31,6 +31,12 @@ var cutoverCmd = &cobra.Command{
 	Long:  "",
 }
 
+var cutoverRootCmd = &cobra.Command{
+	Use:   cutoverCmd.Use,
+	Short: cutoverCmd.Short,
+	Long:  cutoverCmd.Long,
+}
+
 var cutoverToCmd = &cobra.Command{
 	Use:   "to",
 	Short: cutoverCmd.Short,
@@ -38,6 +44,7 @@ var cutoverToCmd = &cobra.Command{
 }
 
 func init() {
+	rootCmd.AddCommand(cutoverRootCmd)
 	initiateCmd.AddCommand(cutoverCmd)
 	cutoverCmd.AddCommand(cutoverToCmd)
 }
