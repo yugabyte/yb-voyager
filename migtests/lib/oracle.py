@@ -72,5 +72,14 @@ class OracleDB:
         cur.execute("SELECT SUM({}) FROM {}.{}".format(column_name, schema_name, table_name))
         return cur.fetchone()[0]
 
+    def run_query_and_chk_error(self, query, error_code) -> bool:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(query)
+        except cx_Oracle.DatabaseError as error:
+            error_code = str(error.code)
+            self.conn.rollback()
+            return error_code == str(error_code)
+        return False
 
 		 

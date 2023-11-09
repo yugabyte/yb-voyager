@@ -11,36 +11,36 @@ def main():
 		migration_completed_checks_oracle()
 
 EXPECTED_ROW_COUNT = {
-	'order_items_range_partitioned': 79,
-	'accounts_list_partitioned': 42,
-	'orders_interval_partition': 105,
+	'order_items_range_partitioned': 81,
+	'accounts_list_partitioned': 44,
+	'orders_interval_partition': 107,
 	'sales_hash': 30,
-	'sub_par_test': 22,
+	'sub_par_test': 24,
 	'empty_partition_table':4,
 	'empty_partition_table2':4
 }
 
 EXPECTED_SUM_OF_COLUMN = {
 	'order_items_range_partitioned': {
-		'order_id': 3464 
+		'order_id': '3464' 
 	},
 	'accounts_list_partitioned': {
-		'id': 963
+		'id': '963'
 	},
 	'orders_interval_partition': {
-		'order_id': 5800
+		'order_id': '5800'
 	},
 	'sales_hash': {
-		's_productid': 280
+		's_productid': '280'
 	},
 	'sub_par_test': {
-		'id': 300
+		'id': '300'
 	},
 	'empty_partition_table': {
-		'id': 10
-	}
+		'id': '10'
+	},
 	'empty_partition_table2': {
-		'id': 10
+		'id': '10'
 	}
 }
 

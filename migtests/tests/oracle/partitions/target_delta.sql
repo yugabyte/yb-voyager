@@ -68,4 +68,3 @@ INSERT INTO empty_partition_table2 (id, region, status, description) VALUES (2, 
 INSERT INTO empty_partition_table2 (id, region, status, description) VALUES (3, 'WA', 'C', 'Description C');
 INSERT INTO empty_partition_table2 (id, region, status, description) VALUES (4, 'NJ', 'D', 'Description D');
 
-commit;
