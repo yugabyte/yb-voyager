@@ -70,7 +70,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 			}
 			getDataMigrationReportCmdFn(migrationStatus)
 		} else {
-			utils.ErrExit("Error: data-migration report is only applicable when export-type is 'snapshot-and-changes' in the migration")
+			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status")
 		}
 	},
 }
