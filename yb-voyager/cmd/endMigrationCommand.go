@@ -165,7 +165,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if msr.ExportType == "snapshot-and-changes" { // streaming changes case
 		utils.PrintAndLog("save data migration report...")
 		liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
-		strCmd := fmt.Sprintf("yb-voyager live-migration report -e %s > %q", exportDir, liveMigrationReportFilePath)
+		strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s > %q", exportDir, liveMigrationReportFilePath)
 		liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 		liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
 		var outbuf bytes.Buffer
