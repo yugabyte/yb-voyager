@@ -249,9 +249,9 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("getting target db password: %v", err)
 	}
 	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
+		fallForwardDBPassword, err = askPassword("source-replica DB", "", "FF_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting fall-forward db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
 	if msr.FallbackEnabled {

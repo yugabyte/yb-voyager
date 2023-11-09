@@ -23,9 +23,19 @@ import (
 	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/cmd"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/term"
 )
 
+var originalTermState *term.State
+
 func main() {
+	// Capture the original terminal state
+	state, err := term.GetState(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("error capturing terminal state: %v\n", err)
+	}
+	originalTermState = state
+
 	registerSignalHandlers()
 	cmd.Execute()
 }
@@ -41,6 +51,17 @@ func registerSignalHandlers() {
 		case syscall.SIGUSR2:
 			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
 		}
+		// Ensure we restore the terminal even if everything goes well
+		restoreTerminal()
 		atexit.Exit(0)
 	}()
+}
+
+func restoreTerminal() {
+	// Restore the terminal to its original state
+	if originalTermState != nil {
+		if err := term.Restore(0, originalTermState); err != nil {
+			utils.ErrExit("error restoring terminal: %v\n", err)
+		}
+	}
 }
