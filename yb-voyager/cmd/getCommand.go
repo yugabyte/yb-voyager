@@ -23,8 +23,8 @@ import (
 
 var getCommand = &cobra.Command{
 	Use:   "get",
-	Short: "Gets the report of the migration.",
-	Long:  "Gets the report of the migration.",
+	Short: "Gets migration reports.",
+	Long:  "Gets migration reports.",
 }
 
 func init() {
