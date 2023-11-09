@@ -43,7 +43,6 @@ var exportDataStatusCmd = &cobra.Command{
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
-		fmt.Printf("useDebezium: %v\n", useDebezium)
 		if useDebezium {
 			err = runExportDataStatusCmdDbzm(streamChanges)
 		} else {

@@ -35,8 +35,8 @@ var (
 
 var endMigrationCmd = &cobra.Command{
 	Use:   "migration",
-	Short: "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Source) and export-dir",
-	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Fall-Forward and Source) and export-dir",
+	Short: "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
+	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		err := validateEndMigrationFlags(cmd)
@@ -163,8 +163,8 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	}
 
 	if msr.ExportType == "snapshot-and-changes" { // streaming changes case
-		utils.PrintAndLog("save live migration reports...")
-		liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "live_migration_report.txt")
+		utils.PrintAndLog("save data migration report...")
+		liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
 		strCmd := fmt.Sprintf("yb-voyager live-migration report -e %s > %q", exportDir, liveMigrationReportFilePath)
 		liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 		liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
@@ -178,7 +178,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("saving data export reports...")
+	utils.PrintAndLog("saving data export report...")
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
 	strCmd := fmt.Sprintf("yb-voyager export data status -e %s > %q", exportDir, exportDataReportFilePath)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
@@ -190,12 +190,10 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("running export data status command: %v", err)
 	}
 
-	utils.PrintAndLog("saving data import reports...")
+	utils.PrintAndLog("saving data import report...")
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
 	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-
-	importDataStatusCmd.Env = append(os.Environ(), passwordsEnvVars...)
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
 	err = importDataStatusCmd.Run()
