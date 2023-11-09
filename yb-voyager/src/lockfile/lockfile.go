@@ -41,11 +41,11 @@ func (l *Lockfile) GetCmdPID() (int, error) {
 
 	bytes, err := os.ReadFile(l.fpath)
 	if err != nil {
-		return -1, fmt.Errorf("Failed to read lockfile %q: %w", l.fpath, err)
+		return -1, fmt.Errorf("failed to read lockfile %q: %w", l.fpath, err)
 	}
 	l.cmdPID, err = strconv.Atoi(strings.Trim(string(bytes), " \n"))
 	if err != nil {
-		return -1, fmt.Errorf("Failed to parse PID from lockfile %q: %w", l.fpath, err)
+		return -1, fmt.Errorf("failed to parse PID from lockfile %q: %w", l.fpath, err)
 	}
 	return l.cmdPID, nil
 }
@@ -61,11 +61,7 @@ func (l *Lockfile) IsPIDActive() bool {
 		return false
 	}
 	err = proc.Signal(syscall.Signal(0))
-	if err != nil {
-		return false
-	}
-
-	return true
+	return err == nil
 }
 
 func (l *Lockfile) Lock() {
