@@ -67,3 +67,29 @@ func checkAndReportCutoverStatus() {
 		reportFallForwardStatus()
 	}
 }
+
+func reportFallBackStatus() {
+	status := getFallBackStatus()
+	fmt.Printf("cutover to source status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", status)
+	case INITIATED:
+		color.Yellow("%s\n", status)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
+	}
+}
+
+func reportFallForwardStatus() {
+	status := getFallForwardStatus()
+	fmt.Printf("cutover to source-replica status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", status)
+	case INITIATED:
+		color.Yellow("%s\n", status)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
+	}
+}

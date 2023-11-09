@@ -85,8 +85,8 @@ var importDataCmd = &cobra.Command{
 
 var importDataToCmd = &cobra.Command{
 	Use:   "to",
-	Short: "import data to",
-	Long:  `import data to`,
+	Short: "Import data into various databases",
+	Long:  `Import data into various databases`,
 }
 
 var importDataToTargetCmd = &cobra.Command{
