@@ -40,7 +40,7 @@ var exportDataStatusCmd = &cobra.Command{
 		}
 		if streamChanges {
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n"+
-				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
 		if useDebezium {

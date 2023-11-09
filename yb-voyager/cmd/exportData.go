@@ -175,7 +175,7 @@ func exportData() bool {
 				}
 			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
 	} else {
