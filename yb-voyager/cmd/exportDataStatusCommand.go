@@ -82,7 +82,6 @@ func runExportDataStatusCmdDbzm(streamChanges bool) error {
 		row = getSnapshotExportStatusRow(&tableStatus)
 		rows = append(rows, row)
 	}
-
 	displayExportDataStatus(rows)
 	return nil
 }
@@ -105,7 +104,7 @@ func runExportDataStatusCmd() error {
 	dbTypeFlag := GetSourceDBTypeFromMSR()
 	source.DBType = dbTypeFlag
 	if dbTypeFlag == "postgresql" {
-		tableMap = getMappingForTableNameVsTableFileName(dataDir)
+		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
 	} else if dbTypeFlag == "mysql" || dbTypeFlag == "oracle" {
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {
@@ -124,7 +123,6 @@ func runExportDataStatusCmd() error {
 	} else {
 		return fmt.Errorf("unable to identify source-db-type")
 	}
-
 	var outputRows []*exportTableMigStatusOutputRow
 	var finalFullTableName string
 	for tableName := range tableMap {
@@ -158,7 +156,6 @@ func runExportDataStatusCmd() error {
 	}
 
 	displayExportDataStatus(outputRows)
-
 	return nil
 }
 
