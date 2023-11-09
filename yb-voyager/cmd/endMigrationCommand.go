@@ -620,9 +620,10 @@ func init() {
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup snapshot data files")
 	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save schema and data migration reports")
 	BoolVar(endMigrationCmd.Flags(), &backupLogFiles, "backup-log-files", false, "backup yb-voyager log files for this migration")
-	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory")
+	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory is where all the backup files of schema, data, logs and reports will be saved")
 
 	registerCommonGlobalFlags(endMigrationCmd)
+	endMigrationCmd.Flags().MarkHidden("send-diagnostics")
 
 	endMigrationCmd.MarkFlagRequired("backup-schema-files")
 	endMigrationCmd.MarkFlagRequired("backup-data-files")
