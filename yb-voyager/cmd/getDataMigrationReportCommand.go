@@ -139,7 +139,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		if fBEnabled {
 			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
 			if err != nil {
-				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
+				utils.ErrExit("error while getting imported events for source DB in case of source-replica: %w\n", err)
 			}
 		}
 		addRowInTheTable(uitbl, row)
@@ -167,7 +167,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.ExportedSnapshotRows = 0
 			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
 			if err != nil {
-				utils.ErrExit("error while getting imported events for fall-forward DB: %w\n", err)
+				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
 			addRowInTheTable(uitbl, row)
 		}
@@ -285,7 +285,7 @@ func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
 	registerCommonGlobalFlags(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.Flags().StringVar(&ffDbPassword, "source-replica-db-password", "",
-		"password with which to connect to the target fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	getDataMigrationReportCmd.Flags().StringVar(&sourceDbPassword, "source-db-password", "",
 		"password with which to connect to the target source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes")

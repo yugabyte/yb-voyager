@@ -50,8 +50,17 @@ func init() {
 }
 
 func InitiatePrimarySwitch(action string) error {
-	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", action)) {
-		utils.PrintAndLog("Aborting %s", action)
+	userFacingActionMsg := "cutover"
+	switch action {
+	case "cutover":
+		userFacingActionMsg = "cutover to target"
+	case "fallforward":
+		userFacingActionMsg = "cutover to source-replica"
+	case "fallback":
+		userFacingActionMsg = "cutover to source"
+	}
+	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
+		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
 		return nil
 	}
 	triggerName := action
@@ -59,14 +68,14 @@ func InitiatePrimarySwitch(action string) error {
 	if err != nil {
 		return err
 	}
-	utils.PrintAndLog("%s initiated, wait for it to complete", action)
+	utils.PrintAndLog("%s initiated, wait for it to complete", userFacingActionMsg)
 	return nil
 }
 
 func createTriggerIfNotExists(triggerName string) error {
 	cutoverMsg := "cutover already initiated, wait for it to complete"
-	fallforwardMsg := "fallforward already initiated, wait for it to complete"
-	fallbackMsg := "fallback already initiated, wait for it to complete"
+	fallforwardMsg := "cutover to source-replica already initiated, wait for it to complete"
+	fallbackMsg := "cutover to source already initiated, wait for it to complete"
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch triggerName {
 		case "cutover":
@@ -155,8 +164,8 @@ func exitIfDBSwitchedOver(triggerName string) {
 		utils.ErrExit("exit if db switched over for trigger(%s) exists: load migration status record: %s", triggerName, err)
 	}
 	cutoverMsg := "cutover already completed for this migration, aborting..."
-	fallforwardMsg := "fallforward already completed for this migration, aborting..."
-	fallbackMsg := "fallback already completed for this migration, aborting..."
+	fallforwardMsg := "cutover to source-replica already completed for this migration, aborting..."
+	fallbackMsg := "cutover to source already completed for this migration, aborting..."
 	switch triggerName { // only these trigger names required to be checked for db switch over
 	case "cutover.source":
 		if msr.CutoverProcessedBySourceExporter {
