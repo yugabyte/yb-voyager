@@ -161,7 +161,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
-		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
+		fmt.Sprintf("SOURCE_REPLICA_DB_PASSWORD=%s", fallForwardDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
@@ -234,7 +234,7 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("getting target db password: %v", err)
 	}
 	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
+		fallForwardDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting fall-forward db password: %v", err)
 		}
@@ -381,7 +381,7 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 	ffconf := msr.FallForwardDBConf
 	ffconf.Password = fallForwardDBPassword
 	if fallForwardDBPassword == "" {
-		ffconf.Password, err = askPassword("fall-forward DB", ffconf.User, "FF_DB_PASSWORD")
+		ffconf.Password, err = askPassword("fall-forward DB", ffconf.User, "_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting fall-forward db password: %v", err)
 		}

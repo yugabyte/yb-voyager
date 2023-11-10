@@ -151,7 +151,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("source-replica-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
-		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&tconf.DBName, "source-replica-db-name", "",
 		"name of the database on the Source-Replica DB server on which import needs to be done")
@@ -305,7 +305,7 @@ func getTargetPassword(cmd *cobra.Command) {
 
 func getFallForwardDBPassword(cmd *cobra.Command) {
 	var err error
-	tconf.Password, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
+	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
 		utils.ErrExit("error while getting ff-db-password: %w", err)
 	}
