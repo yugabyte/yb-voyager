@@ -202,12 +202,8 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of table names to import data")
 
-	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
-	if cmd.CommandPath() == "yb-voyager import data to source-replica" {
-		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
-	}
-	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
-		"Size of batches in the number of rows generated for ingestion during import.")
+	cmd.Flags().Int64Var(&batchSize, "batch-size", -1,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. (default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE))
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
 		"Otherwise, it fall back to using twice the number of nodes in the cluster."
 	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
