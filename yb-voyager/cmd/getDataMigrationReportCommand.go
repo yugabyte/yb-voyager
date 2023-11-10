@@ -139,7 +139,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		if fBEnabled {
 			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
 			if err != nil {
-				utils.ErrExit("error while getting imported events for source DB in case of source-replica: %w\n", err)
+				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
 		}
 		addRowInTheTable(uitbl, row)

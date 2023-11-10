@@ -136,7 +136,7 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Password, "source-db-password", "",
-		"password with which to connect to the source DB server")
+		"source password to connect as the specified user on the source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }
 
 func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
