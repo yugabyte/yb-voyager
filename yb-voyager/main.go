@@ -45,6 +45,9 @@ func registerSignalHandlers() {
 			utils.PrintAndLog("\nReceived signal %s. Exiting...", sig)
 		case syscall.SIGUSR2:
 			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
+		case syscall.SIGUSR1:
+			cmd.StopArchiverSignal = true
+			return
 		}
 		// Ensure we restore the terminal even if everything goes well
 		restoreTerminalState()
