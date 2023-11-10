@@ -59,9 +59,6 @@ QUERIES_CHECK = {
 		'code': "428C9"
 	}
 }
-
-if os.environ.get("FF_DB_SCHEMA") is not None:
-	QUERIES_CHECK = {}
 	
 def migration_completed_checks(tgt):
     table_list = tgt.get_table_names("public")
