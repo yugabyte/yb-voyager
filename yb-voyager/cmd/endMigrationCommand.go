@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -15,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -457,27 +457,24 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("checking for ongoing voyager commands: %v", err)
 	}
 	if len(matches) > 0 {
-		var ongoingCmds []string
+		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
-			ongoingCmd := getCmdNameFromLockFile(match)
-			ongoingCmds = append(ongoingCmds, ongoingCmd)
+			lockFile := lockfile.NewLockfile(match)
+			if lockFile.IsPIDActive() {
+				lockFiles = append(lockFiles, lockFile)
+			}
 		}
-		if len(ongoingCmds) > 0 {
-			cmd := strings.Join(ongoingCmds, ", ")
-			msg := fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by stopping them", cmd)
+		if len(lockFiles) > 0 {
+			cmds := getCommandNamesFromLockFiles(lockFiles)
+			msg := fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by stopping them", strings.Join(cmds, ", "))
 			if utils.AskPrompt(msg) {
-				for _, match := range matches {
-					log.Infof("stopping ongoing voyager command for match=%q", match)
-					ongoingCmd := getCmdNameFromLockFile(match)
+				for _, lockFile := range lockFiles {
+					ongoingCmd := lockFile.GetCmdName()
 					utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
-					bytes, err := os.ReadFile(match)
-					if err != nil { // file might have been deleted by the ongoing command in the meantime
-						log.Warnf("reading lock file %q: %v", match, err)
-					}
 
-					ongoingCmdPID, err := strconv.Atoi(strings.Trim(string(bytes), " \n"))
+					ongoingCmdPID, err := lockFile.GetCmdPID()
 					if err != nil {
-						utils.ErrExit("converting ongoing command's(%s) PID %q to int: %v", ongoingCmd, string(bytes), err)
+						utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
 					}
 
 					log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
@@ -526,6 +523,14 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 			Please provide a backup directory with more free space than the export directory data size(%s).`, humanize.Bytes(uint64(exportDirDataSize)))
 		}
 	}
+}
+
+func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
+	var cmds []string
+	for _, lockFile := range lockFiles {
+		cmds = append(cmds, lockFile.GetCmdName())
+	}
+	return cmds
 }
 
 // this function wait for process to exit after signalling it to stop
