@@ -29,12 +29,7 @@ import (
 var originalTermState *term.State
 
 func main() {
-	// Capture the original terminal state
-	state, err := term.GetState(int(syscall.Stdin))
-	if err != nil {
-		utils.ErrExit("error capturing terminal state: %v\n", err)
-	}
-	originalTermState = state
+	captureTerminalState()
 
 	registerSignalHandlers()
 	cmd.Execute()
@@ -52,12 +47,29 @@ func registerSignalHandlers() {
 			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
 		}
 		// Ensure we restore the terminal even if everything goes well
-		restoreTerminal()
+		restoreTerminalState()
 		atexit.Exit(0)
 	}()
 }
 
-func restoreTerminal() {
+func captureTerminalState() {
+	if !term.IsTerminal(int(syscall.Stdin)) {
+		return
+	}
+
+	// Capture the original terminal state
+	state, err := term.GetState(int(syscall.Stdin))
+	if err != nil {
+		utils.ErrExit("error capturing terminal state: %v\n", err)
+	}
+	originalTermState = state
+}
+
+func restoreTerminalState() {
+	if !term.IsTerminal(int(syscall.Stdin)) {
+		return
+	}
+
 	// Restore the terminal to its original state
 	if originalTermState != nil {
 		if err := term.Restore(0, originalTermState); err != nil {
