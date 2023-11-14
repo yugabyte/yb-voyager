@@ -163,7 +163,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" 
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false'
 	fi
 
 	step "Clean up"

@@ -3,11 +3,23 @@
 import yb
 import oracle
 import os
+import argparse
 
 def main():
-	migration_completed_checks_yb()
-	if os.environ.get("FF_DB_SCHEMA") is not None:
-		migration_completed_checks_oracle()
+    parser = argparse.ArgumentParser(description='Process an argument.')
+    parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+
+    args = parser.parse_args()
+    ff_enabled = args.ff_enabled
+    print(ff_enabled)
+    print(args)
+    if ff_enabled == 'true':
+        change_expected_values()
+    print(EXPECTED_ROW_COUNT)
+    print(EXPECTED_TABLE_SUM)
+    migration_completed_checks_yb()
+    if ff_enabled == 'true':
+        migration_completed_checks_oracle()
 
 
 #=============================================================================
@@ -36,7 +48,7 @@ EXPECTED_TABLE_SUM = {
     'empty_identity_always': 9,
 }
 
-EXPECTED_TABLE_SUM_AFTER_INSERT_YB = {
+EXPECTED_TABLE_SUM_AFTER_INSERT = {
 	'identity_demo_generated_by_def_inc_by': 308,        
 	'identity_demo_generated_always': 13,        
 	'identity_demo_generated_by_def': 22,        
@@ -49,42 +61,41 @@ EXPECTED_TABLE_SUM_AFTER_INSERT_YB = {
 }
 
 
-if os.environ.get("FF_DB_SCHEMA") is not None:
-    EXPECTED_ROW_COUNT = {
-        'identity_demo_generated_by_def_inc_by': 3,        
-        'identity_demo_generated_always': 4,        
-        'identity_demo_generated_by_def': 6,        
-        'identity_demo_generated_always_start_with': 1,        
-        'identity_demo_generated_by_def_st_with_inc_by': 3,        
-        'identity_demo_generated_by_def_start_with': 3,        
-        'identity_demo_with_null': 4,
-        'empty_identity_def': 1,
-        'empty_identity_always': 4,
-    }
+EXPECTED_ROW_COUNT_FF = {
+    'identity_demo_generated_by_def_inc_by': 3,        
+    'identity_demo_generated_always': 4,        
+    'identity_demo_generated_by_def': 6,        
+    'identity_demo_generated_always_start_with': 1,        
+    'identity_demo_generated_by_def_st_with_inc_by': 3,        
+    'identity_demo_generated_by_def_start_with': 3,        
+    'identity_demo_with_null': 4,
+    'empty_identity_def': 1,
+    'empty_identity_always': 4,
+}
 
-    EXPECTED_TABLE_SUM = {
-        'identity_demo_generated_by_def_inc_by': 105,        
-        'identity_demo_generated_always': 18,        
-        'identity_demo_generated_by_def': 39,        
-        'identity_demo_generated_always_start_with': 101,        
-        'identity_demo_generated_by_def_st_with_inc_by': 115,        
-        'identity_demo_generated_by_def_start_with': 205,        
-        'identity_demo_with_null': 17,
-        'empty_identity_def': 3,
-        'empty_identity_always': 18,
-    }
+EXPECTED_TABLE_SUM_FF = {
+    'identity_demo_generated_by_def_inc_by': 105,        
+    'identity_demo_generated_always': 18,        
+    'identity_demo_generated_by_def': 39,        
+    'identity_demo_generated_always_start_with': 101,        
+    'identity_demo_generated_by_def_st_with_inc_by': 115,        
+    'identity_demo_generated_by_def_start_with': 205,        
+    'identity_demo_with_null': 17,
+    'empty_identity_def': 3,
+    'empty_identity_always': 18,
+}
 
-    EXPECTED_TABLE_SUM_AFTER_INSERT_YB = {
-        'identity_demo_generated_by_def_inc_by': 308,        
-        'identity_demo_generated_always': 123,        
-        'identity_demo_generated_by_def': 147,        
-        'identity_demo_generated_always_start_with': 203,        
-        'identity_demo_generated_by_def_st_with_inc_by': 322,        
-        'identity_demo_generated_by_def_start_with': 308,        
-        'identity_demo_with_null': 122,
-        'empty_identity_def': 106,
-        'empty_identity_always': 123,
-    }
+EXPECTED_TABLE_SUM_AFTER_INSERT_FF = {
+    'identity_demo_generated_by_def_inc_by': 308,        
+    'identity_demo_generated_always': 123,        
+    'identity_demo_generated_by_def': 147,        
+    'identity_demo_generated_always_start_with': 203,        
+    'identity_demo_generated_by_def_st_with_inc_by': 322,        
+    'identity_demo_generated_by_def_start_with': 308,        
+    'identity_demo_with_null': 122,
+    'empty_identity_def': 106,
+    'empty_identity_always': 123,
+}
 
 EXPECTED_TABLE_SUM_AFTER_INSERT_ORA = {
     'identity_demo_generated_by_def_inc_by': 208,        
@@ -112,16 +123,33 @@ QUERIES_CHECK = {
 
 #=============================================================================
 
-def migration_completed_checks_yb():	
-	print("Running tests on YB")
-	global db_schema
-	db_schema="public"
-	yb.run_checks(migration_completed_checks)
+def change_expected_values():
+    for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+        EXPECTED_ROW_COUNT[table_name] = row_count
+    
+    for table_name, sum_column_values in EXPECTED_TABLE_SUM_FF.items():
+        EXPECTED_TABLE_SUM[table_name] = sum_column_values
+
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_FF.items():
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert
+
+    
+    
+
+def migration_completed_checks_yb():
+    print("Running tests on YB")
+    global db_schema
+    db_schema="public"
+    yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_oracle():
     print("Running tests on Oracle")
     global db_schema
     db_schema = os.environ.get("FF_DB_SCHEMA")
+
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_ORA.items():
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert
+
     for type_check, query_and_code in QUERIES_CHECK.items():
         query_and_code['code'] = "32795"
 
@@ -153,10 +181,6 @@ def migration_completed_checks(tgt):
         insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
         print(f"insert query returned for {table_name} - {insert_query_chk_error}")
         assert insert_query_chk_error == False
-        
-    EXPECTED_TABLE_SUM_AFTER_INSERT = EXPECTED_TABLE_SUM_AFTER_INSERT_YB
-    if type(tgt) == oracle.OracleDB:
-        EXPECTED_TABLE_SUM_AFTER_INSERT = EXPECTED_TABLE_SUM_AFTER_INSERT_ORA
         
     for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT.items():
         got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)

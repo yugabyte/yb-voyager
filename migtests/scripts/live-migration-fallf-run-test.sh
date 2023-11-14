@@ -216,7 +216,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges"
+	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'true'
 
 	step "Clean up"
 
