@@ -158,44 +158,59 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
+	streamChanges, err := checkWithStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
+	if streamChanges {
+		saveDataMigrationReport(msr)
+	} else { // snapshot case
+		saveDataExportImportReports(msr)
+	}
+}
+
+func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
+	utils.PrintAndLog("save data migration report...")
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
 		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
-
-	if msr.ExportType == "snapshot-and-changes" { // streaming changes case
-		utils.PrintAndLog("save data migration report...")
-		liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
-		strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s > %q", exportDir, liveMigrationReportFilePath)
-		liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
-		liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-		var outbuf bytes.Buffer
-		liveMigrationReportCmd.Stderr = &outbuf
-		err = liveMigrationReportCmd.Run()
-		if err != nil {
-			log.Errorf("end migration: running live migration report command: %s: %v", outbuf.String(), err)
-			utils.ErrExit("end migration: running live migration report command: %v", err)
-		}
-		return
+	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s > %q", exportDir, liveMigrationReportFilePath)
+	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
+	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
+	var outbuf bytes.Buffer
+	liveMigrationReportCmd.Stderr = &outbuf
+	err := liveMigrationReportCmd.Run()
+	if err != nil {
+		log.Errorf("running get data-migration-report command: %s: %v", outbuf.String(), err)
+		utils.ErrExit("running get data-migration-report command: %v", err)
 	}
+}
 
+func saveDataExportImportReports(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("saving data export report...")
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager export data status -e %s > %q", exportDir, exportDataReportFilePath)
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s > %q", exportDir, exportDataReportFilePath)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	var outbuf bytes.Buffer
 	exportDataStatusCmd.Stderr = &outbuf
-	err = exportDataStatusCmd.Run()
+	err := exportDataStatusCmd.Run()
 	if err != nil {
 		log.Errorf("running export data status command: %s: %v", outbuf.String(), err)
 		utils.ErrExit("running export data status command: %v", err)
 	}
 
+	if !dataIsExported() {
+		log.Infof("data is not exported. skipping data import report")
+		return
+	}
 	utils.PrintAndLog("saving data import report...")
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
-	strCmd = fmt.Sprintf("yb-voyager import data status -e %s > %q", exportDir, importDataReportFilePath)
+	strCmd = fmt.Sprintf("yb-voyager import data status --export-dir %s > %q", exportDir, importDataReportFilePath)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
 	outbuf = bytes.Buffer{}
 	importDataStatusCmd.Stderr = &outbuf
@@ -234,9 +249,9 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("getting target db password: %v", err)
 	}
 	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("fall-forward DB", "", "FF_DB_PASSWORD")
+		fallForwardDBPassword, err = askPassword("source-replica DB", "", "FF_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting fall-forward db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
 	if msr.FallbackEnabled {
@@ -610,9 +625,10 @@ func init() {
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup snapshot data files")
 	BoolVar(endMigrationCmd.Flags(), &saveMigrationReports, "save-migration-reports", false, "save schema and data migration reports")
 	BoolVar(endMigrationCmd.Flags(), &backupLogFiles, "backup-log-files", false, "backup yb-voyager log files for this migration")
-	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory")
+	endMigrationCmd.Flags().StringVar(&backupDir, "backup-dir", "", "backup directory is where all the backup files of schema, data, logs and reports will be saved")
 
 	registerCommonGlobalFlags(endMigrationCmd)
+	endMigrationCmd.Flags().MarkHidden("send-diagnostics")
 
 	endMigrationCmd.MarkFlagRequired("backup-schema-files")
 	endMigrationCmd.MarkFlagRequired("backup-data-files")
