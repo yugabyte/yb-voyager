@@ -74,6 +74,12 @@ QUERIES_CHECK = {
 	}
 }
 
+EXPECTED_IDENTITY_DEFAULT_COLUMNS = {
+	'identity_demo_generated_always': ['id'],
+	'identity_demo_generated_always_start_with': ['id'],
+	'empty_identity_always': ['id'],
+}
+
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	global db_schema
@@ -102,7 +108,6 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
 		assert sum_column_values == got_sum_column_values
 
-
 	if live_migration != 'true':
 		for type_check, query_and_code in QUERIES_CHECK.items():
 			query, code = query_and_code['query'], query_and_code['code']
@@ -120,6 +125,12 @@ def migration_completed_checks(tgt):
 			got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
 			print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values_after_insert}, expected_sum_column_values: {sum_column_values_after_insert}")
 			assert sum_column_values_after_insert == got_sum_column_values_after_insert
+
+	else: # in live_migration only 
+		for table_name, columns in EXPECTED_IDENTITY_DEFAULT_COLUMNS.items():
+			got_columns = tgt.get_identity_type_columns("BY DEFAULT",table_name, db_schema)
+			print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
+			assert columns == got_columns
 
 if __name__ == "__main__":
 	main()

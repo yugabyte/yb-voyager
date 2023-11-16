@@ -81,5 +81,9 @@ class OracleDB:
             self.conn.rollback()
             return error_code == str(code)
         return False
-
-		 
+    
+    def get_identity_type_columns(self, type_name, table_name, schema_name) -> List[str]:
+        cur = self.conn.cursor()
+        query = f"Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '{schema_name}' AND TABLE_NAME = UPPER('{table_name}') AND GENERATION_TYPE='{type_name}'"
+        cur.execute(query)
+        return [column[0].lower() for column in cur.fetchall()]
