@@ -41,8 +41,9 @@ var tableListFilePath string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "export schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
-	Long:  `Export has various sub-commands i.e. export schema and export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
+	Short: "export schema and data from compatible databases",
+	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
+	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
 func init() {

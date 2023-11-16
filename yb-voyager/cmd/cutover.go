@@ -27,7 +27,7 @@ import (
 
 var cutoverCmd = &cobra.Command{
 	Use:   "cutover",
-	Short: "Prepare to point your application to a different database during live migration.",
+	Short: "Pointing your application to a different database during live migration.",
 	Long:  "",
 }
 
