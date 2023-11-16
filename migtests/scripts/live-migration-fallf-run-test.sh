@@ -155,11 +155,8 @@ main() {
 
 	sleep 1m
 
-	if [ "${RUN_SNAPSHOT_VALIDATIONS}" == "true" ]
-	then
-		step "Run snapshot validations."
-		"${TEST_DIR}/validate"
-	fi
+	step "Run snapshot validations."
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_fb_enabled 'true'
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
@@ -216,7 +213,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'true'
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
 
 	step "Clean up"
 

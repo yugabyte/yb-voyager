@@ -124,11 +124,8 @@ main() {
 
 	sleep 30 
 
-	if [ "${RUN_SNAPSHOT_VALIDATIONS}" == "true" ]
-	then
-		step "Run snapshot validations."
-		"${TEST_DIR}/validate"
-	fi
+	step "Run snapshot validations."
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_fb_enabled 'false'
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
@@ -163,7 +160,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges" --ff_enabled 'false'
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'false'
 	fi
 
 	step "Clean up"

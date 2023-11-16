@@ -7,7 +7,7 @@ import collections
 
 def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
-	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
 	args = parser.parse_args()
 	
 	yb.run_checks(migration_completed_checks)

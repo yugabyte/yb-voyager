@@ -8,15 +8,15 @@ import oracle
 
 def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
-	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
 	args = parser.parse_args()
-	ff_enabled = args.ff_enabled
+	ff_fb_enabled = args.ff_fb_enabled
     
-	if ff_enabled == 'true':
+	if ff_fb_enabled == 'true':
 		change_expected_values()
 
 	migration_completed_checks_yb()
-	if ff_enabled == 'true':
+	if ff_fb_enabled == 'true':
 		migration_completed_checks_oracle()
 
 EXPECTED_ROW_COUNT = {

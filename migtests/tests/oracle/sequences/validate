@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
 
+import argparse
 import yb
 import os
+import oracle
 
 def main():
-    yb.run_checks(migration_completed_checks)
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
+	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	args = parser.parse_args()
+	global live_migration 
+	live_migration = args.live_migration
+	global ff_fb_enabled
+	ff_fb_enabled = args.ff_fb_enabled
+	
+	migration_completed_checks_yb()
+
+	if ff_fb_enabled == 'true':
+		migration_completed_checks_oracle()
 
 
 #=============================================================================
@@ -59,38 +73,53 @@ QUERIES_CHECK = {
 		'code': "428C9"
 	}
 }
-	
-def migration_completed_checks(tgt):
-    table_list = tgt.get_table_names("public")
-    print("table_list: ", table_list)
-    assert len(table_list) == 9
-    
-    got_row_count = tgt.row_count_of_all_tables("public")
-    for table_name, row_count in EXPECTED_ROW_COUNT.items():
-        print(f"table_name: {table_name}, got_row_count: {got_row_count[table_name]}, expected_row_count: {row_count}")
-        assert row_count == got_row_count[table_name]
-        
-    for table_name, sum_column_values in EXPECTED_TABLE_SUM.items():
-        got_sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id", "public")
-        print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
-        assert sum_column_values == got_sum_column_values
 
-    for type_check, query_and_code in QUERIES_CHECK.items():
-        query, code = query_and_code['query'], query_and_code['code']
-        chk_err_returned = tgt.run_query_and_chk_error(query, code)
-        print(f"Checking {type_check} ..", code, {chk_err_returned} )
-        assert chk_err_returned == True
-	
-    for table_name, _ in EXPECTED_ROW_COUNT.items():
-        INSERT_SEQUENCE_QUERY = f"insert into {table_name} (description) values ('Yugabyte');"
-        insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
-        print(f"insert query returned for {table_name} - {insert_query_chk_error}")
-        assert insert_query_chk_error == False
-	
-    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT.items():
-        got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", "public")
-        print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values_after_insert}, expected_sum_column_values: {sum_column_values_after_insert}")
-        assert sum_column_values_after_insert == got_sum_column_values_after_insert
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	global db_schema
+	db_schema="public"
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_oracle():
+	print("Running tests on Oracle")
+	global db_schema
+	db_schema = os.environ.get("FF_DB_SCHEMA")
+	oracle.run_checks(migration_completed_checks)
+
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names(db_schema)
+	print("table_list: ", table_list)
+	assert len(table_list) == 9
+
+	got_row_count = tgt.row_count_of_all_tables(db_schema)
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, got_row_count: {got_row_count[table_name]}, expected_row_count: {row_count}")
+		assert row_count == got_row_count[table_name]
+
+	for table_name, sum_column_values in EXPECTED_TABLE_SUM.items():
+		got_sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
+		print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
+		assert sum_column_values == got_sum_column_values
+
+
+	if live_migration != 'true':
+		for type_check, query_and_code in QUERIES_CHECK.items():
+			query, code = query_and_code['query'], query_and_code['code']
+			chk_err_returned = tgt.run_query_and_chk_error(query, code)
+			print(f"Checking {type_check} ..", code, {chk_err_returned})
+			assert chk_err_returned == True
+
+		for table_name, _ in EXPECTED_ROW_COUNT.items():
+			INSERT_SEQUENCE_QUERY = f"insert into {table_name} (description) values ('Yugabyte');"
+			insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
+			print(f"insert query returned for {table_name} - {insert_query_chk_error}")
+			assert insert_query_chk_error == False
+
+		for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT.items():
+			got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
+			print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values_after_insert}, expected_sum_column_values: {sum_column_values_after_insert}")
+			assert sum_column_values_after_insert == got_sum_column_values_after_insert
 
 if __name__ == "__main__":
 	main()
