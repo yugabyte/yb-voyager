@@ -88,7 +88,6 @@ def migration_completed_checks(tgt):
         assert insert_query_chk_error == False
 	
     for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT.items():
-        print(os.environ.get('BETA_FAST_DATA_EXPORT'))
         got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", "public")
         print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values_after_insert}, expected_sum_column_values: {sum_column_values_after_insert}")
         assert sum_column_values_after_insert == got_sum_column_values_after_insert

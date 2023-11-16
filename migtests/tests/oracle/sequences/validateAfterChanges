@@ -11,12 +11,8 @@ def main():
 
     args = parser.parse_args()
     ff_enabled = args.ff_enabled
-    print(ff_enabled)
-    print(args)
     if ff_enabled == 'true':
         change_expected_values()
-    print(EXPECTED_ROW_COUNT)
-    print(EXPECTED_TABLE_SUM)
     migration_completed_checks_yb()
     if ff_enabled == 'true':
         migration_completed_checks_oracle()
