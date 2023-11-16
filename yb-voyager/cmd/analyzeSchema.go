@@ -1080,6 +1080,8 @@ func analyzeSchema() {
 	} else {
 		payload.DBObjects = string(dbobjects)
 	}
+
+	setSchemaIsAnalyzed()
 	callhome.PackAndSendPayload(exportDir)
 }
 
@@ -1114,4 +1116,30 @@ func validateReportOutputFormat() {
 		}
 	}
 	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
+}
+
+func schemaIsAnalyzed() bool {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("schema is analyzed: load migration status record: %s", err)
+	}
+	return msr.AnalyzeSchemaDone
+}
+
+func setSchemaIsAnalyzed() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.AnalyzeSchemaDone = true
+	})
+	if err != nil {
+		utils.ErrExit("set schema is analyzed: update migration status record for : %s", err)
+	}
+}
+
+func clearSchemaIsAnalyzed() {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.AnalyzeSchemaDone = false
+	})
+	if err != nil {
+		utils.ErrExit("clear schema is analyzed: update migration status record for : %s", err)
+	}
 }

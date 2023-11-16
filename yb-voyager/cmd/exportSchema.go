@@ -65,6 +65,7 @@ func exportSchema() {
 				utils.CleanDir(filepath.Join(exportDir, dirName))
 			}
 			clearSchemaIsExported()
+			clearSchemaIsAnalyzed()
 		} else {
 			fmt.Fprintf(os.Stderr, "Schema is already exported. "+
 				"Use --start-clean flag to export schema again -- "+
