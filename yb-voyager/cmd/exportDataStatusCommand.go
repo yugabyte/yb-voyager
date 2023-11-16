@@ -29,6 +29,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const exportDataStatusMsg = "Export Data Status for SourceDB\n"
+
 var exportDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed data export.",
@@ -39,7 +41,7 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
 		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n"+
+			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
@@ -160,8 +162,8 @@ func runExportDataStatusCmd() error {
 }
 
 func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
+	color.Cyan(exportDataStatusMsg)
 	table := uitable.New()
-
 	if useDebezium {
 		addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
 	} else {
