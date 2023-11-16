@@ -61,7 +61,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	cmd.Flags().IntVar(&source.Port, "source-db-port", -1,
+	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
 		"source database server port number. Default: Oracle(1521), MySQL(3306), PostgreSQL(5432)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
@@ -131,7 +131,7 @@ func setExportFlagsDefaults() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port != -1 {
+	if source.Port != 0 {
 		return
 	}
 	switch source.DBType {

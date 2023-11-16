@@ -101,8 +101,9 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, "target-db-port", 0,
 		"port on which the YugabyteDB YSQL API is running (Default: 5433)")
+
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
@@ -143,7 +144,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "source-replica-db-host", "127.0.0.1",
 		"host on which the Source-Replica DB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", 0,
 		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
@@ -202,14 +203,14 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of table names to import data")
 
-	cmd.Flags().Int64Var(&batchSize, "batch-size", -1,
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. (default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE))
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
 		"Otherwise, it fall back to using twice the number of nodes in the cluster."
 	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
-		defaultParallelismMsg = "(default - oracle: 16)"
+		defaultParallelismMsg = "(default: Oracle(16))"
 	}
-	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
 
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
@@ -263,7 +264,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 }
 
 func validateTargetPortRange() {
-	if tconf.Port == -1 {
+	if tconf.Port == 0 {
 		if tconf.TargetDBType == ORACLE {
 			tconf.Port = ORACLE_DEFAULT_PORT
 		} else if tconf.TargetDBType == YUGABYTEDB {
@@ -338,7 +339,7 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if batchSize == -1 {
+	if batchSize == 0 {
 		if tconf.TargetDBType == ORACLE {
 			batchSize = DEFAULT_BATCH_SIZE_ORACLE
 		} else {
