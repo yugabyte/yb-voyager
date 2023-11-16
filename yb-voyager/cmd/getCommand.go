@@ -13,16 +13,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
-import "github.com/spf13/cobra"
+import (
 
-var fallForwardCmd = &cobra.Command{
-	Use:   "fall-forward",
-	Short: "Manage the fall-forward backup strategy for live migration by setting up a fall-forward DB and synchronizing it with the source/target",
-	Long:  ``,
+	"github.com/spf13/cobra"
+)
+
+var getCommand = &cobra.Command{
+	Use:   "get",
+	Short: "Gets migration reports.",
+	Long:  "Gets migration reports.",
 }
 
 func init() {
-	rootCmd.AddCommand(fallForwardCmd)
+	rootCmd.AddCommand(getCommand)
 }

@@ -17,24 +17,14 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSwitchoverCmd = &cobra.Command{
-	Use:   "switchover",
-	Short: "Initiates the switchover to fall-back DB",
-	Long:  `Initiates the switchover to fall-back DB`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch("fallback")
-		if err != nil {
-			utils.ErrExit("failed to initiate fallback: %v", err)
-		}
-	},
+var initiateCmd = &cobra.Command{
+	Use:   "initiate",
+	Short: "Initiate certain operations during the migration process",
+	Long:  "",
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSwitchoverCmd)
-	fallBackSwitchoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	rootCmd.AddCommand(initiateCmd)
 }

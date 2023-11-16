@@ -20,6 +20,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -39,19 +40,55 @@ var cutoverStatusCmd = &cobra.Command{
 }
 
 func init() {
-	cutoverCmd.AddCommand(cutoverStatusCmd)
+	cutoverRootCmd.AddCommand(cutoverStatusCmd)
 	cutoverStatusCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
 func checkAndReportCutoverStatus() {
 	status := getCutoverStatus()
-	fmt.Printf("cutover status: ")
+	fmt.Printf("cutover to target status: ")
 	switch status {
 	case NOT_INITIATED:
 		color.Red("%s\n", NOT_INITIATED)
 	case INITIATED:
 		color.Yellow("%s\n", INITIATED)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
+	}
+	if msr.FallbackEnabled {
+		reportFallBackStatus()
+	} else if msr.FallForwardEnabled {
+		reportFallForwardStatus()
+	}
+}
+
+func reportFallBackStatus() {
+	status := getFallBackStatus()
+	fmt.Printf("cutover to source status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", status)
+	case INITIATED:
+		color.Yellow("%s\n", status)
+	case COMPLETED:
+		color.Green("%s\n", COMPLETED)
+	}
+}
+
+func reportFallForwardStatus() {
+	status := getFallForwardStatus()
+	fmt.Printf("cutover to source-replica status: ")
+	switch status {
+	case NOT_INITIATED:
+		color.Red("%s\n", status)
+	case INITIATED:
+		color.Yellow("%s\n", status)
 	case COMPLETED:
 		color.Green("%s\n", COMPLETED)
 	}

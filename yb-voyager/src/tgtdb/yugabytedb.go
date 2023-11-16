@@ -292,7 +292,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []string) []string {
 	result := []string{}
 
 	for _, table := range tables {
-		log.Infof("Checking if table %q is empty.", table)
+		log.Infof("checking if table %q is empty.", table)
 		tmp := false
 		stmt := fmt.Sprintf("SELECT TRUE FROM %s LIMIT 1;", table)
 		err := yb.Conn().QueryRow(context.Background(), stmt).Scan(&tmp)
@@ -408,12 +408,8 @@ func (yb *TargetYugabyteDB) IfRequiredQuoteColumnNames(tableName string, columns
 		return result, nil
 	}
 	// SLOW PATH.
-	schemaName := yb.tconf.Schema
-	parts := strings.Split(tableName, ".")
-	if len(parts) == 2 {
-		schemaName = parts[0]
-		tableName = parts[1]
-	}
+	var schemaName string
+	schemaName, tableName = yb.splitMaybeQualifiedTableName(tableName)
 	targetColumns, err := yb.getListOfTableAttributes(schemaName, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("get list of table attributes: %w", err)
@@ -634,7 +630,6 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 
 	if tconf.TargetEndpoints != "" {
 		msg := fmt.Sprintf("given yb-servers for import data: %q\n", tconf.TargetEndpoints)
-		utils.PrintIfTrue(msg, bool(tconf.VerboseMode))
 		log.Infof(msg)
 
 		ybServers := utils.CsvStringToSlice(tconf.TargetEndpoints)
@@ -1035,5 +1030,76 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 			return err
 		}
 	}
+	return nil
+}
+
+func (yb *TargetYugabyteDB) splitMaybeQualifiedTableName(tableName string) (string, string) {
+	if strings.Contains(tableName, ".") {
+		parts := strings.Split(tableName, ".")
+		return parts[0], parts[1]
+	}
+	return yb.tconf.Schema, tableName
+}
+
+func (yb *TargetYugabyteDB) isSchemaExists(schema string) bool {
+	query := fmt.Sprintf("SELECT true FROM information_schema.schemata WHERE schema_name = '%s'", schema)
+	return yb.isQueryResultNonEmpty(query)
+}
+
+func (yb *TargetYugabyteDB) isTableExists(qualifiedTableName string) bool {
+	schema, table := yb.splitMaybeQualifiedTableName(qualifiedTableName)
+	query := fmt.Sprintf("SELECT true FROM information_schema.tables WHERE table_schema = '%s' AND table_name = '%s'", schema, table)
+	return yb.isQueryResultNonEmpty(query)
+}
+
+func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
+	rows, err := yb.Query(query)
+	if err != nil {
+		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+	}
+	defer rows.Close()
+
+	return rows.Next()
+}
+
+func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
+	schema := BATCH_METADATA_TABLE_SCHEMA
+	if !yb.isSchemaExists(schema) {
+		log.Infof("schema %s does not exist, nothing to clear migration state", schema)
+		return nil
+	}
+
+	// clean up all the tables in BATCH_METADATA_TABLE_SCHEMA for given migrationUUID
+	tables := []string{BATCH_METADATA_TABLE_NAME, EVENT_CHANNELS_METADATA_TABLE_NAME, EVENTS_PER_TABLE_METADATA_TABLE_NAME} // replace with actual table names
+	for _, table := range tables {
+		if !yb.isTableExists(table) {
+			log.Infof("table %s does not exist, nothing to clear migration state", table)
+			continue
+		}
+		log.Infof("cleaning up table %s for migrationUUID=%s", table, migrationUUID)
+		query := fmt.Sprintf("DELETE FROM %s WHERE migration_uuid = '%s'", table, migrationUUID)
+		_, err := yb.Exec(query)
+		if err != nil {
+			log.Errorf("error cleaning up table %s for migrationUUID=%s: %v", table, migrationUUID, err)
+			return fmt.Errorf("error cleaning up table %s for migrationUUID=%s: %w", table, migrationUUID, err)
+		}
+	}
+
+	nonEmptyTables := yb.GetNonEmptyTables(tables)
+	if len(nonEmptyTables) != 0 {
+		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
+		utils.PrintAndLog("removed the current migration state from the target DB. "+
+			"But could not remove the schema %s as it still contains state of other migrations in '%s' database", schema, yb.tconf.DBName)
+		return nil
+	}
+	utils.PrintAndLog("dropping schema %s", schema)
+	query := fmt.Sprintf("DROP SCHEMA %s CASCADE", schema)
+	_, err := yb.conn_.Exec(context.Background(), query)
+	if err != nil {
+		log.Errorf("error dropping schema %s: %v", schema, err)
+		return fmt.Errorf("error dropping schema %s: %w", schema, err)
+	}
+
 	return nil
 }

@@ -95,7 +95,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
-	tconf.VerboseMode = bool(VerboseMode)
 }
 
 func registerTargetDBConnFlags(cmd *cobra.Command) {
@@ -140,24 +139,24 @@ func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
 		"password with which to connect to the source DB server")
 }
 
-func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&tconf.Host, "ff-db-host", "127.0.0.1",
-		"host on which the Fall-forward DB server is running")
+func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
+	cmd.Flags().StringVar(&tconf.Host, "source-replica-db-host", "127.0.0.1",
+		"host on which the Source-Replica DB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "ff-db-port", -1,
-		"port on which the Fall-forward DB server is running Default: ORACLE(1521)")
+	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", -1,
+		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
 
-	cmd.Flags().StringVar(&tconf.User, "ff-db-user", "",
-		"username with which to connect to the Fall-forward DB server")
-	cmd.MarkFlagRequired("ff-db-user")
+	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
+		"username with which to connect to the Source-Replica DB server")
+	cmd.MarkFlagRequired("source-replica-db-user")
 
-	cmd.Flags().StringVar(&tconf.Password, "ff-db-password", "",
-		"password with which to connect to the Fall-forward DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
+		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
-	cmd.Flags().StringVar(&tconf.DBName, "ff-db-name", "",
-		"name of the database on the Fall-forward DB server on which import needs to be done")
+	cmd.Flags().StringVar(&tconf.DBName, "source-replica-db-name", "",
+		"name of the database on the Source-Replica DB server on which import needs to be done")
 
-	cmd.Flags().StringVar(&tconf.DBSid, "ff-db-sid", "",
+	cmd.Flags().StringVar(&tconf.DBSid, "source-replica-db-sid", "",
 		"[For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances")
 
 	cmd.Flags().StringVar(&tconf.OracleHome, "oracle-home", "",
@@ -166,29 +165,29 @@ func registerFFDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.TNSAlias, "oracle-tns-alias", "",
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
-	cmd.Flags().StringVar(&tconf.Schema, "ff-db-schema", "",
-		"schema name in Fall-forward DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
+		"schema name in Source-Replica DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
-	cmd.Flags().StringVar(&tconf.SSLCertPath, "ff-ssl-cert", "",
-		"Path of the file containing Fall-forward DB SSL Certificate Path")
+	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
+		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
-	cmd.Flags().StringVar(&tconf.SSLMode, "ff-ssl-mode", "prefer",
-		"specify the Fall-forward DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
+		"specify the Source-Replica DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
 
-	cmd.Flags().StringVar(&tconf.SSLKey, "ff-ssl-key", "",
-		"Path of the file containing Fall-forward DB SSL Key")
+	cmd.Flags().StringVar(&tconf.SSLKey, "source-replica-ssl-key", "",
+		"Path of the file containing Source-Replica DB SSL Key")
 
-	cmd.Flags().StringVar(&tconf.SSLRootCert, "ff-ssl-root-cert", "",
-		"Path of the file containing Fall-forward DB SSL Root Certificate")
+	cmd.Flags().StringVar(&tconf.SSLRootCert, "source-replica-ssl-root-cert", "",
+		"Path of the file containing Source-Replica DB SSL Root Certificate")
 
-	cmd.Flags().StringVar(&tconf.SSLCRL, "ff-ssl-crl", "",
-		"Path of the file containing Fall-forward DB SSL Root Certificate Revocation List (CRL)")
+	cmd.Flags().StringVar(&tconf.SSLCRL, "source-replica-ssl-crl", "",
+		"Path of the file containing Source-Replica DB SSL Root Certificate Revocation List (CRL)")
 }
 
 func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"Disable progress bar during data import and stats printing during streaming phase (default false)")
+		"Disable progress bar/stats during data import (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
@@ -208,11 +207,11 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
 	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
-		"maximum number of rows in each batch generated during import of snapshot.")
-	defaultParallelismMsg := "(default - oracle: 16)"
-	if cmd.CommandPath() == "yb-voyager import data" {
-		defaultParallelismMsg = "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
-			"Otherwise, it fall back to using twice the number of nodes in the cluster."
+		"Size of batches in the number of rows generated for ingestion during import.")
+	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
+		"Otherwise, it fall back to using twice the number of nodes in the cluster."
+	if cmd.CommandPath() == "yb-voyager fall-back setup" || cmd.CommandPath() == "yb-voyager fall-forward setup" {
+		defaultParallelismMsg = "(default - oracle: 16)"
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
 		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
@@ -258,7 +257,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Import objectes in the order specified by the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
-		"If set, creates indexes, foreign-keys, and triggers in target db")
+		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
@@ -366,6 +365,6 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 
 func validateFFDBSchemaFlag() {
 	if tconf.Schema == "" {
-		utils.ErrExit("Error: --ff-db-schema flag is mandatory for fall-forward setup")
+		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }

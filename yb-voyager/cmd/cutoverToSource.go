@@ -16,37 +16,25 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
-
-	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallforwardStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Prints status of the fall-forward switchover",
-	Long:  `Prints status of the fall-forward switchover`,
+var cutoverToSourceCmd = &cobra.Command{
+	Use:   "source",
+	Short: "Initiate the cutover to source DB",
+	Long:  `Initiate the cutover to source DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		reportFallForwardStatus()
+		err := InitiatePrimarySwitch("fallback")
+		if err != nil {
+			utils.ErrExit("failed to initiate fallback: %v", err)
+		}
 	},
 }
 
 func init() {
-	fallForwardCmd.AddCommand(fallforwardStatusCmd)
-	fallforwardStatusCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+	cutoverToCmd.AddCommand(cutoverToSourceCmd)
+	cutoverToSourceCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
-}
-
-func reportFallForwardStatus() {
-	status := getFallForwardStatus()
-	fmt.Printf("fall-forward status: ")
-	switch status {
-	case NOT_INITIATED:
-		color.Red("%s\n", status)
-	case INITIATED:
-		color.Yellow("%s\n", status)
-	case COMPLETED:
-		color.Green("%s\n", COMPLETED)
-	}
 }
