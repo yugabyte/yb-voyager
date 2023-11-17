@@ -29,6 +29,24 @@ done
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
+map_path_inside_container() {
+	local flag=$1
+	local volume_name=$2
+	local container_path=$3
+	local dir=$(dirname "$flag")
+	local path=$(realpath "$dir")
+	local filename=$(basename "$flag")
+
+	if [[ $OSTYPE == 'darwin'* ]]
+	then
+		docker volume rm $volume_name
+		docker volume create --driver local --opt type=none --opt device="${path}" --opt o=bind $volume_name
+		echo "-v $volume_name:$container_path"
+	else
+		echo "-v $path:$container_path"
+	fi
+}
+
 while [ $i -lt $# ]
 do
 	if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
@@ -99,56 +117,62 @@ do
 	if [[ ${argv[${i}]} == "--source-ssl-cert" ]]
 	then
 		j=$(( $i + 1))
-		source_ssl_cert=${argv[${j}]}
-		source_ssl_cert_dir=$(dirname "$source_ssl_cert")
-		source_ssl_cert_dir=$(realpath "$source_ssl_cert_dir")
-		source_ssl_cert_file=$(basename "$source_ssl_cert")
-		if [[ $OSTYPE == 'darwin'* ]]
-		then
-			docker volume rm voyager-source-ssl-cert-dir
-			docker volume create --driver local --opt type=none --opt device="${source_ssl_cert_dir}" --opt o=bind voyager-source-ssl-cert-dir
-			source_ssl_cert_vol="-v voyager-source-ssl-cert-dir:/source-ssl-cert-dir"
-		else
-			source_ssl_cert_vol="-v ${source_ssl_cert_dir}:/source-ssl-cert-dir"
-		fi
+		# source_ssl_cert=${argv[${j}]}
+		# source_ssl_cert_dir=$(dirname "$source_ssl_cert")
+		# source_ssl_cert_dir=$(realpath "$source_ssl_cert_dir")
+		# source_ssl_cert_file=$(basename "$source_ssl_cert")
+		# if [[ $OSTYPE == 'darwin'* ]]
+		# then
+		# 	docker volume rm voyager-source-ssl-cert-dir
+		# 	docker volume create --driver local --opt type=none --opt device="${source_ssl_cert_dir}" --opt o=bind voyager-source-ssl-cert-dir
+		# 	source_ssl_cert_vol="-v voyager-source-ssl-cert-dir:/source-ssl-cert-dir"
+		# else
+		# 	source_ssl_cert_vol="-v ${source_ssl_cert_dir}:/source-ssl-cert-dir"
+		# fi
+
+		map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir
 		argv[$j]='/source-ssl-cert-dir/'$source_ssl_cert_file
 	fi
 
 	# If the flag is --source-ssl-key then create a volume for the key directory and map it to the container
 	if [[ ${argv[${i}]} == "--source-ssl-key" ]]
 	then
-		j=$(( $i + 1))
-		source_ssl_key=${argv[${j}]}
-		source_ssl_key_dir=$(dirname "$source_ssl_key")
-		source_ssl_key_dir=$(realpath "$source_ssl_key_dir")
-		source_ssl_key_file=$(basename "$source_ssl_key")
-		if [[ $OSTYPE == 'darwin'* ]]
-		then
-			docker volume rm voyager-source-ssl-key-dir
-			docker volume create --driver local --opt type=none --opt device="${source_ssl_key_dir}" --opt o=bind voyager-source-ssl-key-dir
-			source_ssl_key_vol="-v voyager-source-ssl-key-dir:/source-ssl-key-dir"
-		else
-			source_ssl_key_vol="-v ${source_ssl_key_dir}:/source-ssl-key-dir"
-		fi
+		# j=$(( $i + 1))
+		# source_ssl_key=${argv[${j}]}
+		# source_ssl_key_dir=$(dirname "$source_ssl_key")
+		# source_ssl_key_dir=$(realpath "$source_ssl_key_dir")
+		# source_ssl_key_file=$(basename "$source_ssl_key")
+		# if [[ $OSTYPE == 'darwin'* ]]
+		# then
+		# 	docker volume rm voyager-source-ssl-key-dir
+		# 	docker volume create --driver local --opt type=none --opt device="${source_ssl_key_dir}" --opt o=bind voyager-source-ssl-key-dir
+		# 	source_ssl_key_vol="-v voyager-source-ssl-key-dir:/source-ssl-key-dir"
+		# else
+		# 	source_ssl_key_vol="-v ${source_ssl_key_dir}:/source-ssl-key-dir"
+		# fi
+
+		map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir
 		argv[$j]='/source-ssl-key-dir/'$source_ssl_key_file
 	fi
 
 	# If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
 	if [[ ${argv[${i}]} == "--source-ssl-root-cert" ]]
 	then
-		j=$(( $i + 1))
-		source_ssl_root_cert=${argv[${j}]}
-		source_ssl_root_cert_dir=$(dirname "$source_ssl_root_cert")
-		source_ssl_root_cert_dir=$(realpath "$source_ssl_root_cert_dir")
-		source_ssl_root_cert_file=$(basename "$source_ssl_root_cert")
-		if [[ $OSTYPE == 'darwin'* ]]
-		then
-			docker volume rm voyager-source-ssl-root-cert-dir
-			docker volume create --driver local --opt type=none --opt device="${source_ssl_root_cert_dir}" --opt o=bind voyager-source-ssl-root-cert-dir
-			source_ssl_root_cert_vol="-v voyager-source-ssl-root-cert-dir:/source-ssl-root-cert-dir"
-		else
-			source_ssl_root_cert_vol="-v ${source_ssl_root_cert_dir}:/source-ssl-root-cert-dir"
-		fi
+		# j=$(( $i + 1))
+		# source_ssl_root_cert=${argv[${j}]}
+		# source_ssl_root_cert_dir=$(dirname "$source_ssl_root_cert")
+		# source_ssl_root_cert_dir=$(realpath "$source_ssl_root_cert_dir")
+		# source_ssl_root_cert_file=$(basename "$source_ssl_root_cert")
+		# if [[ $OSTYPE == 'darwin'* ]]
+		# then
+		# 	docker volume rm voyager-source-ssl-root-cert-dir
+		# 	docker volume create --driver local --opt type=none --opt device="${source_ssl_root_cert_dir}" --opt o=bind voyager-source-ssl-root-cert-dir
+		# 	source_ssl_root_cert_vol="-v voyager-source-ssl-root-cert-dir:/source-ssl-root-cert-dir"
+		# else
+		# 	source_ssl_root_cert_vol="-v ${source_ssl_root_cert_dir}:/source-ssl-root-cert-dir"
+		# fi
+
+		map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir
 		argv[$j]='/source-ssl-root-cert-dir/'$source_ssl_root_cert_file
 	fi
 
