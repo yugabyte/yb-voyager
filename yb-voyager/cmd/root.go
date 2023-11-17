@@ -114,6 +114,7 @@ var noLockNeededList = []string{
 	"yb-voyager initiate cutover to source-replica",
 	"yb-voyager end",
 	"yb-voyager end migration",
+	"yb-voyager archive",
 }
 
 var noPersistentPreRunNeededList = []string{
@@ -125,6 +126,8 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager export data from",
 	"yb-voyager initiate",
 	"yb-voyager cutover",
+	"yb-voyager archive",
+	"yb-voyager end",
 }
 
 func shouldLock(cmd *cobra.Command) bool {
