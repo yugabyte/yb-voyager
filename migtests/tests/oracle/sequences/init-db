@@ -18,7 +18,7 @@ run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} sequence_schema.sql
 echo "Inserting data in the source database"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} sequence_data.sql
 
-if [ "${FF_DB_SCHEMA}" != "" ]
+if [ -n "${FF_DB_SCHEMA}" ] && [ "${FF_DB_SCHEMA}" != "${SOURCE_DB_SCHEMA}" ];
 then
 	echo "Initialising FF database"
 	run_sqlplus ${SOURCE_DB_NAME} ${FF_DB_SCHEMA} ${FF_DB_PASSWORD} ${TESTS_DIR}/oracle/utils/delete_full_schema

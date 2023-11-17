@@ -133,7 +133,7 @@ main() {
 	sleep 30 
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate"
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'true'
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
@@ -195,7 +195,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges"
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"

@@ -158,7 +158,7 @@ main() {
 	sleep 1m
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_fb_enabled 'true'
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql

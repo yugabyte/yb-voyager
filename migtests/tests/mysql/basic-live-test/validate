@@ -8,12 +8,13 @@ import collections
 def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
-	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
 	args = parser.parse_args()
 	global live_migration 
 	live_migration = args.live_migration
-	global ff_fb_enabled
-	ff_fb_enabled = args.ff_fb_enabled
+	global ff_enabled
+	ff_enabled = args.ff_enabled
 	
 	yb.run_checks(migration_completed_checks)
 

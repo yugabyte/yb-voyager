@@ -8,16 +8,20 @@ import oracle
 def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
-	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
 	args = parser.parse_args()
 	global live_migration 
 	live_migration = args.live_migration
-	global ff_fb_enabled
-	ff_fb_enabled = args.ff_fb_enabled
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+
+	global fb_enabled
+	fb_enabled = args.fb_enabled
 	
 	migration_completed_checks_yb()
 
-	if ff_fb_enabled == 'true':
+	if ff_enabled == 'true':
 		migration_completed_checks_oracle()
 
 
@@ -128,7 +132,10 @@ def migration_completed_checks(tgt):
 
 	else: # in live_migration only 
 		for table_name, columns in EXPECTED_IDENTITY_DEFAULT_COLUMNS.items():
-			got_columns = tgt.get_identity_type_columns("BY DEFAULT",table_name, db_schema)
+			typename = "BY DEFAULT"
+			if fb_enabled == 'true' and type(tgt) == oracle.OracleDB: # as for fall-back identity is change to by default after cutover
+				typename = "ALWAYS"
+			got_columns = tgt.get_identity_type_columns(typename,table_name, db_schema)
 			print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
 			for column in columns:
 				assert column in got_columns
