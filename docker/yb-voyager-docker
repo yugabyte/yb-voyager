@@ -30,6 +30,7 @@ for var_name in "${variables[@]}"; do
 done
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
+ssl_filename=""
 
 map_path_inside_container() {
 	local flag=$1
@@ -37,7 +38,7 @@ map_path_inside_container() {
 	local container_path=$3
 	local dir=$(dirname "$flag")
 	local path=$(realpath "$dir")
-	global filename=$(basename "$flag")
+	ssl_filename=$(basename "$flag")
 
 	if [[ $OSTYPE == 'darwin'* ]]
 	then
@@ -133,7 +134,7 @@ do
 		# fi
 
 		source_ssl_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
-		argv[$j]='/source-ssl-cert-dir/'$filename
+		argv[$j]='/source-ssl-cert-dir/'$ssl_filename
 	fi
 
 	# If the flag is --source-ssl-key then create a volume for the key directory and map it to the container
@@ -153,7 +154,7 @@ do
 		# 	source_ssl_key_vol="-v ${source_ssl_key_dir}:/source-ssl-key-dir"
 		# fi
 		source_ssl_key_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
-		argv[$j]='/source-ssl-key-dir/'$filename
+		argv[$j]='/source-ssl-key-dir/'$ssl_filename
 	fi
 
 	# If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
@@ -175,7 +176,7 @@ do
 
 
 		source_ssl_root_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
-		argv[$j]='/source-ssl-root-cert-dir/'$filename
+		argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
 	fi
 
 	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
