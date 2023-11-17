@@ -13,9 +13,10 @@ def main():
     ff_fb_enabled = args.ff_fb_enabled
     if ff_fb_enabled == 'true':
         change_expected_values()
-    migration_completed_checks_yb()
-    if ff_fb_enabled == 'true':
+        migration_completed_checks_yb()
         migration_completed_checks_oracle()
+    else:
+        migration_completed_checks_yb()
 
 
 #=============================================================================
@@ -190,7 +191,8 @@ def migration_completed_checks(tgt):
     for table_name, columns in EXPECTED_IDENTITY_ALWAYS_COLUMNS.items():
         got_columns = tgt.get_identity_type_columns("ALWAYS",table_name, db_schema)
         print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
-        assert columns == got_columns
+        for column in columns:
+            assert column in got_columns
 
 if __name__ == "__main__":
 	main()

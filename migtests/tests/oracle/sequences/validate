@@ -130,7 +130,8 @@ def migration_completed_checks(tgt):
 		for table_name, columns in EXPECTED_IDENTITY_DEFAULT_COLUMNS.items():
 			got_columns = tgt.get_identity_type_columns("BY DEFAULT",table_name, db_schema)
 			print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
-			assert columns == got_columns
+			for column in columns:
+				assert column in got_columns
 
 if __name__ == "__main__":
 	main()

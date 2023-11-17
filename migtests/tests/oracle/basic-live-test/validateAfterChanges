@@ -14,10 +14,10 @@ def main():
     
 	if ff_fb_enabled == 'true':
 		change_expected_values()
-		
-	migration_completed_checks_yb()
-	if ff_fb_enabled == 'true':
+		migration_completed_checks_yb()
 		migration_completed_checks_oracle()
+	else:
+		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
 	'x':5
