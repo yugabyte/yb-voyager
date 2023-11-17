@@ -433,3 +433,13 @@ get_value_from_msr(){
   val=`sqlite3 ${EXPORT_DIR}/metainfo/meta.db "select json_text from json_objects where key='migration_status';" | jq $jq_filter`
   echo $val
 }
+
+create_ff_schema(){
+	db_name=$1
+
+	cat > create-ff-schema.sql << EOF
+	CREATE USER FF_SCHEMA IDENTIFIED BY "password";
+	GRANT all privileges to FF_SCHEMA;
+EOF
+	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
+}
