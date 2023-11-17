@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if cmd.CommandPath() == "yb-voyager" || cmd.CommandPath() == "yb-voyager version" || cmd.CommandPath() == "yb-voyager help" {
+		if !shouldRunPersistentPreRun(cmd) {
 			return
 		}
 		validateExportDirFlag()
@@ -100,9 +100,15 @@ func startPprofServer() {
 var noLockNeededList = []string{
 	"yb-voyager version",
 	"yb-voyager help",
+	"yb-voyager import",
+	"yb-voyager import data to",
 	"yb-voyager import data status",
+	"yb-voyager export",
+	"yb-voyager export data from",
 	"yb-voyager export data status",
+	"yb-voyager cutover",
 	"yb-voyager cutover status",
+	"yb-voyager initiate",
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to target",
 	"yb-voyager initiate cutover to source-replica",
@@ -110,8 +116,23 @@ var noLockNeededList = []string{
 	"yb-voyager end migration",
 }
 
+var noPersistentPreRunNeededList = []string{
+	"yb-voyager version",
+	"yb-voyager help",
+	"yb-voyager import",
+	"yb-voyager import data to",
+	"yb-voyager export",
+	"yb-voyager export data from",
+	"yb-voyager initiate",
+	"yb-voyager cutover",
+}
+
 func shouldLock(cmd *cobra.Command) bool {
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
+}
+
+func shouldRunPersistentPreRun(cmd *cobra.Command) bool {
+	return !slices.Contains(noPersistentPreRunNeededList, cmd.CommandPath())
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
