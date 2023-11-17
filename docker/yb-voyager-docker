@@ -130,7 +130,7 @@ do
 		# 	source_ssl_cert_vol="-v ${source_ssl_cert_dir}:/source-ssl-cert-dir"
 		# fi
 
-		source_ssl_cert_vol=map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir
+		source_ssl_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
 		argv[$j]='/source-ssl-cert-dir/'$source_ssl_cert_file
 	fi
 
@@ -150,7 +150,7 @@ do
 		# else
 		# 	source_ssl_key_vol="-v ${source_ssl_key_dir}:/source-ssl-key-dir"
 		# fi
-		source_ssl_key_vol=map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir
+		source_ssl_key_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
 		argv[$j]='/source-ssl-key-dir/'$source_ssl_key_file
 	fi
 
@@ -172,7 +172,7 @@ do
 		# fi
 
 
-		source_ssl_root_cert_vol=map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir
+		source_ssl_root_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
 		argv[$j]='/source-ssl-root-cert-dir/'$source_ssl_root_cert_file
 	fi
 
