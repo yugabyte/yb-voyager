@@ -30,7 +30,7 @@ for var_name in "${variables[@]}"; do
 done
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
-ssl_filename=""
+
 
 map_path_inside_container() {
 	local flag=$1
@@ -38,15 +38,15 @@ map_path_inside_container() {
 	local container_path=$3
 	local dir=$(dirname "$flag")
 	local path=$(realpath "$dir")
-	ssl_filename=$(basename "$flag")
+	local ssl_filename=$(basename "$flag")
 
 	if [[ $OSTYPE == 'darwin'* ]]
 	then
 		docker volume rm $volume_name
 		docker volume create --driver local --opt type=none --opt device="${path}" --opt o=bind $volume_name
-		echo "-v $volume_name:$container_path"
+		echo "-v $volume_name:$container_path;$ssl_filename"
 	else
-		echo "-v $path:$container_path"
+		echo "-v $path:$container_path;$ssl_filename"
 	fi
 }
 
@@ -133,7 +133,8 @@ do
 		# 	source_ssl_cert_vol="-v ${source_ssl_cert_dir}:/source-ssl-cert-dir"
 		# fi
 
-		source_ssl_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
+		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
+		IFS=';' read -r source_ssl_cert_vol ssl_filename <<< "$result" 
 		echo $ssl_filename
 		argv[$j]='/source-ssl-cert-dir/'$ssl_filename
 	fi
@@ -154,7 +155,9 @@ do
 		# else
 		# 	source_ssl_key_vol="-v ${source_ssl_key_dir}:/source-ssl-key-dir"
 		# fi
-		source_ssl_key_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
+		# source_ssl_key_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
+		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
+		IFS=';' read -r source_ssl_key_vol ssl_filename <<< "$result"
 		echo $ssl_filename
 		argv[$j]='/source-ssl-key-dir/'$ssl_filename
 	fi
@@ -177,7 +180,9 @@ do
 		# fi
 
 
-		source_ssl_root_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
+		# source_ssl_root_cert_vol=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
+		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
+		IFS=';' read -r source_ssl_root_cert_vol ssl_filename <<< "$result"
 		echo $ssl_filename
 		argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
 	fi
