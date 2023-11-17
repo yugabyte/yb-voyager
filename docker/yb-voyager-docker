@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 argv=( "$@" )
 
 if ! which docker > /dev/null
@@ -122,7 +120,6 @@ do
 		j=$(( $i + 1))
 		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
 		IFS=';' read -r source_ssl_cert_vol ssl_filename <<< "$result" 
-		echo $ssl_filename
 		argv[$j]='/source-ssl-cert-dir/'$ssl_filename
 	fi
 
@@ -132,7 +129,6 @@ do
 		j=$(( $i + 1))
 		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
 		IFS=';' read -r source_ssl_key_vol ssl_filename <<< "$result"
-		echo $ssl_filename
 		argv[$j]='/source-ssl-key-dir/'$ssl_filename
 	fi
 
@@ -142,7 +138,6 @@ do
 		j=$(( $i + 1))
 		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
 		IFS=';' read -r source_ssl_root_cert_vol ssl_filename <<< "$result"
-		echo $ssl_filename
 		argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
 	fi
 
