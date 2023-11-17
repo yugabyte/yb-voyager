@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if cmd.CommandPath() == "yb-voyager" || cmd.CommandPath() == "yb-voyager version" {
+		if cmd.CommandPath() == "yb-voyager" || cmd.CommandPath() == "yb-voyager version" || cmd.CommandPath() == "yb-voyager help" {
 			return
 		}
 		validateExportDirFlag()
@@ -99,6 +99,7 @@ func startPprofServer() {
 
 var noLockNeededList = []string{
 	"yb-voyager version",
+	"yb-voyager help",
 	"yb-voyager import data status",
 	"yb-voyager export data status",
 	"yb-voyager cutover status",
