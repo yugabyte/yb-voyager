@@ -14,6 +14,7 @@ type MigrationStatusRecord struct {
 	SourceDBType  string `json:"SourceDBType"`
 	ExportType    string `json:"ExportType"`
 	// FallForwarDBExists                         bool              `json:"FallForwarDBExists"`
+	ArchivingEnabled                           bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                         bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                            bool              `json:"FallbackEnabled"`
 	TargetDBConf                               *tgtdb.TargetConf `json:"TargetDBConf"`
