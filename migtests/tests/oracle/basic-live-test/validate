@@ -14,12 +14,12 @@ def main():
 	args = parser.parse_args()
 	global live_migration 
 	live_migration = args.live_migration
-	global ff_fb_enabled
-	ff_fb_enabled = args.ff_fb_enabled
+	global ff_enabled
+	ff_enabled = args.ff_enabled
 	
 	migration_completed_checks_yb()
 
-	if ff_fb_enabled == 'true':
+	if ff_enabled == 'true':
 		migration_completed_checks_oracle()
 
 EXPECTED_ROW_COUNT = {
