@@ -398,7 +398,7 @@ func checkWithStreamingMode() (bool, error) {
 	return streamChanges, nil
 }
 
-func getFallForwardStatus() string {
+func getCutoverToSourceReplicaStatus() string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
@@ -415,7 +415,7 @@ func getFallForwardStatus() string {
 	return INITIATED
 }
 
-func getFallBackStatus() string {
+func getCutoverToSourceStatus() string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)

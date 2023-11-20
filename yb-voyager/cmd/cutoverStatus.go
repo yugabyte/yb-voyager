@@ -62,14 +62,14 @@ func checkAndReportCutoverStatus() {
 		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
 	}
 	if msr.FallbackEnabled {
-		reportFallBackStatus()
+		reportCutoverToSourceStatus()
 	} else if msr.FallForwardEnabled {
-		reportFallForwardStatus()
+		reportCutoverToSourceReplicaStatus()
 	}
 }
 
-func reportFallBackStatus() {
-	status := getFallBackStatus()
+func reportCutoverToSourceStatus() {
+	status := getCutoverToSourceStatus()
 	fmt.Printf("cutover to source status: ")
 	switch status {
 	case NOT_INITIATED:
@@ -81,8 +81,8 @@ func reportFallBackStatus() {
 	}
 }
 
-func reportFallForwardStatus() {
-	status := getFallForwardStatus()
+func reportCutoverToSourceReplicaStatus() {
+	status := getCutoverToSourceReplicaStatus()
 	fmt.Printf("cutover to source-replica status: ")
 	switch status {
 	case NOT_INITIATED:
