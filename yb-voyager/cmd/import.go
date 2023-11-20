@@ -37,8 +37,8 @@ var tdb tgtdb.TargetDB
 
 var importCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Import schema and data from compatible source database(Oracle, MySQL, PostgreSQL) into YugabyteDB",
-	Long:  `Import has various sub-commands i.e. import schema and import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
+	Short: "Import schema and data from compatible source database to target database. ",
+	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL) and import data into source-replica/source to import snapshot data and new changes from target(YugabyteDB) in case of live migration with fall-back/fall-forward worflows.`,
 }
 
 func init() {
@@ -101,8 +101,9 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "target-db-host", "127.0.0.1",
 		"host on which the YugabyteDB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "target-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, "target-db-port", 0,
 		"port on which the YugabyteDB YSQL API is running (Default: 5433)")
+
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
@@ -136,14 +137,14 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 func registerSourceDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Password, "source-db-password", "",
-		"password with which to connect to the source DB server")
+		"source password to connect as the specified user on the source DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 }
 
 func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.Host, "source-replica-db-host", "127.0.0.1",
 		"host on which the Source-Replica DB server is running")
 
-	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", -1,
+	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", 0,
 		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
@@ -151,7 +152,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.MarkFlagRequired("source-replica-db-user")
 
 	cmd.Flags().StringVar(&tconf.Password, "source-replica-db-password", "",
-		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable FF_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+		"password with which to connect to the Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
 	cmd.Flags().StringVar(&tconf.DBName, "source-replica-db-name", "",
 		"name of the database on the Source-Replica DB server on which import needs to be done")
@@ -202,18 +203,14 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of table names to import data")
 
-	defaultbatchSize := int64(DEFAULT_BATCH_SIZE_YUGABYTEDB)
-	if cmd.CommandPath() == "yb-voyager fall-forward setup" {
-		defaultbatchSize = int64(DEFAULT_BATCH_SIZE_ORACLE)
-	}
-	cmd.Flags().Int64Var(&batchSize, "batch-size", defaultbatchSize,
-		"Size of batches in the number of rows generated for ingestion during import.")
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. (default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE))
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
 		"Otherwise, it fall back to using twice the number of nodes in the cluster."
-	if cmd.CommandPath() == "yb-voyager fall-back setup" || cmd.CommandPath() == "yb-voyager fall-forward setup" {
-		defaultParallelismMsg = "(default - oracle: 16)"
+	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
+		defaultParallelismMsg = "(default: 16(Oracle))"
 	}
-	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", -1,
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
 
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
@@ -267,7 +264,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 }
 
 func validateTargetPortRange() {
-	if tconf.Port == -1 {
+	if tconf.Port == 0 {
 		if tconf.TargetDBType == ORACLE {
 			tconf.Port = ORACLE_DEFAULT_PORT
 		} else if tconf.TargetDBType == YUGABYTEDB {
@@ -305,7 +302,7 @@ func getTargetPassword(cmd *cobra.Command) {
 
 func getFallForwardDBPassword(cmd *cobra.Command) {
 	var err error
-	tconf.Password, err = getPassword(cmd, "ff-db-password", "FF_DB_PASSWORD")
+	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
 		utils.ErrExit("error while getting ff-db-password: %w", err)
 	}
@@ -342,7 +339,7 @@ func checkOrSetDefaultTargetSSLMode() {
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
-	if batchSize == -1 {
+	if batchSize == 0 {
 		if tconf.TargetDBType == ORACLE {
 			batchSize = DEFAULT_BATCH_SIZE_ORACLE
 		} else {

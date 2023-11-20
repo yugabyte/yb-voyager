@@ -47,6 +47,7 @@ func init() {
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
 	registerImportDataCommonFlags(importDataToSourceCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
+	importDataToSourceCmd.Flags().MarkHidden("batch-size")
 }
 
 func initTargetConfFromSourceConf() error {

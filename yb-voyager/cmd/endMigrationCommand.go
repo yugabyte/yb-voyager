@@ -29,7 +29,7 @@ var (
 	backupLogFiles        utils.BoolStr
 	backupDir             string
 	targetDBPassword      string
-	fallForwardDBPassword string
+	sourceReplicaDBPassword string
 	sourceDBPassword      string
 )
 
@@ -175,7 +175,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
-		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
+		fmt.Sprintf("SOURCE_REPLICA_DB_PASSWORD=%s", sourceReplicaDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
@@ -249,7 +249,7 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("getting target db password: %v", err)
 	}
 	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("source-replica DB", "", "FF_DB_PASSWORD")
+		sourceReplicaDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
@@ -391,25 +391,25 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("cleaning up voyager state from fall-forward db...")
+	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	ffconf := msr.FallForwardDBConf
-	ffconf.Password = fallForwardDBPassword
-	if fallForwardDBPassword == "" {
-		ffconf.Password, err = askPassword("fall-forward DB", ffconf.User, "FF_DB_PASSWORD")
+	sourceReplicaconf := msr.FallForwardDBConf
+	sourceReplicaconf.Password = sourceReplicaDBPassword
+	if sourceReplicaDBPassword == "" {
+		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting fall-forward db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
-	ffdb := tgtdb.NewTargetDB(ffconf)
-	err = ffdb.Init()
+	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
+	err = sourceReplicaDB.Init()
 	if err != nil {
-		utils.ErrExit("initializing fallforward db: %v", err)
+		utils.ErrExit("initializing source-replica db: %v", err)
 	}
-	defer ffdb.Finalize()
-	err = ffdb.ClearMigrationState(migrationUUID, exportDir)
+	defer sourceReplicaDB.Finalize()
+	err = sourceReplicaDB.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from fallforward db: %v", err)
+		utils.ErrExit("clearing migration state from source-replica db: %v", err)
 	}
 }
 

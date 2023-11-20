@@ -105,6 +105,7 @@ var noLockNeededList = []string{
 	"yb-voyager initiate cutover to source",
 	"yb-voyager initiate cutover to target",
 	"yb-voyager initiate cutover to source-replica",
+	"yb-voyager get data-migration-report",
 	"yb-voyager end",
 	"yb-voyager end migration",
 }
