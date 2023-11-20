@@ -38,7 +38,7 @@ var tdb tgtdb.TargetDB
 var importCmd = &cobra.Command{
 	Use:   "import",
 	Short: "Import schema and data from compatible source database to target database. ",
-	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL) and import data into source-replica/source to import snapshot data and new changes from target(YugabyteDB) in case of live migration with fall-back/fall-forward worflows.`,
+	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL). Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
 }
 
 func init() {
@@ -103,7 +103,6 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&tconf.Port, "target-db-port", 0,
 		"port on which the YugabyteDB YSQL API is running (Default: 5433)")
-
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
