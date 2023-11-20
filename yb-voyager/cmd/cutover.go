@@ -33,8 +33,8 @@ var cutoverCmd = &cobra.Command{
 
 var cutoverRootCmd = &cobra.Command{
 	Use:   cutoverCmd.Use,
-	Short: cutoverCmd.Short,
-	Long:  cutoverCmd.Long,
+	Short: "Get cutover related information. To initiate cutover, refer to `yb-voyager initiate cutover to` command.",
+	Long:  "",
 }
 
 var cutoverToCmd = &cobra.Command{

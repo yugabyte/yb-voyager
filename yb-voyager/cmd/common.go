@@ -47,7 +47,8 @@ import (
 )
 
 var (
-	metaDB *metadb.MetaDB
+	metaDB               *metadb.MetaDB
+	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
 )
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {

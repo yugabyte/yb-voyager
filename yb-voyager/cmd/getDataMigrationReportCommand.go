@@ -39,8 +39,8 @@ var sourceDbPassword string
 
 var getDataMigrationReportCmd = &cobra.Command{
 	Use:   "data-migration-report",
-	Short: "This command will print the consolidated report of migration of data.",
-	Long:  `This command will print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
+	Short: "Print the consolidated report of migration of data.",
+	Long:  `Print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		migrationStatus, err := metaDB.GetMigrationStatusRecord()
