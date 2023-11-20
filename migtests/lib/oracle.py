@@ -14,11 +14,11 @@ def run_checks(checkFn):
 def new_target_db():
     env = os.environ
     return OracleDB(
-        env.get("FF_DB_HOST", "localhost"),
-        env.get("FF_DB_PORT", "1521"),
-        env["FF_DB_NAME"],
-        env.get("FF_DB_SCHEMA", "FF_SCHEMA"),
-        env.get("FF_DB_PASSWORD", "password"))
+        env.get("SOURCE_REPLICA_DB_HOST", "localhost"),
+        env.get("SOURCE_REPLICA_DB_PORT", "1521"),
+        env["SOURCE_REPLICA_DB_NAME"],
+        env.get("SOURCE_REPLICA_DB_SCHEMA", "FF_SCHEMA"),
+        env.get("SOURCE_REPLICA_DB_PASSWORD", "password"))
     
 class OracleDB:
     

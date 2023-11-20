@@ -146,7 +146,7 @@ def migration_completed_checks_yb():
 def migration_completed_checks_oracle():
     print("Running tests on Oracle")
     global db_schema
-    db_schema = os.environ.get("FF_DB_SCHEMA")
+    db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
 
     for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_ORA.items():
         EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert

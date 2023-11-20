@@ -93,7 +93,7 @@ def migration_completed_checks_yb():
 def migration_completed_checks_oracle():
 	print("Running tests on Oracle")
 	global db_schema
-	db_schema = os.environ.get("FF_DB_SCHEMA")
+	db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
 	oracle.run_checks(migration_completed_checks)
 
 
