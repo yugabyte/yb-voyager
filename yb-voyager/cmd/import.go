@@ -208,7 +208,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
 		"Otherwise, it fall back to using twice the number of nodes in the cluster."
 	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
-		defaultParallelismMsg = "(default: Oracle(16))"
+		defaultParallelismMsg = "(default: 16(Oracle))"
 	}
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
