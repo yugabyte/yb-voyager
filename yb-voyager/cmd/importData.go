@@ -345,9 +345,9 @@ func updateTargetConfInMigrationStatus() {
 			record.TargetDBConf.Password = ""
 			record.TargetDBConf.Uri = ""
 		case FF_DB_IMPORTER_ROLE:
-			record.FallForwardDBConf = tconf.Clone()
-			record.FallForwardDBConf.Password = ""
-			record.FallForwardDBConf.Uri = ""
+			record.SourceReplicaDBConf = tconf.Clone()
+			record.SourceReplicaDBConf.Password = ""
+			record.SourceReplicaDBConf.Uri = ""
 		case FB_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""

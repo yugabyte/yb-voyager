@@ -62,7 +62,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 			}
 			if migrationStatus.FallForwardEnabled {
 				getFallForwardDBPassword(cmd)
-				migrationStatus.FallForwardDBConf.Password = tconf.Password
+				migrationStatus.SourceReplicaDBConf.Password = tconf.Password
 			}
 			if migrationStatus.FallbackEnabled {
 				getSourceDBPassword(cmd)
@@ -165,7 +165,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.TableName = ""
 			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
-			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceReplicaDBConf) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}

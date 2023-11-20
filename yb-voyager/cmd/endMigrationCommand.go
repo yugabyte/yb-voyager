@@ -23,14 +23,14 @@ import (
 )
 
 var (
-	backupSchemaFiles     utils.BoolStr
-	backupDataFiles       utils.BoolStr
-	saveMigrationReports  utils.BoolStr
-	backupLogFiles        utils.BoolStr
-	backupDir             string
-	targetDBPassword      string
+	backupSchemaFiles       utils.BoolStr
+	backupDataFiles         utils.BoolStr
+	saveMigrationReports    utils.BoolStr
+	backupLogFiles          utils.BoolStr
+	backupDir               string
+	targetDBPassword        string
 	sourceReplicaDBPassword string
-	sourceDBPassword      string
+	sourceDBPassword        string
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -393,7 +393,7 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	sourceReplicaconf := msr.FallForwardDBConf
+	sourceReplicaconf := msr.SourceReplicaDBConf
 	sourceReplicaconf.Password = sourceReplicaDBPassword
 	if sourceReplicaDBPassword == "" {
 		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")

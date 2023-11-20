@@ -95,35 +95,35 @@ func createTriggerIfNotExists(triggerName string) error {
 			}
 			record.CutoverProcessedByTargetImporter = true
 		case "fallforward":
-			if record.FallForwardSwitchRequested {
+			if record.CutoverToSourceReplicaRequested {
 				utils.PrintAndLog(fallforwardMsg)
 			}
-			record.FallForwardSwitchRequested = true
+			record.CutoverToSourceReplicaRequested = true
 		case "fallforward.target":
-			if record.FallForwardSwitchProcessedByTargetExporter {
+			if record.CutoverToSourceReplicaProcessedByTargetExporter {
 				utils.PrintAndLog(fallforwardMsg)
 			}
-			record.FallForwardSwitchProcessedByTargetExporter = true
+			record.CutoverToSourceReplicaProcessedByTargetExporter = true
 		case "fallforward.ff":
-			if record.FallForwardSwitchProcessedByFFImporter {
+			if record.CutoverToSourceReplicaProcessedBySRImporter {
 				utils.PrintAndLog(fallforwardMsg)
 			}
-			record.FallForwardSwitchProcessedByFFImporter = true
+			record.CutoverToSourceReplicaProcessedBySRImporter = true
 		case "fallback":
-			if record.FallBackSwitchRequested {
+			if record.CutoverToSourceRequested {
 				utils.PrintAndLog(fallbackMsg)
 			}
-			record.FallBackSwitchRequested = true
+			record.CutoverToSourceRequested = true
 		case "fallback.target":
-			if record.FallBackSwitchProcessedByTargetExporter {
+			if record.CutoverToSourceProcessedByTargetExporter {
 				utils.PrintAndLog(fallbackMsg)
 			}
-			record.FallBackSwitchProcessedByTargetExporter = true
+			record.CutoverToSourceProcessedByTargetExporter = true
 		case "fallback.source":
-			if record.FallBackSwitchProcessedByFBImporter {
+			if record.CutoverToSourceProcessedBySourceImporter {
 				utils.PrintAndLog(fallbackMsg)
 			}
-			record.FallBackSwitchProcessedByFBImporter = true
+			record.CutoverToSourceProcessedBySourceImporter = true
 		default:
 			panic("invalid trigger name")
 		}
@@ -176,19 +176,19 @@ func exitIfDBSwitchedOver(triggerName string) {
 			utils.ErrExit(cutoverMsg)
 		}
 	case "fallforward.target":
-		if msr.FallForwardSwitchProcessedByTargetExporter {
+		if msr.CutoverToSourceReplicaProcessedByTargetExporter {
 			utils.ErrExit(fallforwardMsg)
 		}
 	case "fallforward.ff":
-		if msr.FallForwardSwitchProcessedByFFImporter {
+		if msr.CutoverToSourceReplicaProcessedBySRImporter {
 			utils.ErrExit(fallforwardMsg)
 		}
 	case "fallback.source":
-		if msr.FallBackSwitchProcessedByFBImporter {
+		if msr.CutoverToSourceProcessedBySourceImporter {
 			utils.ErrExit(fallbackMsg)
 		}
 	case "fallback.target":
-		if msr.FallBackSwitchProcessedByTargetExporter {
+		if msr.CutoverToSourceProcessedByTargetExporter {
 			utils.ErrExit(fallbackMsg)
 		}
 	default:
