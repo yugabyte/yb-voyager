@@ -130,7 +130,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		if record.FallbackEnabled {
 			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
-		updateFallForwarDBExistsInMetaDB()
+		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
@@ -142,11 +142,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks)
 	if changeStreamingIsEnabled(importType) {
-		startFallforwardSynchronizeIfRequired()
+		startExportDataFromTargetIfRequired()
 	}
 }
 
-func startFallforwardSynchronizeIfRequired() {
+func startExportDataFromTargetIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}

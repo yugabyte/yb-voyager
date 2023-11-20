@@ -47,7 +47,7 @@ func init() {
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
 }
 
-func updateFallForwarDBExistsInMetaDB() {
+func updateFallForwardEnabledInMetaDB() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.FallForwardEnabled = true
 	})

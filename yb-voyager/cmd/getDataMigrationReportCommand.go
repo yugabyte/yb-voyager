@@ -61,7 +61,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				migrationStatus.TargetDBConf.Password = tconf.Password
 			}
 			if migrationStatus.FallForwardEnabled {
-				getFallForwardDBPassword(cmd)
+				getSourceReplicaDBPassword(cmd)
 				migrationStatus.SourceReplicaDBConf.Password = tconf.Password
 			}
 			if migrationStatus.FallbackEnabled {

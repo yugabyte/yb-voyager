@@ -77,7 +77,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
 	cleanupTargetDB(msr)
-	cleanupFallForwardDB(msr)
+	cleanupSourceReplicaDB(msr)
 	cleanupFallBackDB(msr)
 
 	backupLogFilesFn()
@@ -386,7 +386,7 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 	}
 }
 
-func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
+func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	if !msr.FallForwardEnabled {
 		return
 	}

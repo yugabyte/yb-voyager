@@ -85,7 +85,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	case TARGET_DB_IMPORTER_ROLE:
 		getTargetPassword(cmd)
 	case FF_DB_IMPORTER_ROLE:
-		getFallForwardDBPassword(cmd)
+		getSourceReplicaDBPassword(cmd)
 	case FB_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
@@ -103,7 +103,6 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 
 	cmd.Flags().IntVar(&tconf.Port, "target-db-port", 0,
 		"port on which the YugabyteDB YSQL API is running (Default: 5433)")
-
 
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
@@ -300,7 +299,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	}
 }
 
-func getFallForwardDBPassword(cmd *cobra.Command) {
+func getSourceReplicaDBPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
