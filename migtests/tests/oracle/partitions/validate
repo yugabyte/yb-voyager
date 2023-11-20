@@ -1,9 +1,29 @@
 #!/usr/bin/env python3
 
+import argparse
+import os
+import oracle
 import yb
 
 def main():
-	yb.run_checks(migration_completed_checks)
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
+
+	args = parser.parse_args()
+	global live_migration 
+	live_migration = args.live_migration
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+
+	migration_completed_checks_yb()
+	
+	if ff_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_oracle()
+
+
 
 EXPECTED_ROW_COUNT = {
 	'order_items_range_partitioned': 79,
@@ -44,6 +64,15 @@ EXPECTED_ROW_COUNT = {
 	'sub_par_test_p5_sp5': 1,
 }
 
+EXPECTED_ROW_COUNT_FF = {
+	'order_items_range_partitioned': 79,
+	'accounts_list_partitioned': 42,
+	'orders_interval_partition': 105,
+	'sales_hash': 30,
+	'sub_par_test': 22,
+}
+
+
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"query": "INSERT INTO ACCOUNTS_LIST_PARTITIONED values (600, 106, 16,210,'NJ','I');",
@@ -62,8 +91,31 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 		"partition_table_name": "sales_hash_p4",
 	},
 	"Sub_Partition": {
-		"query": " Insert into sub_par_test values ('emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
+		"query": " Insert into sub_par_test values (23,'emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
 		"partition_table_name": "sub_par_test_p5_sp5",
+	}
+}
+
+INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION_FF = {
+	"List" : {
+		"query": "INSERT INTO ACCOUNTS_LIST_PARTITIONED values (600, 106, 16,210,'NJ','I')",
+		"partition_table_name": "accounts_list_partitioned",
+	},
+	"Range" : {
+		"query": "INSERT INTO ORDERS_INTERVAL_PARTITION(ORDER_ID,CUSTOMER_ID,STATUS,SALESMAN_ID,ORDER_DATE) values (1000,1,'Pending',54,to_date('17-NOV-17','DD-MON-YY'))",
+		"partition_table_name": "orders_interval_partition",
+	},
+	"Range_Column" : {
+		"query": "INSERT INTO ORDER_ITEMS_RANGE_PARTITIONED (ORDER_ID,ORDER_DATETIME,CUSTOMER_ID,STORE_ID,ORDER_STATUS) values (65,to_timestamp('04-FEB-2018 13.20.22.245676861','DD-MON-YYYY HH24.MI.SS.FF'),9,1,'CANCELLED')",
+		"partition_table_name": "order_items_range_partitioned",
+	},
+	"Hash" : {
+		"query": " Insert into SALES_HASH values (400, to_date('26-NOV-03','DD-MON-YY'), 104, 2129.55)",
+		"partition_table_name": "sales_hash",
+	},
+	"Sub_Partition": {
+		"query": " Insert into sub_par_test values (23,'emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')) ",
+		"partition_table_name": "sub_par_test",
 	}
 }
 
@@ -77,14 +129,40 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_t
 	assert count_partition_table == EXPECTED_ROW_COUNT[partition_table_name] + 1
 #=============================================================================
 
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	global db_schema
+	db_schema="public"
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_oracle():
+	print("Running tests on Oracle")
+	global db_schema
+	db_schema = os.environ.get("FF_DB_SCHEMA")
+	oracle.run_checks(migration_completed_checks)
+
+def change_expected_values():
+	keys_to_delete = []
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		if table_name not in EXPECTED_ROW_COUNT_FF:
+			keys_to_delete.append(table_name)
+
+	for key in keys_to_delete:
+		del EXPECTED_ROW_COUNT[key]
+
+	for partition_type, query_and_table in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION_FF.items():
+		INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION[partition_type]["query"] = query_and_table["query"]
+		INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION[partition_type]["partition_table_name"] = query_and_table["partition_table_name"]
+	
+
 def migration_completed_checks(tgt):
-	got_row_count = tgt.row_count_of_all_tables("public")
+	got_row_count = tgt.row_count_of_all_tables(db_schema)
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 
 	for partition_type, query_and_table in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
-		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query_and_table["query"], query_and_table["partition_table_name"], "public")
+		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query_and_table["query"], query_and_table["partition_table_name"], db_schema)
 	
 if __name__ == "__main__":
 	main()

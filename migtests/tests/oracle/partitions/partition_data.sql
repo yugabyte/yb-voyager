@@ -283,28 +283,29 @@ COMMIT;
 --multi level partition data
 
 BEGIN
-    Insert into sub_par_test values ('emp_1','HR_REP',TO_DATE('18-11-2002', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_2','AC_ACCOUNT',TO_DATE('18-11-2003', 'dd-mm-yyyy'));
-    Insert into sub_par_test values ('emp_3','SH_CLERK',TO_DATE('18-11-2004', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_4','SA_MAN',TO_DATE('18-11-2005', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_5','PU_MAN',TO_DATE('18-10-2002', 'dd-mm-yyyy'));
-    Insert into sub_par_test values ('emp_6','FI_ACCOUNT',TO_DATE('18-10-2003', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_7','ST_CLERK',TO_DATE('18-10-2004', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_8','PU_MAN',TO_DATE('18-10-2005', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_9','OTHERS',TO_DATE('18-12-2002', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_10','OTHERS',TO_DATE('18-12-2003', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_11','OTHERS',TO_DATE('18-12-2004', 'dd-mm-yyyy'));
-    Insert into sub_par_test values ('emp_12','PU_MAN',TO_DATE('18-12-2005', 'dd-mm-yyyy'));
-    Insert into sub_par_test values ('emp_13','OTHERS',TO_DATE('18-09-2002', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_14','FI_ACCOUNT',TO_DATE('18-09-2003', 'dd-mm-yyyy'));
-    Insert into sub_par_test values ('emp_15','OTHERS',TO_DATE('18-09-2004', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_16','OTHERS',TO_DATE('18-09-2005', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_17','OTHERS',TO_DATE('18-08-2002', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_18','OTHERS',TO_DATE('18-08-2003', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_19','ST_CLERK',TO_DATE('18-08-2004', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_20','OTHERS',TO_DATE('18-08-2005', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_21','HR_REP',TO_DATE('18-07-2002', 'dd-mm-yyyy')); 
-    Insert into sub_par_test values ('emp_22','HR_REP',TO_DATE('18-07-2006', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (1, 'emp_1', 'HR_REP', TO_DATE('18-11-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (2, 'emp_2', 'AC_ACCOUNT', TO_DATE('18-11-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (3, 'emp_3', 'SH_CLERK', TO_DATE('18-11-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (4, 'emp_4', 'SA_MAN', TO_DATE('18-11-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (5, 'emp_5', 'PU_MAN', TO_DATE('18-10-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (6, 'emp_6', 'FI_ACCOUNT', TO_DATE('18-10-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (7, 'emp_7', 'ST_CLERK', TO_DATE('18-10-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (8, 'emp_8', 'PU_MAN', TO_DATE('18-10-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (9, 'emp_9', 'OTHERS', TO_DATE('18-12-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (10, 'emp_10', 'OTHERS', TO_DATE('18-12-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (11, 'emp_11', 'OTHERS', TO_DATE('18-12-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (12, 'emp_12', 'PU_MAN', TO_DATE('18-12-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (13, 'emp_13', 'OTHERS', TO_DATE('18-09-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (14, 'emp_14', 'FI_ACCOUNT', TO_DATE('18-09-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (15, 'emp_15', 'OTHERS', TO_DATE('18-09-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (16, 'emp_16', 'OTHERS', TO_DATE('18-09-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (17, 'emp_17', 'OTHERS', TO_DATE('18-08-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (18, 'emp_18', 'OTHERS', TO_DATE('18-08-2003', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (19, 'emp_19', 'ST_CLERK', TO_DATE('18-08-2004', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (20, 'emp_20', 'OTHERS', TO_DATE('18-08-2005', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (21, 'emp_21', 'HR_REP', TO_DATE('18-07-2002', 'dd-mm-yyyy')); 
+    Insert into sub_par_test values (22, 'emp_22', 'HR_REP', TO_DATE('18-07-2006', 'dd-mm-yyyy'));
+
 END;
 /
 

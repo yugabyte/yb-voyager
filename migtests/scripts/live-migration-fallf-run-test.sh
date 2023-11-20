@@ -158,7 +158,7 @@ main() {
 	sleep 1m
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate"
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
@@ -187,7 +187,7 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 1m
+	sleep 2m
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
@@ -215,7 +215,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges"
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
 
 	step "End Migration: clearing metainfo about state of migration from everywhere."
 	end_migration --yes

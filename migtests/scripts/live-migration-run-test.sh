@@ -123,9 +123,9 @@ main() {
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 30 
-	
+
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate"
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
@@ -160,7 +160,7 @@ main() {
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]
 	then
-	"${TEST_DIR}/validateAfterChanges"
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'false'
 	fi
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
