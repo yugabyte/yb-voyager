@@ -155,6 +155,8 @@ do
 		# cp -r $tns_admin /tmp/oracle-tns-admin
 		# tns_admin="/tmp/oracle-tns-admin"
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora)
+		# trim spaces around the wallet_dir
+		wallet_dir=$(echo $wallet_dir | xargs)
 		# sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
 		# sed -i "s|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=.*))|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/oracle-wallet-dir)))|" $tns_admin/ojdbc.properties
 
