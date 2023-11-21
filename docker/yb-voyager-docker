@@ -63,11 +63,11 @@ do
 			docker volume rm voyager-export-dir
 			docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
 		
-			export_vol="-v voyager-export-dir:/export-dir"
+			export_vol="-v voyager-export-dir:${export_dir}"
 		else
-			export_vol="-v ${export_dir}:/export-dir"
+			export_vol="-v ${export_dir}:${export_dir}"
 		fi
-		argv[$j]='/export-dir'
+		# argv[$j]='/export-dir'
     fi
 	
 	if [[ ${argv[${i}]} == "--data-dir" ]]
