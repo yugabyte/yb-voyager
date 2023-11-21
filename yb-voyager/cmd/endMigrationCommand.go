@@ -159,11 +159,15 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaAnalysisReport() {
+	alreadyBackedUp := utils.FileOrFolderExists(filepath.Join(backupDir, "reports", "report.*"))
 	if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
+	} else if alreadyBackedUp {
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		return
 	}
-	utils.PrintAndLog("saving schema analysis report")
+	utils.PrintAndLog("saving schema analysis report...")
 	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
 		utils.ErrExit("reading reports directory: %v", err)
@@ -187,7 +191,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("save data migration report...")
+	utils.PrintAndLog("saving data migration report...")
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
