@@ -139,9 +139,9 @@ func streamChangesFromSegment(
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
-			event.IsFallBack() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
+		} else if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
+			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -174,7 +174,7 @@ func shouldFormatValues(event *tgtdb.Event) bool {
 		tconf.TargetDBType == ORACLE
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutover() || event.IsFallForward() || event.IsFallBack() {
+	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}

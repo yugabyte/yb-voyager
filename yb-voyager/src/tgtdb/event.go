@@ -44,16 +44,16 @@ func (e *Event) String() string {
 		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
 }
 
-func (e *Event) IsCutover() bool {
-	return e.Op == "cutover"
+func (e *Event) IsCutoverToTarget() bool {
+	return e.Op == "cutover.target"
 }
 
-func (e *Event) IsFallForward() bool {
-	return e.Op == "fallforward"
+func (e *Event) IsCutoverToSourceReplica() bool {
+	return e.Op == "cutover.source_replica"
 }
 
-func (e *Event) IsFallBack() bool {
-	return e.Op == "fallback"
+func (e *Event) IsCutoverToSource() bool {
+	return e.Op == "cutover.source"
 }
 
 func (e *Event) GetSQLStmt(targetSchema string) string {
