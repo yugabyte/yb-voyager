@@ -45,13 +45,13 @@ EXPECTED = {
 	"foo": len(FOO_DATA),
 	"foo2": len(FOO2_DATA),
 	"foo3": len(FOO3_DATA),
-	# "gcs_text": 3,
-	# "gcs_csv": 3,
-	# "gcs_multitable_t1": 3,
-	# "gcs_multitable_t2": 3,
-	# "gcs_csv_with_header": 3,
-	# "gcs_volume": 1000000,
-	# "gcs_quote_escape_char1": 3,
+	"gcs_text": 3,
+	"gcs_csv": 3,
+	"gcs_multitable_t1": 3,
+	"gcs_multitable_t2": 3,
+	"gcs_csv_with_header": 3,
+	"gcs_volume": 1000000,
+	"gcs_quote_escape_char1": 3,
 }
 
 T1_TABLE_DATA = set([(1,None,None,"'Hello World'"), (2,None,None,"'Hello World'"), (3,None,None,"'Hello World'")])
@@ -105,12 +105,12 @@ TABLE_NAME_DATA_MAP = {
 	"foo": FOO_DATA,
 	"foo2": FOO2_DATA,
 	"foo3": FOO3_DATA,
-	# "gcs_text": S3_TEXT_DATA,
-	# "gcs_csv": S3_CSV_DATA,
-	# "gcs_multitable_t1": S3_T1_DATA,
-	# "gcs_multitable_t2": S3_T2_DATA,
-	# "gcs_csv_with_header": S3_CSV_WITH_HEADER_DATA,
-	# "gcs_quote_escape_char1": T1_TABLE_DATA,
+	"gcs_text": S3_TEXT_DATA,
+	"gcs_csv": S3_CSV_DATA,
+	"gcs_multitable_t1": S3_T1_DATA,
+	"gcs_multitable_t2": S3_T2_DATA,
+	"gcs_csv_with_header": S3_CSV_WITH_HEADER_DATA,
+	"gcs_quote_escape_char1": T1_TABLE_DATA,
 }
 
 def file_import_done_checks(tgt):

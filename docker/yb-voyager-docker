@@ -104,7 +104,6 @@ do
 			done
 		else 
 			# If the data-dir is not an S3 bucket
-			# If the OS is macOS
 			data_dir=$(realpath "$data_dir")
 			map_host_path_inside_container "data-dir" "${data_dir}"
 		fi
@@ -119,8 +118,7 @@ do
 		else 
 			tns_admin="${ORACLE_HOME}/network/admin"
 		fi
-		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora)
-		wallet_dir=$(echo $wallet_dir | xargs)
+		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
 
 		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
 		map_host_path_inside_container "oracle-wallet-dir" "${wallet_dir}"
@@ -135,7 +133,6 @@ then
 	tty="-it"
 fi
 
-# dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} ${oracle_tns_admin_vol} ${oracle_wallet_dir_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
