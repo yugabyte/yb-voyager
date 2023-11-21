@@ -61,24 +61,6 @@ map_host_path_inside_container() {
 		fi
 }
 
-map_path_inside_container() {
-	local flag=$1
-	local volume_name=$2
-	local container_path=$3
-	local dir=$(dirname "$flag")
-	local path=$(realpath "$dir")
-	local ssl_filename=$(basename "$flag")
-
-	if [[ $OSTYPE == 'darwin'* ]]
-	then
-		docker volume rm $volume_name
-		docker volume create --driver local --opt type=none --opt device="${path}" --opt o=bind $volume_name
-		echo "-v $volume_name:$container_path;$ssl_filename"
-	else
-		echo "-v $path:$container_path;$ssl_filename"
-	fi
-}
-
 while [ $i -lt $# ]
 do
 	v=${argv[${i}]}
