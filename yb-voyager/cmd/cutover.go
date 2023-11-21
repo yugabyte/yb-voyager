@@ -18,7 +18,6 @@ package cmd
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -49,91 +48,103 @@ func init() {
 	cutoverCmd.AddCommand(cutoverToCmd)
 }
 
-func InitiatePrimarySwitch(action string) error {
-	userFacingActionMsg := "cutover"
-	switch action {
-	case "cutover":
-		userFacingActionMsg = "cutover to target"
-	case "fallforward":
-		userFacingActionMsg = "cutover to source-replica"
-	case "fallback":
-		userFacingActionMsg = "cutover to source"
-	}
+func InitiateCutover(dbRole string) error {
+	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
 		return nil
 	}
-	triggerName := action
-	err := createTriggerIfNotExists(triggerName)
+	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
+
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch dbRole {
+		case "target":
+			if record.CutoverToTargetRequested {
+				utils.PrintAndLog(alreadyInitiatedMsg)
+			}
+			record.CutoverToTargetRequested = true
+		case "source-replica":
+			if record.CutoverToSourceReplicaRequested {
+				utils.PrintAndLog(alreadyInitiatedMsg)
+			}
+			record.CutoverToSourceReplicaRequested = true
+		case "source":
+			if record.CutoverToSourceRequested {
+				utils.PrintAndLog(alreadyInitiatedMsg)
+			}
+			record.CutoverToSourceRequested = true
+		}
+
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update MSR: %w", err)
 	}
 	utils.PrintAndLog("%s initiated, wait for it to complete", userFacingActionMsg)
 	return nil
 }
 
-func createTriggerIfNotExists(triggerName string) error {
-	cutoverMsg := "cutover already initiated, wait for it to complete"
-	fallforwardMsg := "cutover to source-replica already initiated, wait for it to complete"
-	fallbackMsg := "cutover to source already initiated, wait for it to complete"
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		switch triggerName {
-		case "cutover":
-			if record.CutoverRequested {
-				utils.PrintAndLog(cutoverMsg)
-			}
-			// if the above check fails, we will set this to true otherwise its a no-op
-			record.CutoverRequested = true
-		case "cutover.source":
-			if record.CutoverProcessedBySourceExporter {
-				utils.PrintAndLog(cutoverMsg)
-			}
-			record.CutoverProcessedBySourceExporter = true
-		case "cutover.target":
-			if record.CutoverProcessedByTargetImporter {
-				utils.PrintAndLog(cutoverMsg)
-			}
-			record.CutoverProcessedByTargetImporter = true
-		case "fallforward":
-			if record.CutoverToSourceReplicaRequested {
-				utils.PrintAndLog(fallforwardMsg)
-			}
-			record.CutoverToSourceReplicaRequested = true
-		case "fallforward.target":
-			if record.CutoverToSourceReplicaProcessedByTargetExporter {
-				utils.PrintAndLog(fallforwardMsg)
-			}
-			record.CutoverToSourceReplicaProcessedByTargetExporter = true
-		case "fallforward.ff":
-			if record.CutoverToSourceReplicaProcessedBySRImporter {
-				utils.PrintAndLog(fallforwardMsg)
-			}
-			record.CutoverToSourceReplicaProcessedBySRImporter = true
-		case "fallback":
-			if record.CutoverToSourceRequested {
-				utils.PrintAndLog(fallbackMsg)
-			}
-			record.CutoverToSourceRequested = true
-		case "fallback.target":
-			if record.CutoverToSourceProcessedByTargetExporter {
-				utils.PrintAndLog(fallbackMsg)
-			}
-			record.CutoverToSourceProcessedByTargetExporter = true
-		case "fallback.source":
-			if record.CutoverToSourceProcessedBySourceImporter {
-				utils.PrintAndLog(fallbackMsg)
-			}
-			record.CutoverToSourceProcessedBySourceImporter = true
-		default:
-			panic("invalid trigger name")
-		}
-	})
-	if err != nil {
-		log.Errorf("creating trigger(%s): %v", triggerName, err)
-		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
-	}
-	return nil
-}
+// func createTriggerIfNotExists(triggerName string) error {
+// 	cutoverMsg := "cutover already initiated, wait for it to complete"
+// 	fallforwardMsg := "cutover to source-replica already initiated, wait for it to complete"
+// 	fallbackMsg := "cutover to source already initiated, wait for it to complete"
+// 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+// 		switch triggerName {
+// 		case "cutover":
+// 			if record.CuCutoverToTargetRequested
+// 				utils.PrintAndLog(cutoverMsg)
+// 			}
+// 			// if the above check fails, we will set this to true otherwise its a no-op
+// 			record.CuCutoverToTargetRequested true
+// 		case "cutover.source":
+// 			if record.CutoverProcessedBySourceExporter {
+// 				utils.PrintAndLog(cutoverMsg)
+// 			}
+// 			record.CutoverProcessedBySourceExporter = true
+// 		case "cutover.target":
+// 			if record.CutoverProcessedByTargetImporter {
+// 				utils.PrintAndLog(cutoverMsg)
+// 			}
+// 			record.CutoverProcessedByTargetImporter = true
+// 		case "fallforward":
+// 			if record.CutoverToSourceReplicaRequested {
+// 				utils.PrintAndLog(fallforwardMsg)
+// 			}
+// 			record.CutoverToSourceReplicaRequested = true
+// 		case "fallforward.target":
+// 			if record.CutoverToSourceReplicaProcessedByTargetExporter {
+// 				utils.PrintAndLog(fallforwardMsg)
+// 			}
+// 			record.CutoverToSourceReplicaProcessedByTargetExporter = true
+// 		case "fallforward.ff":
+// 			if record.CutoverToSourceReplicaProcessedBySRImporter {
+// 				utils.PrintAndLog(fallforwardMsg)
+// 			}
+// 			record.CutoverToSourceReplicaProcessedBySRImporter = true
+// 		case "fallback":
+// 			if record.CutoverToSourceRequested {
+// 				utils.PrintAndLog(fallbackMsg)
+// 			}
+// 			record.CutoverToSourceRequested = true
+// 		case "fallback.target":
+// 			if record.CutoverToSourceProcessedByTargetExporter {
+// 				utils.PrintAndLog(fallbackMsg)
+// 			}
+// 			record.CutoverToSourceProcessedByTargetExporter = true
+// 		case "fallback.source":
+// 			if record.CutoverToSourceProcessedBySourceImporter {
+// 				utils.PrintAndLog(fallbackMsg)
+// 			}
+// 			record.CutoverToSourceProcessedBySourceImporter = true
+// 		default:
+// 			panic("invalid trigger name")
+// 		}
+// 	})
+// 	if err != nil {
+// 		log.Errorf("creating trigger(%s): %v", triggerName, err)
+// 		return fmt.Errorf("creating trigger(%s): %w", triggerName, err)
+// 	}
+// 	return nil
+// }
 
 func getTriggerName(importerOrExporterRole string) (string, error) {
 	switch importerOrExporterRole {

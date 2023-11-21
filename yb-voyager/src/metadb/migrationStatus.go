@@ -22,7 +22,7 @@ type MigrationStatusRecord struct {
 	SourceDBAsTargetConf                            *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
 	TableListExportedFromSource                     []string          `json:"TableListExportedFromSource"`
 	SourceDBConf                                    *srcdb.Source     `json:"SourceDBConf"`
-	CutoverRequested                                bool              `json:"CutoverRequested"`
+	CutoverToTargetRequested                        bool              `json:"CutoverToTargetRequested"`
 	CutoverProcessedBySourceExporter                bool              `json:"CutoverProcessedBySourceExporter"`
 	CutoverProcessedByTargetImporter                bool              `json:"CutoverProcessedByTargetImporter"`
 	ExportFromTargetFallForwardStarted              bool              `json:"ExportFromTargetFallForwardStarted"`

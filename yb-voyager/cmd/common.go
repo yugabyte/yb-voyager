@@ -372,7 +372,7 @@ func getCutoverStatus() string {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 
-	a := msr.CutoverRequested
+	a := msr.CutoverToTargetRequested
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
 	d := msr.ExportFromTargetFallForwardStarted
