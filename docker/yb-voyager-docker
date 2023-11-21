@@ -17,9 +17,12 @@ fi
 
 i=0
 exported_vars=""
+volume_mappings=""
 
 # Define an array of environment variable names to capture
 variables=("BETA_FAST_DATA_EXPORT" "SOURCE_DB_PASSWORD" "TARGET_DB_PASSWORD" "FF_DB_PASSWORD" "YB_MASTER_PORT" "YB_TSERVER_PORT" "QUEUE_SEGMENT_MAX_BYTES" "NUM_EVENT_CHANNELS" "EVENT_CHANNEL_SIZE" "MAX_EVENTS_PER_BATCH" "MAX_INTERVAL_BETWEEN_BATCHES")
+
+volume_dirs=("--export-dir" "--source-ssl-cert" "--source-ssl-key" "--source-ssl-root-cert")
 
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
@@ -31,6 +34,26 @@ done
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
+map_host_path_inside_container() {
+		flag_name=argv[${i}]
+		volume_name="voyager-${flag_name}"
+		j=$(( $i + 1))
+		dir=$(realpath "${argv[${j}]}")
+		# handle file paths.  If the path is a file, then the target path should be the directory of the file.
+		if [[ -f $dir ]]
+		then
+			dir=$(dirname "$dir")
+		fi
+		# If the OS is macOS
+		if [[ $OSTYPE == 'darwin'* ]] 
+		then
+			docker volume rm $volume_name
+			docker volume create --driver local --opt type=none --opt device="${dir}" --opt o=bind $volume_name
+			volume_mappings="${volume_mappings} -v ${volume_name}:${dir}"
+		else
+			volume_mappings="${volume_mappings} -v ${dir}:${dir}"
+		fi
+}
 
 map_path_inside_container() {
 	local flag=$1
@@ -52,24 +75,36 @@ map_path_inside_container() {
 
 while [ $i -lt $# ]
 do
-	if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
+	v=${argv[${i}]}
+	if [[ ${v} == "-e" ]]
 	then
-		j=$(( $i + 1))
-		export_dir=${argv[${j}]}
-		export_dir=$(realpath "$export_dir")
+		v="--export-dir"
+	fi
+	# if v is present in volume_dirs array
+	if [[ " ${volume_dirs[@]} " =~ " ${v} " ]]
+	then
+		map_host_path_inside_container
+		i=$(( $i + 1))
+		continue
+	fi
+	# if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
+	# then
+	# 	j=$(( $i + 1))
+	# 	export_dir=${argv[${j}]}
+	# 	export_dir=$(realpath "$export_dir")
 
-		# If the OS is macOS
-		if [[ $OSTYPE == 'darwin'* ]] 
-		then
-			# Delete the old volume and create a new one it its place attached to the user's export-dir
-			docker volume rm voyager-export-dir
-			docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
+	# 	# If the OS is macOS
+	# 	if [[ $OSTYPE == 'darwin'* ]] 
+	# 	then
+	# 		# Delete the old volume and create a new one it its place attached to the user's export-dir
+	# 		docker volume rm voyager-export-dir
+	# 		docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
 		
-			export_vol="-v voyager-export-dir:${export_dir}"
-		else
-			export_vol="-v ${export_dir}:${export_dir}"
-		fi
-    fi
+	# 		export_vol="-v voyager-export-dir:${export_dir}"
+	# 	else
+	# 		export_vol="-v ${export_dir}:${export_dir}"
+	# 	fi
+    # fi
 	
 	if [[ ${argv[${i}]} == "--data-dir" ]]
 	then 
@@ -115,32 +150,32 @@ do
 		fi
 	fi	
 
-	# If the flag is --source-ssl-cert then create a volume for the cert directory and map it to the container
-	if [[ ${argv[${i}]} == "--source-ssl-cert" ]]
-	then
-		j=$(( $i + 1))
-		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
-		IFS=';' read -r source_ssl_cert_vol ssl_filename <<< "$result" 
-		argv[$j]='/source-ssl-cert-dir/'$ssl_filename
-	fi
+	# # If the flag is --source-ssl-cert then create a volume for the cert directory and map it to the container
+	# if [[ ${argv[${i}]} == "--source-ssl-cert" ]]
+	# then
+	# 	j=$(( $i + 1))
+	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
+	# 	IFS=';' read -r source_ssl_cert_vol ssl_filename <<< "$result" 
+	# 	argv[$j]='/source-ssl-cert-dir/'$ssl_filename
+	# fi
 
-	# If the flag is --source-ssl-key then create a volume for the key directory and map it to the container
-	if [[ ${argv[${i}]} == "--source-ssl-key" ]]
-	then
-		j=$(( $i + 1))
-		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
-		IFS=';' read -r source_ssl_key_vol ssl_filename <<< "$result"
-		argv[$j]='/source-ssl-key-dir/'$ssl_filename
-	fi
+	# # If the flag is --source-ssl-key then create a volume for the key directory and map it to the container
+	# if [[ ${argv[${i}]} == "--source-ssl-key" ]]
+	# then
+	# 	j=$(( $i + 1))
+	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
+	# 	IFS=';' read -r source_ssl_key_vol ssl_filename <<< "$result"
+	# 	argv[$j]='/source-ssl-key-dir/'$ssl_filename
+	# fi
 
-	# If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
-	if [[ ${argv[${i}]} == "--source-ssl-root-cert" ]]
-	then
-		j=$(( $i + 1))
-		result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
-		IFS=';' read -r source_ssl_root_cert_vol ssl_filename <<< "$result"
-		argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
-	fi
+	# # If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
+	# if [[ ${argv[${i}]} == "--source-ssl-root-cert" ]]
+	# then
+	# 	j=$(( $i + 1))
+	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
+	# 	IFS=';' read -r source_ssl_root_cert_vol ssl_filename <<< "$result"
+	# 	argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
+	# fi
 
 	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
 	if [[ ${argv[${i}]} == "--oracle-tns-alias" ]]
@@ -157,17 +192,17 @@ do
 		if [[ $OSTYPE == 'darwin'* ]]
 		then
 			docker volume rm voyager-oracle-tns-admin
-			docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
 			docker volume rm voyager-oracle-wallet-dir
+			docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
 			docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
-			exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
+			
 			oracle_tns_admin_vol="-v voyager-oracle-tns-admin:${tns_admin}"
 			oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:${wallet_dir}"
 		else
 			oracle_tns_admin_vol="-v ${tns_admin}:${tns_admin}"
 			oracle_wallet_dir_vol="-v ${wallet_dir}:${wallet_dir}"
-			exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
 		fi
+		exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
 	fi
 			
     i=$(( $i + 1))
@@ -178,7 +213,8 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} ${oracle_tns_admin_vol} ${oracle_wallet_dir_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+# dockerCmd="docker run ${exported_vars} ${export_vol} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${source_ssl_cert_vol} ${source_ssl_key_vol} ${source_ssl_root_cert_vol} ${oracle_tns_admin_vol} ${oracle_wallet_dir_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${data_vol} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} ${oracle_tns_admin_vol} ${oracle_wallet_dir_vol} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
