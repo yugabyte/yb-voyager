@@ -88,8 +88,8 @@ func initMetaDB(path string) error {
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
        imported_by_target_db_importer INTEGER DEFAULT 0, 
-       imported_by_ff_db_importer INTEGER DEFAULT 0, 
-       imported_by_fb_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_replica_db_importer INTEGER DEFAULT 0, 
+       imported_by_source_db_importer INTEGER DEFAULT 0, 
        archived INTEGER DEFAULT 0,
 	   deleted INTEGER DEFAULT 0,
 	   archive_location TEXT);`, QUEUE_SEGMENT_META_TABLE_NAME),
@@ -441,8 +441,8 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 }
 
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
-	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
-	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = %d AND archived = 0`, importCount)
+	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_source_replica_db_importer = 2 AND archived = 0 ORDER BY segment_no;
+	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch segments to be archived: %v", err)

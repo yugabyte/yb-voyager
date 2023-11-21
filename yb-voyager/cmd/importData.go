@@ -122,7 +122,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
-	if importerRole == FF_DB_IMPORTER_ROLE {
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		if record.FallbackEnabled {
 			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
@@ -340,11 +340,11 @@ func updateTargetConfInMigrationStatus() {
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
 			record.TargetDBConf.Uri = ""
-		case FF_DB_IMPORTER_ROLE:
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			record.SourceReplicaDBConf = tconf.Clone()
 			record.SourceReplicaDBConf.Password = ""
 			record.SourceReplicaDBConf.Uri = ""
-		case FB_DB_IMPORTER_ROLE:
+		case SOURCE_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""
 			record.SourceDBAsTargetConf.Uri = ""
@@ -428,7 +428,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	// Import snapshots
-	if importerRole != FB_DB_IMPORTER_ROLE {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -464,7 +464,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			if importerRole != FB_DB_IMPORTER_ROLE {
+			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)

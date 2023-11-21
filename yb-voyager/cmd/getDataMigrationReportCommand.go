@@ -189,9 +189,9 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
 	case "source-replica":
-		importerRole = FF_DB_IMPORTER_ROLE
+		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	case "source":
-		importerRole = FB_DB_IMPORTER_ROLE
+		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
 	//reinitialise targetDB
 	tconf = *targetConf
@@ -225,7 +225,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		}
 	}
 
-	if importerRole != FB_DB_IMPORTER_ROLE {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
 		if err != nil {
 			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)

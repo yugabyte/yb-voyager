@@ -176,9 +176,9 @@ func markCutoverProcessed(importerOrExporterRole string) error {
 			record.CutoverToSourceReplicaProcessedByTargetExporter = true
 		case TARGET_DB_EXPORTER_FB_ROLE:
 			record.CutoverToSourceProcessedByTargetExporter = true
-		case FF_DB_IMPORTER_ROLE:
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			record.CutoverToSourceReplicaProcessedBySRImporter = true
-		case FB_DB_IMPORTER_ROLE:
+		case SOURCE_DB_IMPORTER_ROLE:
 			record.CutoverToSourceProcessedBySourceImporter = true
 		default:
 			panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
@@ -216,11 +216,11 @@ func ExitIfAlreadyCutover(importerOrExporterRole string) {
 		if record.CutoverToSourceProcessedByTargetExporter {
 			utils.ErrExit(cSAlreadyCompleted)
 		}
-	case FF_DB_IMPORTER_ROLE:
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.CutoverToSourceReplicaProcessedBySRImporter {
 			utils.ErrExit(cSRAlreadyCompleted)
 		}
-	case FB_DB_IMPORTER_ROLE:
+	case SOURCE_DB_IMPORTER_ROLE:
 		if record.CutoverToSourceProcessedBySourceImporter {
 			utils.ErrExit(cSAlreadyCompleted)
 		}

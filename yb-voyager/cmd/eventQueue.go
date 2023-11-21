@@ -82,7 +82,7 @@ func (eq *EventQueue) resolveSegmentToResumeFrom() error {
 	var importerRoles []string
 	var err error
 	importerRoles = append(importerRoles, importerRole)
-	if importerRole == FB_DB_IMPORTER_ROLE {
+	if importerRole == SOURCE_DB_IMPORTER_ROLE {
 		importerRoles = append(importerRoles, TARGET_DB_IMPORTER_ROLE)
 	}
 	for {

@@ -140,8 +140,8 @@ func streamChangesFromSegment(
 		if event == nil && segment.IsProcessed() {
 			break
 		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE ||
-			event.IsFallBack() && importerRole == FB_DB_IMPORTER_ROLE { // cutover or fall-forward command
+			event.IsFallForward() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
+			event.IsFallBack() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -231,7 +231,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
 					continue
 				}
-				if importerRole == FB_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+				if importerRole == SOURCE_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
 					log.Tracef("ignoring event %v because importer role is FB_DB_IMPORTER_ROLE and event exporter role is not TARGET_DB_EXPORTER_FB_ROLE.", event)
 					continue
 				}

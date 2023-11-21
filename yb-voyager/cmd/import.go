@@ -84,9 +84,9 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
 		getTargetPassword(cmd)
-	case FF_DB_IMPORTER_ROLE:
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		getSourceReplicaDBPassword(cmd)
-	case FB_DB_IMPORTER_ROLE:
+	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
 	return nil
