@@ -42,7 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var exporterRole string
+var exporterRole string = SOURCE_DB_EXPORTER_ROLE
 
 var exportDataCmd = &cobra.Command{
 	Use: "data",
@@ -91,9 +91,6 @@ func init() {
 
 func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	setExportFlagsDefaults()
-	if exporterRole == "" {
-		exporterRole = SOURCE_DB_EXPORTER_ROLE
-	}
 	err := validateExportFlags(cmd, exporterRole)
 	if err != nil {
 		utils.ErrExit("Error: %s", err.Error())
@@ -134,7 +131,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.PackAndSendPayload(exportDir)
 
 		setDataIsExported()
-		updateSourceDBConfInMSR()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
@@ -146,7 +142,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func exportData() bool {
-
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -154,7 +149,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-	updateSourceDBConfInMSR()
+	saveSourceDBConfInMSR()
 	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -170,7 +165,6 @@ func exportData() bool {
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
-		updateSourceDBConfInMSR()
 		os.Exit(0)
 	}
 
@@ -537,18 +531,14 @@ func clearDataIsExported() {
 	}
 }
 
-func updateSourceDBConfInMSR() {
+func saveSourceDBConfInMSR() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.SourceDBConf == nil {
-			record.SourceDBConf = source.Clone()
-			record.SourceDBConf.Password = ""
-			record.SourceDBConf.Uri = ""
-		} else {
-			// currently db type is only required for import data commands
-			record.SourceDBConf.DBType = source.DBType
-		}
+		// overriding the current value of SourceDBConf
+		record.SourceDBConf = source.Clone()
+		record.SourceDBConf.Password = ""
+		record.SourceDBConf.Uri = ""
 	})
 }

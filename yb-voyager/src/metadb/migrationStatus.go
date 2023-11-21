@@ -10,10 +10,8 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID string `json:"MigrationUUID"`
-	SourceDBType  string `json:"SourceDBType"`
-	ExportType    string `json:"ExportType"`
-	// FallForwarDBExists                         bool              `json:"FallForwarDBExists"`
+	MigrationUUID                              string            `json:"MigrationUUID"`
+	ExportType                                 string            `json:"ExportType"`
 	ArchivingEnabled                           bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                         bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                            bool              `json:"FallbackEnabled"`

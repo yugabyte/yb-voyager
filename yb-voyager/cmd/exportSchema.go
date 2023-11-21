@@ -100,12 +100,7 @@ func exportSchema() {
 	payload.SourceDBVersion = sourceDBVersion
 	callhome.PackAndSendPayload(exportDir)
 
-	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		// setting irrespective of the current value
-		record.SourceDBConf = source.Clone()
-		record.SourceDBConf.Password = ""
-		record.SourceDBConf.Uri = ""
-	})
+	saveSourceDBConfInMSR()
 	setSchemaIsExported()
 }
 
