@@ -400,4 +400,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
+	importDataFileCmd.Flags().MarkHidden("table-list-file-path")
+	importDataFileCmd.Flags().MarkHidden("exclude-table-list-file-path")
 }
