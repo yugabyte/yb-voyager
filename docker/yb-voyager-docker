@@ -35,10 +35,16 @@ done
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
 map_host_path_inside_container() {
-		flag_name=argv[${i}]
+		flag_name=$1
+		dir=$2
+		# If flag_name is "" then we have to extract it from argv
+		if [[ $flag_name == "" ]]
+		then
+			flag_name=argv[${i}]
+			j=$(( $i + 1))
+			dir=$(realpath "${argv[${j}]}")
+		fi
 		volume_name="voyager-${flag_name}"
-		j=$(( $i + 1))
-		dir=$(realpath "${argv[${j}]}")
 		# handle file paths.  If the path is a file, then the target path should be the directory of the file.
 		if [[ -f $dir ]]
 		then
@@ -87,24 +93,6 @@ do
 		i=$(( $i + 1))
 		continue
 	fi
-	# if [[ ${argv[${i}]} == "--export-dir" || ${argv[${i}]} == "-e" ]]
-	# then
-	# 	j=$(( $i + 1))
-	# 	export_dir=${argv[${j}]}
-	# 	export_dir=$(realpath "$export_dir")
-
-	# 	# If the OS is macOS
-	# 	if [[ $OSTYPE == 'darwin'* ]] 
-	# 	then
-	# 		# Delete the old volume and create a new one it its place attached to the user's export-dir
-	# 		docker volume rm voyager-export-dir
-	# 		docker volume create --driver local --opt type=none --opt device="${export_dir}" --opt o=bind voyager-export-dir 
-		
-	# 		export_vol="-v voyager-export-dir:${export_dir}"
-	# 	else
-	# 		export_vol="-v ${export_dir}:${export_dir}"
-	# 	fi
-    # fi
 	
 	if [[ ${argv[${i}]} == "--data-dir" ]]
 	then 
@@ -149,33 +137,6 @@ do
 			argv[$j]='/data-dir'
 		fi
 	fi	
-
-	# # If the flag is --source-ssl-cert then create a volume for the cert directory and map it to the container
-	# if [[ ${argv[${i}]} == "--source-ssl-cert" ]]
-	# then
-	# 	j=$(( $i + 1))
-	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-cert-dir /source-ssl-cert-dir)
-	# 	IFS=';' read -r source_ssl_cert_vol ssl_filename <<< "$result" 
-	# 	argv[$j]='/source-ssl-cert-dir/'$ssl_filename
-	# fi
-
-	# # If the flag is --source-ssl-key then create a volume for the key directory and map it to the container
-	# if [[ ${argv[${i}]} == "--source-ssl-key" ]]
-	# then
-	# 	j=$(( $i + 1))
-	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-key-dir /source-ssl-key-dir)
-	# 	IFS=';' read -r source_ssl_key_vol ssl_filename <<< "$result"
-	# 	argv[$j]='/source-ssl-key-dir/'$ssl_filename
-	# fi
-
-	# # If the flag is --source-ssl-root-cert then create a volume for the root cert directory and map it to the container
-	# if [[ ${argv[${i}]} == "--source-ssl-root-cert" ]]
-	# then
-	# 	j=$(( $i + 1))
-	# 	result=$(map_path_inside_container ${argv[${j}]} voyager-source-ssl-root-cert-dir /source-ssl-root-cert-dir)
-	# 	IFS=';' read -r source_ssl_root_cert_vol ssl_filename <<< "$result"
-	# 	argv[$j]='/source-ssl-root-cert-dir/'$ssl_filename
-	# fi
 
 	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
 	if [[ ${argv[${i}]} == "--oracle-tns-alias" ]]
