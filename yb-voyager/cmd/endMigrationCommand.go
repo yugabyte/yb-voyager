@@ -475,7 +475,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)
-			if lockFile.IsPIDActive() {
+			if lockFile.IsPIDActive() && lockFile.GetCmdName() != "end migration" {
 				lockFiles = append(lockFiles, lockFile)
 			}
 		}
