@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 argv=( "$@" )
 
 if ! which docker > /dev/null
@@ -152,7 +154,7 @@ do
 		# rm -rf /tmp/oracle-tns-admin
 		# cp -r $tns_admin /tmp/oracle-tns-admin
 		# tns_admin="/tmp/oracle-tns-admin"
-		# wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' /tmp/oracle-tns-admin/sqlnet.ora)
+		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' /tmp/oracle-tns-admin/sqlnet.ora)
 		# sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
 		# sed -i "s|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=.*))|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/oracle-wallet-dir)))|" $tns_admin/ojdbc.properties
 
