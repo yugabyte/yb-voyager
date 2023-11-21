@@ -105,12 +105,8 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
-	triggerName, err := getTriggerName(exporterRole)
-	if err != nil {
-		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
-	}
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-	exitIfDBSwitchedOver(triggerName)
+	ExitIfAlreadyCutover(exporterRole)
 	checkDataDirs()
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
