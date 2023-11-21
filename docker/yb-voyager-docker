@@ -150,19 +150,21 @@ do
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora)
 		wallet_dir=$(echo $wallet_dir | xargs)
 
-		if [[ $OSTYPE == 'darwin'* ]]
-		then
-			docker volume rm voyager-oracle-tns-admin
-			docker volume rm voyager-oracle-wallet-dir
-			docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
-			docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
+		# if [[ $OSTYPE == 'darwin'* ]]
+		# then
+		# 	docker volume rm voyager-oracle-tns-admin
+		# 	docker volume rm voyager-oracle-wallet-dir
+		# 	docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
+		# 	docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
 			
-			oracle_tns_admin_vol="-v voyager-oracle-tns-admin:${tns_admin}"
-			oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:${wallet_dir}"
-		else
-			oracle_tns_admin_vol="-v ${tns_admin}:${tns_admin}"
-			oracle_wallet_dir_vol="-v ${wallet_dir}:${wallet_dir}"
-		fi
+		# 	oracle_tns_admin_vol="-v voyager-oracle-tns-admin:${tns_admin}"
+		# 	oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:${wallet_dir}"
+		# else
+		# 	oracle_tns_admin_vol="-v ${tns_admin}:${tns_admin}"
+		# 	oracle_wallet_dir_vol="-v ${wallet_dir}:${wallet_dir}"
+		# fi
+		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
+		map_host_path_inside_container "oracle-wallet-dir" "${wallet_dir}"
 		exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
 	fi
 			
