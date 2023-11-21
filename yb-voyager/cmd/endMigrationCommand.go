@@ -144,17 +144,12 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
-	if schemaIsAnalyzed() {
-		saveSchemaMigrationReport()
-	} else {
-		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
-	}
-
 	streamChangesMode, err = checkWithStreamingMode()
 	if err != nil {
 		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
 
+	saveSchemaAnalysisReport()
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
@@ -163,7 +158,11 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func saveSchemaMigrationReport() {
+func saveSchemaAnalysisReport() {
+	if !schemaIsAnalyzed() {
+		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
+		return
+	}
 	utils.PrintAndLog("saving schema analysis report")
 	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
@@ -182,6 +181,12 @@ func saveSchemaMigrationReport() {
 }
 
 func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
+	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
+	if utils.FileOrFolderExists(dataMigrationReportPath) {
+		utils.PrintAndLog("data migration report is already present at %q", dataMigrationReportPath)
+		return
+	}
+
 	utils.PrintAndLog("save data migration report...")
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
@@ -190,64 +195,22 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	getDataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
 	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	var outbuf, errbuf bytes.Buffer
-	liveMigrationReportCmd.Stderr = &outbuf
-	liveMigrationReportCmd.Stdout = &errbuf
-
-	err := liveMigrationReportCmd.Run()
-	if err != nil {
-		log.Errorf("running get data-migration-report command: %s: %v", errbuf.String(), err)
-		utils.ErrExit("running get data-migration-report command: %v", err)
-	}
-
-	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
-	outbufBytes = append(outbufBytes, []byte("\n")...)
-	// overwrite existing if there is a new report
-	if len(outbufBytes) > 0 {
-		err = os.WriteFile(getDataMigrationReportPath, outbufBytes, 0644)
-		if err != nil {
-			utils.ErrExit("writing data migration report: %v", err)
-		}
-	} else {
-		if utils.FileOrFolderExists(getDataMigrationReportPath) {
-			utils.PrintAndLog("data migration report is already present at %q", getDataMigrationReportPath)
-		}
-	}
+	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
 }
 
 func saveDataExportReport() {
-	utils.PrintAndLog("saving data export report...")
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
-	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	var outbuf, errbuf bytes.Buffer
-	exportDataStatusCmd.Stdout = &outbuf
-	exportDataStatusCmd.Stderr = &errbuf
-	err := exportDataStatusCmd.Run()
-	if err != nil {
-		log.Errorf("running export data status command: %s: %v", errbuf.String(), err)
-		utils.ErrExit("running export data status command: %v", err)
+	if utils.FileOrFolderExists(exportDataReportFilePath) {
+		utils.PrintAndLog("export data report is already present at %q", exportDataReportFilePath)
 	}
 
-	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
-	outbufBytes = append(outbufBytes, []byte("\n")...)
-	// overwrite existing if there is a new report
-	if len(outbufBytes) > 0 && string(outbufBytes) != exportDataStatusMsg {
-		err = os.WriteFile(exportDataReportFilePath, outbufBytes, 0644)
-		if err != nil {
-			utils.ErrExit("writing export data report: %v", err)
-		}
-	} else {
-		if utils.FileOrFolderExists(exportDataReportFilePath) {
-			utils.PrintAndLog("export data report is already present at %q", exportDataReportFilePath)
-		} else { // case if only schema migration is done
-			utils.PrintAndLog("nothing to save for export data report")
-		}
-	}
+	utils.PrintAndLog("saving data export report...")
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
+	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
+	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
 }
 
 func saveDataImportReport() {
@@ -256,31 +219,36 @@ func saveDataImportReport() {
 		return
 	}
 
-	utils.PrintAndLog("saving data import report...")
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
+	if utils.FileOrFolderExists(importDataReportFilePath) {
+		utils.PrintAndLog("import data report is already present at %q", importDataReportFilePath)
+	}
+
+	utils.PrintAndLog("saving data import report...")
 	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
+	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
+}
+
+func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFilePath string) {
 	var outbuf, errbuf bytes.Buffer
-	importDataStatusCmd.Stdout = &outbuf
-	importDataStatusCmd.Stderr = &errbuf
-	err := importDataStatusCmd.Run()
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+	err := cmd.Run()
 	if err != nil {
-		log.Errorf("running import data status command: %s: %v", errbuf.String(), err)
-		utils.ErrExit("running import data status command: %v", err)
+		log.Errorf("running %s command: %s: %v", cmdName, errbuf.String(), err)
+		utils.ErrExit("running %s command: %s: %v", cmdName, errbuf.String(), err)
 	}
 
 	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
 	outbufBytes = append(outbufBytes, []byte("\n")...)
-	// overwrite existing if there is a new report
-	if len(outbufBytes) > 0 && string(outbufBytes) != importDataStatusMsg {
-		err = os.WriteFile(importDataReportFilePath, outbufBytes, 0644)
+	if len(outbufBytes) > 0 && string(outbufBytes) != header {
+		err = os.WriteFile(reportFilePath, outbufBytes, 0644)
 		if err != nil {
-			utils.ErrExit("writing import data report: %v", err)
+			utils.ErrExit("writing %s report: %v", cmdName, err)
 		}
 	} else {
-		if utils.FileOrFolderExists(importDataReportFilePath) {
-			utils.PrintAndLog("import data report is already present at %q", importDataReportFilePath)
-		}
+		utils.PrintAndLog("nothing to save for %s report", cmdName)
 	}
 }
 
