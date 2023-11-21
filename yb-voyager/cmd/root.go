@@ -109,11 +109,7 @@ var noLockNeededList = []string{
 	"yb-voyager cutover",
 	"yb-voyager cutover status",
 	"yb-voyager initiate",
-	"yb-voyager initiate cutover to source",
-	"yb-voyager initiate cutover to target",
-	"yb-voyager initiate cutover to source-replica",
 	"yb-voyager end",
-	"yb-voyager end migration",
 	"yb-voyager archive",
 }
 
@@ -125,6 +121,8 @@ var noPersistentPreRunNeededList = []string{
 	"yb-voyager export",
 	"yb-voyager export data from",
 	"yb-voyager initiate",
+	"yb-voyager initiate cutover",
+	"yb-voyager initiate cutover to",
 	"yb-voyager cutover",
 	"yb-voyager archive",
 	"yb-voyager end",
