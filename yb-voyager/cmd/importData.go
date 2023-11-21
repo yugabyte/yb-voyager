@@ -488,11 +488,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
-			triggerName, err := getTriggerName(importerRole)
+			err = markCutoverProcessed(importerRole)
 			if err != nil {
-				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
+				utils.ErrExit("failed to mark cutover as processed: %s", err)
 			}
-			createTriggerIfNotExists(triggerName)
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		} else {

@@ -154,6 +154,28 @@ func getTriggerName(importerOrExporterRole string) (string, error) {
 	}
 }
 
+func markCutoverProcessed(importerOrExporterRole string) error {
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch importerOrExporterRole {
+		case SOURCE_DB_EXPORTER_ROLE:
+			record.CutoverProcessedBySourceExporter = true
+		case TARGET_DB_IMPORTER_ROLE:
+			record.CutoverProcessedByTargetImporter = true
+		case TARGET_DB_EXPORTER_FF_ROLE:
+			record.CutoverToSourceReplicaProcessedByTargetExporter = true
+		case TARGET_DB_EXPORTER_FB_ROLE:
+			record.CutoverToSourceProcessedByTargetExporter = true
+		case FF_DB_IMPORTER_ROLE:
+			record.CutoverToSourceReplicaProcessedBySRImporter = true
+		case FB_DB_IMPORTER_ROLE:
+			record.CutoverToSourceProcessedBySourceImporter = true
+		default:
+			panic(fmt.Sprintf("invalid role %s", importerOrExporterRole))
+		}
+	})
+	return err
+}
+
 func exitIfDBSwitchedOver(triggerName string) {
 	if !dbzm.IsMigrationInStreamingMode(exportDir) {
 		return

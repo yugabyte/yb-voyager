@@ -187,11 +187,7 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			triggerName, err := getTriggerName(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to get trigger name after data export: %v", err)
-			}
-			err = createTriggerIfNotExists(triggerName)
+			err = markCutoverProcessed(exporterRole)
 			if err != nil {
 				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
