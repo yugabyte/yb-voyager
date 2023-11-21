@@ -194,7 +194,7 @@ func ExitIfAlreadyCutover(importerOrExporterRole string) {
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("exit if db switched over for trigger(%s) exists: load migration status record: %s", triggerName, err)
+		utils.ErrExit("exit if already cutover: load migration status record: %s", err)
 	}
 	cTAlreadyCompleted := "cutover already completed for this migration, aborting..."
 	cSRAlreadyCompleted := "cutover to source-replica already completed for this migration, aborting..."

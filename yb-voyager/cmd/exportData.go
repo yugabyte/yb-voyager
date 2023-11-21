@@ -117,7 +117,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	err = retrieveMigrationUUID()
+	err := retrieveMigrationUUID()
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
