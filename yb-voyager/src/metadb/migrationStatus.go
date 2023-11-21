@@ -11,7 +11,6 @@ import (
 
 type MigrationStatusRecord struct {
 	MigrationUUID string `json:"MigrationUUID"`
-	SourceDBType  string `json:"SourceDBType"`
 	ExportType    string `json:"ExportType"`
 	// FallForwarDBExists                         bool              `json:"FallForwarDBExists"`
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`

@@ -17,14 +17,13 @@ limitations under the License.
 package cmd
 
 import (
-
 	"github.com/spf13/cobra"
 )
 
 var getCommand = &cobra.Command{
 	Use:   "get",
-	Short: "Gets migration reports.",
-	Long:  "Gets migration reports.",
+	Short: PARENT_COMMAND_USAGE,
+	Long:  ``,
 }
 
 func init() {

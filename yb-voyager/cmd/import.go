@@ -38,7 +38,7 @@ var tdb tgtdb.TargetDB
 var importCmd = &cobra.Command{
 	Use:   "import",
 	Short: "Import schema and data from compatible source database to target database. ",
-	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL) and import data into source-replica/source to import snapshot data and new changes from target(YugabyteDB) in case of live migration with fall-back/fall-forward worflows.`,
+	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL). Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
 }
 
 func init() {

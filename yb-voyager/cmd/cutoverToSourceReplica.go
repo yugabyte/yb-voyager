@@ -22,8 +22,8 @@ import (
 
 var cutoverToSourceReplicaCmd = &cobra.Command{
 	Use:   "source-replica",
-	Short: "Initiate the cutover to source-replica DB",
-	Long:  `Initiate the cutover to source-replica DB`,
+	Short: "Initiate cutover to source-replica DB",
+	Long:  `Initiate cutover to source-replica DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		err := InitiateCutover("source-replica")
