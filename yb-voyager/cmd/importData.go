@@ -1104,8 +1104,6 @@ func init() {
 
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
-	registerCommonImportFlags(importDataCmd)
-	registerCommonImportFlags(importDataToTargetCmd)
 	registerTargetDBConnFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)

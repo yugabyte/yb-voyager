@@ -342,7 +342,6 @@ func escapeFileOptsCharsIfRequired() {
 
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
-	registerCommonImportFlags(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataCommonFlags(importDataFileCmd)

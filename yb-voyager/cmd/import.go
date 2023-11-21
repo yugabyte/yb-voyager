@@ -104,7 +104,6 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&tconf.Port, "target-db-port", 0,
 		"port on which the YugabyteDB YSQL API is running (Default: 5433)")
 
-
 	cmd.Flags().StringVar(&tconf.User, "target-db-user", "",
 		"username with which to connect to the target YugabyteDB server")
 	cmd.MarkFlagRequired("target-db-user")
@@ -252,7 +251,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-type-list", "",
 		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
-		"Import objectes in the order specified by the --object-type-list flag (default false)")
+		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
