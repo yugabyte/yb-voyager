@@ -29,7 +29,7 @@ var (
 	backupLogFiles        utils.BoolStr
 	backupDir             string
 	targetDBPassword      string
-	fallForwardDBPassword string
+	sourceReplicaDBPassword string
 	sourceDBPassword      string
 )
 
@@ -175,7 +175,7 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
-		fmt.Sprintf("FF_DB_PASSWORD=%s", fallForwardDBPassword),
+		fmt.Sprintf("SOURCE_REPLICA_DB_PASSWORD=%s", sourceReplicaDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
@@ -249,7 +249,7 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("getting target db password: %v", err)
 	}
 	if msr.FallForwardEnabled {
-		fallForwardDBPassword, err = askPassword("source-replica DB", "", "FF_DB_PASSWORD")
+		sourceReplicaDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
@@ -391,25 +391,25 @@ func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
 		return
 	}
 
-	utils.PrintAndLog("cleaning up voyager state from fall-forward db...")
+	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	ffconf := msr.FallForwardDBConf
-	ffconf.Password = fallForwardDBPassword
-	if fallForwardDBPassword == "" {
-		ffconf.Password, err = askPassword("fall-forward DB", ffconf.User, "FF_DB_PASSWORD")
+	sourceReplicaconf := msr.FallForwardDBConf
+	sourceReplicaconf.Password = sourceReplicaDBPassword
+	if sourceReplicaDBPassword == "" {
+		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting fall-forward db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
-	ffdb := tgtdb.NewTargetDB(ffconf)
-	err = ffdb.Init()
+	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
+	err = sourceReplicaDB.Init()
 	if err != nil {
-		utils.ErrExit("initializing fallforward db: %v", err)
+		utils.ErrExit("initializing source-replica db: %v", err)
 	}
-	defer ffdb.Finalize()
-	err = ffdb.ClearMigrationState(migrationUUID, exportDir)
+	defer sourceReplicaDB.Finalize()
+	err = sourceReplicaDB.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from fallforward db: %v", err)
+		utils.ErrExit("clearing migration state from source-replica db: %v", err)
 	}
 }
 
@@ -475,7 +475,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		var lockFiles []*lockfile.Lockfile
 		for _, match := range matches {
 			lockFile := lockfile.NewLockfile(match)
-			if lockFile.IsPIDActive() {
+			if lockFile.IsPIDActive() && lockFile.GetCmdName() != "end migration" {
 				lockFiles = append(lockFiles, lockFile)
 			}
 		}
@@ -483,21 +483,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 			cmds := getCommandNamesFromLockFiles(lockFiles)
 			msg := fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by stopping them", strings.Join(cmds, ", "))
 			if utils.AskPrompt(msg) {
-				for _, lockFile := range lockFiles {
-					ongoingCmd := lockFile.GetCmdName()
-					utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
-
-					ongoingCmdPID, err := lockFile.GetCmdPID()
-					if err != nil {
-						utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
-					}
-
-					log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
-					err = stopProcessWithPID(ongoingCmdPID)
-					if err != nil {
-						log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
-					}
-				}
+				stopVoyagerCommands(msr, lockFiles)
 			} else {
 				utils.ErrExit("aborting the end migration command")
 			}
@@ -540,6 +526,49 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
+func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
+	if msr.ArchivingEnabled {
+		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
+		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
+		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
+		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	for _, lockFile := range lockFiles {
+		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
+	}
+}
+
+func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lockfile.Lockfile {
+	for _, lockFile := range lockFiles {
+		if lockFile.GetCmdName() == cmdName {
+			return lockFile
+		}
+	}
+	return nil
+}
+
+// stop the voyager command by sending the signal to the process(if alive)
+func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	ongoingCmd := lockFile.GetCmdName()
+	utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
+
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
+	err = stopProcessWithPID(ongoingCmdPID, signal)
+	if err != nil {
+		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
+	}
+}
+
 func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 	var cmds []string
 	for _, lockFile := range lockFiles {
@@ -549,12 +578,12 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 }
 
 // this function wait for process to exit after signalling it to stop
-func stopProcessWithPID(pid int) error {
+func stopProcessWithPID(pid int, signal syscall.Signal) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
 
-	err := process.Signal(syscall.SIGUSR2)
+	err := process.Signal(signal)
 	if err != nil {
-		return fmt.Errorf("sending SIGUSR2 signal to process with PID=%d: %w", pid, err)
+		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/

@@ -108,6 +108,7 @@ var noLockNeededList = []string{
 	"yb-voyager export data status",
 	"yb-voyager cutover",
 	"yb-voyager cutover status",
+	"yb-voyager get data-migration-report",
 	"yb-voyager initiate",
 	"yb-voyager end",
 	"yb-voyager archive",

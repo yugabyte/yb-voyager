@@ -41,8 +41,9 @@ var tableListFilePath string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "export schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
-	Long:  `Export has various sub-commands i.e. export schema and export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
+	Short: "export schema and data from compatible databases",
+	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
+	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
 func init() {
@@ -61,7 +62,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	cmd.Flags().IntVar(&source.Port, "source-db-port", -1,
+	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
 		"source database server port number. Default: Oracle(1521), MySQL(3306), PostgreSQL(5432)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
@@ -131,7 +132,7 @@ func setExportFlagsDefaults() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port != -1 {
+	if source.Port != 0 {
 		return
 	}
 	switch source.DBType {

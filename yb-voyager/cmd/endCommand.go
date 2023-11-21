@@ -6,8 +6,8 @@ import (
 
 var endCmd = &cobra.Command{
 	Use:   "end",
-	Short: "Parent of the command that ends the migration and clears all the migration state.",
-	Long:  `Parent of the command that ends the migration and clears all the migration state.`,
+	Short: PARENT_COMMAND_USAGE,
+	Long:  ``,
 }
 
 func init() {
