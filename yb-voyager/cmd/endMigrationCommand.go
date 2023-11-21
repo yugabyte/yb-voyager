@@ -23,14 +23,14 @@ import (
 )
 
 var (
-	backupSchemaFiles     utils.BoolStr
-	backupDataFiles       utils.BoolStr
-	saveMigrationReports  utils.BoolStr
-	backupLogFiles        utils.BoolStr
-	backupDir             string
-	targetDBPassword      string
+	backupSchemaFiles       utils.BoolStr
+	backupDataFiles         utils.BoolStr
+	saveMigrationReports    utils.BoolStr
+	backupLogFiles          utils.BoolStr
+	backupDir               string
+	targetDBPassword        string
 	sourceReplicaDBPassword string
-	sourceDBPassword      string
+	sourceDBPassword        string
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -81,10 +81,11 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	cleanupFallBackDB(msr)
 
 	backupLogFilesFn()
-	cleanupExportDir()
 	if backupDir != "" {
 		utils.PrintAndLog("saved the backup at %q", backupDir)
 	}
+
+	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 }
 
@@ -131,6 +132,8 @@ func backupDataFilesFn() {
 	}
 }
 
+var streamChangesMode bool
+
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
 		return
@@ -141,8 +144,30 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
-	// TODO: what if there is no report.txt generated from analyze-schema step
-	utils.PrintAndLog("saving schema analysis report")
+	streamChangesMode, err = checkWithStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
+	saveSchemaAnalysisReport()
+	if streamChangesMode {
+		saveDataMigrationReport(msr)
+	} else { // snapshot case
+		saveDataExportReport()
+		saveDataImportReport()
+	}
+}
+
+func saveSchemaAnalysisReport() {
+	alreadyBackedUp := utils.FileOrFolderExists(filepath.Join(backupDir, "reports", "report.*"))
+	if !schemaIsAnalyzed() {
+		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
+		return
+	} else if alreadyBackedUp {
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		return
+	}
+	utils.PrintAndLog("saving schema analysis report...")
 	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
 		utils.ErrExit("reading reports directory: %v", err)
@@ -157,67 +182,77 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("moving migration reports: %v", err)
 		}
 	}
-
-	streamChanges, err := checkWithStreamingMode()
-	if err != nil {
-		utils.ErrExit("error while checking streaming mode: %w\n", err)
-	}
-
-	if streamChanges {
-		saveDataMigrationReport(msr)
-	} else { // snapshot case
-		saveDataExportImportReports(msr)
-	}
 }
 
 func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("save data migration report...")
+	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
+	if utils.FileOrFolderExists(dataMigrationReportPath) {
+		utils.PrintAndLog("data migration report is already present at %q", dataMigrationReportPath)
+		return
+	}
+
+	utils.PrintAndLog("saving data migration report...")
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
 		fmt.Sprintf("SOURCE_REPLICA_DB_PASSWORD=%s", sourceReplicaDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
-	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s > %q", exportDir, liveMigrationReportFilePath)
+
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	var outbuf bytes.Buffer
-	liveMigrationReportCmd.Stderr = &outbuf
-	err := liveMigrationReportCmd.Run()
-	if err != nil {
-		log.Errorf("running get data-migration-report command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running get data-migration-report command: %v", err)
-	}
+	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
 }
 
-func saveDataExportImportReports(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("saving data export report...")
+func saveDataExportReport() {
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s > %q", exportDir, exportDataReportFilePath)
-	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	var outbuf bytes.Buffer
-	exportDataStatusCmd.Stderr = &outbuf
-	err := exportDataStatusCmd.Run()
-	if err != nil {
-		log.Errorf("running export data status command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running export data status command: %v", err)
+	if utils.FileOrFolderExists(exportDataReportFilePath) {
+		utils.PrintAndLog("export data report is already present at %q", exportDataReportFilePath)
 	}
 
+	utils.PrintAndLog("saving data export report...")
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
+	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
+	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
+}
+
+func saveDataImportReport() {
 	if !dataIsExported() {
-		log.Infof("data is not exported. skipping data import report")
+		utils.PrintAndLog("data is not exported. skipping data import report")
 		return
 	}
-	utils.PrintAndLog("saving data import report...")
+
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
-	strCmd = fmt.Sprintf("yb-voyager import data status --export-dir %s > %q", exportDir, importDataReportFilePath)
+	if utils.FileOrFolderExists(importDataReportFilePath) {
+		utils.PrintAndLog("import data report is already present at %q", importDataReportFilePath)
+	}
+
+	utils.PrintAndLog("saving data import report...")
+	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	outbuf = bytes.Buffer{}
-	importDataStatusCmd.Stderr = &outbuf
-	err = importDataStatusCmd.Run()
+	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
+}
+
+func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFilePath string) {
+	var outbuf, errbuf bytes.Buffer
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+	err := cmd.Run()
 	if err != nil {
-		log.Errorf("running import data status command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running import data status command: %v", err)
+		log.Errorf("running %s command: %s: %v", cmdName, errbuf.String(), err)
+		utils.ErrExit("running %s command: %s: %v", cmdName, errbuf.String(), err)
+	}
+
+	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
+	outbufBytes = append(outbufBytes, []byte("\n")...)
+	if len(outbufBytes) > 0 && string(outbufBytes) != header {
+		err = os.WriteFile(reportFilePath, outbufBytes, 0644)
+		if err != nil {
+			utils.ErrExit("writing %s report: %v", cmdName, err)
+		}
+	} else {
+		utils.PrintAndLog("nothing to save for %s report", cmdName)
 	}
 }
 
@@ -283,6 +318,11 @@ func askPassword(destination string, user string, envVar string) (string, error)
 }
 
 func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
+	// there won't be anything required to be cleaned up in source-db(Oracle) for debezium snapshot migration
+	// TODO: verify it for PG and MySQL
+	if !streamChangesMode {
+		return
+	}
 	utils.PrintAndLog("cleaning up voyager state from source db...")
 	source := msr.SourceDBConf
 	if source == nil {
