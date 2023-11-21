@@ -151,14 +151,8 @@ do
 		else 
 			tns_admin="${ORACLE_HOME}/network/admin"
 		fi
-		# rm -rf /tmp/oracle-tns-admin
-		# cp -r $tns_admin /tmp/oracle-tns-admin
-		# tns_admin="/tmp/oracle-tns-admin"
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora)
-		# trim spaces around the wallet_dir
 		wallet_dir=$(echo $wallet_dir | xargs)
-		# sed -i 's|(DIRECTORY[^)]*)|(DIRECTORY = "/oracle-wallet-dir")|' $tns_admin/sqlnet.ora
-		# sed -i "s|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=.*))|oracle.net.wallet_location=(SOURCE=(METHOD=FILE)(METHOD_DATA=(DIRECTORY=/oracle-wallet-dir)))|" $tns_admin/ojdbc.properties
 
 		if [[ $OSTYPE == 'darwin'* ]]
 		then
@@ -166,18 +160,12 @@ do
 			docker volume create --driver local --opt type=none --opt device="${tns_admin}" --opt o=bind voyager-oracle-tns-admin
 			docker volume rm voyager-oracle-wallet-dir
 			docker volume create --driver local --opt type=none --opt device="${wallet_dir}" --opt o=bind voyager-oracle-wallet-dir
-			# exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 			exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
-			# oracle_tns_admin_vol="-v voyager-oracle-tns-admin:/oracle-tns-admin"
 			oracle_tns_admin_vol="-v voyager-oracle-tns-admin:${tns_admin}"
-			# oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:/oracle-wallet-dir"
 			oracle_wallet_dir_vol="-v voyager-oracle-wallet-dir:${wallet_dir}"
 		else
-			# oracle_tns_admin_vol="-v ${tns_admin}:/oracle-tns-admin"
 			oracle_tns_admin_vol="-v ${tns_admin}:${tns_admin}"
-			# oracle_wallet_dir_vol="-v ${wallet_dir}:/oracle-wallet-dir"
 			oracle_wallet_dir_vol="-v ${wallet_dir}:${wallet_dir}"
-			# exported_vars="${exported_vars} -e TNS_ADMIN=/oracle-tns-admin"
 			exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
 		fi
 	fi
