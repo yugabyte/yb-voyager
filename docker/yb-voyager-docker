@@ -141,6 +141,8 @@ then
 	tty="-it"
 fi
 
+apt-get install -y locales locales-all
+
 docker run ${exported_vars} ${tty} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager locales
 
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
