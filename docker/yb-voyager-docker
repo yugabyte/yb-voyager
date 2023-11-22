@@ -51,28 +51,28 @@ exported_vars="${exported_vars} -e LC_ALL="en_US.UTF-8" -e LANG="en_US.UTF-8" -e
 
 map_host_path_inside_container() {
 		flag_name=$1
-		dir=$2
+		dir_path=$2
 		# If flag_name is "" then we have to extract it from argv
 		if [[ $flag_name == "" ]]
 		then
 			flag_name=argv[${i}]
 			j=$(( $i + 1))
-			dir=$(realpath "${argv[${j}]}")
+			dir_path=$(realpath "${argv[${j}]}")
 		fi
 		volume_name="voyager-${flag_name}"
 		# handle file paths.  If the path is a file, then the target path should be the directory of the file.
-		if [[ -f $dir ]]
+		if [[ -f $dir_path ]]
 		then
-			dir=$(dirname "$dir")
+			dir_path=$(dirname "$dir_path")
 		fi
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]] 
 		then
 			docker volume rm $volume_name
-			docker volume create --driver local --opt type=none --opt device="${dir}" --opt o=bind $volume_name
-			volume_mappings="${volume_mappings} -v ${volume_name}:${dir}"
+			docker volume create --driver local --opt type=none --opt device="${dir_path}" --opt o=bind $volume_name
+			volume_mappings="${volume_mappings} -v ${volume_name}:${dir_path}"
 		else
-			volume_mappings="${volume_mappings} -v ${dir}:${dir}"
+			volume_mappings="${volume_mappings} -v ${dir_path}:${dir_path}"
 		fi
 }
 
@@ -127,12 +127,7 @@ do
 	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
 	if [[ ${argv[${i}]} == "--oracle-tns-alias" ]]
 	then
-		tns_admin=$(env | grep -E '^TNS_ADMIN')	
-		if [[ -n "$tns_admin" ]]; then
-			tns_admin=$(echo $tns_admin | cut -d '=' -f2)
-		else 
-			tns_admin="${ORACLE_HOME}/network/admin"
-		fi
+		tns_admin=${TNS_ADMIN:"${ORACLE_HOME}/network/admin"}
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
 
 		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
