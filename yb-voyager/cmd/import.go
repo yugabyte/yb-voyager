@@ -243,13 +243,13 @@ func registerImportDataFlags(cmd *cobra.Command) {
 		`Starts a fresh import with exported data files present in the export-dir/data directory. 
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
-Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag`)
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
 
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
-		"Delete all schema objects and start a fresh import")
+		"Delete all schema objects and start a fresh import (default false)")
 	cmd.Flags().StringVar(&tconf.ImportObjects, "object-type-list", "",
 		"comma separated list of schema object types to include while importing schema")
 	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-type-list", "",

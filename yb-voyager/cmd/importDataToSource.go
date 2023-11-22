@@ -24,7 +24,8 @@ import (
 
 var importDataToSourceCmd = &cobra.Command{
 	Use:   "source",
-	Short: "Import data into the source DB to prepare for fall-back.",
+	Short: "Import data into the source DB to prepare for fall-back.\n" +
+	"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/#import-data-to-source",
 	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {

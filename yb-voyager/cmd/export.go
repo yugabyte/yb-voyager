@@ -52,7 +52,7 @@ func init() {
 
 func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
-		"cleans up the project directory for schema or data files depending on the export command")
+		"cleans up the project directory for schema or data files depending on the export command (default false)")
 }
 
 func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
