@@ -283,7 +283,8 @@ func getFinalRowCount(row rowData) int64 {
 
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
-	registerCommonGlobalFlags(getDataMigrationReportCmd)
+	getDataMigrationReportCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 
