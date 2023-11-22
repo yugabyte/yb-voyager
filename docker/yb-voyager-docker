@@ -2,6 +2,8 @@
 
 # set -x
 
+apt-get install -y locales locales-all
+
 argv=( "$@" )
 
 if ! which docker > /dev/null
