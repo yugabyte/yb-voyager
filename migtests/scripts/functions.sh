@@ -336,11 +336,11 @@ import_data() {
 import_data_to_source_replica() {
 	args="
 	--export-dir ${EXPORT_DIR}
-	--source-replica-db-user ${FF_DB_USER}
-	--source-replica-db-host ${FF_DB_HOST} 
-	--source-replica-db-name ${FF_DB_NAME} 
-	--source-replica-db-password ${FF_DB_PASSWORD} 
-	--source-replica-db-schema ${FF_DB_SCHEMA} 
+	--source-replica-db-user ${SOURCE_REPLICA_DB_USER}
+	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
+	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
+	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
+	--source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
@@ -373,7 +373,7 @@ end_migration() {
 	# setting env vars for passwords to be used for saving reports
 	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
 	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
-	export SOURCE_REPLICA_DB_PASSWORD=${FF_DB_PASSWORD}
+	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \

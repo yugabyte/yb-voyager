@@ -36,8 +36,8 @@ source ${SCRIPTS}/yugabytedb/env.sh
 
 source ${SCRIPTS}/functions.sh
 
-export FF_DB_USER=${SOURCE_DB_USER_SCHEMA_OWNER:-"TEST_SCHEMA"}
-export FF_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
+export SOURCE_REPLICA_DB_USER=${SOURCE_DB_USER_SCHEMA_OWNER:-"TEST_SCHEMA"}
+export SOURCE_REPLICA_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
 
 main() {
 
@@ -65,8 +65,8 @@ main() {
 	fi
 
 	step "Setup Fall Back environment"
-	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
+	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
 
 	step "Check the Voyager version installed"
 	yb-voyager version

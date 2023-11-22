@@ -52,8 +52,8 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Setup Fall Forward environment"
-	create_ff_schema ${FF_DB_NAME}
-	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+	create_ff_schema ${SOURCE_REPLICA_DB_NAME}
+	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 
 	step "Initialise source and fall forward database."
 	./init-db
@@ -62,7 +62,7 @@ main() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
 		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
-		run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
 	else
 		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 	fi

@@ -202,8 +202,12 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of table names to import data")
 
+	defaultBatchSizeMsg := fmt.Sprintf("(default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE)
+	if cmd.CommandPath() == "yb-voyager import data file" {
+		defaultBatchSizeMsg = "(default: 20000)"
+	}
 	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
-		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. (default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE))
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import %s", defaultBatchSizeMsg))
 	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
 		"Otherwise, it fall back to using twice the number of nodes in the cluster."
 	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
@@ -251,7 +255,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.ExcludeImportObjects, "exclude-object-type-list", "",
 		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
-		"Import objectes in the order specified by the --object-type-list flag (default false)")
+		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
 	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
 		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
