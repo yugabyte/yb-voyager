@@ -1,8 +1,6 @@
 #!/bin/bash
 
-set -x
-
-apt-get install -y locales locales-all
+# set -x
 
 argv=( "$@" )
 
@@ -47,7 +45,7 @@ for var_name in "${variables[@]}"; do
   fi
 done
 
-exported_vars="${exported_vars} -e LC_ALL="en_US.UTF-8" -e LANG="en_US.UTF-8" -e LANGUAGE="en_US.UTF-8" -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
+exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
 map_host_path_inside_container() {
 		flag_name=$1
@@ -142,8 +140,6 @@ if [ -t 1 ]
 then 
 	tty="-it"
 fi
-
-# docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager locale
 
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
