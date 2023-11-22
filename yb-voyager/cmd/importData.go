@@ -1104,6 +1104,10 @@ func init() {
 
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
+	registerCommonImportFlags(importDataCmd)
+	registerCommonImportFlags(importDataToTargetCmd)
+	importDataCmd.Flags().MarkHidden("continue-on-error")
+	importDataToTargetCmd.Flags().MarkHidden("continue-on-error")
 	registerTargetDBConnFlags(importDataCmd)
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
