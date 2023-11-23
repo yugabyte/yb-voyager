@@ -131,7 +131,11 @@ do
 	# If the flag is --oracle-tns-alias then find the exported variable TNS_ADMIN and map it to the container.  --oracle-tns-alias flag will be passed as it is.
 	if [[ ${argv[${i}]} == "--oracle-tns-alias" ]]
 	then
-		tns_admin=${TNS_ADMIN:"${ORACLE_HOME}/network/admin"}
+		if [ -n "$TNS_ADMIN" ]; then
+  			tns_admin="$TNS_ADMIN"
+		else
+  			tns_admin="${ORACLE_HOME}/network/admin"
+		fi
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
 
 		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
