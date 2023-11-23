@@ -35,6 +35,5 @@ var cutoverToSourceReplicaCmd = &cobra.Command{
 
 func init() {
 	cutoverToCmd.AddCommand(cutoverToSourceReplicaCmd)
-	cutoverToSourceReplicaCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	registerExportDirFlag(cutoverToSourceReplicaCmd)
 }

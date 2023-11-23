@@ -159,14 +159,18 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"profile yb-voyager for performance analysis")
 	cmd.Flags().MarkHidden("profile")
 
-	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	registerExportDirFlag(cmd)
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.")
+}
+
+func registerExportDirFlag(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
 // initConfig reads in config file and ENV variables if set.
