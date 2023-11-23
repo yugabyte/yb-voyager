@@ -86,6 +86,7 @@ func (d *Debezium) Start() error {
 	log.Infof("starting debezium...")
 	d.cmd = exec.Command(filepath.Join(DEBEZIUM_DIST_DIR, "run.sh"), DEBEZIUM_CONF_FILEPATH)
 	d.cmd.Env = os.Environ()
+	fmt.Printf("Running command: %s\n", d.cmd.Env)
 	// $TNS_ADMIN is used to set jdbc property oracle.net.tns_admin which will enable using TNS alias
 	d.cmd.Env = append(d.cmd.Env, fmt.Sprintf("TNS_ADMIN=%s", d.Config.TNSAdmin))
 	if d.Config.Password != "" {
