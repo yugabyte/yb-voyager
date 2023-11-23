@@ -151,10 +151,10 @@ then
 	tty="-it"
 fi
 
-docker run ${exported_vars} ${tty} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager locale
+docker run ${exported_vars} ${tty} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test locale
 
 volume_mappings="${volume_mappings} -v /tmp/env:/etc/environment"
-dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
