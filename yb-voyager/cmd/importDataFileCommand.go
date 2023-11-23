@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -78,6 +79,14 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		source.DBType = POSTGRESQL
+		record.SourceDBConf = source.Clone()
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record: %v", err)
+	}
+	
 	dataFileList := getFileSizeInfo(importFileTasks)
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:   fileFormat,

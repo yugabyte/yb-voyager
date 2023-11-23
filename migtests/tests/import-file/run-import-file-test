@@ -236,7 +236,10 @@ main() {
 	rm -rf ~/.config/gcloud/application_default_credentials.json
 
 	step "Run validations."
-	 "${TEST_DIR}/validate"
+	"${TEST_DIR}/validate"
+	
+	step "End Migration: clearing metainfo about state of migration from everywhere."
+	end_migration --yes
 }
 
 main
