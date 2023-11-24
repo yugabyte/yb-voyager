@@ -42,39 +42,64 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-var exporterRole string
+var exporterRole string = SOURCE_DB_EXPORTER_ROLE
 
 var exportDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Export tables' data (either snapshot-only or snapshot-and-changes) from source database to export-dir. \nNote: For Oracle and MySQL, there is a beta feature to speed up the data export of snapshot, set the environment variable BETA_FAST_DATA_EXPORT=1 to try it out. You can refer to YB Voyager Documentation (https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#accelerate-data-export-for-mysql-and-oracle) for more details on this feature.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/",
+		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/\n" +
+		"Also export data(changes) from target Yugabyte DB in the fall-back/fall-forward workflows.",
 	Long: ``,
+	Args: cobra.NoArgs,
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		setExportFlagsDefaults()
-		if exporterRole == "" {
-			exporterRole = SOURCE_DB_EXPORTER_ROLE
-		}
-		err := validateExportFlags(cmd, exporterRole)
-		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
-		}
-		validateExportTypeFlag()
-		markFlagsRequired(cmd)
-		if changeStreamingIsEnabled(exportType) {
-			useDebezium = true
-		}
-	},
+	PreRun: exportDataCommandPreRun,
 
 	Run: exportDataCommandFn,
 }
 
+var exportDataFromCmd = &cobra.Command{
+	Use:   "from",
+	Short: `Export data from various databases`,
+	Long:  ``,
+}
+
+var exportDataFromSrcCmd = &cobra.Command{
+	Use:   "source",
+	Short: exportDataCmd.Short,
+	Long:  exportDataCmd.Long,
+	Args:  exportDataCmd.Args,
+
+	PreRun: exportDataCmd.PreRun,
+
+	Run: exportDataCmd.Run,
+}
+
 func init() {
 	exportCmd.AddCommand(exportDataCmd)
+	exportDataCmd.AddCommand(exportDataFromCmd)
+	exportDataFromCmd.AddCommand(exportDataFromSrcCmd)
+
 	registerCommonGlobalFlags(exportDataCmd)
+	registerCommonGlobalFlags(exportDataFromSrcCmd)
 	registerCommonExportFlags(exportDataCmd)
+	registerCommonExportFlags(exportDataFromSrcCmd)
 	registerSourceDBConnFlags(exportDataCmd, true)
+	registerSourceDBConnFlags(exportDataFromSrcCmd, true)
 	registerExportDataFlags(exportDataCmd)
+	registerExportDataFlags(exportDataFromSrcCmd)
+}
+
+func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
+	setExportFlagsDefaults()
+	err := validateExportFlags(cmd, exporterRole)
+	if err != nil {
+		utils.ErrExit("Error: %s", err.Error())
+	}
+	validateExportTypeFlag()
+	markFlagsRequired(cmd)
+	if changeStreamingIsEnabled(exportType) {
+		useDebezium = true
+	}
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
@@ -106,7 +131,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		callhome.PackAndSendPayload(exportDir)
 
 		setDataIsExported()
-		updateSourceDBConfInMSR()
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
@@ -118,7 +142,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func exportData() bool {
-
 	err := source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("Failed to connect to the source db: %s", err)
@@ -126,7 +149,7 @@ func exportData() bool {
 	defer source.DB().Disconnect()
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
-	updateSourceDBConfInMSR()
+	saveSourceDBConfInMSR()
 	saveExportTypeInMetaDB()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -142,7 +165,6 @@ func exportData() bool {
 			DataFileList: make([]*datafile.FileEntry, 0),
 		}
 		dfd.Save()
-		updateSourceDBConfInMSR()
 		os.Exit(0)
 	}
 
@@ -175,7 +197,7 @@ func exportData() bool {
 				}
 			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-				color.CyanString("yb-voyager live-migration report --export-dir %q\n", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
 	} else {
@@ -456,7 +478,8 @@ func startFallBackSetupIfRequired() {
 		return
 	}
 
-	cmd := []string{"yb-voyager", "fall-back", "setup",
+	lockFile.Unlock() // unlock export dir from export data cmd before switching current process to fall-back setup cmd
+	cmd := []string{"yb-voyager", "import", "data", "to", "source",
 		"--export-dir", exportDir,
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
@@ -468,7 +491,7 @@ func startFallBackSetupIfRequired() {
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting fall-back setup with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -477,7 +500,7 @@ func startFallBackSetupIfRequired() {
 	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager fall-back setup - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 
@@ -508,18 +531,14 @@ func clearDataIsExported() {
 	}
 }
 
-func updateSourceDBConfInMSR() {
+func saveSourceDBConfInMSR() {
 	if exporterRole != SOURCE_DB_EXPORTER_ROLE {
 		return
 	}
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if record.SourceDBConf == nil {
-			record.SourceDBConf = source.Clone()
-			record.SourceDBConf.Password = ""
-			record.SourceDBConf.Uri = ""
-		} else {
-			// currently db type is only required for import data commands
-			record.SourceDBConf.DBType = source.DBType
-		}
+		// overriding the current value of SourceDBConf
+		record.SourceDBConf = source.Clone()
+		record.SourceDBConf.Password = ""
+		record.SourceDBConf.Uri = ""
 	})
 }

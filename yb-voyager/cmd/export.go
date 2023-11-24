@@ -41,8 +41,9 @@ var tableListFilePath string
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
-	Short: "export schema and data from compatible source database(Oracle, MySQL, PostgreSQL)",
-	Long:  `Export has various sub-commands i.e. export schema and export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL).`,
+	Short: "export schema and data from compatible databases",
+	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
+	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
 func init() {
@@ -51,9 +52,7 @@ func init() {
 
 func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
-		"cleans up the project directory for schema or data files depending on the export command")
-
-	source.VerboseMode = bool(VerboseMode)
+		"cleans up the project directory for schema or data files depending on the export command (default false)")
 }
 
 func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
@@ -63,7 +62,7 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 	cmd.Flags().StringVar(&source.Host, "source-db-host", "localhost",
 		"source database server host")
 
-	cmd.Flags().IntVar(&source.Port, "source-db-port", -1,
+	cmd.Flags().IntVar(&source.Port, "source-db-port", 0,
 		"source database server port number. Default: Oracle(1521), MySQL(3306), PostgreSQL(5432)")
 
 	cmd.Flags().StringVar(&source.User, "source-db-user", "",
@@ -120,8 +119,6 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
-
-	source.VerboseMode = bool(VerboseMode)
 }
 
 func setExportFlagsDefaults() {
@@ -135,7 +132,7 @@ func setExportFlagsDefaults() {
 }
 
 func setSourceDefaultPort() {
-	if source.Port != -1 {
+	if source.Port != 0 {
 		return
 	}
 	switch source.DBType {
@@ -209,7 +206,7 @@ func validateExportFlags(cmd *cobra.Command, exporterRole string) error {
 
 func registerExportDataFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
-		"Disable progress bar during data export and stats printing during streaming phase (default false)")
+		"Disable progress bar/stats during data export (default false)")
 
 	cmd.Flags().StringVar(&source.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the table names to exclude while exporting data.\n"+

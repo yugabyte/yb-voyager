@@ -51,8 +51,9 @@ main() {
 
 	pushd ${TEST_DIR}
 
-	step "Prepare FF metadata tables"
-	run_sqlplus_as_sys ${FF_DB_NAME} ${SCRIPTS}/oracle/fall-forward-prep.sql
+	step "Setup Fall Forward environment"
+	create_ff_schema ${SOURCE_REPLICA_DB_NAME}
+	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 
 	step "Initialise source and fall forward database."
 	./init-db
@@ -61,6 +62,7 @@ main() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
 		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
 	else
 		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 	fi
@@ -120,8 +122,8 @@ main() {
     	tail_log_file "yb-voyager-import-data.log"
     	for i in {1..3}; do
     	    sleep 5
-    	    if [ -f "${EXPORT_DIR}/logs/yb-voyager-fall-forward-synchronize.log" ]; then
-    	        tail_log_file "yb-voyager-fall-forward-synchronize.log"
+    	    if [ -f "${EXPORT_DIR}/logs/yb-voyager-export-data-from-target.log" ]; then
+    	        tail_log_file "yb-voyager-export-data-from-target.log"
     	        break
     	    fi
     	done
@@ -141,9 +143,9 @@ main() {
 	# Updating the trap command to include the importer
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	step "Fall Forward Setup"
-	fall_forward_setup || { 
-		tail_log_file "yb-voyager-fall-forward-setup.log"
+	step "Import Data to source Replica"
+	import_data_to_source_replica || { 
+		tail_log_file "yb-voyager-import-data-to-source-replica.log"
 		exit 1
 	} &
 
@@ -156,7 +158,7 @@ main() {
 	sleep 1m
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate"
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
@@ -164,10 +166,10 @@ main() {
 	sleep 2m
 
 	step "Initiating cutover"
-	yes | yb-voyager cutover initiate --export-dir ${EXPORT_DIR}
+	yes | yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR}
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
@@ -185,21 +187,21 @@ main() {
 	step "Inserting new events to YB"
 	ysql_import_file ${TARGET_DB_NAME} target_delta.sql
 
-	sleep 1m
+	sleep 2m
 
 	step "Resetting the trap command"
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
-	step "Initiating Switchover"
-	yes | yb-voyager fall-forward switchover --export-dir ${EXPORT_DIR}
+	step "Initiating cutover to source-replica"
+	yes | yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR}
 
 	for ((i = 0; i < 5; i++)); do
-    if [ "$(yb-voyager fall-forward status --export-dir "${EXPORT_DIR}" | grep -oP 'fall-forward status: \K\S+')" != "COMPLETED" ]; then
+    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source-replica status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
         if [ "$i" -eq 4 ]; then
-            tail_log_file "yb-voyager-fall-forward-setup.log"
-            tail_log_file "yb-voyager-fall-forward-synchronize.log"
+            tail_log_file "yb-voyager-import-data-to-source-replica.log"
+            tail_log_file "yb-voyager-export-data-from-target.log"
 			exit 1
         fi
     else
@@ -213,12 +215,13 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run final validations."
-	"${TEST_DIR}/validateAfterChanges"
+	"${TEST_DIR}/validateAfterChanges" --ff_fb_enabled 'true'
+
+	step "End Migration: clearing metainfo about state of migration from everywhere."
+	end_migration --yes
 
 	step "Clean up"
-
 	./cleanup-db
-	
 	rm -rf "${EXPORT_DIR}/*"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }

@@ -1,0 +1,198 @@
+#!/usr/bin/env python3
+
+import yb
+import oracle
+import os
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(description='Process an argument.')
+    parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
+
+    args = parser.parse_args()
+    ff_fb_enabled = args.ff_fb_enabled
+    if ff_fb_enabled == 'true':
+        change_expected_values()
+        migration_completed_checks_yb()
+        migration_completed_checks_oracle()
+    else:
+        migration_completed_checks_yb()
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'identity_demo_generated_by_def_inc_by': 3,        
+	'identity_demo_generated_always': 3,        
+	'identity_demo_generated_by_def': 4,        
+	'identity_demo_generated_always_start_with': 1,        
+	'identity_demo_generated_by_def_st_with_inc_by': 3,        
+	'identity_demo_generated_by_def_start_with': 3,        
+	'identity_demo_with_null': 3,
+    'empty_identity_def': 1,
+    'empty_identity_always': 3,
+}
+
+EXPECTED_TABLE_SUM = {
+	'identity_demo_generated_by_def_inc_by': 105,        
+	'identity_demo_generated_always': 8,        
+	'identity_demo_generated_by_def': 14,        
+	'identity_demo_generated_always_start_with': 101,        
+	'identity_demo_generated_by_def_st_with_inc_by': 115,        
+	'identity_demo_generated_by_def_start_with': 205,        
+	'identity_demo_with_null': 9,
+    'empty_identity_def': 2,
+    'empty_identity_always': 9,
+}
+
+EXPECTED_TABLE_SUM_AFTER_INSERT = {
+	'identity_demo_generated_by_def_inc_by': 308,        
+	'identity_demo_generated_always': 13,        
+	'identity_demo_generated_by_def': 22,        
+	'identity_demo_generated_always_start_with': 203,        
+	'identity_demo_generated_by_def_st_with_inc_by': 322,        
+	'identity_demo_generated_by_def_start_with': 308,        
+	'identity_demo_with_null': 14,
+    'empty_identity_def': 5,
+    'empty_identity_always': 14,
+}
+
+
+EXPECTED_ROW_COUNT_FF = {
+    'identity_demo_generated_by_def_inc_by': 3,        
+    'identity_demo_generated_always': 4,        
+    'identity_demo_generated_by_def': 6,        
+    'identity_demo_generated_always_start_with': 1,        
+    'identity_demo_generated_by_def_st_with_inc_by': 3,        
+    'identity_demo_generated_by_def_start_with': 3,        
+    'identity_demo_with_null': 4,
+    'empty_identity_def': 1,
+    'empty_identity_always': 4,
+}
+
+EXPECTED_TABLE_SUM_FF = {
+    'identity_demo_generated_by_def_inc_by': 105,        
+    'identity_demo_generated_always': 18,        
+    'identity_demo_generated_by_def': 39,        
+    'identity_demo_generated_always_start_with': 101,        
+    'identity_demo_generated_by_def_st_with_inc_by': 115,        
+    'identity_demo_generated_by_def_start_with': 205,        
+    'identity_demo_with_null': 17,
+    'empty_identity_def': 3,
+    'empty_identity_always': 18,
+}
+
+EXPECTED_TABLE_SUM_AFTER_INSERT_FF = {
+    'identity_demo_generated_by_def_inc_by': 308,        
+    'identity_demo_generated_always': 123,        
+    'identity_demo_generated_by_def': 147,        
+    'identity_demo_generated_always_start_with': 203,        
+    'identity_demo_generated_by_def_st_with_inc_by': 322,        
+    'identity_demo_generated_by_def_start_with': 308,        
+    'identity_demo_with_null': 122,
+    'empty_identity_def': 106,
+    'empty_identity_always': 123,
+}
+
+EXPECTED_TABLE_SUM_AFTER_INSERT_ORA = {
+    'identity_demo_generated_by_def_inc_by': 208,        
+    'identity_demo_generated_always': 25,        
+    'identity_demo_generated_by_def': 50,        
+    'identity_demo_generated_always_start_with': 203,        
+    'identity_demo_generated_by_def_st_with_inc_by': 222,        
+    'identity_demo_generated_by_def_start_with': 308,        
+    'identity_demo_with_null': 24,
+    'empty_identity_def': 7,
+    'empty_identity_always': 25,
+}
+
+
+QUERIES_CHECK = {
+	'GENERATED ALWAYS': {
+		'query': "insert into identity_demo_generated_always values(5,'TEST')",
+		'code': "428C9"
+	},
+	'GENERATED ALWAYS START WITH': {
+		'query': "insert into identity_demo_generated_always_start_with values(5,'TEST')",
+		'code': "428C9"
+	}
+}
+
+EXPECTED_IDENTITY_ALWAYS_COLUMNS = {
+	'identity_demo_generated_always': ['id'],
+	'identity_demo_generated_always_start_with': ['id'],
+	'empty_identity_always': ['id'],
+}
+
+
+#=============================================================================
+
+def change_expected_values():
+    for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+        EXPECTED_ROW_COUNT[table_name] = row_count
+    
+    for table_name, sum_column_values in EXPECTED_TABLE_SUM_FF.items():
+        EXPECTED_TABLE_SUM[table_name] = sum_column_values
+
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_FF.items():
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert    
+
+def migration_completed_checks_yb():
+    print("Running tests on YB")
+    global db_schema
+    db_schema="public"
+    yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_oracle():
+    print("Running tests on Oracle")
+    global db_schema
+    db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
+
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT_ORA.items():
+        EXPECTED_TABLE_SUM_AFTER_INSERT[table_name] = sum_column_values_after_insert
+
+    for type_check, query_and_code in QUERIES_CHECK.items():
+        query_and_code['code'] = "32795"
+
+    oracle.run_checks(migration_completed_checks)
+
+def migration_completed_checks(tgt):
+    table_list = tgt.get_table_names(db_schema)
+    print("table_list: ", table_list)
+    assert len(table_list) == 9
+    
+    got_row_count = tgt.row_count_of_all_tables(db_schema)
+    for table_name, row_count in EXPECTED_ROW_COUNT.items():
+        print(f"table_name: {table_name}, got_row_count: {got_row_count[table_name]}, expected_row_count: {row_count}")
+        assert row_count == got_row_count[table_name]
+        
+    for table_name, sum_column_values in EXPECTED_TABLE_SUM.items():
+        got_sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
+        print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
+        assert sum_column_values == got_sum_column_values
+
+    for type_check, query_and_code in QUERIES_CHECK.items():
+        query, code = query_and_code['query'], query_and_code['code']
+        chk_err_returned = tgt.run_query_and_chk_error(query, code)
+        print(f"Checking {type_check} ..", code, {chk_err_returned} )
+        assert chk_err_returned == True
+	
+    for table_name, _ in EXPECTED_ROW_COUNT.items():
+        INSERT_SEQUENCE_QUERY = f"insert into {table_name} (description) values ('Yugabyte')"
+        insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
+        print(f"insert query returned for {table_name} - {insert_query_chk_error}")
+        assert insert_query_chk_error == False
+        
+    for table_name, sum_column_values_after_insert in EXPECTED_TABLE_SUM_AFTER_INSERT.items():
+        got_sum_column_values_after_insert = tgt.get_sum_of_column_of_table(table_name, "id", db_schema)
+        print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values_after_insert}, expected_sum_column_values: {sum_column_values_after_insert}")
+        assert sum_column_values_after_insert == got_sum_column_values_after_insert
+
+    for table_name, columns in EXPECTED_IDENTITY_ALWAYS_COLUMNS.items():
+        got_columns = tgt.get_identity_type_columns("ALWAYS",table_name, db_schema)
+        print(f"table_name: {table_name}, got_columns: {got_columns}, expected_columns: {columns}")
+        for column in columns:
+            assert column in got_columns
+
+if __name__ == "__main__":
+	main()

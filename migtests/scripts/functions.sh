@@ -333,20 +333,20 @@ import_data() {
 		yb-voyager import data ${args} $*
 }
 
-fall_forward_setup() {
+import_data_to_source_replica() {
 	args="
 	--export-dir ${EXPORT_DIR}
-	--ff-db-user ${FF_DB_USER}
-	--ff-db-host ${FF_DB_HOST} 
-	--ff-db-name ${FF_DB_NAME} 
-	--ff-db-password ${FF_DB_PASSWORD} 
-	--ff-db-schema ${FF_DB_SCHEMA} 
+	--source-replica-db-user ${SOURCE_REPLICA_DB_USER}
+	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
+	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
+	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
+	--source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
 	"
-	yb-voyager fall-forward setup ${args} $*
+	yb-voyager import data to source-replica ${args} $*
 }
 
 import_data_file() {
@@ -364,6 +364,24 @@ import_data_file() {
 			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 			exit 1
 		}
+}
+
+end_migration() {
+	BACKUP_DIR=${EXPORT_DIR}/backup-dir
+	mkdir ${BACKUP_DIR}  # temporary place to store the backup
+
+	# setting env vars for passwords to be used for saving reports
+	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
+	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
+
+	yb-voyager end migration --export-dir ${EXPORT_DIR} \
+	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
+	--backup-data-files true --backup-log-files true \
+	--save-migration-reports true $* || {
+		cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
+		exit 1
+	}
 }
 
 tail_log_file() {
@@ -414,4 +432,14 @@ get_value_from_msr(){
   jq_filter=$1
   val=`sqlite3 ${EXPORT_DIR}/metainfo/meta.db "select json_text from json_objects where key='migration_status';" | jq $jq_filter`
   echo $val
+}
+
+create_ff_schema(){
+	db_name=$1
+
+	cat > create-ff-schema.sql << EOF
+	CREATE USER FF_SCHEMA IDENTIFIED BY "password";
+	GRANT all privileges to FF_SCHEMA;
+EOF
+	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
 }

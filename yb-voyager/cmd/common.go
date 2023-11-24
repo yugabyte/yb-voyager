@@ -47,7 +47,8 @@ import (
 )
 
 var (
-	metaDB *metadb.MetaDB
+	metaDB               *metadb.MetaDB
+	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
 )
 
 func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -57,7 +58,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 
 	sortedKeys := utils.GetSortedKeys(tablesProgressMetadata)
 	if source.DBType == "postgresql" {
-		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"))
+		requiredMap = getMappingForTableNameVsTableFileName(filepath.Join(exportDir, "data"), false)
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tableName.Qualified.MinQuoted
@@ -93,11 +94,12 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 	log.Infof(logMsg)
 }
 
-func getMappingForTableNameVsTableFileName(dataDirPath string) map[string]string {
+func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[string]string {
 	tocTextFilePath := filepath.Join(dataDirPath, "toc.txt")
-	// waitingFlag := 0
+	if noWait && !utils.FileOrFolderExists(tocTextFilePath) { // to avoid infine wait for export data status command
+		return nil
+	}
 	for !utils.FileOrFolderExists(tocTextFilePath) {
-		// waitingFlag = 1
 		time.Sleep(time.Second * 1)
 	}
 
@@ -438,11 +440,11 @@ func getPassword(cmd *cobra.Command, cliArgName, envVarName string) (string, err
 	if os.Getenv(envVarName) != "" {
 		return os.Getenv(envVarName), nil
 	}
-	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable `%s`): ", strings.TrimSuffix(cliArgName, "-password"), envVarName)
+	fmt.Printf("Password to connect to %s (In addition, you can also set the password using the environment variable `%s`): ",
+		strings.TrimSuffix(cliArgName, "-password"), envVarName)
 	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
 	if err != nil {
-		utils.ErrExit("read password: %v", err)
-		return "", err
+		return "", fmt.Errorf("read password: %w", err)
 	}
 	fmt.Print("\n")
 	return string(bytePassword), nil
@@ -493,7 +495,7 @@ func getImportTableList(sourceTableList []string) []string {
 
 func hideImportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	var flags = []string{"target-db-type", "import-type", "target-endpoints", "use-public-ip", "continue-on-error", "table-list",
-	"table-list-file-path", "exclude-table-list","exclude-table-list-file-path", "enable-upsert"}
+		"table-list-file-path", "exclude-table-list", "exclude-table-list-file-path", "enable-upsert"}
 	for _, flagName := range flags {
 		flag := cmd.Flags().Lookup(flagName)
 		if flag != nil {

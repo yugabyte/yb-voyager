@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -344,4 +345,9 @@ func (ms *MySQL) GetServers() []string {
 
 func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceName {
 	panic("not implemented")
-} 
+}
+
+func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
+	log.Infof("ClearMigrationState not implemented yet for MySQL")
+	return nil
+}

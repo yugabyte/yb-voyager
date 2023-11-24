@@ -25,8 +25,11 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var StopArchiverSignal bool
 
 var archiveChangesCmd = &cobra.Command{
 	Use: "changes",
@@ -51,6 +54,10 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	if moveDestination == "" && !deleteSegments {
 		utils.ErrExit("one of the --move-to and --delete-changes-without-archiving must be set")
 	}
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.ArchivingEnabled = true
+	})
 
 	copier := NewEventSegmentCopier(moveDestination)
 	deleter := NewEventSegmentDeleter(utilizationThreshold)
@@ -212,6 +219,13 @@ func (m *EventSegmentCopier) Run() error {
 		if err != nil {
 			return fmt.Errorf("get segments to be archived: %v", err)
 		}
+
+		// Note/TODO: last incomplete segment will remain unarchived
+		if segmentsToArchive == nil && StopArchiverSignal {
+			utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
+			return nil
+		}
+
 		for _, segment := range segmentsToArchive {
 			var segmentNewPath string
 			if m.Dest != "" {

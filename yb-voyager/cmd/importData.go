@@ -64,10 +64,10 @@ var TableNameToSchema map[string]map[string]map[string]string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
-	Short: "Import data into target YugabyteDB database.\n" +
+	Short: "Import data from compatible source database to target database.\n" +
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
-	Long: `Import the data exported from the source database into the target YugabyteDB database.`,
-
+	Long: `Import the data exported from the source database into the target database. Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
+	Args: cobra.NoArgs,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
@@ -81,6 +81,23 @@ var importDataCmd = &cobra.Command{
 		}
 	},
 	Run: importDataCommandFn,
+}
+
+var importDataToCmd = &cobra.Command{
+	Use:   "to",
+	Short: "Import data into various databases",
+	Long:  `Import data into various databases`,
+}
+
+var importDataToTargetCmd = &cobra.Command{
+	Use:   "target",
+	Short: importDataCmd.Short,
+	Long:  importDataCmd.Long,
+	Args:  importDataCmd.Args,
+
+	PreRun: importDataCmd.PreRun,
+
+	Run: importDataCmd.Run,
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
@@ -99,17 +116,20 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
-
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		record, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("Failed to get migration status record: %s", err)
-		}
+
 		importType = record.ExportType
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
 	if importerRole == FF_DB_IMPORTER_ROLE {
+		if record.FallbackEnabled {
+			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
+		}
 		updateFallForwarDBExistsInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}
@@ -132,7 +152,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("could not fetch MigrationstatusRecord: %w", err)
+		utils.ErrExit("could not fetch MigrationStatusRecord: %w", err)
 	}
 	if !msr.FallForwardEnabled && !msr.FallbackEnabled {
 		utils.PrintAndLog("No fall-forward/back enabled. Exiting.")
@@ -146,14 +166,8 @@ func startFallforwardSynchronizeIfRequired() {
 		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
 	}
 
-	var voyagerCmdPrefix string
-	if msr.FallForwardEnabled {
-		voyagerCmdPrefix = "fall-forward"
-	} else {
-		voyagerCmdPrefix = "fall-back"
-	}
-
-	cmd := []string{"yb-voyager", voyagerCmdPrefix, "synchronize",
+	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
+	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(unqualifiedTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
@@ -166,7 +180,7 @@ func startFallforwardSynchronizeIfRequired() {
 	}
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting %s synchronize with command:\n %s", voyagerCmdPrefix, color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
@@ -175,7 +189,7 @@ func startFallforwardSynchronizeIfRequired() {
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager %s synchronize - %w\n Please re-run with command :\n%s", voyagerCmdPrefix, err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 
@@ -424,7 +438,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
-			prepareTableToColumns(pendingTasks)                                                  //prepare the tableToColumns map
+			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 			for _, task := range pendingTasks {
@@ -480,7 +494,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			createTriggerIfNotExists(triggerName)
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-				color.CyanString("yb-voyager live-migration report --export-dir %q", exportDir))
+				color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
 			if err != nil {
@@ -1085,9 +1099,19 @@ func checkExportDataDoneFlag() {
 
 func init() {
 	importCmd.AddCommand(importDataCmd)
+	importDataCmd.AddCommand(importDataToCmd)
+	importDataToCmd.AddCommand(importDataToTargetCmd)
+
 	registerCommonGlobalFlags(importDataCmd)
+	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)
+	registerCommonImportFlags(importDataToTargetCmd)
+	importDataCmd.Flags().MarkHidden("continue-on-error")
+	importDataToTargetCmd.Flags().MarkHidden("continue-on-error")
 	registerTargetDBConnFlags(importDataCmd)
+	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
+	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportDataFlags(importDataCmd)
+	registerImportDataFlags(importDataToTargetCmd)
 }

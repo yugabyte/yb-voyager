@@ -14,11 +14,11 @@ def run_checks(checkFn):
 def new_target_db():
     env = os.environ
     return OracleDB(
-        env.get("FF_DB_HOST", "localhost"),
-        env.get("FF_DB_PORT", "1521"),
-        env["FF_DB_NAME"],
-        env.get("FF_DB_USER", "FF_SCHEMA"),
-        env.get("FF_DB_PASSWORD", "password"))
+        env.get("SOURCE_REPLICA_DB_HOST", "localhost"),
+        env.get("SOURCE_REPLICA_DB_PORT", "1521"),
+        env["SOURCE_REPLICA_DB_NAME"],
+        env.get("SOURCE_REPLICA_DB_SCHEMA", "FF_SCHEMA"),
+        env.get("SOURCE_REPLICA_DB_PASSWORD", "password"))
     
 class OracleDB:
     
@@ -72,5 +72,18 @@ class OracleDB:
         cur.execute("SELECT SUM({}) FROM {}.{}".format(column_name, schema_name, table_name))
         return cur.fetchone()[0]
 
-
-		 
+    def run_query_and_chk_error(self, query, error_code) -> bool:
+        cur = self.conn.cursor()
+        try:
+            cur.execute(query)
+        except cx_Oracle.DatabaseError as error:
+            code = str(error.args[0].code)
+            self.conn.rollback()
+            return error_code == str(code)
+        return False
+    
+    def get_identity_type_columns(self, type_name, table_name, schema_name) -> List[str]:
+        cur = self.conn.cursor()
+        query = f"Select COLUMN_NAME from ALL_TAB_IDENTITY_COLS where OWNER = '{schema_name}' AND TABLE_NAME = UPPER('{table_name}') AND GENERATION_TYPE='{type_name}'"
+        cur.execute(query)
+        return [column[0].lower() for column in cur.fetchall()]

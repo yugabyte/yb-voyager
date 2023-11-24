@@ -13,28 +13,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSwitchoverCmd = &cobra.Command{
-	Use:   "switchover",
-	Short: "Initiates the switchover to fall-back DB",
-	Long:  `Initiates the switchover to fall-back DB`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch("fallback")
-		if err != nil {
-			utils.ErrExit("failed to initiate fallback: %v", err)
-		}
-	},
+var getCommand = &cobra.Command{
+	Use:   "get",
+	Short: PARENT_COMMAND_USAGE,
+	Long:  ``,
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSwitchoverCmd)
-	fallBackSwitchoverCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	rootCmd.AddCommand(getCommand)
 }

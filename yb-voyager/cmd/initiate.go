@@ -15,14 +15,16 @@ limitations under the License.
 */
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
-var fallForwardCmd = &cobra.Command{
-	Use:   "fall-forward",
-	Short: "Manage the fall-forward backup strategy for live migration by setting up a fall-forward DB and synchronizing it with the source/target",
-	Long:  ``,
+var initiateCmd = &cobra.Command{
+	Use:   "initiate",
+	Short: "Initiate certain operations during the migration process",
+	Long:  "",
 }
 
 func init() {
-	rootCmd.AddCommand(fallForwardCmd)
+	rootCmd.AddCommand(initiateCmd)
 }

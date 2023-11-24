@@ -23,10 +23,10 @@ import (
 
 var prepareForFallBack utils.BoolStr
 
-var cutoverInitiateCmd = &cobra.Command{
-	Use:   "initiate",
-	Short: "Initiate cutover to YugabyteDB",
-	Long:  `Initiate cutover to YugabyteDB`,
+var cutoverToTargetCmd = &cobra.Command{
+	Use:   "target",
+	Short: "Initiate cutover to target DB",
+	Long:  `Initiate cutover to target DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
@@ -49,6 +49,9 @@ var cutoverInitiateCmd = &cobra.Command{
 			}
 		}
 		if prepareForFallBack {
+			if msr.FallForwardEnabled {
+				utils.ErrExit("cannot prepare for fall-back. Fall-forward workflow already enabled.")
+			}
 			updateFallBackEnabledInMetaDB()
 		}
 		err = InitiatePrimarySwitch("cutover")
@@ -60,10 +63,9 @@ var cutoverInitiateCmd = &cobra.Command{
 }
 
 func init() {
-	cutoverCmd.AddCommand(cutoverInitiateCmd)
-	cutoverInitiateCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
-	BoolVar(cutoverInitiateCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
+	cutoverToCmd.AddCommand(cutoverToTargetCmd)
+	registerExportDirFlag(cutoverToTargetCmd)
+	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB to source DB (default false)")
 }
 

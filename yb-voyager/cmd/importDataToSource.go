@@ -22,10 +22,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var fallBackSetupCmd = &cobra.Command{
-	Use:   "setup",
-	Short: "This command will set up and import data into fall back database",
-	Long:  `This command connects to the fall back database using the parameters provided and starts the importing process.`,
+var importDataToSourceCmd = &cobra.Command{
+	Use:   "source",
+	Short: "Import data into the source DB to prepare for fall-back.\n" +
+	"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/",
+	Long:  ``,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
@@ -35,19 +36,19 @@ var fallBackSetupCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
 		}
-		validateFFDBSchemaFlag()
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},
 }
 
 func init() {
-	fallBackCmd.AddCommand(fallBackSetupCmd)
-	registerCommonGlobalFlags(fallBackSetupCmd)
-	registerCommonImportFlags(fallBackSetupCmd)
-	registerSourceDBAsTargetConnFlags(fallBackSetupCmd)
-	registerImportDataCommonFlags(fallBackSetupCmd)
-	hideImportFlagsInFallForwardOrBackCmds(fallBackSetupCmd)
+	importDataToCmd.AddCommand(importDataToSourceCmd)
+	registerCommonGlobalFlags(importDataToSourceCmd)
+	registerCommonImportFlags(importDataToSourceCmd)
+	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)
+	registerImportDataCommonFlags(importDataToSourceCmd)
+	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceCmd)
+	importDataToSourceCmd.Flags().MarkHidden("batch-size")
 }
 
 func initTargetConfFromSourceConf() error {

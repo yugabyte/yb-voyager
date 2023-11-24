@@ -1080,6 +1080,7 @@ func analyzeSchema() {
 	} else {
 		payload.DBObjects = string(dbobjects)
 	}
+
 	callhome.PackAndSendPayload(exportDir)
 }
 
@@ -1114,4 +1115,8 @@ func validateReportOutputFormat() {
 		}
 	}
 	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", outputFormat, allowedOutputFormats)
+}
+
+func schemaIsAnalyzed() bool {
+	return utils.FileOrFolderExists(filepath.Join(exportDir, "report.*"))
 }

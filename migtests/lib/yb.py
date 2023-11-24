@@ -190,6 +190,11 @@ class PostgresDB:
 		cur.execute(f"SELECT schema_name FROM information_schema.schemata where schema_name !~ '^pg_' and schema_name <> 'information_schema' and schema_name NOT IN ({self.EXPECTED_ORAFCE_SCHEMAS})")		
 		return set(cur.fetchall())
 
+	def get_identity_type_columns(self, type_name, table_name, schema_name="public") -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_schema = '{schema_name}' AND table_name = '{table_name}' AND is_identity='YES' AND identity_generation='{type_name}'")
+		return [column[0] for column in cur.fetchall()]
+	
 	def assert_distinct_values_of_col(self, table_name, column_name, schema_name="public", transform_func=None, expected_distinct_values=[]):
 		distinct_values = self.get_distinct_values__of_column_of_table(table_name, column_name, schema_name)
 		for distinct_value in distinct_values:
