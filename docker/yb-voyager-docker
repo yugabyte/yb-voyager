@@ -150,4 +150,3 @@ dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} 
 # echo $dockerCmd
 
 $dockerCmd
-
