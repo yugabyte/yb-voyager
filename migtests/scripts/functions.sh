@@ -214,7 +214,6 @@ export_schema() {
 		--send-diagnostics=false --yes
 		--start-clean t
 	"
-	
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
