@@ -206,19 +206,15 @@ run_sqlplus() {
 export_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--source-db-type ${SOURCE_DB_TYPE}
+		--source-db-host ${SOURCE_DB_HOST}
+		--source-db-port ${SOURCE_DB_PORT}
 		--source-db-user ${SOURCE_DB_USER}
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
 		--start-clean t
 	"
-	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
-	then
-		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
-	else
-		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
-	fi
-
+	
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
 	then
 		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"

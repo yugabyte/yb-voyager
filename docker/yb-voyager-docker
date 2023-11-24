@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -x
+# set -x
 
 argv=( "$@" )
 
@@ -44,12 +44,6 @@ for var_name in "${variables[@]}"; do
     exported_vars="${exported_vars} -e $var"
   fi
 done
-
-# Create a /tmp/env file 
-cat <<EOF > /tmp/env
-LANG=en_US.UTF-8
-LC_ALL=en_US.UTF-8
-EOF
 
 exported_vars="${exported_vars} -e ORACLE_HOME=/usr/lib/oracle/21/client64 -e LD_LIBRARY_PATH=/usr/lib/oracle/21/client64/lib -e PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin:/usr/local/go/bin:/usr/lib/oracle/21/client64/bin"
 
@@ -151,16 +145,7 @@ then
 	tty="-it"
 fi
 
-# echo yb-voyager ${argv[*]}
-# if [[ argv[1] == "data" ]]
-# then
-# 	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host -it --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test /bin/bash"
-# else
-# 	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
-# fi
-
-volume_mappings="${volume_mappings} -v /usr/lib/oracle/21/client64/:/usr/lib/oracle/21/client64/"
-dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
