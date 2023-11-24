@@ -151,13 +151,16 @@ then
 	tty="-it"
 fi
 
-echo yb-voyager ${argv[*]}
-if [[ argv[1] == "data" ]]
-then
-	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host -it --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test /bin/bash"
-else
-	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
-fi
+# echo yb-voyager ${argv[*]}
+# if [[ argv[1] == "data" ]]
+# then
+# 	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host -it --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test /bin/bash"
+# else
+# 	dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
+# fi
+
+volume_mappings="${volume_mappings} -v /usr/lib/oracle/21/client64/:/usr/lib/oracle/21/client64/"
+dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager:1.6test yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
