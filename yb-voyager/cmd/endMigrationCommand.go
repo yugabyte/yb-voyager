@@ -569,8 +569,10 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
 	if msr.ArchivingEnabled {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
+		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
 		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
 		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
+		stopVoyagerCommand(exportDataFromTargetLockFile, syscall.SIGUSR2)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
 	}
 
@@ -595,14 +597,13 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 	}
 
 	ongoingCmd := lockFile.GetCmdName()
-	utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
-
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
 		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
 	}
 
-	log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
+	fmt.Printf("stopping the ongoing %q command\n", ongoingCmd)
+	log.Infof("stopping the ongoing %q command with PID=%d", ongoingCmd, ongoingCmdPID)
 	err = stopProcessWithPID(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
@@ -620,23 +621,23 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 // this function wait for process to exit after signalling it to stop
 func stopProcessWithPID(pid int, signal syscall.Signal) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-
+	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
 	err := process.Signal(signal)
 	if err != nil {
 		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll for 10 sec to make sure process is terminated
+	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for i := 0; i <= 10; i++ {
-		time.Sleep(time.Second * 1)
+	for {
+		time.Sleep(time.Second * 2)
 		err = process.Signal(syscall.Signal(0))
 		if err != nil {
+			log.Infof("process with PID=%d is stopped", pid)
 			return nil
 		}
 	}
-	return nil
 }
 
 // NOTE: function is for Linux only (Windows won't work)

@@ -25,6 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -221,9 +222,10 @@ func (m *EventSegmentCopier) Run() error {
 		}
 
 		// Note/TODO: last incomplete segment will remain unarchived
-		if segmentsToArchive == nil && StopArchiverSignal {
+		// It won't wait for the importer to finish importing and archiving the segments
+		if StopArchiverSignal && len(segmentsToArchive) == 0 {
 			utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
-			return nil
+			atexit.Exit(0)
 		}
 
 		for _, segment := range segmentsToArchive {

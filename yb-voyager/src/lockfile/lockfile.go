@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/nightlyone/lockfile"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -55,13 +56,17 @@ func (l *Lockfile) IsPIDActive() bool {
 	if err != nil {
 		return false
 	}
-	// err checking of FindProcess() is not full-proof
-	proc, err := os.FindProcess(pid)
+
+	proc, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+
+	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	err = proc.Signal(syscall.Signal(0))
 	if err != nil {
+		log.Infof("process %d is not active", pid)
 		return false
 	}
-	err = proc.Signal(syscall.Signal(0))
-	return err == nil
+	log.Info("process %d is active", pid)
+	return true
 }
 
 func (l *Lockfile) Lock() {
