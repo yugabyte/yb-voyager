@@ -79,12 +79,7 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 }
 
 func (eq *EventQueue) resolveSegmentToResumeFrom() error {
-	// var importerRoles []string
 	var err error
-	// importerRoles = append(importerRoles, importerRole)
-	// if importerRole == FB_DB_IMPORTER_ROLE {
-	// 	importerRoles = append(importerRoles, TARGET_DB_IMPORTER_ROLE)
-	// }
 	segmentsExporterRole := ""
 	if importerRole == FB_DB_IMPORTER_ROLE {
 		// in case of fall-back import, restrict to only segments exported from target db.

@@ -369,16 +369,6 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 		query = fmt.Sprintf("%s AND exporter_role = '%s'", query, exporterRole)
 	}
 	query = fmt.Sprintf("%s;", query)
-	// for i, importerRole := range importerRoles {
-	// 	if i == 0 {
-	// 		query = fmt.Sprintf("%s imported_by_%s = 0", query, importerRole)
-	// 	} else {
-	// 		query = fmt.Sprintf("%s AND imported_by_%s = 0", query, importerRole)
-	// 	}
-	// 	if i == (len(importerRoles) - 1) {
-	// 		query = fmt.Sprintf("%s;", query)
-	// 	}
-	// }
 
 	row := m.db.QueryRow(query)
 	var segmentNum sql.NullInt64
