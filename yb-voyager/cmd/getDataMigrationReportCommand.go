@@ -47,7 +47,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}
-		streamChanges, err := checkWithStreamingMode()
+		streamChanges, err := checkStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
