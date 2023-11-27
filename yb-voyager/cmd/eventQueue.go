@@ -79,14 +79,21 @@ func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 }
 
 func (eq *EventQueue) resolveSegmentToResumeFrom() error {
-	var importerRoles []string
+	// var importerRoles []string
 	var err error
-	importerRoles = append(importerRoles, importerRole)
+	// importerRoles = append(importerRoles, importerRole)
+	// if importerRole == FB_DB_IMPORTER_ROLE {
+	// 	importerRoles = append(importerRoles, TARGET_DB_IMPORTER_ROLE)
+	// }
+	segmentsExporterRole := ""
 	if importerRole == FB_DB_IMPORTER_ROLE {
-		importerRoles = append(importerRoles, TARGET_DB_IMPORTER_ROLE)
+		// in case of fall-back import, restrict to only segments exported from target db.
+		segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
 	}
+
 	for {
-		eq.SegmentNumToStream, err = metaDB.GetMinSegmentNotImportedBy(importerRoles...)
+		eq.SegmentNumToStream, err = metaDB.GetMinSegmentExportedByAndNotImportedBy(importerRole, segmentsExporterRole)
+		utils.PrintAndLog("SEGMENT NUM TO STREAM FROM = %s", eq.SegmentNumToStream)
 		if err == nil {
 			break
 		} else if errors.Is(err, metadb.ErrNoQueueSegmentsFound) {
