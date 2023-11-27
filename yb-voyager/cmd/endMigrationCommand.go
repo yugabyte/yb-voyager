@@ -144,7 +144,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
-	streamChangesMode, err = checkWithStreamingMode()
+	streamChangesMode, err = checkStreamingMode()
 	if err != nil {
 		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
