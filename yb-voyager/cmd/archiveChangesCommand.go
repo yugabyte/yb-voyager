@@ -122,6 +122,9 @@ func (d *EventSegmentDeleter) getImportCount() (int, error) {
 }
 
 func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
+	if StopArchiverSignal { // if stop archiver signal is received, then need to archive/delete all segments
+		return true
+	}
 	fsUtilization, err := utils.GetFSUtilizationPercentage(exportDir)
 	if err != nil {
 		utils.ErrExit("get fs utilization: %v", err)
@@ -167,6 +170,7 @@ func (d *EventSegmentDeleter) Run() error {
 			}
 
 			if len(pendingSegments) == 0 {
+				log.Infof("all the segments are deleted, can proceed to end migration")
 				return nil
 			}
 		}
@@ -263,6 +267,7 @@ func (m *EventSegmentCopier) Run() error {
 			}
 
 			if len(pendingSegments) == 0 {
+				log.Infof("all the segments are archived, can proceed to end migration")
 				return nil
 			}
 		}
