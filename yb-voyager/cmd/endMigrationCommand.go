@@ -570,8 +570,10 @@ func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfil
 	if msr.ArchivingEnabled {
 		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
 		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
+		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
 		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
 		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
+		stopVoyagerCommand(exportDataFromSourceLockFile, syscall.SIGUSR2)
 		stopVoyagerCommand(exportDataFromTargetLockFile, syscall.SIGUSR2)
 		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
 	}

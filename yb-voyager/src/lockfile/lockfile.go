@@ -65,7 +65,7 @@ func (l *Lockfile) IsPIDActive() bool {
 		log.Infof("process %d is not active", pid)
 		return false
 	}
-	log.Info("process %d is active", pid)
+	log.Infof("process %d is active", pid)
 	return true
 }
 
