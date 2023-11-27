@@ -93,7 +93,6 @@ func (eq *EventQueue) resolveSegmentToResumeFrom() error {
 
 	for {
 		eq.SegmentNumToStream, err = metaDB.GetMinSegmentExportedByAndNotImportedBy(importerRole, segmentsExporterRole)
-		utils.PrintAndLog("SEGMENT NUM TO STREAM FROM = %s", eq.SegmentNumToStream)
 		if err == nil {
 			break
 		} else if errors.Is(err, metadb.ErrNoQueueSegmentsFound) {
