@@ -91,7 +91,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 func backupSchemaFilesFn() {
 	schemaDirPath := filepath.Join(exportDir, "schema")
-	if !bool(backupSchemaFiles) || !utils.FileOrFolderExists(schemaDirPath) {
+	if !bool(backupSchemaFiles) {
 		return
 	}
 
@@ -521,7 +521,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		}
 		if len(lockFiles) > 0 {
 			cmds := getCommandNamesFromLockFiles(lockFiles)
-			msg := fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by stopping them", strings.Join(cmds, ", "))
+			msg := fmt.Sprintf("found other ongoing voyager commands: '%s'. Do you want to continue with end migration command by stopping them", strings.Join(cmds, "', '"))
 			if utils.AskPrompt(msg) {
 				stopVoyagerCommands(msr, lockFiles)
 			} else {
