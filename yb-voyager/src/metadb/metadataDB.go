@@ -453,6 +453,16 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 	return segmentsToBeDeleted, nil
 }
 
+func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
+	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 0 ORDER BY segment_no;
+	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d`, importCount)
+	segments, err := m.querySegments(predicate)
+	if err != nil {
+		return nil, fmt.Errorf("fetch pending segments: %v", err)
+	}
+	return segments, nil
+}
+
 func (m *MetaDB) MaxUnarchivedSegmentNum() (int, error) {
 	// sample query: SELECT MAX(segment_no) FROM queue_segment_meta WHERE archived = 0;
 	predicate := "archived = 0"

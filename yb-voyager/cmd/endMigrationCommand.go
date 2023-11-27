@@ -566,23 +566,6 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
-	if msr.ArchivingEnabled {
-		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
-		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
-		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
-		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
-		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
-		stopVoyagerCommand(exportDataFromSourceLockFile, syscall.SIGUSR2)
-		stopVoyagerCommand(exportDataFromTargetLockFile, syscall.SIGUSR2)
-		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
-	}
-
-	for _, lockFile := range lockFiles {
-		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
-	}
-}
-
 func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lockfile.Lockfile {
 	for _, lockFile := range lockFiles {
 		if lockFile.GetCmdName() == cmdName {
@@ -590,6 +573,31 @@ func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lock
 		}
 	}
 	return nil
+}
+
+func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
+	var cmds []string
+	for _, lockFile := range lockFiles {
+		cmds = append(cmds, lockFile.GetCmdName())
+	}
+	return cmds
+}
+
+func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
+	if msr.ArchivingEnabled {
+		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
+		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
+		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
+		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
+		stopDataExportCommand(exportDataLockFile)
+		stopDataExportCommand(exportDataFromSourceLockFile)
+		stopDataExportCommand(exportDataFromTargetLockFile)
+		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	for _, lockFile := range lockFiles {
+		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
+	}
 }
 
 // stop the voyager command by sending the signal to the process(if alive)
@@ -604,20 +612,12 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
 	}
 
-	fmt.Printf("stopping the ongoing %q command\n", ongoingCmd)
-	log.Infof("stopping the ongoing %q command with PID=%d", ongoingCmd, ongoingCmdPID)
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
 	err = stopProcessWithPID(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 	}
-}
-
-func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
-	var cmds []string
-	for _, lockFile := range lockFiles {
-		cmds = append(cmds, lockFile.GetCmdName())
-	}
-	return cmds
 }
 
 // this function wait for process to exit after signalling it to stop
@@ -629,17 +629,44 @@ func stopProcessWithPID(pid int, signal syscall.Signal) error {
 		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
+	waitForProcessToExit(process)
+	return nil
+}
+
+func waitForProcessToExit(process *os.Process) {
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
 	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
 	for {
 		time.Sleep(time.Second * 2)
-		err = process.Signal(syscall.Signal(0))
+		err := process.Signal(syscall.Signal(0))
 		if err != nil {
-			log.Infof("process with PID=%d is stopped", pid)
-			return nil
+			log.Infof("process with PID=%d is stopped", process.Pid)
+			return
 		}
 	}
+}
+
+func stopDataExportCommand(lockFile *lockfile.Lockfile) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.EndMigrationRequested = true
+	})
+
+	ongoingCmd := lockFile.GetCmdName()
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
+
+	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
+	waitForProcessToExit(process)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

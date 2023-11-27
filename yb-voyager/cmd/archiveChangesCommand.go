@@ -25,7 +25,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/tebeka/atexit"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -86,6 +85,9 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	}()
 
 	wg.Wait()
+	if StopArchiverSignal {
+		utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
+	}
 }
 
 func init() {
@@ -103,6 +105,20 @@ func NewEventSegmentDeleter(fsUtilisationThreshold int) *EventSegmentDeleter {
 	return &EventSegmentDeleter{
 		FSUtilisationThreshold: fsUtilisationThreshold,
 	}
+}
+
+func (d *EventSegmentDeleter) getImportCount() (int, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return 0, fmt.Errorf("get migration status record: %v", err)
+	}
+	if msr == nil {
+		return 0, fmt.Errorf("migration status record not found")
+	}
+	if msr.FallForwardEnabled {
+		return 2, nil
+	}
+	return 1, nil
 }
 
 func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
@@ -135,10 +151,26 @@ func (d *EventSegmentDeleter) Run() error {
 		if !d.isFSUtilisationExceeded() {
 			continue
 		}
+		importCount, err := d.getImportCount()
+		if err != nil {
+			return fmt.Errorf("get number of importers for deleter: %w", err)
+		}
 		segmentsToBeDeleted, err := metaDB.GetSegmentsToBeDeleted()
 		if err != nil {
 			return fmt.Errorf("get segments to be deleted: %v", err)
 		}
+
+		if StopArchiverSignal && len(segmentsToBeDeleted) == 0 {
+			pendingSegments, err := metaDB.GetPendingSegments(importCount)
+			if err != nil {
+				return fmt.Errorf("stop archiver signal to deleter: %v", err)
+			}
+
+			if len(pendingSegments) == 0 {
+				return nil
+			}
+		}
+
 		for _, segment := range segmentsToBeDeleted {
 			err := d.deleteSegment(segment)
 			if err != nil {
@@ -212,7 +244,7 @@ func (m *EventSegmentCopier) Run() error {
 	for {
 		newImportCount, err := m.getImportCount()
 		if err != nil {
-			return fmt.Errorf("get number of importers: %w", err)
+			return fmt.Errorf("get number of importers for copier: %w", err)
 		}
 		if newImportCount != importCount {
 			importCount = newImportCount
@@ -224,25 +256,15 @@ func (m *EventSegmentCopier) Run() error {
 			return fmt.Errorf("get segments to be archived: %v", err)
 		}
 
-		// Note/TODO: last incomplete segment will remain unarchived
-		// It won't wait for the importer to finish importing and archiving the segments
 		if StopArchiverSignal && len(segmentsToArchive) == 0 {
-			archivingDeleter.FSUtilisationThreshold = 0
-			maxUnarchivedSegNum, err := metaDB.MaxUnarchivedSegmentNum()
+			pendingSegments, err := metaDB.GetPendingSegments(importCount)
 			if err != nil {
-				return fmt.Errorf("stop archiver signal: %v", err)
+				return fmt.Errorf("stop archiver signal to copier: %v", err)
 			}
 
-			ongoingSegNum, err := metaDB.GetOngoingSegmentNum()
-			if err != nil {
-				return fmt.Errorf("stop archiver signal: %v", err)
+			if len(pendingSegments) == 0 {
+				return nil
 			}
-
-			if maxUnarchivedSegNum == ongoingSegNum {
-				utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
-				atexit.Exit(0)
-			}
-			// otherwise need to wait for the importer to finish importing and archiving the segments
 		}
 
 		for _, segment := range segmentsToArchive {
