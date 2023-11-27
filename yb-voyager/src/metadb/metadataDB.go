@@ -87,6 +87,7 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s 
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
+	   exporter_role TEXT,
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_ff_db_importer INTEGER DEFAULT 0, 
        imported_by_fb_db_importer INTEGER DEFAULT 0, 
@@ -361,21 +362,13 @@ func UpdateJsonObjectInMetaDB[T any](m *MetaDB, key string, updateFn func(obj *T
 	return nil
 }
 
-func (m *MetaDB) GetMinSegmentNotImportedBy(importerRoles ...string) (int64, error) {
-	if len(importerRoles) == 0 {
-		return -1, fmt.Errorf("invalid importerRole %s. At least one importerRole required", importerRoles)
-	}
+func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, exporterRole string) (int64, error) {
 	query := fmt.Sprintf(`SELECT MIN(segment_no) FROM %s WHERE`, QUEUE_SEGMENT_META_TABLE_NAME)
-	for i, importerRole := range importerRoles {
-		if i == 0 {
-			query = fmt.Sprintf("%s imported_by_%s = 0", query, importerRole)
-		} else {
-			query = fmt.Sprintf("%s AND imported_by_%s = 0", query, importerRole)
-		}
-		if i == (len(importerRoles) - 1) {
-			query = fmt.Sprintf("%s;", query)
-		}
+	query = fmt.Sprintf("%s imported_by_%s = 0", query, importerRole)
+	if exporterRole != "" {
+		query = fmt.Sprintf("%s AND exporter_role = '%s'", query, exporterRole)
 	}
+	query = fmt.Sprintf("%s;", query)
 
 	row := m.db.QueryRow(query)
 	var segmentNum sql.NullInt64
