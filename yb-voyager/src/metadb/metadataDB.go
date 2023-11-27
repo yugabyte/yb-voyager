@@ -463,32 +463,6 @@ func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
 	return segments, nil
 }
 
-func (m *MetaDB) MaxUnarchivedSegmentNum() (int, error) {
-	// sample query: SELECT MAX(segment_no) FROM queue_segment_meta WHERE archived = 0;
-	predicate := "archived = 0"
-	segments, err := m.querySegments(predicate)
-	if err != nil {
-		return -1, fmt.Errorf("fetch max unarchived segment num: %v", err)
-	}
-	if len(segments) == 0 {
-		return -1, nil
-	}
-	return segments[len(segments)-1].Num, nil
-}
-
-func (m *MetaDB) GetOngoingSegmentNum() (int, error) {
-	// sample query: SELECT MAX(segment_no) FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 0;
-	predicate := "imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = 0"
-	segments, err := m.querySegments(predicate)
-	if err != nil {
-		return -1, fmt.Errorf("fetch ongoing segment num: %v", err)
-	}
-	if len(segments) == 0 {
-		return -1, nil
-	}
-	return segments[len(segments)-1].Num, nil
-}
-
 func (m *MetaDB) querySegments(predicate string) ([]utils.Segment, error) {
 	var segments []utils.Segment
 	query := fmt.Sprintf(`SELECT segment_no, file_path FROM %s WHERE %s ORDER BY segment_no;`, QUEUE_SEGMENT_META_TABLE_NAME, predicate)

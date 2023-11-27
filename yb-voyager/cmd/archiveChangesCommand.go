@@ -47,9 +47,6 @@ Note that: even if some changes are applied to the target databases, they are de
 	Run: archiveChangesCommandFn,
 }
 
-var archivingCopier *EventSegmentCopier
-var archivingDeleter *EventSegmentDeleter
-
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	if moveDestination != "" && deleteSegments {
 		utils.ErrExit("only one of the --move-to and --delete-changes-without-archiving should be set")
@@ -62,14 +59,14 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		record.ArchivingEnabled = true
 	})
 
-	archivingCopier = NewEventSegmentCopier(moveDestination)
-	archivingDeleter = NewEventSegmentDeleter(utilizationThreshold)
+	copier := NewEventSegmentCopier(moveDestination)
+	deleter := NewEventSegmentDeleter(utilizationThreshold)
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := archivingCopier.Run()
+		err := copier.Run()
 		if err != nil {
 			utils.ErrExit("copying segments: %v", err)
 		}
@@ -78,7 +75,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := archivingDeleter.Run()
+		err := deleter.Run()
 		if err != nil {
 			utils.ErrExit("deleting segments: %v", err)
 		}
