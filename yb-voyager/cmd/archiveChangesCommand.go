@@ -48,6 +48,9 @@ Note that: even if some changes are applied to the target databases, they are de
 	Run: archiveChangesCommandFn,
 }
 
+var archivingCopier *EventSegmentCopier
+var archivingDeleter *EventSegmentDeleter
+
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	if moveDestination != "" && deleteSegments {
 		utils.ErrExit("only one of the --move-to and --delete-changes-without-archiving should be set")
@@ -60,14 +63,14 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		record.ArchivingEnabled = true
 	})
 
-	copier := NewEventSegmentCopier(moveDestination)
-	deleter := NewEventSegmentDeleter(utilizationThreshold)
+	archivingCopier = NewEventSegmentCopier(moveDestination)
+	archivingDeleter = NewEventSegmentDeleter(utilizationThreshold)
 	var wg sync.WaitGroup
 
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := copier.Run()
+		err := archivingCopier.Run()
 		if err != nil {
 			utils.ErrExit("copying segments: %v", err)
 		}
@@ -76,7 +79,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := deleter.Run()
+		err := archivingDeleter.Run()
 		if err != nil {
 			utils.ErrExit("deleting segments: %v", err)
 		}
@@ -224,8 +227,22 @@ func (m *EventSegmentCopier) Run() error {
 		// Note/TODO: last incomplete segment will remain unarchived
 		// It won't wait for the importer to finish importing and archiving the segments
 		if StopArchiverSignal && len(segmentsToArchive) == 0 {
-			utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
-			atexit.Exit(0)
+			archivingDeleter.FSUtilisationThreshold = 0
+			maxUnarchivedSegNum, err := metaDB.MaxUnarchivedSegmentNum()
+			if err != nil {
+				return fmt.Errorf("stop archiver signal: %v", err)
+			}
+
+			ongoingSegNum, err := metaDB.GetOngoingSegmentNum()
+			if err != nil {
+				return fmt.Errorf("stop archiver signal: %v", err)
+			}
+
+			if maxUnarchivedSegNum == ongoingSegNum {
+				utils.PrintAndLog("\n\nReceived signal to terminate due to end migration command.\nArchiving changes completed. Exiting...")
+				atexit.Exit(0)
+			}
+			// otherwise need to wait for the importer to finish importing and archiving the segments
 		}
 
 		for _, segment := range segmentsToArchive {
