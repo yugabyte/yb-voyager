@@ -325,7 +325,7 @@ install_debezium_server_voyager_plugin() {
 	mvn -ntp package -Passembly -Dquick -f ${pom}
 	cd ../
 	mkdir -p target
-	cp "../debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
+	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
 
 	popd > /dev/null
 }
