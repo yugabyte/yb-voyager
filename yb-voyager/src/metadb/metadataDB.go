@@ -433,9 +433,10 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 	}, nil
 }
 
+
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
-	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 2 AND archived = 0 ORDER BY segment_no;
-	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = %d AND archived = 0`, importCount)
+	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = %d)) OR
+	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = 1)))`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch segments to be archived: %v", err)
@@ -454,8 +455,8 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 }
 
 func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
-	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer < importCount ORDER BY segment_no;
-	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d`, importCount)
+	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d)) OR
+		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < 1))`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pending segments: %v", err)
