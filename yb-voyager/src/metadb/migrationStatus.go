@@ -34,6 +34,7 @@ type MigrationStatusRecord struct {
 	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
 	ExportDataDone                             bool              `json:"ExportDataDone"`
 	YBCDCStreamID                              string            `json:"YBCDCStreamID"`
+	EndMigrationRequested                      bool              `json:"EndMigrationRequested"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
