@@ -21,7 +21,7 @@ if [ -z "$DEBEZIUM_SERVER_REF" ]; then
 fi
 
 if [ -z "$DEBEZIUM_REF_1X" ]; then
-	DEBEZIUM_REF="78ff67c054bec08bcad060968b24bfc9ba8b2112"
+	DEBEZIUM_REF_1X="78ff67c054bec08bcad060968b24bfc9ba8b2112"
 fi
 
 
