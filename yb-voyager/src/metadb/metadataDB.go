@@ -436,7 +436,8 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = %d)) OR
-	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = 1)))`, importCount)
+	(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer = 1)))
+	AND archived = 0`, importCount)
 	segmentsToBeArchived, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch segments to be archived: %v", err)
