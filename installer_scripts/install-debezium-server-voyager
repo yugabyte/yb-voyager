@@ -273,7 +273,7 @@ install_debezium() {
 	tar -xzvf debezium.tar.gz 1>&2
 	# build
 	cd "debezium-$1"
-	mvn -ntp clean installl -Dquick 
+	mvn -ntp clean install -Dquick 
 
 	# cleanup
 	cd ..
@@ -288,7 +288,7 @@ install_debezium_server() {
 	tar -xzvf debezium-server.tar.gz 1>&2
 	# build
 	cd "debezium-server-$1"
-	mvn -ntp clean installl -Dquick 
+	mvn -ntp clean install -Dquick 
 
 	# cleanup
 	cd ..
@@ -300,9 +300,10 @@ install_debezium_server_voyager_plugin() {
 	output "Installing debezium-server voyager plugin..."
 	# build
 	pushd `git rev-parse --show-toplevel` > /dev/null
-	cd debezium-server-voyager
+	cd debezium-server-voyager/debezium-server-ybexporter
 	mvn -ntp clean install -Dquick -f 2xpom.xml
-	cd debezium-server-voyager-dist
+	cd ../debezium-server-voyager-dist
+	mvn -ntp clean install -Dquick -f 2xpom.xml
 	mvn -ntp package -Passembly -Dquick -f 2xpom.xml
 	cd ../
 	mkdir -p target
