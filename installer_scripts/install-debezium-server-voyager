@@ -9,12 +9,19 @@ LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
 
+VERSION2X="2.3.3"
+VERSION1X="1.9.5"
+
 if [ -z "$DEBEZIUM_REF" ]; then
 	DEBEZIUM_REF="3a8a497a8403794d69ce2f781989ad12c4060131"
 fi
 
 if [ -z "$DEBEZIUM_SERVER_REF" ]; then
 	DEBEZIUM_SERVER_REF="c4cad64f6d1869bcd15531c8f9cef98c651f86cc"
+fi
+
+if [ -z "$DEBEZIUM_REF_1X" ]; then
+	DEBEZIUM_REF="78ff67c054bec08bcad060968b24bfc9ba8b2112"
 fi
 
 
@@ -68,7 +75,10 @@ main() {
 	check_install_maven
 	install_debezium ${DEBEZIUM_REF}
 	install_debezium_server ${DEBEZIUM_SERVER_REF}
-	install_debezium_server_voyager_plugin
+	install_debezium_server_voyager_plugin "2x"
+
+	install_debezium ${DEBEZIUM_REF_1X}
+	install_debezium_server_voyager_plugin "1x"
 	output "Installation complete."
 }
 
@@ -298,18 +308,25 @@ install_debezium_server() {
 
 install_debezium_server_voyager_plugin() {
 	output "Installing debezium-server voyager plugin..."
+	if [ "$1" = "2x" ] 
+	then
+		pom="2xpom.xml"
+		version=${VERSION2X}
+	else
+		pom="1xpom.xml"
+		version=${VERSION1X}
+	fi
 	# build
 	pushd `git rev-parse --show-toplevel` > /dev/null
 	cd debezium-server-voyager/debezium-server-ybexporter
-	mvn -ntp clean install -Dquick -f 2xpom.xml
+	mvn -ntp clean install -Dquick -f ${pom}
 	cd ../debezium-server-voyager-dist
-	mvn -ntp clean install -Dquick -f 2xpom.xml
-	mvn -ntp package -Passembly -Dquick -f 2xpom.xml
+	mvn -ntp clean install -Dquick -f ${pom}
+	mvn -ntp package -Passembly -Dquick -f ${pom}
 	cd ../
 	mkdir -p target
-	cd target
-	cp debezium-server-voyager-dist/target/debezium-server-voyager-dist-2.3.3.Final.tar.gz .
-	tar -xvzf debezium-server-voyager-dist-2.3.3.Final.tar.gz
+	cp "../debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
+
 	popd > /dev/null
 }
 
