@@ -454,7 +454,7 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 }
 
 func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
-	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer = 0 ORDER BY segment_no;
+	// sample query: SELECT segment_no, file_path FROM queue_segment_meta WHERE imported_by_target_db_importer + imported_by_ff_db_importer < importCount ORDER BY segment_no;
 	predicate := fmt.Sprintf(`imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {

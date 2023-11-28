@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -567,12 +568,10 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 }
 
 func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lockfile.Lockfile {
-	for _, lockFile := range lockFiles {
-		if lockFile.GetCmdName() == cmdName {
-			return lockFile
-		}
-	}
-	return nil
+	result, _ := lo.Find(lockFiles, func(lockFile *lockfile.Lockfile) bool {
+		return lockFile.GetCmdName() == cmdName
+	})
+	return result
 }
 
 func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
@@ -653,6 +652,8 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	}
 
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		// dbzm plugin detects this MSR flag, and stops the data export gracefully
+		// so that the ongoing segment in closed and can be processed -> archived -> deleted
 		record.EndMigrationRequested = true
 	})
 
