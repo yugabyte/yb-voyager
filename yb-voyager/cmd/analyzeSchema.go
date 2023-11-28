@@ -1118,5 +1118,5 @@ func validateReportOutputFormat() {
 }
 
 func schemaIsAnalyzed() bool {
-	return utils.FileOrFolderExists(filepath.Join(exportDir, "report.*"))
+	return utils.FileOrFolderExists(filepath.Join(exportDir, "reports", "report.*"))
 }
