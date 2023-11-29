@@ -67,8 +67,8 @@ map_host_path_inside_container() {
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]] 
 		then
-			docker volume rm $volume_name
-			docker volume create --driver local --opt type=none --opt device="${dir_path}" --opt o=bind $volume_name
+			docker volume rm $volume_name > /dev/null 2>&1
+			docker volume create --driver local --opt type=none --opt device="${dir_path}" --opt o=bind $volume_name > /dev/null 2>&1
 			volume_mappings="${volume_mappings} -v ${volume_name}:${dir_path}"
 		else
 			volume_mappings="${volume_mappings} -v ${dir_path}:${dir_path}"
