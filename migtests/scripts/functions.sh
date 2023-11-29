@@ -367,7 +367,8 @@ import_data_file() {
 }
 
 archive_changes() {
-	ENABLE=$(shuf -i 0-1 -n 1)
+	# ENABLE=$(shuf -i 0-1 -n 1)
+	ENABLE=1
 	echo "archive changes ENABLE=${ENABLE}"
 	if [[ ${ENABLE} -eq 1 ]];
 	then
