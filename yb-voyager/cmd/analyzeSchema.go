@@ -1118,5 +1118,13 @@ func validateReportOutputFormat() {
 }
 
 func schemaIsAnalyzed() bool {
-	return utils.FileOrFolderExists(filepath.Join(exportDir, "reports", "report.*"))
+	path := filepath.Join(exportDir, "reports", "report.*")
+	files, err := filepath.Glob(path)
+	if err != nil {
+		utils.ErrExit("Error while reading %q: %s", path, err)
+	}
+	if len(files) == 0 {
+		return false
+	}
+	return true
 }
