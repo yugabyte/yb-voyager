@@ -180,10 +180,7 @@ func FileOrFolderExistsWithGlobPattern(path string) bool {
 	if err != nil {
 		ErrExit("Error while reading %q: %s", path, err)
 	}
-	if len(files) == 0 {
-		return false
-	}
-	return true
+	return len(files) > 0
 }
 
 func CleanDir(dir string) {
