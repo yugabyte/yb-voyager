@@ -141,10 +141,10 @@ do
     i=$(( $i + 1))
 done
 
-# if [ -t 1 ] 
-# then 
-tty="-it"
-# fi
+if [ -t 1 ] 
+then 
+	tty="-it"
+fi
 
 dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged -it ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
