@@ -58,7 +58,8 @@ map_host_path_inside_container() {
 		then
 			flag_name=${argv[${i}]}
 			j=$(( $i + 1))
-			dir_path=$(realpath "${argv[${j}]}")
+			argv[${j}]=$(realpath "${argv[${j}]}")
+			dir_path=${argv[${j}]}
 		fi
 		volume_name="voyager-${flag_name}"
 		# handle file paths.  If the path is a file, then the target path should be the directory of the file.
@@ -135,6 +136,8 @@ do
 		fi
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
 
+		tns_admin=$(realpath "$tns_admin")
+		wallet_dir=$(realpath "$wallet_dir")
 		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
 		map_host_path_inside_container "oracle-wallet-dir" "${wallet_dir}"
 		exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
