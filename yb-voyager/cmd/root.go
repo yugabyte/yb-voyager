@@ -98,6 +98,7 @@ func startPprofServer() {
 }
 
 var noLockNeededList = []string{
+	"yb-voyager",
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager import",
@@ -115,6 +116,7 @@ var noLockNeededList = []string{
 }
 
 var noPersistentPreRunNeededList = []string{
+	"yb-voyager",
 	"yb-voyager version",
 	"yb-voyager help",
 	"yb-voyager import",
