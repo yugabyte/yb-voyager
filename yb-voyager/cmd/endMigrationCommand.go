@@ -92,15 +92,22 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 func backupSchemaFilesFn() {
 	schemaDirPath := filepath.Join(exportDir, "schema")
+	backupSchemaDirPath := filepath.Join(backupDir, "schema")
 	if !bool(backupSchemaFiles) {
+		return
+	} else if utils.FileOrFolderExists(backupSchemaDirPath) {
+		// TODO: check can be made more robust by checking the contents of the backup-dir/schema
+		utils.PrintAndLog("schema files are already backed up at %q", backupSchemaDirPath)
 		return
 	}
 
-	utils.PrintAndLog("backing up schema files")
-	cmd := exec.Command("mv", schemaDirPath, backupDir)
+	utils.PrintAndLog("backing up schema files...")
+	cmd := exec.Command("mv", schemaDirPath, backupSchemaDirPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving schema files: %s: %v", string(output), err)
+	} else {
+		log.Infof("moved schema files from %q to %q", schemaDirPath, backupSchemaDirPath)
 	}
 }
 
@@ -126,9 +133,13 @@ func backupDataFilesFn() {
 
 		dataFilePath := filepath.Join(exportDir, "data", file.Name())
 		backupFilePath := filepath.Join(backupDir, "data", file.Name())
-		err = os.Rename(dataFilePath, backupFilePath)
+
+		cmd := exec.Command("mv", dataFilePath, backupFilePath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving data files: %v", err)
+			utils.ErrExit("moving data files: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
 }
@@ -178,9 +189,14 @@ func saveSchemaAnalysisReport() {
 			continue
 		}
 
-		err = os.Rename(filepath.Join(exportDir, "reports", file.Name()), filepath.Join(backupDir, "reports", file.Name()))
+		oldPath := filepath.Join(exportDir, "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving migration reports: %v", err)
+			utils.ErrExit("moving schema analysis report: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved schema analysis report %q to %q", oldPath, newPath)
 		}
 	}
 }
