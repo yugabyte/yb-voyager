@@ -73,6 +73,7 @@ main() {
 
 	check_java
 	check_install_maven
+	clean_debezium
 	install_debezium ${DEBEZIUM_REF}
 	install_debezium_server ${DEBEZIUM_SERVER_REF}
 	install_debezium_server_voyager_plugin "2x"
@@ -276,6 +277,12 @@ install_maven() {
 		rm apache-maven-3.8.4-bin.tar.gz
 	fi
 	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
+}
+
+clean_debezium(){
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	rm -rf debezium-server-voyager/target
+	popd > /dev/null
 }
 
 install_debezium() {
