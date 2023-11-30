@@ -44,8 +44,8 @@ on_exit() {
 # user as well as in the log file.
 output() {
 	set +x
-	echo $1
-	>&2 echo $1
+	echo "$@"
+	>&2 echo "$@"
 	set -x
 }
 
@@ -79,6 +79,7 @@ main() {
 
 	install_debezium ${DEBEZIUM_REF_1X}
 	install_debezium_server_voyager_plugin "1x"
+	install_yb_client
 	package_debezium_server
 	output "Installation complete."
 }
@@ -293,7 +294,7 @@ install_debezium() {
 }
 
 install_debezium_server() {
-	output "Installing debezium-server..."
+	output "Installing debezium-server..." "$1"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium-server/archive/$1.tar.gz" -O debezium-server.tar.gz 1>&2
 	tar -xzvf debezium-server.tar.gz 1>&2
@@ -308,7 +309,7 @@ install_debezium_server() {
 }
 
 install_debezium_server_voyager_plugin() {
-	output "Installing debezium-server voyager plugin..."
+	output "Installing debezium-server voyager plugin..." "$1"
 	if [ "$1" = "2x" ] 
 	then
 		pom="2xpom.xml"
@@ -331,6 +332,14 @@ install_debezium_server_voyager_plugin() {
 	popd > /dev/null
 }
 
+install_yb_client(){
+	output "Installing yb client..."
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cd debezium-server-voyager/yb-client-cdc-stream-wrapper
+	mvn -ntp clean package 1>&2
+	popd > /dev/null
+}
+
 package_debezium_server(){
 	output "Packaging debezium server..."
 	pushd `git rev-parse --show-toplevel` > /dev/null
@@ -342,7 +351,7 @@ package_debezium_server(){
 	rm "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz"
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
-	cd ../..
+	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
 	popd > /dev/null
 }
 
