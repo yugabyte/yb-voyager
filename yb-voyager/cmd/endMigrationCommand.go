@@ -126,9 +126,13 @@ func backupDataFilesFn() {
 
 		dataFilePath := filepath.Join(exportDir, "data", file.Name())
 		backupFilePath := filepath.Join(backupDir, "data", file.Name())
-		err = os.Rename(dataFilePath, backupFilePath)
+
+		cmd := exec.Command("mv", dataFilePath, backupFilePath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving data files: %v", err)
+			utils.ErrExit("moving data files: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
 }
@@ -178,9 +182,14 @@ func saveSchemaAnalysisReport() {
 			continue
 		}
 
-		err = os.Rename(filepath.Join(exportDir, "reports", file.Name()), filepath.Join(backupDir, "reports", file.Name()))
+		oldPath := filepath.Join(exportDir, "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving migration reports: %v", err)
+			utils.ErrExit("moving schema analysis report: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved schema analysis report %q to %q", oldPath, newPath)
 		}
 	}
 }
