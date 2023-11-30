@@ -46,7 +46,9 @@ Removed redundant ALTER COLUMN DDLs present in the exported schema for certain c
 
 - Compared to earlier releases, Voyager v1.6 uses a different and incompatible structure to represent the import data state. As a result, Voyager v1.6 can't "continue" a data import operation that was started using Voyager v1.5 or earlier.
 
-- If you are using [dockerised yb-voyager](https://docs.yugabyte.com/preview/yugabyte-voyager/install-yb-voyager/#install-yb-voyager), export schema and export data from Oracle database with SSL (via --oracle-tns-alias) fails. Use a non-docker version of yb-voyager to work around this limitation.
+- If you are using [dockerised yb-voyager](https://docs.yugabyte.com/preview/yugabyte-voyager/install-yb-voyager/#install-yb-voyager): 
+    - export schema and export data from Oracle database with SSL (via --oracle-tns-alias) fails. Use a non-docker version of yb-voyager to work around this limitation.
+    - end migration command fails. This issue will be addressed in an upcoming release.
 
 ## v1.5 - September 11, 2023
 
