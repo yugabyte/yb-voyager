@@ -92,15 +92,22 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 func backupSchemaFilesFn() {
 	schemaDirPath := filepath.Join(exportDir, "schema")
+	backupSchemaDirPath := filepath.Join(backupDir, "schema")
 	if !bool(backupSchemaFiles) {
+		return
+	} else if utils.FileOrFolderExists(backupSchemaDirPath) {
+		// TODO: check can be made more robust by checking the contents of the backup-dir/schema
+		utils.PrintAndLog("schema files are already backed up at %q", backupSchemaDirPath)
 		return
 	}
 
-	utils.PrintAndLog("backing up schema files")
-	cmd := exec.Command("mv", schemaDirPath, backupDir)
+	utils.PrintAndLog("backing up schema files...")
+	cmd := exec.Command("mv", schemaDirPath, backupSchemaDirPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving schema files: %s: %v", string(output), err)
+	} else {
+		log.Infof("moved schema files from %q to %q", schemaDirPath, backupSchemaDirPath)
 	}
 }
 
