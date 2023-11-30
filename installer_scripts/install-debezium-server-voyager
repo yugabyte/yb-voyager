@@ -341,7 +341,7 @@ package_debezium_server(){
 	tar -xvzf "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz" -C debezium-server/ 1>&2
 	rm "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz"
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
-	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server-1.9.5/lib 1>&2
+	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
 	cd ../..
 	popd > /dev/null
 }
