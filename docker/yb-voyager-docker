@@ -146,7 +146,15 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+if [ -p /dev/stdin ] 
+then 
+	# Store the piped input in a variable
+	piped_input=$(cat -)
+	# Add | to the end of the piped input
+	piped_input="${piped_input} |"
+fi
+
+dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager ${piped_input} yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 
