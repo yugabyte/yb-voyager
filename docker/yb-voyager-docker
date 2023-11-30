@@ -34,6 +34,8 @@ variables=("BETA_FAST_DATA_EXPORT"
 "MAX_INTERVAL_BETWEEN_BATCHES")
 
 volume_dirs=("--export-dir" 
+"--backup-dir" 
+"--move-to" 
 "--source-ssl-cert" 
 "--source-ssl-key" 
 "--source-ssl-root-cert")
