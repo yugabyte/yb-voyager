@@ -279,7 +279,7 @@ install_maven() {
 }
 
 install_debezium() {
-	output "Installing debezium. It might take up to 15 minutes..."
+	output "Installing debezium..." "$1"
 	# download
 	wget -nv "https://github.com/yugabyte/debezium/archive/$1.tar.gz" -O debezium.tar.gz 1>&2
 	tar -xzvf debezium.tar.gz 1>&2
