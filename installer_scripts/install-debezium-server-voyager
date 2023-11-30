@@ -79,6 +79,7 @@ main() {
 
 	install_debezium ${DEBEZIUM_REF_1X}
 	install_debezium_server_voyager_plugin "1x"
+	package_debezium_server
 	output "Installation complete."
 }
 
@@ -298,7 +299,7 @@ install_debezium_server() {
 	tar -xzvf debezium-server.tar.gz 1>&2
 	# build
 	cd "debezium-server-$1"
-	mvn -ntp clean install -Dquick 
+	mvn -ntp clean install -Dquick 1>&2
 
 	# cleanup
 	cd ..
@@ -319,14 +320,29 @@ install_debezium_server_voyager_plugin() {
 	# build
 	pushd `git rev-parse --show-toplevel` > /dev/null
 	cd debezium-server-voyager/debezium-server-ybexporter
-	mvn -ntp clean install -Dquick -f ${pom}
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
 	cd ../debezium-server-voyager-dist
-	mvn -ntp clean install -Dquick -f ${pom}
-	mvn -ntp package -Passembly -Dquick -f ${pom}
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
 	cd ../
 	mkdir -p target
 	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
 
+	popd > /dev/null
+}
+
+package_debezium_server(){
+	output "Packaging debezium server..."
+	pushd `git rev-parse --show-toplevel` > /dev/null
+
+	cd debezium-server-voyager/target
+	tar -xvzf "debezium-server-voyager-dist-${VERSION2X}.Final.tar.gz" 1>&2
+	rm "debezium-server-voyager-dist-${VERSION2X}.Final.tar.gz"
+	tar -xvzf "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz" -C debezium-server/ 1>&2
+	rm "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz"
+	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
+	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server-1.9.5/lib 1>&2
+	cd ../..
 	popd > /dev/null
 }
 
