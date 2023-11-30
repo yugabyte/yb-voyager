@@ -142,7 +142,7 @@
                 </dependency> -->
                 <dependency>
                     <groupId>io.debezium</groupId>
-                    <artifactId>debezium-server-ybexporter</artifactId>
+                    <artifactId>debezium-server-voyagerexporter</artifactId>
                     <version>1.9.5.Final</version>
                 </dependency>
                 <dependency>
