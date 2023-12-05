@@ -191,7 +191,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
-	log.Infof("inserted event %v into channel %v", event, h)
+	log.Infof("inserted event %v into channel %v", event.Key, h)
 	return nil
 }
 
@@ -210,6 +210,7 @@ func hashEvent(e *tgtdb.Event) int {
 	for _, k := range keyColumns {
 		hash.Write([]byte(*e.Key[k]))
 	}
+
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))
 }
 
