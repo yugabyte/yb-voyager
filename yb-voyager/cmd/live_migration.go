@@ -192,7 +192,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
-	log.Infof("inserted event %v into channel %v", createKeyValuePairs(event.Key), h)
+	log.Infof("inserted event from table %s - %v into channel %v", event.TableName, createKeyValuePairs(event.Key), h)
 	return nil
 }
 func createKeyValuePairs(m map[string]*string) string {
@@ -200,7 +200,7 @@ func createKeyValuePairs(m map[string]*string) string {
 	for key, value := range m {
 		fmt.Fprintf(b, "%s=\"%s\"|", key, *value)
 	}
-	fmt.Fprintf(b, "\n")
+
 	return b.String()
 }
 
