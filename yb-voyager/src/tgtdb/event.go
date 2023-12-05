@@ -77,10 +77,12 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.TableName = eventJson.TableName
 	e.ExporterRole = eventJson.ExporterRole
 
+	e.Key = map[string]ColumnValue{}
 	for key, value := range eventJson.Key {
 		cv := ColumnValue{Value: value}
 		e.Key[key] = cv
 	}
+	e.Fields = map[string]ColumnValue{}
 	for key, value := range eventJson.Fields {
 		cv := ColumnValue{Value: value}
 		e.Fields[key] = cv
