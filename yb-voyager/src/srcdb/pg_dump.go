@@ -77,7 +77,7 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		utils.ErrExit("Error while preparing pg_dump arguments: %v", err)
 	}
 
-	iniData, err := ini.LoadSources(ini.LoadOptions{PreserveSurroundedQuote: true}, output.Bytes())
+	iniData, err := ini.LoadSources(ini.LoadOptions{PreserveSurroundedQuote: false}, output.Bytes())
 	if err != nil {
 		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
 	}
