@@ -450,7 +450,7 @@ func GetEnvAsInt(key string, fallback int) int {
 	return int(valueInt)
 }
 
-func GetMapKeysSorted(m map[string]*string) []string {
+func GetMapKeysSorted[V interface{}](m map[string]V) []string {
 	keys := lo.Keys(m)
 	sort.Strings(keys)
 	return keys

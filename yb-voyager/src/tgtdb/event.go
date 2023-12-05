@@ -16,6 +16,7 @@ limitations under the License.
 package tgtdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -27,7 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-type Event struct {
+type EventJSON struct {
 	Vsn          int64              `json:"vsn"` // Voyager Sequence Number
 	Op           string             `json:"op"`
 	SchemaName   string             `json:"schema_name"`
@@ -37,11 +38,51 @@ type Event struct {
 	ExporterRole string             `json:"exporter_role"`
 }
 
+type Event struct {
+	Vsn          int64
+	Op           string
+	SchemaName   string
+	TableName    string
+	Key          map[string]ColumnValue
+	Fields       map[string]*string
+	ExporterRole string
+}
+
+type ColumnValue struct {
+	Value    *string
+	FormatFn func(*string) *string
+}
+
+func (cv *ColumnValue) FormattedValue() *string {
+	return cv.FormatFn(cv.Value)
+}
+
 var cachePreparedStmt = sync.Map{}
 
 func (e *Event) String() string {
 	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
 		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+}
+
+func (e *Event) UnmarshalJSON(data []byte) error {
+	var eventJson EventJSON
+
+	if err := json.Unmarshal(data, &eventJson); err != nil {
+		return err
+	}
+
+	e.Vsn = eventJson.Vsn
+	e.Op = eventJson.Op
+	e.SchemaName = eventJson.SchemaName
+	e.TableName = eventJson.TableName
+	e.Fields = eventJson.Fields
+	e.ExporterRole = eventJson.ExporterRole
+
+	for key, keyValue := range eventJson.Key {
+		cv := ColumnValue{Value: keyValue}
+		e.Key[key] = cv
+	}
+	return nil
 }
 
 func (e *Event) IsCutover() bool {
@@ -151,11 +192,11 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 	setClause := strings.Join(setClauses, ", ")
 
 	whereClauses := make([]string, 0, len(event.Key))
-	for column, value := range event.Key {
-		if value == nil { // value can't be nil for keys
+	for column, cv := range event.Key {
+		if cv.Value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
@@ -164,11 +205,11 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 func (event *Event) getDeleteStmt(targetSchema string) string {
 	tableName := event.getTableName(targetSchema)
 	whereClauses := make([]string, 0, len(event.Key))
-	for column, value := range event.Key {
-		if value == nil { // value can't be nil for keys
+	for column, cv := range event.Key {
+		if cv.Value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *value))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
@@ -227,12 +268,12 @@ func (event *Event) getInsertParams() []interface{} {
 func (event *Event) getUpdateParams() []interface{} {
 	params := make([]interface{}, 0, len(event.Fields)+len(event.Key))
 	params = append(params, getMapValuesForQuery(event.Fields)...)
-	params = append(params, getMapValuesForQuery(event.Key)...)
+	params = append(params, getMapColumnValuesForQuery(event.Key)...)
 	return params
 }
 
 func (event *Event) getDeleteParams() []interface{} {
-	return getMapValuesForQuery(event.Key)
+	return getMapColumnValuesForQuery(event.Key)
 }
 
 func getMapValuesForQuery(m map[string]*string) []interface{} {
@@ -240,6 +281,15 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 	values := make([]interface{}, 0, len(keys))
 	for _, key := range keys {
 		values = append(values, m[key])
+	}
+	return values
+}
+
+func getMapColumnValuesForQuery(m map[string]ColumnValue) []interface{} {
+	keys := utils.GetMapKeysSorted(m)
+	values := make([]interface{}, 0, len(keys))
+	for _, key := range keys {
+		values = append(values, m[key].Value)
 	}
 	return values
 }
