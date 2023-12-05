@@ -289,6 +289,26 @@ export_data() {
 		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
 	fi
 
+	if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${EXPORT_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST}" != "" ]
+	then
+		args="${args} --exclude-table-list ${EXPORT_EX_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --table-list-file-path ${EXPORT_TABLE_LIST_FILE_PATH}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
+	fi
+
 	yb-voyager export data ${args} $*
 
 }
@@ -330,6 +350,27 @@ import_data() {
 		--start-clean 1
 		--truncate-splits true
 		"
+
+		if [ "${IMPORT_TABLE_LIST}" != "" ]
+		then
+			args="${args} --table-list ${IMPORT_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST}" != "" ]
+		then
+			args="${args} --exclude-table-list ${IMPORT_EX_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --table-list-file-path ${IMPORT_TABLE_LIST_FILE_PATH}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
+		fi
+
 		yb-voyager import data ${args} $*
 }
 
