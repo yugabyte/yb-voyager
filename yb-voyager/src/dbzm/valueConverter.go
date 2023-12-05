@@ -189,15 +189,20 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]tg
 				return fmt.Errorf("fetch column schema: %w", err)
 			}
 		}
+		transformedColumnValue := tgtdb.ColumnValue{
+			Value:    columnValue.Value,
+			FormatFn: tgtdbsuite.FormatNoOp,
+		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			transformedValue, formatFn, err := converterFn(*columnValue.Value, formatIfRequired)
+			transformedValue, formatFn, err := converterFn(*transformedColumnValue.Value, formatIfRequired)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
-			columnValue.Value = &transformedValue
-			columnValue.FormatFn = formatFn
+			transformedColumnValue.Value = &transformedValue
+			transformedColumnValue.FormatFn = formatFn
 		}
+		m[column] = transformedColumnValue
 
 	}
 	return nil
