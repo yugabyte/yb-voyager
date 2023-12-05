@@ -109,7 +109,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		if columnValue == utils.YB_VOYAGER_NULL_STRING || converterFns[i] == nil { // TODO: make nullstring condition Target specific tdb.NullString()
 			continue
 		}
-		transformedValue, err := converterFns[i](columnValue, false)
+		transformedValue, _, err := converterFns[i](columnValue, false)
 		if err != nil {
 			return "", fmt.Errorf("converting value for %s, column %d and value %s : %w", tableName, i, columnValue, err)
 		}
@@ -173,11 +173,11 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]tg
 	} else {
 		schemaRegistry = conv.schemaRegistryTarget
 	}
-	for column, value := range m {
-		if value == nil {
+	for column, cv := range m {
+		if cv.Value == nil {
 			continue
 		}
-		columnValue := *value
+		columnValue := cv
 		colType, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
@@ -191,12 +191,14 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]tg
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, formatIfRequired)
+			transformedValue, formatFn, err := converterFn(*columnValue.Value, formatIfRequired)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
+			columnValue.Value = &transformedValue
+			columnValue.FormatFn = formatFn
 		}
-		m[column] = &columnValue
+
 	}
 	return nil
 }

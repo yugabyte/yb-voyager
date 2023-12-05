@@ -195,10 +195,10 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	log.Infof("inserted event vsn-%s from table %s - %v into channel %v", event.Vsn, event.TableName, createKeyValuePairs(event.Key), h)
 	return nil
 }
-func createKeyValuePairs(m map[string]*string) string {
+func createKeyValuePairs(m map[string]tgtdb.ColumnValue) string {
 	b := new(bytes.Buffer)
 	for key, value := range m {
-		fmt.Fprintf(b, "%s=\"%s\"|", key, *value)
+		fmt.Fprintf(b, "%s=\"%s\"|", key, *(value.Value))
 	}
 
 	return b.String()
@@ -217,7 +217,7 @@ func hashEvent(e *tgtdb.Event) int {
 	// sort to ensure input to hash is consistent.
 	sort.Strings(keyColumns)
 	for _, k := range keyColumns {
-		hash.Write([]byte(*e.Key[k]))
+		hash.Write([]byte(*(e.Key[k].Value)))
 	}
 
 	return int(hash.Sum64() % (uint64(NUM_EVENT_CHANNELS)))

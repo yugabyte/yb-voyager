@@ -27,96 +27,75 @@ import (
 )
 
 // value converter Function type
-type ConverterFn func(v string, formatIfRequired bool) (string, error)
+type ConverterFn func(v string, formatIfRequired bool) (string, func(string) string, error)
 
 var YBValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		date := time.Unix(int64(epochSecs), 0).UTC().Format(time.DateOnly)
-		if formatIfRequired {
-			date = fmt.Sprintf("'%s'", date)
-		}
-		return date, nil
+		return date, FormatSingleQuote, nil
 	},
-	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timestamp := time.Unix(epochSecs, 0).UTC().Format(time.DateTime)
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return timestamp, FormatSingleQuote, nil
 	},
-	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999")
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return timestamp, FormatSingleQuote, nil
 	},
-	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch nanoseconds: %v", err)
 		}
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999999")
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return timestamp, FormatSingleQuote, nil
 	},
-	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		// no transformation as columnValue is formatted string from debezium by default
-		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
-		}
-		return columnValue, nil
+		return columnValue, FormatSingleQuote, nil
 	},
-	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
-		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
-		}
-		return timeValue, nil
+		return timeValue, FormatSingleQuote, nil
 	},
-	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing epoch microseconds: %v", err)
 		}
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		MICRO_TIME_FORMAT := "15:04:05.000000"
 		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
-		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
-		}
-		return timeValue, nil
+		return timeValue, FormatSingleQuote, nil
 	},
-	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
+			return columnValue, nil, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
 		}
 		var data uint64
 		if len(bytes) >= 8 {
@@ -126,73 +105,82 @@ var YBValueConverterSuite = map[string]ConverterFn{
 				data |= uint64(b) << (8 * i)
 			}
 		}
-		if formatIfRequired {
-			return fmt.Sprintf("'%b'", data), nil
-		} else {
-			return fmt.Sprintf("%b", data), nil
-		}
+		return fmt.Sprintf("%b", data), FormatSingleQuote, nil
 	},
-	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.
-		return columnValue, nil
+		return columnValue, FormatNoOp, nil
 	},
-	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis geometry point.
-		return columnValue, nil
+		return columnValue, FormatNoOp, nil
 	},
-	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
-		return columnValue, nil
+		return columnValue, FormatNoOp, nil
 	},
-	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool) (string, error) {
-		return columnValue, nil //handled in exporter plugin
+	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
+		return columnValue, FormatNoOp, nil //handled in exporter plugin
 	},
-	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
-		return columnValue, nil //handled in exporter plugin
+	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
+		return columnValue, FormatNoOp, nil //handled in exporter plugin
 	},
-	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
-			return columnValue, fmt.Errorf("decoding base64 string: %v", err)
+			return columnValue, nil, fmt.Errorf("decoding base64 string: %v", err)
 		}
 		//convert bytes to hex string e.g. `[]byte{0x00, 0x00, 0x00, 0x00}` -> `\\x00000000`
 		hexString := ""
 		for _, b := range decodedBytes {
 			hexString += fmt.Sprintf("%02x", b)
 		}
-		hexValue := ""
-		if formatIfRequired {
-			hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
-		} else {
-			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
-		}
-		return string(hexValue), nil
+		hexValue := fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
+		// if formatIfRequired {
+		// 	hexValue = fmt.Sprintf("'\\x%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
+		// } else {
+		// 	hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
+		// }
+		return string(hexValue), FormatHex, nil
 	},
-	"MAP": func(columnValue string, _ bool) (string, error) {
+	"MAP": func(columnValue string, _ bool) (string, func(string) string, error) {
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
 		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
+			return columnValue, nil, fmt.Errorf("parsing map: %v", err)
 		}
 		var transformedMapValue string
 		for key, value := range mapValue {
 			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
 		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
+		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), FormatNoOp, nil //remove last comma and add quotes
 	},
-	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
-			return fmt.Sprintf("'%s'", formattedColumnValue), nil
-		} else {
-			return columnValue, nil
-		}
+	"STRING": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
+		return columnValue, FormatString, nil
 	},
-	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
-		}
-		return columnValue, nil
+	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, func(string) string, error) {
+		// if formatIfRequired {
+		// 	columnValue = fmt.Sprintf("'%s'", columnValue)
+		// }
+		return columnValue, FormatSingleQuote, nil
 	},
+}
+
+func FormatSingleQuote(s string) string {
+	return fmt.Sprintf("'%s'", s)
+}
+
+func FormatNoOp(s string) string {
+	return s
+}
+
+func FormatString(s string) string {
+	formattedColumnValue := strings.Replace(s, "'", "''", -1)
+	return FormatSingleQuote(formattedColumnValue)
+}
+
+func FormatHex(s string) string {
+	hexValue := fmt.Sprintf("'\\x%s'", s) // in insert statement no need of escaping the backslash and add quotes
+	return hexValue
 }

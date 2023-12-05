@@ -50,11 +50,11 @@ type Event struct {
 
 type ColumnValue struct {
 	Value    *string
-	FormatFn func(*string) *string
+	FormatFn func(string) string
 }
 
-func (cv *ColumnValue) FormattedValue() *string {
-	return cv.FormatFn(cv.Value)
+func (cv *ColumnValue) FormattedValue() string {
+	return cv.FormatFn(*cv.Value)
 }
 
 var cachePreparedStmt = sync.Map{}
@@ -173,7 +173,7 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 		if cv.Value == nil {
 			valueList = append(valueList, "NULL")
 		} else {
-			valueList = append(valueList, *cv.FormattedValue())
+			valueList = append(valueList, cv.FormattedValue())
 		}
 	}
 	columns := strings.Join(columnList, ", ")
@@ -189,7 +189,7 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 		if cv.Value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
 		} else {
-			setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
+			setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, cv.FormattedValue()))
 		}
 	}
 	setClause := strings.Join(setClauses, ", ")
@@ -199,7 +199,7 @@ func (event *Event) getUpdateStmt(targetSchema string) string {
 		if cv.Value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, cv.FormattedValue()))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(updateTemplate, tableName, setClause, whereClause)
@@ -212,7 +212,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 		if cv.Value == nil { // value can't be nil for keys
 			panic("key value is nil")
 		}
-		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
+		whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", column, cv.FormattedValue()))
 	}
 	whereClause := strings.Join(whereClauses, " AND ")
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
