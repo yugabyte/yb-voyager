@@ -44,7 +44,7 @@ type Event struct {
 	SchemaName   string
 	TableName    string
 	Key          map[string]ColumnValue
-	Fields       map[string]*string
+	Fields       map[string]ColumnValue
 	ExporterRole string
 }
 
@@ -75,12 +75,15 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	e.Op = eventJson.Op
 	e.SchemaName = eventJson.SchemaName
 	e.TableName = eventJson.TableName
-	e.Fields = eventJson.Fields
 	e.ExporterRole = eventJson.ExporterRole
 
-	for key, keyValue := range eventJson.Key {
-		cv := ColumnValue{Value: keyValue}
+	for key, value := range eventJson.Key {
+		cv := ColumnValue{Value: value}
 		e.Key[key] = cv
+	}
+	for key, value := range eventJson.Fields {
+		cv := ColumnValue{Value: value}
+		e.Fields[key] = cv
 	}
 	return nil
 }
@@ -165,12 +168,12 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
-	for column, value := range event.Fields {
+	for column, cv := range event.Fields {
 		columnList = append(columnList, column)
-		if value == nil {
+		if cv.Value == nil {
 			valueList = append(valueList, "NULL")
 		} else {
-			valueList = append(valueList, *value)
+			valueList = append(valueList, *cv.FormattedValue())
 		}
 	}
 	columns := strings.Join(columnList, ", ")
@@ -182,11 +185,11 @@ func (event *Event) getInsertStmt(targetSchema string) string {
 func (event *Event) getUpdateStmt(targetSchema string) string {
 	tableName := event.getTableName(targetSchema)
 	setClauses := make([]string, 0, len(event.Fields))
-	for column, value := range event.Fields {
-		if value == nil {
+	for column, cv := range event.Fields {
+		if cv.Value == nil {
 			setClauses = append(setClauses, fmt.Sprintf("%s = NULL", column))
 		} else {
-			setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, *value))
+			setClauses = append(setClauses, fmt.Sprintf("%s = %s", column, *cv.FormattedValue()))
 		}
 	}
 	setClause := strings.Join(setClauses, ", ")
@@ -262,12 +265,12 @@ func (event *Event) getPreparedDeleteStmt(targetSchema string) string {
 }
 
 func (event *Event) getInsertParams() []interface{} {
-	return getMapValuesForQuery(event.Fields)
+	return getMapColumnValuesForQuery(event.Fields)
 }
 
 func (event *Event) getUpdateParams() []interface{} {
 	params := make([]interface{}, 0, len(event.Fields)+len(event.Key))
-	params = append(params, getMapValuesForQuery(event.Fields)...)
+	params = append(params, getMapColumnValuesForQuery(event.Fields)...)
 	params = append(params, getMapColumnValuesForQuery(event.Key)...)
 	return params
 }

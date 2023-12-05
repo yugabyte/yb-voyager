@@ -166,7 +166,7 @@ func checkSourceExporter(exporterRole string) bool {
 	return exporterRole == "source_db_exporter"
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]tgtdb.ColumnValue, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
