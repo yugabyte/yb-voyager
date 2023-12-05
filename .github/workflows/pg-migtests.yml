@@ -89,7 +89,7 @@ jobs:
 
     - name:  "TEST: pg-case-sensitivity-single-table"
       run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
-      
+
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg/dvdrental 
 
@@ -128,8 +128,6 @@ jobs:
       
     - name:  "TEST: pg-multiple-schemas"
       run: migtests/scripts/run-test.sh pg/multiple-schemas
-
-    
 
     - name: "Set up gcp environment"
       env:
