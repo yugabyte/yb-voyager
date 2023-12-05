@@ -54,6 +54,9 @@ type ColumnValue struct {
 }
 
 func (cv *ColumnValue) FormattedValue() string {
+	if cv.FormatFn == nil {
+		panic(fmt.Sprintf("no format function for value = %s", *cv.Value))
+	}
 	return cv.FormatFn(*cv.Value)
 }
 
