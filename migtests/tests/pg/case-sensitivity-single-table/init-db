@@ -16,4 +16,4 @@ run_psql ${SOURCE_DB_NAME} "\i pg_case_sensitivity_single_table.sql;"
 
 
 echo "Check source database."
-run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM Recipients;"
+run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM \"Mixed_Case_Table_Name_Test\";"
