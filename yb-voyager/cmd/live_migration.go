@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -191,8 +192,16 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
-	log.Infof("inserted event %v into channel %v", event.Key, h)
+	log.Infof("inserted event %v into channel %v", createKeyValuePairs(event.Key), h)
 	return nil
+}
+func createKeyValuePairs(m map[string]*string) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=\"%s\"|", key, *value)
+	}
+	fmt.Fprintf(b, "\n")
+	return b.String()
 }
 
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
