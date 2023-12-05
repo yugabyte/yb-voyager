@@ -191,7 +191,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 
 	h := hashEvent(event)
 	evChans[h] <- event
-	log.Infof("inserted event %v into channel %v", event.Vsn, h)
+	log.Infof("inserted event %v into channel %v", event, h)
 	return nil
 }
 
