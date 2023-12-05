@@ -43,7 +43,6 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 
 	pgDumpArgs.DataDirPath = filepath.Join(exportDir, "data")
 	pgDumpArgs.TablesListPattern = createTableListPatterns(tableList)
-	utils.PrintAndLog("pgdump tableListpattern = %s", pgDumpArgs.TablesListPattern)
 	pgDumpArgs.ParallelJobs = strconv.Itoa(source.NumConnections)
 	pgDumpArgs.DataFormat = "directory"
 
@@ -124,7 +123,6 @@ func createTableListPatterns(tableList []*sqlname.SourceName) string {
 	var tableListPattern string
 	for _, table := range tableList {
 		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted)
-		utils.PrintAndLog("added %s to table list pattern", tableListPattern)
 	}
 
 	return strings.TrimPrefix(tableListPattern, "--table=")
