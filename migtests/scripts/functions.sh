@@ -252,6 +252,11 @@ export_data() {
 		--yes
 		--start-clean 1
 	"
+	if [ "${TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${TABLE_LIST}"
+	fi
+
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
 		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
