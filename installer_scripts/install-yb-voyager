@@ -34,6 +34,14 @@ LOG_FILE=/tmp/install-yb-voyager.log
 # issues #489 #492 #247 in ora2pg were fixed after this change
 ORA2PG_VERSION=${ORA2PG_VERSION:-"f08d47a4e5c20ff7d348e535ed05ab571b4bb350"}
 
+# debezium local installation envs
+DEBEZIUM_LOCAL_VERSION="2.3.3"
+DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
+DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c4060131"}
+DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
+DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
+DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
+
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
 touch $RC_FILE
@@ -210,7 +218,27 @@ check_java() {
     fi
 }
 
-install_debezium_server() {
+install_debezium_server(){
+	output "Installing debezium:${VERSION}."
+	if [ "${VERSION}" == "latest" ]
+	then
+		install_debezium_server_latest_release
+		return
+	fi
+
+	check_install_maven
+	clean_debezium
+	install_debezium_local ${DEBEZIUM_LOCAL_REF}
+	install_debezium_server_local ${DEBEZIUM_LOCAL_SERVER_REF}
+	install_debezium_server_voyager_plugin_local "2x"
+
+	install_debezium_local ${DEBEZIUM_LOCAL_REF_1X}
+	install_debezium_server_voyager_plugin_local "1x"
+	install_yb_client_local
+	package_debezium_server_local
+}
+
+install_debezium_server_latest_release() {
 	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
@@ -226,6 +254,127 @@ install_debezium_server() {
 	sudo tar -xzf ${debezium_server_filename} -C /opt/yb-voyager 1>&2
 	# cleanup
 	rm ${debezium_server_filename}
+}
+
+check_install_maven() {
+	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
+	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
+    version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
+	if [[ $version_ok -eq 1 ]]
+	# if ([ -n "$MAVEN_VER" ] && (( 10#${MAVEN_VER} >= 10#${MIN_REQUIRED_MAVEN_VERSION} )) )
+        then 
+                output "Found sufficient maven version = ${MAVEN_VER}"
+        else
+                output "Maven not found or not sufficient. Installing..."
+                install_maven
+        fi
+}
+
+install_maven() {
+	# if dir already present, assuming it was installed in a previous run
+	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
+	then
+		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
+		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
+		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
+		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
+		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager
+		rm apache-maven-3.8.4-bin.tar.gz
+	fi
+	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
+}
+
+clean_debezium(){
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	rm -rf debezium-server-voyager/target
+	popd > /dev/null
+}
+
+install_debezium_local() {
+	output "Installing debezium..." "$1"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium/archive/$1.tar.gz" -O debezium.tar.gz 1>&2
+	tar -xzvf debezium.tar.gz 1>&2
+	# build
+	cd "debezium-$1"
+	mvn -ntp clean install -Dquick 1>&2
+
+	# cleanup
+	cd ..
+	rm -r "debezium-$1"
+	rm debezium.tar.gz
+}
+
+install_debezium_server_local() {
+	output "Installing debezium-server..." "$1"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium-server/archive/$1.tar.gz" -O debezium-server.tar.gz 1>&2
+	tar -xzvf debezium-server.tar.gz 1>&2
+	# build
+	cd "debezium-server-$1"
+	mvn -ntp clean install -Dquick 1>&2
+
+	# cleanup
+	cd ..
+	rm -r "debezium-server-$1"
+	rm debezium-server.tar.gz
+}
+
+install_debezium_server_voyager_plugin_local() {
+	output "Installing debezium-server voyager plugin..." "$1"
+	if [ "$1" = "2x" ] 
+	then
+		pom="pom.xml"
+		version=${DEBEZIUM_LOCAL_VERSION}
+	else
+		pom="195pom.xml"
+		version=${DEBEZIUM_LOCAL_VERSION_1X}
+	fi
+	# build
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cd debezium-server-voyager/debezium-server-voyagerexporter
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	cd ../debezium-server-voyager-dist
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+	cd ../
+	mkdir -p target
+	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
+
+	popd > /dev/null
+}
+
+install_yb_client_local(){
+	output "Installing yb client..."
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cd debezium-server-voyager/yb-client-cdc-stream-wrapper
+	mvn -ntp clean package 1>&2
+	popd > /dev/null
+}
+
+package_debezium_server_local(){
+	output "Packaging debezium server..."
+	pushd `git rev-parse --show-toplevel` > /dev/null
+
+	cd debezium-server-voyager/target
+	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz" 1>&2
+	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz" -C debezium-server/ 1>&2
+	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
+	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
+	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
+	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
+	
+	output "Moving debezium-server to ${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
+	# delete contents of DEBEZIUM_LOCAL_INSTALLATION_DESTINATION/debezium-server if exists. 
+	# This is done to ensure that older version jars are not left behind in the lib dir.
+	if [ -d "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server" ]
+	then 
+		sudo rm -Rf "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
+	fi
+
+	mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+	popd > /dev/null
 }
 
 get_passed_options() {

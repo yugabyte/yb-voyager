@@ -8,22 +8,14 @@ trap on_exit EXIT
 LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
-INSTALLATION_DESTINATION=${INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
+DEBEZIUM_LOCAL_VERSION="2.3.3"
+DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
+DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c4060131"}
+DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
+DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
+DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 
-VERSION2X="2.3.3"
-VERSION1X="1.9.5"
 
-if [ -z "$DEBEZIUM_REF" ]; then
-	DEBEZIUM_REF="3a8a497a8403794d69ce2f781989ad12c4060131"
-fi
-
-if [ -z "$DEBEZIUM_SERVER_REF" ]; then
-	DEBEZIUM_SERVER_REF="c4cad64f6d1869bcd15531c8f9cef98c651f86cc"
-fi
-
-if [ -z "$DEBEZIUM_REF_1X" ]; then
-	DEBEZIUM_REF_1X="78ff67c054bec08bcad060968b24bfc9ba8b2112"
-fi
 
 
 on_exit() {
@@ -75,11 +67,11 @@ main() {
 	check_java
 	check_install_maven
 	clean_debezium
-	install_debezium ${DEBEZIUM_REF}
-	install_debezium_server ${DEBEZIUM_SERVER_REF}
+	install_debezium ${DEBEZIUM_LOCAL_REF}
+	install_debezium_server ${DEBEZIUM_LOCAL_SERVER_REF}
 	install_debezium_server_voyager_plugin "2x"
 
-	install_debezium ${DEBEZIUM_REF_1X}
+	install_debezium ${DEBEZIUM_LOCAL_REF_1X}
 	install_debezium_server_voyager_plugin "1x"
 	install_yb_client
 	package_debezium_server
@@ -321,10 +313,10 @@ install_debezium_server_voyager_plugin() {
 	if [ "$1" = "2x" ] 
 	then
 		pom="pom.xml"
-		version=${VERSION2X}
+		version=${DEBEZIUM_LOCAL_VERSION}
 	else
 		pom="195pom.xml"
-		version=${VERSION1X}
+		version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	# build
 	pushd `git rev-parse --show-toplevel` > /dev/null
@@ -353,23 +345,23 @@ package_debezium_server(){
 	pushd `git rev-parse --show-toplevel` > /dev/null
 
 	cd debezium-server-voyager/target
-	tar -xvzf "debezium-server-voyager-dist-${VERSION2X}.Final.tar.gz" 1>&2
-	rm "debezium-server-voyager-dist-${VERSION2X}.Final.tar.gz"
-	tar -xvzf "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz" -C debezium-server/ 1>&2
-	rm "debezium-server-voyager-dist-${VERSION1X}.Final.tar.gz"
+	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz" 1>&2
+	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz" -C debezium-server/ 1>&2
+	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
 	
-	output "Moving debezium-server to ${INSTALLATION_DESTINATION}/debezium-server"
-	# delete contents of INSTALLATION_DESTINATION/debezium-server if exists. 
+	output "Moving debezium-server to ${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
+	# delete contents of DEBEZIUM_LOCAL_INSTALLATION_DESTINATION/debezium-server if exists. 
 	# This is done to ensure that older version jars are not left behind in the lib dir.
-	if [ -d "${INSTALLATION_DESTINATION}/debezium-server" ]
+	if [ -d "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server" ]
 	then 
-		sudo rm -Rf "${INSTALLATION_DESTINATION}/debezium-server"
+		sudo rm -Rf "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
 	fi
 
-	mv debezium-server "${INSTALLATION_DESTINATION}/"	
+	mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
 
