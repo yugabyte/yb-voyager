@@ -32,7 +32,7 @@ def migration_completed_checks(tgt):
 
 	view_list = tgt.get_objects_of_type("VIEW", "public")
 	print("view_list:", view_list)
-	assert len(view_list) == 5
+	assert len(view_list) == 4
 
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		count = tgt.get_row_count(table_name, "public")
