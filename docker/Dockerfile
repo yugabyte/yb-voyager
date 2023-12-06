@@ -1,6 +1,3 @@
-FROM perl:latest
-RUN curl -L https://cpanmin.us | perl - --self-upgrade
-
 FROM golang:latest
 RUN go install github.com/go-delve/delve/cmd/dlv@latest
 
@@ -10,6 +7,8 @@ ENV TZ=UTC
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
+RUN apt-get update && apt-get install -y curl perl
+RUN curl -L https://cpanmin.us | perl - --self-upgrade
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update
 RUN apt-get install -y tzdata
