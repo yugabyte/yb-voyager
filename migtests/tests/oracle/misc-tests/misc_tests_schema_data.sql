@@ -149,3 +149,27 @@ create table c1(id int, vc varchar2(100),nvc nvarchar2(100));
 insert into c1 values(4,'
 ','tt');
 insert into c1 values(5,'	','abc');
+
+/*
+Test for orafce search_path
+*/
+
+CREATE TABLE employees
+    ( employee_id    NUMBER(6)
+    , first_name     VARCHAR2(20)
+    , last_name      VARCHAR2(25)
+	 CONSTRAINT     emp_last_name_nn  NOT NULL
+    , email          VARCHAR2(25)
+	CONSTRAINT     emp_email_nn  NOT NULL
+    , phone_number   VARCHAR2(20)
+    , hire_date      DATE
+	CONSTRAINT     emp_hire_date_nn  NOT NULL
+    ) ;
+    
+CREATE VIEW employee_yos (employee_id, full_name, yos) AS
+SELECT
+    employee_id,
+    first_name || ' ' || last_name,
+    FLOOR( months_between( CURRENT_DATE, hire_date )/ 12 )
+FROM
+    employees;
