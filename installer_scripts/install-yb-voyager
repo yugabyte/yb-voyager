@@ -124,6 +124,7 @@ centos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
+		unset GOROOT
 		VERSION="local"
 		GO="go"
 		install_yb_voyager
@@ -161,6 +162,7 @@ ubuntu_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
+		unset GOROOT
 		GO="go"
 		VERSION="local"
 		install_yb_voyager
@@ -203,6 +205,7 @@ macos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
+		unset GOROOT
 		GO="go"
 		VERSION="local"
 		install_yb_voyager
