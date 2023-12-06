@@ -366,12 +366,12 @@ install_debezium_server_voyager_plugin_local() {
 	pushd `git rev-parse --show-toplevel` > /dev/null
 	cd debezium-server-voyager/debezium-server-voyagerexporter
 	mvn -ntp clean install -Dquick -f ${pom} 1>&2
-	cd ../debezium-server-voyager-dist
-	mvn -ntp clean install -Dquick -f ${pom} 1>&2
-	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
-	cd ../
-	mkdir -p target
-	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" target/
+	# cd ../debezium-server-voyager-dist
+	# mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	# mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+	# cd ../
+	# mkdir -p target
+	# cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" target/
 
 	popd > /dev/null
 }
