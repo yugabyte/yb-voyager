@@ -306,11 +306,12 @@ install_maven() {
 	# if dir already present, assuming it was installed in a previous run
 	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
 	then
+		sudo mkdir -p /opt/yb-voyager
 		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
 		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
 		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
 		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
-		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager
+		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager/
 		rm apache-maven-3.8.4-bin.tar.gz
 	fi
 	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
@@ -426,7 +427,7 @@ package_debezium_server_local(){
 		sudo rm -Rf "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
 	fi
 
-	mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+	sudo mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
 
