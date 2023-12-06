@@ -66,7 +66,7 @@ func init() {
 	cutoverToCmd.AddCommand(cutoverToTargetCmd)
 	registerExportDirFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
-		"prepare for fallback by streaming changes from target DB to source DB (default false)")
+		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 }
 
 func updateFallBackEnabledInMetaDB() {

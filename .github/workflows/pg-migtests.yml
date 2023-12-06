@@ -93,6 +93,9 @@ jobs:
     - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
       run: migtests/scripts/run-test.sh pg/table-list-file-path-test
     
+    - name:  "TEST: pg-case-sensitivity-single-table"
+      run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
+
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg/dvdrental 
 

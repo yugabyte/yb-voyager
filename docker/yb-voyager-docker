@@ -34,6 +34,8 @@ variables=("BETA_FAST_DATA_EXPORT"
 "MAX_INTERVAL_BETWEEN_BATCHES")
 
 volume_dirs=("--export-dir" 
+"--backup-dir" 
+"--move-to" 
 "--source-ssl-cert" 
 "--source-ssl-key" 
 "--source-ssl-root-cert")
@@ -54,9 +56,10 @@ map_host_path_inside_container() {
 		# If flag_name is "" then we have to extract it from argv
 		if [[ $flag_name == "" ]]
 		then
-			flag_name=argv[${i}]
+			flag_name=${argv[${i}]}
 			j=$(( $i + 1))
-			dir_path=$(realpath "${argv[${j}]}")
+			argv[${j}]=$(realpath "${argv[${j}]}")
+			dir_path=${argv[${j}]}
 		fi
 		volume_name="voyager-${flag_name}"
 		# handle file paths.  If the path is a file, then the target path should be the directory of the file.
@@ -67,8 +70,8 @@ map_host_path_inside_container() {
 		# If the OS is macOS
 		if [[ $OSTYPE == 'darwin'* ]] 
 		then
-			docker volume rm $volume_name
-			docker volume create --driver local --opt type=none --opt device="${dir_path}" --opt o=bind $volume_name
+			docker volume rm $volume_name > /dev/null 2>&1
+			docker volume create --driver local --opt type=none --opt device="${dir_path}" --opt o=bind $volume_name > /dev/null 2>&1
 			volume_mappings="${volume_mappings} -v ${volume_name}:${dir_path}"
 		else
 			volume_mappings="${volume_mappings} -v ${dir_path}:${dir_path}"
@@ -133,6 +136,8 @@ do
 		fi
 		wallet_dir=$(sed -n 's|(DIRECTORY\s*=\s*"\([^"]*\)")|\1|p' ${tns_admin}/sqlnet.ora | xargs)
 
+		tns_admin=$(realpath "$tns_admin")
+		wallet_dir=$(realpath "$wallet_dir")
 		map_host_path_inside_container "oracle-tns-alias" "${tns_admin}"
 		map_host_path_inside_container "oracle-wallet-dir" "${wallet_dir}"
 		exported_vars="${exported_vars} -e TNS_ADMIN=${tns_admin}"
