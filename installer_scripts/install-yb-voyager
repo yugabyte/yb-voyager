@@ -125,6 +125,7 @@ centos_main() {
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
 		VERSION="local"
+		GO="go"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
 		return
@@ -160,6 +161,7 @@ ubuntu_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
+		GO="go"
 		VERSION="local"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
@@ -201,6 +203,7 @@ macos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
+		GO="go"
 		VERSION="local"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
