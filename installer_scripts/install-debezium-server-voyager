@@ -360,7 +360,15 @@ package_debezium_server(){
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
+	
 	output "Moving debezium-server to ${INSTALLATION_DESTINATION}/debezium-server"
+	# delete contents of INSTALLATION_DESTINATION/debezium-server if exists. 
+	# This is done to ensure that older version jars are not left behind in the lib dir.
+	if [ -d "${INSTALLATION_DESTINATION}/debezium-server" ]
+	then 
+		sudo rm -Rf "${INSTALLATION_DESTINATION}/debezium-server"
+	fi
+
 	mv debezium-server "${INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
