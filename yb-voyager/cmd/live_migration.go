@@ -185,7 +185,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// hash event
-	// Note: hash the event before running the event through the value converter.
+	// Note: hash the event before running the keys/values through the value converter.
 	// This is because the value converter can generate different values (formatting vs no formatting) for the same key
 	// which will affect hash value.
 	h := hashEvent(event)
