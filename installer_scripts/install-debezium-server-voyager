@@ -320,10 +320,10 @@ install_debezium_server_voyager_plugin() {
 	output "Installing debezium-server voyager plugin..." "$1"
 	if [ "$1" = "2x" ] 
 	then
-		pom="2xpom.xml"
+		pom="pom.xml"
 		version=${VERSION2X}
 	else
-		pom="1xpom.xml"
+		pom="195pom.xml"
 		version=${VERSION1X}
 	fi
 	# build
@@ -360,7 +360,7 @@ package_debezium_server(){
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
-
+	output "Moving debezium-server to ${INSTALLATION_DESTINATION}/debezium-server"
 	mv debezium-server "${INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
