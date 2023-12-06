@@ -402,6 +402,7 @@ package_debezium_server_local(){
 }
 
 rebuild_debezium_server_voyager_plugin_local(){
+	output "Rebuilding debezium server voyager plugin..."
 	install_debezium_server_voyager_plugin_local "2x"
 	pushd `git rev-parse --show-toplevel` > /dev/null
 	cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
@@ -434,7 +435,8 @@ get_passed_options() {
 				shift 
 				;;
 			--rebuild-voyager-local )
-				REBUILD_VOYAGER_LOCAL="true"
+				REBUILD_VOYAGER_LOCAL="true";
+				shift
 				;;
 			* ) 
 				break 
