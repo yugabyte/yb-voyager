@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -183,16 +184,28 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
 		tableName = event.SchemaName + "." + event.TableName
 	}
+
+	// hash event
+	h := hashEvent(event)
+
 	// preparing value converters for the streaming mode
 	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
-	h := hashEvent(event)
+	// insert into channel
 	evChans[h] <- event
-	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
+	log.Infof("inserted event vsn-%s from table %s - %v into channel %v", event.Vsn, event.TableName, createKeyValuePairs(event.Key), h)
 	return nil
+}
+func createKeyValuePairs(m map[string]*string) string {
+	b := new(bytes.Buffer)
+	for key, value := range m {
+		fmt.Fprintf(b, "%s=\"%s\"|", key, *(value))
+	}
+
+	return b.String()
 }
 
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
