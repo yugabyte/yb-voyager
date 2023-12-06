@@ -42,6 +42,9 @@ DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 
+# only rebuild voyager
+REBUILD_VOYAGER_LOCAL="false"
+
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
 touch $RC_FILE
@@ -119,6 +122,13 @@ main() {
 centos_main() {
 	check_binutils_version
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		VERSION="local"
+		install_yb_voyager
+		install_debezium_server
+		return
+	fi
 	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
@@ -148,6 +158,13 @@ centos_main() {
 ubuntu_main() {
 	check_binutils_version
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		VERSION="local"
+		install_yb_voyager
+		install_debezium_server
+		return
+	fi
 	output "Installing packages."
 	sudo apt update 1>&2
 	sudo apt-get -y install wget  1>&2
@@ -182,6 +199,13 @@ macos_main() {
 	output "      Use a CentOS/Ubuntu machine to migrate from Oracle/MySQL. "
 	output "=================================================="
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		VERSION="local"
+		install_yb_voyager
+		install_debezium_server
+		return
+	fi
 	macos_install_brew
 	macos_install_pg_dump
 	create_pg_dump_args_file
@@ -380,7 +404,7 @@ package_debezium_server_local(){
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
 		OPTS=$(getopt  lp  $ARGS_MACOS)
 	fi
@@ -396,6 +420,9 @@ get_passed_options() {
 			-p | --only-pg-support ) 
 				ONLY_PG="true"; 
 				shift 
+				;;
+			--rebuild-voyager-local )
+				REBUILD_VOYAGER_LOCAL="true"
 				;;
 			* ) 
 				break 
