@@ -10,6 +10,7 @@ ENV LC_ALL en_US.UTF-8
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt update
 RUN apt install -y tzdata
+RUN cpan -i App::cpanminus
 RUN apt-get update && \
     apt-get install -y wget curl openjdk-17-jre git sudo && \
 
