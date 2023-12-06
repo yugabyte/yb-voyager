@@ -13,7 +13,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt-get update
 RUN apt-get install -y tzdata
 RUN apt-get update && \
-    apt-get install -y wget curl openjdk-17-jre git sudo && \
+    apt-get install -y wget curl openjdk-17-jre git sudo gcc && \
 
     # wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb && \
     # apt-get install -y ./yb-apt-repo_1.0.0_all.deb && \
