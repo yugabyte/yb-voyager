@@ -8,6 +8,7 @@ trap on_exit EXIT
 LOG_FILE=/tmp/install-yb-voyager-debezium.log
 YUM="sudo yum install -y -q"
 
+INTALLATION_DESTINATION=${INTALLATION_DESTINATION:-"/opt/yb-voyager"}
 
 VERSION2X="2.3.3"
 VERSION1X="1.9.5"
@@ -359,6 +360,8 @@ package_debezium_server(){
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
+
+	mv debezium-server "${INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
 
