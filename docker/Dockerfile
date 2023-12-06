@@ -20,7 +20,7 @@ RUN apt-get update && \
     curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
     git clone https://github.com/yugabyte/yb-voyager.git && \
     cd yb-voyager/installer_scripts && \
-    yes | ./install-yb-voyager && \
+    echo "yes" | ./install-yb-voyager && \
     cat /tmp/install-yb-voyager.log && \
     source ~/.yb-voyager.rc && \
     # mkdir -p /opt/yb-voyager && \
