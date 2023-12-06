@@ -261,9 +261,11 @@ install_debezium_server(){
 	install_debezium_local ${DEBEZIUM_LOCAL_REF}
 	install_debezium_server_local ${DEBEZIUM_LOCAL_SERVER_REF}
 	install_debezium_server_voyager_plugin_local "2x"
+	assemble_debezium_server_voyager_local "2x"
 
 	install_debezium_local ${DEBEZIUM_LOCAL_REF_1X}
 	install_debezium_server_voyager_plugin_local "1x"
+	assemble_debezium_server_voyager_local "1x"
 	install_yb_client_local
 	package_debezium_server_local
 }
@@ -355,10 +357,10 @@ install_debezium_server_voyager_plugin_local() {
 	if [ "$1" = "2x" ] 
 	then
 		pom="pom.xml"
-		version=${DEBEZIUM_LOCAL_VERSION}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
 	else
 		pom="195pom.xml"
-		version=${DEBEZIUM_LOCAL_VERSION_1X}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	# build
 	pushd `git rev-parse --show-toplevel` > /dev/null
@@ -369,7 +371,28 @@ install_debezium_server_voyager_plugin_local() {
 	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
 	cd ../
 	mkdir -p target
-	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${version}.Final.tar.gz" target/
+	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" target/
+
+	popd > /dev/null
+}
+
+assemble_debezium_server_voyager_local() {
+	output "Assembling debezium-server voyager plugin..." "$1"
+	if [ "$1" = "2x" ] 
+	then
+		pom="pom.xml"
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
+	else
+		pom="195pom.xml"
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
+	fi
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cd debezium-server-voyager/debezium-server-voyager-dist
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+	cd ../
+	mkdir -p target
+	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" target/
 
 	popd > /dev/null
 }
@@ -550,8 +573,8 @@ install_yb_voyager() {
 # user as well as in the log file.
 output() {
 	set +x
-	echo $1
-	>&2 echo $1
+	echo "$@"
+	>&2 echo "$@"
 	set -x
 }
 
