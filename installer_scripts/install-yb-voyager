@@ -126,7 +126,7 @@ centos_main() {
 	then
 		VERSION="local"
 		install_yb_voyager
-		install_debezium_server
+		rebuild_debezium_server_voyager_plugin_local
 		return
 	fi
 	centos_check_base_repo_enabled
@@ -162,7 +162,7 @@ ubuntu_main() {
 	then
 		VERSION="local"
 		install_yb_voyager
-		install_debezium_server
+		rebuild_debezium_server_voyager_plugin_local
 		return
 	fi
 	output "Installing packages."
@@ -203,7 +203,7 @@ macos_main() {
 	then
 		VERSION="local"
 		install_yb_voyager
-		install_debezium_server
+		rebuild_debezium_server_voyager_plugin_local
 		return
 	fi
 	macos_install_brew
@@ -398,6 +398,18 @@ package_debezium_server_local(){
 	fi
 
 	mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+	popd > /dev/null
+}
+
+rebuild_debezium_server_voyager_plugin_local(){
+	install_debezium_server_voyager_plugin_local "2x"
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
+	popd > /dev/null
+
+	install_debezium_server_voyager_plugin_local "1x"
+	pushd `git rev-parse --show-toplevel` > /dev/null
+	cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
 	popd > /dev/null
 }
 
