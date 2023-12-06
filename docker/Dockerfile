@@ -18,6 +18,7 @@ RUN apt-get update && \
     git clone https://github.com/yugabyte/yb-voyager.git && \
     cd yb-voyager/installer_scripts && \
     ./install-yb-voyager && \
+    cat /tmp/install-yb-voyager.log && \
     source ~/.yb-voyager.rc && \
     # mkdir -p /opt/yb-voyager && \
     # apt-get install -y yb-voyager && \
