@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -194,18 +193,10 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
-	// insert into channel
+	// insert into
 	evChans[h] <- event
-	log.Infof("inserted event vsn-%s from table %s - %v into channel %v", event.Vsn, event.TableName, createKeyValuePairs(event.Key), h)
+	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
-}
-func createKeyValuePairs(m map[string]*string) string {
-	b := new(bytes.Buffer)
-	for key, value := range m {
-		fmt.Fprintf(b, "%s=\"%s\"|", key, *(value))
-	}
-
-	return b.String()
 }
 
 // Returns a hash value between 0..NUM_EVENT_CHANNELS
