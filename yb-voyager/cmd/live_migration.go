@@ -185,7 +185,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	}
 
 	// hash event
-	// Note: hash the event before running the even through the value converter.
+	// Note: hash the event before running the event through the value converter.
 	// This is because the value converter can generate different values (formatting vs no formatting) for the same key
 	// which will affect hash value.
 	h := hashEvent(event)
@@ -196,7 +196,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
-	// insert into channel
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
