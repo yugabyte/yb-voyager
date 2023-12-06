@@ -19,6 +19,7 @@ public class MigrationStatusRecord {
     public boolean FallForwardSwitchProcessedByTargetExporter;
     public boolean FallForwardSwitchProcessedByFFImporter;
     public boolean FallBackSwitchRequested;
+    public boolean EndMigrationRequested;
     public boolean FallBackSwitchProcessedByTargetExporter;
     public boolean FallBackSwitchProcessedByFBImporter;
     public boolean ExportSchemaDone;

@@ -329,6 +329,24 @@ public class ExportStatus {
         return false;
     }
 
+    public boolean checkifEndMigrationRequested() throws SQLException {
+        Statement selectStmt = metadataDBConn.createStatement();
+        String query = String.format("SELECT json_text from %s where key = '%s'",
+                JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
+        try {
+            ResultSet rs = selectStmt.executeQuery(query);
+            while (rs.next()) {
+                MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
+                return msr.EndMigrationRequested;
+            }
+        } catch (SQLException e) {
+            throw e;
+        } finally {
+            selectStmt.close();
+        }
+        return false;
+    }
+
     private void updateEventsStats(Connection conn, Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
         int updatedRows;
 
@@ -406,11 +424,12 @@ public class ExportStatus {
         }
     }
 
-    public void queueSegmentCreated(long segmentNo, String segmentPath){
+    public void queueSegmentCreated(long segmentNo, String segmentPath, String exporterRole){
         Statement insertStmt;
         try {
             insertStmt = metadataDBConn.createStatement();
-            insertStmt.executeUpdate(String.format("INSERT OR IGNORE into %s (segment_no, file_path, size_committed) VALUES(%d, '%s', 0)", QUEUE_SEGMENT_META_TABLE_NAME, segmentNo, segmentPath));
+            insertStmt.executeUpdate(String.format("INSERT OR IGNORE into %s (segment_no, file_path, size_committed, exporter_role) VALUES(%d, '%s', 0, '%s')",
+                    QUEUE_SEGMENT_META_TABLE_NAME, segmentNo, segmentPath, exporterRole));
             insertStmt.close();
         } catch (SQLException e) {
             throw new RuntimeException(String.format("Failed to run update queue segment size " +
