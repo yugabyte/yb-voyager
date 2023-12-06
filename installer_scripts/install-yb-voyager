@@ -426,7 +426,7 @@ package_debezium_server_local(){
 	then 
 		sudo rm -Rf "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
 	fi
-
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}"
 	sudo mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
 	popd > /dev/null
 }
