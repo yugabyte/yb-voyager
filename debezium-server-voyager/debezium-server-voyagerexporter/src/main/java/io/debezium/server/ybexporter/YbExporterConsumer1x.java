@@ -3,6 +3,15 @@
  *
  * Licensed under the Apache Software License version 2.0, available at http://www.apache.org/licenses/LICENSE-2.0
  */
+ /*
+CHANGES TO THIS FILE ARE ONLY NECESSARY WHEN DEALING WITH ANY API CHANGES FROM DEBEZIUM.
+SEPARATE FILES FOR DEBEZIUM VERSIONS 2.X AND 1.X WERE CREATED TO DEAL WITH BREAKING CHANGES
+
+THE DIFFERENCES BETWEEN 1X AND 2X FILES ARE:
+    -  https://debezium.io/releases/2.2/release-notes#breaking_changes_3
+        - import javax.* -> import jakarta.*
+THE POM FILES ARE RESPONSIBLE FOR INCLUDING THE APPROPRIATE FILE.
+ */
 package io.debezium.server.ybexporter;
 
 import io.debezium.engine.ChangeEvent;
