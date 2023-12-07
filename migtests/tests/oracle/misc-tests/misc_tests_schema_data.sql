@@ -162,7 +162,7 @@ CREATE TABLE employees
     , email          VARCHAR2(25)
 	CONSTRAINT     emp_email_nn  NOT NULL
     , phone_number   VARCHAR2(20)
-    , hire_date      DATE
+    , hire_date      TIMESTAMP
 	CONSTRAINT     emp_hire_date_nn  NOT NULL
     ) ;
     
