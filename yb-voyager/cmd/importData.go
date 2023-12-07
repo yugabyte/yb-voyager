@@ -916,9 +916,9 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
 
-	// if sourceDBType == ORACLE && enableOrafce {
-    //     setOrafceSearchPath(conn)
-    // }
+	if sourceDBType == ORACLE && enableOrafce {
+        setOrafceSearchPath(conn)
+    }
 
 	defer func() {
 		if conn != nil {
