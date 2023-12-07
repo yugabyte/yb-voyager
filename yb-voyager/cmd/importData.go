@@ -915,6 +915,11 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
+
+	if sourceDBType == ORACLE && enableOrafce {
+        setOrafceSearchPath(conn)
+    }
+
 	defer func() {
 		if conn != nil {
 			conn.Close(context.Background())
@@ -940,6 +945,17 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		}
 	}
 }
+
+func setOrafceSearchPath(conn *pgx.Conn) {
+	// append oracle schema in the search_path for orafce
+	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle, pg_catalog', false)`
+	//utils.PrintAndLog("Executing query: %s", updateSearchPath)
+	_, err := conn.Exec(context.Background(), updateSearchPath)
+	if err != nil {
+		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+	}
+}
+
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
 	// Return the index name itself if it is aleady qualified with schema name
