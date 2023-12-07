@@ -895,7 +895,7 @@ func setTargetSchema(conn *pgx.Conn) {
 
 	if sourceDBType == ORACLE && enableOrafce {
 		// append oracle schema in the search_path for orafce
-		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle, pg_catalog', false)`
+		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 		_, err := conn.Exec(context.Background(), updateSearchPath)
 		if err != nil {
 			utils.ErrExit("unable to update search_path for orafce extension: %v", err)
@@ -948,7 +948,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 
 func setOrafceSearchPath(conn *pgx.Conn) {
 	// append oracle schema in the search_path for orafce
-	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle, pg_catalog', false)`
+	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	//utils.PrintAndLog("Executing query: %s", updateSearchPath)
 	_, err := conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
