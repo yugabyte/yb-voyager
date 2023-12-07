@@ -41,6 +41,7 @@ DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c40601
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
+DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar"
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -372,7 +373,7 @@ install_debezium_server_voyager_plugin_local() {
 }
 
 assemble_debezium_server_voyager_local() {
-	output "Assembling debezium-server voyager plugin..." "$1"
+	output "Assembling debezium-server voyager..." "$1"
 	if [ "$1" = "2x" ] 
 	then
 		pom="pom.xml"
@@ -407,10 +408,16 @@ package_debezium_server_local(){
 	cd debezium-server-voyager/target
 	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz" 1>&2
 	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+
+	# 1.9.5
 	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz" -C debezium-server/ 1>&2
 	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
-	wget -nv https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar -P debezium-server/debezium-server-1.9.5/lib 1>&2
+
+	# debezium yugabyte connector
+	wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/lib 1>&2
+	
+	# yugabyte admin client
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
 	
 	output "Moving debezium-server to ${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
