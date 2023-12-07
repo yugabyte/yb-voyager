@@ -165,7 +165,14 @@ CREATE TABLE employees
     , hire_date      TIMESTAMP
 	CONSTRAINT     emp_hire_date_nn  NOT NULL
     ) ;
-    
+
+INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date) 
+VALUES (1, 'John', 'Doe', 'john.doe@email.com', '123-456-7890', TO_TIMESTAMP('2020-01-15 00:00:00', 'YYYY-MM-DD HH24:MI:SS'));
+INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date)
+VALUES (2, 'Jane', 'Smith', 'jane.smith@email.com', '987-654-3210', TO_TIMESTAMP('2019-05-20 00:00:00', 'YYYY-MM-DD HH24:MI:SS'));
+INSERT INTO employees (employee_id, first_name, last_name, email, phone_number, hire_date)
+VALUES (3, 'Bob', 'Johnson', 'bob.johnson@email.com', '555-123-4567', TO_TIMESTAMP('2021-08-10 00:00:00', 'YYYY-MM-DD HH24:MI:SS'));
+
 CREATE VIEW employee_yos (employee_id, full_name, yos) AS
 SELECT
     employee_id,
