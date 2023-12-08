@@ -1,2 +1,0 @@
-session_log2
-"Mixed_Case*"
