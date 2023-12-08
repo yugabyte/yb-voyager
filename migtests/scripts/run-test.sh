@@ -2,9 +2,9 @@
 
 set -e
 
-if [ $# -ne 1 ]
+if [ $# -gt 2 ]
 then
-	echo "Usage: $0 TEST_NAME"
+	echo "Usage: $0 TEST_NAME [env.sh]"
 	exit 1
 fi
 
@@ -21,7 +21,12 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
-source ${TEST_DIR}/env.sh
+if [ -f "$2" ] #if env.sh is passed as an argument, source it
+then
+	source $2
+else
+	source ${TEST_DIR}/env.sh
+fi
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 source ${SCRIPTS}/yugabytedb/env.sh
 
@@ -44,7 +49,7 @@ main() {
 	./init-db
 
 	step "Grant source database user permissions"
-	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+	# grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
 	step "Check the Voyager version installed"
 	yb-voyager version
