@@ -70,10 +70,10 @@ jobs:
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
     - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
-      run: migtests/scripts/run-test.sh mysql/table-list-test
+      run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
 
     - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-      run: migtests/scripts/run-test.sh mysql/table-list-file-path-test
+      run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
     
     - name: "TEST: mysql-sakila"
       run: migtests/scripts/run-test.sh mysql/sakila
