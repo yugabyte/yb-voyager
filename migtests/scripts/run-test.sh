@@ -21,9 +21,14 @@ export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
-if [ -f "$2" ] #if env.sh is passed as an argument, source it
+if [ $2 != "" ] #if env.sh is passed as an argument, source it
 then
-	source $2
+    if [ ! -f "${TEST_DIR}/$2" ]
+	then
+		echo "$2 file not found in the test directory"
+		exit 1
+	fi
+	source ${TEST_DIR}/$2
 else
 	source ${TEST_DIR}/env.sh
 fi
@@ -49,7 +54,7 @@ main() {
 	./init-db
 
 	step "Grant source database user permissions"
-	# grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+	grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
 
 	step "Check the Voyager version installed"
 	yb-voyager version
