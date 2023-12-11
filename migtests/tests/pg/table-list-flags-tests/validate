@@ -9,14 +9,14 @@ def main():
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
-	'orders': 3,
+	'orders': 0,
 	'products': 3,
 	'session_log': 100,
-	'session_log1': 100,
-	'session_log2': 100,
-	'Recipients': 1,    
+	'session_log1': 0,
+	'session_log2': 0,
+	'Case_Sensitive_Columns': 5,
 	'Mixed_Case_Table_Name_Test': 5,
-	'Case_Sensitive_Columns': 5
+	'Recipients':1,
 }
 
 

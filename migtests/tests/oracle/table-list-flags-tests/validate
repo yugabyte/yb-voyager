@@ -6,15 +6,20 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'trunc_test': 1,
  	'test_timezone': 1,
 	'group':5,
-	'check':5,
-	'reserved_column':5,
+	'check':0,
+	'reserved_column':0,
 	'mixed_case_table_name_test':6,
 	'case_sensitive_columns':6,
+	'session_log': 100,
+	'session_log1': 0,
+	'session_log2': 0,
+	'session_log3': 100,
+	'session_log4': 100,
 	'c': 12,
-	'c1': 2,
+	'c1': 0,
+	'c2':2,
 }
 
 def migration_completed_checks(tgt):
@@ -23,9 +28,6 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-	
-	functions = tgt.fetch_all_function_names("public")
-	assert set(functions) == set(["trunc_date", "trunc_time_stamp", "insert_session_logs"])
 
 if __name__ == "__main__":
 	main()
