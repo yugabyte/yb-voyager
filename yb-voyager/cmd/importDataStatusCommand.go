@@ -31,21 +31,21 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const importDataStatusMsg = "Import Data Status for TargetDB\n"
 
 var importDataStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print status of an ongoing/completed import data.",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		streamChanges, err := checkWithStreamingMode()
+		streamChanges, err := checkStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
 		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n"+
+			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		color.Cyan("Import Data Status for TargetDB\n")
 		importerRole = TARGET_DB_IMPORTER_ROLE
 		err = runImportDataStatusCmd()
 		if err != nil {
@@ -79,6 +79,7 @@ func runImportDataStatusCmd() error {
 	if err != nil {
 		return fmt.Errorf("prepare import data status table: %w", err)
 	}
+	color.Cyan(importDataStatusMsg)
 	uiTable := uitable.New()
 	for i, row := range table {
 		perc := fmt.Sprintf("%.2f", row.percentageComplete)

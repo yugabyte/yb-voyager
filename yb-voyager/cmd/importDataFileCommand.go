@@ -28,6 +28,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/az"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -78,6 +79,14 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 	sqlname.SourceDBType = sourceDBType
 	CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		source.DBType = POSTGRESQL
+		record.SourceDBConf = source.Clone()
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record: %v", err)
+	}
+	
 	dataFileList := getFileSizeInfo(importFileTasks)
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:   fileFormat,
@@ -342,7 +351,6 @@ func escapeFileOptsCharsIfRequired() {
 
 func init() {
 	importDataCmd.AddCommand(importDataFileCmd)
-	registerCommonImportFlags(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataCommonFlags(importDataFileCmd)
@@ -397,8 +405,10 @@ func init() {
 		`Starts a fresh import with data files present in the data directory. 
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
-Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag`)
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag (default false)`)
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")
+	importDataFileCmd.Flags().MarkHidden("table-list-file-path")
+	importDataFileCmd.Flags().MarkHidden("exclude-table-list-file-path")
 }

@@ -12,7 +12,6 @@ import (
 type MigrationStatusRecord struct {
 	MigrationUUID string `json:"MigrationUUID"`
 	ExportType    string `json:"ExportType"`
-	// FallForwarDBExists                         bool              `json:"FallForwarDBExists"`
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
@@ -35,6 +34,7 @@ type MigrationStatusRecord struct {
 	ExportSchemaDone                                bool              `json:"ExportSchemaDone"`
 	ExportDataDone                                  bool              `json:"ExportDataDone"`
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
+  EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

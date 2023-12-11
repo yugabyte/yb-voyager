@@ -175,6 +175,14 @@ func FileOrFolderExists(path string) bool {
 	panic("unreachable")
 }
 
+func FileOrFolderExistsWithGlobPattern(path string) bool {
+	files, err := filepath.Glob(path)
+	if err != nil {
+		ErrExit("Error while reading %q: %s", path, err)
+	}
+	return len(files) > 0
+}
+
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")

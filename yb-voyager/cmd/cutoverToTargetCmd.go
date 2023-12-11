@@ -64,10 +64,9 @@ var cutoverToTargetCmd = &cobra.Command{
 
 func init() {
 	cutoverToCmd.AddCommand(cutoverToTargetCmd)
-	cutoverToTargetCmd.Flags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	registerExportDirFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
-		"prepare for fallback by streaming changes from target DB to source DB (default false)")
+		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 }
 
 func updateFallBackEnabledInMetaDB() {

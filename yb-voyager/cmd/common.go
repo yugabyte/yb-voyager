@@ -389,13 +389,13 @@ func getCutoverStatus() string {
 
 }
 
-func checkWithStreamingMode() (bool, error) {
+func checkStreamingMode() (bool, error) {
 	var err error
 	migrationStatus, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("error while fetching migration status record: %w", err)
 	}
-	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportType) && dbzm.IsMigrationInStreamingMode(exportDir)
+	streamChanges := changeStreamingIsEnabled(migrationStatus.ExportType)
 	return streamChanges, nil
 }
 

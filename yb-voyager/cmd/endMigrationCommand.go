@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -81,24 +82,32 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	cleanupFallBackDB(msr)
 
 	backupLogFilesFn()
-	cleanupExportDir()
 	if backupDir != "" {
 		utils.PrintAndLog("saved the backup at %q", backupDir)
 	}
+
+	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 }
 
 func backupSchemaFilesFn() {
 	schemaDirPath := filepath.Join(exportDir, "schema")
-	if !bool(backupSchemaFiles) || !utils.FileOrFolderExists(schemaDirPath) {
+	backupSchemaDirPath := filepath.Join(backupDir, "schema")
+	if !bool(backupSchemaFiles) {
+		return
+	} else if utils.FileOrFolderExists(backupSchemaDirPath) {
+		// TODO: check can be made more robust by checking the contents of the backup-dir/schema
+		utils.PrintAndLog("schema files are already backed up at %q", backupSchemaDirPath)
 		return
 	}
 
-	utils.PrintAndLog("backing up schema files")
-	cmd := exec.Command("mv", schemaDirPath, backupDir)
+	utils.PrintAndLog("backing up schema files...")
+	cmd := exec.Command("mv", schemaDirPath, backupSchemaDirPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving schema files: %s: %v", string(output), err)
+	} else {
+		log.Infof("moved schema files from %q to %q", schemaDirPath, backupSchemaDirPath)
 	}
 }
 
@@ -124,12 +133,18 @@ func backupDataFilesFn() {
 
 		dataFilePath := filepath.Join(exportDir, "data", file.Name())
 		backupFilePath := filepath.Join(backupDir, "data", file.Name())
-		err = os.Rename(dataFilePath, backupFilePath)
+
+		cmd := exec.Command("mv", dataFilePath, backupFilePath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving data files: %v", err)
+			utils.ErrExit("moving data files: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
 }
+
+var streamChangesMode bool
 
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
@@ -141,8 +156,30 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
-	// TODO: what if there is no report.txt generated from analyze-schema step
-	utils.PrintAndLog("saving schema analysis report")
+	streamChangesMode, err = checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
+	saveSchemaAnalysisReport()
+	if streamChangesMode {
+		saveDataMigrationReport(msr)
+	} else { // snapshot case
+		saveDataExportReport()
+		saveDataImportReport()
+	}
+}
+
+func saveSchemaAnalysisReport() {
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
+	if !schemaIsAnalyzed() {
+		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
+		return
+	} else if alreadyBackedUp {
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		return
+	}
+	utils.PrintAndLog("saving schema analysis report...")
 	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
 		utils.ErrExit("reading reports directory: %v", err)
@@ -152,72 +189,87 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 			continue
 		}
 
-		err = os.Rename(filepath.Join(exportDir, "reports", file.Name()), filepath.Join(backupDir, "reports", file.Name()))
+		oldPath := filepath.Join(exportDir, "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving migration reports: %v", err)
+			utils.ErrExit("moving schema analysis report: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved schema analysis report %q to %q", oldPath, newPath)
 		}
-	}
-
-	streamChanges, err := checkWithStreamingMode()
-	if err != nil {
-		utils.ErrExit("error while checking streaming mode: %w\n", err)
-	}
-
-	if streamChanges {
-		saveDataMigrationReport(msr)
-	} else { // snapshot case
-		saveDataExportImportReports(msr)
 	}
 }
 
 func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("save data migration report...")
+	dataMigrationReportPath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
+	if utils.FileOrFolderExists(dataMigrationReportPath) {
+		utils.PrintAndLog("data migration report is already present at %q", dataMigrationReportPath)
+		return
+	}
+
+	utils.PrintAndLog("saving data migration report...")
 	askAndStorePasswords(msr)
 	passwordsEnvVars := []string{
 		fmt.Sprintf("TARGET_DB_PASSWORD=%s", targetDBPassword),
 		fmt.Sprintf("SOURCE_REPLICA_DB_PASSWORD=%s", sourceReplicaDBPassword),
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
-	liveMigrationReportFilePath := filepath.Join(backupDir, "reports", "data_migration_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s > %q", exportDir, liveMigrationReportFilePath)
+
+	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	var outbuf bytes.Buffer
-	liveMigrationReportCmd.Stderr = &outbuf
-	err := liveMigrationReportCmd.Run()
-	if err != nil {
-		log.Errorf("running get data-migration-report command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running get data-migration-report command: %v", err)
-	}
+	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
 }
 
-func saveDataExportImportReports(msr *metadb.MigrationStatusRecord) {
-	utils.PrintAndLog("saving data export report...")
+func saveDataExportReport() {
 	exportDataReportFilePath := filepath.Join(backupDir, "reports", "export_data_report.txt")
-	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s > %q", exportDir, exportDataReportFilePath)
-	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	var outbuf bytes.Buffer
-	exportDataStatusCmd.Stderr = &outbuf
-	err := exportDataStatusCmd.Run()
-	if err != nil {
-		log.Errorf("running export data status command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running export data status command: %v", err)
+	if utils.FileOrFolderExists(exportDataReportFilePath) {
+		utils.PrintAndLog("export data report is already present at %q", exportDataReportFilePath)
 	}
 
+	utils.PrintAndLog("saving data export report...")
+	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
+	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
+	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
+}
+
+func saveDataImportReport() {
 	if !dataIsExported() {
-		log.Infof("data is not exported. skipping data import report")
+		utils.PrintAndLog("data is not exported. skipping data import report")
 		return
 	}
-	utils.PrintAndLog("saving data import report...")
+
 	importDataReportFilePath := filepath.Join(backupDir, "reports", "import_data_report.txt")
-	strCmd = fmt.Sprintf("yb-voyager import data status --export-dir %s > %q", exportDir, importDataReportFilePath)
+	if utils.FileOrFolderExists(importDataReportFilePath) {
+		utils.PrintAndLog("import data report is already present at %q", importDataReportFilePath)
+	}
+
+	utils.PrintAndLog("saving data import report...")
+	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	outbuf = bytes.Buffer{}
-	importDataStatusCmd.Stderr = &outbuf
-	err = importDataStatusCmd.Run()
+	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
+}
+
+func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFilePath string) {
+	var outbuf, errbuf bytes.Buffer
+	cmd.Stdout = &outbuf
+	cmd.Stderr = &errbuf
+	err := cmd.Run()
 	if err != nil {
-		log.Errorf("running import data status command: %s: %v", outbuf.String(), err)
-		utils.ErrExit("running import data status command: %v", err)
+		log.Errorf("running %s command: %s: %v", cmdName, errbuf.String(), err)
+		utils.ErrExit("running %s command: %s: %v", cmdName, errbuf.String(), err)
+	}
+
+	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
+	outbufBytes = append(outbufBytes, []byte("\n")...)
+	if len(outbufBytes) > 0 && string(outbufBytes) != header {
+		err = os.WriteFile(reportFilePath, outbufBytes, 0644)
+		if err != nil {
+			utils.ErrExit("writing %s report: %v", cmdName, err)
+		}
+	} else {
+		utils.PrintAndLog("nothing to save for %s report", cmdName)
 	}
 }
 
@@ -283,6 +335,11 @@ func askPassword(destination string, user string, envVar string) (string, error)
 }
 
 func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
+	// there won't be anything required to be cleaned up in source-db(Oracle) for debezium snapshot migration
+	// TODO: verify it for PG and MySQL
+	if !streamChangesMode {
+		return
+	}
 	utils.PrintAndLog("cleaning up voyager state from source db...")
 	source := msr.SourceDBConf
 	if source == nil {
@@ -481,7 +538,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		}
 		if len(lockFiles) > 0 {
 			cmds := getCommandNamesFromLockFiles(lockFiles)
-			msg := fmt.Sprintf("found other ongoing voyager commands: %s. Do you want to continue with end migration command by stopping them", strings.Join(cmds, ", "))
+			msg := fmt.Sprintf("found other ongoing voyager commands: '%s'. Do you want to continue with end migration command by stopping them", strings.Join(cmds, "', '"))
 			if utils.AskPrompt(msg) {
 				stopVoyagerCommands(msr, lockFiles)
 			} else {
@@ -526,47 +583,11 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
-	if msr.ArchivingEnabled {
-		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
-		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
-		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
-		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
-	}
-
-	for _, lockFile := range lockFiles {
-		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
-	}
-}
-
 func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lockfile.Lockfile {
-	for _, lockFile := range lockFiles {
-		if lockFile.GetCmdName() == cmdName {
-			return lockFile
-		}
-	}
-	return nil
-}
-
-// stop the voyager command by sending the signal to the process(if alive)
-func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
-	if lockFile == nil || !lockFile.IsPIDActive() {
-		return
-	}
-
-	ongoingCmd := lockFile.GetCmdName()
-	utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
-
-	ongoingCmdPID, err := lockFile.GetCmdPID()
-	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
-	}
-
-	log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
-	err = stopProcessWithPID(ongoingCmdPID, signal)
-	if err != nil {
-		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
-	}
+	result, _ := lo.Find(lockFiles, func(lockFile *lockfile.Lockfile) bool {
+		return lockFile.GetCmdName() == cmdName
+	})
+	return result
 }
 
 func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
@@ -577,26 +598,92 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 	return cmds
 }
 
+func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
+	if msr.ArchivingEnabled {
+		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
+		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
+		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
+		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
+		stopDataExportCommand(exportDataLockFile)
+		stopDataExportCommand(exportDataFromSourceLockFile)
+		stopDataExportCommand(exportDataFromTargetLockFile)
+		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	for _, lockFile := range lockFiles {
+		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
+	}
+}
+
+// stop the voyager command by sending the signal to the process(if alive)
+func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	ongoingCmd := lockFile.GetCmdName()
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
+	err = stopProcessWithPID(ongoingCmdPID, signal)
+	if err != nil {
+		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
+	}
+}
+
 // this function wait for process to exit after signalling it to stop
 func stopProcessWithPID(pid int, signal syscall.Signal) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-
+	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
 	err := process.Signal(signal)
 	if err != nil {
 		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
+	waitForProcessToExit(process)
+	return nil
+}
+
+func waitForProcessToExit(process *os.Process) {
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll for 10 sec to make sure process is terminated
+	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for i := 0; i <= 10; i++ {
-		time.Sleep(time.Second * 1)
-		err = process.Signal(syscall.Signal(0))
+	for {
+		time.Sleep(time.Second * 2)
+		err := process.Signal(syscall.Signal(0))
 		if err != nil {
-			return nil
+			log.Infof("process with PID=%d is stopped", process.Pid)
+			return
 		}
 	}
-	return nil
+}
+
+func stopDataExportCommand(lockFile *lockfile.Lockfile) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		// dbzm plugin detects this MSR flag, and stops the data export gracefully
+		// so that the ongoing segment in closed and can be processed -> archived -> deleted
+		record.EndMigrationRequested = true
+	})
+
+	ongoingCmd := lockFile.GetCmdName()
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
+
+	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
+	waitForProcessToExit(process)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

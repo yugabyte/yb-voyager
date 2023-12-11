@@ -183,13 +183,19 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if sourceDBType == "postgresql" && event.SchemaName != "public" {
 		tableName = event.SchemaName + "." + event.TableName
 	}
+
+	// hash event
+	// Note: hash the event before running the keys/values through the value converter.
+	// This is because the value converter can generate different values (formatting vs no formatting) for the same key
+	// which will affect hash value.
+	h := hashEvent(event)
+
 	// preparing value converters for the streaming mode
 	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
-	h := hashEvent(event)
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil

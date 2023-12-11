@@ -49,7 +49,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		if cmd.CommandPath() == "yb-voyager" || cmd.CommandPath() == "yb-voyager version" {
+		if !shouldRunPersistentPreRun(cmd) {
 			return
 		}
 		validateExportDirFlag()
@@ -98,15 +98,45 @@ func startPprofServer() {
 }
 
 var noLockNeededList = []string{
+	"yb-voyager",
 	"yb-voyager version",
+	"yb-voyager help",
+	"yb-voyager import",
+	"yb-voyager import data to",
 	"yb-voyager import data status",
+	"yb-voyager export",
+	"yb-voyager export data from",
 	"yb-voyager export data status",
+	"yb-voyager cutover",
 	"yb-voyager cutover status",
 	"yb-voyager get data-migration-report",
+	"yb-voyager initiate",
+	"yb-voyager end",
+	"yb-voyager archive",
+}
+
+var noPersistentPreRunNeededList = []string{
+	"yb-voyager",
+	"yb-voyager version",
+	"yb-voyager help",
+	"yb-voyager import",
+	"yb-voyager import data to",
+	"yb-voyager export",
+	"yb-voyager export data from",
+	"yb-voyager initiate",
+	"yb-voyager initiate cutover",
+	"yb-voyager initiate cutover to",
+	"yb-voyager cutover",
+	"yb-voyager archive",
+	"yb-voyager end",
 }
 
 func shouldLock(cmd *cobra.Command) bool {
 	return !slices.Contains(noLockNeededList, cmd.CommandPath())
+}
+
+func shouldRunPersistentPreRun(cmd *cobra.Command) bool {
+	return !slices.Contains(noPersistentPreRunNeededList, cmd.CommandPath())
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -131,14 +161,18 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 		"profile yb-voyager for performance analysis")
 	cmd.Flags().MarkHidden("profile")
 
-	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
-		"export directory is the workspace used to keep the exported schema, data, state, and logs")
+	registerExportDirFlag(cmd)
 
 	cmd.PersistentFlags().BoolVarP(&utils.DoNotPrompt, "yes", "y", false,
 		"assume answer as yes for all questions during migration (default false)")
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.")
+}
+
+func registerExportDirFlag(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
+		"export directory is the workspace used to keep the exported schema, data, state, and logs")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -172,13 +206,15 @@ func validateExportDirFlag() {
 	if !utils.FileOrFolderExists(exportDir) {
 		utils.ErrExit("export-dir %q doesn't exists.\n", exportDir)
 	} else {
+		if exportDir == "." {
+			fmt.Println("Note: Using current directory as export-dir")
+		}
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
 			utils.ErrExit("Failed to get absolute path for export-dir %q: %v\n", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
-		fmt.Printf("Note: Using %q as export directory\n", exportDir)
 	}
 }
 

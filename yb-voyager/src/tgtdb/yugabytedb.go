@@ -1090,7 +1090,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	if len(nonEmptyTables) != 0 {
 		log.Infof("tables %v are not empty in schema %s", nonEmptyTables, schema)
 		utils.PrintAndLog("removed the current migration state from the target DB. "+
-			"But could not remove the schema %s as it still contains state of other migrations in '%s' database", schema, yb.tconf.DBName)
+			"But could not remove the schema '%s' as it still contains state of other migrations in '%s' database", schema, yb.tconf.DBName)
 		return nil
 	}
 	utils.PrintAndLog("dropping schema %s", schema)

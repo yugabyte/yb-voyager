@@ -47,7 +47,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("error while getting migration status: %w\n", err)
 		}
-		streamChanges, err := checkWithStreamingMode()
+		streamChanges, err := checkStreamingMode()
 		if err != nil {
 			utils.ErrExit("error while checking streaming mode: %w\n", err)
 		}
@@ -283,7 +283,7 @@ func getFinalRowCount(row rowData) int64 {
 
 func init() {
 	getCommand.AddCommand(getDataMigrationReportCmd)
-	registerCommonGlobalFlags(getDataMigrationReportCmd)
+	registerExportDirFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 

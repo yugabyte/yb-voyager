@@ -56,6 +56,59 @@ INSERT into `check` values(3, 'abc');
 INSERT into `check` values(4, 'abc');
 INSERT into `check` values(5, 'abc');
 
+drop table if exists session_log;
+
+create table session_log 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+
+create table session_log1 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+
+create table session_log2 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+create table session_log3 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+create table session_log4 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+
+DELIMITER $$
+CREATE PROCEDURE insert_session_logs()
+BEGIN
+    DECLARE i INT DEFAULT 1;
+
+    WHILE i <= 100 DO
+        INSERT INTO session_log VALUES (i, i);
+        INSERT INTO session_log1 VALUES (i, i);
+        INSERT INTO session_log2 VALUES (i, i);
+        INSERT INTO session_log3 VALUES (i, i);
+        INSERT INTO session_log4 VALUES (i, i);
+        SET i = i + 1;
+    END WHILE;
+END $$
+DELIMITER ;
+
+CALL insert_session_logs();
+
 drop table if exists `Mixed_Case_Table_Name_Test`;
 
 CREATE TABLE `Mixed_Case_Table_Name_Test` (

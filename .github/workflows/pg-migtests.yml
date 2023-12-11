@@ -87,6 +87,15 @@ jobs:
         echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
         psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
+    - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
+      run: migtests/scripts/run-test.sh pg/table-list-flags-tests
+
+    - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
+      run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
+    
+    - name:  "TEST: pg-case-sensitivity-single-table"
+      run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
+
     - name: "TEST: pg-dvdrental"
       run: migtests/scripts/run-test.sh pg/dvdrental 
 

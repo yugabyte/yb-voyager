@@ -252,6 +252,11 @@ export_data() {
 		--yes
 		--start-clean 1
 	"
+	if [ "${TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${TABLE_LIST}"
+	fi
+
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
 		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
@@ -287,6 +292,26 @@ export_data() {
 	if [ "${ORACLE_CDB_NAME}" != "" ]
 	then
 		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
+	fi
+
+	if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${EXPORT_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST}" != "" ]
+	then
+		args="${args} --exclude-table-list ${EXPORT_EX_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --table-list-file-path ${EXPORT_TABLE_LIST_FILE_PATH}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
 	fi
 
 	yb-voyager export data ${args} $*
@@ -330,17 +355,38 @@ import_data() {
 		--start-clean 1
 		--truncate-splits true
 		"
+
+		if [ "${IMPORT_TABLE_LIST}" != "" ]
+		then
+			args="${args} --table-list ${IMPORT_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST}" != "" ]
+		then
+			args="${args} --exclude-table-list ${IMPORT_EX_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --table-list-file-path ${IMPORT_TABLE_LIST_FILE_PATH}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
+		fi
+
 		yb-voyager import data ${args} $*
 }
 
 import_data_to_source_replica() {
 	args="
 	--export-dir ${EXPORT_DIR}
-	--source-replica-db-user ${FF_DB_USER}
-	--source-replica-db-host ${FF_DB_HOST} 
-	--source-replica-db-name ${FF_DB_NAME} 
-	--source-replica-db-password ${FF_DB_PASSWORD} 
-	--source-replica-db-schema ${FF_DB_SCHEMA} 
+	--source-replica-db-user ${SOURCE_REPLICA_DB_USER}
+	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
+	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
+	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
+	--source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
@@ -366,6 +412,19 @@ import_data_file() {
 		}
 }
 
+archive_changes() {
+	ENABLE=$(shuf -i 0-1 -n 1)
+	echo "archive changes ENABLE=${ENABLE}"
+	if [[ ${ENABLE} -eq 1 ]];
+	then
+		ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
+		mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
+
+		yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+		--export-dir ${EXPORT_DIR}
+	fi
+}
+
 end_migration() {
 	BACKUP_DIR=${EXPORT_DIR}/backup-dir
 	mkdir ${BACKUP_DIR}  # temporary place to store the backup
@@ -373,7 +432,7 @@ end_migration() {
 	# setting env vars for passwords to be used for saving reports
 	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
 	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
-	export SOURCE_REPLICA_DB_PASSWORD=${FF_DB_PASSWORD}
+	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
 	yb-voyager end migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
