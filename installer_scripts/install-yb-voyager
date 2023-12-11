@@ -24,9 +24,6 @@ trap on_exit EXIT
 
 YUM="sudo yum install -y -q"
 
-export GOROOT="/tmp/go"
-GO_VERSION="go1.20"
-GO="$GOROOT/bin/go"
 
 LOG_FILE=/tmp/install-yb-voyager.log
 
@@ -125,9 +122,7 @@ centos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		unset GOROOT
 		VERSION="local"
-		GO="go"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
 		return
@@ -163,8 +158,6 @@ ubuntu_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		unset GOROOT
-		GO="go"
 		VERSION="local"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
@@ -206,8 +199,6 @@ macos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		unset GOROOT
-		GO="go"
 		VERSION="local"
 		install_yb_voyager
 		rebuild_debezium_server_voyager_plugin_local
@@ -436,12 +427,12 @@ rebuild_debezium_server_voyager_plugin_local(){
 	output "Rebuilding debezium server voyager plugin..."
 	install_debezium_server_voyager_plugin_local "2x"
 	pushd `git rev-parse --show-toplevel` > /dev/null
-	cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
+	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
 	popd > /dev/null
 
 	install_debezium_server_voyager_plugin_local "1x"
 	pushd `git rev-parse --show-toplevel` > /dev/null
-	cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
+	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
 	popd > /dev/null
 }
 
@@ -548,6 +539,7 @@ update_yb_voyager_bashrc() {
 
 install_yb_voyager() {
 	output "Installing yb-voyager:${VERSION}."
+	GO=${GO:-"go"}
 	if [ "${VERSION}" == "latest" ]
 	then
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
@@ -586,6 +578,9 @@ install_golang() {
 		output "Found golang."
 		return
 	fi
+	export GOROOT="/tmp/go"
+	GO_VERSION="go1.20"
+	GO="$GOROOT/bin/go"
 
 	os=$1
 	arch="$(uname -p)"
