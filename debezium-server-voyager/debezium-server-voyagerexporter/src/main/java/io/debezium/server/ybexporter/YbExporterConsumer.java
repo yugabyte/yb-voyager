@@ -212,7 +212,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         for (ChangeEvent<Object, Object> event : changeEvents) {
             String tableName = ((Struct) ((SourceRecord) event.value()).value()).getStruct("source").getString("table");
             int executorIndex = tableExecutorMap.get(tableName);
-            LOGGER.info("executor {} for table {}", executorIndex, tableName);
+//            LOGGER.info("executor {} for table {}", executorIndex, tableName);
             futures.add(executorServices.get(executorIndex).submit(() -> {
 //                LOGGER.info("processed event");
                 handleEvent(event, committer);
