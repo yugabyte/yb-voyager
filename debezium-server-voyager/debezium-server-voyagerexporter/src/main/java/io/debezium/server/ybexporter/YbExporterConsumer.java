@@ -214,8 +214,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             int executorIndex = tableExecutorMap.get(tableName);
             LOGGER.info("executor {} for table {}", executorIndex, tableName);
             futures.add(executorServices.get(executorIndex).submit(() -> {
-                LOGGER.info("processed event");
-//                handleEvent(event, committer);
+//                LOGGER.info("processed event");
+                handleEvent(event, committer);
             }));
         }
         for(Future f: futures) {
