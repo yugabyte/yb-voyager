@@ -34,3 +34,7 @@ __pycache__/
 migtests/tests/analyze-schema/dummy-export-dir/reports/
 migtests/tests/analyze-schema/dummy-export-dir/logs/
 migtests/tests/analyze-schema/dummy-export-dir/.*.lck
+
+# debezium server
+debezium-server-voyager/**/target/
+*.iml
