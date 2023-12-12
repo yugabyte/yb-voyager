@@ -28,11 +28,7 @@ class KafkaConnectRecordParser implements RecordParser {
     private Map<String, Table> tableMap;
     private JsonConverter jsonConverter;
     private Map<String, String> renameTables;
-<<<<<<< HEAD
 
-=======
-    Record r = new Record();
->>>>>>> main
 
     public KafkaConnectRecordParser(String dataDirStr, String sourceType, Map<String, Table> tblMap) {
         this.dataDirStr = dataDirStr;
