@@ -7,11 +7,19 @@ package io.debezium.server.ybexporter;
 
 import java.net.URISyntaxException;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
+import org.apache.kafka.connect.data.Struct;
+import org.apache.kafka.connect.source.SourceRecord;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -44,6 +52,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private RecordTransformer recordTransformer;
     Thread flusherThread;
     boolean shutDown = false;
+    List<ExecutorService> executorServices = new ArrayList<>();
 
     public YbExporterConsumer(String dataDir){
         this.dataDir = dataDir;
@@ -74,6 +83,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+
+        for (int i=0; i<4; i++){
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executorServices.add(executor);
+        }
     }
 
     private ExportMode getExportModeToStartWith(String snapshotMode){
@@ -187,45 +201,79 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             throws InterruptedException {
         LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
+
+        HashMap<String,Integer> tableExecutorMap = new HashMap<>();
+        tableExecutorMap.put("ORDERS", 0);
+        tableExecutorMap.put("ORDERLINES", 1);
+        tableExecutorMap.put("CUSTOMERS", 2);
+        tableExecutorMap.put("CUST_HIST", 3);
+
+        List<Future> futures = new ArrayList<Future>();
         for (ChangeEvent<Object, Object> event : changeEvents) {
-            Object objKey = event.key();
-            Object objVal = event.value();
-
-            // PARSE
-            var r = parser.parseRecord(objKey, objVal);
-            if (r.isUnsupported()) {
-                committer.markProcessed(event);
-                continue;
-            }
-            // LOGGER.info("Processing record {} => {}", r.getTableIdentifier(), r.getValueFieldValues());
-            checkIfSnapshotAlreadyComplete(r);
-            recordTransformer.transformRecord(r);
-            sequenceObjectUpdater.processRecord(r);
-
-            // WRITE
-            RecordWriter writer = getWriterForRecord(r);
-            if (exportStatus.getMode().equals(ExportMode.STREAMING)){
-                // need to synchronize access with cutover/fall-forward thread
-                synchronized (writer){
-                    if (shutDown){
-                        return;
-                    }
-                    writer.writeRecord(r);
-                }
-            }
-            else{
-                writer.writeRecord(r);
-            }
-            // Handle snapshot->cdc transition
-            checkIfSnapshotComplete(r);
-
-            committer.markProcessed(event);
+            String tableName = ((Struct) ((SourceRecord) event.value()).value()).getStruct("source").getString("table");
+            int executorIndex = tableExecutorMap.get(tableName);
+            LOGGER.info("executor {} for table {}", executorIndex, tableName);
+            futures.add(executorServices.get(executorIndex).submit(() -> {
+                handleEvent(event, committer);
+            }));
         }
+        for(Future f: futures) {
+            try {
+                f.get();
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+
         handleBatchComplete();
         LOGGER.info("Fsynced batch with {} records", changeEvents.size());
         committer.markBatchFinished();
         LOGGER.info("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
+    }
+
+    private void handleEvent(ChangeEvent<Object, Object> event, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer){
+        Object objKey = event.key();
+        Object objVal = event.value();
+
+        // PARSE
+        var r = parser.parseRecord(objKey, objVal);
+        if (r.isUnsupported()) {
+            try {
+                committer.markProcessed(event);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            return;
+        }
+        // LOGGER.info("Processing record {} => {}", r.getTableIdentifier(), r.getValueFieldValues());
+        checkIfSnapshotAlreadyComplete(r);
+        recordTransformer.transformRecord(r);
+        sequenceObjectUpdater.processRecord(r);
+
+        // WRITE
+        RecordWriter writer = getWriterForRecord(r);
+        if (exportStatus.getMode().equals(ExportMode.STREAMING)){
+            // need to synchronize access with cutover/fall-forward thread
+            synchronized (writer){
+                if (shutDown){
+                    return;
+                }
+                writer.writeRecord(r);
+            }
+        }
+        else{
+            writer.writeRecord(r);
+        }
+        // Handle snapshot->cdc transition
+        checkIfSnapshotComplete(r);
+
+        try {
+            committer.markProcessed(event);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private RecordWriter getWriterForRecord(Record r) {
