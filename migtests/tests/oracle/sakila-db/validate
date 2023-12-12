@@ -1,0 +1,69 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+EXPECTED_ROW_COUNT = {
+	'payment':16008,
+	'rental':16003,
+	'inventory':4581,
+	'film_category':1000,
+	'film_actor':5462,
+	'film':1000,
+	'language':6,
+	'customer':597,
+	'actor':200,
+	'category':16,
+	'store':2,
+	'address':603,
+	'staff':2,
+	'city':600,
+	'country':109,
+
+}
+#=============================================================================
+
+def migration_completed_checks(tgt):
+    # Validate the total number of tables migrated
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 16
+
+	# Validate the total number of rows migrated
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	views = tgt.get_objects_of_type("VIEW", "public")
+	print("number of views:", len(views))
+	assert len(views) == 4
+
+	indexes = tgt.get_objects_of_type("INDEX", "public")
+	print("number of indexes:", len(indexes))
+	assert len(indexes) == 40
+
+	sequences = tgt.get_objects_of_type("SEQUENCE", "public")
+	print("number of sequences:", len(sequences))
+	assert len(sequences) == 13
+
+	fetch_all_functions = tgt.fetch_all_function_names("public")
+	print("number of functions:", len(fetch_all_functions))
+	assert len(fetch_all_functions) == 30
+
+	fetch_all_procedures = tgt.fetch_all_procedures("public")
+	print("number of procedures:", len(fetch_all_procedures))
+	assert len(fetch_all_procedures) == 30
+
+	fetch_all_triggers = tgt.fetch_all_triggers("public")
+	print("number of triggers:", len(fetch_all_triggers))
+	assert len(fetch_all_triggers) == 30
+
+
+
+ 
+	
+if __name__ == "__main__":
+	main()

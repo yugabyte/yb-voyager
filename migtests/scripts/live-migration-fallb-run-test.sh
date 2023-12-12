@@ -130,6 +130,9 @@ main() {
 	# Updating the trap command to include the importer
 	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
+	step "Archive Changes."
+	archive_changes &
+
 	sleep 30 
 
 	step "Run snapshot validations."

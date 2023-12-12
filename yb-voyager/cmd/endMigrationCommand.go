@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -91,15 +92,22 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 func backupSchemaFilesFn() {
 	schemaDirPath := filepath.Join(exportDir, "schema")
+	backupSchemaDirPath := filepath.Join(backupDir, "schema")
 	if !bool(backupSchemaFiles) {
+		return
+	} else if utils.FileOrFolderExists(backupSchemaDirPath) {
+		// TODO: check can be made more robust by checking the contents of the backup-dir/schema
+		utils.PrintAndLog("schema files are already backed up at %q", backupSchemaDirPath)
 		return
 	}
 
-	utils.PrintAndLog("backing up schema files")
-	cmd := exec.Command("mv", schemaDirPath, backupDir)
+	utils.PrintAndLog("backing up schema files...")
+	cmd := exec.Command("mv", schemaDirPath, backupSchemaDirPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		utils.ErrExit("moving schema files: %s: %v", string(output), err)
+	} else {
+		log.Infof("moved schema files from %q to %q", schemaDirPath, backupSchemaDirPath)
 	}
 }
 
@@ -125,9 +133,13 @@ func backupDataFilesFn() {
 
 		dataFilePath := filepath.Join(exportDir, "data", file.Name())
 		backupFilePath := filepath.Join(backupDir, "data", file.Name())
-		err = os.Rename(dataFilePath, backupFilePath)
+
+		cmd := exec.Command("mv", dataFilePath, backupFilePath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving data files: %v", err)
+			utils.ErrExit("moving data files: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
 }
@@ -159,7 +171,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExists(filepath.Join(backupDir, "reports", "report.*"))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
 	if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
@@ -177,9 +189,14 @@ func saveSchemaAnalysisReport() {
 			continue
 		}
 
-		err = os.Rename(filepath.Join(exportDir, "reports", file.Name()), filepath.Join(backupDir, "reports", file.Name()))
+		oldPath := filepath.Join(exportDir, "reports", file.Name())
+		newPath := filepath.Join(backupDir, "reports", file.Name())
+		cmd := exec.Command("mv", oldPath, newPath)
+		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving migration reports: %v", err)
+			utils.ErrExit("moving schema analysis report: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved schema analysis report %q to %q", oldPath, newPath)
 		}
 	}
 }
@@ -566,47 +583,11 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	}
 }
 
-func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
-	if msr.ArchivingEnabled {
-		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
-		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
-		stopVoyagerCommand(exportDataLockFile, syscall.SIGUSR2)
-		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
-	}
-
-	for _, lockFile := range lockFiles {
-		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
-	}
-}
-
 func getLockFileForCommand(lockFiles []*lockfile.Lockfile, cmdName string) *lockfile.Lockfile {
-	for _, lockFile := range lockFiles {
-		if lockFile.GetCmdName() == cmdName {
-			return lockFile
-		}
-	}
-	return nil
-}
-
-// stop the voyager command by sending the signal to the process(if alive)
-func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
-	if lockFile == nil || !lockFile.IsPIDActive() {
-		return
-	}
-
-	ongoingCmd := lockFile.GetCmdName()
-	utils.PrintAndLog("stopping the ongoing %q command", ongoingCmd)
-
-	ongoingCmdPID, err := lockFile.GetCmdPID()
-	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
-	}
-
-	log.Infof("stopping ongoing voyager commands %q with PID=%d", ongoingCmd, ongoingCmdPID)
-	err = stopProcessWithPID(ongoingCmdPID, signal)
-	if err != nil {
-		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
-	}
+	result, _ := lo.Find(lockFiles, func(lockFile *lockfile.Lockfile) bool {
+		return lockFile.GetCmdName() == cmdName
+	})
+	return result
 }
 
 func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
@@ -617,26 +598,92 @@ func getCommandNamesFromLockFiles(lockFiles []*lockfile.Lockfile) []string {
 	return cmds
 }
 
+func stopVoyagerCommands(msr *metadb.MigrationStatusRecord, lockFiles []*lockfile.Lockfile) {
+	if msr.ArchivingEnabled {
+		exportDataLockFile := getLockFileForCommand(lockFiles, "export data")
+		exportDataFromTargetLockFile := getLockFileForCommand(lockFiles, "export data from target")
+		exportDataFromSourceLockFile := getLockFileForCommand(lockFiles, "export data from source")
+		archiveChangesLockFile := getLockFileForCommand(lockFiles, "archive changes")
+		stopDataExportCommand(exportDataLockFile)
+		stopDataExportCommand(exportDataFromSourceLockFile)
+		stopDataExportCommand(exportDataFromTargetLockFile)
+		stopVoyagerCommand(archiveChangesLockFile, syscall.SIGUSR1)
+	}
+
+	for _, lockFile := range lockFiles {
+		stopVoyagerCommand(lockFile, syscall.SIGUSR2)
+	}
+}
+
+// stop the voyager command by sending the signal to the process(if alive)
+func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	ongoingCmd := lockFile.GetCmdName()
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
+	err = stopProcessWithPID(ongoingCmdPID, signal)
+	if err != nil {
+		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
+	}
+}
+
 // this function wait for process to exit after signalling it to stop
 func stopProcessWithPID(pid int, signal syscall.Signal) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-
+	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
 	err := process.Signal(signal)
 	if err != nil {
 		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
+	waitForProcessToExit(process)
+	return nil
+}
+
+func waitForProcessToExit(process *os.Process) {
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll for 10 sec to make sure process is terminated
+	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for i := 0; i <= 10; i++ {
-		time.Sleep(time.Second * 1)
-		err = process.Signal(syscall.Signal(0))
+	for {
+		time.Sleep(time.Second * 2)
+		err := process.Signal(syscall.Signal(0))
 		if err != nil {
-			return nil
+			log.Infof("process with PID=%d is stopped", process.Pid)
+			return
 		}
 	}
-	return nil
+}
+
+func stopDataExportCommand(lockFile *lockfile.Lockfile) {
+	if lockFile == nil || !lockFile.IsPIDActive() {
+		return
+	}
+
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		// dbzm plugin detects this MSR flag, and stops the data export gracefully
+		// so that the ongoing segment in closed and can be processed -> archived -> deleted
+		record.EndMigrationRequested = true
+	})
+
+	ongoingCmd := lockFile.GetCmdName()
+	ongoingCmdPID, err := lockFile.GetCmdPID()
+	if err != nil {
+		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+	}
+
+	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
+	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
+
+	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
+	waitForProcessToExit(process)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

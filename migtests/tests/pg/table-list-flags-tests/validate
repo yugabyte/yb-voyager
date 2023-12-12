@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'orders': 0,
+	'products': 3,
+	'session_log': 100,
+	'session_log1': 0,
+	'session_log2': 0,
+	'Case_Sensitive_Columns': 5,
+	'Mixed_Case_Table_Name_Test': 5,
+	'Recipients':1,
+}
+
+
+def migration_completed_checks(tgt):
+	table_list = tgt.get_table_names("public")
+	print("table_list:", table_list)
+	assert len(table_list) == 8
+
+
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+
+	QUERY_CHK_TYPES_DOMAINS = "select count(typname) from pg_type where typname in ('enum_kind', 'item_details', 'person_name');"
+	cnt_type_domain = tgt.execute_query(QUERY_CHK_TYPES_DOMAINS)
+	print(f"count returned - {cnt_type_domain}")
+	assert cnt_type_domain == 3
+
+
+if __name__ == "__main__":
+	main()

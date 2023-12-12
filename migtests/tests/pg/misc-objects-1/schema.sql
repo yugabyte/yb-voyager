@@ -17,22 +17,41 @@ CREATE TYPE Item_details AS (
     item_price Numeric(5,2)  
 );  
 
+CREATE TABLE orders (
+    item Item_details,
+    number_of_items int,
+    created_at timestamp with time zone default now()
+);
+
+INSERT INTO orders (item, number_of_items) VALUES (ROW(1, 'Shoes', 100.00), 5); 
+INSERT INTO orders (item, number_of_items) VALUES (ROW(2, 'Shirts', 50.00), 10);
+INSERT INTO orders (item, number_of_items) VALUES (ROW(3, 'Pants', 75.00), 6);
+
+CREATE TABLE products (
+    item Item_details,
+    added_at timestamp with time zone default now(),
+    updated_at timestamp with time zone default now()
+);
+
+INSERT INTO products (item) VALUES (ROW(1, 'Shoes', 100.00)); 
+INSERT INTO products (item) VALUES (ROW(2, 'Shirts', 50.00));
+INSERT INTO products (item) VALUES (ROW(3, 'Pants', 75.00));
 
 DROP DOMAIN IF EXISTS person_name cascade; 
 
 CREATE DOMAIN person_name AS   
 VARCHAR NOT NULL CHECK (value!~ '\s'); 
 
-drop table if exists Recipients;
+drop table if exists "Recipients";
 
-CREATE TABLE Recipients (  
+CREATE TABLE "Recipients" (  
 ID SERIAL PRIMARY KEY,  
     First_name person_name,  
     Last_name person_name,  
     Misc enum_kind  
     );  
     
-insert into Recipients(First_name,Last_name,Misc) values ('abc','xyz','YES');
+insert into "Recipients"(First_name,Last_name,Misc) values ('abc','xyz','YES');
 
 drop table if exists session_log;
 
@@ -51,6 +70,45 @@ comment on table session_log is 'Our session logs';
 
 \dt+ session_log
 
+create table session_log1 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+comment on column session_log1.userid is 'The user ID for log1';
+comment on column session_log1.phonenumber is 'The phone number including the area code for log1';
+
+comment on table session_log1 is 'Our session logs1';
+
+\d+ session_log
+
+\dt+ session_log
+
+create table session_log2 
+( 
+   userid int not null, 
+   phonenumber int
+); 
+
+comment on column session_log2.userid is 'The user ID for log2';
+comment on column session_log2.phonenumber is 'The phone number including the area code for log2';
+
+comment on table session_log2 is 'Our session logs2';
+
+\d+ session_log
+
+\dt+ session_log
+
+
+do $$
+begin
+   for i in 1..100 loop
+      INSERT INTO session_log VALUES(i,i);
+      INSERT INTO session_log1 VALUES(i,i);
+      INSERT INTO session_log2 VALUES(i,i);
+   end loop;
+end; $$;
 
 drop table if exists "Mixed_Case_Table_Name_Test";
 

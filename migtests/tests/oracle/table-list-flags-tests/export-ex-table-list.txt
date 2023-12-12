@@ -1,0 +1,1 @@
+session_log2,,,,,,reserved_column

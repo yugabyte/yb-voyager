@@ -1,0 +1,5 @@
+"*er"
+"group"
+reserved_column
+*case*
+session_log*

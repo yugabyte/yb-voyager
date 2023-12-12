@@ -37,7 +37,7 @@ func main() {
 
 func registerSignalHandlers() {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR2)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM, syscall.SIGUSR2, syscall.SIGUSR1)
 	go func() {
 		sig := <-sigs
 		switch sig {

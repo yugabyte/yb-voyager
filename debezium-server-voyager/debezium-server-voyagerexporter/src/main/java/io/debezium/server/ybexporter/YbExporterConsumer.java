@@ -7,11 +7,15 @@ package io.debezium.server.ybexporter;
 
 import java.net.URISyntaxException;
 import java.sql.SQLException;
+<<<<<<< HEAD
 import java.util.ArrayList;
+=======
+>>>>>>> main
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+<<<<<<< HEAD
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -20,6 +24,9 @@ import java.util.concurrent.Future;
 
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
+=======
+
+>>>>>>> main
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -52,7 +59,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private RecordTransformer recordTransformer;
     Thread flusherThread;
     boolean shutDown = false;
+<<<<<<< HEAD
     List<ExecutorService> executorServices = new ArrayList<>();
+=======
+>>>>>>> main
 
     public YbExporterConsumer(String dataDir){
         this.dataDir = dataDir;
@@ -83,11 +93,14 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+<<<<<<< HEAD
 
         for (int i=0; i<4; i++){
             ExecutorService executor = Executors.newSingleThreadExecutor();
             executorServices.add(executor);
         }
+=======
+>>>>>>> main
     }
 
     private ExportMode getExportModeToStartWith(String snapshotMode){
@@ -226,13 +239,13 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
         }
 
-
         handleBatchComplete();
         LOGGER.info("Fsynced batch with {} records", changeEvents.size());
         committer.markBatchFinished();
         LOGGER.info("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
     }
+
 
     private void handleEvent(ChangeEvent<Object, Object> event, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer){
         Object objKey = event.key();
@@ -276,6 +289,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             throw new RuntimeException(e);
         }
     }
+
 
     private RecordWriter getWriterForRecord(Record r) {
         if (exportStatus.getMode() == ExportMode.SNAPSHOT) {

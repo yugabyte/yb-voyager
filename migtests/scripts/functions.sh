@@ -252,6 +252,11 @@ export_data() {
 		--yes
 		--start-clean 1
 	"
+	if [ "${TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${TABLE_LIST}"
+	fi
+
 	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
 	then
 		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
@@ -287,6 +292,26 @@ export_data() {
 	if [ "${ORACLE_CDB_NAME}" != "" ]
 	then
 		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
+	fi
+
+	if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		args="${args} --table-list ${EXPORT_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST}" != "" ]
+	then
+		args="${args} --exclude-table-list ${EXPORT_EX_TABLE_LIST}"
+	fi
+
+	if [ "${EXPORT_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --table-list-file-path ${EXPORT_TABLE_LIST_FILE_PATH}"
+	fi
+
+	if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+	then
+		args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
 	fi
 
 	yb-voyager export data ${args} $*
@@ -330,6 +355,27 @@ import_data() {
 		--start-clean 1
 		--truncate-splits true
 		"
+
+		if [ "${IMPORT_TABLE_LIST}" != "" ]
+		then
+			args="${args} --table-list ${IMPORT_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST}" != "" ]
+		then
+			args="${args} --exclude-table-list ${IMPORT_EX_TABLE_LIST}"
+		fi
+
+		if [ "${IMPORT_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --table-list-file-path ${IMPORT_TABLE_LIST_FILE_PATH}"
+		fi
+
+		if [ "${IMPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
+		then
+			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
+		fi
+
 		yb-voyager import data ${args} $*
 }
 
@@ -364,6 +410,19 @@ import_data_file() {
 			cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 			exit 1
 		}
+}
+
+archive_changes() {
+	ENABLE=$(shuf -i 0-1 -n 1)
+	echo "archive changes ENABLE=${ENABLE}"
+	if [[ ${ENABLE} -eq 1 ]];
+	then
+		ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
+		mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
+
+		yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+		--export-dir ${EXPORT_DIR}
+	fi
 }
 
 end_migration() {
