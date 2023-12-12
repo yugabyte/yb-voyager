@@ -106,11 +106,6 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	if changeStreamingIsEnabled(exportType) {
 		useDebezium = true
 	}
-
-	err = visualizerDB.CreateYugabytedTableMetricsTable()
-	if err != nil {
-		log.Warnf("Failed to create table metrics table for visualization. %s", err)
-	}
 }
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
