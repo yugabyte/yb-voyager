@@ -147,10 +147,10 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
-debezium.source.max.batch.size=50000
+debezium.source.max.batch.size=30000
 debezium.source.max.queue.size=100000
-debezium.source.query.fetch.size=50000
-debezium.source.snapshot.fetch.size=50000
+debezium.source.query.fetch.size=30000
+debezium.source.snapshot.fetch.size=30000
 `
 
 // ref for snapshot boundary mode - https://debezium.zulipchat.com/#narrow/stream/348250-community-oracle/topic/Missing.20change.20events.20from.20in-flight.20transactions.3F
