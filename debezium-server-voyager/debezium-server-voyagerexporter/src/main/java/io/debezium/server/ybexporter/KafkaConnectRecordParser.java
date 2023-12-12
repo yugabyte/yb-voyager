@@ -28,7 +28,7 @@ class KafkaConnectRecordParser implements RecordParser {
     private Map<String, Table> tableMap;
     private JsonConverter jsonConverter;
     private Map<String, String> renameTables;
-    Record r = new Record();
+
 
     public KafkaConnectRecordParser(String dataDirStr, String sourceType, Map<String, Table> tblMap) {
         this.dataDirStr = dataDirStr;
@@ -71,7 +71,7 @@ class KafkaConnectRecordParser implements RecordParser {
     @Override
     public Record parseRecord(Object keyObj, Object valueObj) {
         try {
-            r.clear();
+            Record r = new Record();
 
             // Deserialize to Connect object
             Struct value = (Struct) ((SourceRecord) valueObj).value();
