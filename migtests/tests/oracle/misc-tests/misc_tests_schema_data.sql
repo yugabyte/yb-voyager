@@ -151,7 +151,13 @@ insert into c1 values(4,'
 insert into c1 values(5,'	','abc');
 
 /*
-Test for orafce search_path
+In Oracle, the MONTHS_BETWEEN function takes two date parameters and returns the number of months between them.
+We don't have a similar function in YB which takes these parameters.
+This test ensures that Orafce search_path is set properly during import.
+*/
+
+/*
+TODO: Add other Orafce functions to extend tests
 */
 
 CREATE TABLE employees
