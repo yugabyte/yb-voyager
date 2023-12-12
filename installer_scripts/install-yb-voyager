@@ -31,9 +31,13 @@ LOG_FILE=/tmp/install-yb-voyager.log
 # issues #489 #492 #247 in ora2pg were fixed after this change
 ORA2PG_VERSION=${ORA2PG_VERSION:-"f08d47a4e5c20ff7d348e535ed05ab571b4bb350"}
 
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
 # debezium local installation envs
 DEBEZIUM_LOCAL_VERSION="2.3.3"
 DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
+DEBEZIUM_LOCAL_POM_FILE="pom.xml"
+DEBEZIUM_LOCAL_POM_FILE_1X="195pom.xml"
 DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c4060131"}
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
@@ -122,9 +126,7 @@ centos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		VERSION="local"
-		install_yb_voyager
-		rebuild_debezium_server_voyager_plugin_local
+		rebuild_voyager_local
 		return
 	fi
 	centos_check_base_repo_enabled
@@ -158,9 +160,7 @@ ubuntu_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		VERSION="local"
-		install_yb_voyager
-		rebuild_debezium_server_voyager_plugin_local
+		rebuild_voyager_local
 		return
 	fi
 	output "Installing packages."
@@ -199,9 +199,7 @@ macos_main() {
 	check_java
 	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
 	then
-		VERSION="local"
-		install_yb_voyager
-		rebuild_debezium_server_voyager_plugin_local
+		rebuild_voyager_local
 		return
 	fi
 	macos_install_brew
@@ -283,15 +281,14 @@ install_debezium_server_latest_release() {
 check_install_maven() {
 	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
 	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
-    version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
+	version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
 	if [[ $version_ok -eq 1 ]]
-	# if ([ -n "$MAVEN_VER" ] && (( 10#${MAVEN_VER} >= 10#${MIN_REQUIRED_MAVEN_VERSION} )) )
-        then 
-                output "Found sufficient maven version = ${MAVEN_VER}"
-        else
-                output "Maven not found or not sufficient. Installing..."
-                install_maven
-        fi
+	then 
+		output "Found sufficient maven version = ${MAVEN_VER}"
+	else
+		output "Maven not found or not sufficient. Installing..."
+		install_maven
+	fi
 }
 
 install_maven() {
@@ -310,9 +307,7 @@ install_maven() {
 }
 
 clean_debezium(){
-	pushd `git rev-parse --show-toplevel` > /dev/null
-	rm -rf debezium-server-voyager/target
-	popd > /dev/null
+	rm -rf $REPO_ROOT/debezium-server-voyager/target
 }
 
 install_debezium_local() {
@@ -349,15 +344,14 @@ install_debezium_server_voyager_plugin_local() {
 	output "Installing debezium-server voyager plugin..." "$1"
 	if [ "$1" = "2x" ] 
 	then
-		pom="pom.xml"
+		pom=${DEBEZIUM_LOCAL_POM_FILE}
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
 	else
-		pom="195pom.xml"
+		pom=${DEBEZIUM_LOCAL_POM_FILE_1X}
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	# build
-	pushd `git rev-parse --show-toplevel` > /dev/null
-	cd debezium-server-voyager/debezium-server-voyagerexporter
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter
 	mvn -ntp clean install -Dquick -f ${pom} 1>&2
 
 	popd > /dev/null
@@ -367,42 +361,41 @@ assemble_debezium_server_voyager_local() {
 	output "Assembling debezium-server voyager..." "$1"
 	if [ "$1" = "2x" ] 
 	then
-		pom="pom.xml"
+		pom=${DEBEZIUM_LOCAL_POM_FILE}
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
 	else
-		pom="195pom.xml"
+		pom=${DEBEZIUM_LOCAL_POM_FILE_1X}
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
-	pushd `git rev-parse --show-toplevel` > /dev/null
-	cd debezium-server-voyager/debezium-server-voyager-dist
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
 	mvn -ntp clean install -Dquick -f ${pom} 1>&2
 	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
-	cd ../
-	mkdir -p target
-	cp "debezium-server-voyager-dist/target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" target/
+
+	mkdir -p $REPO_ROOT/debezium-server-voyager/target
+	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
 
 	popd > /dev/null
 }
 
 install_yb_client_local(){
 	output "Installing yb client..."
-	pushd `git rev-parse --show-toplevel` > /dev/null
-	cd debezium-server-voyager/yb-client-cdc-stream-wrapper
+	pushd $REPO_ROOT/debezium-server-voyager/yb-client-cdc-stream-wrapper > /dev/null
 	mvn -ntp clean package 1>&2
 	popd > /dev/null
 }
 
 package_debezium_server_local(){
 	output "Packaging debezium server..."
-	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd $REPO_ROOT/debezium-server-voyager/target > /dev/null
 
-	cd debezium-server-voyager/target
-	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz" 1>&2
-	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+	debezium_server_tar_file="debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+	tar -xvzf ${debezium_server_tar_file} 1>&2
+	rm ${debezium_server_tar_file}
 
 	# 1.9.5
-	tar -xvzf "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz" -C debezium-server/ 1>&2
-	rm "debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
+	debezium_server_tar_file_1x="debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
+	tar -xvzf ${debezium_server_tar_file_1x} -C debezium-server/ 1>&2
+	rm ${debezium_server_tar_file_1x}
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 
 	# debezium yugabyte connector
@@ -426,14 +419,20 @@ package_debezium_server_local(){
 rebuild_debezium_server_voyager_plugin_local(){
 	output "Rebuilding debezium server voyager plugin..."
 	install_debezium_server_voyager_plugin_local "2x"
-	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd $REPO_ROOT > /dev/null
 	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
 	popd > /dev/null
 
 	install_debezium_server_voyager_plugin_local "1x"
-	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd $REPO_ROOT > /dev/null
 	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
 	popd > /dev/null
+}
+
+rebuild_voyager_local() {
+	VERSION="local"
+	install_yb_voyager
+	rebuild_debezium_server_voyager_plugin_local
 }
 
 get_passed_options() {
@@ -554,7 +553,7 @@ install_yb_voyager() {
 		return 1
 	fi
 
-	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd $REPO_ROOT > /dev/null
 	pushd yb-voyager > /dev/null
 	$GO install
 	popd > /dev/null
@@ -709,7 +708,7 @@ create_base_ora2pg_conf_file() {
 	then
 		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 	else
-		pushd `git rev-parse --show-toplevel` > /dev/null
+		pushd $REPO_ROOT > /dev/null
 		sudo cp ./yb-voyager/src/srcdb/data/sample-ora2pg.conf $conf_file_name
 		popd > /dev/null
 	fi 
@@ -731,7 +730,7 @@ create_pg_dump_args_file() {
 	then
 		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
 	else
-		pushd `git rev-parse --show-toplevel` > /dev/null
+		pushd $REPO_ROOT > /dev/null
 		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
 		popd > /dev/null
 	fi	
