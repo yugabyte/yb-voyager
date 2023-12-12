@@ -574,8 +574,13 @@ output() {
 
 install_golang() {
 	if [ -x ${GO} ]; then
-		output "Found golang."
-		return
+		gov=`go version | { read _ _ v _; echo ${v#go}; }`
+		version_ok=$(version_satisfied 1.20 "$gov")
+		if [[ $version_ok -eq 1 ]]
+		then
+			output "Found golang=${gov}"
+			return
+		fi
 	fi
 	export GOROOT="/tmp/go"
 	GO_VERSION="go1.20"
