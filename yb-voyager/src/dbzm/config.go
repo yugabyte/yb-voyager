@@ -147,10 +147,10 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
-debezium.source.max.batch.size=30000
+debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=100000
-debezium.source.query.fetch.size=30000
-debezium.source.snapshot.fetch.size=30000
+debezium.source.query.fetch.size=10000
+debezium.source.snapshot.fetch.size=10000
 debezium.source.snapshot.max.threads=4
 `
 
