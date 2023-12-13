@@ -85,10 +85,10 @@ class PostgresDB:
 		}[object_type]
 		cur = self.conn.cursor()
 		query= f"select relname from pg_class join pg_namespace on pg_class.relnamespace = pg_namespace.oid"
-		query += f" where nspname = '{schema_name}' AND relkind = '{object_type}'"			
+		query += f" where nspname = '{schema_name}' AND relkind = '{object_type}'"
 		if object_type == 'v':
 			query += f" AND relname NOT IN ({self.EXPECTED_ORAFCE_VIEWS})"
-		cur.execute(query)		
+		cur.execute(query)
 		return [obj[0] for obj in cur.fetchall()]
 	
 	def get_sum_of_column_of_table(self, table_name, column_name, schema_name="public") -> int:
