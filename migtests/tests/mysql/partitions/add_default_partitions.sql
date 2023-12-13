@@ -1,0 +1,3 @@
+CREATE TABLE range_partition_test_p3 PARTITION OF range_partition_test DEFAULT;
+CREATE TABLE subpartitioning_test_p3 PARTITION OF subpartitioning_test DEFAULT;
+CREATE TABLE range_columns_partition_test_p1 PARTITION OF range_columns_partition_test DEFAULT;

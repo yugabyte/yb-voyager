@@ -93,6 +93,11 @@ main() {
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	if [ -x "${TEST_DIR}/add_default_partitions.sql" ]
+	then
+		run_ysql ${TARGET_DB_NAME} "\i $TEST_DIR/add_default_partitions.sql"
+	fi
+
 	step "Import data."
 	import_data
 	
