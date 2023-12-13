@@ -203,7 +203,11 @@ insert into c1 values(4,'
 ','tt');
 insert into c1 values(5,'	','abc');
 
-<<<<<<< HEAD:migtests/tests/oracle/misc-tests/misc_tests_schema_data.sql
+create table c2(id int, vc varchar2(100),nvc nvarchar2(100));
+insert into c2 values(4,'
+','tt');
+insert into c2 values(5,'	','abc');
+
 /*
 In Oracle, the MONTHS_BETWEEN function takes two date parameters and returns the number of months between them.
 We don't have a similar function in YB which takes these parameters.
@@ -240,9 +244,4 @@ SELECT
     FLOOR( months_between( CURRENT_DATE, hire_date )/ 12 )
 FROM
     employees;
-=======
-create table c2(id int, vc varchar2(100),nvc nvarchar2(100));
-insert into c2 values(4,'
-','tt');
-insert into c2 values(5,'	','abc');
->>>>>>> main:migtests/tests/oracle/misc-tests/schema.sql
+
