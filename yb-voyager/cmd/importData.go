@@ -869,9 +869,9 @@ func newTargetConn() *pgx.Conn {
 
 	setTargetSchema(conn)
 
-	// if sourceDBType == ORACLE && enableOrafce {
-    //     setOrafceSearchPath(conn)
-    // }
+	if sourceDBType == ORACLE && enableOrafce {
+        setOrafceSearchPath(conn)
+    }
 
 	return conn
 }
