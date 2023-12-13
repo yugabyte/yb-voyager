@@ -91,7 +91,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			lockFile.Unlock()
 		}
 		atexit.Exit(0)
-		controlPlane.Finalize()
+		if shouldRunPersistentPreRun(cmd) {
+			controlPlane.Finalize()
+		}
 	},
 }
 
