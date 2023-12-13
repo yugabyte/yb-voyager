@@ -2,7 +2,6 @@ import os
 import sys
 from typing import Any, Dict, List
 from xmlrpc.client import boolean
-
 import psycopg2
 
 
