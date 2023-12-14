@@ -60,6 +60,15 @@ var (
 	optionalCommaSeperatedTokens = `[^,]+(?:,[^,]+){0,}`
 	commaSeperatedTokens         = `[^,]+(?:,[^,]+){1,}`
 	unqualifiedIdent             = `[a-zA-Z0-9_]+`
+	supportedExtensionsOnYB      = []string{
+		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
+		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
+		"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
+		"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
+		"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
+		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
+		"tsm_system_time", "unaccent", "uuid-ossp", "vector", "yb_pg_metrics", "yb_test_extension",
+	}
 )
 
 func cat(tokens ...string) string {
@@ -648,6 +657,16 @@ func checker(sqlInfoArr []sqlInfo, fpath string) {
 	checkRemaining(sqlInfoArr, fpath)
 }
 
+func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
+	for _, sqlInfo := range sqlInfoArr {
+		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
+			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "This extension is not supported in YugabyteDB.", "", "", "EXTENSION",
+				sqlInfo.objName, sqlInfo.formattedStmt)
+		}
+	}
+}
+
 func getMapKeysString(receivedMap map[string]bool) string {
 	keyString := strings.Join(lo.Keys(receivedMap), ", ")
 	return keyString
@@ -1002,6 +1021,9 @@ func analyzeSchemaInternal() utils.Report {
 			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "PARTITION_INDEX")...)
 			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
 			sqlInfoArr = append(sqlInfoArr, createSqlStrInfoArray(otherFPaths, "FTS_INDEX")...)
+		}
+		if objType == "EXTENSION" {
+			checkExtensions(sqlInfoArr, filePath)
 		}
 		checker(sqlInfoArr, filePath)
 	}
