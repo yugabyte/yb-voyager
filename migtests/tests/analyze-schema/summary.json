@@ -12,6 +12,13 @@
                 "details": ""
             },
             {
+                "objectType": "EXTENSION",
+                "totalCount": 5,
+                "invalidCount": 3,
+                "objectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility",
+                "details": ""
+            },
+            {
                 "objectType": "TABLE",
                 "totalCount": 24,
                 "invalidCount": 10,
