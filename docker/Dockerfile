@@ -7,12 +7,11 @@ ENV TZ=UTC
 ENV LANG en_US.UTF-8
 ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
-RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales
-RUN curl -L https://cpanmin.us | perl - --self-upgrade
-RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
-RUN apt-get update
-RUN apt-get install -y tzdata
-RUN apt-get update && \
+RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
+    curl -L https://cpanmin.us | perl - --self-upgrade && \
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
+    apt-get update && \
+    apt-get install -y tzdata && \
     apt-get install -y wget curl openjdk-17-jre git sudo gcc && \
     apt-get upgrade -y binutils && \
     curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
@@ -21,6 +20,8 @@ RUN apt-get update && \
     locale-gen en_US.UTF-8 && \
     yes | ./install-yb-voyager && \
     . ~/.yb-voyager.rc && \
+    cd / && \
+    rm -rf /yb-voyager && \
     apt-get clean
 COPY --from=0 $HOME/go/bin/dlv /usr/local/bin
 CMD [“yb-voyager version”]
