@@ -189,18 +189,18 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar/stats during data import (default false)")
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
-		"comma-separated list of the table names to exclude while exporting data.\n"+
+		"comma-separated list of the source db table names to exclude while import data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --exclude-table-list 'orders,"Products",items'`)
 	cmd.Flags().StringVar(&tconf.TableList, "table-list", "",
-		"comma-separated list of the table names to export data.\n"+
+		"comma-separated list of the source db table names to include while importing data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
 			`In case the table names are case sensitive, double-quote them. For example --table-list 'orders,"Products",items'`)
 
 	cmd.Flags().StringVar(&excludeTableListFilePath, "exclude-table-list-file-path", "",
-		"path of the file containing for list of tables to exclude while importing data")
+		"path of the file containing for list of the source db table names to exclude while importing data")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
-		"path of the file containing the list of table names to import data")
+		"path of the file containing the list of the source db table names to import data")
 
 	defaultBatchSizeMsg := fmt.Sprintf("(default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE)
 	if cmd.CommandPath() == "yb-voyager import data file" {
