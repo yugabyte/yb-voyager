@@ -32,6 +32,7 @@ var (
 	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
+	streamChangesMode       bool
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -67,6 +68,12 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	} else if msr == nil {
 		utils.ErrExit("migration status record not found. Is the migration initialized?")
 	}
+
+	streamChangesMode, err = checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
 	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
@@ -144,8 +151,6 @@ func backupDataFilesFn() {
 	}
 }
 
-var streamChangesMode bool
-
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
 		return
@@ -154,11 +159,6 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
 	if err != nil {
 		utils.ErrExit("creating reports directory for backup: %v", err)
-	}
-
-	streamChangesMode, err = checkStreamingMode()
-	if err != nil {
-		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
 
 	saveSchemaAnalysisReport()
