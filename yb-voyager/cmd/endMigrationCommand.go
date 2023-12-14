@@ -338,6 +338,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	// there won't be anything required to be cleaned up in source-db(Oracle) for debezium snapshot migration
 	// TODO: verify it for PG and MySQL
 	if !streamChangesMode {
+		utils.PrintAndLog("nothing to clean up in source db for snapshot migration")
 		return
 	}
 	utils.PrintAndLog("cleaning up voyager state from source db...")
