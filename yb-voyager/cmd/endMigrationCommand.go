@@ -349,13 +349,13 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	var err error
-	source.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	source.Password = sourceDBPassword
 	err = source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("connecting to source db: %v", err)
@@ -376,13 +376,13 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	tconf := msr.TargetDBConf
-	tconf.Password = targetDBPassword
 	if targetDBPassword == "" {
-		tconf.Password, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
+		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
 		}
 	}
+	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -451,14 +451,14 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	sourceReplicaconf := msr.SourceReplicaDBConf
-	sourceReplicaconf.Password = sourceReplicaDBPassword
+	sourceReplicaconf := msr.FallForwardDBConf
 	if sourceReplicaDBPassword == "" {
-		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
+		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
+	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
 	err = sourceReplicaDB.Init()
 	if err != nil {
@@ -479,13 +479,13 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
-	fbconf.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		fbconf.Password, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
 	err = fbdb.Init()
 	if err != nil {
