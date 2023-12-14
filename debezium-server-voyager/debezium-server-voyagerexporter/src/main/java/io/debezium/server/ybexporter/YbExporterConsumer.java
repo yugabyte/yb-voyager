@@ -89,10 +89,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread.setDaemon(true);
         flusherThread.start();
 
-        // for (int i=0; i<4; i++){
-        //     ExecutorService executor = Executors.newSingleThreadExecutor();
-        //     executorServices.add(executor);
-        // }
+        for (int i=0; i<4; i++){
+            ExecutorService executor = Executors.newSingleThreadExecutor();
+            executorServices.add(executor);
+        }
 
     }
 
@@ -205,32 +205,32 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
     public void handleBatch(List<ChangeEvent<Object, Object>> changeEvents, DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
-        LOGGER.info("Processing batch with {} records NOOP", changeEvents.size());
+        LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
 
-//         HashMap<String,Integer> tableExecutorMap = new HashMap<>();
-//         tableExecutorMap.put("ORDERS", 0);
-//         tableExecutorMap.put("ORDERLINES", 1);
-//         tableExecutorMap.put("CUSTOMERS", 2);
-//         tableExecutorMap.put("CUST_HIST", 3);
+        HashMap<String,Integer> tableExecutorMap = new HashMap<>();
+        tableExecutorMap.put("ORDERS", 0);
+        tableExecutorMap.put("ORDERLINES", 1);
+        tableExecutorMap.put("CUSTOMERS", 2);
+        tableExecutorMap.put("CUST_HIST", 3);
 
-//         List<Future> futures = new ArrayList<Future>();
-//         for (ChangeEvent<Object, Object> event : changeEvents) {
-//             String tableName = ((Struct) ((SourceRecord) event.value()).value()).getStruct("source").getString("table");
-//             int executorIndex = tableExecutorMap.get(tableName);
-// //            LOGGER.info("executor {} for table {}", executorIndex, tableName);
-//             futures.add(executorServices.get(executorIndex).submit(() -> {
-// //                LOGGER.info("processed event");
-//                 handleEvent(event, committer);
-//             }));
-//         }
-//         for(Future f: futures) {
-//             try {
-//                 f.get();
-//             } catch (ExecutionException e) {
-//                 throw new RuntimeException(e);
-//             }
-//         }
+        List<Future> futures = new ArrayList<Future>();
+        for (ChangeEvent<Object, Object> event : changeEvents) {
+            String tableName = ((Struct) ((SourceRecord) event.value()).value()).getStruct("source").getString("table");
+            int executorIndex = tableExecutorMap.get(tableName);
+//            LOGGER.info("executor {} for table {}", executorIndex, tableName);
+            futures.add(executorServices.get(executorIndex).submit(() -> {
+//                LOGGER.info("processed event");
+                handleEvent(event, committer);
+            }));
+        }
+        for(Future f: futures) {
+            try {
+                f.get();
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+        }
 
         handleBatchComplete();
         LOGGER.info("Fsynced batch with {} records", changeEvents.size());
