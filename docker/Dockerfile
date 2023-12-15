@@ -22,7 +22,7 @@ RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     . ~/.yb-voyager.rc && \
     apt-get remove -y gcc curl perl make libdbi-perl wget git && \
     rm -rf /yb-voyager /usr/share/icons /usr/share/fonts /usr/share/doc && \
-    rm -rf /root/go /root/.cache /tmp/go /tmp/install-yb-voyager.log && \
+    rm -rf /root/go /root/.cache /tmp/go && \
     rm -rf yb-voyager && \
     apt-get clean
 COPY --from=0 $HOME/go/bin/dlv /usr/local/bin
