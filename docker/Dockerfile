@@ -10,9 +10,7 @@ ENV LC_ALL en_US.UTF-8
 RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     curl -L https://cpanmin.us | perl - --self-upgrade && \
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone && \
-    apt-get update && \
-    apt-get install -y tzdata && \
-    apt-get install -y wget openjdk-17-jre git sudo gcc && \
+    apt-get install -y tzdata wget openjdk-17-jre git sudo gcc && \
     apt-get upgrade -y binutils && \
     curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
     git clone https://github.com/yugabyte/yb-voyager.git && \
@@ -23,7 +21,6 @@ RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     apt-get remove -y gcc curl make wget git && \
     rm -rf /yb-voyager /usr/share/icons /usr/share/fonts /usr/share/doc && \
     rm -rf /root/go /root/.cache /tmp/go && \
-    rm -rf yb-voyager && \
     apt-get clean
 COPY --from=0 $HOME/go/bin/dlv /usr/local/bin
-CMD [“yb-voyager version”]
+CMD [“yb-voyager”]
