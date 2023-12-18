@@ -135,6 +135,8 @@ type Batch interface {
 func NewTargetDB(tconf *TargetConf) TargetDB {
 	if tconf.TargetDBType == "oracle" {
 		return newTargetOracleDB(tconf)
+	} else if tconf.TargetDBType == "postgresql" {
+		return newTargetPostgreSQL(tconf)
 	}
 	return newTargetYugabyteDB(tconf)
 }
@@ -155,13 +157,28 @@ type ImportBatchArgs struct {
 }
 
 func (args *ImportBatchArgs) GetYBCopyStatement() string {
+	options := args.copyOptions()
+	options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
 	columns := ""
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+}
+
+func (args *ImportBatchArgs) GetPGCopyStatement() string {
+	options := args.copyOptions()
+	columns := ""
+	if len(args.Columns) > 0 {
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+	}
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+}
+
+func (args *ImportBatchArgs) copyOptions() []string {
+
 	options := []string{
 		fmt.Sprintf("FORMAT '%s'", args.FileFormat),
-		fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction),
 	}
 	if args.HasHeader {
 		options = append(options, "HEADER")
@@ -186,7 +203,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	if args.NullString != "" {
 		options = append(options, fmt.Sprintf("NULL '%s'", args.NullString))
 	}
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableName, columns, strings.Join(options, ", "))
+	return options
 }
 
 func (args *ImportBatchArgs) GetSqlLdrControlFile(schema string, tableSchema map[string]map[string]string) string {
