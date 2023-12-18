@@ -2,9 +2,9 @@
 
 set -e
 
-if [ $# -ne 1 ]
+if [ $# -gt 2 ]
 then
-	echo "Usage: $0 TEST_NAME"
+	echo "Usage: $0 TEST_NAME [env.sh]"
 	exit 1
 fi
 
@@ -105,6 +105,9 @@ main() {
 	import_schema --post-import-data true --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
+
+	step "Resume Sequences"
+	run_ysql  ${TARGET_DB_NAME} "\i $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql"
 
 	step "Run validations."
 	if [ -x "${TEST_DIR}/validate" ]

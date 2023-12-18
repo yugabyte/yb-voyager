@@ -1,0 +1,1 @@
+sed -i '/CREATE UNIQUE INDEX nested_table_col1 ON nested_table (col1);/d' $EXPORT_DIR/schema/tables/INDEXES_table.sql
