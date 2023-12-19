@@ -13,10 +13,10 @@
             },
             {
                 "objectType": "EXTENSION",
-                "totalCount": 5,
+                "totalCount": 6,
                 "invalidCount": 3,
                 "objectNames": "aws_commons, plperl, hstore, hstore_plperl, pg_visibility",
-                "details": ""
+                "details": "'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version."
             },
             {
                 "objectType": "TABLE",
