@@ -72,8 +72,8 @@ jobs:
     - name: "TEST: mysql-sakila"
       run: migtests/scripts/run-test.sh mysql/sakila
 
-    # - name: "TEST: mysql-datatypes"
-    #   run: migtests/scripts/run-test.sh mysql/datatypes
+    - name: "TEST: mysql-datatypes"
+      run: migtests/scripts/run-test.sh mysql/datatypes
 
     - name: "TEST: mysql-constraints"
       run: migtests/scripts/run-test.sh mysql/constraints
