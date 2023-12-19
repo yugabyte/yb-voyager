@@ -53,6 +53,7 @@ func exportDataStatusCmdRun(cmd *cobra.Command, args []string) {
 
 func init() {
 	rootCmd.AddCommand(exportDataStatusCmd)
+	registerCommonGlobalFlags(exportDataStatusCmd)
 }
 
 type exportTableMigStatusOutputRow struct {

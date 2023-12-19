@@ -51,6 +51,7 @@ func importDataStatusCmdRun(cmd *cobra.Command, args []string) {
 
 func init() {
 	rootCmd.AddCommand(importDataStatusCmd)
+	registerCommonGlobalFlags(importDataStatusCmd)
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
