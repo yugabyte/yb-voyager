@@ -116,10 +116,10 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
-	if [ -x $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql ]
+	if [ -f $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql ]
 	then
 		step "Resume Sequences"
-		run_ysql  ${TARGET_DB_NAME} "\i $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql"
+		run_ysql  ${TARGET_DB_NAME} "\i $TEST_DIR/export-dir/schema/tables/AUTOINCREMENT_table.sql" # Not optimal to use this way
 	fi
 	 
 	step "Run validations."
