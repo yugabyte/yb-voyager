@@ -11,11 +11,11 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.6.0"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.6.0"}
+DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.6.1"}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.6.1"}
 
-# the hash corresponds to the yb-voyager/v1.6.0 tag
-YB_VOYAGER_GIT_HASH="d7ac6fb32c912e7352cec1684f7a492f3703196e" 
+# the hash corresponds to the yb-voyager/v1.6.1 tag
+YB_VOYAGER_GIT_HASH="4cd97f913ca383fb3791f467ace351dd62e80d8b" 
 
 
 ONLY_PG="false"
@@ -24,15 +24,28 @@ trap on_exit EXIT
 
 YUM="sudo yum install -y -q"
 
-export GOROOT="/tmp/go"
-GO_VERSION="go1.20"
-GO="$GOROOT/bin/go"
 
 LOG_FILE=/tmp/install-yb-voyager.log
 
 # commit hash in main branch after release 23.2
 # issues #489 #492 #247 in ora2pg were fixed after this change
 ORA2PG_VERSION=${ORA2PG_VERSION:-"9d0431e6d950906c126941c07d296c9f3f21d04d"}
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+
+# debezium local installation envs
+DEBEZIUM_LOCAL_VERSION="2.3.3"
+DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
+DEBEZIUM_LOCAL_POM_FILE="pom.xml"
+DEBEZIUM_LOCAL_POM_FILE_1X="195pom.xml"
+DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c4060131"}
+DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
+DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
+DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
+DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar"
+
+# only rebuild voyager
+REBUILD_VOYAGER_LOCAL="false"
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"
@@ -111,6 +124,11 @@ main() {
 centos_main() {
 	check_binutils_version
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		rebuild_voyager_local
+		return
+	fi
 	centos_check_base_repo_enabled
 	output "Installing RPM dependencies."
 	$YUM which wget git gcc make 1>&2
@@ -140,6 +158,11 @@ centos_main() {
 ubuntu_main() {
 	check_binutils_version
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		rebuild_voyager_local
+		return
+	fi
 	output "Installing packages."
 	sudo apt update 1>&2
 	sudo apt-get -y install wget  1>&2
@@ -174,6 +197,11 @@ macos_main() {
 	output "      Use a CentOS/Ubuntu machine to migrate from Oracle/MySQL. "
 	output "=================================================="
 	check_java
+	if [ "${REBUILD_VOYAGER_LOCAL}" == "true" ]
+	then
+		rebuild_voyager_local
+		return
+	fi
 	macos_install_brew
 	macos_install_pg_dump
 	create_pg_dump_args_file
@@ -210,7 +238,29 @@ check_java() {
     fi
 }
 
-install_debezium_server() {
+install_debezium_server(){
+	output "Installing debezium:${VERSION}."
+	if [ "${VERSION}" == "latest" ]
+	then
+		install_debezium_server_latest_release
+		return
+	fi
+
+	check_install_maven
+	clean_debezium
+	install_debezium_local ${DEBEZIUM_LOCAL_REF}
+	install_debezium_server_local ${DEBEZIUM_LOCAL_SERVER_REF}
+	install_debezium_server_voyager_plugin_local "2x"
+	assemble_debezium_server_voyager_local "2x"
+
+	install_debezium_local ${DEBEZIUM_LOCAL_REF_1X}
+	install_debezium_server_voyager_plugin_local "1x"
+	assemble_debezium_server_voyager_local "1x"
+	install_yb_client_local
+	package_debezium_server_local
+}
+
+install_debezium_server_latest_release() {
 	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
 	# download
@@ -228,10 +278,167 @@ install_debezium_server() {
 	rm ${debezium_server_filename}
 }
 
+check_install_maven() {
+	MIN_REQUIRED_MAVEN_VERSION='3.8.4'
+	MAVEN_VER=$(mvn -version 2>&1 | grep "Apache Maven" | awk '{print $3}')
+	version_ok=$(version_satisfied "$MIN_REQUIRED_MAVEN_VERSION" "$MAVEN_VER")
+	if [[ $version_ok -eq 1 ]]
+	then 
+		output "Found sufficient maven version = ${MAVEN_VER}"
+	else
+		output "Maven not found or not sufficient. Installing..."
+		install_maven
+	fi
+}
+
+install_maven() {
+	# if dir already present, assuming it was installed in a previous run
+	if [ ! -d "/opt/yb-voyager/yb-debezium-maven-3.8.4" ]
+	then
+		sudo mkdir -p /opt/yb-voyager
+		MAVEN_URL="https://archive.apache.org/dist/maven/maven-3/3.8.4/binaries/apache-maven-3.8.4-bin.tar.gz"
+		wget -nv ${MAVEN_URL} -O apache-maven-3.8.4-bin.tar.gz 1>&2
+		tar -xzvf apache-maven-3.8.4-bin.tar.gz 1>&2
+		sudo mv apache-maven-3.8.4 yb-debezium-maven-3.8.4
+		sudo mv yb-debezium-maven-3.8.4 /opt/yb-voyager/
+		rm apache-maven-3.8.4-bin.tar.gz
+	fi
+	export PATH=/opt/yb-voyager/yb-debezium-maven-3.8.4/bin:$PATH
+}
+
+clean_debezium(){
+	rm -rf $REPO_ROOT/debezium-server-voyager/target
+}
+
+install_debezium_local() {
+	output "Installing debezium..." "$1"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium/archive/$1.tar.gz" -O debezium.tar.gz 1>&2
+	tar -xzvf debezium.tar.gz 1>&2
+	# build
+	cd "debezium-$1"
+	mvn -ntp clean install -Dquick 1>&2
+
+	# cleanup
+	cd ..
+	rm -r "debezium-$1"
+	rm debezium.tar.gz
+}
+
+install_debezium_server_local() {
+	output "Installing debezium-server..." "$1"
+	# download
+	wget -nv "https://github.com/yugabyte/debezium-server/archive/$1.tar.gz" -O debezium-server.tar.gz 1>&2
+	tar -xzvf debezium-server.tar.gz 1>&2
+	# build
+	cd "debezium-server-$1"
+	mvn -ntp clean install -Dquick 1>&2
+
+	# cleanup
+	cd ..
+	rm -r "debezium-server-$1"
+	rm debezium-server.tar.gz
+}
+
+install_debezium_server_voyager_plugin_local() {
+	output "Installing debezium-server voyager plugin..." "$1"
+	if [ "$1" = "2x" ] 
+	then
+		pom=${DEBEZIUM_LOCAL_POM_FILE}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
+	else
+		pom=${DEBEZIUM_LOCAL_POM_FILE_1X}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
+	fi
+	# build
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+
+	popd > /dev/null
+}
+
+assemble_debezium_server_voyager_local() {
+	output "Assembling debezium-server voyager..." "$1"
+	if [ "$1" = "2x" ] 
+	then
+		pom=${DEBEZIUM_LOCAL_POM_FILE}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION}
+	else
+		pom=${DEBEZIUM_LOCAL_POM_FILE_1X}
+		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
+	fi
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
+	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+
+	mkdir -p $REPO_ROOT/debezium-server-voyager/target
+	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
+
+	popd > /dev/null
+}
+
+install_yb_client_local(){
+	output "Installing yb client..."
+	pushd $REPO_ROOT/debezium-server-voyager/yb-client-cdc-stream-wrapper > /dev/null
+	mvn -ntp clean package 1>&2
+	popd > /dev/null
+}
+
+package_debezium_server_local(){
+	output "Packaging debezium server..."
+	pushd $REPO_ROOT/debezium-server-voyager/target > /dev/null
+
+	debezium_server_tar_file="debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION}.Final.tar.gz"
+	tar -xvzf ${debezium_server_tar_file} 1>&2
+	rm ${debezium_server_tar_file}
+
+	# 1.9.5
+	debezium_server_tar_file_1x="debezium-server-voyager-dist-${DEBEZIUM_LOCAL_VERSION_1X}.Final.tar.gz"
+	tar -xvzf ${debezium_server_tar_file_1x} -C debezium-server/ 1>&2
+	rm ${debezium_server_tar_file_1x}
+	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
+
+	# debezium yugabyte connector
+	wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/lib 1>&2
+	
+	# yugabyte admin client
+	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
+	
+	output "Moving debezium-server to ${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
+	# delete contents of DEBEZIUM_LOCAL_INSTALLATION_DESTINATION/debezium-server if exists. 
+	# This is done to ensure that older version jars are not left behind in the lib dir.
+	if [ -d "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server" ]
+	then 
+		sudo rm -Rf "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server"
+	fi
+	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}"
+	sudo mv debezium-server "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/"	
+	popd > /dev/null
+}
+
+rebuild_debezium_server_voyager_plugin_local(){
+	output "Rebuilding debezium server voyager plugin..."
+	install_debezium_server_voyager_plugin_local "2x"
+	pushd $REPO_ROOT > /dev/null
+	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/lib/"
+	popd > /dev/null
+
+	install_debezium_server_voyager_plugin_local "1x"
+	pushd $REPO_ROOT > /dev/null
+	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
+	popd > /dev/null
+}
+
+rebuild_voyager_local() {
+	VERSION="local"
+	install_yb_voyager
+	rebuild_debezium_server_voyager_plugin_local
+}
+
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
 		OPTS=$(getopt  lp  $ARGS_MACOS)
 	fi
@@ -247,6 +454,10 @@ get_passed_options() {
 			-p | --only-pg-support ) 
 				ONLY_PG="true"; 
 				shift 
+				;;
+			--rebuild-voyager-local )
+				REBUILD_VOYAGER_LOCAL="true";
+				shift
 				;;
 			* ) 
 				break 
@@ -327,6 +538,7 @@ update_yb_voyager_bashrc() {
 
 install_yb_voyager() {
 	output "Installing yb-voyager:${VERSION}."
+	GO=${GO:-"go"}
 	if [ "${VERSION}" == "latest" ]
 	then
 		$GO install github.com/yugabyte/yb-voyager/yb-voyager@${YB_VOYAGER_GIT_HASH}
@@ -341,7 +553,7 @@ install_yb_voyager() {
 		return 1
 	fi
 
-	pushd `git rev-parse --show-toplevel` > /dev/null
+	pushd $REPO_ROOT > /dev/null
 	pushd yb-voyager > /dev/null
 	$GO install
 	popd > /dev/null
@@ -354,17 +566,25 @@ install_yb_voyager() {
 # user as well as in the log file.
 output() {
 	set +x
-	echo $1
-	>&2 echo $1
+	echo "$@"
+	>&2 echo "$@"
 	set -x
 }
 
 
 install_golang() {
 	if [ -x ${GO} ]; then
-		output "Found golang."
-		return
+		gov=`go version | { read _ _ v _; echo ${v#go}; }`
+		version_ok=$(version_satisfied 1.20 "$gov")
+		if [[ $version_ok -eq 1 ]]
+		then
+			output "Found golang=${gov}"
+			return
+		fi
 	fi
+	export GOROOT="/tmp/go"
+	GO_VERSION="go1.20"
+	GO="$GOROOT/bin/go"
 
 	os=$1
 	arch="$(uname -p)"
@@ -493,7 +713,7 @@ create_base_ora2pg_conf_file() {
 	then
 		sudo wget -nv -O $conf_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/sample-ora2pg.conf
 	else
-		pushd `git rev-parse --show-toplevel` > /dev/null
+		pushd $REPO_ROOT > /dev/null
 		sudo cp ./yb-voyager/src/srcdb/data/sample-ora2pg.conf $conf_file_name
 		popd > /dev/null
 	fi 
@@ -515,7 +735,7 @@ create_pg_dump_args_file() {
 	then
 		sudo wget -nv -O $args_file_name https://github.com/yugabyte/yb-voyager/raw/$YB_VOYAGER_GIT_HASH/yb-voyager/src/srcdb/data/pg_dump-args.ini
 	else
-		pushd `git rev-parse --show-toplevel` > /dev/null
+		pushd $REPO_ROOT > /dev/null
 		sudo cp ./yb-voyager/src/srcdb/data/pg_dump-args.ini $args_file_name
 		popd > /dev/null
 	fi	

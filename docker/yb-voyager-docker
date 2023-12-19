@@ -38,7 +38,9 @@ volume_dirs=("--export-dir"
 "--move-to" 
 "--source-ssl-cert" 
 "--source-ssl-key" 
-"--source-ssl-root-cert")
+"--source-ssl-root-cert"
+"--table-list-file-path"
+"--exclude-table-list-file-path")
 
 # Loop through the array and capture the environment variables
 for var_name in "${variables[@]}"; do
@@ -151,7 +153,7 @@ then
 	tty="-it"
 fi
 
-dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
+dockerCmd="docker run ${exported_vars} ${tty} ${gcp_vol} ${s3_vol} ${azure_vol} ${volume_mappings} --pid=host --network=host --rm --privileged ${platform} yugabytedb/yb-voyager yb-voyager ${argv[*]}"
 
 # echo $dockerCmd
 

@@ -96,7 +96,7 @@ type Issue struct {
 	ObjectType   string `json:"objectType"`
 	ObjectName   string `json:"objectName"`
 	Reason       string `json:"reason"`
-	SqlStatement string `json:"sqlStatement"`
+	SqlStatement string `json:"sqlStatement,omitempty"`
 	FilePath     string `json:"filePath"`
 	Suggestion   string `json:"suggestion"`
 	GH           string `json:"GH"`

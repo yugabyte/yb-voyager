@@ -15,6 +15,7 @@ EXPECTED_ROW_COUNT = {
 	'case_sensitive_columns':6,
 	'c': 12,
 	'c1': 2,
+	'employees': 3
 }
 
 def migration_completed_checks(tgt):
@@ -24,9 +25,12 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 	
-	function_count = tgt.get_functions_count("public")
-	assert function_count == 2
-	assert set(tgt.fetch_all_function_names("public")) == set(["trunc_date", "trunc_time_stamp"])
+	view_list = tgt.get_objects_of_type("VIEW", "public")
+	print("view_list:", view_list)
+	assert len(view_list) == 1
+
+	functions = tgt.fetch_all_function_names("public")
+	assert set(functions) == set(["trunc_date", "trunc_time_stamp", "insert_session_logs"])
 
 if __name__ == "__main__":
 	main()

@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+import os
+import yb
+
+def main():
+	yb.run_checks(migration_completed_checks)
+
+
+#=============================================================================
+
+EXPECTED_ROW_COUNT = {
+	'order': 5,
+	'user': 0,
+	'group': 5,
+	'check': 0,
+	'reserved_column': 5,
+	'mixed_case_table_name_test':6,
+	'session_log':100,
+	'session_log1':100,
+	'session_log2':100,
+	'session_log3':0,
+	'session_log4':0,
+	'case_sensitive_columns':6
+}
+
+def migration_completed_checks(tgt):
+	target_schema = os.getenv("TARGET_DB_SCHEMA")
+	table_list = tgt.get_table_names(target_schema)
+	print("table_list:", table_list)
+	assert len(table_list) == 12
+
+	got_row_count = tgt.row_count_of_all_tables(target_schema)
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}, expected row_count: {row_count}")
+		assert row_count == got_row_count[table_name]
+
+
+if __name__ == "__main__":
+	main()
