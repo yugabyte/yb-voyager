@@ -23,47 +23,41 @@ import (
 
 var prepareForFallBack utils.BoolStr
 
-var cutoverToTargetCmd = &cobra.Command{
-	Use:   "target",
-	Short: "Initiate cutover to target DB",
-	Long:  `Initiate cutover to target DB`,
+func cutoverToTargetCmdRun(cmd *cobra.Command, args []string) {
+	var err error
+	metaDB, err = metadb.NewMetaDB(exportDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize meta db: %s", err)
+	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr == nil {
+		utils.ErrExit("migration status record not found")
+	}
+	if !msr.FallForwardEnabled {
+		// --prepare-for-fall-back is mandatory in this case.
+		prepareForFallBackSpecified := cmd.Flags().Changed("prepare-for-fall-back")
+		if !prepareForFallBackSpecified {
+			utils.ErrExit(`missing required flag "--prepare-for-fall-back [yes|no]"`)
+		}
+	}
+	if prepareForFallBack {
+		if msr.FallForwardEnabled {
+			utils.ErrExit("cannot prepare for fall-back. Fall-forward workflow already enabled.")
+		}
+		updateFallBackEnabledInMetaDB()
+	}
+	err = InitiatePrimarySwitch("cutover")
+	if err != nil {
+		utils.ErrExit("failed to initiate cutover: %v", err)
+	}
 
-	Run: func(cmd *cobra.Command, args []string) {
-		var err error
-		metaDB, err = metadb.NewMetaDB(exportDir)
-		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
-		}
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("get migration status record: %v", err)
-		}
-		if msr == nil {
-			utils.ErrExit("migration status record not found")
-		}
-		if !msr.FallForwardEnabled {
-			// --prepare-for-fall-back is mandatory in this case.
-			prepareForFallBackSpecified := cmd.Flags().Changed("prepare-for-fall-back")
-			if !prepareForFallBackSpecified {
-				utils.ErrExit(`missing required flag "--prepare-for-fall-back [yes|no]"`)
-			}
-		}
-		if prepareForFallBack {
-			if msr.FallForwardEnabled {
-				utils.ErrExit("cannot prepare for fall-back. Fall-forward workflow already enabled.")
-			}
-			updateFallBackEnabledInMetaDB()
-		}
-		err = InitiatePrimarySwitch("cutover")
-		if err != nil {
-			utils.ErrExit("failed to initiate cutover: %v", err)
-		}
-
-	},
 }
 
 func init() {
-	cutoverToCmd.AddCommand(cutoverToTargetCmd)
+	rootCmd.AddCommand(cutoverToTargetCmd)
 	registerExportDirFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")

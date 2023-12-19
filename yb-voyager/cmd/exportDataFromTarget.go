@@ -23,46 +23,40 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var exportDataFromTargetCmd = &cobra.Command{
-	Use:   "target",
-	Short: "Export data from target Yugabyte DB in the fall-back/fall-forward workflows.",
-	Long:  ``,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		validateMetaDBCreated()
-		source.DBType = YUGABYTEDB
-		exportType = CHANGES_ONLY
-		msr, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("get migration status record: %v", err)
-		}
-		if msr.FallbackEnabled {
-			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+func exportDataFromTargetCmdRun(cmd *cobra.Command, args []string) {
+	validateMetaDBCreated()
+	source.DBType = YUGABYTEDB
+	exportType = CHANGES_ONLY
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr.FallbackEnabled {
+		exporterRole = TARGET_DB_EXPORTER_FB_ROLE
+	} else {
+		exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+	}
+	err = initSourceConfFromTargetConf()
+	if err != nil {
+		utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
+	}
+	exportDataCmd.PreRun(cmd, args)
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+			record.FallBackSyncStarted = true
 		} else {
-			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
+			record.FallForwardSyncStarted = true
 		}
-		err = initSourceConfFromTargetConf()
-		if err != nil {
-			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
-		}
-		exportDataCmd.PreRun(cmd, args)
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.FallBackSyncStarted = true
-			} else {
-				record.FallForwardSyncStarted = true
-			}
 
-		})
-		if err != nil {
-			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
-		}
-		exportDataCmd.Run(cmd, args)
-	},
+	})
+	if err != nil {
+		utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
+	}
+	exportDataCmd.Run(cmd, args)
 }
 
 func init() {
-	exportDataFromCmd.AddCommand(exportDataFromTargetCmd)
+	rootCmd.AddCommand(exportDataFromTargetCmd)
 	registerCommonGlobalFlags(exportDataFromTargetCmd)
 	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
 	registerExportDataFlags(exportDataFromTargetCmd)

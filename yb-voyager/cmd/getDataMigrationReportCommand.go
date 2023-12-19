@@ -37,44 +37,6 @@ var targetDbPassword string
 var sourceReplicaDbPassword string
 var sourceDbPassword string
 
-var getDataMigrationReportCmd = &cobra.Command{
-	Use:   "data-migration-report",
-	Short: "Print the consolidated report of migration of data.",
-	Long:  `Print the consolidated report of migration of data among different DBs (source / target / source-replica) when export-type 'snapshot-and-changes' is enabled.`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		migrationStatus, err := metaDB.GetMigrationStatusRecord()
-		if err != nil {
-			utils.ErrExit("error while getting migration status: %w\n", err)
-		}
-		streamChanges, err := checkStreamingMode()
-		if err != nil {
-			utils.ErrExit("error while checking streaming mode: %w\n", err)
-		}
-		migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
-		if err != nil {
-			utils.ErrExit("error while parsing migration UUID: %w\n", err)
-		}
-		if streamChanges {
-			if migrationStatus.TargetDBConf != nil {
-				getTargetPassword(cmd)
-				migrationStatus.TargetDBConf.Password = tconf.Password
-			}
-			if migrationStatus.FallForwardEnabled {
-				getFallForwardDBPassword(cmd)
-				migrationStatus.FallForwardDBConf.Password = tconf.Password
-			}
-			if migrationStatus.FallbackEnabled {
-				getSourceDBPassword(cmd)
-				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
-			}
-			getDataMigrationReportCmdFn(migrationStatus)
-		} else {
-			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
-		}
-	},
-}
-
 type rowData struct {
 	TableName            string
 	DBType               string
@@ -89,6 +51,38 @@ type rowData struct {
 }
 
 var fBEnabled, fFEnabled bool
+
+func getDataMigrationReportCmdRun(cmd *cobra.Command, args []string) {
+	migrationStatus, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error while getting migration status: %w\n", err)
+	}
+	streamChanges, err := checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+	migrationUUID, err = uuid.Parse(migrationStatus.MigrationUUID)
+	if err != nil {
+		utils.ErrExit("error while parsing migration UUID: %w\n", err)
+	}
+	if streamChanges {
+		if migrationStatus.TargetDBConf != nil {
+			getTargetPassword(cmd)
+			migrationStatus.TargetDBConf.Password = tconf.Password
+		}
+		if migrationStatus.FallForwardEnabled {
+			getFallForwardDBPassword(cmd)
+			migrationStatus.FallForwardDBConf.Password = tconf.Password
+		}
+		if migrationStatus.FallbackEnabled {
+			getSourceDBPassword(cmd)
+			migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
+		}
+		getDataMigrationReportCmdFn(migrationStatus)
+	} else {
+		utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
+	}
+}
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
@@ -282,7 +276,7 @@ func getFinalRowCount(row rowData) int64 {
 }
 
 func init() {
-	getCommand.AddCommand(getDataMigrationReportCmd)
+	rootCmd.AddCommand(getDataMigrationReportCmd)
 	registerExportDirFlag(getDataMigrationReportCmd)
 	getDataMigrationReportCmd.Flags().StringVar(&sourceReplicaDbPassword, "source-replica-db-password", "",
 		"password with which to connect to the target Source-Replica DB server. Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")

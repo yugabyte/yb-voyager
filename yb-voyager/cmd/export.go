@@ -39,17 +39,6 @@ var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
 
-var exportCmd = &cobra.Command{
-	Use:   "export",
-	Short: "export schema and data from compatible databases",
-	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
-	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
-}
-
-func init() {
-	rootCmd.AddCommand(exportCmd)
-}
-
 func registerCommonExportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
 		"cleans up the project directory for schema or data files depending on the export command (default false)")

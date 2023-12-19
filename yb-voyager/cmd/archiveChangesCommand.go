@@ -30,22 +30,9 @@ import (
 )
 
 var StopArchiverSignal bool
-
-var archiveChangesCmd = &cobra.Command{
-	Use: "changes",
-	Short: "Delete the already imported changes and optionally archive them before deleting.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/",
-	Long: `This command limits the disk space used by the locally queued CDC events. Once the changes from the local queue are applied on the target DB (and source-replica DB), they are eligible for deletion. The command gives an option to archive the changes before deleting by moving them to some other directory.
-
-Note that: even if some changes are applied to the target databases, they are deleted only after the disk space utilisation exceeds 70%.
-	`,
-
-	PreRun: func(cmd *cobra.Command, args []string) {
-		validateCommonArchiveFlags()
-	},
-
-	Run: archiveChangesCommandFn,
-}
+var moveDestination string
+var deleteSegments utils.BoolStr
+var utilizationThreshold int
 
 func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 	if moveDestination != "" && deleteSegments {
@@ -88,9 +75,44 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	archiveCmd.AddCommand(archiveChangesCmd)
-	registerCommonArchiveFlags(archiveChangesCmd)
+	rootCmd.AddCommand(archiveChangesCmd)
+	registerArchiveChangesFlags(archiveChangesCmd)
 }
+
+func registerArchiveChangesFlags(cmd *cobra.Command) {
+	registerCommonGlobalFlags(cmd)
+
+	cmd.Flags().StringVar(&moveDestination, "move-to", "",
+		"Path to the directory where the imported change events are to be moved to. "+
+			"Note that, the changes are deleted from the export-dir only after the disk utilisation exceeds 70%.")
+
+	BoolVar(cmd.Flags(), &deleteSegments, "delete-changes-without-archiving", false,
+		"Delete the imported changes without archiving them. Note that: the changes are deleted from the export-dir only after disk utilisation exceeds 70%.")
+
+	cmd.Flags().IntVar(&utilizationThreshold, "fs-utilization-threshold", 70,
+		"disk utilization threshold in percentage")
+}
+
+func validateCommonArchiveFlags() {
+	validateMoveToFlag()
+}
+
+func validateMoveToFlag() {
+	if moveDestination != "" {
+		if !utils.FileOrFolderExists(moveDestination) {
+			utils.ErrExit("move destination %q doesn't exists.\n", moveDestination)
+		} else {
+			var err error
+			moveDestination, err = filepath.Abs(moveDestination)
+			if err != nil {
+				utils.ErrExit("Failed to get absolute path for move destination %q: %v\n", moveDestination, err)
+			}
+			moveDestination = filepath.Clean(moveDestination)
+			fmt.Printf("Note: Using %q as move destination\n", moveDestination)
+		}
+	}
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 

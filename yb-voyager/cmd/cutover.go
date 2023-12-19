@@ -19,35 +19,10 @@ import (
 	"fmt"
 
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
-var cutoverCmd = &cobra.Command{
-	Use:   "cutover",
-	Short: "Prepare to point your application to a different database during live migration.",
-	Long:  "",
-}
-
-var cutoverRootCmd = &cobra.Command{
-	Use:   cutoverCmd.Use,
-	Short: "Get cutover related information. To initiate cutover, refer to `yb-voyager initiate cutover to` command.",
-	Long:  "",
-}
-
-var cutoverToCmd = &cobra.Command{
-	Use:   "to",
-	Short: cutoverCmd.Short,
-	Long:  cutoverCmd.Long,
-}
-
-func init() {
-	rootCmd.AddCommand(cutoverRootCmd)
-	initiateCmd.AddCommand(cutoverCmd)
-	cutoverCmd.AddCommand(cutoverToCmd)
-}
 
 func InitiatePrimarySwitch(action string) error {
 	userFacingActionMsg := "cutover"

@@ -22,27 +22,22 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var importDataToSourceCmd = &cobra.Command{
-	Use:   "source",
-	Short: "Import data into the source DB to prepare for fall-back.\n" +
-	"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/",
-	Long:  ``,
 
-	Run: func(cmd *cobra.Command, args []string) {
-		validateMetaDBCreated()
-		importType = SNAPSHOT_AND_CHANGES
-		importerRole = FB_DB_IMPORTER_ROLE
-		err := initTargetConfFromSourceConf()
-		if err != nil {
-			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
-		}
-		importDataCmd.PreRun(cmd, args)
-		importDataCmd.Run(cmd, args)
-	},
+
+func importDataToSourceCmdRun(cmd *cobra.Command, args []string) {
+	validateMetaDBCreated()
+	importType = SNAPSHOT_AND_CHANGES
+	importerRole = FB_DB_IMPORTER_ROLE
+	err := initTargetConfFromSourceConf()
+	if err != nil {
+		utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
+	}
+	importDataCmd.PreRun(cmd, args)
+	importDataCmd.Run(cmd, args)
 }
 
 func init() {
-	importDataToCmd.AddCommand(importDataToSourceCmd)
+	rootCmd.AddCommand(importDataToSourceCmd)
 	registerCommonGlobalFlags(importDataToSourceCmd)
 	registerCommonImportFlags(importDataToSourceCmd)
 	registerSourceDBAsTargetConnFlags(importDataToSourceCmd)

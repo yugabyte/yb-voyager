@@ -34,23 +34,15 @@ var (
 	sourceDBPassword        string
 )
 
-var endMigrationCmd = &cobra.Command{
-	Use:   "migration",
-	Short: "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
-	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
+func endMigrationCmdPreRun(cmd *cobra.Command, args []string) {
+	err := validateEndMigrationFlags(cmd)
+	if err != nil {
+		utils.ErrExit(err.Error())
+	}
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		err := validateEndMigrationFlags(cmd)
-		if err != nil {
-			utils.ErrExit(err.Error())
-		}
-
-		if utils.IsDirectoryEmpty(exportDir) {
-			utils.ErrExit("export directory is empty, nothing to end")
-		}
-	},
-
-	Run: endMigrationCommandFn,
+	if utils.IsDirectoryEmpty(exportDir) {
+		utils.ErrExit("export directory is empty, nothing to end")
+	}
 }
 
 func endMigrationCommandFn(cmd *cobra.Command, args []string) {
@@ -216,10 +208,10 @@ func saveDataMigrationReport(msr *metadb.MigrationStatusRecord) {
 		fmt.Sprintf("SOURCE_DB_PASSWORD=%s", sourceDBPassword),
 	}
 
-	strCmd := fmt.Sprintf("yb-voyager get data-migration-report --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager get-data-migration-report --export-dir %s", exportDir)
 	liveMigrationReportCmd := exec.Command("bash", "-c", strCmd)
 	liveMigrationReportCmd.Env = append(os.Environ(), passwordsEnvVars...)
-	saveCommandOutput(liveMigrationReportCmd, "data migration report", "", dataMigrationReportPath)
+	saveCommandOutput(liveMigrationReportCmd, "get data-migration-report", "", dataMigrationReportPath)
 }
 
 func saveDataExportReport() {
@@ -229,9 +221,9 @@ func saveDataExportReport() {
 	}
 
 	utils.PrintAndLog("saving data export report...")
-	strCmd := fmt.Sprintf("yb-voyager export data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager export-data-status --export-dir %s", exportDir)
 	exportDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandOutput(exportDataStatusCmd, "export data status", exportDataStatusMsg, exportDataReportFilePath)
+	saveCommandOutput(exportDataStatusCmd, "export-data-status", exportDataStatusMsg, exportDataReportFilePath)
 }
 
 func saveDataImportReport() {
@@ -246,9 +238,9 @@ func saveDataImportReport() {
 	}
 
 	utils.PrintAndLog("saving data import report...")
-	strCmd := fmt.Sprintf("yb-voyager import data status --export-dir %s", exportDir)
+	strCmd := fmt.Sprintf("yb-voyager import-data-status --export-dir %s", exportDir)
 	importDataStatusCmd := exec.Command("bash", "-c", strCmd)
-	saveCommandOutput(importDataStatusCmd, "import data status", importDataStatusMsg, importDataReportFilePath)
+	saveCommandOutput(importDataStatusCmd, "import-data-status", importDataStatusMsg, importDataReportFilePath)
 }
 
 func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFilePath string) {
@@ -735,7 +727,7 @@ func getFreeDiskSpace(path string) (uint64, error) {
 }
 
 func init() {
-	endCmd.AddCommand(endMigrationCmd)
+	rootCmd.AddCommand(endMigrationCmd)
 
 	BoolVar(endMigrationCmd.Flags(), &backupSchemaFiles, "backup-schema-files", false, "backup migration schema files")
 	BoolVar(endMigrationCmd.Flags(), &backupDataFiles, "backup-data-files", false, "backup snapshot data files")

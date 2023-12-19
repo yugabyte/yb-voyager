@@ -238,7 +238,7 @@ export_schema() {
 		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
 	fi
 	
-	yb-voyager export schema ${args} $*
+	yb-voyager export-schema ${args} $*
 }
 
 export_data() {
@@ -314,7 +314,7 @@ export_data() {
 		args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
 	fi
 
-	yb-voyager export data ${args} $*
+	yb-voyager export-data ${args} $*
 
 }
 
@@ -338,7 +338,7 @@ import_schema() {
 		--send-diagnostics=false
 		--start-clean 1
 		"
-		yb-voyager import schema ${args} $*
+		yb-voyager import-schema ${args} $*
 }
 
 import_data() {
@@ -376,7 +376,7 @@ import_data() {
 			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
 		fi
 
-		yb-voyager import data ${args} $*
+		yb-voyager import-data ${args} $*
 }
 
 import_data_to_source_replica() {
@@ -392,11 +392,11 @@ import_data_to_source_replica() {
 	--send-diagnostics=false
 	--parallel-jobs 3
 	"
-	yb-voyager import data to source-replica ${args} $*
+	yb-voyager import-data-to-source-replica ${args} $*
 }
 
 import_data_file() {
-	yb-voyager import data file --export-dir ${EXPORT_DIR} \
+	yb-voyager import-data-file --export-dir ${EXPORT_DIR} \
 		--target-db-host ${TARGET_DB_HOST} \
 		--target-db-port ${TARGET_DB_PORT} \
 		--target-db-user ${TARGET_DB_USER} \
@@ -420,7 +420,7 @@ archive_changes() {
 		ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
 		mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
 
-		yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+		yb-voyager archive-changes --move-to ${ARCHIVE_DIR} \
 		--export-dir ${EXPORT_DIR}
 	fi
 }
@@ -434,7 +434,7 @@ end_migration() {
 	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
 	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
-	yb-voyager end migration --export-dir ${EXPORT_DIR} \
+	yb-voyager end-migration --export-dir ${EXPORT_DIR} \
 	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
 	--backup-data-files true --backup-log-files true \
 	--save-migration-reports true $* || {

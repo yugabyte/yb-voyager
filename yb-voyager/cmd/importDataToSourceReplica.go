@@ -21,24 +21,17 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var importDataToSourceReplicaCmd = &cobra.Command{
-	Use: "source-replica",
-	Short: "Import data into source-replica database to prepare for fall-forward.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/",
-	Long: ``,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		importType = SNAPSHOT_AND_CHANGES
-		tconf.TargetDBType = ORACLE
-		importerRole = FF_DB_IMPORTER_ROLE
-		validateFFDBSchemaFlag()
-		importDataCmd.PreRun(cmd, args)
-		importDataCmd.Run(cmd, args)
-	},
+func importDataToSourceReplicaCmdRun(cmd *cobra.Command, args []string) {
+	importType = SNAPSHOT_AND_CHANGES
+	tconf.TargetDBType = ORACLE
+	importerRole = FF_DB_IMPORTER_ROLE
+	validateFFDBSchemaFlag()
+	importDataCmd.PreRun(cmd, args)
+	importDataCmd.Run(cmd, args)
 }
 
 func init() {
-	importDataToCmd.AddCommand(importDataToSourceReplicaCmd)
+	rootCmd.AddCommand(importDataToSourceReplicaCmd)
 	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
 	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)

@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -29,18 +28,8 @@ const (
 	COMPLETED     = "COMPLETED"
 )
 
-var cutoverStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Prints status of the cutover to YugabyteDB",
-	Long:  `Prints status of the cutover to YugabyteDB`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		checkAndReportCutoverStatus()
-	},
-}
-
 func init() {
-	cutoverRootCmd.AddCommand(cutoverStatusCmd)
+	rootCmd.AddCommand(cutoverStatusCmd)
 	registerExportDirFlag(cutoverStatusCmd)
 }
 

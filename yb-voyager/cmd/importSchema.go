@@ -33,33 +33,27 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var importSchemaCmd = &cobra.Command{
-	Use: "schema",
-	Short: "Import schema into the target YugabyteDB database\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/",
+func importSchemaPreRunFn(cmd *cobra.Command, args []string) {
+	if !schemaIsExported() {
+		utils.ErrExit("Error: schema is not exported yet.")
+	}
+	if tconf.TargetDBType == "" {
+		tconf.TargetDBType = YUGABYTEDB
+	}
+	err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+	if err != nil {
+		utils.ErrExit("Error: %s", err.Error())
+	}
+}
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if !schemaIsExported() {
-			utils.ErrExit("Error: schema is not exported yet.")
-		}
-		if tconf.TargetDBType == "" {
-			tconf.TargetDBType = YUGABYTEDB
-		}
-		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
-		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
-		}
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		tconf.ImportMode = true
-		sourceDBType = GetSourceDBTypeFromMSR()
-		importSchema()
-	},
+func importSchemaRunFn(cmd *cobra.Command, args []string) {
+	tconf.ImportMode = true
+	sourceDBType = GetSourceDBTypeFromMSR()
+	importSchema()
 }
 
 func init() {
-	importCmd.AddCommand(importSchemaCmd)
+	rootCmd.AddCommand(importSchemaCmd)
 	registerCommonGlobalFlags(importSchemaCmd)
 	registerCommonImportFlags(importSchemaCmd)
 	registerTargetDBConnFlags(importSchemaCmd)
