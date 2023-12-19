@@ -27,28 +27,21 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var exportSchemaCmd = &cobra.Command{
-	Use: "schema",
-	Short: "Export schema from source database into export-dir as .sql files\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/",
-	Long: ``,
+func exportSchemaCmdPreRun(cmd *cobra.Command, args []string) {
+	if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {
+		utils.ErrExit("Error: only one of --object-type-list and --exclude-object-type-list is allowed")
+	}
+	setExportFlagsDefaults()
+	err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
+	if err != nil {
+		utils.ErrExit("Error: %s", err.Error())
+	}
+	markFlagsRequired(cmd)
+}
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {
-			utils.ErrExit("Error: only one of --object-type-list and --exclude-object-type-list is allowed")
-		}
-		setExportFlagsDefaults()
-		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
-		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
-		}
-		markFlagsRequired(cmd)
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		source.ApplyExportSchemaObjectListFilter()
-		exportSchema()
-	},
+func exportSchemaCmdRun(cmd *cobra.Command, args []string) {
+	source.ApplyExportSchemaObjectListFilter()
+	exportSchema()
 }
 
 func exportSchema() {
@@ -105,7 +98,7 @@ func exportSchema() {
 }
 
 func init() {
-	exportCmd.AddCommand(exportSchemaCmd)
+	rootCmd.AddCommand(exportSchemaCmd)
 	registerCommonGlobalFlags(exportSchemaCmd)
 	registerCommonExportFlags(exportSchemaCmd)
 	registerSourceDBConnFlags(exportSchemaCmd, false)

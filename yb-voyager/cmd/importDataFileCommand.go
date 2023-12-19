@@ -52,27 +52,21 @@ var (
 	reportProgressInBytes bool
 )
 
-var importDataFileCmd = &cobra.Command{
-	Use: "file",
-	Short: "This command imports data from given files into YugabyteDB database. The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. Incremental data load is also supported.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/bulk-data-load/",
+func importDataFileCmdPreRun(cmd *cobra.Command, args []string) {
+	if tconf.TargetDBType == "" {
+		tconf.TargetDBType = YUGABYTEDB
+	}
+}
 
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if tconf.TargetDBType == "" {
-			tconf.TargetDBType = YUGABYTEDB
-		}
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		importerRole = IMPORT_FILE_ROLE
-		reportProgressInBytes = true
-		validateBatchSizeFlag(batchSize)
-		checkImportDataFileFlags(cmd)
-		dataStore = datastore.NewDataStore(dataDir)
-		importFileTasks := prepareImportFileTasks()
-		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks)
-	},
+func importDataFileCmdRun(cmd *cobra.Command, args []string) {
+	importerRole = IMPORT_FILE_ROLE
+	reportProgressInBytes = true
+	validateBatchSizeFlag(batchSize)
+	checkImportDataFileFlags(cmd)
+	dataStore = datastore.NewDataStore(dataDir)
+	importFileTasks := prepareImportFileTasks()
+	prepareForImportDataCmd(importFileTasks)
+	importData(importFileTasks)
 }
 
 func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
@@ -86,7 +80,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to update migration status record: %v", err)
 	}
-	
+
 	dataFileList := getFileSizeInfo(importFileTasks)
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:   fileFormat,
@@ -350,7 +344,7 @@ func escapeFileOptsCharsIfRequired() {
 }
 
 func init() {
-	importDataCmd.AddCommand(importDataFileCmd)
+	rootCmd.AddCommand(importDataFileCmd)
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataCommonFlags(importDataFileCmd)

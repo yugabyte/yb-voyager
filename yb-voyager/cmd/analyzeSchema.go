@@ -27,7 +27,6 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -1082,20 +1081,6 @@ func analyzeSchema() {
 	}
 
 	callhome.PackAndSendPayload(exportDir)
-}
-
-var analyzeSchemaCmd = &cobra.Command{
-	Use: "analyze-schema",
-	Short: "Analyze converted source database schema and generate a report about YB incompatible constructs.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
-	Long: ``,
-	PreRun: func(cmd *cobra.Command, args []string) {
-		validateReportOutputFormat()
-	},
-
-	Run: func(cmd *cobra.Command, args []string) {
-		analyzeSchema()
-	},
 }
 
 func init() {

@@ -35,16 +35,6 @@ var tconf tgtdb.TargetConf
 
 var tdb tgtdb.TargetDB
 
-var importCmd = &cobra.Command{
-	Use:   "import",
-	Short: "Import schema and data from compatible source database to target database. ",
-	Long:  `Import has various sub-commands i.e. import schema, import data to import into YugabyteDB from various compatible source databases(Oracle, MySQL, PostgreSQL). Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
-}
-
-func init() {
-	rootCmd.AddCommand(importCmd)
-}
-
 // If any changes are made to this function, verify if the change is also needed for importDataFileCommand.go
 func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	checkOrSetDefaultTargetSSLMode()

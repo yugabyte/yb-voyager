@@ -31,33 +31,28 @@ import (
 
 const exportDataStatusMsg = "Export Data Status for SourceDB\n"
 
-var exportDataStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Print status of an ongoing/completed data export.",
-
-	Run: func(cmd *cobra.Command, args []string) {
-		streamChanges, err := checkStreamingMode()
-		if err != nil {
-			utils.ErrExit("error while checking streaming mode: %w\n", err)
-		}
-		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
-				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
-		}
-		useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
-		if useDebezium {
-			err = runExportDataStatusCmdDbzm(streamChanges)
-		} else {
-			err = runExportDataStatusCmd()
-		}
-		if err != nil {
-			utils.ErrExit("error: %s\n", err)
-		}
-	},
+func exportDataStatusCmdRun(cmd *cobra.Command, args []string) {
+	streamChanges, err := checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+	if streamChanges {
+		utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
+			color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+	}
+	useDebezium = dbzm.IsDebeziumForDataExport(exportDir)
+	if useDebezium {
+		err = runExportDataStatusCmdDbzm(streamChanges)
+	} else {
+		err = runExportDataStatusCmd()
+	}
+	if err != nil {
+		utils.ErrExit("error: %s\n", err)
+	}
 }
 
 func init() {
-	exportDataCmd.AddCommand(exportDataStatusCmd)
+	rootCmd.AddCommand(exportDataStatusCmd)
 }
 
 type exportTableMigStatusOutputRow struct {

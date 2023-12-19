@@ -33,29 +33,24 @@ import (
 
 const importDataStatusMsg = "Import Data Status for TargetDB\n"
 
-var importDataStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Print status of an ongoing/completed import data.",
-
-	Run: func(cmd *cobra.Command, args []string) {
-		streamChanges, err := checkStreamingMode()
-		if err != nil {
-			utils.ErrExit("error while checking streaming mode: %w\n", err)
-		}
-		if streamChanges {
-			utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
-				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
-		}
-		importerRole = TARGET_DB_IMPORTER_ROLE
-		err = runImportDataStatusCmd()
-		if err != nil {
-			utils.ErrExit("error: %s\n", err)
-		}
-	},
+func importDataStatusCmdRun(cmd *cobra.Command, args []string) {
+	streamChanges, err := checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+	if streamChanges {
+		utils.ErrExit("\nNote: Run the following command to get the report of live migration:\n" +
+			color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
+	}
+	importerRole = TARGET_DB_IMPORTER_ROLE
+	err = runImportDataStatusCmd()
+	if err != nil {
+		utils.ErrExit("error: %s\n", err)
+	}
 }
 
 func init() {
-	importDataCmd.AddCommand(importDataStatusCmd)
+	rootCmd.AddCommand(importDataStatusCmd)
 }
 
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.

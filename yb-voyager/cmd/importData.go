@@ -62,42 +62,17 @@ var TableToIdentityColumnNames = make(map[string][]string) // map of table name 
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
 
-var importDataCmd = &cobra.Command{
-	Use: "data",
-	Short: "Import data from compatible source database to target database.\n" +
-		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/",
-	Long: `Import the data exported from the source database into the target database. Also import data(snapshot + changes from target) into source-replica/source in case of live migration with fall-back/fall-forward worflows.`,
-	Args: cobra.NoArgs,
-	PreRun: func(cmd *cobra.Command, args []string) {
-		if tconf.TargetDBType == "" {
-			tconf.TargetDBType = YUGABYTEDB
-		}
-		if importerRole == "" {
-			importerRole = TARGET_DB_IMPORTER_ROLE
-		}
-		err := validateImportFlags(cmd, importerRole)
-		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
-		}
-	},
-	Run: importDataCommandFn,
-}
-
-var importDataToCmd = &cobra.Command{
-	Use:   "to",
-	Short: "Import data into various databases",
-	Long:  `Import data into various databases`,
-}
-
-var importDataToTargetCmd = &cobra.Command{
-	Use:   "target",
-	Short: importDataCmd.Short,
-	Long:  importDataCmd.Long,
-	Args:  importDataCmd.Args,
-
-	PreRun: importDataCmd.PreRun,
-
-	Run: importDataCmd.Run,
+func importDataCmdPreRun(cmd *cobra.Command, args []string) {
+	if tconf.TargetDBType == "" {
+		tconf.TargetDBType = YUGABYTEDB
+	}
+	if importerRole == "" {
+		importerRole = TARGET_DB_IMPORTER_ROLE
+	}
+	err := validateImportFlags(cmd, importerRole)
+	if err != nil {
+		utils.ErrExit("Error: %s", err.Error())
+	}
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
@@ -870,8 +845,8 @@ func newTargetConn() *pgx.Conn {
 	setTargetSchema(conn)
 
 	if sourceDBType == ORACLE && enableOrafce {
-        setOrafceSearchPath(conn)
-    }
+		setOrafceSearchPath(conn)
+	}
 
 	return conn
 }
@@ -1104,9 +1079,8 @@ func checkExportDataDoneFlag() {
 }
 
 func init() {
-	importCmd.AddCommand(importDataCmd)
-	importDataCmd.AddCommand(importDataToCmd)
-	importDataToCmd.AddCommand(importDataToTargetCmd)
+	rootCmd.AddCommand(importDataCmd)
+	rootCmd.AddCommand(importDataToTargetCmd)
 
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)

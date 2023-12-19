@@ -15,25 +15,7 @@ limitations under the License.
 */
 package cmd
 
-import (
-	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-)
-
-var cutoverToSourceReplicaCmd = &cobra.Command{
-	Use:   "source-replica",
-	Short: "Initiate cutover to source-replica DB",
-	Long:  `Initiate cutover to source-replica DB`,
-
-	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch("fallforward")
-		if err != nil {
-			utils.ErrExit("failed to initiate fallforward: %v", err)
-		}
-	},
-}
-
 func init() {
-	cutoverToCmd.AddCommand(cutoverToSourceReplicaCmd)
+	rootCmd.AddCommand(cutoverToSourceReplicaCmd)
 	registerExportDirFlag(cutoverToSourceReplicaCmd)
 }
