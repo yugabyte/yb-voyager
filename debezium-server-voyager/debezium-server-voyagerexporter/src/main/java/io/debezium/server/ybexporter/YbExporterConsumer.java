@@ -209,10 +209,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         checkIfHelperThreadAlive();
 
         HashMap<String,Integer> tableExecutorMap = new HashMap<>();
-        tableExecutorMap.put("ORDERS", 0);
-        tableExecutorMap.put("ORDERLINES", 1);
-        tableExecutorMap.put("CUSTOMERS", 2);
-        tableExecutorMap.put("CUST_HIST", 3);
+        tableExecutorMap.put("CUSTOMERS", 0);
+        tableExecutorMap.put("CUSTOMERS1", 1);
+        tableExecutorMap.put("CUSTOMERS2", 2);
+        tableExecutorMap.put("CUSTOMERS3", 3);
 
         List<Future> futures = new ArrayList<Future>();
         for (ChangeEvent<Object, Object> event : changeEvents) {
