@@ -218,3 +218,13 @@ class PostgresDB:
 				transformed_distinct_value = value
 			print(f"{transformed_value}")
 			assert transformed_value in expected_values
+
+	def get_available_extensions(self) -> List[str]:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT name FROM pg_available_extensions")
+		return [extension[0] for extension in cur.fetchall()]
+
+	def get_target_version(self) -> str:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT version()")
+		return cur.fetchone()[0]
