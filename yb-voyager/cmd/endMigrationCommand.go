@@ -78,7 +78,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
 	cleanupTargetDB(msr)
-	cleanupFallForwardDB(msr)
+	cleanupSourceReplicaDB(msr)
 	cleanupFallBackDB(msr)
 
 	backupLogFilesFn()
@@ -443,14 +443,14 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 	}
 }
 
-func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
+func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	if !msr.FallForwardEnabled {
 		return
 	}
 
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	sourceReplicaconf := msr.FallForwardDBConf
+	sourceReplicaconf := msr.SourceReplicaDBConf
 	sourceReplicaconf.Password = sourceReplicaDBPassword
 	if sourceReplicaDBPassword == "" {
 		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")

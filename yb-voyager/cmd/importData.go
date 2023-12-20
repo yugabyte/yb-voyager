@@ -101,11 +101,7 @@ var importDataToTargetCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-	triggerName, err := getTriggerName(importerRole)
-	if err != nil {
-		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
-	}
-	exitIfDBSwitchedOver(triggerName)
+	ExitIfAlreadyCutover(importerRole)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -126,11 +122,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
-	if importerRole == FF_DB_IMPORTER_ROLE {
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		if record.FallbackEnabled {
 			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
-		updateFallForwarDBExistsInMetaDB()
+		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
@@ -142,11 +138,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks)
 	if changeStreamingIsEnabled(importType) {
-		startFallforwardSynchronizeIfRequired()
+		startExportDataFromTargetIfRequired()
 	}
 }
 
-func startFallforwardSynchronizeIfRequired() {
+func startExportDataFromTargetIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -344,11 +340,11 @@ func updateTargetConfInMigrationStatus() {
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
 			record.TargetDBConf.Uri = ""
-		case FF_DB_IMPORTER_ROLE:
-			record.FallForwardDBConf = tconf.Clone()
-			record.FallForwardDBConf.Password = ""
-			record.FallForwardDBConf.Uri = ""
-		case FB_DB_IMPORTER_ROLE:
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			record.SourceReplicaDBConf = tconf.Clone()
+			record.SourceReplicaDBConf.Password = ""
+			record.SourceReplicaDBConf.Uri = ""
+		case SOURCE_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""
 			record.SourceDBAsTargetConf.Uri = ""
@@ -432,7 +428,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	// Import snapshots
-	if importerRole != FB_DB_IMPORTER_ROLE {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -468,7 +464,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			if importerRole != FB_DB_IMPORTER_ROLE {
+			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
@@ -488,11 +484,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
-			triggerName, err := getTriggerName(importerRole)
+			err = markCutoverProcessed(importerRole)
 			if err != nil {
-				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
+				utils.ErrExit("failed to mark cutover as processed: %s", err)
 			}
-			createTriggerIfNotExists(triggerName)
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		} else {

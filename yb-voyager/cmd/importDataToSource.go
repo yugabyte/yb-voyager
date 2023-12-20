@@ -31,7 +31,7 @@ var importDataToSourceCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
 		importType = SNAPSHOT_AND_CHANGES
-		importerRole = FB_DB_IMPORTER_ROLE
+		importerRole = SOURCE_DB_IMPORTER_ROLE
 		err := initTargetConfFromSourceConf()
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
