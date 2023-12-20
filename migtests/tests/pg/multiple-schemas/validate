@@ -103,5 +103,23 @@ def migration_completed_checks(tgt):
 	print(f"id returned for password(johnspassword) - {id_returned_ext_test}")
 	assert id_returned_ext_test == 1
 	
+	print("Validating the yb supported extensions list:")
+	expectedExtensions = ["adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
+		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
+		"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
+		"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
+		"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
+		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
+		"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension" ]
+	extensions = tgt.get_available_extensions()
+	print(f"expected extensions: {expectedExtensions}")
+	print(f"reported extensions: {extensions}")
+	tgtVersion = tgt.get_target_version()
+	print(f"target version: {tgtVersion}")
+	if "2.16" in tgtVersion:
+		expectedExtensions.remove("hll")
+	for extension in expectedExtensions:
+		assert extension in extensions, f"expected extension is not reported: {extension}"
+	
 if __name__ == "__main__":
 	main()

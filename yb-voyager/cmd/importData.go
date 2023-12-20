@@ -863,6 +863,11 @@ func newTargetConn() *pgx.Conn {
 	}
 
 	setTargetSchema(conn)
+
+	if sourceDBType == ORACLE && enableOrafce {
+        setOrafceSearchPath(conn)
+    }
+
 	return conn
 }
 
@@ -887,15 +892,6 @@ func setTargetSchema(conn *pgx.Conn) {
 	if err != nil {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
 	}
-
-	if sourceDBType == ORACLE && enableOrafce {
-		// append oracle schema in the search_path for orafce
-		updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
-		_, err := conn.Exec(context.Background(), updateSearchPath)
-		if err != nil {
-			utils.ErrExit("unable to update search_path for orafce extension: %v", err)
-		}
-	}
 }
 
 func dropIdx(conn *pgx.Conn, idxName string) {
@@ -910,6 +906,7 @@ func dropIdx(conn *pgx.Conn, idxName string) {
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
 	log.Infof("Execute SQL file %q on target %q", file, tconf.Host)
 	conn := newTargetConn()
+
 	defer func() {
 		if conn != nil {
 			conn.Close(context.Background())
@@ -933,6 +930,15 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			conn.Close(context.Background())
 			conn = nil
 		}
+	}
+}
+
+func setOrafceSearchPath(conn *pgx.Conn) {
+	// append oracle schema in the search_path for orafce
+	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
+	_, err := conn.Exec(context.Background(), updateSearchPath)
+	if err != nil {
+		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
 	}
 }
 
