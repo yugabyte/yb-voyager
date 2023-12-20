@@ -108,10 +108,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             switchOperation = "cutover";
         }
         else if (exporterRole.equals(TARGET_DB_EXPORTER_FF_ROLE)){
-            switchOperation = "fallforward";
+            switchOperation = "cutover.source_replica";
         }
         else if (exporterRole.equals(TARGET_DB_EXPORTER_FB_ROLE)){
-            switchOperation = "fallback";
+            switchOperation = "cutover.source";
         }
         else {
             throw new RuntimeException(String.format("invalid exportRole %s", exporterRole));

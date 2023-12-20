@@ -313,12 +313,12 @@ public class ExportStatus {
             while (rs.next()) {
                 MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
                 switch(operation.toString()) {
-                    case "cutover":
-                        return msr.CutoverRequested;
-                    case "fallforward":
-                        return msr.FallForwardSwitchRequested;
-                    case "fallback":
-                        return msr.FallBackSwitchRequested;
+                    case "cutover.target":
+                        return msr.CutoverToTargetRequested;
+                    case "cutover.source_replica":
+                        return msr.CutoverToSourceReplicaRequested;
+                    case "cutover.source":
+                        return msr.CutoverToSourceRequested;
                 }
             }
         } catch (SQLException e) {
