@@ -105,7 +105,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         LOGGER.info("XXX Started flush thread.");
         String switchOperation;
         if (exporterRole.equals(SOURCE_DB_EXPORTER_ROLE)){
-            switchOperation = "cutover";
+            switchOperation = "cutover.target";
         }
         else if (exporterRole.equals(TARGET_DB_EXPORTER_FF_ROLE)){
             switchOperation = "cutover.source_replica";
