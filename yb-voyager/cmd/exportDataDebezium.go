@@ -368,7 +368,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		}
 		progressTracker.UpdateProgress(status)
 		if !snapshotComplete {
-			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+			snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
 			if err != nil {
 				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
@@ -385,7 +385,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
-		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+		snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
 		if !snapshotComplete || err != nil {
 			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
@@ -431,21 +431,24 @@ func reportStreamingProgress() {
 	}
 }
 
-func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
-	progressTracker.Done(status)
-	setDataIsExported()
-	err := writeDataFileDescriptor(exportDir, status)
-	if err != nil {
-		return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+	if config.SnapshotMode != "never" {
+		progressTracker.Done(status)
+		setDataIsExported()
+		err := writeDataFileDescriptor(exportDir, status)
+		if err != nil {
+			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
+		}
+		log.Infof("snapshot export is complete.")
+		err = renameDbzmExportedDataFiles()
+		if err != nil {
+			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
+		}
 	}
-	log.Infof("snapshot export is complete.")
-	err = renameDbzmExportedDataFiles()
-	if err != nil {
-		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
-	}
+
 	if !isTargetDBExporter(exporterRole) {
 		displayExportedRowCountSnapshot(true)
 	}
