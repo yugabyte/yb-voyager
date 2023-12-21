@@ -218,13 +218,21 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             // Handle snapshot->cdc transition
             checkIfSnapshotComplete(r);
-
-            committer.markProcessed(event);
         }
         handleBatchComplete();
-        LOGGER.info("Fsynced batch with {} records", changeEvents.size());
+        LOGGER.debug("Fsynced batch with {} records", changeEvents.size());
+        // committer.markProcessed(event) updates offsets in memory, committer.MarkBatchFinished flushes those
+        // offsets to disk. Offsets are also flushed to disk when debezium-server is gracefully shutdown. (which can
+        // happen multiple times during a migration).
+        // To the scenario where events were marked as processed (and flushed to disk by graceful shutdown),
+        // but not fsynced and updated in metadb, it is important to mark the events as processed only AFTER we fsync/
+        // update metaDB.
+        // TODO: optimize by only marking the last event as processed.
+        for (ChangeEvent<Object, Object> event : changeEvents) {
+            committer.markProcessed(event);
+        }
         committer.markBatchFinished();
-        LOGGER.info("Committed batch complete with {} records", changeEvents.size());
+        LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
     }
 
