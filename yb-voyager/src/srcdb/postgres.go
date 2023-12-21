@@ -520,13 +520,25 @@ func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 }
 
 func (pg *PostgreSQL) CreateLogicalReplicationSlotAndGetSnapshotName(conn *pgconn.PgConn, migrationUUID uuid.UUID, deleteIfExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
-	// TODO: delete if exists!!!
 
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 	if err != nil {
-		panic(err)
+		// TODO : clean this up?
+		if strings.Contains(err.Error(), "already exists") {
+			err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+			if err != nil {
+				panic(err)
+			}
+			res, err = pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
+				pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			panic(err)
+		}
 	}
 	return res, nil
 }
