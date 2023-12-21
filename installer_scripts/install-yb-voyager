@@ -45,7 +45,7 @@ DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATIO
 DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar"
 
 # only rebuild voyager
-REBUILD_VOYAGER_LOCAL="false"
+REBUILD_VOYAGER_LOCAL=${REBUILD_VOYAGER_LOCAL:-"false"}
 
 # separate file for bashrc related settings
 RC_FILE="$HOME/.yb-voyager.rc"

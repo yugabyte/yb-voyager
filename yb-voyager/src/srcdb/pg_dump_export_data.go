@@ -50,6 +50,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs.DataFormat = "directory"
 
 	args := getPgDumpArgsFromFile("data")
+	if snapshotName != "" {
+		args = fmt.Sprintf("%s --snapshot=%s", args, snapshotName)
+	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer
