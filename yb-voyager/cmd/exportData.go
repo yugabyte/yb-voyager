@@ -170,6 +170,18 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
+		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+			// pg live migration. use pg_dump for snapshot export and dbzm for cdc
+
+			if !dataIsExported() { // if snapshot is not already done...
+				// create replication slot
+				// pg_dump
+				setDataIsExported()
+				// save replication slot
+			}
+			// modify dbzm config
+		}
+
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
