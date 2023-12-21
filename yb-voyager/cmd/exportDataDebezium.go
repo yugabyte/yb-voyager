@@ -220,14 +220,14 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list 
+		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
 				partitionsToRootTableMap[leafPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
 			}
 		}
 	}
-	return lo.UniqBy(modifiedTableList, func (table *sqlname.SourceName) string {
+	return lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
 		return table.Qualified.MinQuoted
 	}), nil
 }
@@ -447,7 +447,7 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 	}
 	if !isTargetDBExporter(exporterRole) {
-		displayExportedRowCountSnapshot()
+		displayExportedRowCountSnapshot(true)
 	}
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")

@@ -511,7 +511,7 @@ func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 }
 
 func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
-	return pgconn.Connect(context.Background(), pg.getConnectionUri())
+	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
 	// // TODO use migration UUID
 	// createLogicalReplicationSlotAndGetSnapshotName(replicationConn, migrationUUID)
 	// defer func() {
@@ -522,7 +522,7 @@ func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 func (pg *PostgreSQL) CreateLogicalReplicationSlotAndGetSnapshotName(conn *pgconn.PgConn, migrationUUID uuid.UUID, deleteIfExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
 	// TODO: delete if exists!!!
 
-	replicationSlotName := fmt.Sprintf("voyager-%s", migrationUUID)
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 	if err != nil {

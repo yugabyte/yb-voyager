@@ -332,7 +332,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-	displayExportedRowCountSnapshot()
+	displayExportedRowCountSnapshot(false)
 	return nil
 }
 
