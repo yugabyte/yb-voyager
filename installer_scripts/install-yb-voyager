@@ -317,7 +317,7 @@ install_debezium_local() {
 	tar -xzvf debezium.tar.gz 1>&2
 	# build
 	cd "debezium-$1"
-	mvn -ntp clean install -Dquick 1>&2
+	mvn -ntp clean install -Dquick -T 2C 1>&2
 
 	# cleanup
 	cd ..
@@ -332,7 +332,7 @@ install_debezium_server_local() {
 	tar -xzvf debezium-server.tar.gz 1>&2
 	# build
 	cd "debezium-server-$1"
-	mvn -ntp clean install -Dquick 1>&2
+	mvn -ntp clean install -Dquick -T 2C 1>&2
 
 	# cleanup
 	cd ..
@@ -352,7 +352,7 @@ install_debezium_server_voyager_plugin_local() {
 	fi
 	# build
 	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter
-	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	mvn -ntp clean install -Dquick -f ${pom} -T 2C 1>&2
 
 	popd > /dev/null
 }
@@ -368,8 +368,8 @@ assemble_debezium_server_voyager_local() {
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
-	mvn -ntp clean install -Dquick -f ${pom} 1>&2
-	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+	mvn -ntp clean install -Dquick -f ${pom} -T 2C 1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom} -T 2C 1>&2
 
 	mkdir -p $REPO_ROOT/debezium-server-voyager/target
 	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
@@ -380,7 +380,7 @@ assemble_debezium_server_voyager_local() {
 install_yb_client_local(){
 	output "Installing yb client..."
 	pushd $REPO_ROOT/debezium-server-voyager/yb-client-cdc-stream-wrapper > /dev/null
-	mvn -ntp clean package 1>&2
+	mvn -ntp clean package -T 2C 1>&2
 	popd > /dev/null
 }
 
