@@ -26,7 +26,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 
@@ -218,8 +220,8 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, true)
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -506,4 +508,25 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
 	return nil
+}
+
+func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
+	return pgconn.Connect(context.Background(), pg.getConnectionUri())
+	// // TODO use migration UUID
+	// createLogicalReplicationSlotAndGetSnapshotName(replicationConn, migrationUUID)
+	// defer func() {
+	// 	_ = replicationConn.Close(bgctx)
+	// }()
+}
+
+func (pg *PostgreSQL) CreateLogicalReplicationSlotAndGetSnapshotName(conn *pgconn.PgConn, migrationUUID uuid.UUID, deleteIfExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
+	// TODO: delete if exists!!!
+
+	replicationSlotName := fmt.Sprintf("voyager-%s", migrationUUID)
+	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
+		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+	if err != nil {
+		panic(err)
+	}
+	return res, nil
 }

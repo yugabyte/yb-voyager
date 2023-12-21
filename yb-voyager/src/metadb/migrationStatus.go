@@ -10,8 +10,8 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID string `json:"MigrationUUID"`
-	ExportType    string `json:"ExportType"`
+	MigrationUUID                                   string            `json:"MigrationUUID"`
+	ExportType                                      string            `json:"ExportType"`
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
 	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
@@ -34,7 +34,8 @@ type MigrationStatusRecord struct {
 	ExportSchemaDone                                bool              `json:"ExportSchemaDone"`
 	ExportDataDone                                  bool              `json:"ExportDataDone"`
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
-  EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
+	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
+	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

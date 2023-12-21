@@ -28,9 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/jackc/pglogrepl"
-	"github.com/jackc/pgx/v5/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -39,20 +36,7 @@ import (
 	// "github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, shouldCreateReplicationSlot bool) {
-	// var replicationConn *pgconn.PgConn
-	if shouldCreateReplicationSlot {
-		bgctx := context.Background()
-		replicationConn, err := pgconn.Connect(bgctx, source.Uri)
-		if err != nil {
-			panic(err)
-		}
-		// TODO use migration UUID
-		createLogicalReplicationSlotAndGetSnapshotName(replicationConn, uuid.New())
-		defer func() {
-			_ = replicationConn.Close(bgctx)
-		}()
-	}
+func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
 	defer utils.WaitGroup.Done()
 
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
@@ -161,19 +145,4 @@ func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetad
 			log.Infof("File %q to rename doesn't exists!", oldFilePath)
 		}
 	}
-}
-
-func createLogicalReplicationSlotAndGetSnapshotName(conn *pgconn.PgConn, migrationUUID uuid.UUID) (string, error) {
-	// msr, err := metaDB.GetMigrationStatusRecord()
-	// if err != nil {
-	// 	utils.ErrExit("generate html report: load migration status record: %s", err)
-	// }
-
-	replicationSlotName := fmt.Sprintf("voyager-%s", migrationUUID)
-	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
-		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
-	if err != nil {
-		panic(err)
-	}
-	return res.SnapshotName, nil
 }
