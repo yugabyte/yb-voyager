@@ -19,6 +19,7 @@ require (
 	github.com/gosuri/uitable v0.0.4
 	github.com/jackc/pgconn v1.13.0
 	github.com/jackc/pgx/v4 v4.17.2
+	github.com/jackc/pgx/v5 v5.0.3
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/nightlyone/lockfile v1.0.0
@@ -38,7 +39,6 @@ require (
 )
 
 require (
-	github.com/jackc/pgx/v5 v5.0.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
