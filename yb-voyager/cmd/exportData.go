@@ -199,9 +199,10 @@ func exportData() bool {
 				// save replication slot
 				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 					record.PGReplicationSlotName = res.SlotName
+					record.SnapshotMechanism = "pg_dump"
 				})
 				if err != nil {
-					utils.ErrExit("set data is exported: update migration status record: %s", err)
+					utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
 				}
 				setDataIsExported()
 			}
@@ -212,6 +213,13 @@ func exportData() bool {
 			}
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+		} else {
+			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				record.SnapshotMechanism = "debezium"
+			})
+			if err != nil {
+				utils.ErrExit("udpate SnapshotMechanism: update migration status record: %s", err)
+			}
 		}
 
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)

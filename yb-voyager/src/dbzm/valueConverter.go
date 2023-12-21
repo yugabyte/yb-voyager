@@ -33,11 +33,16 @@ type ValueConverter interface {
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (ValueConverter, error) {
-	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
-	} else {
-		return &NoOpValueConverter{}, nil
-	}
+	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
+	// if IsDebeziumForDataExport(exportDir) {
+	// 	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
+	// } else {
+	// 	return &NoOpValueConverter{}, nil
+	// }
+}
+
+func NewNoOpValueConverter() (ValueConverter, error) {
+	return &NoOpValueConverter{}, nil
 }
 
 //============================================================================

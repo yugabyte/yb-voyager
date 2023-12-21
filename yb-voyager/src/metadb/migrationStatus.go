@@ -36,6 +36,7 @@ type MigrationStatusRecord struct {
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"`
+	SnapshotMechanism                               string            `json:"SnapshotMechanism"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
