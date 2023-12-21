@@ -8,8 +8,8 @@ Included here are the release notes for the [YugabyteDB Voyager](https://docs.yu
 ### Bug fixes
 
 - Fixed an issue that occurs in the cdc phase of live migration (including fall-back/fall-forward workflows), leading to transaction conflict errors or bad data in the worst case.
-- Fixed an issue where end migration fails when using dockerised yb-voyager.
-- Fixed an issue where export data from Postgres fails when a single case sensitive table name is provided to the --table-list argument.
+- Fixed an issue where end migration fails when using [dockerised yb-voyager](https://docs.yugabyte.com/preview/yugabyte-voyager/install-yb-voyager/#install-yb-voyager).
+- Fixed an issue where export data from Postgres fails when a single case sensitive table name is provided to the `--table-list` argument.
 
 
 ## v1.6 - November 29, 2023
