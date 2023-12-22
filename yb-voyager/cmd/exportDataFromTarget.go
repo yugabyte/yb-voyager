@@ -30,8 +30,6 @@ var exportDataFromTargetCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
-		//TODO set source.Schema= pg.schema in case of pg
-		
 		source.DBType = YUGABYTEDB
 		exportType = CHANGES_ONLY
 		msr, err := metaDB.GetMigrationStatusRecord()
