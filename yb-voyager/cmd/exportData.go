@@ -242,7 +242,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
 	// pg_dump
-	err = exportDataOffline(ctx, cancel, finalTableListI, tablesColumnList, res.SnapshotName)
+	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
 	if err != nil {
 		log.Errorf("Export Data failed: %v", err)
 		return err
