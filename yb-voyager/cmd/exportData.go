@@ -172,54 +172,26 @@ func exportData() bool {
 			return false
 		}
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
-			// pg live migration. use pg_dump for snapshot export and dbzm for cdc
+			// pg live migration. Steps are as follows:
+			// 1. create replication slot.
+			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
+			// 3. start debezium with configration to read changes from the created replication slot.
 
 			if !dataIsExported() { // if snapshot is not already done...
-				// create replication slot
-
-				pgDB := source.DB().(*srcdb.PostgreSQL)
-				replicationConn, err := pgDB.GetReplicationConnection()
+				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
-					utils.ErrExit("failed to create replication connection: %v", err)
-				}
-				defer func() {
-					_ = replicationConn.Close(context.Background())
-				}()
-				res, err := pgDB.CreateLogicalReplicationSlotAndGetSnapshotName(replicationConn, migrationUUID, true)
-				if err != nil {
-					utils.ErrExit("failed to create replication slot: %v", err)
-				}
-				// pg_dump
-				err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
-				if err != nil {
-					log.Errorf("Export Data failed: %v", err)
+					log.Errorf("export snapshot failed: %v", err)
 					return false
 				}
-
-				// save replication slot
-				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-					record.PGReplicationSlotName = res.SlotName
-					record.SnapshotMechanism = "pg_dump"
-				})
-				if err != nil {
-					utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
-				}
-				setDataIsExported()
 			}
-			// modify dbzm config
+
 			msr, err := metaDB.GetMigrationStatusRecord()
 			if err != nil {
 				utils.ErrExit("get migration status record: %v", err)
 			}
+
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
-		} else {
-			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-				record.SnapshotMechanism = "debezium"
-			})
-			if err != nil {
-				utils.ErrExit("udpate SnapshotMechanism: update migration status record: %s", err)
-			}
 		}
 
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
@@ -253,6 +225,39 @@ func exportData() bool {
 		return true
 	}
 
+}
+
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+	// create replication slot
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	replicationConn, err := pgDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+	}
+	defer func() {
+		_ = replicationConn.Close(context.Background())
+	}()
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+	}
+	// pg_dump
+	err = exportDataOffline(ctx, cancel, finalTableListI, tablesColumnList, res.SnapshotName)
+	if err != nil {
+		log.Errorf("Export Data failed: %v", err)
+		return err
+	}
+
+	// save replication slot in MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.PGReplicationSlotName = res.SlotName
+		record.SnapshotMechanism = "pg_dump"
+	})
+	if err != nil {
+		utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
+	}
+	setDataIsExported()
+	return nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {

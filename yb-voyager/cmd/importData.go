@@ -473,6 +473,9 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+			if err != nil {
+				utils.ErrExit("Failed to create value converter: %s", err)
+			}
 			err = streamChanges(state, importTableList)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)

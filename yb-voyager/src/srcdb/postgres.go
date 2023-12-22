@@ -512,32 +512,27 @@ func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
-	// // TODO use migration UUID
-	// createLogicalReplicationSlotAndGetSnapshotName(replicationConn, migrationUUID)
-	// defer func() {
-	// 	_ = replicationConn.Close(bgctx)
-	// }()
 }
 
-func (pg *PostgreSQL) CreateLogicalReplicationSlotAndGetSnapshotName(conn *pgconn.PgConn, migrationUUID uuid.UUID, deleteIfExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
-
+func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+
 	if err != nil {
-		// TODO : clean this up?
-		if strings.Contains(err.Error(), "already exists") {
+		if strings.Contains(err.Error(), "already exists") && dropIfAlreadyExists {
+			// drop and recreate
 			err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
 			if err != nil {
-				panic(err)
+				return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to delete existing replication slot: %v", err)
 			}
 			res, err = pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 				pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 			if err != nil {
-				panic(err)
+				return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to create replication slot: %v", err)
 			}
 		} else {
-			panic(err)
+			return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to create replication slot: %v", err)
 		}
 	}
 	return res, nil

@@ -348,6 +348,15 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 // ---------------------------------------------- Export Data ---------------------------------------//
 
 func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+	if config.SnapshotMode != "never" {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.SnapshotMechanism = "debezium"
+		})
+		if err != nil {
+			return fmt.Errorf("udpate SnapshotMechanism: update migration status record: %s", err)
+		}
+	}
+
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 	debezium := dbzm.NewDebezium(config)
 	err := debezium.Start()
@@ -447,11 +456,12 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		if err != nil {
 			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 		}
-	}
-
-	if !isTargetDBExporter(exporterRole) {
 		displayExportedRowCountSnapshot(true)
 	}
+
+	// if !isTargetDBExporter(exporterRole) {
+	// 	displayExportedRowCountSnapshot(true)
+	// }
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
