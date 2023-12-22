@@ -16,6 +16,8 @@ limitations under the License.
 package cmd
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -29,12 +31,28 @@ var importDataToSourceReplicaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
-		tconf.TargetDBType = ORACLE
+		setTargetConfSpecifics(cmd)
 		importerRole = FF_DB_IMPORTER_ROLE
 		validateFFDBSchemaFlag()
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
 	},
+}
+
+func setTargetConfSpecifics(cmd *cobra.Command) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	sconf := msr.SourceDBConf
+	tconf.TargetDBType = sconf.DBType
+	if tconf.TargetDBType == POSTGRESQL {
+		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
+			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")
+		} else {
+			tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"),",")
+		} 
+	}
 }
 
 func init() {

@@ -1,5 +1,5 @@
 /*
-Copyright (c) PostgreSQL, Inc.
+Copyright (c) YugabyteDB, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -89,15 +89,28 @@ func (pg *TargetPostgreSQL) Init() error {
 	if err != nil {
 		return err
 	}
-
+	schemas := strings.Split(pg.tconf.Schema, ",")
+	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
-		"SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'",
-		pg.tconf.Schema)
-	var cntSchemaName int
-	if err = pg.conn_.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		err = fmt.Errorf("schema '%s' does not exist in target", pg.tconf.Schema)
+		"SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('%s')",
+		schemaList)
+	rows, err := pg.conn_.Query(context.Background(), checkSchemaExistsQuery)
+	if err != nil {
+		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)	
+	}
+	var returnedSchemas []string
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName string
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return fmt.Errorf("scan schema name: %w", err)
+		}
+		returnedSchemas = append(returnedSchemas, schemaName)
+	}
+	if len(returnedSchemas) != len(schemas) {
+		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
+		return fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return err
 }
@@ -197,14 +210,14 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if pg.tconf.Parallelism == 0 {
-		pg.tconf.Parallelism = fetchDefaultParllelJobs(tconfs)
+		pg.tconf.Parallelism = fetchDefaultParllelJobs(tconfs) //TODO:
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
 
 	params := &ConnectionParams{
 		NumConnections:    pg.tconf.Parallelism,
 		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(pg.tconf),
+		SessionInitScript: getYBSessionInitScript(pg.tconf),//TODO: check
 	}
 	pg.connPool = NewConnectionPool(params)
 	return nil
@@ -451,7 +464,7 @@ func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName strin
 }
 
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
-	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
+	return true //TODO:
 }
 
 func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
@@ -594,20 +607,11 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 }
 
 func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", pg.tconf.Schema)
+	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
 		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
 	}
-
-	// append oracle schema in the search_path for orafce
-	// It is okay even if the schema does not exist in the target.
-	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
-	_, err = conn.Exec(context.Background(), updateSearchPath)
-	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
-	}
-
 }
 
 func (pg *TargetPostgreSQL) getTargetSchemaName(tableName string) string {
@@ -647,7 +651,7 @@ func (pg *TargetPostgreSQL) GetDebeziumValueConverterSuite() map[string]tgtdbsui
 }
 
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
-	return 200 * 1024 * 1024 // 200 MB
+	return 200 * 1024 * 1024 // 200 MB //TODO 
 }
 
 func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {

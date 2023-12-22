@@ -215,6 +215,10 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		return fmt.Errorf("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
 	}
 
+	if schemaName != "public" && schemaName != "" { //multiple schema specific 
+		tableName = schemaName + "." + tableName
+	}
+
 	dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
 	if dataFile == nil {
 		dataFile = &datafile.FileEntry{

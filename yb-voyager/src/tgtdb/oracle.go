@@ -363,7 +363,7 @@ func (tdb *TargetOracleDB) importBatch(conn *sql.Conn, batch Batch, args *Import
 			return rowsAffected, fmt.Errorf("run sqlldr: %w", err)
 		}
 	}
-
+	log.Infof("rows affected returned from sqlldr for args: %s - %d", sqlldrArgs, rowsAffected)
 	err = tdb.recordEntryInDB(tx, batch, rowsAffected)
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)

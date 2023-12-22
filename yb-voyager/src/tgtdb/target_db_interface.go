@@ -133,9 +133,9 @@ type Batch interface {
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
-	if tconf.TargetDBType == "oracle" {
+	if tconf.TargetDBType == ORACLE {
 		return newTargetOracleDB(tconf)
-	} else if tconf.TargetDBType == "postgresql" {
+	} else if tconf.TargetDBType == POSTGRESQL {
 		return newTargetPostgreSQL(tconf)
 	}
 	return newTargetYugabyteDB(tconf)

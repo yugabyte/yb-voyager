@@ -246,7 +246,7 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 
 func (event *Event) getTableName(targetSchema string) string {
 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
-	if targetSchema != "" {
+	if targetSchema != "" && len(strings.Split(targetSchema, ",")) <=1  {
 		tableName = strings.Join([]string{targetSchema, event.TableName}, ".")
 	}
 	return tableName

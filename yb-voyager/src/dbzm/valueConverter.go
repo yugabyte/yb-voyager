@@ -157,8 +157,10 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	// TODO: handle case sensitivity/quoted table names..
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
+	} 
+	if conv.targetDBType != tgtdb.POSTGRESQL {
+		ev.SchemaName = conv.targetSchema
 	}
-	ev.SchemaName = conv.targetSchema
 	return nil
 }
 

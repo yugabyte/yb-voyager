@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -62,7 +63,11 @@ func initTargetConfFromSourceConf() error {
 	tconf.Port = sconf.Port
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
-	tconf.Schema = sconf.Schema
+	if tconf.TargetDBType == POSTGRESQL {
+		tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
+	} else {
+		tconf.Schema = sconf.Schema
+	}
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLCertPath = sconf.SSLCertPath

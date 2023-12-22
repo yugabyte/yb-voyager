@@ -55,6 +55,7 @@ const (
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
+var supportedSourceDBTypesInLiveMigration = []string{ORACLE, POSTGRESQL}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
 var validSSLModes = map[string][]string{

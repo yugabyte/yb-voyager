@@ -166,7 +166,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
 	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
-		"schema name in Source-Replica DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+		"schema name in Source-Replica DB (Note: works only for source as Oracle, in case of PostgreSQL schemas remain same as of source)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
@@ -272,6 +272,8 @@ func validateTargetPortRange() {
 			tconf.Port = ORACLE_DEFAULT_PORT
 		} else if tconf.TargetDBType == YUGABYTEDB {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
+		} else if tconf.TargetDBType == POSTGRESQL {
+			tconf.Port = POSTGRES_DEFAULT_PORT
 		}
 		return
 	}
@@ -364,7 +366,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 }
 
 func validateFFDBSchemaFlag() {
-	if tconf.Schema == "" {
+	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
 		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }
