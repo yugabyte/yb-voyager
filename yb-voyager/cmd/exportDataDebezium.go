@@ -459,9 +459,6 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 		displayExportedRowCountSnapshot(true)
 	}
 
-	// if !isTargetDBExporter(exporterRole) {
-	// 	displayExportedRowCountSnapshot(true)
-	// }
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
