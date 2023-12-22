@@ -77,9 +77,9 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 	}
 	var schemaRegistryTarget *SchemaRegistry
 	switch importerRole {
-	case "ff_db_importer":
+	case "source_replica_db_importer":
 		schemaRegistryTarget = NewSchemaRegistry(exportDir, "target_db_exporter_ff")
-	case "fb_db_importer":
+	case "source_db_importer":
 		schemaRegistryTarget = NewSchemaRegistry(exportDir, "target_db_exporter_fb")
 	}
 

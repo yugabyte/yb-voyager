@@ -32,7 +32,7 @@ var importDataToSourceReplicaCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		importType = SNAPSHOT_AND_CHANGES
 		setTargetConfSpecifics(cmd)
-		importerRole = FF_DB_IMPORTER_ROLE
+		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 		validateFFDBSchemaFlag()
 		importDataCmd.PreRun(cmd, args)
 		importDataCmd.Run(cmd, args)
@@ -65,7 +65,7 @@ func init() {
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
 }
 
-func updateFallForwarDBExistsInMetaDB() {
+func updateFallForwardEnabledInMetaDB() {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.FallForwardEnabled = true
 	})

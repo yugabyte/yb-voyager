@@ -61,8 +61,8 @@ var getDataMigrationReportCmd = &cobra.Command{
 				migrationStatus.TargetDBConf.Password = tconf.Password
 			}
 			if migrationStatus.FallForwardEnabled {
-				getFallForwardDBPassword(cmd)
-				migrationStatus.FallForwardDBConf.Password = tconf.Password
+				getSourceReplicaDBPassword(cmd)
+				migrationStatus.SourceReplicaDBConf.Password = tconf.Password
 			}
 			if migrationStatus.FallbackEnabled {
 				getSourceDBPassword(cmd)
@@ -165,7 +165,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.TableName = ""
 			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
-			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.FallForwardDBConf) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceReplicaDBConf) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
@@ -189,9 +189,9 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
 	case "source-replica":
-		importerRole = FF_DB_IMPORTER_ROLE
+		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	case "source":
-		importerRole = FB_DB_IMPORTER_ROLE
+		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
 	//reinitialise targetDB
 	tconf = *targetConf
@@ -229,7 +229,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		}
 	}
 
-	if importerRole != FB_DB_IMPORTER_ROLE {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName)
 		if err != nil {
 			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)

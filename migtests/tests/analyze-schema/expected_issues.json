@@ -486,5 +486,29 @@
             "sqlStatement": "CREATE TABLE sales_data (\n        sales_id numeric NOT NULL,\n        sales_date timestamp,\n        sales_amount numeric,\n        PRIMARY KEY (sales_id)\n) PARTITION BY RANGE (sales_date) ;",
             "suggestion": "Add all Partition columns to Primary Key",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/578"
+        },
+        {
+            "objectType": "EXTENSION",
+            "objectName": "aws_commons",
+            "reason": "This extension is not supported in YugabyteDB.",
+            "sqlStatement": "CREATE EXTENSION IF NOT EXISTS aws_commons WITH SCHEMA public;",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "EXTENSION",
+            "objectName": "plperl",
+            "reason": "This extension is not supported in YugabyteDB.",
+            "sqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
+            "suggestion": "",
+            "GH": ""
+        },
+        {
+            "objectType": "EXTENSION",
+            "objectName": "hstore_plperl",
+            "reason": "This extension is not supported in YugabyteDB.",
+            "sqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
+            "suggestion": "",
+            "GH": ""
         }
 ]

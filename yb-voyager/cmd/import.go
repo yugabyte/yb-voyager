@@ -84,9 +84,9 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
 		getTargetPassword(cmd)
-	case FF_DB_IMPORTER_ROLE:
-		getFallForwardDBPassword(cmd)
-	case FB_DB_IMPORTER_ROLE:
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		getSourceReplicaDBPassword(cmd)
+	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
 	return nil
@@ -305,7 +305,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	}
 }
 
-func getFallForwardDBPassword(cmd *cobra.Command) {
+func getSourceReplicaDBPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {

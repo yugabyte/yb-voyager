@@ -54,7 +54,7 @@ var cutoverToTargetCmd = &cobra.Command{
 			}
 			updateFallBackEnabledInMetaDB()
 		}
-		err = InitiatePrimarySwitch("cutover")
+		err = InitiateCutover("target")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}

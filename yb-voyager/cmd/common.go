@@ -375,10 +375,10 @@ func getCutoverStatus() string {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 
-	a := msr.CutoverRequested
+	a := msr.CutoverToTargetRequested
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
-	d := msr.FallForwardSyncStarted
+	d := msr.ExportFromTargetFallForwardStarted
 	ffDBExists := msr.FallForwardEnabled
 	if !a {
 		return NOT_INITIATED
@@ -401,14 +401,14 @@ func checkStreamingMode() (bool, error) {
 	return streamChanges, nil
 }
 
-func getFallForwardStatus() string {
+func getCutoverToSourceReplicaStatus() string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	a := msr.FallForwardSwitchRequested
-	b := msr.FallForwardSwitchProcessedByTargetExporter
-	c := msr.FallForwardSwitchProcessedByFFImporter
+	a := msr.CutoverToSourceReplicaRequested
+	b := msr.CutoverToSourceReplicaProcessedByTargetExporter
+	c := msr.CutoverToSourceReplicaProcessedBySRImporter
 
 	if !a {
 		return NOT_INITIATED
@@ -418,14 +418,14 @@ func getFallForwardStatus() string {
 	return INITIATED
 }
 
-func getFallBackStatus() string {
+func getCutoverToSourceStatus() string {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	a := msr.FallBackSwitchRequested
-	b := msr.FallBackSwitchProcessedByTargetExporter
-	c := msr.FallBackSwitchProcessedByFBImporter
+	a := msr.CutoverToSourceRequested
+	b := msr.CutoverToSourceProcessedByTargetExporter
+	c := msr.CutoverToSourceProcessedBySourceImporter
 
 	if !a {
 		return NOT_INITIATED

@@ -11,17 +11,17 @@ public class MigrationStatusRecord {
     public String ExportType;
     public boolean FallForwarDBExists;
     public List<String> TableListExportedFromSource;
-    public boolean CutoverRequested;
+    public boolean CutoverToTargetRequested;;
     public boolean CutoverProcessedBySourceExporter;
     public boolean CutoverProcessedByTargetImporter;
-    public boolean FallForwardSyncStarted;
-    public boolean FallForwardSwitchRequested;
-    public boolean FallForwardSwitchProcessedByTargetExporter;
-    public boolean FallForwardSwitchProcessedByFFImporter;
-    public boolean FallBackSwitchRequested;
+    public boolean ExportFromTargetFallForwardStarted;
+    public boolean CutoverToSourceReplicaRequested;
+    public boolean CutoverToSourceReplicaProcessedByTargetExporter;
+    public boolean CutoverToSourceReplicaProcessedBySRImporter;
+    public boolean CutoverToSourceRequested;
+    public boolean CutoverToSourceProcessedByTargetExporter;
+    public boolean CutoverToSourceProcessedBySourceImporter;
     public boolean EndMigrationRequested;
-    public boolean FallBackSwitchProcessedByTargetExporter;
-    public boolean FallBackSwitchProcessedByFBImporter;
     public boolean ExportSchemaDone;
     public boolean ExportDataDone;
 

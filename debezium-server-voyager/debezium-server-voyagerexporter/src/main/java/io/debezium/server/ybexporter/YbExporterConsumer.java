@@ -105,13 +105,13 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         LOGGER.info("XXX Started flush thread.");
         String switchOperation;
         if (exporterRole.equals(SOURCE_DB_EXPORTER_ROLE)){
-            switchOperation = "cutover";
+            switchOperation = "cutover.target";
         }
         else if (exporterRole.equals(TARGET_DB_EXPORTER_FF_ROLE)){
-            switchOperation = "fallforward";
+            switchOperation = "cutover.source_replica";
         }
         else if (exporterRole.equals(TARGET_DB_EXPORTER_FB_ROLE)){
-            switchOperation = "fallback";
+            switchOperation = "cutover.source";
         }
         else {
             throw new RuntimeException(String.format("invalid exportRole %s", exporterRole));
@@ -218,13 +218,21 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             }
             // Handle snapshot->cdc transition
             checkIfSnapshotComplete(r);
-
-            committer.markProcessed(event);
         }
         handleBatchComplete();
-        LOGGER.info("Fsynced batch with {} records", changeEvents.size());
+        LOGGER.debug("Fsynced batch with {} records", changeEvents.size());
+        // committer.markProcessed(event) updates offsets in memory, committer.MarkBatchFinished flushes those
+        // offsets to disk. Offsets are also flushed to disk when debezium-server is gracefully shutdown. (which can
+        // happen multiple times during a migration).
+        // To the scenario where events were marked as processed (and flushed to disk by graceful shutdown),
+        // but not fsynced and updated in metadb, it is important to mark the events as processed only AFTER we fsync/
+        // update metaDB.
+        // TODO: optimize by only marking the last event as processed.
+        for (ChangeEvent<Object, Object> event : changeEvents) {
+            committer.markProcessed(event);
+        }
         committer.markBatchFinished();
-        LOGGER.info("Committed batch complete with {} records", changeEvents.size());
+        LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
     }
 

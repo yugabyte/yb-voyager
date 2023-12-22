@@ -151,7 +151,7 @@ func (s *StreamImportStatsReporter) UpdateRemainingEvents() {
 	defer s.Mutex.Unlock()
 	var totalExportedEvents int64
 	var err error
-	if s.importerRole == "fb_db_importer" {
+	if s.importerRole == "source_db_importer" {
 		totalExportedEvents, _, err = s.metaDB.GetTotalExportedEventsByExporterRole("target_db_exporter_fb", time.Now().String())
 		if err != nil {
 			utils.ErrExit("failed to fetch exported events stats from meta db: %v", err)

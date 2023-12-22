@@ -26,7 +26,7 @@ var cutoverToSourceReplicaCmd = &cobra.Command{
 	Long:  `Initiate cutover to source-replica DB`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		err := InitiatePrimarySwitch("fallforward")
+		err := InitiateCutover("source-replica")
 		if err != nil {
 			utils.ErrExit("failed to initiate fallforward: %v", err)
 		}

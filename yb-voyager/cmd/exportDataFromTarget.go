@@ -48,9 +48,9 @@ var exportDataFromTargetCmd = &cobra.Command{
 		exportDataCmd.PreRun(cmd, args)
 		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.FallBackSyncStarted = true
+				record.ExportFromTargetFallBackStarted = true
 			} else {
-				record.FallForwardSyncStarted = true
+				record.ExportFromTargetFallForwardStarted = true
 			}
 
 		})
