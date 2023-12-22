@@ -451,7 +451,7 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	sourceReplicaconf := msr.FallForwardDBConf
+	sourceReplicaconf := msr.SourceReplicaDBConf
 	if sourceReplicaDBPassword == "" {
 		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
