@@ -108,6 +108,10 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
+	
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.RenameTablesMap = tableRenameMapping
+	})
 
 	config := &dbzm.Config{
 		RunId:          runId,
@@ -228,14 +232,14 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 		allLeafPartitions := GetAllLeafPartitions(table)
 		switch true {
 		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
-			partitionsToRootTableMap[table.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+			partitionsToRootTableMap[table.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list 
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
+				partitionsToRootTableMap[leafPartition.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
 			}
 		}
 	}
@@ -455,10 +459,10 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 			return false, fmt.Errorf("failed to write data file descriptor: %w", err)
 		}
 		log.Infof("snapshot export is complete.")
-		err = renameDbzmExportedDataFiles()
-		if err != nil {
-			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
-		}
+		// err = renameDbzmExportedDataFiles() //For now will keep back
+		// if err != nil {
+		// 	return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
+		// }
 		displayExportedRowCountSnapshot()
 	}
 	if changeStreamingIsEnabled(exportType) {

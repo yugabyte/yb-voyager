@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -31,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var targetDbPassword string
@@ -90,10 +92,39 @@ type rowData struct {
 
 var fBEnabled, fFEnabled bool
 
+func renameTables(renameTablesList string, tableList []string) []string {
+	if renameTablesList == "" {
+		return tableList
+	}
+	list := strings.Split(renameTablesList, ",")
+	var renameTableMap map[string]string = make(map[string]string)
+	for _, renameTable := range list {
+		fromTable := strings.Split(renameTable, ":")[0]
+		toTable := strings.Split(renameTable, ":")[1]
+		renameTableMap[fromTable] = toTable
+	}
+	for i, table := range tableList {
+		tableName := sqlname.NewSourceNameFromQualifiedName(table)
+		if tableName.Qualified.MinQuoted != tableName.Qualified.Unquoted { 
+			//in renameTablesMap we store Unquoted -> MinQuoted mapping as debezium understand unquoted table name
+			table = tableName.Qualified.Unquoted
+		}
+		if renameTableMap[table] != "" {
+			tableList[i] = renameTableMap[table]
+		}
+	}
+	return lo.UniqBy(tableList, func(s string) string {
+		return s
+	})
+}
+
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
 	fFEnabled = msr.FallForwardEnabled
+	source = *msr.SourceDBConf
+	sqlname.SourceDBType = source.DBType
 	tableList := msr.TableListExportedFromSource
+	renamedTableList := renameTables(msr.RenameTablesMap, tableList)
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
@@ -106,10 +137,9 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
 
-	source = *msr.SourceDBConf
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
-	for _, table := range tableList {
+	for _, table := range renamedTableList {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
