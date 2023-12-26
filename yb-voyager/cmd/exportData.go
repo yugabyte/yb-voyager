@@ -234,6 +234,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
 	}
+	// need to keep the replication connection open until snapshot is complete.
 	defer func() {
 		err := replicationConn.Close(context.Background())
 		if err != nil {
