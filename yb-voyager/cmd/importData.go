@@ -369,14 +369,22 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+	if msr.SnapshotMechanism == "debezium" {
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+	} else {
+		valueConverter, err = dbzm.NewNoOpValueConverter()
+	}
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -412,10 +420,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
 	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
@@ -468,6 +472,10 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
+			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+			if err != nil {
+				utils.ErrExit("Failed to create value converter: %s", err)
+			}
 			err = streamChanges(state, importTableList)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
@@ -865,8 +873,8 @@ func newTargetConn() *pgx.Conn {
 	setTargetSchema(conn)
 
 	if sourceDBType == ORACLE && enableOrafce {
-        setOrafceSearchPath(conn)
-    }
+		setOrafceSearchPath(conn)
+	}
 
 	return conn
 }

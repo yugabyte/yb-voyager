@@ -38,6 +38,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -170,6 +171,29 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
+		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+			// pg live migration. Steps are as follows:
+			// 1. create replication slot.
+			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
+			// 3. start debezium with configration to read changes from the created replication slot.
+
+			if !dataIsExported() { // if snapshot is not already done...
+				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
+				if err != nil {
+					log.Errorf("export snapshot failed: %v", err)
+					return false
+				}
+			}
+
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("get migration status record: %v", err)
+			}
+
+			config.SnapshotMode = "never"
+			config.ReplicationSlotName = msr.PGReplicationSlotName
+		}
+
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -193,7 +217,7 @@ func exportData() bool {
 		}
 		return true
 	} else {
-		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList)
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
 			return false
@@ -201,6 +225,43 @@ func exportData() bool {
 		return true
 	}
 
+}
+
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+	// create replication slot
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	replicationConn, err := pgDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+	}
+	// need to keep the replication connection open until snapshot is complete.
+	defer func() {
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
+	}()
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+	}
+	// pg_dump
+	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
+	if err != nil {
+		log.Errorf("Export Data failed: %v", err)
+		return err
+	}
+
+	// save replication slot in MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.PGReplicationSlotName = res.SlotName
+		record.SnapshotMechanism = "pg_dump"
+	})
+	if err != nil {
+		utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
+	}
+	setDataIsExported()
+	return nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
@@ -241,7 +302,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	return finalTableList, tablesColumnList
 }
 
-func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
@@ -273,7 +334,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList)
+	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList, snapshotName)
 	// Wait for the export data to start.
 	<-exportDataStart
 
@@ -288,7 +349,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-	displayExportedRowCountSnapshot()
+	displayExportedRowCountSnapshot(false)
 	return nil
 }
 
