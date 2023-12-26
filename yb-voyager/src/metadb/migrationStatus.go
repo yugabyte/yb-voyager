@@ -35,8 +35,8 @@ type MigrationStatusRecord struct {
 	ExportDataDone                                  bool              `json:"ExportDataDone"`
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
-	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"`
-	SnapshotMechanism                               string            `json:"SnapshotMechanism"`
+	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

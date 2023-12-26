@@ -31,9 +31,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	// "github.com/jackc/pgx/v5/pgproto3"
-	// "github.com/jackc/pgx/v5/pgtype"
-	// "github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
 func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {

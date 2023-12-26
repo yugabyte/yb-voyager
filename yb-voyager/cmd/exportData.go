@@ -235,7 +235,10 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
 	}
 	defer func() {
-		_ = replicationConn.Close(context.Background())
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
 	}()
 	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
 	if err != nil {
