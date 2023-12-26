@@ -514,26 +514,26 @@ func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
 }
 
-func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (pglogrepl.CreateReplicationSlotResult, error) {
+func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
-	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
-		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 
-	if err != nil {
-		if strings.Contains(err.Error(), "already exists") && dropIfAlreadyExists {
-			// drop and recreate
-			err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
-			if err != nil {
-				return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to delete existing replication slot: %v", err)
+	if dropIfAlreadyExists {
+		log.Infof("Dropping replication slot %s before creating a new one", replicationSlotName)
+		err := pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+		if err != nil {
+			// ignore "does not exist" error while dropping replication slot
+			if !strings.Contains(err.Error(), "does not exist") {
+				return nil, fmt.Errorf("delete existing replication slot: %v", err)
 			}
-			res, err = pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
-				pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
-			if err != nil {
-				return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to create replication slot: %v", err)
-			}
-		} else {
-			return pglogrepl.CreateReplicationSlotResult{}, fmt.Errorf("failed to create replication slot: %v", err)
 		}
 	}
-	return res, nil
+
+	log.Infof("Creating replication slot %s", replicationSlotName)
+	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
+		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+	if err != nil {
+		return nil, fmt.Errorf("create replication slot: %v", err)
+	}
+
+	return &res, nil
 }
