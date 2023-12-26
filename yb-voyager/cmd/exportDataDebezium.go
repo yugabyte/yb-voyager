@@ -232,14 +232,14 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 			modifiedTableList = append(modifiedTableList, table)
 		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
 			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list 
+		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
 			for _, leafPartition := range allLeafPartitions {
 				modifiedTableList = append(modifiedTableList, leafPartition)
 				partitionsToRootTableMap[leafPartition.Qualified.MinQuoted] = rootTable.Qualified.MinQuoted
 			}
 		}
 	}
-	return lo.UniqBy(modifiedTableList, func (table *sqlname.SourceName) string {
+	return lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
 		return table.Qualified.MinQuoted
 	}), nil
 }
@@ -360,6 +360,15 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 // ---------------------------------------------- Export Data ---------------------------------------//
 
 func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+	if config.SnapshotMode != "never" {
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.SnapshotMechanism = "debezium"
+		})
+		if err != nil {
+			return fmt.Errorf("udpate SnapshotMechanism: update migration status record: %s", err)
+		}
+	}
+
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 	debezium := dbzm.NewDebezium(config)
 	err := debezium.Start()
@@ -380,7 +389,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		}
 		progressTracker.UpdateProgress(status)
 		if !snapshotComplete {
-			snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+			snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
 			if err != nil {
 				return fmt.Errorf("failed to check if snapshot is complete: %w", err)
 			}
@@ -397,7 +406,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		if err != nil {
 			return fmt.Errorf("failed to read export status: %w", err)
 		}
-		snapshotComplete, err = checkAndHandleSnapshotComplete(status, progressTracker)
+		snapshotComplete, err = checkAndHandleSnapshotComplete(config, status, progressTracker)
 		if !snapshotComplete || err != nil {
 			return fmt.Errorf("snapshot was not completed: %w", err)
 		}
@@ -443,12 +452,12 @@ func reportStreamingProgress() {
 	}
 }
 
-func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
+func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStatus, progressTracker *ProgressTracker) (bool, error) {
 	if !status.SnapshotExportIsComplete() {
 		return false, nil
 	}
-	progressTracker.Done(status)
-	if !isTargetDBExporter(exporterRole) {
+	if config.SnapshotMode != "never" {
+		progressTracker.Done(status)
 		setDataIsExported()
 		err := writeDataFileDescriptor(exportDir, status)
 		if err != nil {
@@ -459,8 +468,9 @@ func checkAndHandleSnapshotComplete(status *dbzm.ExportStatus, progressTracker *
 		if err != nil {
 			return false, fmt.Errorf("failed to rename dbzm exported data files: %v", err)
 		}
-		displayExportedRowCountSnapshot()
+		displayExportedRowCountSnapshot(true)
 	}
+
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {

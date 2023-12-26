@@ -201,11 +201,11 @@ func getExportedRowCountSnapshot(exportDir string) map[string]int64 {
 	return tableRowCount
 }
 
-func displayExportedRowCountSnapshot() {
+func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 
-	if !useDebezium {
+	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
 		if source.Schema != "" {
 			addHeader(uitable, "SCHEMA", "TABLE", "ROW COUNT")
