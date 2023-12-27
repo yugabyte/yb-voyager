@@ -51,7 +51,7 @@ func init() {
 	cutoverToCmd.PersistentFlags().MarkHidden("yes") //for non TTY shell e.g jenkins for docker case
 }
 
-func InitiateCutover(dbRole string) error {
+func InitiateCutover(dbRole string, prepareforFallback bool) error {
 	userFacingActionMsg := fmt.Sprintf("cutover to %s", dbRole)
 	if !utils.AskPrompt(fmt.Sprintf("Are you sure you want to initiate %s? (y/n)", userFacingActionMsg)) {
 		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
@@ -66,6 +66,9 @@ func InitiateCutover(dbRole string) error {
 				utils.PrintAndLog(alreadyInitiatedMsg)
 			}
 			record.CutoverToTargetRequested = true
+			if prepareforFallback {
+				record.FallForwardEnabled = true
+			}
 		case "source-replica":
 			if record.CutoverToSourceReplicaRequested {
 				utils.PrintAndLog(alreadyInitiatedMsg)
