@@ -35,7 +35,9 @@ type MigrationStatusRecord struct {
 	ExportDataDone                                  bool              `json:"ExportDataDone"`
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
-	RenameTablesMap 								string			  `json:"RenameTablesMap"`	
+	RenameTablesMap                                 string            `json:"RenameTablesMap"` // stores the mapping of leaf partitions (Unquoted) to root table (MinQuoted)
+	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

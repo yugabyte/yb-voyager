@@ -62,6 +62,7 @@ type Config struct {
 	YBStreamID            string
 	YBMasterNodes         string
 	SnapshotMode          string
+	ReplicationSlotName   string
 }
 
 var baseConfigTemplate = `
@@ -117,6 +118,10 @@ debezium.source.database.sslcert=%s
 debezium.source.database.sslkey=%s
 debezium.source.database.sslpassword=
 debezium.source.database.sslrootcert=%s
+`
+
+var postgresReplicationSlotNameTemplate = `
+debezium.source.slot.name=%s
 `
 
 var postgresConfigTemplate = baseConfigTemplate +
@@ -261,6 +266,9 @@ func (c *Config) String() string {
 			c.SSLKey,
 			c.SSLRootCert)
 		conf = conf + sslConf
+		if c.ReplicationSlotName != "" {
+			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName)
+		}
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,
 			c.Username,
