@@ -66,12 +66,3 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 }
-
-func updateFallBackEnabledInMetaDB() {
-	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.FallbackEnabled = true
-	})
-	if err != nil {
-		utils.ErrExit("error while updating fall back enabled in meta db: %v", err)
-	}
-}
