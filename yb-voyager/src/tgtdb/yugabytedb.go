@@ -201,7 +201,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if yb.tconf.Parallelism == 0 {
-		yb.tconf.Parallelism = fetchDefaultParllelJobs(tconfs)
+		yb.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, YB_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", yb.tconf.Parallelism)
 	}
 
@@ -222,6 +222,7 @@ const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_metadata"
 const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_batches_metainfo_v3"
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
+const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -464,14 +465,15 @@ func (yb *TargetYugabyteDB) getListOfTableAttributes(schemaName, tableName strin
 }
 
 var NonRetryCopyErrors = []string{
-	"Sending too long RPC message",
 	"invalid input syntax",
 	"violates unique constraint",
 	"syntax error at",
 }
 
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
-	return err != nil && utils.InsensitiveSliceContains(NonRetryCopyErrors, err.Error())
+	NonRetryCopyErrorsYB := NonRetryCopyErrors
+	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
@@ -776,7 +778,7 @@ func testAndFilterYbServers(tconfs []*TargetConf) []*TargetConf {
 	return availableTargets
 }
 
-func fetchDefaultParllelJobs(tconfs []*TargetConf) int {
+func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int) int {
 	totalCores := 0
 	targetCores := 0
 	for _, tconf := range tconfs {
@@ -784,7 +786,7 @@ func fetchDefaultParllelJobs(tconfs []*TargetConf) int {
 		conn, err := pgx.Connect(context.Background(), tconf.Uri)
 		if err != nil {
 			log.Warnf("Unable to reach target while querying cores: %v", err)
-			return len(tconfs) * 2
+			return len(tconfs) * defaultParallelismFactor
 		}
 		defer conn.Close(context.Background())
 
@@ -792,20 +794,20 @@ func fetchDefaultParllelJobs(tconfs []*TargetConf) int {
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
 			log.Warnf("Unable to create tables on target DB: %v", err)
-			return len(tconfs) * 2
+			return len(tconfs) * defaultParallelismFactor
 		}
 
 		cmd = "COPY yb_voyager_cores(num_cores) FROM PROGRAM 'grep processor /proc/cpuinfo|wc -l';"
 		_, err = conn.Exec(context.Background(), cmd)
 		if err != nil {
 			log.Warnf("Error while running query %s on host %s: %v", cmd, utils.GetRedactedURLs([]string{tconf.Uri}), err)
-			return len(tconfs) * 2
+			return len(tconfs) * defaultParallelismFactor
 		}
 
 		cmd = "SELECT num_cores FROM yb_voyager_cores;"
 		if err = conn.QueryRow(context.Background(), cmd).Scan(&targetCores); err != nil {
 			log.Warnf("Error while running query %s: %v", cmd, err)
-			return len(tconfs) * 2
+			return len(tconfs) * defaultParallelismFactor
 		}
 		totalCores += targetCores
 	}

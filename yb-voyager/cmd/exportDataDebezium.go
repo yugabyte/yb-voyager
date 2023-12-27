@@ -536,7 +536,7 @@ func renameDbzmExportedDataFiles() error {
 			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
 		}
 
-		if !utils.FileOrFolderExists(oldFilePath) && utils.FileOrFolderExists(newFilePath) { //In case of restarts rename should not be done again else it will error out
+		if utils.FileOrFolderExists(newFilePath) { //In case of restarts rename should not be done again else it will error out
 			log.Infof("Skipping renaming files as they are already renamed")
 			continue
 		}
