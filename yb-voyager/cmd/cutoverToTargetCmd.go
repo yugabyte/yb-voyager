@@ -52,13 +52,14 @@ var cutoverToTargetCmd = &cobra.Command{
 			if msr.FallForwardEnabled {
 				utils.ErrExit("cannot prepare for fall-back. Fall-forward workflow already enabled.")
 			}
-			updateFallBackEnabledInMetaDB()
 		}
 		err = InitiateCutover("target")
 		if err != nil {
 			utils.ErrExit("failed to initiate cutover: %v", err)
 		}
-
+		if prepareForFallBack {
+			updateFallBackEnabledInMetaDB()
+		}
 	},
 }
 
