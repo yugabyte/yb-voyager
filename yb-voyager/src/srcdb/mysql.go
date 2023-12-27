@@ -244,7 +244,7 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 		columns, dataTypes, _ := ms.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			if utils.InsensitiveSliceContains(mysqlUnsupportedDataTypes, dataTypes[i]) {
+			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {

@@ -144,7 +144,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 		"host on which the Source-Replica DB server is running")
 
 	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", 0,
-		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
+		"port on which the Source-Replica DB server is running Default: ORACLE(1521), POSTGRESQL(5432)")
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
 		"username with which to connect to the Source-Replica DB server")

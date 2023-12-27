@@ -96,7 +96,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.conn_.Query(context.Background(), checkSchemaExistsQuery)
 	if err != nil {
-		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)	
+		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
 	var returnedSchemas []string
 	defer rows.Close()
@@ -201,6 +201,8 @@ func (pg *TargetPostgreSQL) PrepareForStreaming() {
 	pg.connPool.DisableThrottling()
 }
 
+const PG_DEFAULT_PARALLELISM_FACTOR = 8 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+
 func (pg *TargetPostgreSQL) InitConnPool() error {
 	tconfs := []*TargetConf{pg.tconf}
 	var targetUriList []string
@@ -210,14 +212,16 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 	log.Infof("targetUriList: %s", utils.GetRedactedURLs(targetUriList))
 
 	if pg.tconf.Parallelism == 0 {
-		pg.tconf.Parallelism = fetchDefaultParllelJobs(tconfs) //TODO:
+		pg.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, PG_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
 
 	params := &ConnectionParams{
 		NumConnections:    pg.tconf.Parallelism,
 		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(pg.tconf),//TODO: check
+		SessionInitScript: getYBSessionInitScript(pg.tconf),
+		// works fine as we check the support of any session variable before using it in the script.
+		// So upsert and disable transaction will never be used for PG
 	}
 	pg.connPool = NewConnectionPool(params)
 	return nil
@@ -464,7 +468,7 @@ func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName strin
 }
 
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
-	return true //TODO:
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error()) // not retrying atleast on the syntax errors and unique constraint
 }
 
 func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
@@ -651,7 +655,7 @@ func (pg *TargetPostgreSQL) GetDebeziumValueConverterSuite() map[string]tgtdbsui
 }
 
 func (pg *TargetPostgreSQL) MaxBatchSizeInBytes() int64 {
-	return 200 * 1024 * 1024 // 200 MB //TODO 
+	return 200 * 1024 * 1024 // 200 MB //TODO
 }
 
 func (pg *TargetPostgreSQL) GetIdentityColumnNamesForTable(table string, identityType string) ([]string, error) {

@@ -133,12 +133,15 @@ type Batch interface {
 }
 
 func NewTargetDB(tconf *TargetConf) TargetDB {
-	if tconf.TargetDBType == ORACLE {
+	switch tconf.TargetDBType {
+	case ORACLE:
 		return newTargetOracleDB(tconf)
-	} else if tconf.TargetDBType == POSTGRESQL {
+	case POSTGRESQL:
 		return newTargetPostgreSQL(tconf)
+	case YUGABYTEDB:
+		return newTargetYugabyteDB(tconf)
 	}
-	return newTargetYugabyteDB(tconf)
+	return nil
 }
 
 type ImportBatchArgs struct {
