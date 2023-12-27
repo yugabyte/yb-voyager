@@ -125,7 +125,7 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 func createTableListPatterns(tableList []*sqlname.SourceName) string {
 	var tableListPattern string
 	for _, table := range tableList {
-		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted)
+		tableListPattern += fmt.Sprintf("--table='%s' ", table.Qualified.MinQuoted) 
 	}
 
 	return strings.TrimPrefix(tableListPattern, "--table=")

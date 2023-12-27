@@ -60,10 +60,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	default:
 		return nil, nil, fmt.Errorf("invalid export type %s", exportType)
 	}
-	tableList, err = addLeafPartitionsInTableList(tableList)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
-	}
 	fmt.Printf("num tables to export: %d\n", len(tableList))
 	utils.PrintAndLog("table list for data export: %v", tableList)
 	tableNameToApproxRowCountMap := getTableNameToApproxRowCountMap(tableList)
@@ -202,77 +198,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	return config, tableNameToApproxRowCountMap, nil
 }
 
-// required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.SourceName, error) {
-	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
-	if !requiredForSource {
-		return tableList, nil
-	}
-	// here we are adding leaf partitions in the list only in yb or pg because events in the 
-	// these dbs are referred with leaf partitions only but in oracle root table is main point of reference 
-	// for partitions and in Oracle fall-forward/fall-back case we are doing renaming using the config `ybexporter.tables.rename` in dbzm 
-	// when event is coming from YB for leaf partitions it is getting renamed to root_table 
-	// ex - customers -> cust_other, cust_part11, cust_part12, cust_part22, cust_part21 
-	// events from oracle - will have customers for all of these partitions 
-	// events from yb,pg will have `cust_other, cust_part11, cust_part12, cust_part22, cust_part21` out of these leaf partitions only 
-	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
-	// not required for pg to rename them.
-	
-	modifiedTableList := []*sqlname.SourceName{}
-
-	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
-
-	//TODO: test when we upgrade to PG13+ as partitions are handled with root table
-	//Refer- https://debezium.zulipchat.com/#narrow/stream/302529-community-general/topic/Connector.20not.20working.20with.20partitions
-	for _, table := range tableList {
-		rootTable, err := GetRootTableOfPartition(table)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get root table of partition %s: %v", table.Qualified.MinQuoted, err)
-		}
-		allLeafPartitions := GetAllLeafPartitions(table)
-		switch true {
-		case len(allLeafPartitions) == 0 && rootTable != table: //leaf partition
-			partitionsToRootTableMap[table.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
-			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) == 0 && rootTable == table: //normal table
-			modifiedTableList = append(modifiedTableList, table)
-		case len(allLeafPartitions) > 0 && source.TableList != "": // table with partitions in table list
-			for _, leafPartition := range allLeafPartitions {
-				modifiedTableList = append(modifiedTableList, leafPartition)
-				partitionsToRootTableMap[leafPartition.Qualified.Unquoted] = rootTable.Qualified.MinQuoted
-			}
-		}
-	}
-	return lo.UniqBy(modifiedTableList, func(table *sqlname.SourceName) string {
-		return table.Qualified.MinQuoted
-	}), nil
-}
-
-func GetRootTableOfPartition(table *sqlname.SourceName) (*sqlname.SourceName, error) {
-	parentTable := source.DB().ParentTableOfPartition(table)
-	if parentTable == "" {
-		return table, nil
-	}
-	defaultSourceSchema, noDefaultSchema := getDefaultSourceSchemaName()
-	if noDefaultSchema {
-		return nil, fmt.Errorf("default schema not found")
-	}
-	return GetRootTableOfPartition(sqlname.NewSourceNameFromMaybeQualifiedName(parentTable, defaultSourceSchema))
-}
-
-func GetAllLeafPartitions(table *sqlname.SourceName) []*sqlname.SourceName {
-	allLeafPartitions := []*sqlname.SourceName{}
-	childPartitions := source.DB().GetPartitions(table)
-	for _, childPartition := range childPartitions {
-		leafPartitions := GetAllLeafPartitions(childPartition)
-		if len(leafPartitions) == 0 {
-			allLeafPartitions = append(allLeafPartitions, childPartition)
-		} else {
-			allLeafPartitions = append(allLeafPartitions, leafPartitions...)
-		}
-	}
-	return allLeafPartitions
-}
 
 func prepareSSLParamsForDebezium(exportDir string) error {
 	switch source.DBType {

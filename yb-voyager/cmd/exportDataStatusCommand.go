@@ -127,6 +127,7 @@ func runExportDataStatusCmd() error {
 	}
 	var outputRows []*exportTableMigStatusOutputRow
 	var finalFullTableName string
+	fmt.Printf("tableMap: %v\n", tableMap)
 	for tableName := range tableMap {
 		//"_" is treated as a wildcard character in regex query for Glob
 		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
