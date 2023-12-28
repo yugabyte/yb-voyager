@@ -18,24 +18,28 @@ import java.util.concurrent.ConcurrentMap;
 public class SequenceObjectUpdater {
     private static final Logger LOGGER = LoggerFactory.getLogger(SequenceObjectUpdater.class);
     public static String propertyName = "column_sequence.map";
+    public static String initSequenceMaxpropertyName = "sequence.max.map";
     String dataDirStr;
     String sourceType;
     Map<String, Map<String, Map<String, String>>> columnSequenceMap; // Schema:table:column -> sequence
     ConcurrentMap<String, Long> sequenceMax;
     ExportStatus es;
-    public SequenceObjectUpdater(String dataDirStr, String sourceType, String columnSequenceMapString, ConcurrentMap<String, Long> sequenceMax){
+    public SequenceObjectUpdater(String dataDirStr, String sourceType, String columnSequenceMapString, String initSequenceMapString, ConcurrentMap<String, Long> sequenceMax){
         this.dataDirStr = dataDirStr;
         this.sourceType = sourceType;
         this.columnSequenceMap = new HashMap<>();
 
         es = ExportStatus.getInstance(dataDirStr);
-        if (sequenceMax == null){
-           this.sequenceMax = new ConcurrentHashMap<>();
-        }
-        else{
-            this.sequenceMax = sequenceMax;
-        }
+//        if (sequenceMax == null){
+//           this.sequenceMax = new ConcurrentHashMap<>();
+//        }
+//        else{
+//            this.sequenceMax = sequenceMax;
+//        }
+
+        initSequenceMax(initSequenceMapString, sequenceMax);
         initColumnSequenceMap(columnSequenceMapString);
+
         es.setSequenceMaxMap(this.sequenceMax);
     }
 
@@ -60,6 +64,27 @@ public class SequenceObjectUpdater {
             insertIntoColumnSequenceMap(columnSplit[0], columnSplit[1], columnSplit[2], sequenceName);
             // add a base entry to sequenceMax. If already populated, do not update.
             this.sequenceMax.put(sequenceName, this.sequenceMax.getOrDefault(sequenceName, (long)0));
+        }
+    }
+    public void initSequenceMax(String initSequenceMapString, ConcurrentMap<String, Long> sequenceMax){
+        this.sequenceMax = new ConcurrentHashMap<>();
+        if (initSequenceMapString != null){
+            String[] sequenceMaxValsItems = initSequenceMapString.split(",");
+            for (String sequenceMaxValsStr: sequenceMaxValsItems) {
+                String[] sequenceMaxVals = sequenceMaxValsStr.split(":");
+                if (sequenceMaxVals.length != 2) {
+                    throw new RuntimeException("Incorrect config. Please provide comma separated list of " +
+                            "'seq:value' with their fully qualified names.");
+                }
+                String sequenceName = sequenceMaxVals[0];
+                Long sequenceMaxVal = Long.parseLong(sequenceMaxVals[1]);
+                this.sequenceMax.put(sequenceName, sequenceMaxVal);
+            }
+        }
+        if (sequenceMax != null){
+            for (var entry : sequenceMax.entrySet()) {
+                this.sequenceMax.put(entry.getKey(), entry.getValue());
+            }
         }
     }
 

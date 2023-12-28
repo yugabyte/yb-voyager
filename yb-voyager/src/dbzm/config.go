@@ -45,6 +45,7 @@ type Config struct {
 	SchemaNames                 string
 	TableList                   []string
 	ColumnSequenceMapping       string
+	InitSequenceMaxMapping      string
 	TableRenameMapping          string
 	ColumnList                  []string
 	Uri                         string
@@ -93,6 +94,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.sequence.max.map=%s
 debezium.sink.ybexporter.tables.rename=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
@@ -254,6 +256,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -284,6 +287,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -308,6 +312,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -337,6 +342,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,

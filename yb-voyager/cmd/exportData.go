@@ -191,13 +191,33 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
 				utils.ErrExit("get pg dump sequence values: %v", err)
 			}
-			utils.PrintAndLog("%s", sequenceValueMap)
+
+			utils.PrintAndLog("sourcenames - %s", sequenceValueMap)
+			var sequenceInitValues strings.Builder
+			for seqName, seqValue := range sequenceValueMap {
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
+			}
+
+			// dbzmExportStatus := dbzm.ExportStatus{
+			// 	Mode:      "STREAMING",
+			// 	Sequences: map[string]int64{},
+			// }
+			// for seqName, seqValue := range sequenceValueMap {
+			// 	dbzmExportStatus.Sequences[seqName.Qualified.Quoted] = seqValue
+			// }
+			// err = dbzmExportStatus.WriteToDisk(filepath.Join(exportDir, "data", "export_status.json"))
+			// if err != nil {
+			// 	utils.ErrExit("write dbzm status to disk: %v", err)
+			// }
+
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
@@ -270,8 +290,8 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	return nil
 }
 
-func getPGDumpSequencesAndValues() (map[string]int64, error) {
-	sequenceValueMap := map[string]int64{}
+func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
+	sequenceValueMap := map[*sqlname.SourceName]int64{}
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	seqeuencesTextFileDataBytes, err := os.ReadFile(sequenceFilePath)
 	if err != nil {
@@ -295,7 +315,9 @@ func getPGDumpSequencesAndValues() (map[string]int64, error) {
 			if err != nil {
 				return nil, fmt.Errorf("parse %s to int in line - %s: %v", setValArgsArr[1], sequencesTextFileData[i], err)
 			}
-			sequenceValueMap[setValArgsArr[0]] = seqVal
+			seqNameRaw := setValArgsArr[0][1 : len(setValArgsArr[0])-1]
+			seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+			sequenceValueMap[seqName] = seqVal
 		}
 	}
 	return sequenceValueMap, nil
