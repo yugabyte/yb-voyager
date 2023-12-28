@@ -661,7 +661,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 
 func renameTableIfRequired(table string) string {
 	// required to rename the table name from leaf to root partition in case of pg_dump
-	// to be load data in target using via root table
+	// to be able to load data in target using via root table
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
@@ -672,7 +672,7 @@ func renameTableIfRequired(table string) string {
 	}
 	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema)
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table %s", table)
+		utils.ErrExit("no default schema found to qualify table: %q", table)
 	}
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
