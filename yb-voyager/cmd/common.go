@@ -36,6 +36,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -237,6 +238,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
+	//TODO: report table with case-sensitiveness 
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
@@ -511,5 +513,16 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 		if flag != nil {
 			flag.Hidden = true
 		}
+	}
+}
+
+func getDefaultPGSchema(schema string) (string, bool) {
+	schemas := strings.Split(schema, "|")
+	if len(schemas) == 1 {
+		return source.Schema, false
+	} else if slices.Contains(schemas, "public") {
+		return "public", false
+	} else {
+		return "", true
 	}
 }

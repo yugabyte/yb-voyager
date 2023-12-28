@@ -73,8 +73,11 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		dbzmTableList = append(dbzmTableList, table.Qualified.Unquoted)
 	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE && changeStreamingIsEnabled(exportType) {
+		minQuotedTableList := lo.Map(tableList, func(table *sqlname.SourceName, _ int) string {
+			return table.Qualified.MinQuoted //Case sensitivity
+		})
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			record.TableListExportedFromSource = dbzmTableList
+			record.TableListExportedFromSource = minQuotedTableList
 		})
 		if err != nil {
 			utils.ErrExit("error while updating fall forward db exists in meta db: %v", err)
@@ -201,7 +204,16 @@ func addLeafPartitionsInTableList(tableList []*sqlname.SourceName) ([]*sqlname.S
 	if !requiredForSource {
 		return tableList, nil
 	}
-
+	// here we are adding leaf partitions in the list only in yb or pg because events in the 
+	// these dbs are referred with leaf partitions only but in oracle root table is main point of reference 
+	// for partitions and in Oracle fall-forward/fall-back case we are doing renaming using the config `ybexporter.tables.rename` in dbzm 
+	// when event is coming from YB for leaf partitions it is getting renamed to root_table 
+	// ex - customers -> cust_other, cust_part11, cust_part12, cust_part22, cust_part21 
+	// events from oracle - will have customers for all of these partitions 
+	// events from yb,pg will have `cust_other, cust_part11, cust_part12, cust_part22, cust_part21` out of these leaf partitions only 
+	// using the dbzm we are renaming these events coming from yb to root_table for oracle.
+	// not required for pg to rename them.
+	
 	modifiedTableList := []*sqlname.SourceName{}
 
 	//TODO: optimisation to avoid multiple calls to DB with one call in the starting to fetch TablePartitionTree map.
@@ -522,6 +534,11 @@ func renameDbzmExportedDataFiles() error {
 		newFilePath := filepath.Join(exportDir, "data", tableName+"_data.sql")
 		if status.Tables[i].SchemaName != "public" && source.DBType == POSTGRESQL {
 			newFilePath = filepath.Join(exportDir, "data", status.Tables[i].SchemaName+"."+tableName+"_data.sql")
+		}
+
+		if utils.FileOrFolderExists(newFilePath) { //In case of restarts rename should not be done again else it will error out
+			log.Infof("Skipping renaming files as they are already renamed")
+			continue
 		}
 
 		log.Infof("Renaming %s to %s", oldFilePath, newFilePath)

@@ -32,7 +32,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -419,14 +418,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		schemas := strings.Split(source.Schema, "|")
-		if len(schemas) == 1 {
-			return source.Schema, false
-		} else if slices.Contains(schemas, "public") {
-			return "public", false
-		} else {
-			return "", true
-		}
+		return getDefaultPGSchema(source.Schema)
 	case ORACLE:
 		return source.Schema, false
 	default:

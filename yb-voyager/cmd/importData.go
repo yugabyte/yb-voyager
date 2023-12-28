@@ -155,17 +155,12 @@ func startExportDataFromTargetIfRequired() {
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
-	var unqualifiedTableList []string
-	for _, qualifiedTableName := range tableListExportedFromSource {
-		// TODO: handle case sensitivity?
-		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	}
+	importTableList := getImportTableList(tableListExportedFromSource)
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
-		"--table-list", strings.Join(unqualifiedTableList, ","),
+		"--table-list", strings.Join(importTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if utils.DoNotPrompt {
@@ -179,13 +174,13 @@ func startExportDataFromTargetIfRequired() {
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", err)
+		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -1041,6 +1036,14 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
+	if tconf.TargetDBType == POSTGRESQL {
+		schemas := strings.Join(strings.Split(tconf.Schema, ","), "|")
+		defaultSchema, noDefaultSchema := getDefaultPGSchema(schemas)
+		if noDefaultSchema {
+			utils.ErrExit("no default schema for table %q ", tableName)
+		}
+		return defaultSchema
+	}
 	return tconf.Schema // default set to "public"
 }
 
@@ -1082,7 +1085,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 		dbType = sourceDBType
 	}
 	if sqlname.IsReservedKeywordPG(identifier) ||
-		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		((dbType == POSTGRESQL || dbType == YUGABYTEDB) && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier

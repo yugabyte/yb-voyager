@@ -136,7 +136,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
 		if fBEnabled {
-			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceDBAsTargetConf, snapshotDataFileDescriptor) //fall back IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceDBAsTargetConf, snapshotDataFileDescriptor) //fall back IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
@@ -147,7 +147,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.DBType = "target"
 		row.ExportedSnapshotRows = 0
 		if msr.TargetDBConf != nil { // In case import is not started yet, target DB conf will be nil
-			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.TargetDBConf, snapshotDataFileDescriptor) //target IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.TargetDBConf, snapshotDataFileDescriptor) //target IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 			}
@@ -164,7 +164,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.TableName = ""
 			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
-			err = updateImportedEventsCountsInTheRow(&row, tableName, schemaName, msr.SourceReplicaDBConf, snapshotDataFileDescriptor) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceReplicaDBConf, snapshotDataFileDescriptor) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
@@ -182,6 +182,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
+
 
 func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor) {
 	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
@@ -214,7 +215,7 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 	}
 }
 
-func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotDataFileDescriptor *datafile.Descriptor) error {
+func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotDataFileDescriptor *datafile.Descriptor) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -236,6 +237,10 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
 	state := NewImportDataState(exportDir)
+
+	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific 
+		tableName = schemaName + "." + tableName
+	}
 
 	dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
 	if dataFile == nil {
