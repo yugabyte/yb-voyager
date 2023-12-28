@@ -67,7 +67,7 @@ func InitiateCutover(dbRole string, prepareforFallback bool) error {
 			}
 			record.CutoverToTargetRequested = true
 			if prepareforFallback {
-				record.FallForwardEnabled = true
+				record.FallbackEnabled = true
 			}
 		case "source-replica":
 			if record.CutoverToSourceReplicaRequested {
