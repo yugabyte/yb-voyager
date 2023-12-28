@@ -130,6 +130,14 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
 	}
+	var snapshotDataFileDescriptor *datafile.Descriptor
+
+	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+	if utils.FileOrFolderExists(dataFileDescriptorPath) {
+		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	} else {
+		utils.ErrExit("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
+	}
 
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
@@ -139,16 +147,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
-		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
-		if tableExportStatus == nil {
-			tableExportStatus = &dbzm.TableExportStatus{
-				TableName:                tableName,
-				SchemaName:               schemaName,
-				ExportedRowCountSnapshot: 0,
-				FileName:                 "",
-			}
-		}
-		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
+		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, snapshotDataFileDescriptor)
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
@@ -161,7 +160,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			utils.ErrExit("error while getting exported events counts for source DB: %w\n", err)
 		}
 		if fBEnabled {
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceDBAsTargetConf) //fall back IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceDBAsTargetConf, snapshotDataFileDescriptor) //fall back IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for source DB in case of fall-back: %w\n", err)
 			}
@@ -172,7 +171,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row.DBType = "target"
 		row.ExportedSnapshotRows = 0
 		if msr.TargetDBConf != nil { // In case import is not started yet, target DB conf will be nil
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.TargetDBConf) //target IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.TargetDBConf, snapshotDataFileDescriptor) //target IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 			}
@@ -189,7 +188,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			row.TableName = ""
 			row.DBType = "source-replica"
 			row.ExportedSnapshotRows = 0
-			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceReplicaDBConf) //fall forward IN counts
+			err = updateImportedEventsCountsInTheRow(source.DBType, &row, tableName, schemaName, msr.SourceReplicaDBConf, snapshotDataFileDescriptor) //fall forward IN counts
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
@@ -208,7 +207,39 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
-func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf) error {
+
+func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor) {
+	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
+	if msr.SnapshotMechanism == "debezium" {
+		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
+		if tableExportStatus == nil {
+			tableExportStatus = &dbzm.TableExportStatus{
+				TableName:                tableName,
+				SchemaName:               schemaName,
+				ExportedRowCountSnapshot: 0,
+				FileName:                 "",
+			}
+		}
+		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
+	} else {
+		if msr.SourceDBConf.DBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
+			//multiple schema specific
+			tableName = schemaName + "." + tableName
+		}
+		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
+		if dataFile == nil {
+			dataFile = &datafile.FileEntry{
+				FilePath:  "",
+				TableName: tableName,
+				FileSize:  0,
+				RowCount:  0,
+			}
+		}
+		row.ExportedSnapshotRows = dataFile.RowCount
+	}
+}
+
+func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotDataFileDescriptor *datafile.Descriptor) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -229,21 +260,13 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	var dataFileDescriptor *datafile.Descriptor
-
 	state := NewImportDataState(exportDir)
-	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-	if utils.FileOrFolderExists(dataFileDescriptorPath) {
-		dataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	} else {
-		return fmt.Errorf("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
-	}
 
 	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific 
 		tableName = schemaName + "." + tableName
 	}
 
-	dataFile := dataFileDescriptor.GetDataFileEntryByTableName(tableName)
+	dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
 	if dataFile == nil {
 		dataFile = &datafile.FileEntry{
 			FilePath:  "",
