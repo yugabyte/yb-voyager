@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -190,6 +191,11 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			sequenceValueMap, err := getPGDumpSequencesAndValues()
+			if err != nil {
+				utils.ErrExit("get pg dump sequence values: %v", err)
+			}
+			utils.PrintAndLog("%s", sequenceValueMap)
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
 		}
@@ -262,6 +268,37 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	}
 	setDataIsExported()
 	return nil
+}
+
+func getPGDumpSequencesAndValues() (map[string]int64, error) {
+	sequenceValueMap := map[string]int64{}
+	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
+	seqeuencesTextFileDataBytes, err := os.ReadFile(sequenceFilePath)
+	if err != nil {
+		utils.ErrExit("read file %q: %v", sequenceFilePath, err)
+	}
+
+	sequencesTextFileData := strings.Split(string(seqeuencesTextFileDataBytes), "\n")
+	numLines := len(sequencesTextFileData)
+	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
+
+	for i := 0; i < numLines; i++ {
+		matches := setvalRegex.FindStringSubmatch(sequencesTextFileData[i])
+		if len(matches) > 0 {
+			matchIndex := setvalRegex.SubexpIndex("args")
+			if matchIndex > len(matches) {
+				return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", matchIndex, matches, sequencesTextFileData[i])
+			}
+			setValArgs := matches[matchIndex]
+			setValArgsArr := strings.Split(setValArgs, ",")
+			seqVal, err := strconv.ParseInt(strings.TrimSpace(setValArgsArr[1]), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("parse %s to int in line - %s: %v", setValArgsArr[1], sequencesTextFileData[i], err)
+			}
+			sequenceValueMap[setValArgsArr[0]] = seqVal
+		}
+	}
+	return sequenceValueMap, nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
