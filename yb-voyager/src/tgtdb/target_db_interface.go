@@ -159,6 +159,7 @@ type ImportBatchArgs struct {
 	RowsPerTransaction int64
 }
 
+
 func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	options := args.copyOptions()
 	options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))

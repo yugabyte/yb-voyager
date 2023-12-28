@@ -526,3 +526,15 @@ func getDefaultPGSchema(schema string) (string, bool) {
 		return "", true
 	}
 }
+
+func createRenameTableMap(renameTablesList string) map[string]string {
+	
+	list := strings.Split(renameTablesList, ",")
+	var renameTableMap map[string]string = make(map[string]string)
+	for _, renameTable := range list {
+		fromTable := strings.Split(renameTable, ":")[0]
+		toTable := strings.Split(renameTable, ":")[1]
+		renameTableMap[fromTable] = toTable
+	}
+	return renameTableMap
+}

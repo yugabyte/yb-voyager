@@ -658,6 +658,38 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
+
+func renameTableIfRequired(table string) string {
+	// required to rename the table name from leaf to root partition in case of pg_dump
+	// to be load data in target using via root table
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
+	source = *msr.SourceDBConf
+	if source.DBType != POSTGRESQL {
+		return table
+	}
+	defaultSchema, noDefaultSchema := getDefaultPGSchema(source.Schema)
+	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
+		utils.ErrExit("no default schema found to qualify table %s", table)
+	}
+	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
+	fromTable := tableName.Qualified.Unquoted
+
+	renameTablesMap := createRenameTableMap(msr.RenameTablesMap)
+	if renameTablesMap[fromTable] != "" {
+		table := sqlname.NewSourceNameFromQualifiedName(renameTablesMap[fromTable])
+		toTable := table.Qualified.MinQuoted
+		if table.SchemaName.MinQuoted == "public" {
+			toTable = table.ObjectName.MinQuoted
+		}
+		log.Infof("renaming table %s to %s for ImportBatchArgs", fromTable, toTable)
+		return toTable
+	} 
+	return table	
+}
+
 func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs {
 	columns := TableToColumnNames[tableName]
 	columns, err := tdb.IfRequiredQuoteColumnNames(tableName, columns)
@@ -670,7 +702,7 @@ func getImportBatchArgsProto(tableName, filePath string) *tgtdb.ImportBatchArgs 
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableName:  tableName,
+		TableName:  renameTableIfRequired(tableName),
 		Columns:    columns,
 		FileFormat: fileFormat,
 		Delimiter:  dataFileDescriptor.Delimiter,

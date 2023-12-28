@@ -96,13 +96,7 @@ func renameTables(renameTablesList string, tableList []string) []string {
 	if renameTablesList == "" {
 		return tableList
 	}
-	list := strings.Split(renameTablesList, ",")
-	var renameTableMap map[string]string = make(map[string]string)
-	for _, renameTable := range list {
-		fromTable := strings.Split(renameTable, ":")[0]
-		toTable := strings.Split(renameTable, ":")[1]
-		renameTableMap[fromTable] = toTable
-	}
+	renameTableMap := createRenameTableMap(renameTablesList)
 	for i, table := range tableList {
 		tableName := sqlname.NewSourceNameFromQualifiedName(table)
 		if tableName.Qualified.MinQuoted != tableName.Qualified.Unquoted { 
