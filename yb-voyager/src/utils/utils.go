@@ -327,7 +327,7 @@ func LookupIP(name string) []string {
 	return result
 }
 
-func InsensitiveSliceContains(slice []string, s string) bool {
+func ContainsAnySubstringFromSlice(slice []string, s string) bool {
 	for i := 0; i < len(slice); i++ {
 		if strings.Contains(strings.ToLower(s), strings.ToLower(slice[i])) {
 			return true
