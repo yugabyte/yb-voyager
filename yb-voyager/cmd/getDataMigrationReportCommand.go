@@ -197,7 +197,7 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 		}
 		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
 	} else {
-		if msr.SourceDBConf.DBType == "postgres" && schemaName != "public" && schemaName != "" {
+		if msr.SourceDBConf.DBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
 			//multiple schema specific
 			tableName = schemaName + "." + tableName
 		}
