@@ -147,7 +147,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	yes | yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true
+	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --prepare-for-fall-back true --yes
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
@@ -174,7 +174,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover to source"
-	yes | yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR}
+	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source status: \K\S+')" != "COMPLETED" ]; then
