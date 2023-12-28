@@ -36,7 +36,7 @@ EXPECTED_SUM_OF_COLUMN = {
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	global db_schema
-	db_schema="public"
+	db_schema="test_schema"
 	yb.run_checks(migration_completed_checks)
 
 def migration_completed_checks_oracle():
