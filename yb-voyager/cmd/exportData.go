@@ -257,7 +257,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		record.SnapshotMechanism = "pg_dump"
 	})
 	if err != nil {
-		utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
 	}
 	setDataIsExported()
 	return nil

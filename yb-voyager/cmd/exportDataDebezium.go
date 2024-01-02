@@ -365,7 +365,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 			record.SnapshotMechanism = "debezium"
 		})
 		if err != nil {
-			return fmt.Errorf("udpate SnapshotMechanism: update migration status record: %s", err)
+			return fmt.Errorf("update SnapshotMechanism: update migration status record: %s", err)
 		}
 	}
 
