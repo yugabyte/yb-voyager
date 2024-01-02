@@ -211,6 +211,13 @@ func exportData() bool {
 					utils.ErrExit("failed to delete stream id after data export: %v", err)
 				}
 			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				msr, err := metaDB.GetMigrationStatusRecord()
+				if err != nil {
+					utils.ErrExit("get migration status record: %v", err)
+				}
+				deletePGReplicationSlot(msr, &source)
+			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}

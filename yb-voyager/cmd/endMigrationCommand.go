@@ -354,6 +354,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
+		sourceDBPassword = source.Password
 	}
 	source.Password = sourceDBPassword
 	err = source.DB().Connect()
@@ -366,12 +367,18 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("clearing migration state from source db: %v", err)
 	}
 
-	if msr.PGReplicationSlotName != "" && source.DBType == POSTGRESQL {
-		pgDB := source.DB().(*srcdb.PostgreSQL)
-		err = pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
-		if err != nil {
-			utils.ErrExit("dropping PG replication slot name: %v", err)
-		}
+	deletePGReplicationSlot(msr, source)
+}
+
+func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGReplicationSlotName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
+		return
+	}
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
+	if err != nil {
+		utils.ErrExit("dropping PG replication slot name: %v", err)
 	}
 }
 
@@ -389,6 +396,7 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
 		}
+		targetDBPassword = tconf.Password
 	}
 	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
@@ -465,6 +473,7 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
+		sourceReplicaDBPassword = sourceReplicaconf.Password
 	}
 	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
@@ -492,6 +501,7 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
+		sourceDBPassword = fbconf.Password
 	}
 	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
