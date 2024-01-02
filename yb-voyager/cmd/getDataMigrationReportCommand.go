@@ -92,10 +92,13 @@ type rowData struct {
 
 var fBEnabled, fFEnabled bool
 
-func renameTablesAndGetExportedRows(msr *metadb.MigrationStatusRecord, tableList []string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor) ([]string, map[string]int64) {
+func renameTablesAndGetExportedRows(msr *metadb.MigrationStatusRecord, tableList []string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor, ffEnabled bool) ([]string, map[string]int64, map[string]int64, map[string]int64) {
 	renameTablesList := msr.RenameTablesMap
 	var tableToExportedSnapshotRows = make(map[string]int64)
+	var targetTableToImportedSnapshotRows = make(map[string]int64)
+	var sourceReplicaTableToImportedSnapshotRows = make(map[string]int64)
 	renameTableMap := createRenameTableMap(renameTablesList)
+
 	for i, table := range tableList {
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
@@ -104,6 +107,29 @@ func renameTablesAndGetExportedRows(msr *metadb.MigrationStatusRecord, tableList
 		}
 		sqlTableName := sqlname.NewSourceNameFromQualifiedName(table)
 		exportedSnapshotRows := getExportedSnapshotRowsInTheRow(msr, tableName, schemaName, dbzmStatus, snapshotDataFileDescriptor)
+		if msr.SourceDBConf.DBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
+			//multiple schema specific
+			tableName = schemaName + "." + tableName
+		}
+		//getting the imported snapshot row count for target
+		importerRole = TARGET_DB_IMPORTER_ROLE
+		state := NewImportDataState(exportDir)
+		importedSnapshotRows, err := getImportedSnapshotRowCount(tableName, snapshotDataFileDescriptor, state, "target")
+		if err != nil {
+			utils.ErrExit("get imported snapshot row count for table %q for DB type %s: %w", tableName, err)
+		}		
+
+		var sourceReplicaImportedSnapshotRows int64
+		if ffEnabled {
+			//getting the imported snapshot row count for source-replica
+			importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
+			state := NewImportDataState(exportDir)
+			sourceReplicaImportedSnapshotRows, err = getImportedSnapshotRowCount(tableName, snapshotDataFileDescriptor, state, "source-replica")
+			if err != nil {
+				utils.ErrExit("get imported snapshot row count for table %q for DB type %s: %w", tableName, err)
+			}	
+		}	
+
 		if sqlTableName.Qualified.MinQuoted != sqlTableName.Qualified.Unquoted {
 			//in renameTablesMap we store Unquoted -> MinQuoted mapping as debezium understand unquoted table name
 			table = sqlTableName.Qualified.Unquoted
@@ -112,11 +138,17 @@ func renameTablesAndGetExportedRows(msr *metadb.MigrationStatusRecord, tableList
 			tableList[i] = renameTableMap[table]
 		}
 		tableToExportedSnapshotRows[tableList[i]] += exportedSnapshotRows
+		targetTableToImportedSnapshotRows[tableList[i]] += importedSnapshotRows //target
+		if ffEnabled {
+			sourceReplicaTableToImportedSnapshotRows[tableList[i]] += sourceReplicaImportedSnapshotRows //source-replica
+		}
+
 	}
 	return lo.UniqBy(tableList, func(s string) string {
 		return s
-	}), tableToExportedSnapshotRows
+	}), tableToExportedSnapshotRows, targetTableToImportedSnapshotRows, sourceReplicaTableToImportedSnapshotRows
 }
+
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
@@ -139,7 +171,8 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
 	}
 
-	renamedTableList, tableToExportedSnapshotRows := renameTablesAndGetExportedRows(msr, tableList, dbzmStatus, snapshotDataFileDescriptor)
+	renamedTableList, tableToExportedSnapshotRowsMap, targetTableToImportedSnapshotRowsMap, sourceReplicaTableToImportedSnapshotRowsMap := renameTablesAndGetExportedRows(msr, tableList, dbzmStatus, 
+		snapshotDataFileDescriptor, fFEnabled)
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
@@ -155,7 +188,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
-		row.ExportedSnapshotRows = tableToExportedSnapshotRows[table]
+		row.ExportedSnapshotRows = tableToExportedSnapshotRowsMap[table]
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
@@ -183,6 +216,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting imported events for target DB: %w\n", err)
 			}
+			row.ImportedSnapshotRows = targetTableToImportedSnapshotRowsMap[table]
 		}
 		if fFEnabled || fBEnabled {
 			err = updateExportedEventsCountsInTheRow(&row, tableName, schemaName) // target OUT counts
@@ -200,6 +234,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if err != nil {
 				utils.ErrExit("error while getting imported events for DB %s: %w\n", row.DBType, err)
 			}
+			row.ImportedSnapshotRows = sourceReplicaTableToImportedSnapshotRowsMap[table]
 			addRowInTheTable(uitbl, row)
 		}
 	}
@@ -246,6 +281,25 @@ func getExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, tableNam
 	}
 }
 
+func getImportedSnapshotRowCount(tableName string, snapshotDataFileDescriptor *datafile.Descriptor, state *ImportDataState, rowDBType string) (int64, error) {
+	dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
+	if dataFile == nil {
+		dataFile = &datafile.FileEntry{
+			FilePath:  "",
+			TableName: tableName,
+			FileSize:  0,
+			RowCount:  0,
+		}
+	}
+	var importedRows int64
+	importedRows, err := state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName) 
+	if err != nil {
+		return 0, fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, rowDBType, err)
+	}
+	return importedRows, nil
+
+}
+
 func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, tableName string, schemaName string, targetConf *tgtdb.TargetConf, snapshotDataFileDescriptor *datafile.Descriptor) error {
 	switch row.DBType {
 	case "target":
@@ -255,6 +309,8 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	case "source":
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 	}
+	
+	state := NewImportDataState(exportDir)
 	//reinitialise targetDB
 	tconf = *targetConf
 	tdb = tgtdb.NewTargetDB(&tconf)
@@ -267,27 +323,9 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	if err != nil {
 		return fmt.Errorf("failed to initialize the target DB connection pool: %w", err)
 	}
-	state := NewImportDataState(exportDir)
 	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
 		//multiple schema specific
 		tableName = schemaName + "." + tableName
-	}
-
-	dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
-	if dataFile == nil {
-		dataFile = &datafile.FileEntry{
-			FilePath:  "",
-			TableName: tableName,
-			FileSize:  0,
-			RowCount:  0,
-		}
-	}
-
-	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows, err = state.GetImportedRowCount(dataFile.FilePath, dataFile.TableName) //todo:fix
-		if err != nil {
-			return fmt.Errorf("get imported row count for table %q for DB type %s: %w", tableName, row.DBType, err)
-		}
 	}
 
 	eventCounter, err := state.GetImportedEventsStatsForTable(tableName, migrationUUID)

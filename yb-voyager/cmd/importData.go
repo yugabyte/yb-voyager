@@ -471,7 +471,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)
 			}
-			err = streamChanges(state, importTableList)
+			err = streamChanges(state, importTableList) //TODO: rename table list for partitions PG
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
 			}
