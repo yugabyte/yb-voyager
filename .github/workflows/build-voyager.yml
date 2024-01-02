@@ -78,6 +78,6 @@ jobs:
             ./yb-voyager/voyager-linux-amd64.tar.gz
             ./yb-voyager/voyager-darwin-amd64.tar.gz
             ./yb-voyager/voyager-darwin-arm64.tar.gz
-            /opt/yb-voyager/debezium-server.tar.gz
+            ./debezium-server.tar.gz
           repo_token: ${{ github.token }}
           overwrite: true
