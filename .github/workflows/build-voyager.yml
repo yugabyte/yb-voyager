@@ -4,10 +4,10 @@ on:
   # Trigger on any tag starting with 'yb-voyager/v'
   create:
     tags:
-      - 'yb-voyager/v*'
+      - "yb-voyager/v*"
   # Manual Trigger
   workflow_dispatch:
-    inputs: 
+    inputs:
 
 jobs:
   build:
@@ -28,6 +28,12 @@ jobs:
         with:
           go-version: "1.20"
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v2
+        with:
+          distribution: "temurin"
+          java-version: 17
+
       - name: Build Binary
         run: |
           cd yb-voyager
@@ -37,6 +43,11 @@ jobs:
             CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -o yb-voyager-darwin-amd64
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o yb-voyager-darwin-arm64
           fi
+
+      - name: Build Debezium
+        run: |
+          cd yb-voyager
+          ./installer_scripts/install-yb-voyager --install-from-local-source
 
       - name: Archive the files
         run: |
@@ -58,6 +69,7 @@ jobs:
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-darwin-arm64/base-ora2pg.conf
             tar -czvf voyager-darwin-arm64.tar.gz voyager-darwin-arm64
           fi
+          tar -czvf /opt/yb-voyager/debezium-server debezium-server
 
       - name: Upload Binary to Release
         uses: softprops/action-gh-release@v1
@@ -66,6 +78,6 @@ jobs:
             ./yb-voyager/voyager-linux-amd64.tar.gz
             ./yb-voyager/voyager-darwin-amd64.tar.gz
             ./yb-voyager/voyager-darwin-arm64.tar.gz
+            /opt/yb-voyager/debezium-server.tar.gz
           repo_token: ${{ github.token }}
           overwrite: true
-        
