@@ -47,7 +47,7 @@ jobs:
       - name: Build Debezium
         run: |
           cd yb-voyager
-          ./installer_scripts/install-yb-voyager --install-from-local-source
+          yes | ./installer_scripts/install-yb-voyager --install-from-local-source
 
       - name: Archive the files
         run: |
