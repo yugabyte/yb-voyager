@@ -5,7 +5,6 @@
  */
 package io.debezium.server.ybexporter;
 
-
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +14,6 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.graalvm.collections.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -51,7 +49,7 @@ public class QueueSegment {
     // (schemaName, tableName) -> (operation -> count)
     private Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable;
 
-    public QueueSegment(String datadirStr, long segmentNo, String filePath){
+    public QueueSegment(String datadirStr, long segmentNo, String filePath) {
         this.segmentNo = segmentNo;
         this.filePath = filePath;
         es = ExportStatus.getInstance(datadirStr);
@@ -67,7 +65,7 @@ public class QueueSegment {
         es.queueSegmentCreated(segmentNo, filePath, exporterRole);
         long committedSize = es.getQueueSegmentCommittedSize(segmentNo);
         LOGGER.info("Opened queue segment {}; byteCount={}, committedSize={}", filePath, byteCount, committedSize);
-        if (committedSize < byteCount){
+        if (committedSize < byteCount) {
             truncateFileAfterOffset(committedSize);
         }
         eventCountDeltaPerTable = new HashMap<>();
@@ -85,21 +83,22 @@ public class QueueSegment {
         return byteCount;
     }
 
-    public void write(Record r){
+    public void write(Record r) {
         try {
             String cdcJson = ow.writeValueAsString(generateCdcMessageForRecord(r)) + "\n";
             writer.write(cdcJson);
             byteCount += cdcJson.length();
             updateStats(r);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
-    private void updateStats(Record r){
-        Pair<String, String> fullyQualifiedTableName =  Pair.create(r.t.schemaName, r.t.tableName);
 
-        Map<String, Long> tableMap = eventCountDeltaPerTable.computeIfAbsent(fullyQualifiedTableName, k -> new HashMap<>());
+    private void updateStats(Record r) {
+        Pair<String, String> fullyQualifiedTableName = Pair.create(r.t.schemaName, r.t.tableName);
+
+        Map<String, Long> tableMap = eventCountDeltaPerTable.computeIfAbsent(fullyQualifiedTableName,
+                k -> new HashMap<>());
         tableMap.put(r.op, tableMap.getOrDefault(r.op, 0L) + 1);
     }
 
@@ -150,7 +149,7 @@ public class QueueSegment {
         eventCountDeltaPerTable.clear();
     }
 
-    public long getSequenceNumberOfLastRecord(){
+    public long getSequenceNumberOfLastRecord() {
         ObjectMapper mapper = new ObjectMapper(new JsonFactory());
         long vsn = -1;
         String last = null, line;
@@ -158,12 +157,12 @@ public class QueueSegment {
         try {
             input = new BufferedReader(new FileReader(filePath));
             while ((line = input.readLine()) != null) {
-                if (line.equals(EOF_MARKER)){
+                if (line.equals(EOF_MARKER)) {
                     break;
                 }
                 last = line;
             }
-            if (last != null){
+            if (last != null) {
                 JsonNode lastRecordJson = mapper.readTree(last);
                 vsn = lastRecordJson.get("vsn").asLong();
             }
@@ -180,7 +179,7 @@ public class QueueSegment {
             input = new BufferedReader(new FileReader(filePath));
             while ((line = input.readLine()) != null) {
                 last = line;
-                if (last.equals(EOF_MARKER)){
+                if (last.equals(EOF_MARKER)) {
                     return true;
                 }
             }
@@ -190,7 +189,7 @@ public class QueueSegment {
         return false;
     }
 
-    private void truncateFileAfterOffset(long offset){
+    private void truncateFileAfterOffset(long offset) {
         try {
             writer.close();
             LOGGER.info("Truncating queue segment {} at path {} to size {}", segmentNo, filePath, offset);
@@ -202,5 +201,24 @@ public class QueueSegment {
             throw new RuntimeException(e);
         }
 
+    }
+
+    // read all events in the queue segemnt and return them as a collection of
+    // strings
+    public String readAllEvents() {
+        StringBuilder sb = new StringBuilder();
+        String line;
+        BufferedReader input;
+        try {
+            input = new BufferedReader(new FileReader(filePath));
+            while ((line = input.readLine()) != null) {
+                sb.append(line);
+                sb.append("\n");
+            }
+            input.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return sb.toString();
     }
 }
