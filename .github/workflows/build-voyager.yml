@@ -46,8 +46,11 @@ jobs:
 
       - name: Build Debezium
         run: |
-          cd yb-voyager
-          yes | ./installer_scripts/install-yb-voyager --install-from-local-source
+          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+            cd installer_scripts
+            yes | ./install-yb-voyager --install-from-local-source
+            cat /tmp/install-yb-voyager.log
+          fi
 
       - name: Archive the files
         run: |
@@ -57,6 +60,7 @@ jobs:
             mv yb-voyager-linux-amd64 voyager-linux-amd64/yb-voyager
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-linux-amd64/base-ora2pg.conf
             tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64
+            tar -cvzf debezium-server.tar.gz -C /opt/yb-voyager debezium-server
 
           elif [ ${{ matrix.os }} == "macos-latest" ]; then   
             mkdir voyager-darwin-amd64
@@ -69,7 +73,6 @@ jobs:
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-darwin-arm64/base-ora2pg.conf
             tar -czvf voyager-darwin-arm64.tar.gz voyager-darwin-arm64
           fi
-          tar -czvf /opt/yb-voyager/debezium-server debezium-server
 
       - name: Upload Binary to Release
         uses: softprops/action-gh-release@v1
@@ -78,6 +81,6 @@ jobs:
             ./yb-voyager/voyager-linux-amd64.tar.gz
             ./yb-voyager/voyager-darwin-amd64.tar.gz
             ./yb-voyager/voyager-darwin-arm64.tar.gz
-            ./debezium-server.tar.gz
+            ./yb-voyager/debezium-server.tar.gz
           repo_token: ${{ github.token }}
           overwrite: true
