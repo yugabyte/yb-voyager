@@ -257,7 +257,22 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 
 		start := time.Now()
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo, tconf.Schema)
-		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
+		var err error
+		sleepIntervalSec := 0
+		for attempt := 0; attempt < BATCH_MAX_RETRY_COUNT; attempt++ {
+			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
+			if err == nil { //TODO: non retryable errors
+				break
+			}
+			log.Warnf("Executing batch on channel %v: %v", chanNo, err)
+			sleepIntervalSec += 10
+			if sleepIntervalSec > MAX_SLEEP_SECOND {
+				sleepIntervalSec = MAX_SLEEP_SECOND
+			}
+			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
+				sleepIntervalSec, chanNo, attempt)
+			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}
