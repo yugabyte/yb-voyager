@@ -30,12 +30,6 @@ public class SequenceObjectUpdater {
         this.columnSequenceMap = new HashMap<>();
 
         es = ExportStatus.getInstance(dataDirStr);
-//        if (sequenceMax == null){
-//           this.sequenceMax = new ConcurrentHashMap<>();
-//        }
-//        else{
-//            this.sequenceMax = sequenceMax;
-//        }
 
         initSequenceMax(initSequenceMapString, sequenceMax);
         initColumnSequenceMap(columnSequenceMapString);
