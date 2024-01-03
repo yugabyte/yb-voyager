@@ -401,23 +401,16 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 		a.attname AS column_name,
 		COALESCE(seq.relname, '') AS sequence_name,
 		COALESCE(ns.nspname, '') AS schema_name
-	FROM
-		pg_class AS t
-	JOIN
-		pg_attribute AS a ON a.attrelid = t.oid
-	JOIN
-		pg_namespace AS tn ON tn.oid = t.relnamespace
-	LEFT JOIN
-		pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
-	LEFT JOIN
-		pg_depend AS d ON d.objid = ad.oid
-	LEFT JOIN
-		pg_class AS seq ON seq.oid = d.refobjid
-	LEFT JOIN
-		pg_namespace AS ns ON ns.oid = seq.relnamespace
+		FROM pg_class AS t
+		JOIN pg_attribute AS a ON a.attrelid = t.oid
+		JOIN pg_namespace AS tn ON tn.oid = t.relnamespace
+		LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+		LEFT JOIN pg_depend AS d ON d.objid = ad.oid
+		LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
+		LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
 	WHERE
-		tn.nspname = '%s'
-		AND t.relname = '%s'
+		tn.nspname = '%s' -- schema name
+		AND t.relname = '%s' -- table name
 		AND a.attnum > 0
 		AND NOT a.attisdropped
 		AND t.relkind IN ('r', 'P')
