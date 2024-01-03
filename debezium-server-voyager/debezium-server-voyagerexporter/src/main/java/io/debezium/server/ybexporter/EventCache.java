@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -20,12 +21,13 @@ public class EventCache {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventQueue.class);
     private static final String EOF_MARKER = "\\.";
     String dataDir;
+    private LinkedList<String> eventQueue = new LinkedList<>();
     private Set<Integer> hashCache = new HashSet<>();
     private long currentQueueSegmentIndex = 0;
     private static final String QUEUE_SEGMENT_FILE_NAME = "segment";
     private static final String QUEUE_SEGMENT_FILE_EXTENSION = "ndjson";
     private static final String QUEUE_FILE_DIR = "queue";
-    private long maxCacheSize = 1000000;
+    private long maxCacheSize = 10000;
     private QueueSegment currentQueueSegment;
 
     public EventCache(String dataDir) {
@@ -47,13 +49,14 @@ public class EventCache {
                 break;
             }
             String[] eventArray = events.split("\n");
-            LOGGER.info("Read {} events from queue segment-{}", eventArray.length, currentQueueSegmentIndex);
-            LOGGER.info(events);
             for (int i = eventArray.length - 1; i >= 0; i--) {
                 if (eventArray[i].equals(EOF_MARKER) || eventArray[i].isEmpty() || eventArray[i].isBlank()) {
                     continue;
                 }
-                hashCache.add(eventArray[i].hashCode());
+
+                String cacheMetadata = getCacheMetadata(eventArray[i]);
+                hashCache.add(cacheMetadata.hashCode());
+                eventQueue.addFirst(cacheMetadata);
                 if (hashCache.size() >= maxCacheSize) {
                     break;
                 }
@@ -119,6 +122,46 @@ public class EventCache {
         } catch (IOException x) {
             throw new RuntimeException(x);
         }
+    }
+
+    public boolean isEventInCache(String event) {
+        return hashCache.contains(event.hashCode());
+    }
+
+    public void addEventToCache(String event) {
+        // Check if cache is full. If full, remove oldest event from cache and add new
+        // event
+        if (hashCache.size() >= maxCacheSize) {
+            LOGGER.info("Event cache is full. Removing oldest event from cache");
+            String oldestEvent = eventQueue.removeLast();
+            LOGGER.info("Removing event from cache: {}", oldestEvent);
+            hashCache.remove(oldestEvent.hashCode());
+        }
+        hashCache.add(event.hashCode());
+        eventQueue.addFirst(event);
+    }
+
+    public long getCacheSize() {
+        return hashCache.size();
+    }
+
+    private String getCacheMetadata(String event) {
+        String cacheMetadata = null;
+        // Find the index of "cacheMetadata" in the string
+        int startIndex = event.indexOf("\"cacheMetadata\":\"");
+        if (startIndex != -1) {
+            // Adjust the starting index to exclude the field name
+            startIndex += "\"cacheMetadata\":\"".length();
+
+            // Find the closing double quote after the value of cacheMetadata
+            int endIndex = event.indexOf("\"", startIndex);
+
+            if (endIndex != -1) {
+                // Extract the value of cacheMetadata
+                cacheMetadata = event.substring(startIndex, endIndex);
+            }
+        }
+        return cacheMetadata;
     }
 
 }

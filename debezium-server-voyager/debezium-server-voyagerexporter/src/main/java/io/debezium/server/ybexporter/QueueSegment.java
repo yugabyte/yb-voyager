@@ -125,6 +125,7 @@ public class QueueSegment {
         cdcInfo.put("key", key);
         cdcInfo.put("fields", fields);
         cdcInfo.put("exporter_role", exporterRole);
+        cdcInfo.put("cacheMetadata", r.cacheMetadata);
         return cdcInfo;
     }
 

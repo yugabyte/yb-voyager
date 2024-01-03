@@ -11,6 +11,7 @@ public class Record {
     public Table t;
     public String snapshot;
     public String op;
+    public String cacheMetadata;
     public long vsn; // Voyager Sequence Number.
     public ArrayList<String> keyColumns = new ArrayList<>();
     public ArrayList<Object> keyValues = new ArrayList<>();

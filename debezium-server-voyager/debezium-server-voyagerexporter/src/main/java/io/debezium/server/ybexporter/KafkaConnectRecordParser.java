@@ -42,22 +42,29 @@ class KafkaConnectRecordParser implements RecordParser {
         retrieveRenameTablesFromConfig();
     }
 
-    private void retrieveRenameTablesFromConfig(){
+    private void retrieveRenameTablesFromConfig() {
         final Config config = ConfigProvider.getConfig();
-        String renameTablesConfig = config.getOptionalValue("debezium.sink.ybexporter.tables.rename", String.class).orElse("");
-        if (!renameTablesConfig.isEmpty()){
-            for (String renameTableConfig: renameTablesConfig.split(",")){
+        String renameTablesConfig = config.getOptionalValue("debezium.sink.ybexporter.tables.rename", String.class)
+                .orElse("");
+        if (!renameTablesConfig.isEmpty()) {
+            for (String renameTableConfig : renameTablesConfig.split(",")) {
                 String[] beforeAndAfter = renameTableConfig.split(":");
-                if (beforeAndAfter.length != 2){
-                    throw  new RuntimeException(String.format("Incorrect format for specifying table rename config %s. Provide it as <oldname>:<newname>", renameTableConfig));
+                if (beforeAndAfter.length != 2) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying table rename config %s. Provide it as <oldname>:<newname>",
+                            renameTableConfig));
                 }
                 String before = beforeAndAfter[0];
                 String after = beforeAndAfter[1];
-                if ((before.split("\\.").length != 2) && (!sourceType.equals("mysql"))){
-                    throw  new RuntimeException(String.format("Incorrect format for specifying table rename config %s. Provide it as <schema>.<tableName>", before));
+                if ((before.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying table rename config %s. Provide it as <schema>.<tableName>",
+                            before));
                 }
-                if ((after.split("\\.").length != 2) && (!sourceType.equals("mysql"))){
-                    throw  new RuntimeException(String.format("Incorrect format for specifying table rename config %s. Provide it as <schema>.<tableName>", after));
+                if ((after.split("\\.").length != 2) && (!sourceType.equals("mysql"))) {
+                    throw new RuntimeException(String.format(
+                            "Incorrect format for specifying table rename config %s. Provide it as <schema>.<tableName>",
+                            after));
                 }
                 renameTables.put(before, after);
             }
@@ -69,7 +76,7 @@ class KafkaConnectRecordParser implements RecordParser {
      * that contains the relevant field schemas and values.
      */
     @Override
-    public Record parseRecord(Object keyObj, Object valueObj) {
+    public Record parseRecord(Object keyObj, Object valueObj, Object eventCacheObj) {
         try {
             r.clear();
 
@@ -78,13 +85,40 @@ class KafkaConnectRecordParser implements RecordParser {
             Struct key = (Struct) ((SourceRecord) valueObj).key();
 
             if (value == null) {
-                // Ideally, we should have config tombstones.on.delete=false. In case that is not set correctly,
+                // Ideally, we should have config tombstones.on.delete=false. In case that is
+                // not set correctly,
                 // we will get those events where value field = null. Skipping those events.
                 LOGGER.warn("Empty value field in event. Assuming tombstone event. Skipping - {}", valueObj);
                 r.op = "unsupported";
                 return r;
+            } else if (value.schema().field("source") == null) {
+                // This is a tombstone event
+                LOGGER.warn("Empty source field in event. Assuming tombstone event. Skipping - {}", valueObj);
+                r.op = "unsupported";
+                return r;
             }
+
             Struct source = value.getStruct("source");
+
+            // Check source databse type
+            if (sourceType.equals("oracle")) {
+                // Extract transaction struct from value if it is available
+                Struct transaction = value.getStruct("transaction");
+                if (transaction != null) {
+                    r.cacheMetadata = transaction.toString();
+                }
+            }
+
+            // Check if this event is already in the cache
+            if (eventCacheObj != null) {
+                EventCache eventCache = (EventCache) eventCacheObj;
+                if (eventCache.isEventInCache(r.cacheMetadata)) {
+                    LOGGER.info("Event already in cache. Skipping - {}", valueObj);
+                    r.op = "unsupported";
+                    return r;
+                }
+            }
+
             r.op = value.getString("op");
             r.snapshot = source.getString("snapshot");
 
@@ -97,9 +131,19 @@ class KafkaConnectRecordParser implements RecordParser {
             }
             parseValueFields(value, r);
 
+            // Add to cache
+            if (eventCacheObj != null) {
+                EventCache eventCache = (EventCache) eventCacheObj;
+                eventCache.addEventToCache(r.cacheMetadata);
+            }
+
+            // Print cache number
+            if (eventCacheObj != null) {
+                EventCache eventCache = (EventCache) eventCacheObj;
+            }
+
             return r;
-        }
-        catch (Exception ex) {
+        } catch (Exception ex) {
             LOGGER.error("Failed to parse msg: {}", ex);
             throw new RuntimeException(ex);
         }
@@ -114,10 +158,10 @@ class KafkaConnectRecordParser implements RecordParser {
         String tableName = sourceNode.getString("table");
         // rename table name
         String qualifiedTableName = tableName;
-        if (!schemaName.equals("")){
+        if (!schemaName.equals("")) {
             qualifiedTableName = schemaName + "." + tableName;
         }
-        if (renameTables.containsKey(qualifiedTableName)){
+        if (renameTables.containsKey(qualifiedTableName)) {
             String[] renamedTableName = renameTables.get(qualifiedTableName).split("\\.");
             // TODO: support MySQL
             schemaName = renamedTableName[0];
@@ -133,20 +177,21 @@ class KafkaConnectRecordParser implements RecordParser {
             // parse fields
             Struct structWithAllFields = value.getStruct("after");
             if (structWithAllFields == null) {
-                // in case of delete events the after field is empty, and the before field is populated.
+                // in case of delete events the after field is empty, and the before field is
+                // populated.
                 structWithAllFields = value.getStruct("before");
             }
             for (Field f : structWithAllFields.schema().fields()) {
-                if (sourceType.equals("yb")){
+                if (sourceType.equals("yb")) {
                     // values in the debezium connector are as follows:
                     // "val1" : {
-                    //  "value" : "value for val1 column",
-                    //  "set" : true
-                    //}
-                    // Therefore, we need to get the schema of the inner value field, but name of the outer field
+                    // "value" : "value for val1 column",
+                    // "set" : true
+                    // }
+                    // Therefore, we need to get the schema of the inner value field, but name of
+                    // the outer field
                     t.fieldSchemas.put(f.name(), new Field(f.name(), 0, f.schema().field("value").schema()));
-                }
-                else {
+                } else {
                     t.fieldSchemas.put(f.name(), f);
                 }
             }
@@ -160,19 +205,18 @@ class KafkaConnectRecordParser implements RecordParser {
     protected void parseKeyFields(Struct key, Record r) {
         for (Field f : key.schema().fields()) {
             Object fieldValue;
-            if (sourceType.equals("yb")){
+            if (sourceType.equals("yb")) {
                 // values in the debezium connector are as follows:
                 // "val1" : {
-                //  "value" : "value for val1 column",
-                //  "set" : true
-                //}
+                // "value" : "value for val1 column",
+                // "set" : true
+                // }
                 Struct valueAndSet = key.getStruct(f.name());
-                if (!valueAndSet.getBoolean("set")){
+                if (!valueAndSet.getBoolean("set")) {
                     continue;
                 }
                 fieldValue = valueAndSet.get("value");
-            }
-            else{
+            } else {
                 fieldValue = key.get(f);
             }
             r.addKeyField(f.name(), fieldValue);
@@ -182,7 +226,8 @@ class KafkaConnectRecordParser implements RecordParser {
 
     /**
      * Parses value fields from the msg.
-     * In case of update operation, only stores the fields that have changed by comparing
+     * In case of update operation, only stores the fields that have changed by
+     * comparing
      * the before and after structs.
      */
     protected void parseValueFields(Struct value, Record r) {
@@ -194,28 +239,29 @@ class KafkaConnectRecordParser implements RecordParser {
         }
         for (Field f : after.schema().fields()) {
             Object fieldValue;
-            if (sourceType.equals("yb")){
+            if (sourceType.equals("yb")) {
                 // TODO: write a proper transformer for this logic
                 // values in the debezium connector are as follows:
                 // "val1" : {
-                //  "value" : "value for val1 column",
-                //  "set" : true
-                //}
+                // "value" : "value for val1 column",
+                // "set" : true
+                // }
                 Struct valueAndSet = after.getStruct(f.name());
                 if (r.op.equals("u")) {
-                    // in the default configuration of the stream, for an update, the fields in the after struct
-                    // are only the delta fields, therefore, it is possible for a field to not be there.
-                    if (valueAndSet == null){
+                    // in the default configuration of the stream, for an update, the fields in the
+                    // after struct
+                    // are only the delta fields, therefore, it is possible for a field to not be
+                    // there.
+                    if (valueAndSet == null) {
                         continue;
                     }
                 }
 
-                if (!valueAndSet.getBoolean("set")){
+                if (!valueAndSet.getBoolean("set")) {
                     continue;
                 }
                 fieldValue = valueAndSet.get("value");
-            }
-            else{
+            } else {
                 if (r.op.equals("u")) {
                     if (Objects.equals(after.get(f), before.get(f))) {
                         // no need to record this as field is unchanged
@@ -228,7 +274,5 @@ class KafkaConnectRecordParser implements RecordParser {
             r.addValueField(f.name(), fieldValue);
         }
     }
-
-
 
 }

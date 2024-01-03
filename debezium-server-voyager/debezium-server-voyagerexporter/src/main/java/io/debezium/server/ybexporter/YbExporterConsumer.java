@@ -200,14 +200,13 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             Object objVal = event.value();
 
             // PARSE
-            var r = parser.parseRecord(objKey, objVal);
+            var r = parser.parseRecord(objKey, objVal, eventCache);
             if (r.isUnsupported()) {
                 committer.markProcessed(event);
                 continue;
             }
             // LOGGER.info("Processing record {} => {}", r.getTableIdentifier(),
             // r.getValueFieldValues());
-            LOGGER.info("Here1");
             checkIfSnapshotAlreadyComplete(r);
             recordTransformer.transformRecord(r);
             sequenceObjectUpdater.processRecord(r);
@@ -293,7 +292,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         if ((exportStatus.getMode() == ExportMode.SNAPSHOT) && (r.snapshot == null || r.snapshot.equals("false"))) {
             LOGGER.debug("Interpreting snapshot as complete since snapshot field of record is null");
             handleSnapshotComplete();
-            LOGGER.info("Here");
         }
     }
 
@@ -302,7 +300,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
-        LOGGER.info("Caching begins");
         eventCache = new EventCache(dataDir);
     }
 
