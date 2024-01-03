@@ -201,10 +201,6 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			err = markCutoverProcessed(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to create trigger file after data export: %v", err)
-			}
 			if isTargetDBExporter(exporterRole) {
 				err = ybCDCClient.DeleteStreamID()
 				if err != nil {
@@ -217,6 +213,12 @@ func exportData() bool {
 					utils.ErrExit("get migration status record: %v", err)
 				}
 				deletePGReplicationSlot(msr, &source)
+			}
+
+			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
+			err = markCutoverProcessed(exporterRole)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
 			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))

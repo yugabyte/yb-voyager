@@ -549,7 +549,7 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	if err != nil {
 		// ignore "does not exist" error while dropping replication slot
 		if !strings.Contains(err.Error(), "does not exist") {
-			return fmt.Errorf("delete existing replication slot: %v", err)
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
 		}
 	}
 	return nil
