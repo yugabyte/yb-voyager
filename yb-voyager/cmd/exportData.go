@@ -197,23 +197,10 @@ func exportData() bool {
 				utils.ErrExit("get pg dump sequence values: %v", err)
 			}
 
-			utils.PrintAndLog("sourcenames - %s", sequenceValueMap)
 			var sequenceInitValues strings.Builder
 			for seqName, seqValue := range sequenceValueMap {
 				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
 			}
-
-			// dbzmExportStatus := dbzm.ExportStatus{
-			// 	Mode:      "STREAMING",
-			// 	Sequences: map[string]int64{},
-			// }
-			// for seqName, seqValue := range sequenceValueMap {
-			// 	dbzmExportStatus.Sequences[seqName.Qualified.Quoted] = seqValue
-			// }
-			// err = dbzmExportStatus.WriteToDisk(filepath.Join(exportDir, "data", "export_status.json"))
-			// if err != nil {
-			// 	utils.ErrExit("write dbzm status to disk: %v", err)
-			// }
 
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
