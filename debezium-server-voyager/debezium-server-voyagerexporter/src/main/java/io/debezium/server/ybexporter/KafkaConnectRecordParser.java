@@ -109,16 +109,6 @@ class KafkaConnectRecordParser implements RecordParser {
                 }
             }
 
-            // Check if this event is already in the cache
-            if (eventCacheObj != null) {
-                EventCache eventCache = (EventCache) eventCacheObj;
-                if (eventCache.isEventInCache(r.cacheMetadata)) {
-                    LOGGER.info("Event already in cache. Skipping - {}", valueObj);
-                    r.op = "unsupported";
-                    return r;
-                }
-            }
-
             r.op = value.getString("op");
             r.snapshot = source.getString("snapshot");
 
@@ -130,17 +120,6 @@ class KafkaConnectRecordParser implements RecordParser {
                 parseKeyFields(key, r);
             }
             parseValueFields(value, r);
-
-            // Add to cache
-            if (eventCacheObj != null) {
-                EventCache eventCache = (EventCache) eventCacheObj;
-                eventCache.addEventToCache(r.cacheMetadata);
-            }
-
-            // Print cache number
-            if (eventCacheObj != null) {
-                EventCache eventCache = (EventCache) eventCacheObj;
-            }
 
             return r;
         } catch (Exception ex) {

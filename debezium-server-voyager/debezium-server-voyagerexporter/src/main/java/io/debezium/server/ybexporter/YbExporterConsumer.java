@@ -190,10 +190,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     public void handleBatch(List<ChangeEvent<Object, Object>> changeEvents,
             DebeziumEngine.RecordCommitter<ChangeEvent<Object, Object>> committer)
             throws InterruptedException {
-        LOGGER.info("Here3");
         LOGGER.info("Processing batch with {} records", changeEvents.size());
         checkIfHelperThreadAlive();
-        LOGGER.info("Here2");
 
         for (ChangeEvent<Object, Object> event : changeEvents) {
             Object objKey = event.key();
@@ -201,10 +199,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
 
             // PARSE
             var r = parser.parseRecord(objKey, objVal, eventCache);
-            if (r.isUnsupported()) {
+            if (!checkIfEventNeedsToBeWritten(r)) {
                 committer.markProcessed(event);
                 continue;
             }
+
             // LOGGER.info("Processing record {} => {}", r.getTableIdentifier(),
             // r.getValueFieldValues());
             checkIfSnapshotAlreadyComplete(r);
@@ -220,6 +219,10 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                         return;
                     }
                     writer.writeRecord(r);
+                    // Add to cache
+                    if (eventCache != null) {
+                        eventCache.addEventToCache(r.cacheMetadata);
+                    }
                 }
             } else {
                 writer.writeRecord(r);
@@ -246,6 +249,20 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         committer.markBatchFinished();
         LOGGER.debug("Committed batch complete with {} records", changeEvents.size());
         handleSnapshotOnlyComplete();
+    }
+
+    private boolean checkIfEventNeedsToBeWritten(Record r) {
+        if (r.isUnsupported()) {
+            LOGGER.debug("Skipping unsupported record {}", r);
+            return false;
+        }
+        if (eventCache != null) {
+            if (eventCache.isEventInCache(r.cacheMetadata)) {
+                LOGGER.info("Event already in cache. Skipping - {}", r.valueValues);
+                return false;
+            }
+        }
+        return true;
     }
 
     private RecordWriter getWriterForRecord(Record r) {

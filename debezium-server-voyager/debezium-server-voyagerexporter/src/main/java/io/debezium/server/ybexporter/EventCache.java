@@ -56,7 +56,7 @@ public class EventCache {
 
                 String cacheMetadata = getCacheMetadata(eventArray[i]);
                 hashCache.add(cacheMetadata.hashCode());
-                eventQueue.addFirst(cacheMetadata);
+                eventQueue.addLast(cacheMetadata);
                 if (hashCache.size() >= maxCacheSize) {
                     break;
                 }
