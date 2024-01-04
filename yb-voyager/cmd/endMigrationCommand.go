@@ -365,6 +365,20 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	if err != nil {
 		utils.ErrExit("clearing migration state from source db: %v", err)
 	}
+
+	deletePGReplicationSlot(msr, source)
+}
+
+func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGReplicationSlotName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
+		return
+	}
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
+	if err != nil {
+		utils.ErrExit("dropping PG replication slot name: %v", err)
+	}
 }
 
 func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {

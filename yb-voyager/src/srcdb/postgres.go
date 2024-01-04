@@ -518,17 +518,14 @@ func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migratio
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
 
 	if dropIfAlreadyExists {
-		log.Infof("Dropping replication slot %s before creating a new one", replicationSlotName)
-		err := pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
+		err := pg.DropLogicalReplicationSlot(conn, replicationSlotName)
 		if err != nil {
-			// ignore "does not exist" error while dropping replication slot
-			if !strings.Contains(err.Error(), "does not exist") {
-				return nil, fmt.Errorf("delete existing replication slot: %v", err)
-			}
+			return nil, err
 		}
 	}
 
-	log.Infof("Creating replication slot %s", replicationSlotName)
+	log.Infof("creating replication slot %s", replicationSlotName)
 	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
 		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
 	if err != nil {
@@ -536,4 +533,24 @@ func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migratio
 	}
 
 	return &res, nil
+}
+
+func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
+	var err error
+	if conn == nil {
+		conn, err = pg.GetReplicationConnection()
+		if err != nil {
+			utils.ErrExit("failed to create replication connection for dropping replication slot: %s", err)
+		}
+		defer conn.Close(context.Background())
+	}
+	log.Infof("dropping replication slot: %s", replicationSlotName)
+	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// ignore "does not exist" error while dropping replication slot
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
+		}
+	}
+	return nil
 }
