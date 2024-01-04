@@ -835,7 +835,7 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, TableNameToSchema[batch.TableName])
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
+		if err == nil || tdb.IsNonRetryableError(err, true) {
 			break
 		}
 		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)

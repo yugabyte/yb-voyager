@@ -261,7 +261,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
-			if err == nil || tdb.IsNonRetryableCopyError(err) { 
+			if err == nil || tdb.IsNonRetryableError(err, false) { 
 				break
 			}
 			log.Warnf("Executing batch on channel %v: %v", chanNo, err)

@@ -467,8 +467,12 @@ func (pg *TargetPostgreSQL) getListOfTableAttributes(schemaName, tableName strin
 	return result, nil
 }
 
-func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error()) // not retrying atleast on the syntax errors and unique constraint
+func (pg *TargetPostgreSQL) IsNonRetryableError(err error, inCopy bool) bool {
+	NonRetryErrors := NonRetryCopyErrors
+	if !inCopy {
+		NonRetryErrors = NonRetryEventBatchErrors
+	}
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryErrors, err.Error())
 }
 
 func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {

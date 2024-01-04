@@ -470,10 +470,20 @@ var NonRetryCopyErrors = []string{
 	"syntax error at",
 }
 
-func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
-	NonRetryCopyErrorsYB := NonRetryCopyErrors
-	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
+var NonRetryEventBatchErrors = []string{
+	"invalid input syntax",
+	"syntax error at",
+}
+
+func (yb *TargetYugabyteDB) IsNonRetryableError(err error, inCopy bool) bool {
+	NonRetryErrors := NonRetryCopyErrors
+	if !inCopy {
+		// we need to retry in unique contraint error
+		// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
+		NonRetryErrors = NonRetryEventBatchErrors 
+	}
+	NonRetryErrors = append(NonRetryErrors, "Sending too long RPC message")
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryErrors, err.Error())
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
