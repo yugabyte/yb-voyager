@@ -354,7 +354,6 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
-		sourceDBPassword = source.Password
 	}
 	source.Password = sourceDBPassword
 	err = source.DB().Connect()
@@ -396,7 +395,6 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
 		}
-		targetDBPassword = tconf.Password
 	}
 	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
@@ -473,7 +471,6 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
-		sourceReplicaDBPassword = sourceReplicaconf.Password
 	}
 	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
@@ -501,7 +498,6 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
-		sourceDBPassword = fbconf.Password
 	}
 	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
