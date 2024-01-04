@@ -189,6 +189,20 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, nil
 		}
 	},
+	"io.debezium.data.Json": func(columnValue string, formatIfRequired bool) (string, error) {
+		if formatIfRequired {
+			return fmt.Sprintf("'%s'", columnValue), nil
+		} else {
+			return columnValue, nil
+		}
+	},
+	"io.debezium.data.Enum": func(columnValue string, formatIfRequired bool) (string, error) {
+		if formatIfRequired {
+			return fmt.Sprintf("'%s'", columnValue), nil
+		} else {
+			return columnValue, nil
+		}
+	},
 	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
 		if formatIfRequired {
 			columnValue = fmt.Sprintf("'%s'", columnValue)
