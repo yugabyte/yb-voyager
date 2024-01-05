@@ -220,7 +220,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                     }
                     writer.writeRecord(r);
                     // Add to cache
-                    if (eventCache != null) {
+                    if (eventCache != null && sourceType.equals("oracle")) {
                         eventCache.addEventToCache(r.cacheMetadata);
                     }
                 }
@@ -256,7 +256,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.debug("Skipping unsupported record {}", r);
             return false;
         }
-        if (eventCache != null) {
+        if (eventCache != null && sourceType.equals("oracle")) {
             if (eventCache.isEventInCache(r.cacheMetadata)) {
                 LOGGER.info("Event already in cache. Skipping - {}", r.valueValues);
                 return false;
