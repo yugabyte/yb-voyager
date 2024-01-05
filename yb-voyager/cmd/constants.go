@@ -34,7 +34,6 @@ const (
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*"
 	COPY_MAX_RETRY_COUNT            = 10
-	BATCH_MAX_RETRY_COUNT           = 10
 	MAX_SLEEP_SECOND                = 60
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
@@ -63,3 +62,5 @@ var validSSLModes = map[string][]string{
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
+
+var EVENT_BATCH_MAX_RETRY_COUNT = 10

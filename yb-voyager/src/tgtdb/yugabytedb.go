@@ -482,7 +482,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableError(err error, inCopy bool) bool {
 		// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
 		NonRetryErrors = NonRetryEventBatchErrors 
 	}
-	NonRetryErrors = append(NonRetryErrors, "Sending too long RPC message")
+	NonRetryErrors = append(NonRetryErrors, SENDING_TOO_LONG_RPC_ERROR)
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryErrors, err.Error())
 }
 
@@ -536,6 +536,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if event.Op == "u" {
 			stmt := event.GetSQLStmt(yb.tconf.Schema)
 			ybBatch.Queue(stmt)
+			log.Infof("stmt: %s of vsn %v", stmt, event.Vsn)
 		} else {
 			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
 			params := event.GetParams()
@@ -543,6 +544,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
+			log.Infof("stmt: %s with params %v of vsn %v", stmt, params, event.Vsn)
 		}
 	}
 
@@ -632,6 +634,8 @@ const (
 		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
 
 	GET_YB_SERVERS_QUERY = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
+
+	SENDING_TOO_LONG_RPC_ERROR      = "Sending too long RPC message"
 )
 
 func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {

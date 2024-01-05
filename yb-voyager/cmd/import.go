@@ -188,6 +188,10 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar/stats during data import (default false)")
+
+	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 10, "Maximum number of retries for failed event batch in live migration")
+	cmd.Flags().MarkHidden("max-retries")
+	
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
