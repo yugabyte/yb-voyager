@@ -35,7 +35,7 @@ type TargetDB interface {
 	GetVersion() string
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []string) []string
-	IsNonRetryableError(err error, inCopy bool) bool
+	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	IfRequiredQuoteColumnNames(tableName string, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error

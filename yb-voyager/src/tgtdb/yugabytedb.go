@@ -470,20 +470,10 @@ var NonRetryCopyErrors = []string{
 	"syntax error at",
 }
 
-var NonRetryEventBatchErrors = []string{
-	"invalid input syntax",
-	"syntax error at",
-}
-
-func (yb *TargetYugabyteDB) IsNonRetryableError(err error, inCopy bool) bool {
-	NonRetryErrors := NonRetryCopyErrors
-	if !inCopy {
-		// we need to retry in unique contraint error
-		// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
-		NonRetryErrors = NonRetryEventBatchErrors 
-	}
-	NonRetryErrors = append(NonRetryErrors, SENDING_TOO_LONG_RPC_ERROR)
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryErrors, err.Error())
+func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
+	NonRetryCopyErrorsYB := NonRetryCopyErrors
+	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {
@@ -536,7 +526,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if event.Op == "u" {
 			stmt := event.GetSQLStmt(yb.tconf.Schema)
 			ybBatch.Queue(stmt)
-			log.Infof("stmt: %s of vsn %v", stmt, event.Vsn)
 		} else {
 			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema)
 			params := event.GetParams()
@@ -544,7 +533,6 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
-			log.Infof("stmt: %s with params %v of vsn %v", stmt, params, event.Vsn)
 		}
 	}
 
@@ -634,8 +622,6 @@ const (
 		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
 
 	GET_YB_SERVERS_QUERY = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
-
-	SENDING_TOO_LONG_RPC_ERROR      = "Sending too long RPC message"
 )
 
 func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {

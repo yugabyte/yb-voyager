@@ -193,7 +193,7 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []string) []string {
 	return result
 }
 
-func (tdb *TargetOracleDB) IsNonRetryableError(err error, inCopy bool) bool {
+func (tdb *TargetOracleDB) IsNonRetryableCopyError(err error) bool {
 	return false
 }
 

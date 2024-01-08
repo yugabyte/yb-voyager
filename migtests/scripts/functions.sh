@@ -354,7 +354,7 @@ import_data() {
 		--send-diagnostics=false 
 		--start-clean 1
 		--truncate-splits true
-		--max-retries 0
+		--max-retries 1
 		"
 
 		if [ "${IMPORT_TABLE_LIST}" != "" ]
@@ -392,7 +392,7 @@ import_data_to_source_replica() {
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
-	--max-retries 0
+	--max-retries 1 
 	"
 	yb-voyager import data to source-replica ${args} $*
 }

@@ -190,7 +190,7 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"Disable progress bar/stats during data import (default false)")
 
 	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 10, "Maximum number of retries for failed event batch in live migration")
-	cmd.Flags().MarkHidden("max-retries")
+	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors 
 	
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
