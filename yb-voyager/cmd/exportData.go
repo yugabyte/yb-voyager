@@ -156,7 +156,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	exportDataCompleteEvent, err := createExportDataEvent()
 	if err == nil {
 		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotExportStarted(&exportDataCompleteEvent)
+		go controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
 	}
 
 	// Wait till the visualisation metadata is sent
@@ -795,7 +795,7 @@ func createExportDataTableMetricsList(tableNames []string) ([]*cp.SnapshotExport
 		dataExportTableMetricsList = append(dataExportTableMetricsList, &cp.SnapshotExportTableMetrics{
 			MigrationUUID:  migrationUUID,
 			TableName:      tableName,
-			Schema:         source.Schema,
+			SchemaName:     source.Schema,
 			Status:         tableMetadata.Status,
 			CountLiveRows:  tableMetadata.CountLiveRows,
 			CountTotalRows: tableMetadata.CountTotalRows,

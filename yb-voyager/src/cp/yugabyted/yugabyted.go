@@ -17,6 +17,7 @@ package yugabyted
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -139,7 +140,7 @@ func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *cp.SchemaAnalysi
 	}
 }
 
-func (cp *YugabyteD) SubmitSchemaAnalysisReport(schemaAnalysisReport *cp.SchemaAnalysisReport) {
+func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *cp.SchemaAnalysisReport) {
 
 	defer utils.WaitGroup.Done()
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
@@ -152,13 +153,20 @@ func (cp *YugabyteD) SubmitSchemaAnalysisReport(schemaAnalysisReport *cp.SchemaA
 		return
 	}
 
+	// Create the payload from the Analysis Report object.
+	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)
+	if err != nil {
+		panic(err)
+	}
+	payload := string(jsonBytes)
+
 	dbPayload := CreateVisualzerDBPayload(
 		schemaAnalysisReport.MigrationUUID,
 		MIGRATION_PHASE_MAP["ANALYZE SCHEMA"],
 		invocationSequence,
 		schemaAnalysisReport.DatabaseName,
 		schemaAnalysisReport.SchemaName,
-		schemaAnalysisReport.Payload,
+		payload,
 		schemaAnalysisReport.DBType,
 		"COMPLETED",
 		timestamp)
@@ -218,7 +226,7 @@ func (cp *YugabyteD) UpdateExportedRowCount(
 		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
 			exportTableMetrics.MigrationUUID,
 			exportTableMetrics.TableName,
-			exportTableMetrics.Schema,
+			exportTableMetrics.SchemaName,
 			MIGRATION_PHASE_MAP["EXPORT DATA"],
 			exportTableMetrics.Status,
 			exportTableMetrics.CountLiveRows,
@@ -329,7 +337,7 @@ func (cp *YugabyteD) UpdateImportedRowCount(
 		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
 			importtableMetrics.MigrationUUID,
 			importtableMetrics.TableName,
-			importtableMetrics.Schema,
+			importtableMetrics.SchemaName,
 			MIGRATION_PHASE_MAP["IMPORT DATA"],
 			importtableMetrics.Status,
 			importtableMetrics.CountLiveRows,

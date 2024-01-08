@@ -1061,19 +1061,16 @@ func analyzeSchema() {
 
 	var finalReport string
 
-	// Create JSON Report to send to visualisation metadata.
-	var reportJsonString string
-	jsonBytes, err := json.Marshal(reportStruct)
-	if err != nil {
-		panic(err)
-	}
-
-	reportJsonString = string(jsonBytes)
 	switch outputFormat {
 	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
 		finalReport = utils.PrettifyHtmlString(htmlReport)
 	case "json":
+		jsonBytes, err := json.Marshal(reportStruct)
+		if err != nil {
+			panic(err)
+		}
+		reportJsonString := string(jsonBytes)
 		finalReport = utils.PrettifyJsonString(reportJsonString)
 	case "txt":
 		finalReport = generateTxtReport(reportStruct)
@@ -1123,10 +1120,10 @@ func analyzeSchema() {
 	callhome.PackAndSendPayload(exportDir)
 
 	// Send 'COMPLETED' metadata for `ANALYZE SCHEMA` step
-	schemaAnalysisReport, err := createSchemaAnalysisReport(reportJsonString)
+	schemaAnalysisReport, err := createSchemaAnalysisReport(reportStruct)
 	if err == nil {
 		utils.WaitGroup.Add(1)
-		go controlPlane.SubmitSchemaAnalysisReport(&schemaAnalysisReport)
+		go controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 	}
 	// Wait till the visualisation metadata is sent
 	utils.WaitGroup.Wait()
@@ -1191,7 +1188,7 @@ func createSchemaAnalysisEvent() (cp.SchemaAnalysisEvent, error) {
 	return schemaAnalysisEvent, nil
 }
 
-func createSchemaAnalysisReport(report string) (cp.SchemaAnalysisReport, error) {
+func createSchemaAnalysisReport(report utils.Report) (cp.SchemaAnalysisReport, error) {
 
 	schemaAnalysisReport := cp.SchemaAnalysisReport{}
 
@@ -1203,11 +1200,11 @@ func createSchemaAnalysisReport(report string) (cp.SchemaAnalysisReport, error) 
 	}
 
 	schemaAnalysisReport = cp.SchemaAnalysisReport{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  source.DBName,
-		SchemaName:    source.Schema,
-		DBType:        source.DBType,
-		Payload:       report,
+		MigrationUUID:  migrationUUID,
+		DatabaseName:   source.DBName,
+		SchemaName:     source.Schema,
+		DBType:         source.DBType,
+		AnalysisReport: report,
 	}
 
 	return schemaAnalysisReport, nil

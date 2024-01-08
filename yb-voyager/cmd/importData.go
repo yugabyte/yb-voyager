@@ -574,7 +574,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	importDataCompletedEvent, err := createImportDataEvent()
 	if err == nil {
 		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotImportStarted(&importDataCompletedEvent)
+		go controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
 	}
 
 	// Wait till the visualisation metadata is sent
@@ -1254,7 +1254,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) ([]*cp.Snapsho
 		dataImportTableMetrics = append(dataImportTableMetrics, &cp.SnapshotImportTableMetrics{
 			MigrationUUID:  migrationUUID,
 			TableName:      task.TableName,
-			Schema:         tconf.Schema,
+			SchemaName:     tconf.Schema,
 			Status:         0,
 			CountLiveRows:  0,
 			CountTotalRows: getTotalProgressAmount(task),
@@ -1279,7 +1279,7 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 	dataImportTableMetrics = cp.SnapshotImportTableMetrics{
 		MigrationUUID:  migrationUUID,
 		TableName:      tableName,
-		Schema:         tconf.Schema,
+		SchemaName:     tconf.Schema,
 		Status:         status,
 		CountLiveRows:  countLiveRows,
 		CountTotalRows: countTotalRows,

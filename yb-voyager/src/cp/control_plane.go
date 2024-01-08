@@ -15,7 +15,10 @@ limitations under the License.
 */
 package cp
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+)
 
 type ControlPlane interface {
 	Init() error
@@ -25,7 +28,7 @@ type ControlPlane interface {
 	// SubmitMigrationAssessmentReport(*MigrationAssessmentReport)
 
 	SchemaAnalysisStarted(*SchemaAnalysisEvent)
-	SubmitSchemaAnalysisReport(*SchemaAnalysisReport)
+	SchemaAnalysisIterationCompleted(*SchemaAnalysisReport)
 
 	SnapshotExportStarted(*SnapshotExportEvent)
 	UpdateExportedRowCount([]*SnapshotExportTableMetrics)
@@ -65,11 +68,11 @@ type SchemaAnalysisEvent struct {
 }
 
 type SchemaAnalysisReport struct {
-	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
-	Payload       string
-	DBType        string
+	MigrationUUID  uuid.UUID
+	DatabaseName   string
+	SchemaName     string
+	DBType         string
+	AnalysisReport utils.Report
 }
 
 type SnapshotExportEvent struct {
@@ -81,9 +84,9 @@ type SnapshotExportEvent struct {
 
 type SnapshotExportTableMetrics struct {
 	MigrationUUID  uuid.UUID
+	SchemaName     string
 	TableName      string
-	Schema         string
-	Status         int
+	Status         int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
 	CountLiveRows  int64
 	CountTotalRows int64
 }
@@ -102,9 +105,9 @@ type SnapshotImportEvent struct {
 
 type SnapshotImportTableMetrics struct {
 	MigrationUUID  uuid.UUID
+	SchemaName     string
 	TableName      string
-	Schema         string
-	Status         int
+	Status         int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
 	CountLiveRows  int64
 	CountTotalRows int64
 }
