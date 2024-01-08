@@ -170,8 +170,13 @@ func streamChangesFromSegment(
 }
 
 func shouldFormatValues(event *tgtdb.Event) bool {
-	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
-		tconf.TargetDBType == ORACLE
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, POSTGRESQL:
+		return event.Op == "u"
+	case ORACLE:
+		return true
+	}
+	return false
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
