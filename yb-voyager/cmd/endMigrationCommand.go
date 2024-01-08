@@ -32,6 +32,7 @@ var (
 	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
+	streamChangesMode       bool
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -67,6 +68,12 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	} else if msr == nil {
 		utils.ErrExit("migration status record not found. Is the migration initialized?")
 	}
+
+	streamChangesMode, err = checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
 	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
@@ -144,8 +151,6 @@ func backupDataFilesFn() {
 	}
 }
 
-var streamChangesMode bool
-
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
 		return
@@ -154,11 +159,6 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
 	if err != nil {
 		utils.ErrExit("creating reports directory for backup: %v", err)
-	}
-
-	streamChangesMode, err = checkStreamingMode()
-	if err != nil {
-		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
 
 	saveSchemaAnalysisReport()
@@ -338,6 +338,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	// there won't be anything required to be cleaned up in source-db(Oracle) for debezium snapshot migration
 	// TODO: verify it for PG and MySQL
 	if !streamChangesMode {
+		utils.PrintAndLog("nothing to clean up in source db for snapshot migration")
 		return
 	}
 	utils.PrintAndLog("cleaning up voyager state from source db...")
@@ -348,13 +349,13 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	var err error
-	source.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	source.Password = sourceDBPassword
 	err = source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("connecting to source db: %v", err)
@@ -363,6 +364,20 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	err = source.DB().ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("clearing migration state from source db: %v", err)
+	}
+
+	deletePGReplicationSlot(msr, source)
+}
+
+func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGReplicationSlotName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
+		return
+	}
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
+	if err != nil {
+		utils.ErrExit("dropping PG replication slot name: %v", err)
 	}
 }
 
@@ -375,13 +390,13 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	tconf := msr.TargetDBConf
-	tconf.Password = targetDBPassword
 	if targetDBPassword == "" {
-		tconf.Password, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
+		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
 		}
 	}
+	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -451,13 +466,13 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
 	sourceReplicaconf := msr.SourceReplicaDBConf
-	sourceReplicaconf.Password = sourceReplicaDBPassword
 	if sourceReplicaDBPassword == "" {
-		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
+		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
+	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
 	err = sourceReplicaDB.Init()
 	if err != nil {
@@ -478,13 +493,13 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
-	fbconf.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		fbconf.Password, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
 	err = fbdb.Init()
 	if err != nil {

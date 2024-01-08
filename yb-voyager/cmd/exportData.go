@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -32,12 +33,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -170,6 +171,41 @@ func exportData() bool {
 			log.Errorf("Failed to prepare dbzm config: %v", err)
 			return false
 		}
+		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+			// pg live migration. Steps are as follows:
+			// 1. create replication slot.
+			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
+			// 3. start debezium with configration to read changes from the created replication slot.
+
+			if !dataIsExported() { // if snapshot is not already done...
+				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
+				if err != nil {
+					log.Errorf("export snapshot failed: %v", err)
+					return false
+				}
+			}
+
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("get migration status record: %v", err)
+			}
+
+			// Setting up sequence values for debezium to start tracking from..
+			sequenceValueMap, err := getPGDumpSequencesAndValues()
+			if err != nil {
+				utils.ErrExit("get pg dump sequence values: %v", err)
+			}
+
+			var sequenceInitValues strings.Builder
+			for seqName, seqValue := range sequenceValueMap {
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
+			}
+
+			config.SnapshotMode = "never"
+			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.InitSequenceMaxMapping = sequenceInitValues.String()
+		}
+
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -178,22 +214,31 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			err = markCutoverProcessed(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to create trigger file after data export: %v", err)
-			}
 			if isTargetDBExporter(exporterRole) {
 				err = ybCDCClient.DeleteStreamID()
 				if err != nil {
 					utils.ErrExit("failed to delete stream id after data export: %v", err)
 				}
 			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				msr, err := metaDB.GetMigrationStatusRecord()
+				if err != nil {
+					utils.ErrExit("get migration status record: %v", err)
+				}
+				deletePGReplicationSlot(msr, &source)
+			}
+
+			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
+			err = markCutoverProcessed(exporterRole)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
 	} else {
-		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList)
+		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
 			return false
@@ -201,6 +246,79 @@ func exportData() bool {
 		return true
 	}
 
+}
+
+func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+	// create replication slot
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	replicationConn, err := pgDB.GetReplicationConnection()
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+	}
+	// need to keep the replication connection open until snapshot is complete.
+	defer func() {
+		err := replicationConn.Close(context.Background())
+		if err != nil {
+			log.Errorf("close replication connection: %v", err)
+		}
+	}()
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	if err != nil {
+		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+	}
+	// pg_dump
+	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
+	if err != nil {
+		log.Errorf("Export Data failed: %v", err)
+		return err
+	}
+
+	// save replication slot in MSR
+	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.PGReplicationSlotName = res.SlotName
+		record.SnapshotMechanism = "pg_dump"
+	})
+	if err != nil {
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
+	}
+	setDataIsExported()
+	return nil
+}
+
+func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
+	result := map[*sqlname.SourceName]int64{}
+	path := filepath.Join(exportDir, "data", "postdata.sql")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		utils.ErrExit("read file %q: %v", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	// Sample line: SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
+
+	for _, line := range lines {
+		matches := setvalRegex.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+		argsIdx := setvalRegex.SubexpIndex("args")
+		if argsIdx > len(matches) {
+			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+		}
+		args := strings.Split(matches[argsIdx], ",")
+
+		seqNameRaw := args[0][1 : len(args[0])-1]
+		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+
+		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+		}
+
+		result[seqName] = seqVal
+	}
+	return result, nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
@@ -241,7 +359,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	return finalTableList, tablesColumnList
 }
 
-func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
+func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
 	fmt.Printf("num tables to export: %d\n", len(finalTableList))
 	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
@@ -273,7 +391,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)
-	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList)
+	go source.DB().ExportData(ctx, exportDir, finalTableList, quitChan, exportDataStart, exportSuccessChan, tablesColumnList, snapshotName)
 	// Wait for the export data to start.
 	<-exportDataStart
 
@@ -288,7 +406,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
-	displayExportedRowCountSnapshot()
+	displayExportedRowCountSnapshot(false)
 	return nil
 }
 
@@ -358,14 +476,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		schemas := strings.Split(source.Schema, "|")
-		if len(schemas) == 1 {
-			return source.Schema, false
-		} else if slices.Contains(schemas, "public") {
-			return "public", false
-		} else {
-			return "", true
-		}
+		return getDefaultPGSchema(source.Schema)
 	case ORACLE:
 		return source.Schema, false
 	default:

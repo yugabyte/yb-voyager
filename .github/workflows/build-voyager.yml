@@ -4,10 +4,10 @@ on:
   # Trigger on any tag starting with 'yb-voyager/v'
   create:
     tags:
-      - 'yb-voyager/v*'
+      - "yb-voyager/v*"
   # Manual Trigger
   workflow_dispatch:
-    inputs: 
+    inputs:
 
 jobs:
   build:
@@ -28,6 +28,12 @@ jobs:
         with:
           go-version: "1.20"
 
+      - name: Set up Java 17
+        uses: actions/setup-java@v2
+        with:
+          distribution: "temurin"
+          java-version: 17
+
       - name: Build Binary
         run: |
           cd yb-voyager
@@ -38,6 +44,14 @@ jobs:
             CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -o yb-voyager-darwin-arm64
           fi
 
+      - name: Build Debezium
+        run: |
+          if [ ${{ matrix.os }} == "ubuntu-latest" ]; then
+            cd installer_scripts
+            yes | ./install-yb-voyager --install-from-local-source
+            cat /tmp/install-yb-voyager.log
+          fi
+
       - name: Archive the files
         run: |
           cd yb-voyager
@@ -46,6 +60,7 @@ jobs:
             mv yb-voyager-linux-amd64 voyager-linux-amd64/yb-voyager
             cp ./src/srcdb/data/sample-ora2pg.conf voyager-linux-amd64/base-ora2pg.conf
             tar -czvf voyager-linux-amd64.tar.gz voyager-linux-amd64
+            tar -cvzf debezium-server.tar.gz -C /opt/yb-voyager debezium-server
 
           elif [ ${{ matrix.os }} == "macos-latest" ]; then   
             mkdir voyager-darwin-amd64
@@ -66,6 +81,6 @@ jobs:
             ./yb-voyager/voyager-linux-amd64.tar.gz
             ./yb-voyager/voyager-darwin-amd64.tar.gz
             ./yb-voyager/voyager-darwin-arm64.tar.gz
+            ./yb-voyager/debezium-server.tar.gz
           repo_token: ${{ github.token }}
           overwrite: true
-        

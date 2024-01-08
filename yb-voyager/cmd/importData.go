@@ -155,17 +155,12 @@ func startExportDataFromTargetIfRequired() {
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
-	var unqualifiedTableList []string
-	for _, qualifiedTableName := range tableListExportedFromSource {
-		// TODO: handle case sensitivity?
-		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	}
+	importTableList := getImportTableList(tableListExportedFromSource)
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
-		"--table-list", strings.Join(unqualifiedTableList, ","),
+		"--table-list", strings.Join(importTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if utils.DoNotPrompt {
@@ -179,13 +174,13 @@ func startExportDataFromTargetIfRequired() {
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", err)
+		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -369,14 +364,22 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+	if msr.SnapshotMechanism == "debezium" {
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+	} else {
+		valueConverter, err = dbzm.NewNoOpValueConverter()
+	}
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -412,10 +415,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
 	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
@@ -468,6 +467,10 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
+			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+			if err != nil {
+				utils.ErrExit("Failed to create value converter: %s", err)
+			}
 			err = streamChanges(state, importTableList)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
@@ -865,8 +868,8 @@ func newTargetConn() *pgx.Conn {
 	setTargetSchema(conn)
 
 	if sourceDBType == ORACLE && enableOrafce {
-        setOrafceSearchPath(conn)
-    }
+		setOrafceSearchPath(conn)
+	}
 
 	return conn
 }
@@ -1033,6 +1036,14 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
+	if tconf.TargetDBType == POSTGRESQL {
+		schemas := strings.Join(strings.Split(tconf.Schema, ","), "|")
+		defaultSchema, noDefaultSchema := getDefaultPGSchema(schemas)
+		if noDefaultSchema {
+			utils.ErrExit("no default schema for table %q ", tableName)
+		}
+		return defaultSchema
+	}
 	return tconf.Schema // default set to "public"
 }
 
@@ -1074,7 +1085,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 		dbType = sourceDBType
 	}
 	if sqlname.IsReservedKeywordPG(identifier) ||
-		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		((dbType == POSTGRESQL || dbType == YUGABYTEDB) && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier

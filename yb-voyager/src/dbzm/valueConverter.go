@@ -33,11 +33,11 @@ type ValueConverter interface {
 }
 
 func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (ValueConverter, error) {
-	if IsDebeziumForDataExport(exportDir) {
-		return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
-	} else {
-		return &NoOpValueConverter{}, nil
-	}
+	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
+}
+
+func NewNoOpValueConverter() (ValueConverter, error) {
+	return &NoOpValueConverter{}, nil
 }
 
 //============================================================================
@@ -157,8 +157,10 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	// TODO: handle case sensitivity/quoted table names..
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
+	} 
+	if conv.targetDBType != tgtdb.POSTGRESQL {
+		ev.SchemaName = conv.targetSchema
 	}
-	ev.SchemaName = conv.targetSchema
 	return nil
 }
 

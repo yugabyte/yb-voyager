@@ -33,7 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool) {
+func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri string, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart chan bool, exportSuccessChan chan bool, snapshotName string) {
 	defer utils.WaitGroup.Done()
 
 	pgDumpPath, err := GetAbsPathOfPGCommand("pg_dump")
@@ -47,6 +47,9 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 	pgDumpArgs.DataFormat = "directory"
 
 	args := getPgDumpArgsFromFile("data")
+	if snapshotName != "" {
+		args = fmt.Sprintf("%s --snapshot=%s", args, snapshotName)
+	}
 	cmd := fmt.Sprintf(`%s '%s' %s`, pgDumpPath, connectionUri, args)
 	log.Infof("Running command: %s", cmd)
 	var outbuf bytes.Buffer

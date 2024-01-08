@@ -45,6 +45,7 @@ type Config struct {
 	SchemaNames                 string
 	TableList                   []string
 	ColumnSequenceMapping       string
+	InitSequenceMaxMapping      string
 	TableRenameMapping          string
 	ColumnList                  []string
 	Uri                         string
@@ -62,6 +63,7 @@ type Config struct {
 	YBStreamID            string
 	YBMasterNodes         string
 	SnapshotMode          string
+	ReplicationSlotName   string
 }
 
 var baseConfigTemplate = `
@@ -92,6 +94,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.sequence.max.map=%s
 debezium.sink.ybexporter.tables.rename=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
@@ -117,6 +120,10 @@ debezium.source.database.sslcert=%s
 debezium.source.database.sslkey=%s
 debezium.source.database.sslpassword=
 debezium.source.database.sslrootcert=%s
+`
+
+var postgresReplicationSlotNameTemplate = `
+debezium.source.slot.name=%s
 `
 
 var postgresConfigTemplate = baseConfigTemplate +
@@ -250,6 +257,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -262,6 +270,9 @@ func (c *Config) String() string {
 			c.SSLKey,
 			c.SSLRootCert)
 		conf = conf + sslConf
+		if c.ReplicationSlotName != "" {
+			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName)
+		}
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,
 			c.Username,
@@ -277,6 +288,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -301,6 +313,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
@@ -330,6 +343,7 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
