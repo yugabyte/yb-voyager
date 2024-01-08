@@ -37,6 +37,7 @@ public class SequenceObjectUpdater {
         es.setSequenceMaxMap(this.sequenceMax);
     }
 
+    // columnSequenceMapstring: public.t1.id:public."t1_id_seq",public.cst1.id:public."cSS1"
     public void initColumnSequenceMap(String columnSequenceMapString){
         if (columnSequenceMapString == null){
             return;
@@ -60,6 +61,8 @@ public class SequenceObjectUpdater {
             this.sequenceMax.put(sequenceName, this.sequenceMax.getOrDefault(sequenceName, (long)0));
         }
     }
+
+    // initSequenceMapString: public."cSS1":4,public."t1_id_seq":9
     public void initSequenceMax(String initSequenceMapString, ConcurrentMap<String, Long> sequenceMax){
         this.sequenceMax = new ConcurrentHashMap<>();
         if (initSequenceMapString != null){

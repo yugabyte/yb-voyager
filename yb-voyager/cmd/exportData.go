@@ -278,36 +278,39 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 }
 
 func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
-	sequenceValueMap := map[*sqlname.SourceName]int64{}
-	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
-	seqeuencesTextFileDataBytes, err := os.ReadFile(sequenceFilePath)
+	result := map[*sqlname.SourceName]int64{}
+	path := filepath.Join(exportDir, "data", "postdata.sql")
+	data, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("read file %q: %v", sequenceFilePath, err)
+		utils.ErrExit("read file %q: %v", path, err)
 	}
 
-	sequencesTextFileData := strings.Split(string(seqeuencesTextFileDataBytes), "\n")
-	numLines := len(sequencesTextFileData)
+	lines := strings.Split(string(data), "\n")
+	// Sample line: SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
 	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
 
-	for i := 0; i < numLines; i++ {
-		matches := setvalRegex.FindStringSubmatch(sequencesTextFileData[i])
-		if len(matches) > 0 {
-			matchIndex := setvalRegex.SubexpIndex("args")
-			if matchIndex > len(matches) {
-				return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", matchIndex, matches, sequencesTextFileData[i])
-			}
-			setValArgs := matches[matchIndex]
-			setValArgsArr := strings.Split(setValArgs, ",")
-			seqVal, err := strconv.ParseInt(strings.TrimSpace(setValArgsArr[1]), 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("parse %s to int in line - %s: %v", setValArgsArr[1], sequencesTextFileData[i], err)
-			}
-			seqNameRaw := setValArgsArr[0][1 : len(setValArgsArr[0])-1]
-			seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
-			sequenceValueMap[seqName] = seqVal
+	for _, line := range lines {
+		matches := setvalRegex.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
 		}
+		argsIdx := setvalRegex.SubexpIndex("args")
+		if argsIdx > len(matches) {
+			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+		}
+		args := strings.Split(matches[argsIdx], ",")
+
+		seqNameRaw := args[0][1 : len(args[0])-1]
+		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+
+		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+		}
+
+		result[seqName] = seqVal
 	}
-	return sequenceValueMap, nil
+	return result, nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
