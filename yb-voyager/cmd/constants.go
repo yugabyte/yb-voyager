@@ -62,3 +62,5 @@ var validSSLModes = map[string][]string{
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
+
+var EVENT_BATCH_MAX_RETRY_COUNT = 10
