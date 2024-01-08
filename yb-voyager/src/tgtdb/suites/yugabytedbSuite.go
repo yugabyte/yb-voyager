@@ -29,6 +29,13 @@ import (
 // value converter Function type
 type ConverterFn func(v string, formatIfRequired bool) (string, error)
 
+func quoteValueIfRequired(value string, formatIfRequired bool) (string, error) {
+	if formatIfRequired {
+		return fmt.Sprintf("'%s'", value), nil
+	}
+	return value, nil
+}
+
 var YBValueConverterSuite = map[string]ConverterFn{
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
@@ -37,10 +44,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		date := time.Unix(int64(epochSecs), 0).UTC().Format(time.DateOnly)
-		if formatIfRequired {
-			date = fmt.Sprintf("'%s'", date)
-		}
-		return date, nil
+		return quoteValueIfRequired(date, formatIfRequired)
 	},
 	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
@@ -49,10 +53,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSecs := epochMilliSecs / 1000
 		timestamp := time.Unix(epochSecs, 0).UTC().Format(time.DateTime)
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return quoteValueIfRequired(timestamp, formatIfRequired)
 	},
 	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
@@ -62,10 +63,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999")
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return quoteValueIfRequired(timestamp, formatIfRequired)
 	},
 	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
@@ -75,18 +73,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999999")
-		if formatIfRequired {
-			timestamp = fmt.Sprintf("'%s'", timestamp)
-		}
-		return timestamp, nil
+		return quoteValueIfRequired(timestamp, formatIfRequired)
 	},
-	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
-		// no transformation as columnValue is formatted string from debezium by default
-		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
-		}
-		return columnValue, nil
-	},
+	"io.debezium.time.ZonedTimestamp": quoteValueIfRequired,
 	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
@@ -94,10 +83,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		epochSecs := epochMilliSecs / 1000
 		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
-		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
-		}
-		return timeValue, nil
+		return quoteValueIfRequired(timeValue, formatIfRequired)
 	},
 	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
@@ -108,10 +94,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		MICRO_TIME_FORMAT := "15:04:05.000000"
 		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
-		if formatIfRequired {
-			timeValue = fmt.Sprintf("'%s'", timeValue)
-		}
-		return timeValue, nil
+		return quoteValueIfRequired(timeValue, formatIfRequired)
 	},
 	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
@@ -189,24 +172,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			return columnValue, nil
 		}
 	},
-	"io.debezium.data.Json": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			return fmt.Sprintf("'%s'", columnValue), nil
-		} else {
-			return columnValue, nil
-		}
-	},
-	"io.debezium.data.Enum": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			return fmt.Sprintf("'%s'", columnValue), nil
-		} else {
-			return columnValue, nil
-		}
-	},
-	"io.debezium.time.Interval": func(columnValue string, formatIfRequired bool) (string, error) {
-		if formatIfRequired {
-			columnValue = fmt.Sprintf("'%s'", columnValue)
-		}
-		return columnValue, nil
-	},
+	"io.debezium.data.Json": quoteValueIfRequired,
+	"io.debezium.data.Enum": quoteValueIfRequired,
+	"io.debezium.time.Interval": quoteValueIfRequired,
 }
