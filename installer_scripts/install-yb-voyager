@@ -351,7 +351,7 @@ install_debezium_server_voyager_plugin_local() {
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	# build
-	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter > /dev/null
 	mvn -ntp clean install -Dquick -f ${pom}  1>&2
 
 	popd > /dev/null
@@ -438,9 +438,9 @@ rebuild_voyager_local() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpv", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
-		OPTS=$(getopt  lp  $ARGS_MACOS)
+		OPTS=$(getopt  lpv  $ARGS_MACOS)
 	fi
 
 	eval set -- "$OPTS"
@@ -455,7 +455,7 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			--rebuild-voyager-local )
+			-v | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
 				;;
