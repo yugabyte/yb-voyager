@@ -21,6 +21,8 @@ import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.server.BaseChangeConsumer;
 
+import static io.debezium.server.ybexporter.SequenceObjectUpdater.initSequenceMaxpropertyName;
+
 /**
  * Implementation of the consumer that exports the messages to file in a Yugabyte-compatible form.
  */
@@ -68,7 +70,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         parser = new KafkaConnectRecordParser(dataDir, sourceType, tableMap);
         String propertyVal = PROP_PREFIX + SequenceObjectUpdater.propertyName;
         String columnSequenceMapString = config.getOptionalValue(propertyVal, String.class).orElse(null);
-        sequenceObjectUpdater = new SequenceObjectUpdater(dataDir, sourceType, columnSequenceMapString, exportStatus.getSequenceMaxMap());
+        String sequenceMaxMapString = config.getOptionalValue(PROP_PREFIX + SequenceObjectUpdater.initSequenceMaxpropertyName, String.class).orElse(null);
+        sequenceObjectUpdater = new SequenceObjectUpdater(dataDir, sourceType, columnSequenceMapString, sequenceMaxMapString, exportStatus.getSequenceMaxMap());
         recordTransformer = new DebeziumRecordTransformer();
 
         flusherThread = new Thread(this::flush);

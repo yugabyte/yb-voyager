@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -189,8 +190,20 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			// Setting up sequence values for debezium to start tracking from..
+			sequenceValueMap, err := getPGDumpSequencesAndValues()
+			if err != nil {
+				utils.ErrExit("get pg dump sequence values: %v", err)
+			}
+
+			var sequenceInitValues strings.Builder
+			for seqName, seqValue := range sequenceValueMap {
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
+			}
+
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
@@ -270,6 +283,42 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	}
 	setDataIsExported()
 	return nil
+}
+
+func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
+	result := map[*sqlname.SourceName]int64{}
+	path := filepath.Join(exportDir, "data", "postdata.sql")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		utils.ErrExit("read file %q: %v", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	// Sample line: SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
+
+	for _, line := range lines {
+		matches := setvalRegex.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+		argsIdx := setvalRegex.SubexpIndex("args")
+		if argsIdx > len(matches) {
+			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+		}
+		args := strings.Split(matches[argsIdx], ",")
+
+		seqNameRaw := args[0][1 : len(args[0])-1]
+		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+
+		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+		}
+
+		result[seqName] = seqVal
+	}
+	return result, nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {

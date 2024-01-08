@@ -328,7 +328,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
 		}
-		sequenceNames = append(sequenceNames, fmt.Sprintf("%s.%s", sequenceSchema, sequenceName))
+		sequenceNames = append(sequenceNames, fmt.Sprintf(`%s."%s"`, sequenceSchema, sequenceName))
 	}
 	return sequenceNames
 }
