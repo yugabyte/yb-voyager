@@ -5,6 +5,9 @@
  */
 package io.debezium.server.ybexporter;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -17,52 +20,55 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class EventCache {
+public class EventDupCache {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventQueue.class);
     private static final String EOF_MARKER = "\\.";
     String dataDir;
-    private LinkedList<String> eventQueue = new LinkedList<>();
-    private Set<Integer> hashCache = new HashSet<>();
+    private LinkedList<String> mostRecentIdFirstList = new LinkedList<>();
+    private Set<Integer> cache = new HashSet<>();
     private long currentQueueSegmentIndex = 0;
     private static final String QUEUE_SEGMENT_FILE_NAME = "segment";
     private static final String QUEUE_SEGMENT_FILE_EXTENSION = "ndjson";
     private static final String QUEUE_FILE_DIR = "queue";
-    private long maxCacheSize = 10000;
-    private QueueSegment currentQueueSegment;
+    private long maxCacheSize = 1000000;
+    private String currentQueueSegmentPath;
 
-    public EventCache(String dataDir) {
+    public EventDupCache(String dataDir) {
         this.dataDir = dataDir;
-        recoverCacheFromDisk();
     }
 
-    public void recoverCacheFromDisk() {
-        hashCache = new HashSet<>();
+    public void warmUp() {
+        cache = new HashSet<>();
         recoverLatestQueueSegment();
-        if (currentQueueSegment == null) {
+        if (currentQueueSegmentPath == null) {
             LOGGER.info("No queue segment found. Nothing to recover into event cache");
             return;
         }
         while (true) {
-            String events = currentQueueSegment.readAllEvents();
-            if (events == null) {
-                // Segment is empty
-                break;
-            }
-            String[] eventArray = events.split("\n");
-            for (int i = eventArray.length - 1; i >= 0; i--) {
-                if (eventArray[i].equals(EOF_MARKER) || eventArray[i].isEmpty() || eventArray[i].isBlank()) {
-                    continue;
+            try (ReverseFileReader reverseReader = new ReverseFileReader(currentQueueSegmentPath)) {
+                while (reverseReader.hasNext()) {
+                    String event = reverseReader.nextLine();
+                    if (event == null) {
+                        // Segment is empty
+                        break;
+                    }
+                    if (event.equals(EOF_MARKER) || event.isEmpty() || event.isBlank()) {
+                        continue;
+                    }
+                    String cacheMetadata = getCacheMetadata(event);
+                    if (cacheMetadata == null) {
+                        continue;
+                    }
+                    cache.add(cacheMetadata.hashCode());
+                    mostRecentIdFirstList.addLast(cacheMetadata);
+                    if (cache.size() >= maxCacheSize) {
+                        break;
+                    }
                 }
-
-                String cacheMetadata = getCacheMetadata(eventArray[i]);
-                hashCache.add(cacheMetadata.hashCode());
-                eventQueue.addLast(cacheMetadata);
-                if (hashCache.size() >= maxCacheSize) {
-                    break;
-                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
             }
-
-            if (hashCache.size() >= maxCacheSize) {
+            if (cache.size() >= maxCacheSize) {
                 break;
             }
 
@@ -72,10 +78,9 @@ public class EventCache {
                 // No more segments to read
                 break;
             }
-            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex,
-                    getFilePathWithIndex(currentQueueSegmentIndex));
+            currentQueueSegmentPath = getFilePathWithIndex(currentQueueSegmentIndex);
         }
-        LOGGER.info("Recovered {} events into event cache", hashCache.size());
+        LOGGER.info("Recovered {} events into event cache", cache.size());
     }
 
     private String getFilePathWithIndex(long index) {
@@ -105,6 +110,7 @@ public class EventCache {
             Path maxIndexPath = null;
             for (Path p : filePaths) {
                 String filename = p.getFileName().toString();
+                // Example filename: segment.0.ndjson
                 String indexStr = filename.substring(QUEUE_SEGMENT_FILE_NAME.length() + 1,
                         filename.length() - (QUEUE_SEGMENT_FILE_EXTENSION.length() + 1));
                 long index = Long.parseLong(indexStr);
@@ -113,55 +119,44 @@ public class EventCache {
                     maxIndexPath = p;
                 }
             }
-            // create queue segment for last file segment
+            currentQueueSegmentPath = maxIndexPath.toString();
             currentQueueSegmentIndex = maxIndex;
-            currentQueueSegment = new QueueSegment(dataDir, currentQueueSegmentIndex, maxIndexPath.toString());
-
-            LOGGER.info("Starting to recover event cache from queue segment-{} with byte count={}", maxIndexPath,
-                    currentQueueSegment.getByteCount());
         } catch (IOException x) {
             throw new RuntimeException(x);
         }
     }
 
     public boolean isEventInCache(String event) {
-        return hashCache.contains(event.hashCode());
+        return cache.contains(event.hashCode());
     }
 
     public void addEventToCache(String event) {
         // Check if cache is full. If full, remove oldest event from cache and add new
         // event
-        if (hashCache.size() >= maxCacheSize) {
-            LOGGER.info("Event cache is full. Removing oldest event from cache");
-            String oldestEvent = eventQueue.removeLast();
-            LOGGER.info("Removing event from cache: {}", oldestEvent);
-            hashCache.remove(oldestEvent.hashCode());
+        if (cache.size() >= maxCacheSize) {
+            String oldestEvent = mostRecentIdFirstList.removeLast();
+            cache.remove(oldestEvent.hashCode());
         }
-        hashCache.add(event.hashCode());
-        eventQueue.addFirst(event);
+        cache.add(event.hashCode());
+        mostRecentIdFirstList.addFirst(event);
     }
 
     public long getCacheSize() {
-        return hashCache.size();
+        return cache.size();
     }
 
     private String getCacheMetadata(String event) {
-        String cacheMetadata = null;
-        // Find the index of "cacheMetadata" in the string
-        int startIndex = event.indexOf("\"cacheMetadata\":\"");
-        if (startIndex != -1) {
-            // Adjust the starting index to exclude the field name
-            startIndex += "\"cacheMetadata\":\"".length();
-
-            // Find the closing double quote after the value of cacheMetadata
-            int endIndex = event.indexOf("\"", startIndex);
-
-            if (endIndex != -1) {
-                // Extract the value of cacheMetadata
-                cacheMetadata = event.substring(startIndex, endIndex);
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            JsonNode jsonNode = mapper.readTree(event);
+            JsonNode cacheMetadataNode = jsonNode.get("event_id");
+            if (cacheMetadataNode == null) {
+                return null;
             }
+            return cacheMetadataNode.asText();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        return cacheMetadata;
     }
 
 }

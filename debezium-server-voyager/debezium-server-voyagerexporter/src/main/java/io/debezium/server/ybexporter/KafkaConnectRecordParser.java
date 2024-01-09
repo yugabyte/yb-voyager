@@ -76,7 +76,7 @@ class KafkaConnectRecordParser implements RecordParser {
      * that contains the relevant field schemas and values.
      */
     @Override
-    public Record parseRecord(Object keyObj, Object valueObj, Object eventCacheObj) {
+    public Record parseRecord(Object keyObj, Object valueObj) {
         try {
             r.clear();
 
@@ -105,7 +105,13 @@ class KafkaConnectRecordParser implements RecordParser {
                 // Extract transaction struct from value if it is available
                 Struct transaction = value.getStruct("transaction");
                 if (transaction != null) {
-                    r.cacheMetadata = transaction.toString();
+                    // Transaction metadata =>
+                    // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
+                    // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
+                    String transactionId = transaction.getString("id");
+                    String totalOrder = String.valueOf(transaction.getInt64("total_order"));
+                    String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
+                    r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
                 }
             }
 

@@ -6,5 +6,5 @@
 package io.debezium.server.ybexporter;
 
 public interface RecordParser {
-    Record parseRecord(Object key, Object value, Object eventCache);
+    Record parseRecord(Object key, Object value);
 }

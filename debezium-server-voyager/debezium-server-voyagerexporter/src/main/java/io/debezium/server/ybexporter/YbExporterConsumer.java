@@ -46,7 +46,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private ExportStatus exportStatus;
     private SequenceObjectUpdater sequenceObjectUpdater;
     private RecordTransformer recordTransformer;
-    private EventCache eventCache;
+    private EventDupCache eventDupCache;
     Thread flusherThread;
     boolean shutDown = false;
 
@@ -203,7 +203,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             Object objVal = event.value();
 
             // PARSE
-            var r = parser.parseRecord(objKey, objVal, eventCache);
+            var r = parser.parseRecord(objKey, objVal);
             if (!checkIfEventNeedsToBeWritten(r)) {
                 committer.markProcessed(event);
                 continue;
@@ -225,8 +225,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                     }
                     writer.writeRecord(r);
                     // Add to cache
-                    if (eventCache != null && sourceType.equals("oracle")) {
-                        eventCache.addEventToCache(r.cacheMetadata);
+                    if (eventDupCache != null && sourceType.equals("oracle")) {
+                        eventDupCache.addEventToCache(r.eventId);
                     }
                 }
             } else {
@@ -261,9 +261,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.debug("Skipping unsupported record {}", r);
             return false;
         }
-        if (eventCache != null && sourceType.equals("oracle")) {
-            if (eventCache.isEventInCache(r.cacheMetadata)) {
-                LOGGER.info("Event already in cache. Skipping - {}", r.valueValues);
+        if (eventDupCache != null && sourceType.equals("oracle")) {
+            if (eventDupCache.isEventInCache(r.eventId)) {
                 return false;
             }
         }
@@ -322,7 +321,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
-        eventCache = new EventCache(dataDir);
+        eventDupCache = new EventDupCache(dataDir);
+        eventDupCache.warmUp();
     }
 
     private void handleSnapshotOnlyComplete() {
