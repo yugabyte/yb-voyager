@@ -20,7 +20,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class EventDupCache {
+public class EventDedupCache {
     private static final Logger LOGGER = LoggerFactory.getLogger(EventQueue.class);
     private static final String EOF_MARKER = "\\.";
     String dataDir;
@@ -33,7 +33,7 @@ public class EventDupCache {
     private long maxCacheSize = 1000000;
     private String currentQueueSegmentPath;
 
-    public EventDupCache(String dataDir) {
+    public EventDedupCache(String dataDir) {
         this.dataDir = dataDir;
     }
 
