@@ -36,6 +36,7 @@ type MigrationStatusRecord struct {
 	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
 	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
 	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 }
 
