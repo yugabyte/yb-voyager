@@ -170,10 +170,10 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (!valueAndSet.getBoolean("set")){
                     continue;
                 }
-                fieldValue = valueAndSet.get("value");
+                fieldValue = valueAndSet.getWithoutDefault("value");
             }
             else{
-                fieldValue = key.get(f);
+                fieldValue = key.getWithoutDefault(f.name());
             }
             r.addKeyField(f.name(), fieldValue);
 
@@ -213,7 +213,7 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (!valueAndSet.getBoolean("set")){
                     continue;
                 }
-                fieldValue = valueAndSet.get("value");
+                fieldValue = valueAndSet.getWithoutDefault("value");
             }
             else{
                 if (r.op.equals("u")) {
@@ -222,7 +222,7 @@ class KafkaConnectRecordParser implements RecordParser {
                         continue;
                     }
                 }
-                fieldValue = after.get(f);
+                fieldValue = after.getWithoutDefault(f.name());
             }
 
             r.addValueField(f.name(), fieldValue);
