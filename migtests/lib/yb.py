@@ -211,13 +211,9 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
 		all_values = [value[0] for value in cur.fetchall()]
-		for value in all_values:
-			if transform_func:
-				transformed_value = transform_func(value) if value else value
-			else:
-				transformed_distinct_value = value
-			print(f"{transformed_value}")
-			assert transformed_value in expected_values
+		if transform_func:
+			all_values [transform_func(value) if value else value for value in all_values]
+		assert sorted(all_values) == sorted(expected_values)
 
 	def get_available_extensions(self) -> List[str]:
 		cur = self.conn.cursor()
