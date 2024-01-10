@@ -88,7 +88,7 @@ def migration_completed_checks(tgt):
 	print("null_and_default:")
 	tgt.assert_all_values_of_col("null_and_default", "val", "public", expected_values=["testdefault", None])
 	tgt.assert_all_values_of_col("null_and_default", "i", "public", expected_values=[10, None])
-	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[false, None])
+	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[False, None])
 
 if __name__ == "__main__":
 	main()

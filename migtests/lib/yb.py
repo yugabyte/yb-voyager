@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import Any, Dict, List
+from collections import Counter
 from xmlrpc.client import boolean
 import psycopg2
 
@@ -212,8 +213,8 @@ class PostgresDB:
 		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
 		all_values = [value[0] for value in cur.fetchall()]
 		if transform_func:
-			all_values [transform_func(value) if value else value for value in all_values]
-		assert sorted(all_values) == sorted(expected_values)
+			all_values = [transform_func(value) if value else value for value in all_values]
+		assert Counter(all_values) == Counter(expected_values)
 
 	def get_available_extensions(self) -> List[str]:
 		cur = self.conn.cursor()
