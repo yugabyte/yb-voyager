@@ -62,3 +62,8 @@ insert into datatypes2 values (null,B'1'::bit(10),null, '{{“FD”}, {"act"}}')
 
 select * from datatypes2;
 
+drop table if exists null_and_default;
+create table null_and_default(id int PRIMARY KEY, b boolean default false, i int default 10, val varchar default 'testdefault');
+insert into null_and_default (id) VALUES (1);
+insert into null_and_default VALUES(2, NULL, NULL, NULL);
+

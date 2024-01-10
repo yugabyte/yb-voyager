@@ -14,6 +14,7 @@ EXPECTED_ROW_COUNT = {
 	'datetime_type': 3, 
 	'datatypes2': 3,
 	'datetime_type2': 2, 
+	'null_and_default' :2,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -84,7 +85,10 @@ def migration_completed_checks(tgt):
 	tgt.assert_distinct_values_of_col("datetime_type2", "v1", "public", 
 		transform_func=str, expected_distinct_values=['2022-11-01 15:55:58.091241', '2022-11-01 15:58:02'])
 	
-		
+	print("null_and_default:")
+	tgt.assert_all_values_of_col("null_and_default", "val", "public", expected_values=["testdefault", None])
+	tgt.assert_all_values_of_col("null_and_default", "i", "public", expected_values=[10, None])
+	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[false, None])
 
 if __name__ == "__main__":
 	main()
