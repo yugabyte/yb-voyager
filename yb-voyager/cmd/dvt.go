@@ -12,8 +12,8 @@ import (
 )
 
 var dvtColumnCommand = &cobra.Command{
-	Use:   "get-dvt-validate-column-commands",
-	Short: "get-dvt-validate-column-commands",
+	Use:   "gen-dvt-commands",
+	Short: "gen-dvt-commands",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if utils.IsDirectoryEmpty(exportDir) {
