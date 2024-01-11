@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -69,7 +70,6 @@ public class ExportStatus {
     private static String EVENT_STATS_PER_TABLE_TABLE_NAME = "exported_events_stats_per_table";
     private static String JSON_OBJECTS_TABLE_NAME = "json_objects";
 
-
     /**
      * Should only be called once in the lifetime of the process.
      * Creates and instance and assigns it to static instance property of the class.
@@ -84,7 +84,8 @@ public class ExportStatus {
         f = new File(getFilePath(datadirStr));
 
         // open connection to metadataDB
-        // TODO: interpret config vars once and make them globally available to all classes
+        // TODO: interpret config vars once and make them globally available to all
+        // classes
         final Config config = ConfigProvider.getConfig();
         runId = config.getValue("debezium.sink.ybexporter.run.id", String.class);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
@@ -92,7 +93,7 @@ public class ExportStatus {
         schemaCount = schemas.split(",").length;
 
         metadataDBPath = config.getValue("debezium.sink.ybexporter.metadata.db.path", String.class);
-        if (metadataDBPath == null){
+        if (metadataDBPath == null) {
             throw new RuntimeException("please provide value for debezium.sink.ybexporter.metadata.db.path.");
         }
         metadataDBConn = null;
@@ -109,16 +110,16 @@ public class ExportStatus {
 
         // mkdir schemas
         File schemasRootDir = new File(String.format("%s/%s", dataDir, "schemas"));
-        if (!schemasRootDir.exists()){
+        if (!schemasRootDir.exists()) {
             boolean dirCreated = new File(String.format("%s/%s", dataDir, "schemas")).mkdir();
-            if (!dirCreated){
+            if (!dirCreated) {
                 throw new RuntimeException("failed to create dir for schemas");
             }
         }
         File schemasDir = new File(String.format("%s/%s/%s", dataDir, "schemas", exporterRole));
-        if (!schemasDir.exists()){
+        if (!schemasDir.exists()) {
             boolean dirCreated = schemasDir.mkdir();
-            if (!dirCreated){
+            if (!dirCreated) {
                 throw new RuntimeException("failed to create dir for schemas");
             }
         }
@@ -130,6 +131,7 @@ public class ExportStatus {
      * 1. Tries to check if an instance is already created
      * 2. If not, tries to load from disk.
      * 3. If not available on disk, creates a new instance.
+     * 
      * @param datadirStr - data directory
      * @return instance
      */
@@ -149,7 +151,7 @@ public class ExportStatus {
         return mode;
     }
 
-    public void updateTableSchema(Table t){
+    public void updateTableSchema(Table t) {
         ObjectMapper schemaMapper = new ObjectMapper();
         schemaMapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
         ObjectWriter schemaWriter = schemaMapper.writer().withDefaultPrettyPrinter();
@@ -159,7 +161,7 @@ public class ExportStatus {
         tableSchema.put("columns", fields);
         try {
             String fileName = t.tableName;
-            if ((sourceType.equals("postgresql")) && (!t.schemaName.equals("public"))){
+            if ((sourceType.equals("postgresql")) && (!t.schemaName.equals("public"))) {
                 fileName = t.schemaName + "." + fileName;
             }
             String schemaFilePath = String.format("%s/schemas/%s/%s_schema.json", dataDir, exporterRole, fileName);
@@ -183,11 +185,11 @@ public class ExportStatus {
         mode = modeEnum;
     }
 
-    public void setSequenceMaxMap(ConcurrentMap<String, Long> sequenceMax){
+    public void setSequenceMaxMap(ConcurrentMap<String, Long> sequenceMax) {
         this.sequenceMax = sequenceMax;
     }
 
-    public ConcurrentMap<String, Long> getSequenceMaxMap(){
+    public ConcurrentMap<String, Long> getSequenceMaxMap() {
         return this.sequenceMax;
     }
 
@@ -215,22 +217,22 @@ public class ExportStatus {
 
         try {
             // for atomic write, we write to a temp file, and then
-            // rename to destination file path. This prevents readers from reading the file in a corrupted
+            // rename to destination file path. This prevents readers from reading the file
+            // in a corrupted
             // state (for example, when the complete file has not been written)
             tempf = new File(getTempFilePath());
             ow.writeValue(tempf, exportStatusMap);
             Files.move(tempf.toPath(), f.toPath(), REPLACE_EXISTING);
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static String getFilePath(String dataDirStr){
+    private static String getFilePath(String dataDirStr) {
         return String.format("%s/%s", dataDirStr, EXPORT_STATUS_FILE_NAME);
     }
 
-    private String getTempFilePath(){
+    private String getTempFilePath() {
         return getFilePath(dataDir) + ".tmp";
     }
 
@@ -252,43 +254,59 @@ public class ExportStatus {
 
             var tablesJson = exportStatusJson.get("tables");
             for (var tableJson : tablesJson) {
-                // TODO: creating a duplicate table here. it will again be created when parsing a record of the table for the first time.
-                Table t = new Table(tableJson.get("database_name").asText(), tableJson.get("schema_name").asText(), tableJson.get("table_name").asText());
+                // TODO: creating a duplicate table here. it will again be created when parsing
+                // a record of the table for the first time.
+                Table t = new Table(tableJson.get("database_name").asText(), tableJson.get("schema_name").asText(),
+                        tableJson.get("table_name").asText());
 
-                TableExportStatus tes = new TableExportStatus(tableJson.get("sno").asInt(), tableJson.get("file_name").asText());
+                TableExportStatus tes = new TableExportStatus(tableJson.get("sno").asInt(),
+                        tableJson.get("file_name").asText());
                 tes.exportedRowCountSnapshot = tableJson.get("exported_row_count_snapshot").asLong();
                 es.tableExportStatusMap.put(t, tes);
             }
             var sequencesJson = exportStatusJson.get("sequences");
             var sequencesIterator = sequencesJson.fields();
             ConcurrentHashMap<String, Long> sequenceMaxMap = new ConcurrentHashMap<>();
-            while (sequencesIterator.hasNext()){
+            while (sequencesIterator.hasNext()) {
                 var entry = sequencesIterator.next();
                 sequenceMaxMap.put(entry.getKey(), Long.valueOf(entry.getValue().asText()));
             }
             es.setSequenceMaxMap(sequenceMaxMap);
 
             return es;
-        }
-        catch (IOException e) {
+        } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    // TODO: refactor to retrieve config from a static class instead of having to set/pass it to each class.
+    // TODO: refactor to retrieve config from a static class instead of having to
+    // set/pass it to each class.
     public void setSourceType(String sourceType) {
         this.sourceType = sourceType;
     }
 
-    public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize, Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
+    public void updateQueueSegmentMetaInfo(long segmentNo, long committedSize,
+            Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
         final boolean oldAutoCommit = metadataDBConn.getAutoCommit();
         metadataDBConn.setAutoCommit(false);
         int updatedRows;
+        // get total new events
+        int total_new_events = 0;
+        for (var entry : eventCountDeltaPerTable.entrySet()) {
+            Map<String, Long> eventCountDeltaTable = entry.getValue();
+            total_new_events += eventCountDeltaTable.getOrDefault("c", 0L)
+                    + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
+        }
         try {
             Statement queueMetaUpdateStmt = metadataDBConn.createStatement();
-            updatedRows = queueMetaUpdateStmt.executeUpdate(String.format("UPDATE %s SET size_committed = %d WHERE segment_no=%d", QUEUE_SEGMENT_META_TABLE_NAME, committedSize, segmentNo));
-            if (updatedRows != 1){
-                throw new RuntimeException(String.format("Update of queue segment metadata failed with query-%s, rowsAffected -%d", queueMetaUpdateStmt, updatedRows));
+            updatedRows = queueMetaUpdateStmt
+                    .executeUpdate(String.format(
+                            "UPDATE %s SET size_committed = %d, total_events = total_events + %d WHERE segment_no=%d",
+                            QUEUE_SEGMENT_META_TABLE_NAME, committedSize, total_new_events, segmentNo));
+            if (updatedRows != 1) {
+                throw new RuntimeException(
+                        String.format("Update of queue segment metadata failed with query-%s, rowsAffected -%d",
+                                queueMetaUpdateStmt, updatedRows));
             }
             queueMetaUpdateStmt.close();
             updateEventsStats(metadataDBConn, eventCountDeltaPerTable);
@@ -296,7 +314,8 @@ public class ExportStatus {
         } catch (SQLException e) {
             metadataDBConn.rollback();
             throw new RuntimeException(String.format("Failed to  update queue segment meta and stats " +
-                    "- segmentNo: %d, committedSize:%d, eventCount:%s", segmentNo, committedSize, eventCountDeltaPerTable), e);
+                    "- segmentNo: %d, committedSize:%d, eventCount:%s", segmentNo, committedSize,
+                    eventCountDeltaPerTable), e);
         } finally {
             metadataDBConn.commit();
             metadataDBConn.setAutoCommit(oldAutoCommit);
@@ -307,12 +326,12 @@ public class ExportStatus {
     public boolean checkIfSwitchOperationRequested(String operation) throws SQLException {
         Statement selectStmt = metadataDBConn.createStatement();
         String query = String.format("SELECT json_text from %s where key = '%s'",
-            JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
+                JSON_OBJECTS_TABLE_NAME, MIGRATION_STATUS_KEY);
         try {
             ResultSet rs = selectStmt.executeQuery(query);
             while (rs.next()) {
                 MigrationStatusRecord msr = MigrationStatusRecord.fromJsonString(rs.getString("json_text"));
-                switch(operation.toString()) {
+                switch (operation.toString()) {
                     case "cutover.target":
                         return msr.CutoverToTargetRequested;
                     case "cutover.source_replica":
@@ -347,7 +366,8 @@ public class ExportStatus {
         return false;
     }
 
-    private void updateEventsStats(Connection conn, Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
+    private void updateEventsStats(Connection conn,
+            Map<Pair<String, String>, Map<String, Long>> eventCountDeltaPerTable) throws SQLException {
         int updatedRows;
 
         long numTotalDelta = 0;
@@ -360,16 +380,19 @@ public class ExportStatus {
             Statement tableWiseStatsUpdateStmt = conn.createStatement();
             Pair<String, String> tableQualifiedName = entry.getKey();
             String schemaName = tableQualifiedName.getLeft();
-            if (schemaCount <= 1){
-                schemaName = ""; // in case there is only one schema in question, we need not fully qualify the table name.
+            if (schemaCount <= 1) {
+                schemaName = ""; // in case there is only one schema in question, we need not fully qualify the
+                                 // table name.
             }
             Map<String, Long> eventCountDeltaTable = entry.getValue();
-            Long numTotalDeltaTable = eventCountDeltaTable.getOrDefault("c", 0L) + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
+            Long numTotalDeltaTable = eventCountDeltaTable.getOrDefault("c", 0L)
+                    + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
             String updateQuery = String.format("UPDATE %s set num_total = num_total + %d," +
-                            " num_inserts = num_inserts + %d," +
-                            " num_updates = num_updates + %d," +
-                            " num_deletes = num_deletes + %d" +
-                            " WHERE schema_name = '%s' and table_name = '%s' AND exporter_role = '%s'", EVENT_STATS_PER_TABLE_TABLE_NAME,
+                    " num_inserts = num_inserts + %d," +
+                    " num_updates = num_updates + %d," +
+                    " num_deletes = num_deletes + %d" +
+                    " WHERE schema_name = '%s' and table_name = '%s' AND exporter_role = '%s'",
+                    EVENT_STATS_PER_TABLE_TABLE_NAME,
                     numTotalDeltaTable,
                     eventCountDeltaTable.getOrDefault("c", 0L),
                     eventCountDeltaTable.getOrDefault("u", 0L),
@@ -378,19 +401,22 @@ public class ExportStatus {
                     tableQualifiedName.getRight(),
                     exporterRole);
             updatedRows = tableWiseStatsUpdateStmt.executeUpdate(updateQuery);
-            if (updatedRows == 0){
+            if (updatedRows == 0) {
                 // need to insert for the first time
                 Statement insertStatment = conn.createStatement();
-                String insertQuery = String.format("INSERT INTO %s (exporter_role, schema_name, table_name, num_total, num_inserts, num_updates, num_deletes) " +
-                                "VALUES('%s', '%s', '%s', %d, %d, %d, %d)", EVENT_STATS_PER_TABLE_TABLE_NAME, exporterRole, schemaName, tableQualifiedName.getRight(),
+                String insertQuery = String.format(
+                        "INSERT INTO %s (exporter_role, schema_name, table_name, num_total, num_inserts, num_updates, num_deletes) "
+                                +
+                                "VALUES('%s', '%s', '%s', %d, %d, %d, %d)",
+                        EVENT_STATS_PER_TABLE_TABLE_NAME, exporterRole, schemaName, tableQualifiedName.getRight(),
                         numTotalDeltaTable,
                         eventCountDeltaTable.getOrDefault("c", 0L),
                         eventCountDeltaTable.getOrDefault("u", 0L),
                         eventCountDeltaTable.getOrDefault("d", 0L));
                 insertStatment.executeUpdate(insertQuery);
-            }
-            else if (updatedRows != 1){
-                throw new RuntimeException(String.format("Update of table wise stats failed with query-%s, rowsAffected -%d", updateQuery, updatedRows));
+            } else if (updatedRows != 1) {
+                throw new RuntimeException(String.format(
+                        "Update of table wise stats failed with query-%s, rowsAffected -%d", updateQuery, updatedRows));
             }
             numTotalDelta += numTotalDeltaTable;
             numInsertsDelta += eventCountDeltaTable.getOrDefault("c", 0L);
@@ -400,35 +426,39 @@ public class ExportStatus {
 
         // update overall stats
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
-        LocalDateTime nowFlooredToNearest10s = now.minusSeconds(now.getSecond()%10);
+        LocalDateTime nowFlooredToNearest10s = now.minusSeconds(now.getSecond() % 10);
         Long nowFlooredToNearest10sEpoch = nowFlooredToNearest10s.toEpochSecond(ZoneOffset.UTC);
         Statement updateStatement = conn.createStatement();
         String updateQuery = String.format("UPDATE %s set num_total = num_total + %d," +
-                        " num_inserts = num_inserts + %d," +
-                        " num_updates = num_updates + %d," +
-                        " num_deletes = num_deletes + %d" +
-                        " WHERE run_id = '%s' AND exporter_role='%s' AND timestamp = %d", EVENT_STATS_TABLE_NAME,
+                " num_inserts = num_inserts + %d," +
+                " num_updates = num_updates + %d," +
+                " num_deletes = num_deletes + %d" +
+                " WHERE run_id = '%s' AND exporter_role='%s' AND timestamp = %d", EVENT_STATS_TABLE_NAME,
                 numTotalDelta, numInsertsDelta, numUpdatesDelta, numDeletesDelta,
                 runId, exporterRole, nowFlooredToNearest10sEpoch);
         updatedRows = updateStatement.executeUpdate(updateQuery);
-        if (updatedRows == 0){
+        if (updatedRows == 0) {
             // first insert for the minute.
             Statement insertStatment = conn.createStatement();
-            String insertQuery = String.format("INSERT INTO %s (run_id, exporter_role, timestamp, num_total, num_inserts, num_updates, num_deletes) " +
-                            "VALUES('%s', '%s', '%s', %d, %d, %d, %d)", EVENT_STATS_TABLE_NAME, runId, exporterRole, nowFlooredToNearest10sEpoch,
+            String insertQuery = String.format(
+                    "INSERT INTO %s (run_id, exporter_role, timestamp, num_total, num_inserts, num_updates, num_deletes) "
+                            +
+                            "VALUES('%s', '%s', '%s', %d, %d, %d, %d)",
+                    EVENT_STATS_TABLE_NAME, runId, exporterRole, nowFlooredToNearest10sEpoch,
                     numTotalDelta, numInsertsDelta, numUpdatesDelta, numDeletesDelta);
             insertStatment.executeUpdate(insertQuery);
-        }
-        else if (updatedRows != 1){
-            throw new RuntimeException(String.format("Update of stats failed with query-%s, rowsAffected -%d", updateQuery, updatedRows));
+        } else if (updatedRows != 1) {
+            throw new RuntimeException(
+                    String.format("Update of stats failed with query-%s, rowsAffected -%d", updateQuery, updatedRows));
         }
     }
 
-    public void queueSegmentCreated(long segmentNo, String segmentPath, String exporterRole){
+    public void queueSegmentCreated(long segmentNo, String segmentPath, String exporterRole) {
         Statement insertStmt;
         try {
             insertStmt = metadataDBConn.createStatement();
-            insertStmt.executeUpdate(String.format("INSERT OR IGNORE into %s (segment_no, file_path, size_committed, exporter_role) VALUES(%d, '%s', 0, '%s')",
+            insertStmt.executeUpdate(String.format(
+                    "INSERT OR IGNORE into %s (segment_no, file_path, size_committed, total_events, exporter_role) VALUES(%d, '%s', 0, 0,'%s')",
                     QUEUE_SEGMENT_META_TABLE_NAME, segmentNo, segmentPath, exporterRole));
             insertStmt.close();
         } catch (SQLException e) {
@@ -437,14 +467,16 @@ public class ExportStatus {
         }
     }
 
-    public long getQueueSegmentCommittedSize(long segmentNo){
+    public long getQueueSegmentCommittedSize(long segmentNo) {
         Statement selectStmt;
         long sizeCommitted;
         try {
             selectStmt = metadataDBConn.createStatement();
-            ResultSet rs = selectStmt.executeQuery(String.format("SELECT size_committed from %s where segment_no=%s", QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
-            if (!rs.next()){
-                throw new RuntimeException(String.format("Could not fetch committedSize for queue segment - %d", segmentNo));
+            ResultSet rs = selectStmt.executeQuery(String.format("SELECT size_committed from %s where segment_no=%s",
+                    QUEUE_SEGMENT_META_TABLE_NAME, segmentNo));
+            if (!rs.next()) {
+                throw new RuntimeException(
+                        String.format("Could not fetch committedSize for queue segment - %d", segmentNo));
             }
             sizeCommitted = rs.getLong("size_committed");
             selectStmt.close();
@@ -454,6 +486,24 @@ public class ExportStatus {
         }
         return sizeCommitted;
     }
+
+    public Map<Long, Long> getTotalEventsPerSegment() {
+        Statement selectStmt;
+        Map<Long, Long> totalEventsPerSegment = new LinkedHashMap<Long, Long>();
+        try {
+            selectStmt = metadataDBConn.createStatement();
+            ResultSet rs = selectStmt
+                    .executeQuery(String.format("SELECT segment_no, total_events from %s ORDER BY segment_no DESC",
+                            QUEUE_SEGMENT_META_TABLE_NAME));
+            while (rs.next()) {
+                totalEventsPerSegment.put(rs.getLong("segment_no"), rs.getLong("total_events"));
+            }
+            selectStmt.close();
+        } catch (SQLException e) {
+            throw new RuntimeException(String.format("Failed to get total events per segment"), e);
+        }
+        return totalEventsPerSegment;
+    }
 }
 
 class TableExportStatus {
@@ -461,7 +511,7 @@ class TableExportStatus {
     Long exportedRowCountSnapshot;
     String snapshotFilename;
 
-    public TableExportStatus(Integer sno, String snapshotFilename){
+    public TableExportStatus(Integer sno, String snapshotFilename) {
         this.sno = sno;
         this.snapshotFilename = snapshotFilename;
         this.exportedRowCountSnapshot = 0L;

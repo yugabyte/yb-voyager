@@ -5,19 +5,31 @@
  */
 package io.debezium.server.ybexporter;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.SyncFailedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Map;
+import java.util.Set;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.sql.Connection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import static java.lang.Math.max;
+import org.sqlite.SQLiteConfig;
 
 /**
  * This takes care of writing to the cdc queue file.
@@ -40,6 +52,8 @@ public class EventQueue implements RecordWriter {
     private QueueSegment currentQueueSegment;
     private long currentQueueSegmentIndex = 0;
     private SequenceNumberGenerator sng;
+    private EventDedupCache eventDedupCache;
+    private ExportStatus es;
 
     public EventQueue(String datadirStr, Long queueSegmentMaxBytes) {
         dataDir = datadirStr;
@@ -61,6 +75,11 @@ public class EventQueue implements RecordWriter {
             currentQueueSegment = new QueueSegment(datadirStr, currentQueueSegmentIndex,
                     getFilePathWithIndex(currentQueueSegmentIndex));
         }
+
+        es = ExportStatus.getInstance(datadirStr);
+        Map<Long, Long> totalEventsPerSegment = es.getTotalEventsPerSegment();
+        eventDedupCache = new EventDedupCache(datadirStr);
+        eventDedupCache.warmUp(totalEventsPerSegment);
     }
 
     private void recoverStateFromDisk() {
@@ -184,10 +203,17 @@ public class EventQueue implements RecordWriter {
             LOGGER.debug("Skipping record {} as there are no values to update.", r);
             return;
         }
+        LOGGER.info("Writing record {}", r);
+        if (r.eventId != null && eventDedupCache.isEventInCache(r.eventId)) {
+            return;
+        }
         if (shouldRotateQueueSegment())
             rotateQueueSegment();
         augmentRecordWithSequenceNo(r);
         currentQueueSegment.write(r);
+        if (r.eventId != null) {
+            eventDedupCache.addEventToCache(r.eventId);
+        }
     }
 
     private void augmentRecordWithSequenceNo(Record r) {
@@ -219,6 +245,106 @@ public class EventQueue implements RecordWriter {
         } catch (IOException | SQLException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    class EventDedupCache {
+        private static final String EOF_MARKER = "\\.";
+        String dataDir;
+        private LinkedList<String> mostRecentIdFirstList = new LinkedList<>();
+        private Set<Integer> cache = new HashSet<>();
+        private long currentQueueSegmentIndex = 0;
+        private static final String QUEUE_SEGMENT_FILE_NAME = "segment";
+        private static final String QUEUE_SEGMENT_FILE_EXTENSION = "ndjson";
+        private static final String QUEUE_FILE_DIR = "queue";
+        private long maxCacheSize = 1000000;
+        private String currentQueueSegmentPath;
+        private ObjectMapper mapper = new ObjectMapper();
+
+        public EventDedupCache(String dataDir) {
+            this.dataDir = dataDir;
+        }
+
+        public void warmUp(Map<Long, Long> totalEventsPerSegment) {
+            if (totalEventsPerSegment.size() == 0) {
+                LOGGER.info("No queue segments found. Nothing to recover into event dedup cache");
+                return;
+            }
+            cache = new HashSet<>();
+            long eventsToBeProcessed = 0;
+            // Find which segement to start reading from, the Map entries are in descending
+            // order of segment number
+            for (Map.Entry<Long, Long> entry : totalEventsPerSegment.entrySet()) {
+                currentQueueSegmentIndex = entry.getKey();
+                eventsToBeProcessed += entry.getValue();
+                if (eventsToBeProcessed >= maxCacheSize) {
+                    // We have enough events to fill the cache. Break out of loop
+                    break;
+                }
+            }
+            while (currentQueueSegmentIndex <= totalEventsPerSegment.size() - 1) {
+                currentQueueSegmentPath = getFilePathOfCurrentQueueSegment();
+                String line;
+                BufferedReader input;
+                try {
+                    input = new BufferedReader(new FileReader(currentQueueSegmentPath));
+                    while ((line = input.readLine()) != null) {
+                        if (line.equals(EOF_MARKER)) {
+                            break;
+                        }
+                        String eventId = getEventId(line);
+                        if (eventId == null) {
+                            continue;
+                        }
+                        this.addEventToCache(eventId);
+                    }
+                    input.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                currentQueueSegmentIndex++;
+            }
+
+            LOGGER.info("Recovered {} events into event cache", this.getCacheSize());
+        }
+
+        private String getFilePathOfCurrentQueueSegment() {
+            String queueSegmentFileName = String.format("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, currentQueueSegmentIndex,
+                    QUEUE_SEGMENT_FILE_EXTENSION);
+            return Path.of(dataDir, QUEUE_FILE_DIR, queueSegmentFileName).toString();
+        }
+
+        public boolean isEventInCache(String event) {
+            return cache.contains(event.hashCode());
+        }
+
+        public void addEventToCache(String event) {
+            // Check if cache is full. If full, remove oldest event from cache and add new
+            // event
+            if (cache.size() >= maxCacheSize) {
+                String oldestEvent = mostRecentIdFirstList.removeLast();
+                cache.remove(oldestEvent.hashCode());
+            }
+            cache.add(event.hashCode());
+            mostRecentIdFirstList.addFirst(event);
+        }
+
+        public long getCacheSize() {
+            return cache.size();
+        }
+
+        private String getEventId(String event) {
+            try {
+                JsonNode jsonNode = mapper.readTree(event);
+                JsonNode cacheMetadataNode = jsonNode.get("event_id");
+                if (cacheMetadataNode == null) {
+                    return null;
+                }
+                return cacheMetadataNode.asText();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
     }
 }
 

@@ -203,23 +203,4 @@ public class QueueSegment {
         }
 
     }
-
-    // read all events in the queue segemnt and return them as a collection of
-    // strings
-    public String readAllEvents() {
-        StringBuilder sb = new StringBuilder();
-        String line;
-        BufferedReader input;
-        try {
-            input = new BufferedReader(new FileReader(filePath));
-            while ((line = input.readLine()) != null) {
-                sb.append(line);
-                sb.append("\n");
-            }
-            input.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return sb.toString();
-    }
 }

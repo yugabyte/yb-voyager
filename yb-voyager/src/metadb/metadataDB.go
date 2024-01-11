@@ -87,6 +87,7 @@ func initMetaDB(path string) error {
 		fmt.Sprintf(`CREATE TABLE %s 
       (segment_no INTEGER PRIMARY KEY, 
        file_path TEXT, size_committed INTEGER, 
+	   total_events INTEGER,
 	   exporter_role TEXT,
        imported_by_target_db_importer INTEGER DEFAULT 0, 
        imported_by_source_replica_db_importer INTEGER DEFAULT 0, 
@@ -432,7 +433,6 @@ func (m *MetaDB) GetExportedEventsStatsForTableAndExporterRole(exporterRole stri
 		NumDeletes:  deletes,
 	}, nil
 }
-
 
 func (m *MetaDB) GetSegmentsToBeArchived(importCount int) ([]utils.Segment, error) {
 	predicate := fmt.Sprintf(`((exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer = %d)) OR

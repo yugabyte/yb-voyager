@@ -92,7 +92,7 @@ class KafkaConnectRecordParser implements RecordParser {
                 r.op = "unsupported";
                 return r;
             } else if (value.schema().field("source") == null) {
-                // This is a tombstone event
+                // If it is a transaction begin or end event
                 LOGGER.warn("Empty source field in event. Assuming tombstone event. Skipping - {}", valueObj);
                 r.op = "unsupported";
                 return r;
@@ -100,20 +100,8 @@ class KafkaConnectRecordParser implements RecordParser {
 
             Struct source = value.getStruct("source");
 
-            // Check source databse type
-            if (sourceType.equals("oracle")) {
-                // Extract transaction struct from value if it is available
-                Struct transaction = value.getStruct("transaction");
-                if (transaction != null) {
-                    // Transaction metadata =>
-                    // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
-                    // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
-                    String transactionId = transaction.getString("id");
-                    String totalOrder = String.valueOf(transaction.getInt64("total_order"));
-                    String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
-                    r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
-                }
-            }
+            // Parse eventId
+            parseEventId(value, r);
 
             r.op = value.getString("op");
             r.snapshot = source.getString("snapshot");
@@ -131,6 +119,26 @@ class KafkaConnectRecordParser implements RecordParser {
         } catch (Exception ex) {
             LOGGER.error("Failed to parse msg: {}", ex);
             throw new RuntimeException(ex);
+        }
+    }
+
+    protected void parseEventId(Struct value, Record r) {
+        Struct source = value.getStruct("source");
+        if (sourceType.equals("oracle")) {
+            // Extract transaction struct from value if it is available
+            Struct transaction = value.getStruct("transaction");
+            if (transaction != null) {
+                // Transaction metadata =>
+                // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
+                // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
+                String transactionId = transaction.getString("id");
+                String totalOrder = String.valueOf(transaction.getInt64("total_order"));
+                String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
+                r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
+            }
+        } else if (sourceType.equals("yb")) {
+            // Extract the lsn from the source struct
+            r.eventId = String.valueOf(source.getString("lsn"));
         }
     }
 

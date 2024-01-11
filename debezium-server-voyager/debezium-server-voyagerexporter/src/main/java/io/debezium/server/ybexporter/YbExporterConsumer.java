@@ -46,7 +46,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private ExportStatus exportStatus;
     private SequenceObjectUpdater sequenceObjectUpdater;
     private RecordTransformer recordTransformer;
-    private EventDedupCache eventDedupCache;
     Thread flusherThread;
     boolean shutDown = false;
 
@@ -224,10 +223,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                         return;
                     }
                     writer.writeRecord(r);
-                    // Add to cache
-                    if (eventDedupCache != null && sourceType.equals("oracle")) {
-                        eventDedupCache.addEventToCache(r.eventId);
-                    }
                 }
             } else {
                 writer.writeRecord(r);
@@ -260,11 +255,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         if (r.isUnsupported()) {
             LOGGER.debug("Skipping unsupported record {}", r);
             return false;
-        }
-        if (eventDedupCache != null && sourceType.equals("oracle")) {
-            if (eventDedupCache.isEventInCache(r.eventId)) {
-                return false;
-            }
         }
         return true;
     }
@@ -321,8 +311,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
-        eventDedupCache = new EventDedupCache(dataDir);
-        eventDedupCache.warmUp();
     }
 
     private void handleSnapshotOnlyComplete() {
