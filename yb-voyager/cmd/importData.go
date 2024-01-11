@@ -217,6 +217,11 @@ func discoverFilesToImport() []*ImportFileTask {
 	}
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		if fileEntry.RowCount == 0 {
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables 
+			// but pb hangs for empty so skipping empty tables in snapshot import 
+			continue
+		}
 		task := &ImportFileTask{
 			ID:        i,
 			FilePath:  fileEntry.FilePath,

@@ -20,6 +20,8 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import jakarta.ws.rs.HEAD;
+
 class KafkaConnectRecordParser implements RecordParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConnectRecordParser.class);
     private final ExportStatus es;
@@ -208,9 +210,9 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (!valueAndSet.getBoolean("set")) {
                     continue;
                 }
-                fieldValue = valueAndSet.get("value");
+                fieldValue = valueAndSet.getWithoutDefault("value");
             } else {
-                fieldValue = key.get(f);
+                fieldValue = key.getWithoutDefault(f.name());
             }
             r.addKeyField(f.name(), fieldValue);
 
@@ -253,7 +255,7 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (!valueAndSet.getBoolean("set")) {
                     continue;
                 }
-                fieldValue = valueAndSet.get("value");
+                fieldValue = valueAndSet.getWithoutDefault("value");
             } else {
                 if (r.op.equals("u")) {
                     if (Objects.equals(after.get(f), before.get(f))) {
@@ -261,7 +263,7 @@ class KafkaConnectRecordParser implements RecordParser {
                         continue;
                     }
                 }
-                fieldValue = after.get(f);
+                fieldValue = after.getWithoutDefault(f.name());
             }
 
             r.addValueField(f.name(), fieldValue);
