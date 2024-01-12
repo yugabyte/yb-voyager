@@ -19,10 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
-import io.debezium.relational.ddl.DdlParserListener.Event;
 import io.debezium.server.BaseChangeConsumer;
-
-import static io.debezium.server.ybexporter.SequenceObjectUpdater.initSequenceMaxpropertyName;
 
 /**
  * Implementation of the consumer that exports the messages to file in a

@@ -9,27 +9,20 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.File;
 import java.io.IOException;
-import java.io.SyncFailedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.sql.Connection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.sqlite.SQLiteConfig;
 
 /**
  * This takes care of writing to the cdc queue file.
@@ -326,6 +319,7 @@ public class EventQueue implements RecordWriter {
             }
             cache.add(event.hashCode());
             mostRecentIdFirstList.addFirst(event);
+            LOGGER.info("Event cache: {}", mostRecentIdFirstList);
         }
 
         public long getCacheSize() {
@@ -336,7 +330,7 @@ public class EventQueue implements RecordWriter {
             try {
                 JsonNode jsonNode = mapper.readTree(event);
                 JsonNode cacheMetadataNode = jsonNode.get("event_id");
-                if (cacheMetadataNode == null) {
+                if (cacheMetadataNode == null || cacheMetadataNode.asText().equals("null")) {
                     return null;
                 }
                 return cacheMetadataNode.asText();

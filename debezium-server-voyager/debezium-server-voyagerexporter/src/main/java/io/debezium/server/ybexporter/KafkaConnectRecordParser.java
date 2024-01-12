@@ -20,8 +20,6 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import jakarta.ws.rs.HEAD;
-
 class KafkaConnectRecordParser implements RecordParser {
     private static final Logger LOGGER = LoggerFactory.getLogger(KafkaConnectRecordParser.class);
     private final ExportStatus es;
@@ -125,7 +123,6 @@ class KafkaConnectRecordParser implements RecordParser {
     }
 
     protected void parseEventId(Struct value, Record r) {
-        Struct source = value.getStruct("source");
         if (sourceType.equals("oracle")) {
             // Extract transaction struct from value if it is available
             Struct transaction = value.getStruct("transaction");
@@ -138,9 +135,8 @@ class KafkaConnectRecordParser implements RecordParser {
                 String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
                 r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
             }
-        } else if (sourceType.equals("yb")) {
-            // Extract the lsn from the source struct
-            r.eventId = String.valueOf(source.getString("lsn"));
+        } else {
+            r.eventId = null;
         }
     }
 
