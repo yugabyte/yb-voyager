@@ -42,6 +42,10 @@ func dvtColumnCommandFn(cmd *cobra.Command, args []string) {
 	msr.TargetDBConf.Password = tconf.Password
 	getSourceDBPassword(cmd)
 	msr.SourceDBConf.Password = tconf.Password
+	if msr.FallForwardEnabled {
+		getSourceReplicaDBPassword(cmd)
+		msr.SourceReplicaDBConf.Password = tconf.Password
+	}
 
 	sqlname.SourceDBType = msr.SourceDBConf.DBType
 
@@ -58,6 +62,13 @@ func dvtColumnCommandFn(cmd *cobra.Command, args []string) {
 		targetConnName, msr.TargetDBConf.Host, msr.TargetDBConf.Port, msr.TargetDBConf.User, msr.TargetDBConf.Password, msr.TargetDBConf.DBName)
 
 	utils.PrintAndLog(targetDBConnCmd)
+	if msr.FallForwardEnabled {
+		sourceReplicaConnName := "voyager_source_replica"
+		sourceReplicaDBConnCmd := fmt.Sprintf("python -m data_validation connections add --connection-name %s Postgres --host %s  --port %d --user %s --password %s --database %s",
+			sourceReplicaConnName, msr.SourceReplicaDBConf.Host, msr.SourceReplicaDBConf.Port, msr.SourceReplicaDBConf.User, msr.SourceReplicaDBConf.Password, msr.SourceReplicaDBConf.DBName)
+
+		utils.PrintAndLog(sourceReplicaDBConnCmd)
+	}
 
 	tdb = tgtdb.NewTargetDB(msr.TargetDBConf)
 	err = tdb.Init()
@@ -128,6 +139,7 @@ func dvtColumnCommandFn(cmd *cobra.Command, args []string) {
 		tableColumnListForRow[qualifiedTableName] = strings.Join(finalColumnsForRow, ",")
 	}
 
+	utils.PrintAndLog("########################################## SOURCE-TARGET #################################################")
 	utils.PrintAndLog("")
 	utils.PrintAndLog("VALIDATE COLUMN:")
 	for tableName, columnList := range tableColumnListForColumn {
@@ -143,6 +155,43 @@ func dvtColumnCommandFn(cmd *cobra.Command, args []string) {
 			tableName, tablePkListForRow[tableName], columnList)
 		utils.PrintAndLog(validateRowCmd)
 	}
+
+	if msr.FallForwardEnabled {
+		utils.PrintAndLog("########################################## SOURCE-SOURCE_REPLICA #################################################")
+		utils.PrintAndLog("")
+		utils.PrintAndLog("VALIDATE COLUMN:")
+		for tableName, columnList := range tableColumnListForColumn {
+			validateColumnCmd := fmt.Sprintf("python -m data_validation validate column --source-conn voyager_source --target-conn voyager_source_replica --tables-list '%s' --count '%s' --sum '%s' --wildcard-include-string-len --format csv",
+				tableName, columnList, columnList)
+			utils.PrintAndLog(validateColumnCmd)
+		}
+
+		utils.PrintAndLog("")
+		utils.PrintAndLog("VALIDATE ROW:")
+		for tableName, columnList := range tableColumnListForRow {
+			validateRowCmd := fmt.Sprintf("python -m data_validation validate row --source-conn voyager_source --target-conn voyager_source_replica --tables-list '%s'  -pk '%s' -comp-fields '%s'  --filter-status fail --format csv",
+				tableName, tablePkListForRow[tableName], columnList)
+			utils.PrintAndLog(validateRowCmd)
+		}
+
+		utils.PrintAndLog("########################################## TARGET-SOURCE_REPLICA #################################################")
+		utils.PrintAndLog("")
+		utils.PrintAndLog("VALIDATE COLUMN:")
+		for tableName, columnList := range tableColumnListForColumn {
+			validateColumnCmd := fmt.Sprintf("python -m data_validation validate column --source-conn voyager_target --target-conn voyager_source_replica --tables-list '%s' --count '%s' --sum '%s' --wildcard-include-string-len --format csv",
+				tableName, columnList, columnList)
+			utils.PrintAndLog(validateColumnCmd)
+		}
+
+		utils.PrintAndLog("")
+		utils.PrintAndLog("VALIDATE ROW:")
+		for tableName, columnList := range tableColumnListForRow {
+			validateRowCmd := fmt.Sprintf("python -m data_validation validate row --source-conn voyager_target --target-conn voyager_source_replica --tables-list '%s'  -pk '%s' -comp-fields '%s'  --filter-status fail --format csv",
+				tableName, tablePkListForRow[tableName], columnList)
+			utils.PrintAndLog(validateRowCmd)
+		}
+	}
+
 }
 
 func init() {
