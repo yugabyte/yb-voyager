@@ -98,5 +98,4 @@ func (c *ConflictDetectionCache) RemoveBatch(batch *tgtdb.EventBatch) {
 			c.Remove(event.Vsn)
 		}
 	}
-	return
 }
