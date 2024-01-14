@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -202,6 +201,14 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
+	// DELETE-INSERT Conflict Detection
+	if TableToUniqueKeyColumns[tableName] != nil {
+		conflictDetectionCache.WaitUntilNoConflicts(event)
+		if event.Op == "d" {
+			conflictDetectionCache.Put(event)
+		}
+	}
+
 	evChans[h] <- event
 	log.Tracef("inserted event %v into channel %v", event.Vsn, h)
 	return nil
@@ -267,10 +274,15 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
-			if err != nil && strings.Contains(err.Error(), "violates unique constraint") {
-				// we need to retry in unique contraint error
-				// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
-			} else if err == nil || tdb.IsNonRetryableCopyError(err) {
+			// if err != nil && strings.Contains(err.Error(), "violates unique constraint") {
+			// 	// we need to retry in unique constraint error
+			// 	// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
+			// } else
+			if err == nil {
+				// clear conflict detection cache
+				conflictDetectionCache.RemoveBatch(eventBatch)
+				break
+			} else if tdb.IsNonRetryableCopyError(err) {
 				break
 			}
 			log.Warnf("retriable error executing batch on channel %v (last VSN: %d): %v", chanNo, eventBatch.GetLastVsn(), err)

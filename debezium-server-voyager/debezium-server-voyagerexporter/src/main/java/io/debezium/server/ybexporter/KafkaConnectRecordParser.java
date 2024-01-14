@@ -189,9 +189,14 @@ class KafkaConnectRecordParser implements RecordParser {
         Struct after = value.getStruct("after");
         // TODO: error handle before is NULL
         Struct before = value.getStruct("before");
+        if (r.op.equals("d") && before != null) {
+            // in case of delete, the before struct contains the values
+            after = before;
+        }
         if (after == null) {
             return;
         }
+
         for (Field f : after.schema().fields()) {
             Object fieldValue;
             if (sourceType.equals("yb")){

@@ -40,8 +40,21 @@ type Event struct {
 var cachePreparedStmt = sync.Map{}
 
 func (e *Event) String() string {
-	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
-		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+	// Helper function to print a map[string]*string
+	mapStr := func(m map[string]*string) string {
+		var elements []string
+		for key, value := range m {
+			if value != nil {
+				elements = append(elements, fmt.Sprintf("%s:%s", key, *value))
+			} else {
+				elements = append(elements, fmt.Sprintf("%s:<nil>", key))
+			}
+		}
+		return "{" + strings.Join(elements, ", ") + "}"
+	}
+
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.Fields), e.ExporterRole)
 }
 
 func (e *Event) IsCutoverToTarget() bool {
@@ -250,7 +263,7 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 
 func (event *Event) getTableName(targetSchema string) string {
 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
-	if targetSchema != "" && len(strings.Split(targetSchema, ",")) <=1  {
+	if targetSchema != "" && len(strings.Split(targetSchema, ",")) <= 1 {
 		tableName = strings.Join([]string{targetSchema, event.TableName}, ".")
 	}
 	return tableName
