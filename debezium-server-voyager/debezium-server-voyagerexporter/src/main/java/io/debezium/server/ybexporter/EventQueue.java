@@ -319,7 +319,6 @@ public class EventQueue implements RecordWriter {
             }
             cache.add(event.hashCode());
             mostRecentIdFirstList.addFirst(event);
-            LOGGER.info("Event cache: {}", mostRecentIdFirstList);
         }
 
         public long getCacheSize() {
