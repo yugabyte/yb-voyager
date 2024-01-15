@@ -97,6 +97,7 @@ func dvtColumnCommandFn(cmd *cobra.Command, args []string) {
 		if err != nil {
 			utils.ErrExit("query column list: %v", err)
 		}
+		utils.PrintAndLog("column list for table %s = %s with query %s", qualifiedTableName, columnList, fmt.Sprintf(columnListQuery, tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted))
 		tableColumnListForColumn[qualifiedTableName] = columnList
 
 		pkListQuery := `
