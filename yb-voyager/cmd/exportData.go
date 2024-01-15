@@ -183,6 +183,16 @@ func exportData() bool {
 					log.Errorf("export snapshot failed: %v", err)
 					return false
 				}
+
+				// updating the MSR with PGPublicationName
+				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+					PGPublicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+					record.PGPublicationName = PGPublicationName
+				})
+				if err != nil {
+					log.Errorf("update PGPublicationName: update migration status record: %v", err)
+					return false
+				}
 			}
 
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -203,6 +213,7 @@ func exportData() bool {
 
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
@@ -226,6 +237,7 @@ func exportData() bool {
 					utils.ErrExit("get migration status record: %v", err)
 				}
 				deletePGReplicationSlot(msr, &source)
+				deletePGPublication(msr, &source)
 			}
 
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
