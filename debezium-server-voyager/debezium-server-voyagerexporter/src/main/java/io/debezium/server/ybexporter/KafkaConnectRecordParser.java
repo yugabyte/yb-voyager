@@ -123,7 +123,7 @@ class KafkaConnectRecordParser implements RecordParser {
     }
 
     protected void parseEventId(Struct value, Record r) {
-        if (sourceType.equals("oracle")) {
+        if (sourceType.equals("oracle") || sourceType.equals("postgresql")) {
             // Extract transaction struct from value if it is available
             Struct transaction = value.getStruct("transaction");
             if (transaction != null) {
