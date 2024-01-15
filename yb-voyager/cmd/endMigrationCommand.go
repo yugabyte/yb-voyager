@@ -375,6 +375,8 @@ func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.So
 		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
 		return
 	}
+
+	log.Infof("deleting PG replication slot name %q", msr.PGReplicationSlotName)
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
 	if err != nil {
@@ -388,6 +390,7 @@ func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source
 		return
 	}
 
+	log.Infof("deleting PG publication name %q", msr.PGPublicationName)
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropPublication(msr.PGPublicationName)
 	if err != nil {

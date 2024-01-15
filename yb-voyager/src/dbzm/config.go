@@ -125,7 +125,9 @@ debezium.source.database.sslrootcert=%s
 `
 
 var postgresReplicationSlotNameTemplate = `
-debezium.source.slot.name=%s
+debezium.source.slot.name=%s`
+
+var postgresPublicationNameTemplate = `
 debezium.source.publication.name=%s
 `
 
@@ -272,8 +274,11 @@ func (c *Config) String() string {
 			c.SSLKey,
 			c.SSLRootCert)
 		conf = conf + sslConf
-		if c.ReplicationSlotName != "" || c.PublicationName != "" {
-			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName, c.PublicationName)
+		if c.ReplicationSlotName != "" {
+			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName)
+		}
+		if c.PublicationName != "" {
+			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,
