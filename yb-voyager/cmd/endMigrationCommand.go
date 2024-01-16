@@ -171,12 +171,12 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 	if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
 	} else if alreadyBackedUp {
-		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 		return
 	}
 	utils.PrintAndLog("saving schema analysis report...")
@@ -185,7 +185,7 @@ func saveSchemaAnalysisReport() {
 		utils.ErrExit("reading reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "schema_analysis_report.") {
 			continue
 		}
 
