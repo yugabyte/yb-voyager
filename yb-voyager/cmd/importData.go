@@ -977,6 +977,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
+
+		if bool(flagPostImportData) && strings.Contains(objType, "INDEX") {
+			//In case of index creation print the index name as index creation takes time
+			//and user can see the progress
+			if sqlInfo.objName != "" {
+				color.Yellow("creating index %s ...", sqlInfo.objName)
+			}
+		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
 			utils.PrintSqlStmtIfDDL(sqlInfo.stmt, utils.GetObjectFileName(filepath.Join(exportDir, "schema"), objType))
