@@ -476,7 +476,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
 			TableToUniqueKeyColumns, err = tdb.GetTableToUniqueKeyColumnsMap(importTableList)
-			log.Infof("TableToUniqueKeyColumns: %+v", TableToUniqueKeyColumns)
 			if err != nil {
 				utils.ErrExit("failed to get table unique key columns map: %s", err)
 			}

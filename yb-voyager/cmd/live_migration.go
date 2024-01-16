@@ -201,9 +201,12 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
-	// DELETE-INSERT Conflict Detection
+	/*
+		Checking for DELETE-INSERT conflict.
+		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+	*/
 	if TableToUniqueKeyColumns[tableName] != nil {
-		conflictDetectionCache.WaitUntilNoConflicts(event)
+		conflictDetectionCache.WaitUntilConflict(event)
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		}
@@ -274,13 +277,8 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
-			// if err != nil && strings.Contains(err.Error(), "violates unique constraint") {
-			// 	// we need to retry in unique constraint error
-			// 	// read more about the case in the ticket - https://yugabyte.atlassian.net/browse/DB-9443
-			// } else
 			if err == nil {
-				// clear conflict detection cache
-				conflictDetectionCache.RemoveBatch(eventBatch)
+				conflictDetectionCache.RemoveEvents(eventBatch)
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break

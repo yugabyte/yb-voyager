@@ -667,7 +667,30 @@ func (tdb *TargetOracleDB) EnableGeneratedByDefaultAsIdentityColumns(tableColumn
 
 // TODO: implement the function
 func (tdb *TargetOracleDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
-	return make(map[string][]string), nil
+	result := make(map[string][]string)
+
+	queryTemplate := `SELECT TABLE_NAME, COLUMN_NAME FROM ALL_CONS_COLUMNS WHERE CONSTRAINT_NAME IN (
+		SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME IN ('%s') AND CONSTRAINT_TYPE = 'U')`
+	query := fmt.Sprintf(queryTemplate, strings.Join(tableList, "','"))
+
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		var columnName string
+		err := rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		result[tableName] = append(result[tableName], columnName)
+	}
+
+	log.Infof("unique key columns for tables: %+v", result)
+	return result, nil
 }
 
 func (tdb *TargetOracleDB) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {

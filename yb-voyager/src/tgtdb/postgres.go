@@ -709,16 +709,10 @@ func (pg *TargetPostgreSQL) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 
 func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
-	tableToUniqueKeyColumnsMap := make(map[string][]string)
+	result := make(map[string][]string)
 
 	// Construct a single parameterized query for all tables with the specified schema
-	query := fmt.Sprintf(`
-    SELECT tc.table_schema, tc.table_name, kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu
-        ON tc.constraint_name = kcu.constraint_name
-    WHERE tc.table_schema = '%s' AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';`,
-		pg.tconf.Schema, strings.Join(tableList, ","))
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, pg.tconf.Schema, strings.Join(tableList, ","))
 	rows, err := pg.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
@@ -734,9 +728,11 @@ func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (m
 		if schemaName != "public" {
 			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
 		}
-		tableToUniqueKeyColumnsMap[tableName] = append(tableToUniqueKeyColumnsMap[tableName], colName)
+		result[tableName] = append(result[tableName], colName)
 	}
-	return tableToUniqueKeyColumnsMap, nil
+
+	log.Infof("unique key columns for tables: %+v", result)
+	return result, nil
 }
 
 func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {

@@ -3,99 +3,100 @@ package cmd
 import (
 	"fmt"
 	"sync"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
+/*
+ConflictDetectionCache is a thread-safe class used to store and manage conflicting events during migration's streaming phase.
+Conflict occurs when two events have the same unique key column value.
+For example, if we have a table with a unique key column "email" with a existing row: {id: 1, email: 'abc@example.com'},
+and two new events comes in:
+event1: DELETE FROM users WHERE id = 1;
+event2: INSERT INTO users (id, email) VALUES (2, 'abc@example.com');
+
+In this case, event1 and event2 are considered as a conflicting events, because they have the same unique key column value.
+
+In a concurrent environment we can't just apply the second event because both the events can be part of different parallel batches
+and we can't guarantee the order of the events in the batches.
+
+So, this cache stores events like event1 and wait for them to be processed before processing event2.
+*/
 type ConflictDetectionCache struct {
 	sync.Mutex
-	cache map[int64]*tgtdb.Event
+	m    map[int64]*tgtdb.Event
+	cond *sync.Cond
 }
 
 func NewConflictDetectionCache() *ConflictDetectionCache {
-	return &ConflictDetectionCache{
-		cache: make(map[int64]*tgtdb.Event),
-	}
+	c := &ConflictDetectionCache{}
+	c.m = make(map[int64]*tgtdb.Event)
+	c.cond = sync.NewCond(&c.Mutex)
+	return c
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
-	log.Infof("adding event(vsn=%d) %v to cache", event.Vsn, event.String())
-	c.cache[event.Vsn] = event
+	c.m[event.Vsn] = event
 }
 
-func (c *ConflictDetectionCache) Remove(vsn int64) {
+func (c *ConflictDetectionCache) WaitUntilConflict(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
-	if _, ok := c.cache[vsn]; !ok {
-		log.Infof("event %+v not found in cache, nothing to remove", vsn)
-		return
+
+retry:
+	for _, cachedEvent := range c.m {
+		if c.EventsConfict(cachedEvent, event) {
+			log.Infof("waiting for event %d to be complete before processing event %d", cachedEvent.Vsn, event.Vsn)
+			c.cond.Wait()
+			// we can't return after just one conflict, because there can be multiple conflicts
+			// for example, if we have 3 unique key columns conflicting with 3 different events
+			goto retry
+		}
 	}
-	log.Infof("removing event(vsn=%d) from cache", vsn)
-	delete(c.cache, vsn)
+	// TODO: what if there is RemoveBatch() call and WaitUntilConflicts() is already called and Locked
 }
 
-func (c *ConflictDetectionCache) IsPresent(vsn int64) bool {
+func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 	c.Lock()
 	defer c.Unlock()
-	_, ok := c.cache[vsn]
-	return ok
-}
+	eventsRemoved := false
 
-func (c *ConflictDetectionCache) WaitUntilNoConflicts(currentEvent *tgtdb.Event) {
-	log.Infof("check if cache conflict with event(vsn=%d) %s", currentEvent.Vsn, currentEvent.String())
-	// TODO: handle multiple schema properly
-	currTable := currentEvent.TableName
-	if currentEvent.SchemaName != "public" {
-		currTable = fmt.Sprintf("%s.%s", currentEvent.SchemaName, currentEvent.TableName)
-	}
-
-	log.Infof("current table: %s", currTable)
-	uniqueKeyColumns := TableToUniqueKeyColumns[currTable]
-
-	// Make a copy of the cache to avoid parallel updates during iteration
-	c.Lock()
-	cacheCopy := make(map[int64]*tgtdb.Event)
-	for k, v := range c.cache {
-		cacheCopy[k] = v
-	}
-	c.Unlock()
-
-	for _, event := range cacheCopy {
-		table := event.TableName
-		if event.SchemaName != "public" {
-			table = fmt.Sprintf("%s.%s", event.SchemaName, event.TableName)
-		}
-		if table != currTable {
-			continue
-		}
-		log.Infof("comparing event(vsn=%d) %s with event(vsn=%d) %s", currentEvent.Vsn, currentEvent.String(), event.Vsn, event.String())
-		log.Infof("uniqueKeyColumns: %v", uniqueKeyColumns)
-		// checking for the conflict
-		for _, column := range uniqueKeyColumns {
-			log.Infof("comparing column %s where event.Fields[column] = %s and currentEvent.Fields[column] = %s", column, *event.Fields[column], *currentEvent.Fields[column])
-			// if the unique key column value is same, then we have a conflict
-			if *event.Fields[column] == *currentEvent.Fields[column] {
-				log.Infof("conflict detected for table %s, column %s, between value of cachedEvent(%s) and currentEvent(%s)", table, column, *event.Fields[column], *currentEvent.Fields[column])
-				for c.IsPresent(event.Vsn) { // checking the main cache
-					time.Sleep(5 * time.Second)
-				}
-				log.Infof("conflict resolved for table %s, column %s, between value of cachedEvent(%s) and currentEvent(%s)", table, column, *event.Fields[column], *currentEvent.Fields[column])
-				// we can't return after just one conflict, because there can be multiple conflicts
-				// for example, if we have 3 unique key columns conflicting with 3 different events
-			}
-		}
-	}
-}
-
-func (c *ConflictDetectionCache) RemoveBatch(batch *tgtdb.EventBatch) {
 	for _, event := range batch.Events {
-		if c.IsPresent(event.Vsn) {
-			time.Sleep(2 * time.Second)
-			c.Remove(event.Vsn)
+		if _, ok := c.m[event.Vsn]; ok {
+			delete(c.m, event.Vsn)
+			eventsRemoved = true
 		}
 	}
+	if eventsRemoved {
+		c.cond.Broadcast()
+	}
+}
+
+func (c *ConflictDetectionCache) EventsConfict(event1, event2 *tgtdb.Event) bool {
+	table1 := event1.TableName
+	if event1.SchemaName != "public" {
+		table1 = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
+	}
+	table2 := event2.TableName
+	if event2.SchemaName != "public" {
+		table2 = fmt.Sprintf("%s.%s", event2.SchemaName, event2.TableName)
+	}
+
+	if table1 != table2 {
+		return false
+	}
+
+	uniqueKeyColumns := TableToUniqueKeyColumns[table1]
+	for _, column := range uniqueKeyColumns {
+		// if the unique key column value is same, then we have a conflict
+		if *event1.Fields[column] == *event2.Fields[column] {
+			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
+				table1, column, event1.Vsn, *event1.Fields[column], event2.Vsn, *event2.Fields[column])
+			return true
+		}
+	}
+	return false
 }
