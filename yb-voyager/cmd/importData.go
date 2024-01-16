@@ -933,6 +933,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
+		if objType == "TABLE" {
+			stmt := strings.ToUpper(sqlInfo.stmt)
+			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			if skip {
+				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				continue
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
