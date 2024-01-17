@@ -39,7 +39,7 @@ EXPECTED_BYTE_TYPE_VALUES = ['3031303130', '2d61626364', '34343538']
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 5
+	assert len(table_list) == 6
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
@@ -90,7 +90,10 @@ def migration_completed_checks(tgt):
 	tgt.assert_distinct_values_of_col("datetime_type2", "v1", "public", 
 		transform_func=str, expected_distinct_values=['2022-11-01 15:55:58.091241', '2022-11-01 15:58:02'])
 	
-		
+	print("null_and_default:")
+	tgt.assert_all_values_of_col("null_and_default", "val", "public", expected_values=["testdefault", None])
+	tgt.assert_all_values_of_col("null_and_default", "i", "public", expected_values=[10, None])
+	tgt.assert_all_values_of_col("null_and_default", "b", "public", expected_values=[False, None])
 
 if __name__ == "__main__":
 	main()

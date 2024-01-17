@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	log "github.com/sirupsen/logrus"
@@ -68,6 +69,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 				getSourceDBPassword(cmd)
 				migrationStatus.SourceDBAsTargetConf.Password = tconf.Password
 			}
+			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
 			getDataMigrationReportCmdFn(migrationStatus)
 		} else {
 			utils.ErrExit("Error: Data migration report is only applicable when export-type is 'snapshot-and-changes'(live migration)\nPlease run export data status/import data status commands.")
@@ -89,6 +91,8 @@ type rowData struct {
 }
 
 var fBEnabled, fFEnabled bool
+var firstHeader = []string{"TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT"}
+var secondHeader = []string{"", "", "SNAPSHOT ROWS", "SNAPSHOT ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
@@ -98,8 +102,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	uitbl.MaxColWidth = 50
 	uitbl.Separator = " | "
 
-	addHeader(uitbl, "TABLE", "DB TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL ROW COUNT")
-	addHeader(uitbl, "", "", "SNAPSHOT ROWS", "SNAPSHOT ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", "")
+	maxTablesInOnePage := 10 
+
+	addHeader(uitbl,firstHeader... )
+	addHeader(uitbl, secondHeader...)
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
@@ -117,7 +123,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	source = *msr.SourceDBConf
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
-	for _, table := range tableList {
+	for i, table := range tableList {
 		uitbl.AddRow() // blank row
 
 		row := rowData{}
@@ -170,8 +176,19 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			}
 			addRowInTheTable(uitbl, row)
 		}
+		if i%maxTablesInOnePage == 0 && i != 0 {
+			//multiple table in case of large set of tables
+			fmt.Print("\n")
+			fmt.Println(uitbl)
+			fmt.Print("\n")
+			uitbl = uitable.New()
+			uitbl.MaxColWidth = 50
+			uitbl.Separator = " | "
+			addHeader(uitbl, firstHeader...)
+			addHeader(uitbl, secondHeader...)
+		}
 	}
-	if len(tableList) > 0 {
+	if uitbl.Rows != nil {
 		fmt.Print("\n")
 		fmt.Println(uitbl)
 		fmt.Print("\n")

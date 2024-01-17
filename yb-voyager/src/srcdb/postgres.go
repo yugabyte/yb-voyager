@@ -554,3 +554,19 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 	}
 	return nil
 }
+
+func (pg *PostgreSQL) DropPublication(publicationName string) error {
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	if err != nil {
+		utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
+	}
+	defer conn.Close(context.Background())
+
+	log.Infof("dropping publication: %s", publicationName)
+	res, err := conn.Exec(context.Background(), fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	log.Infof("drop publication result: %v", res)
+	if err != nil {
+		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
+	}
+	return nil
+}

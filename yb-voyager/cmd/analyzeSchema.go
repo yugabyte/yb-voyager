@@ -1040,7 +1040,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
-	reportFile := "report." + outputFormat
+	reportFile := "schema_analysis_report." + outputFormat
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
 	if !schemaIsExported() {
@@ -1143,6 +1143,6 @@ func validateReportOutputFormat() {
 }
 
 func schemaIsAnalyzed() bool {
-	path := filepath.Join(exportDir, "reports", "report.*")
+	path := filepath.Join(exportDir, "reports", "schema_analysis_report.*")
 	return utils.FileOrFolderExistsWithGlobPattern(path)
 }

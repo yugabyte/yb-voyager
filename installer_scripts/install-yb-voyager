@@ -427,6 +427,11 @@ rebuild_debezium_server_voyager_plugin_local(){
 	pushd $REPO_ROOT > /dev/null
 	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
 	popd > /dev/null
+
+	install_yb_client_local
+	pushd $REPO_ROOT > /dev/null
+	sudo cp "debezium-server-voyager/yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/"
+	popd > /dev/null
 }
 
 rebuild_voyager_local() {
