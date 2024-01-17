@@ -28,8 +28,8 @@ EXPECTED_SUM_OF_COLUMN = {
 		'v6': '-$12,000,369.60'
 	},
 	'decimal_types': {
-		'n1':'',
-		'n2':''
+		'n1':'1865936917203721067473070692042057616523559824435284801786158802063081501757370781516738843414444000.095730002',
+		'n2':'167981693608097436.14'
 	},
 }
 
@@ -39,7 +39,7 @@ EXPECTED_BYTE_TYPE_VALUES = ['3031303130', '2d61626364', '34343538']
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 6
+	assert len(table_list) == 7
 
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
