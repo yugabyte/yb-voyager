@@ -50,13 +50,14 @@ retry:
 	for _, cachedEvent := range c.m {
 		if c.EventsConfict(cachedEvent, event) {
 			log.Infof("waiting for event %d to be complete before processing event %d", cachedEvent.Vsn, event.Vsn)
+			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
+
 			// we can't return after just one conflict, because there can be multiple conflicts
 			// for example, if we have 3 unique key columns conflicting with 3 different events
 			goto retry
 		}
 	}
-	// TODO: what if there is RemoveBatch() call and WaitUntilConflicts() is already called and Locked
 }
 
 func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
