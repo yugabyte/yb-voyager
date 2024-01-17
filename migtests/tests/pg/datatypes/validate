@@ -14,6 +14,8 @@ EXPECTED_ROW_COUNT = {
 	'datetime_type': 3, 
 	'datatypes2': 3,
 	'datetime_type2': 2, 
+	'null_and_default' :2,
+	'decimal_types': 3,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -24,7 +26,11 @@ EXPECTED_SUM_OF_COLUMN = {
 		'v4': '993.999',
 		'v5': '9992334.5429',
 		'v6': '-$12,000,369.60'
-	}
+	},
+	'decimal_types': {
+		'n1':'',
+		'n2':''
+	},
 }
 
 EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
