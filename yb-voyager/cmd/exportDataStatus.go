@@ -36,9 +36,12 @@ import (
 	"github.com/vbauerster/mpb/v8"
 )
 
+var exportSnapshotStatus *srcdb.ExportSnapshotStatus
+
 func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
+	exportSnapshotStatus = srcdb.NewExportSnapshotStatus(exportDir)
 
 	for i := 0; i < numTables; i++ {
 		tableName := tableList[i]
@@ -54,6 +57,15 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 		tablesProgressMetadata[key].Status = 0
 		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 		tablesProgressMetadata[key].TableName = tableName
+		exportSnapshotStatus.Tables[key] = &srcdb.TableExportStatus{
+			TableName:                tableName.Qualified.MinQuoted,
+			FileName:                 "",
+			ExportedRowCountSnapshot: int64(0),
+		}
+	}
+	err := exportSnapshotStatus.Create()
+	if err != nil {
+		utils.ErrExit("failed to create export status snapshot file: %v", err)
 	}
 }
 
@@ -98,6 +110,8 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 					break
 				}
 			}
+
+			go updateExportSnapshotStatus(ctx, key, tablesProgressMetadata[key])
 
 			//for failure/error handling. TODO: test it more
 			if ctx.Err() != nil {
@@ -210,6 +224,22 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
+}
+
+func updateExportSnapshotStatus(ctx context.Context, mapKey string, tableMetadata *utils.TableProgressMetadata) {
+	updateTicker := time.NewTicker(2 * time.Second) //TODO: confirm if this is fine
+	defer updateTicker.Stop()
+	for range updateTicker.C {
+		select {
+		case <-ctx.Done():
+			break
+		default:
+			err := exportSnapshotStatus.Update(mapKey, tableMetadata.CountLiveRows, tableMetadata.FinalFilePath, tableMetadata.Status)
+			if err != nil {
+				utils.ErrExit("failed to update export status snapshot file: %v", err)
+			}
+		}
+	}
 }
 
 func checkForEndOfFile(source *srcdb.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {

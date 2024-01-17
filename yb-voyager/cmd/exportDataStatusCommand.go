@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -103,11 +104,14 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 func runExportDataStatusCmd() error {
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
-	dbTypeFlag := GetSourceDBTypeFromMSR()
-	source.DBType = dbTypeFlag
-	if dbTypeFlag == "postgresql" {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error while getting migration status record: %v", err)
+	}
+	source := msr.SourceDBConf
+	if source.DBType == "postgresql" {
 		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
-	} else if dbTypeFlag == "mysql" || dbTypeFlag == "oracle" {
+	} else if source.DBType == "mysql" || source.DBType == "oracle" {
 		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
 		if err != nil {
 			return fmt.Errorf("error while checking data directory for export data status: %v", err)
@@ -127,6 +131,12 @@ func runExportDataStatusCmd() error {
 	}
 	var outputRows []*exportTableMigStatusOutputRow
 	var finalFullTableName string
+	exportStatusSnapshotFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportStatusSnapshot, err := srcdb.ReadExportStatus(exportStatusSnapshotFilePath)
+	if err != nil {
+		utils.ErrExit("Failed to read export status file %s: %v", exportStatusSnapshotFilePath, err)
+	}
+
 	for tableName := range tableMap {
 		//"_" is treated as a wildcard character in regex query for Glob
 		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
@@ -138,21 +148,28 @@ func runExportDataStatusCmd() error {
 			finalFullTableName = tableName
 		}
 
-		var status string
-		//postgresql map returns table names, oracle/mysql map contains file names
-		if (source.DBType == POSTGRESQL && utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)+"_data.sql")) || utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)) {
-			status = "DONE"
-		} else if utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])) {
-			status = "EXPORTING"
-		} else {
-			status = "NOT_STARTED"
+		schemaName := ""
+
+		if source.DBType == POSTGRESQL {
+			if len(strings.Split(tableName, ".")) == 2 {
+				schemaName = strings.Split(tableName, ".")[0]
+			} else {
+				schemaName, _ = getDefaultPGSchema(source.Schema)
+			}
+		} else if source.DBType == MYSQL {
+			schemaName = source.DBName
+		} else if source.DBType == ORACLE {
+			schemaName = source.Schema
 		}
+
+		tableStatus := exportStatusSnapshot.GetTableExportStatus(finalFullTableName, schemaName)
 		if source.DBType == ORACLE || source.DBType == MYSQL {
 			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
 		}
 		row := &exportTableMigStatusOutputRow{
-			tableName: finalFullTableName,
-			status:    status,
+			tableName:     finalFullTableName,
+			status:        tableStatus.Status,
+			exportedCount: tableStatus.ExportedRowCountSnapshot,
 		}
 		outputRows = append(outputRows, row)
 	}
@@ -164,11 +181,7 @@ func runExportDataStatusCmd() error {
 func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	color.Cyan(exportDataStatusMsg)
 	table := uitable.New()
-	if useDebezium {
-		addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
-	} else {
-		addHeader(table, "TABLE", "STATUS")
-	}
+	addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
 
 	// First sort by status and then by table-name.
 	sort.Slice(rows, func(i, j int) bool {
@@ -182,11 +195,7 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		}
 	})
 	for _, row := range rows {
-		if useDebezium {
-			table.AddRow(row.tableName, row.status, row.exportedCount)
-		} else {
-			table.AddRow(row.tableName, row.status)
-		}
+		table.AddRow(row.tableName, row.status, row.exportedCount)
 	}
 	if len(rows) > 0 {
 		fmt.Print("\n")
