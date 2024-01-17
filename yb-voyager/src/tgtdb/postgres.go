@@ -731,6 +731,10 @@ func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (m
 		result[tableName] = append(result[tableName], colName)
 	}
 
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
 	log.Infof("unique key columns for tables: %+v", result)
 	return result, nil
 }

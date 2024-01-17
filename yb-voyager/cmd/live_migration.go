@@ -206,7 +206,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	if TableToUniqueKeyColumns[tableName] != nil {
-		conflictDetectionCache.WaitUntilConflict(event)
+		conflictDetectionCache.WaitUntilNoConflict(event)
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		}

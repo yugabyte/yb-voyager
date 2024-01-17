@@ -42,13 +42,13 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.m[event.Vsn] = event
 }
 
-func (c *ConflictDetectionCache) WaitUntilConflict(event *tgtdb.Event) {
+func (c *ConflictDetectionCache) WaitUntilNoConflict(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
 
 retry:
 	for _, cachedEvent := range c.m {
-		if c.EventsConfict(cachedEvent, event) {
+		if c.eventsConfict(cachedEvent, event) {
 			log.Infof("waiting for event %d to be complete before processing event %d", cachedEvent.Vsn, event.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
@@ -76,26 +76,21 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 	}
 }
 
-func (c *ConflictDetectionCache) EventsConfict(event1, event2 *tgtdb.Event) bool {
-	table1 := event1.TableName
-	if event1.SchemaName != "public" {
-		table1 = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
-	}
-	table2 := event2.TableName
-	if event2.SchemaName != "public" {
-		table2 = fmt.Sprintf("%s.%s", event2.SchemaName, event2.TableName)
-	}
-
-	if table1 != table2 {
+func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool {
+	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
 		return false
 	}
 
-	uniqueKeyColumns := TableToUniqueKeyColumns[table1]
+	maybeQualifiedName := event1.TableName
+	if event1.SchemaName != "public" {
+		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
+	}
+	uniqueKeyColumns := TableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
 		// if the unique key column value is same, then we have a conflict
 		if *event1.Fields[column] == *event2.Fields[column] {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				table1, column, event1.Vsn, *event1.Fields[column], event2.Vsn, *event2.Fields[column])
+				maybeQualifiedName, column, event1.Vsn, *event1.Fields[column], event2.Vsn, *event2.Fields[column])
 			return true
 		}
 	}

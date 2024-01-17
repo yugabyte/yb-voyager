@@ -64,6 +64,7 @@ type Rows interface {
 	Row
 	Next() bool
 	Close()
+	Err() error
 }
 
 type Row interface {
