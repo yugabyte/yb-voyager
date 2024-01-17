@@ -214,6 +214,7 @@ debezium.source.database.streamid=%s
 debezium.source.database.master.addresses=%s
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
+debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
