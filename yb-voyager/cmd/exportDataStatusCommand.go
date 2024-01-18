@@ -136,7 +136,6 @@ func runExportDataStatusCmd() error {
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportStatusSnapshotFilePath, err)
 	}
-
 	for tableName := range tableMap {
 		//"_" is treated as a wildcard character in regex query for Glob
 		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
@@ -147,25 +146,22 @@ func runExportDataStatusCmd() error {
 		} else {
 			finalFullTableName = tableName
 		}
-
 		schemaName := ""
+		statusTableName := ""
+		if source.DBType == ORACLE || source.DBType == MYSQL {
+			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
+			statusTableName = strings.Trim(finalFullTableName,`"`) //for reserved words datafile will be quoted but not in the status file
+		}
 
 		if source.DBType == POSTGRESQL {
-			if len(strings.Split(tableName, ".")) == 2 {
-				schemaName = strings.Split(tableName, ".")[0]
-			} else {
-				schemaName, _ = getDefaultPGSchema(source.Schema)
-			}
+			schemaName = strings.Split(tableName, ".")[0]
+			statusTableName = strings.Split(tableName, ".")[1]
 		} else if source.DBType == MYSQL {
 			schemaName = source.DBName
 		} else if source.DBType == ORACLE {
 			schemaName = source.Schema
 		}
-
-		tableStatus := exportStatusSnapshot.GetTableExportStatus(finalFullTableName, schemaName)
-		if source.DBType == ORACLE || source.DBType == MYSQL {
-			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
-		}
+		tableStatus := exportStatusSnapshot.GetTableExportStatus(statusTableName, schemaName)
 		row := &exportTableMigStatusOutputRow{
 			tableName:     finalFullTableName,
 			status:        tableStatus.Status,
