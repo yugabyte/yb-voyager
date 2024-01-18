@@ -76,7 +76,7 @@ class KafkaConnectRecordParser implements RecordParser {
             // Deserialize to Connect object
             Struct value = (Struct) ((SourceRecord) valueObj).value();
             Struct key = (Struct) ((SourceRecord) valueObj).key();
-
+            
             if (value == null) {
                 // Ideally, we should have config tombstones.on.delete=false. In case that is not set correctly,
                 // we will get those events where value field = null. Skipping those events.
@@ -90,7 +90,7 @@ class KafkaConnectRecordParser implements RecordParser {
 
             // Parse table/schema the first time to be able to format specific field values
             parseTable(value, source, r);
-
+        
             // Parse key and values
             if (key != null) {
                 parseKeyFields(key, r);
@@ -161,11 +161,13 @@ class KafkaConnectRecordParser implements RecordParser {
         for (Field f : key.schema().fields()) {
             Object fieldValue;
             if (sourceType.equals("yb")){
-                // values in the debezium connector are as follows:
-                // "val1" : {
-                //  "value" : "value for val1 column",
-                //  "set" : true
-                //}
+                /* 
+                    values in the debezium connector are as follows:
+                    "val1" : {
+                        "value" : "value for val1 column",
+                        "set" : true
+                    }
+                */
                 Struct valueAndSet = key.getStruct(f.name());
                 if (!valueAndSet.getBoolean("set")){
                     continue;
@@ -189,8 +191,9 @@ class KafkaConnectRecordParser implements RecordParser {
         Struct after = value.getStruct("after");
         // TODO: error handle before is NULL
         Struct before = value.getStruct("before");
+        
+        // in case of delete, the before struct contains the values required in cases like DELETE-INSERT conflicts(unique key columns)
         if (r.op.equals("d") && before != null) {
-            // in case of delete, the before struct contains the values
             after = before;
         }
         if (after == null) {
@@ -201,21 +204,18 @@ class KafkaConnectRecordParser implements RecordParser {
             Object fieldValue;
             if (sourceType.equals("yb")){
                 // TODO: write a proper transformer for this logic
-                // values in the debezium connector are as follows:
-                // "val1" : {
-                //  "value" : "value for val1 column",
-                //  "set" : true
-                //}
-                Struct valueAndSet = after.getStruct(f.name());
-                if (r.op.equals("u")) {
-                    // in the default configuration of the stream, for an update, the fields in the after struct
-                    // are only the delta fields, therefore, it is possible for a field to not be there.
-                    if (valueAndSet == null){
-                        continue;
+                /* 
+                    values in the debezium connector are as follows:
+                    "val1" : {
+                        "value" : "value for val1 column",
+                        "set" : true
                     }
-                }
-
-                if (!valueAndSet.getBoolean("set")){
+                */
+                Struct valueAndSet = after.getStruct(f.name());
+                // there is no valueAndSet for the columns with null values
+                if (valueAndSet == null){
+                    continue;
+                } else if (!valueAndSet.getBoolean("set")){
                     continue;
                 }
                 fieldValue = valueAndSet.getWithoutDefault("value");
