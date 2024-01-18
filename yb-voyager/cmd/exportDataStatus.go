@@ -232,7 +232,7 @@ func updateExportSnapshotStatus(ctx context.Context, mapKey string, tableMetadat
 	for range updateTicker.C {
 		select {
 		case <-ctx.Done():
-			break
+			return
 		default:
 			err := exportSnapshotStatus.Update(mapKey, tableMetadata.CountLiveRows, tableMetadata.FinalFilePath, tableMetadata.Status)
 			if err != nil {
