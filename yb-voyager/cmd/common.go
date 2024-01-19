@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -106,9 +107,6 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	}
 
 	pgRestorePath, err := srcdb.GetAbsPathOfPGCommand("pg_restore")
-	err = fmt.Errorf("test error")
-	// utils.PrintAndLog("sleeping for 10s")
-	// time.Sleep(60 * time.Second)
 	if err != nil {
 		utils.ErrExit("could not get absolute path of pg_restore command: %s", err)
 	}
@@ -542,25 +540,31 @@ func CleanupChildProcesses() {
 	})
 	lo.ForEach(childProcesses, func(process ps.Process, _ int) {
 		pid := process.Pid()
-		utils.PrintAndLog("shutting down child pid %d", pid)
+		log.Infof("shutting down child pid %d", pid)
 		err := ShutdownProcess(pid, 60)
 		if err != nil {
-			log.Errorf("shutting down child pid %d : %v", pid, err)
+			log.Errorf("shut down child pid %d : %v", pid, err)
 		} else {
-			utils.PrintAndLog("shut down child pid %d", pid)
+			log.Infof("shut down child pid %d", pid)
 		}
 	})
 }
 
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
-	// if forceShutdownAfterSeconds > 0{
-
-	// 	go func(){
-	// 		time.Sleep(time.Duration(forceShutdownAfterSeconds) * time.Second)
-	// 		log.Infof("force shutting down ")
-	// 		stopProcessWithPID(pid, syscall.SIGKILL)
-	// 	}()
-	// }
+	if forceShutdownAfterSeconds > 0 {
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		go func(ctx context.Context) {
+			time.Sleep(time.Duration(forceShutdownAfterSeconds) * time.Second)
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				log.Infof("force shutting down child pid %d", pid)
+				stopProcessWithPID(pid, syscall.SIGKILL)
+			}
+		}(ctx)
+	}
 
 	err := stopProcessWithPID(pid, syscall.SIGTERM)
 	if err != nil {
