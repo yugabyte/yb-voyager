@@ -32,6 +32,7 @@ func main() {
 	captureTerminalState()
 
 	registerSignalHandlers()
+	atexit.Register(cmd.CleanupChildProcesses)
 	cmd.Execute()
 }
 

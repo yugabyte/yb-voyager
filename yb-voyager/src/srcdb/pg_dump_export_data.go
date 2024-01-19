@@ -83,6 +83,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 		quitChan <- true
 		runtime.Goexit()
 	}
+	utils.PrintAndLog("pg_dump completed")
 	exportSuccessChan <- true
 }
 

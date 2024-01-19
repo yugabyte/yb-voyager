@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/samber/lo"
@@ -664,33 +663,6 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 	err = stopProcessWithPID(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
-	}
-}
-
-// this function wait for process to exit after signalling it to stop
-func stopProcessWithPID(pid int, signal syscall.Signal) error {
-	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
-	err := process.Signal(signal)
-	if err != nil {
-		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
-	}
-
-	waitForProcessToExit(process)
-	return nil
-}
-
-func waitForProcessToExit(process *os.Process) {
-	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll every 2 sec to make sure process is stopped
-	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for {
-		time.Sleep(time.Second * 2)
-		err := process.Signal(syscall.Signal(0))
-		if err != nil {
-			log.Infof("process with PID=%d is stopped", process.Pid)
-			return
-		}
 	}
 }
 
