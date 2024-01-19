@@ -660,10 +660,11 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
-	err = stopProcessWithPID(ongoingCmdPID, signal)
+	err = signalProcess(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 	}
+	waitForProcessToExit(ongoingCmdPID)
 }
 
 func stopDataExportCommand(lockFile *lockfile.Lockfile) {
@@ -686,8 +687,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
 
-	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
-	waitForProcessToExit(process)
+	waitForProcessToExit(ongoingCmdPID)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

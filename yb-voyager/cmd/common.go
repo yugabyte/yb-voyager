@@ -550,6 +550,7 @@ func CleanupChildProcesses() {
 	})
 }
 
+// this function wait for process to exit after signalling it to stop
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
 	if forceShutdownAfterSeconds > 0 {
 		ctx, cancel := context.WithCancel(context.Background())
@@ -561,20 +562,20 @@ func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
 				return
 			default:
 				log.Infof("force shutting down child pid %d", pid)
-				stopProcessWithPID(pid, syscall.SIGKILL)
+				signalProcess(pid, syscall.SIGKILL)
 			}
 		}(ctx)
 	}
 
-	err := stopProcessWithPID(pid, syscall.SIGTERM)
+	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("send sigterm to %d: %v", pid, err)
 	}
+	waitForProcessToExit(pid)
 	return nil
 }
 
-// this function wait for process to exit after signalling it to stop
-func stopProcessWithPID(pid int, signal syscall.Signal) error {
+func signalProcess(pid int, signal syscall.Signal) error {
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
 	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
 	err := process.Signal(signal)
@@ -582,14 +583,14 @@ func stopProcessWithPID(pid int, signal syscall.Signal) error {
 		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
 	}
 
-	waitForProcessToExit(process)
 	return nil
 }
 
-func waitForProcessToExit(process *os.Process) {
+func waitForProcessToExit(pid int) {
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
 	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
 	for {
 		time.Sleep(time.Second * 2)
 		err := process.Signal(syscall.Signal(0))
