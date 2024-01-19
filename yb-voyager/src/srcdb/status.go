@@ -8,10 +8,11 @@ import (
 	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type TableExportStatus struct {
-	TableName                string `json:"table_name"` // qualified table name
+	TableName                string `json:"table_name"` // table.Qualified.MinQuoted
 	FileName                 string `json:"file_name"`
 	Status                   string `json:"status"`
 	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
@@ -106,6 +107,6 @@ func (status *ExportSnapshotStatus) GetTableExportStatus(tableName, schemaName s
 	status.statusLock.Lock()
 	defer status.statusLock.Unlock()
 
-	qualifiedTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
-	return status.Tables[qualifiedTableName]
+	table := sqlname.NewSourceNameFromMaybeQualifiedName(tableName, schemaName)
+	return status.Tables[table.Qualified.MinQuoted]
 }

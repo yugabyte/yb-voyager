@@ -28,6 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const exportDataStatusMsg = "Export Data Status for SourceDB\n"
@@ -108,7 +109,8 @@ func runExportDataStatusCmd() error {
 	if err != nil {
 		return fmt.Errorf("error while getting migration status record: %v", err)
 	}
-	source := msr.SourceDBConf
+	source = *msr.SourceDBConf
+	sqlname.SourceDBType = source.DBType
 	if source.DBType == "postgresql" {
 		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
 	} else if source.DBType == "mysql" || source.DBType == "oracle" {
@@ -150,7 +152,7 @@ func runExportDataStatusCmd() error {
 		statusTableName := ""
 		if source.DBType == ORACLE || source.DBType == MYSQL {
 			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
-			statusTableName = strings.Trim(finalFullTableName,`"`) //for reserved words datafile will be quoted but not in the status file
+			statusTableName = finalFullTableName
 		}
 
 		if source.DBType == POSTGRESQL {
@@ -160,6 +162,10 @@ func runExportDataStatusCmd() error {
 			schemaName = source.DBName
 		} else if source.DBType == ORACLE {
 			schemaName = source.Schema
+			if !sqlname.IsAllUppercase(statusTableName) && !sqlname.IsAllLowercase(statusTableName){
+				//adding quotes for Oracle case sensitive so that sqlname can handle it properly
+				statusTableName = fmt.Sprintf(`"%s"`, statusTableName) 
+			}
 		}
 		tableStatus := exportStatusSnapshot.GetTableExportStatus(statusTableName, schemaName)
 		row := &exportTableMigStatusOutputRow{

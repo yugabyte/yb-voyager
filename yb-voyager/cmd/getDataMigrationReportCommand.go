@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var targetDbPassword string
@@ -119,6 +120,8 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 
 	source = *msr.SourceDBConf
+	
+	sqlname.SourceDBType = source.DBType
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
 	for _, table := range tableList {
