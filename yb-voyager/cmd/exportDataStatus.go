@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -30,18 +31,23 @@ import (
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
 	"github.com/vbauerster/mpb/v8"
 )
 
-var exportSnapshotStatus *srcdb.ExportSnapshotStatus
+var exportSnapshotStatusFile *jsonfile.JsonFile[srcdb.ExportSnapshotStatus]
 
 func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
-	exportSnapshotStatus = srcdb.NewExportSnapshotStatus(exportDir)
+
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+
+	exportSnapshotStatus := srcdb.NewExportSnapshotStatus()
 
 	for i := 0; i < numTables; i++ {
 		tableName := tableList[i]
@@ -58,19 +64,22 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 		tablesProgressMetadata[key].TableName = tableName
 		exportSnapshotStatus.Tables[key] = &srcdb.TableExportStatus{
-			TableName:                tableName.Qualified.MinQuoted,
+			TableName:                key,
 			FileName:                 "",
+			Status:                   utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status],
 			ExportedRowCountSnapshot: int64(0),
 		}
 	}
-	err := exportSnapshotStatus.Create()
+	err := exportSnapshotStatusFile.Create(exportSnapshotStatus)
 	if err != nil {
-		utils.ErrExit("failed to create export status snapshot file: %v", err)
+		utils.ErrExit("failed to create export status file: %v", err)
 	}
 }
 
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
+	go updateExportSnapshotStatus(ctx, tablesProgressMetadata)
+
 	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
 	quit := false
@@ -110,8 +119,6 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 					break
 				}
 			}
-
-			go updateExportSnapshotStatus(ctx, key, tablesProgressMetadata[key])
 
 			//for failure/error handling. TODO: test it more
 			if ctx.Err() != nil {
@@ -226,17 +233,23 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
 }
 
-func updateExportSnapshotStatus(ctx context.Context, mapKey string, tableMetadata *utils.TableProgressMetadata) {
-	updateTicker := time.NewTicker(2 * time.Second) //TODO: confirm if this is fine
+func updateExportSnapshotStatus(ctx context.Context, tableMetadata map[string]*utils.TableProgressMetadata) {
+	updateTicker := time.NewTicker(1 * time.Second) //TODO: confirm if this is fine
 	defer updateTicker.Stop()
 	for range updateTicker.C {
 		select {
 		case <-ctx.Done():
 			return
 		default:
-			err := exportSnapshotStatus.Update(mapKey, tableMetadata.CountLiveRows, tableMetadata.FinalFilePath, tableMetadata.Status)
+			err := exportSnapshotStatusFile.Update(func(status *srcdb.ExportSnapshotStatus) {
+				for key := range tablesProgressMetadata {
+					status.Tables[key].ExportedRowCountSnapshot = tablesProgressMetadata[key].CountLiveRows
+					status.Tables[key].Status = utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status]
+					status.Tables[key].FileName = tablesProgressMetadata[key].FinalFilePath
+				}
+			})
 			if err != nil {
-				utils.ErrExit("failed to update export status snapshot file: %v", err)
+				utils.ErrExit("failed to update export snapshot status: %v", err)
 			}
 		}
 	}

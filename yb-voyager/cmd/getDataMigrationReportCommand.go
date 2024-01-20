@@ -32,6 +32,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -114,13 +115,14 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatus, err := srcdb.ReadExportStatus(exportSnapshotStatusFilePath)
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportSnapshotStatus, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
 
 	source = *msr.SourceDBConf
-	
+
 	sqlname.SourceDBType = source.DBType
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
@@ -204,7 +206,8 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 		}
 		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
 	} else {
-		status := exportSnapshotStatus.GetTableExportStatus(tableName, schemaName)
+		qualifiedName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		status := exportSnapshotStatus.Tables[qualifiedName]
 		row.ExportedSnapshotRows = status.ExportedRowCountSnapshot
 	}
 }

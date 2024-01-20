@@ -28,6 +28,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -109,65 +110,36 @@ func runExportDataStatusCmd() error {
 	if err != nil {
 		return fmt.Errorf("error while getting migration status record: %v", err)
 	}
+	tableList := msr.TableListExportedFromSource
 	source = *msr.SourceDBConf
 	sqlname.SourceDBType = source.DBType
+	var finalFullTableName string
 	if source.DBType == "postgresql" {
 		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
-	} else if source.DBType == "mysql" || source.DBType == "oracle" {
-		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
-		if err != nil {
-			return fmt.Errorf("error while checking data directory for export data status: %v", err)
-		}
-		var fileName string
-		for _, file := range files {
-			fileName = filepath.Base(file)
-			//Sample file name: [tmp_]YB_VOYAGER_TEST_data.sql
-			if strings.HasPrefix(fileName, "tmp_") {
-				tableMap[fileName[4:]] = fileName
-			} else {
-				tableMap[fileName] = "tmp_" + fileName
-			}
-		}
-	} else {
-		return fmt.Errorf("unable to identify source-db-type")
 	}
 	var outputRows []*exportTableMigStatusOutputRow
-	var finalFullTableName string
-	exportStatusSnapshotFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportStatusSnapshot, err := srcdb.ReadExportStatus(exportStatusSnapshotFilePath)
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", exportStatusSnapshotFilePath, err)
+		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
 	}
-	for tableName := range tableMap {
-		//"_" is treated as a wildcard character in regex query for Glob
-		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
-			continue
-		}
-		if strings.HasPrefix(tableName, "public.") {
-			finalFullTableName = tableName[7:]
-		} else {
-			finalFullTableName = tableName
-		}
-		schemaName := ""
-		statusTableName := ""
-		if source.DBType == ORACLE || source.DBType == MYSQL {
-			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
-			statusTableName = finalFullTableName
+	for _, tableName := range tableList {
+		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
+		finalFullTableName = sqlTableName.ObjectName.MinQuoted
+		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
+			finalFullTableName = sqlTableName.Qualified.MinQuoted
 		}
 
 		if source.DBType == POSTGRESQL {
-			schemaName = strings.Split(tableName, ".")[0]
-			statusTableName = strings.Split(tableName, ".")[1]
-		} else if source.DBType == MYSQL {
-			schemaName = source.DBName
-		} else if source.DBType == ORACLE {
-			schemaName = source.Schema
-			if !sqlname.IsAllUppercase(statusTableName) && !sqlname.IsAllLowercase(statusTableName){
-				//adding quotes for Oracle case sensitive so that sqlname can handle it properly
-				statusTableName = fmt.Sprintf(`"%s"`, statusTableName) 
+			//for the cases where partitioned table will not have datafile but we have it in tableList
+			//TODO: fix with partition fix later
+			_, ok := tableMap[sqlTableName.Qualified.MinQuoted]
+			if !ok {
+				continue
 			}
 		}
-		tableStatus := exportStatusSnapshot.GetTableExportStatus(statusTableName, schemaName)
+		tableStatus := exportStatusSnapshot.Tables[sqlTableName.Qualified.MinQuoted]
 		row := &exportTableMigStatusOutputRow{
 			tableName:     finalFullTableName,
 			status:        tableStatus.Status,
