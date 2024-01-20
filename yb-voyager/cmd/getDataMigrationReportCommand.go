@@ -122,12 +122,15 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	}
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
-	exportSnapshotStatus, err := exportSnapshotStatusFile.Read()
-	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
-	}
+	var exportSnapshotStatus *srcdb.ExportSnapshotStatus
 
 	source = *msr.SourceDBConf
+	if source.DBType == POSTGRESQL {
+		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
+		if err != nil {
+			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+		}
+	}
 
 	sqlname.SourceDBType = source.DBType
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))

@@ -258,6 +258,9 @@ func exportData() bool {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.TableListExportedFromSource = minQuotedTableList
 		})
+		if err != nil {
+			utils.ErrExit("update table list exported from source: update migration status record: %s", err)
+		}
 		fmt.Printf("num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
