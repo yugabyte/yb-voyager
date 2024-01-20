@@ -185,6 +185,16 @@ func exportData() bool {
 					log.Errorf("export snapshot failed: %v", err)
 					return false
 				}
+
+				// updating the MSR with PGPublicationName
+				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+					PGPublicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+					record.PGPublicationName = PGPublicationName
+				})
+				if err != nil {
+					log.Errorf("update PGPublicationName: update migration status record: %v", err)
+					return false
+				}
 			}
 
 			msr, err := metaDB.GetMigrationStatusRecord()
@@ -205,6 +215,7 @@ func exportData() bool {
 
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
@@ -228,6 +239,7 @@ func exportData() bool {
 					utils.ErrExit("get migration status record: %v", err)
 				}
 				deletePGReplicationSlot(msr, &source)
+				deletePGPublication(msr, &source)
 			}
 
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
@@ -246,6 +258,8 @@ func exportData() bool {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.TableListExportedFromSource = minQuotedTableList
 		})
+		fmt.Printf("num tables to export: %d\n", len(finalTableList))
+		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
@@ -368,8 +382,6 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
-	fmt.Printf("num tables to export: %d\n", len(finalTableList))
-	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.

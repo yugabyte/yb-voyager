@@ -171,12 +171,12 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 	if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
 	} else if alreadyBackedUp {
-		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 		return
 	}
 	utils.PrintAndLog("saving schema analysis report...")
@@ -185,7 +185,7 @@ func saveSchemaAnalysisReport() {
 		utils.ErrExit("reading reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "schema_analysis_report.") {
 			continue
 		}
 
@@ -367,6 +367,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	deletePGReplicationSlot(msr, source)
+	deletePGPublication(msr, source)
 }
 
 func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
@@ -374,10 +375,26 @@ func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.So
 		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
 		return
 	}
+
+	log.Infof("deleting PG replication slot name %q", msr.PGReplicationSlotName)
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
 	if err != nil {
 		utils.ErrExit("dropping PG replication slot name: %v", err)
+	}
+}
+
+func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGPublicationName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg publication name is not set or source db type is not postgresql. skipping deleting pg publication name")
+		return
+	}
+
+	log.Infof("deleting PG publication name %q", msr.PGPublicationName)
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropPublication(msr.PGPublicationName)
+	if err != nil {
+		utils.ErrExit("dropping PG publication name: %v", err)
 	}
 }
 
