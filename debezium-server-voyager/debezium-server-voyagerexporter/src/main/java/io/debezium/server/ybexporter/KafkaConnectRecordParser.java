@@ -211,14 +211,25 @@ class KafkaConnectRecordParser implements RecordParser {
                         "set" : true
                     }
                 */
-                Struct valueAndSet = after.getStruct(f.name());
+                Struct beforeValueAndStruct = null;
+                if (before != null) { // null for INSERTs
+                    beforeValueAndStruct = before.getStruct(f.name());
+                } 
+                Struct afterValueAndSet = after.getStruct(f.name());
                 // there is no valueAndSet for the columns with null values
-                if (valueAndSet == null){
+                if (afterValueAndSet == null){
                     continue;
-                } else if (!valueAndSet.getBoolean("set")){
+                } else if (!afterValueAndSet.getBoolean("set")){
                     continue;
                 }
-                fieldValue = valueAndSet.getWithoutDefault("value");
+
+                if (r.op.equals("u")) {
+                    if (Objects.equals(afterValueAndSet.get("value"), beforeValueAndStruct.get("value"))) {
+                        // no need to record this as field is unchanged
+                        continue;
+                    }
+                }
+                fieldValue = afterValueAndSet.getWithoutDefault("value");
             }
             else{
                 if (r.op.equals("u")) {

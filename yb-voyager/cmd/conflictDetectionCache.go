@@ -49,7 +49,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(event *tgtdb.Event) {
 retry:
 	for _, cachedEvent := range c.m {
 		if c.eventsConfict(cachedEvent, event) {
-			log.Infof("waiting for event %d to be complete before processing event %d", cachedEvent.Vsn, event.Vsn)
+			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, event.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
@@ -80,7 +80,6 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
 		return false
 	}
-
 	maybeQualifiedName := event1.TableName
 	if event1.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
