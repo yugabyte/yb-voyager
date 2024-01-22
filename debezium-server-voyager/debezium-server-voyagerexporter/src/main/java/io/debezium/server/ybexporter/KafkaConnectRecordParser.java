@@ -216,8 +216,8 @@ class KafkaConnectRecordParser implements RecordParser {
                     beforeValueAndStruct = before.getStruct(f.name());
                 } 
                 Struct afterValueAndSet = after.getStruct(f.name());
-                // there is no valueAndSet for the columns with null values
-                if (afterValueAndSet == null){
+                // For INSERT events, there is no valueAndSet for the columns with null values
+                if (afterValueAndSet == null && r.op.equals("c")){
                     continue;
                 } else if (!afterValueAndSet.getBoolean("set")){
                     continue;
