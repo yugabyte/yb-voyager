@@ -552,21 +552,6 @@ func CleanupChildProcesses() {
 
 // this function wait for process to exit after signalling it to stop
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
-	// if forceShutdownAfterSeconds > 0 {
-	// 	ctx, cancel := context.WithCancel(context.Background())
-	// 	defer cancel()
-	// 	go func(ctx context.Context) {
-	// 		time.Sleep(time.Duration(forceShutdownAfterSeconds) * time.Second)
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			return
-	// 		default:
-	// 			log.Infof("force shutting down child pid %d", pid)
-	// 			signalProcess(pid, syscall.SIGKILL)
-	// 		}
-	// 	}(ctx)
-	// }
-
 	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("send sigterm to %d: %v", pid, err)
