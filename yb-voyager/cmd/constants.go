@@ -63,4 +63,4 @@ var validSSLModes = map[string][]string{
 	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
 
-var EVENT_BATCH_MAX_RETRY_COUNT = 10
+var EVENT_BATCH_MAX_RETRY_COUNT = 50
