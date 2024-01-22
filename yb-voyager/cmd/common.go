@@ -33,6 +33,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/mitchellh/go-ps"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -238,7 +239,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	if err != nil {
 		utils.ErrExit("failed to read export status during data export snapshot-and-changes report display: %v", err)
 	}
-	//TODO: report table with case-sensitiveness 
+	//TODO: report table with case-sensitiveness
 	for i, tableStatus := range exportStatus.Tables {
 		if i == 0 {
 			if tableStatus.SchemaName != "" {
@@ -524,5 +525,69 @@ func getDefaultPGSchema(schema string) (string, bool) {
 		return "public", false
 	} else {
 		return "", true
+	}
+}
+
+func CleanupChildProcesses() {
+	log.Info("Cleaning up child processes...")
+	myPid := os.Getpid()
+	processes, err := ps.Processes()
+	if err != nil {
+		log.Errorf("failed to read processes: %v", err)
+	}
+	childProcesses := lo.Filter(processes, func(process ps.Process, _ int) bool {
+		return process.PPid() == myPid
+	})
+	for _, process := range childProcesses {
+		pid := process.Pid()
+		log.Infof("shutting down child pid %d", pid)
+		err := ShutdownProcess(pid, 60)
+		if err != nil {
+			log.Errorf("shut down child pid %d : %v", pid, err)
+		} else {
+			log.Infof("shut down child pid %d", pid)
+		}
+	}
+}
+
+// this function wait for process to exit after signalling it to stop
+func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
+	err := signalProcess(pid, syscall.SIGTERM)
+	if err != nil {
+		return fmt.Errorf("send sigterm to %d: %v", pid, err)
+	}
+	waitForProcessToExit(pid, forceShutdownAfterSeconds)
+	return nil
+}
+
+func signalProcess(pid int, signal syscall.Signal) error {
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
+	err := process.Signal(signal)
+	if err != nil {
+		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
+	}
+
+	return nil
+}
+
+func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
+	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
+	// Poll every 2 sec to make sure process is stopped
+	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
+	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+	secondsWaited := 0
+	for {
+		time.Sleep(time.Second * 2)
+		secondsWaited += 2
+		err := process.Signal(syscall.Signal(0))
+		if err != nil {
+			log.Infof("process with PID=%d is stopped", process.Pid)
+			return
+		}
+		if forceShutdownAfterSeconds > 0 && secondsWaited > forceShutdownAfterSeconds {
+			log.Infof("force shutting down pid %d", pid)
+			process.Signal(syscall.SIGKILL)
+		}
 	}
 }

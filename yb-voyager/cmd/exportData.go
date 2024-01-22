@@ -29,6 +29,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -131,6 +132,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
+	} else if ProcessShutdownRequested {
+		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")

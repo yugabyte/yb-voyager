@@ -26,6 +26,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -34,12 +35,13 @@ import (
 )
 
 var (
-	cfgFile       string
-	exportDir     string
-	startClean    utils.BoolStr
-	lockFile      *lockfile.Lockfile
-	migrationUUID uuid.UUID
-	perfProfile   utils.BoolStr
+	cfgFile                  string
+	exportDir                string
+	startClean               utils.BoolStr
+	lockFile                 *lockfile.Lockfile
+	migrationUUID            uuid.UUID
+	perfProfile              utils.BoolStr
+	ProcessShutdownRequested bool
 )
 
 var rootCmd = &cobra.Command{
@@ -79,6 +81,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		if shouldLock(cmd) {
 			lockFile.Unlock()
 		}
+		atexit.Exit(0)
 	},
 }
 
