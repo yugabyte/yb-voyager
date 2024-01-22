@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/samber/lo"
@@ -171,12 +170,12 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 	if !schemaIsAnalyzed() {
 		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
 	} else if alreadyBackedUp {
-		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 		return
 	}
 	utils.PrintAndLog("saving schema analysis report...")
@@ -185,7 +184,7 @@ func saveSchemaAnalysisReport() {
 		utils.ErrExit("reading reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "schema_analysis_report.") {
 			continue
 		}
 
@@ -367,6 +366,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	deletePGReplicationSlot(msr, source)
+	deletePGPublication(msr, source)
 }
 
 func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
@@ -374,10 +374,26 @@ func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.So
 		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
 		return
 	}
+
+	log.Infof("deleting PG replication slot name %q", msr.PGReplicationSlotName)
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
 	if err != nil {
 		utils.ErrExit("dropping PG replication slot name: %v", err)
+	}
+}
+
+func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGPublicationName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg publication name is not set or source db type is not postgresql. skipping deleting pg publication name")
+		return
+	}
+
+	log.Infof("deleting PG publication name %q", msr.PGPublicationName)
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropPublication(msr.PGPublicationName)
+	if err != nil {
+		utils.ErrExit("dropping PG publication name: %v", err)
 	}
 }
 
@@ -644,37 +660,11 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
-	err = stopProcessWithPID(ongoingCmdPID, signal)
+	err = signalProcess(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 	}
-}
-
-// this function wait for process to exit after signalling it to stop
-func stopProcessWithPID(pid int, signal syscall.Signal) error {
-	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
-	err := process.Signal(signal)
-	if err != nil {
-		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
-	}
-
-	waitForProcessToExit(process)
-	return nil
-}
-
-func waitForProcessToExit(process *os.Process) {
-	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll every 2 sec to make sure process is stopped
-	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for {
-		time.Sleep(time.Second * 2)
-		err := process.Signal(syscall.Signal(0))
-		if err != nil {
-			log.Infof("process with PID=%d is stopped", process.Pid)
-			return
-		}
-	}
+	waitForProcessToExit(ongoingCmdPID, -1)
 }
 
 func stopDataExportCommand(lockFile *lockfile.Lockfile) {
@@ -697,8 +687,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
 
-	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
-	waitForProcessToExit(process)
+	waitForProcessToExit(ongoingCmdPID, -1)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

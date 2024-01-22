@@ -64,6 +64,7 @@ type Config struct {
 	YBMasterNodes         string
 	SnapshotMode          string
 	ReplicationSlotName   string
+	PublicationName       string
 }
 
 var baseConfigTemplate = `
@@ -113,6 +114,7 @@ debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.provide.transaction.metadata=true
+debezium.source.publication.autocreate.mode=filtered
 `
 
 var postgresSSLConfigTemplate = `
@@ -124,7 +126,10 @@ debezium.source.database.sslrootcert=%s
 `
 
 var postgresReplicationSlotNameTemplate = `
-debezium.source.slot.name=%s
+debezium.source.slot.name=%s`
+
+var postgresPublicationNameTemplate = `
+debezium.source.publication.name=%s
 `
 
 var postgresConfigTemplate = baseConfigTemplate +
@@ -216,6 +221,7 @@ debezium.source.database.streamid=%s
 debezium.source.database.master.addresses=%s
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
+debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
@@ -273,6 +279,9 @@ func (c *Config) String() string {
 		conf = conf + sslConf
 		if c.ReplicationSlotName != "" {
 			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName)
+		}
+		if c.PublicationName != "" {
+			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
 		}
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,

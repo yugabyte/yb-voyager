@@ -933,6 +933,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
+		if objType == "TABLE" {
+			stmt := strings.ToUpper(sqlInfo.stmt)
+			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			if skip {
+				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				continue
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
@@ -976,6 +986,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+		}
+
+		if bool(flagPostImportData) && strings.Contains(objType, "INDEX") {
+			//In case of index creation print the index name as index creation takes time
+			//and user can see the progress
+			if sqlInfo.objName != "" {
+				color.Yellow("creating index %s ...", sqlInfo.objName)
+			}
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {

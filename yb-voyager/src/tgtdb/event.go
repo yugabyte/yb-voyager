@@ -69,7 +69,7 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
+func (e *Event) GetPreparedSQLStmt(targetSchema string, targetDBType string) string {
 	psName := e.GetPreparedStmtName(targetSchema)
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
@@ -77,7 +77,7 @@ func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(targetSchema)
+		ps = e.getPreparedInsertStmt(targetSchema, targetDBType)
 	case "u":
 		ps = e.getPreparedUpdateStmt(targetSchema)
 	case "d":
@@ -174,7 +174,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt(targetSchema string) string {
+func (event *Event) getPreparedInsertStmt(targetSchema string, targetDBType string) string {
 	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
@@ -186,6 +186,10 @@ func (event *Event) getPreparedInsertStmt(targetSchema string) string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	if targetDBType == POSTGRESQL {
+		keyColumns := utils.GetMapKeysSorted(event.Key)
+		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ",")) 
+	}
 	return stmt
 }
 

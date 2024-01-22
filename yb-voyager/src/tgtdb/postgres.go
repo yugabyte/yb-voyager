@@ -522,7 +522,7 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			stmt := event.GetSQLStmt(pg.tconf.Schema)
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(pg.tconf.Schema)
+			stmt := event.GetPreparedSQLStmt(pg.tconf.Schema, pg.tconf.TargetDBType)
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
 				stmtToPrepare[event.GetPreparedStmtName(pg.tconf.Schema)] = stmt
