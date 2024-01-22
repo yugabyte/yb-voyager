@@ -35,12 +35,13 @@ import (
 )
 
 var (
-	cfgFile       string
-	exportDir     string
-	startClean    utils.BoolStr
-	lockFile      *lockfile.Lockfile
-	migrationUUID uuid.UUID
-	perfProfile   utils.BoolStr
+	cfgFile                  string
+	exportDir                string
+	startClean               utils.BoolStr
+	lockFile                 *lockfile.Lockfile
+	migrationUUID            uuid.UUID
+	perfProfile              utils.BoolStr
+	ProcessShutdownRequested bool
 )
 
 var rootCmd = &cobra.Command{
