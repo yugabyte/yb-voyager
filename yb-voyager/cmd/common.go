@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -530,6 +529,7 @@ func getDefaultPGSchema(schema string) (string, bool) {
 }
 
 func CleanupChildProcesses() {
+	log.Info("Cleaning up child processes...")
 	myPid := os.Getpid()
 	processes, err := ps.Processes()
 	if err != nil {
@@ -538,7 +538,7 @@ func CleanupChildProcesses() {
 	childProcesses := lo.Filter(processes, func(process ps.Process, _ int) bool {
 		return process.PPid() == myPid
 	})
-	lo.ForEach(childProcesses, func(process ps.Process, _ int) {
+	for _, process := range childProcesses {
 		pid := process.Pid()
 		log.Infof("shutting down child pid %d", pid)
 		err := ShutdownProcess(pid, 60)
@@ -547,31 +547,31 @@ func CleanupChildProcesses() {
 		} else {
 			log.Infof("shut down child pid %d", pid)
 		}
-	})
+	}
 }
 
 // this function wait for process to exit after signalling it to stop
 func ShutdownProcess(pid int, forceShutdownAfterSeconds int) error {
-	if forceShutdownAfterSeconds > 0 {
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		go func(ctx context.Context) {
-			time.Sleep(time.Duration(forceShutdownAfterSeconds) * time.Second)
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				log.Infof("force shutting down child pid %d", pid)
-				signalProcess(pid, syscall.SIGKILL)
-			}
-		}(ctx)
-	}
+	// if forceShutdownAfterSeconds > 0 {
+	// 	ctx, cancel := context.WithCancel(context.Background())
+	// 	defer cancel()
+	// 	go func(ctx context.Context) {
+	// 		time.Sleep(time.Duration(forceShutdownAfterSeconds) * time.Second)
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			return
+	// 		default:
+	// 			log.Infof("force shutting down child pid %d", pid)
+	// 			signalProcess(pid, syscall.SIGKILL)
+	// 		}
+	// 	}(ctx)
+	// }
 
 	err := signalProcess(pid, syscall.SIGTERM)
 	if err != nil {
 		return fmt.Errorf("send sigterm to %d: %v", pid, err)
 	}
-	waitForProcessToExit(pid)
+	waitForProcessToExit(pid, forceShutdownAfterSeconds)
 	return nil
 }
 
@@ -586,17 +586,23 @@ func signalProcess(pid int, signal syscall.Signal) error {
 	return nil
 }
 
-func waitForProcessToExit(pid int) {
+func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
 	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
 	// Poll every 2 sec to make sure process is stopped
 	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
 	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
+	secondsWaited := 0
 	for {
 		time.Sleep(time.Second * 2)
+		secondsWaited += 2
 		err := process.Signal(syscall.Signal(0))
 		if err != nil {
 			log.Infof("process with PID=%d is stopped", process.Pid)
 			return
+		}
+		if forceShutdownAfterSeconds > 0 && secondsWaited > forceShutdownAfterSeconds {
+			log.Infof("force shutting down pid %d", pid)
+			process.Signal(syscall.SIGKILL)
 		}
 	}
 }
