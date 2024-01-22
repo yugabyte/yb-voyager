@@ -401,6 +401,18 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	initializeExportTableMetadata(finalTableList)
 
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch source.DBType {
+		case POSTGRESQL:
+			record.SnapshotMechanism = "pg_dump"
+		case ORACLE, MYSQL: 
+			record.SnapshotMechanism = "ora2pg"
+		}
+	})
+	if err != nil {
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
+	}
+
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
 
