@@ -196,7 +196,6 @@ public class EventQueue implements RecordWriter {
             LOGGER.debug("Skipping record {} as there are no values to update.", r);
             return;
         }
-        LOGGER.info("Writing record {}", r);
         if (r.eventId != null && eventDedupCache.isEventInCache(r.eventId)) {
             return;
         }
@@ -244,7 +243,7 @@ public class EventQueue implements RecordWriter {
         private static final String EOF_MARKER = "\\.";
         String dataDir;
         private LinkedList<String> mostRecentIdFirstList = new LinkedList<>();
-        private Set<Integer> cache = new HashSet<>();
+        private Set<String> cache = new HashSet<>();
         private long currentQueueSegmentIndex = 0;
         private static final String QUEUE_SEGMENT_FILE_NAME = "segment";
         private static final String QUEUE_SEGMENT_FILE_EXTENSION = "ndjson";
@@ -281,6 +280,10 @@ public class EventQueue implements RecordWriter {
                 try {
                     input = new BufferedReader(new FileReader(currentQueueSegmentPath));
                     while ((line = input.readLine()) != null) {
+                        line.trim();
+                        if (line.equals("")) {
+                            continue;
+                        }
                         if (line.equals(EOF_MARKER)) {
                             break;
                         }
@@ -297,7 +300,7 @@ public class EventQueue implements RecordWriter {
                 currentQueueSegmentIndex++;
             }
 
-            LOGGER.info("Recovered {} events into event cache", this.getCacheSize());
+            LOGGER.info("Recovered {} events into event cache", cache.size());
         }
 
         private String getFilePathOfCurrentQueueSegment() {
@@ -306,33 +309,29 @@ public class EventQueue implements RecordWriter {
             return Path.of(dataDir, QUEUE_FILE_DIR, queueSegmentFileName).toString();
         }
 
-        public boolean isEventInCache(String event) {
-            return cache.contains(event.hashCode());
+        public boolean isEventInCache(String eventId) {
+            return cache.contains(eventId);
         }
 
-        public void addEventToCache(String event) {
+        public void addEventToCache(String eventId) {
             // Check if cache is full. If full, remove oldest event from cache and add new
             // event
             if (cache.size() >= maxCacheSize) {
-                String oldestEvent = mostRecentIdFirstList.removeLast();
-                cache.remove(oldestEvent.hashCode());
+                String oldestEntry = mostRecentIdFirstList.removeLast();
+                cache.remove(oldestEntry);
             }
-            cache.add(event.hashCode());
-            mostRecentIdFirstList.addFirst(event);
-        }
-
-        public long getCacheSize() {
-            return cache.size();
+            cache.add(eventId);
+            mostRecentIdFirstList.addFirst(eventId);
         }
 
         private String getEventId(String event) {
             try {
                 JsonNode jsonNode = mapper.readTree(event);
-                JsonNode cacheMetadataNode = jsonNode.get("event_id");
-                if (cacheMetadataNode == null || cacheMetadataNode.asText().equals("null")) {
+                JsonNode eventIdNode = jsonNode.get("event_id");
+                if (eventIdNode == null || eventIdNode.asText().equals("null")) {
                     return null;
                 }
-                return cacheMetadataNode.asText();
+                return eventIdNode.asText();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

@@ -290,10 +290,10 @@ public class ExportStatus {
         metadataDBConn.setAutoCommit(false);
         int updatedRows;
         // get total new events
-        int total_new_events = 0;
+        int totalNewEvents = 0;
         for (var entry : eventCountDeltaPerTable.entrySet()) {
             Map<String, Long> eventCountDeltaTable = entry.getValue();
-            total_new_events += eventCountDeltaTable.getOrDefault("c", 0L)
+            totalNewEvents += eventCountDeltaTable.getOrDefault("c", 0L)
                     + eventCountDeltaTable.getOrDefault("u", 0L) + eventCountDeltaTable.getOrDefault("d", 0L);
         }
         try {
@@ -301,10 +301,10 @@ public class ExportStatus {
             updatedRows = queueMetaUpdateStmt
                     .executeUpdate(String.format(
                             "UPDATE %s SET size_committed = %d, total_events = total_events + %d WHERE segment_no=%d",
-                            QUEUE_SEGMENT_META_TABLE_NAME, committedSize, total_new_events, segmentNo));
+                            QUEUE_SEGMENT_META_TABLE_NAME, committedSize, totalNewEvents, segmentNo));
             if (updatedRows != 1) {
                 throw new RuntimeException(
-                        String.format("Update of queue segment metadata failed with query-%s, rowsAffected -%d",
+                        String.format("Update of queue segment metadata failed with query: [%s], rowsAffected: [%d]",
                                 queueMetaUpdateStmt, updatedRows));
             }
             queueMetaUpdateStmt.close();

@@ -93,14 +93,16 @@ class KafkaConnectRecordParser implements RecordParser {
                 return r;
             } else if (value.schema().field("source") == null) {
                 // If it is a transaction begin or end event
-                LOGGER.warn("Empty source field in event. Assuming tombstone event. Skipping - {}", valueObj);
+                // Example of BEGIN event: {"status": "BEGIN","id": "5.6.641","ts_ms":
+                // 1486500577125,"event_count": null,"data_collections": null}
+                LOGGER.warn("Empty source field in event. Assuming transaction BEGIN or END event. Skipping - {}",
+                        valueObj);
                 r.op = "unsupported";
                 return r;
             }
 
             Struct source = value.getStruct("source");
 
-            // Parse eventId
             parseEventId(value, r);
 
             r.op = value.getString("op");
@@ -116,27 +118,26 @@ class KafkaConnectRecordParser implements RecordParser {
             parseValueFields(value, r);
 
             return r;
-        } catch (Exception ex) {
+        } catch (
+
+        Exception ex) {
             LOGGER.error("Failed to parse msg: {}", ex);
             throw new RuntimeException(ex);
         }
     }
 
     protected void parseEventId(Struct value, Record r) {
+        r.eventId = null;
         if (sourceType.equals("oracle") || sourceType.equals("postgresql")) {
             // Extract transaction struct from value if it is available
             Struct transaction = value.getStruct("transaction");
-            if (transaction != null) {
-                // Transaction metadata =>
-                // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
-                // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
-                String transactionId = transaction.getString("id");
-                String totalOrder = String.valueOf(transaction.getInt64("total_order"));
-                String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
-                r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
-            }
-        } else {
-            r.eventId = null;
+            // Transaction metadata =>
+            // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
+            // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
+            String transactionId = transaction.getString("id");
+            String totalOrder = String.valueOf(transaction.getInt64("total_order"));
+            String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
+            r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
         }
     }
 
