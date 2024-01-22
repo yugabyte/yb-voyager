@@ -487,7 +487,7 @@ func checkDataDirs() {
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatusFile := jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)

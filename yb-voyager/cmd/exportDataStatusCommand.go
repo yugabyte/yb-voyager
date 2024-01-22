@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -119,7 +118,7 @@ func runExportDataStatusCmd() error {
 	}
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)

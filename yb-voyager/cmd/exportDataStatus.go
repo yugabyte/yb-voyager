@@ -38,16 +38,38 @@ import (
 	"github.com/vbauerster/mpb/v8"
 )
 
-var exportSnapshotStatusFile *jsonfile.JsonFile[srcdb.ExportSnapshotStatus]
+//=====================================================================================
+
+//For Non-debezium cases
+type TableExportStatus struct {
+	TableName                string `json:"table_name"` // table.Qualified.MinQuoted
+	FileName                 string `json:"file_name"`
+	Status                   string `json:"status"`
+	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
+}
+
+type ExportSnapshotStatus struct {
+	Tables map[string]*TableExportStatus `json:"tables"`
+}
+
+func NewExportSnapshotStatus() *ExportSnapshotStatus {
+	return &ExportSnapshotStatus{
+		Tables: make(map[string]*TableExportStatus),
+	}
+}
+
+//=====================================================================================
+
+var exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]
 
 func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
 
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 
-	exportSnapshotStatus := srcdb.NewExportSnapshotStatus()
+	exportSnapshotStatus := NewExportSnapshotStatus()
 
 	for i := 0; i < numTables; i++ {
 		tableName := tableList[i]
@@ -63,7 +85,7 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 		tablesProgressMetadata[key].Status = 0
 		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 		tablesProgressMetadata[key].TableName = tableName
-		exportSnapshotStatus.Tables[key] = &srcdb.TableExportStatus{
+		exportSnapshotStatus.Tables[key] = &TableExportStatus{
 			TableName:                key,
 			FileName:                 "",
 			Status:                   utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status],
@@ -241,7 +263,7 @@ func updateExportSnapshotStatus(ctx context.Context, tableMetadata map[string]*u
 		case <-ctx.Done():
 			return
 		default:
-			err := exportSnapshotStatusFile.Update(func(status *srcdb.ExportSnapshotStatus) {
+			err := exportSnapshotStatusFile.Update(func(status *ExportSnapshotStatus) {
 				for key := range tablesProgressMetadata {
 					status.Tables[key].ExportedRowCountSnapshot = tablesProgressMetadata[key].CountLiveRows
 					status.Tables[key].Status = utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status]

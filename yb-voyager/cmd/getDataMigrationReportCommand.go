@@ -30,7 +30,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -121,8 +120,8 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
-	exportSnapshotStatusFile = jsonfile.NewJsonFile[srcdb.ExportSnapshotStatus](exportSnapshotStatusFilePath)
-	var exportSnapshotStatus *srcdb.ExportSnapshotStatus
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	var exportSnapshotStatus *ExportSnapshotStatus
 
 	source = *msr.SourceDBConf
 	if source.DBType == POSTGRESQL {
@@ -212,7 +211,7 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
-func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, exportSnapshotStatus *srcdb.ExportSnapshotStatus) {
+func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, exportSnapshotStatus *ExportSnapshotStatus) {
 	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
 	if msr.SnapshotMechanism == "debezium" {
 		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
