@@ -110,25 +110,13 @@ def migration_completed_checks_per_schema(tgt, schema):
         print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
         assert sum_column_values == got_sum_column_values
     
-    INSERT_SEQUENCE_QUERY = f"insert into {schema}.sequence_check3 (name) values ('Yugabyte');"
-    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
-    print(f"insert query returned for {schema}.sequence_check3 - {insert_query_chk_error}")
-    assert insert_query_chk_error == False
-    
-    
-    SELECT_ID_QUERY = f"select id from {schema}.sequence_check3 where name = 'Yugabyte';"
-    id_returned = tgt.execute_query(SELECT_ID_QUERY)
-    expected_id = EXPECTED_ROW_COUNT[schema]['sequence_check3'] + 1
-    print(f"for sequence_check3, Id returned- {id_returned} and expected id - {expected_id}")
-    assert id_returned == expected_id
-    
     # this validation check has been as added for issue - https://github.com/yugabyte/yb-voyager/issues/632
     SEQUENCE_NAMES = ["sequence_check1_id_seq", "sequence_check2_id_seq", "sequence_check3_id_seq", "schema1.sequence_check1_id_seq", 
-                      "schema1.sequence_check2_id_seq", "schema1.sequence_check3_id_seq", "multiple_identity_columns_id_seq", 
-                      "multiple_serial_columns_id_seq", "schema1.multiple_identity_columns_id_seq", "schema1.multiple_serial_columns_id_seq"]
+                        "schema1.sequence_check2_id_seq", "schema1.sequence_check3_id_seq", "multiple_identity_columns_id_seq", 
+                        "multiple_serial_columns_id_seq", "schema1.multiple_identity_columns_id_seq", "schema1.multiple_serial_columns_id_seq"]
     SEQUENCE_OWNER_COLUMNS = ["sequence_check1.id", "sequence_check2.id", "sequence_check3.id", "schema1.sequence_check1.id", 
-                              "schema1.sequence_check2.id", "schema1.sequence_check3.id", "multiple_identity_columns.id",
-                              "multiple_serial_columns.id", "schema1.multiple_identity_columns.id", "schema1.multiple_serial_columns.id"]
+                                "schema1.sequence_check2.id", "schema1.sequence_check3.id", "multiple_identity_columns.id",
+                                "multiple_serial_columns.id", "schema1.multiple_identity_columns.id", "schema1.multiple_serial_columns.id"]
     
     for i in range(len(SEQUENCE_NAMES)):
         FETCH_SEQUENCE_OWNER_QUERY = f"""SELECT CONCAT(d.refobjid::regclass, '.', a.attname) AS owner_column
@@ -143,13 +131,28 @@ def migration_completed_checks_per_schema(tgt, schema):
         print(f"fetched owner column of sequence {SEQUENCE_NAMES[i]} is: {SEQUENCE_OWNER_COLUMNS[i]}, expected owner: {FETCHED_SEQUENCE_OWNER_COLUMN}")
         assert FETCHED_SEQUENCE_OWNER_COLUMN == SEQUENCE_OWNER_COLUMNS[i]
 
+def migration_completed_checks_for_sequences_per_schema(tgt, schema):
+    INSERT_SEQUENCE_QUERY = f"insert into {schema}.sequence_check3 (name) values ('Yugabyte');"
+    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
+    print(f"insert query returned for {schema}.sequence_check3 - {insert_query_chk_error}")
+    assert insert_query_chk_error == False
+    
+    
+    SELECT_ID_QUERY = f"select id from {schema}.sequence_check3 where name = 'Yugabyte';"
+    id_returned = tgt.execute_query(SELECT_ID_QUERY)
+    expected_id = EXPECTED_ROW_COUNT[schema]['sequence_check3'] + 1
+    print(f"for sequence_check3, Id returned- {id_returned} and expected id - {expected_id}")
+    assert id_returned == expected_id
+
 def migration_completed_checks(tgt):
     migration_completed_checks_per_schema(tgt, 'public')
     migration_completed_checks_per_schema(tgt, 'schema1')
     migration_completed_checks_per_schema(tgt, 'schema2')
     migration_completed_checks_per_schema(tgt, 'schema3')
     migration_completed_checks_per_schema(tgt, 'schema4')
- 
+
+    migration_completed_checks_for_sequences_per_schema(tgt, 'public')
+    migration_completed_checks_for_sequences_per_schema(tgt, 'schema1')
 
 if __name__ == "__main__":
 	main()
