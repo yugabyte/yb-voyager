@@ -397,22 +397,24 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
-		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
+		query := fmt.Sprintf(`SELECT
+		a.attname AS column_name,
+		COALESCE(seq.relname, '') AS sequence_name,
+		COALESCE(ns.nspname, '') AS schema_name
 		FROM pg_class AS t
-			JOIN pg_attribute AS a
-		ON a.attrelid = t.oid
-			JOIN pg_depend AS d
-		ON d.refobjid = t.oid
-			AND d.refobjsubid = a.attnum
-			JOIN pg_class AS s
-		ON s.oid = d.objid
-		WHERE d.classid = 'pg_catalog.pg_class'::regclass
-		AND d.refclassid = 'pg_catalog.pg_class'::regclass
-		AND d.deptype IN ('i', 'a')
+		JOIN pg_attribute AS a ON a.attrelid = t.oid
+		JOIN pg_namespace AS tn ON tn.oid = t.relnamespace
+		LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+		LEFT JOIN pg_depend AS d ON d.objid = ad.oid
+		LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
+		LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+	WHERE
+		tn.nspname = '%s' -- schema name
+		AND t.relname = '%s' -- table name
+		AND a.attnum > 0
+		AND NOT a.attisdropped
 		AND t.relkind IN ('r', 'P')
-		AND s.relkind = 'S'
-		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+		AND seq.relkind = 'S';`, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(context.Background(), query)

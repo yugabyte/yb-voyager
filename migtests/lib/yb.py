@@ -61,6 +61,11 @@ class PostgresDB:
 		result = cur.fetchone()
 		return result[0]
 
+	def count_tables(self, schema="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'", (schema,))
+		return cur.fetchone()[0]
+
 	def get_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
 		q = "SELECT table_name FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'"
