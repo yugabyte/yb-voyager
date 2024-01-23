@@ -134,6 +134,9 @@ class KafkaConnectRecordParser implements RecordParser {
             // Transaction metadata =>
             // Struct{id=0200030002cf0000,total_order=1,data_collection_order=1}
             // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
+            if (transaction == null) {
+                return;
+            }
             String transactionId = transaction.getString("id");
             String totalOrder = String.valueOf(transaction.getInt64("total_order"));
             String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
