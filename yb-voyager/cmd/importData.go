@@ -218,8 +218,8 @@ func discoverFilesToImport() []*ImportFileTask {
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
 		if fileEntry.RowCount == 0 {
-			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables 
-			// but pb hangs for empty so skipping empty tables in snapshot import 
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
 		task := &ImportFileTask{
@@ -988,7 +988,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
 
-		if bool(flagPostImportData) && strings.Contains(objType, "INDEX") {
+		if bool(flagPostDataSnapshortImport) && strings.Contains(objType, "INDEX") {
 			//In case of index creation print the index name as index creation takes time
 			//and user can see the progress
 			if sqlInfo.objName != "" {
