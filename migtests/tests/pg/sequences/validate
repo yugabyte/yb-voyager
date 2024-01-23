@@ -15,6 +15,9 @@ EXPECTED_ROW_COUNT['public'] = {
 	'sequence_check3': 3,
     'multiple_identity_columns': 2,
     'multiple_serial_columns': 2,
+    'foo': 2,
+    'bar': 2,
+    'foo_bar': 2,
 }
 
 EXPECTED_ROW_COUNT['schema1'] = {
@@ -25,6 +28,19 @@ EXPECTED_ROW_COUNT['schema1'] = {
     'multiple_serial_columns': 2,
 }
 
+EXPECTED_ROW_COUNT['schema2'] = {
+    'foo': 2,
+    'bar': 2,
+}
+
+EXPECTED_ROW_COUNT['schema3'] = {
+    'foo': 2,
+}
+
+EXPECTED_ROW_COUNT['schema4'] = {
+    'bar': 2,
+}
+
 EXPECTED_TABLE_SUM = {}
 EXPECTED_TABLE_SUM['public'] = {
 	'sequence_check1': 3,
@@ -32,6 +48,9 @@ EXPECTED_TABLE_SUM['public'] = {
 	'sequence_check3': 6,
     'multiple_identity_columns': 3,
     'multiple_serial_columns': 3,
+    'foo': 4,
+    'bar': 6,
+    'foo_bar': 4, # two columns with same sequence used
 }
 
 EXPECTED_TABLE_SUM['schema1'] = {
@@ -42,11 +61,44 @@ EXPECTED_TABLE_SUM['schema1'] = {
     'multiple_serial_columns': 3,
 }
 
+EXPECTED_TABLE_SUM['schema2'] = {
+    'foo': 4,
+    'bar': 6,
+}
+
+EXPECTED_TABLE_SUM['schema3'] = {
+    'foo': 4,
+}
+
+EXPECTED_TABLE_SUM['schema4'] = {
+    'bar': 6,
+}
+
+NUM_TABLES = {
+    'public': 8,
+    'schema1': 5,
+    'schema2': 2,
+    'schema3': 1,
+    'schema4': 1
+}
+
+NUM_SEQUENCES = {
+    'public': 4+2, # 2 are implicit because of serial/generated columns
+    'schema1': 1+3, # 3 are implicit because of serial/generated columns
+    'schema2': 1,
+    'schema3': 1,
+    'schema4': 0
+}
+
 def migration_completed_checks_per_schema(tgt, schema):
     print("check for schema: ", schema)
-    table_list = tgt.get_table_names(schema)
-    print("table_list: ", table_list)
-    assert len(table_list) == 5
+    table_list = tgt.count_tables(schema)
+    print(f"actual table_list: {table_list}, expected num_tables: {NUM_TABLES[schema]}")
+    assert table_list == NUM_TABLES[schema]
+    
+    num_sequences = tgt.count_sequences(schema)
+    print(f"actual number_sequences: {num_sequences}, expected num_sequences: {NUM_SEQUENCES[schema]}")
+    assert num_sequences == NUM_SEQUENCES[schema]
     
     got_row_count = tgt.row_count_of_all_tables(schema)
     for table_name, row_count in EXPECTED_ROW_COUNT[schema].items():
@@ -57,10 +109,6 @@ def migration_completed_checks_per_schema(tgt, schema):
         got_sum_column_values = tgt.get_sum_of_column_of_table(table_name, "id", schema)
         print(f"table_name: {table_name}, got_sum_column_values: {got_sum_column_values}, expected_sum_column_values: {sum_column_values}")
         assert sum_column_values == got_sum_column_values
-        
-    num_sequences = tgt.count_sequences(schema)
-    print(f"Number of Sequences {num_sequences}")
-    assert num_sequences == 4
     
     INSERT_SEQUENCE_QUERY = f"insert into {schema}.sequence_check3 (name) values ('Yugabyte');"
     insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, None)
@@ -98,6 +146,9 @@ def migration_completed_checks_per_schema(tgt, schema):
 def migration_completed_checks(tgt):
     migration_completed_checks_per_schema(tgt, 'public')
     migration_completed_checks_per_schema(tgt, 'schema1')
+    migration_completed_checks_per_schema(tgt, 'schema2')
+    migration_completed_checks_per_schema(tgt, 'schema3')
+    migration_completed_checks_per_schema(tgt, 'schema4')
  
 
 if __name__ == "__main__":
