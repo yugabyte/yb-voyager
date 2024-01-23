@@ -464,7 +464,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostImportDataSqls()
+		executePostDataSnapshotImportSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -802,7 +802,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostImportDataSqls() {
+func executePostDataSnapshotImportSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
