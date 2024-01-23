@@ -164,7 +164,9 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
-		saveDataExportReport()
+		if msr.SnapshotMechanism != "" {
+			saveDataExportReport()
+		}
 		saveDataImportReport()
 	}
 }
