@@ -67,6 +67,7 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
+	csvReader            *csv.Reader
 	bufReader            bufio.Reader
 	bufWriter            bufio.Writer
 	wbuf                 bytes.Buffer
@@ -88,7 +89,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
-	return &DebeziumValueConverter{
+	conv := &DebeziumValueConverter{
 		exportDir:            exportDir,
 		schemaRegistrySource: schemaRegistrySource,
 		schemaRegistryTarget: schemaRegistryTarget,
@@ -96,7 +97,10 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
-	}, nil
+	}
+	conv.csvReader = csv.NewReader(&conv.bufReader)
+	conv.csvReader.ReuseRecord = true
+	return conv, nil
 }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
@@ -105,7 +109,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
 	conv.bufReader.Reset(strings.NewReader(row))
-	columnValues, err := csv.NewReader(&conv.bufReader).Read()
+	columnValues, err := conv.csvReader.Read()
 	if err != nil {
 		return "", fmt.Errorf("reading row: %w", err)
 	}
