@@ -71,6 +71,7 @@ type DebeziumValueConverter struct {
 	bufReader            bufio.Reader
 	bufWriter            bufio.Writer
 	wbuf                 bytes.Buffer
+	prevTableName        string
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
@@ -98,8 +99,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
 	}
-	conv.csvReader = csv.NewReader(&conv.bufReader)
-	conv.csvReader.ReuseRecord = true
+
 	return conv, nil
 }
 
@@ -107,6 +107,10 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	converterFns, err := conv.getConverterFns(tableName, columnNames)
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
+	}
+	if conv.prevTableName != tableName {
+		conv.csvReader = csv.NewReader(&conv.bufReader)
+		conv.csvReader.ReuseRecord = true
 	}
 	conv.bufReader.Reset(strings.NewReader(row))
 	columnValues, err := conv.csvReader.Read()
@@ -129,6 +133,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	csvWriter.Flush()
 	transformedRow := strings.TrimSuffix(conv.wbuf.String(), "\n")
 	conv.wbuf.Reset()
+	conv.prevTableName = tableName
 	return transformedRow, nil
 }
 
