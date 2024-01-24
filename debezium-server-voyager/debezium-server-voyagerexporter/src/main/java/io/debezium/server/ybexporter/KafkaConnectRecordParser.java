@@ -78,7 +78,7 @@ class KafkaConnectRecordParser implements RecordParser {
             Struct key = (Struct) ((SourceRecord) valueObj).key();
             LOGGER.debug("key={}", key);
             LOGGER.debug("value={}", value);
-            
+
             if (value == null) {
                 // Ideally, we should have config tombstones.on.delete=false. In case that is not set correctly,
                 // we will get those events where value field = null. Skipping those events.
@@ -243,11 +243,14 @@ class KafkaConnectRecordParser implements RecordParser {
                         break;
                     case "u":
                         Object beforeFieldValue =null;
-                        Object afterFieldValue;
-                        if (!afterValueAndSet.getBoolean("set")){
-                            continue;
+                        Object afterFieldValue = null;
+                        if (afterValueAndSet != null){
+                            if (!afterValueAndSet.getBoolean("set")){
+                                continue;
+                            }
+                            afterFieldValue = afterValueAndSet.getWithoutDefault("value");
                         }
-                        afterFieldValue = afterValueAndSet.getWithoutDefault("value");
+
                         if (beforeValueAndSet != null) {
                             beforeFieldValue = beforeValueAndSet.getWithoutDefault("value");
                         }
