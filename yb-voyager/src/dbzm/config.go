@@ -230,6 +230,7 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 
 var yugabyteSSLConfigTemplate = `
 debezium.source.database.sslrootcert=%s
+debezium.source.database.sslmode=%s
 `
 
 func (c *Config) String() string {
@@ -304,7 +305,7 @@ func (c *Config) String() string {
 			triggerDirPath)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
-				c.SSLRootCert)
+				c.SSLRootCert, c.SSLMode)
 		} //TODO test SSL for other methods for yugabytedb
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
