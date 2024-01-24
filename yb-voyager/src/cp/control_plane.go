@@ -16,98 +16,118 @@ limitations under the License.
 package cp
 
 import (
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var UPDATE_ROW_COUNT_STATUS_INT_TO_STR = map[int]string{
+	0: "NOT STARTED",
+	1: "IN PROGRESS",
+	2: "DONE",
+	3: "COMPLETED",
+}
+
 type ControlPlane interface {
 	Init() error
-	ExportSchemaStarted(*ExportSchemaEvent)
-	ExportSchemaCompleted(*ExportSchemaEvent) // Only success is reported.
-
-	// SubmitMigrationAssessmentReport(*MigrationAssessmentReport)
-
-	SchemaAnalysisStarted(*SchemaAnalysisEvent)
-	SchemaAnalysisIterationCompleted(*SchemaAnalysisReport)
-
-	SnapshotExportStarted(*SnapshotExportEvent)
-	UpdateExportedRowCount([]*SnapshotExportTableMetrics)
-	SnapshotExportCompleted(*SnapshotExportEvent)
-
-	// ChangeStreamExportStarted()
-	// UpdateExportedChangesCount(*ExportedChangesCounter)
-
-	ImportSchemaStarted(*ImportSchemaEvent)
-	ImportSchemaCompleted(*ImportSchemaEvent)
-
-	SnapshotImportStarted(*SnapshotImportEvent)
-	UpdateImportedRowCount([]*SnapshotImportTableMetrics)
-	SnapshotImportCompleted(*SnapshotImportEvent)
-
 	Finalize()
 
-	// ChangeStreamImportStarted()
-	// UpdateImportedChangesCount(*ImportedChangesCounter)
+	ExportSchemaStarted(*ExportSchemaStartedEvent)
+	ExportSchemaCompleted(*ExportSchemaCompletedEvent) // Only success is reported.
 
-	// CutoverInitiated()
-	// CutoverCompleted()
+	SchemaAnalysisStarted(*SchemaAnalysisStartedEvent)
+	SchemaAnalysisIterationCompleted(*SchemaAnalysisIterationCompletedEvent)
+
+	SnapshotExportStarted(*SnapshotExportStartedEvent)
+	UpdateExportedRowCount([]*UpdateExportedRowCountEvent)
+	SnapshotExportCompleted(*SnapshotExportCompletedEvent)
+
+	ImportSchemaStarted(*ImportSchemaStartedEvent)
+	ImportSchemaCompleted(*ImportSchemaCompletedEvent)
+
+	SnapshotImportStarted(*SnapshotImportStartedEvent)
+	UpdateImportedRowCount([]*UpdateImportedRowCountEvent)
+	SnapshotImportCompleted(*SnapshotImportCompletedEvent)
+
+	MigrationEnded(*MigrationEndedEvent)
 }
 
-type ExportSchemaEvent struct {
+func GetSchemaList(schema string) []string {
+	return strings.Split(schema, "|")
+}
+
+func SplitTableNameForPG(tableName string) (string, string) {
+	splitTableName := strings.Split(tableName, ".")
+
+	return splitTableName[0], splitTableName[1]
+}
+
+type BaseEvent struct {
+	EventType     string
 	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
 	DBType        string
+	DatabaseName  string
+	SchemaName    []string
 }
 
-type SchemaAnalysisEvent struct {
-	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
-	DBType        string
+type BaseUpdateRowCountEvent struct {
+	BaseEvent
+	TableName         string
+	Status            string
+	TotalRowCount     int64
+	CompletedRowCount int64
 }
 
-type SchemaAnalysisReport struct {
-	MigrationUUID  uuid.UUID
-	DatabaseName   string
-	SchemaName     string
-	DBType         string
+type ExportSchemaStartedEvent struct {
+	BaseEvent
+}
+
+type ExportSchemaCompletedEvent struct {
+	BaseEvent
+}
+
+type SchemaAnalysisStartedEvent struct {
+	BaseEvent
+}
+
+type SchemaAnalysisIterationCompletedEvent struct {
+	BaseEvent
 	AnalysisReport utils.Report
 }
 
-type SnapshotExportEvent struct {
-	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
-	DBType        string
+type SnapshotExportStartedEvent struct {
+	BaseEvent
 }
 
-type SnapshotExportTableMetrics struct {
-	MigrationUUID  uuid.UUID
-	SchemaName     string
-	TableName      string
-	Status         int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
-	CountLiveRows  int64
-	CountTotalRows int64
+type UpdateExportedRowCountEvent struct {
+	BaseUpdateRowCountEvent
 }
 
-type ImportSchemaEvent struct {
-	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
+type SnapshotExportCompletedEvent struct {
+	BaseEvent
 }
 
-type SnapshotImportEvent struct {
-	MigrationUUID uuid.UUID
-	DatabaseName  string
-	SchemaName    string
+type ImportSchemaStartedEvent struct {
+	BaseEvent
 }
 
-type SnapshotImportTableMetrics struct {
-	MigrationUUID  uuid.UUID
-	SchemaName     string
-	TableName      string
-	Status         int //(0: NOT-STARTED, 1: IN-PROGRESS, 2: DONE, 3: COMPLETED)
-	CountLiveRows  int64
-	CountTotalRows int64
+type ImportSchemaCompletedEvent struct {
+	BaseEvent
+}
+
+type SnapshotImportStartedEvent struct {
+	BaseEvent
+}
+
+type UpdateImportedRowCountEvent struct {
+	BaseUpdateRowCountEvent
+}
+
+type SnapshotImportCompletedEvent struct {
+	BaseEvent
+}
+
+type MigrationEndedEvent struct {
+	BaseEvent
 }

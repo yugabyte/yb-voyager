@@ -30,12 +30,12 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
-	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -127,11 +127,10 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Send 'IN PROGRESS' metadata for `EXPORT DATA` step
-	exportDataStartEvent, err := createExportDataEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotExportStarted(&exportDataStartEvent)
-	}
+	exportDataStartEvent := createSnapshotExportStartedEvent()
+
+	// utils.WaitGroup.Add(1)
+	controlPlane.SnapshotExportStarted(&exportDataStartEvent)
 
 	success := exportData()
 	if success {
@@ -153,14 +152,12 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Send 'COMPLETED' metadata for `EXPORT DATA` step
-	exportDataCompleteEvent, err := createExportDataEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
-	}
+	exportDataCompleteEvent := createSnapshotExportCompletedEvent()
 
-	// Wait till the visualisation metadata is sent
-	utils.WaitGroup.Wait()
+	controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
+
+	// // Wait till the visualisation metadata is sent
+	// utils.WaitGroup.Wait()
 }
 
 func exportData() bool {
@@ -483,12 +480,10 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	<-exportDataStart
 
 	// Create initial entry for each table in the table metrics table
-	exportDataTableMetrics, err := createExportDataTableMetricsList(
+	exportDataTableMetrics := createUpdateExportedRowCountEventList(
 		utils.GetSortedKeys(tablesProgressMetadata))
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
-	}
+
+	controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)
@@ -757,50 +752,63 @@ func saveSourceDBConfInMSR() {
 	})
 }
 
-func createExportDataEvent() (cp.SnapshotExportEvent, error) {
+func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {
 
-	dataExportEvent := cp.SnapshotExportEvent{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return dataExportEvent, fmt.Errorf(err)
+	result := cp.SnapshotExportStartedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "EXPORT DATA",
+			MigrationUUID: migrationUUID,
+			DBType:        source.DBType,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+		},
 	}
 
-	dataExportEvent = cp.SnapshotExportEvent{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  source.DBName,
-		SchemaName:    source.Schema,
-		DBType:        source.DBType,
-	}
-
-	return dataExportEvent, nil
+	return result
 }
 
-func createExportDataTableMetricsList(tableNames []string) ([]*cp.SnapshotExportTableMetrics,
-	error) {
+func createSnapshotExportCompletedEvent() cp.SnapshotExportCompletedEvent {
 
-	dataExportTableMetricsList := []*cp.SnapshotExportTableMetrics{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return dataExportTableMetricsList, fmt.Errorf(err)
+	result := cp.SnapshotExportCompletedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "EXPORT DATA",
+			MigrationUUID: migrationUUID,
+			DBType:        source.DBType,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+		},
 	}
+
+	return result
+}
+
+func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExportedRowCountEvent {
+
+	result := []*cp.UpdateExportedRowCountEvent{}
+	var schemaName, tableName2 string
 
 	for _, tableName := range tableNames {
 		tableMetadata := tablesProgressMetadata[tableName]
-		dataExportTableMetricsList = append(dataExportTableMetricsList, &cp.SnapshotExportTableMetrics{
-			MigrationUUID:  migrationUUID,
-			TableName:      tableName,
-			SchemaName:     source.Schema,
-			Status:         tableMetadata.Status,
-			CountLiveRows:  tableMetadata.CountLiveRows,
-			CountTotalRows: tableMetadata.CountTotalRows,
-		})
+		if source.DBType == "postgresql" {
+			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
+		} else {
+			schemaName, tableName2 = source.Schema, tableName
+		}
+		tableMetrics := cp.UpdateExportedRowCountEvent{
+			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+				BaseEvent: cp.BaseEvent{
+					EventType:     "EXPORT DATA",
+					MigrationUUID: migrationUUID,
+					SchemaName:    []string{schemaName},
+				},
+				TableName:         tableName2,
+				Status:            cp.UPDATE_ROW_COUNT_STATUS_INT_TO_STR[tableMetadata.Status],
+				TotalRowCount:     tableMetadata.CountTotalRows,
+				CompletedRowCount: tableMetadata.CountLiveRows,
+			},
+		}
+		result = append(result, &tableMetrics)
 	}
 
-	return dataExportTableMetricsList, nil
+	return result
 }

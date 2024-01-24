@@ -28,14 +28,19 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 )
 
 type YugabyteD struct {
 	sync.Mutex
-	conn               *pgxpool.Pool
-	migrationDirectory string
+	sync.RWMutex
+	migrationDirectory       string
+	waitGroup                sync.WaitGroup
+	eventChan                chan (VisualizerDBPayload)
+	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
+	conn                     *pgxpool.Pool
+	lastRowCountUpdate       map[string]time.Time
+	latestInvocationSequence int
 }
 
 func New(exportDir string) *YugabyteD {
@@ -44,322 +49,230 @@ func New(exportDir string) *YugabyteD {
 
 // Initialize the target DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
+
+	cp.eventChan = make(chan VisualizerDBPayload, 100)
+	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
+
 	err := cp.connect()
 	if err != nil {
 		return err
 	}
 
-	err = cp.createVoyagerSchema()
+	err = cp.setupDatabase()
 	if err != nil {
 		return err
 	}
 
-	err = cp.createYugabytedMetadataTable()
-	if err != nil {
-		return err
-	}
+	cp.lastRowCountUpdate = make(map[string]time.Time)
+	cp.latestInvocationSequence = 0
 
-	err = cp.createYugabytedTableMetricsTable()
-	if err != nil {
-		return err
-	}
+	go cp.eventPublisher()
+	go cp.rowCountUpdateEventPublisher()
 
 	return nil
 }
 
-func (cp *YugabyteD) createAndSendExportSchemaEvent(exportSchemaEvent *cp.ExportSchemaEvent,
-	status string) {
+// Wait for events to publish and Close the connection.
+func (cp *YugabyteD) Finalize() {
+	cp.waitGroup.Wait()
+	cp.disconnect()
+}
 
-	defer utils.WaitGroup.Done()
+func (cp *YugabyteD) eventPublisher() {
+	defer cp.panicHandler()
+	for {
+		event := <-cp.eventChan
+		err := cp.sendVisualizerDBPayload(event)
+		if err != nil {
+			log.Warnf("Couldn't send metadata for visualization. %s", err)
+		}
+		log.Warnf("WaitGroup Done")
+		cp.waitGroup.Done()
+	}
+}
+
+func (cp *YugabyteD) rowCountUpdateEventPublisher() {
+	defer cp.panicHandler()
+	for {
+		event := <-cp.rowCountUpdateEventChan
+		err := cp.sendVisualizerTableMetrics(event)
+		if err != nil {
+			log.Warnf("Couldn't send metadata for visualization. %s", err)
+		}
+		cp.waitGroup.Done()
+	}
+}
+
+func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status string, payload string) {
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	invocationSequence, err := cp.getInvocationSequence(exportSchemaEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["EXPORT SCHEMA"])
+	invocationSequence, err := cp.getInvocationSequence(event.MigrationUUID,
+		MIGRATION_PHASE_MAP[event.EventType])
 
 	if err != nil {
 		log.Warnf("Cannot send metadata for visualization. %s", err)
 		return
 	}
 
-	dbPayload := CreateVisualzerDBPayload(
-		exportSchemaEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["EXPORT SCHEMA"],
-		invocationSequence,
-		exportSchemaEvent.DatabaseName,
-		exportSchemaEvent.SchemaName,
-		"",
-		exportSchemaEvent.DBType,
-		status,
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
+	dbPayload := VisualizerDBPayload{
+		MigrationUUID:       event.MigrationUUID,
+		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
+		InvocationSequence:  invocationSequence,
+		DatabaseName:        event.DatabaseName,
+		SchemaName:          strings.Join(event.SchemaName[:], "|"),
+		Payload:             payload,
+		DBType:              event.DBType,
+		Status:              status,
+		InvocationTimestamp: timestamp,
 	}
 
+	cp.waitGroup.Add(1)
+	cp.eventChan <- dbPayload
 }
 
-func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *cp.ExportSchemaEvent) {
-	cp.createAndSendExportSchemaEvent(exportSchemaEvent, "IN PROGRESS")
-}
+func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
 
-func (cp *YugabyteD) ExportSchemaCompleted(exportSchemaEvent *cp.ExportSchemaEvent) {
-	cp.createAndSendExportSchemaEvent(exportSchemaEvent, "COMPLETED")
-}
-
-func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *cp.SchemaAnalysisEvent) {
-
-	defer utils.WaitGroup.Done()
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	invocationSequence, err := cp.getInvocationSequence(schemaAnalysisEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["ANALYZE SCHEMA"])
+	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
 
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
+	for _, event := range events {
+		snapshotMigrateTableMetrics := VisualizerTableMetrics{
+			MigrationUUID:       event.MigrationUUID,
+			TableName:           event.TableName,
+			Schema:              strings.Join(event.SchemaName[:], "|"),
+			MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
+			Status:              UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
+			CountLiveRows:       event.CompletedRowCount,
+			CountTotalRows:      event.TotalRowCount,
+			InvocationTimestamp: timestamp,
+		}
+
+		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics,
+			snapshotMigrateTableMetrics)
 	}
 
-	dbPayload := CreateVisualzerDBPayload(
-		schemaAnalysisEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["ANALYZE SCHEMA"],
-		invocationSequence,
-		schemaAnalysisEvent.DatabaseName,
-		schemaAnalysisEvent.SchemaName,
-		"",
-		schemaAnalysisEvent.DBType,
-		"IN PROGRESS",
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
+	cp.waitGroup.Add(1)
+	cp.rowCountUpdateEventChan <- snapshotMigrateAllTableMetrics
 }
 
-func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *cp.SchemaAnalysisReport) {
+func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
+	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, "IN PROGRESS", "")
+}
 
-	defer utils.WaitGroup.Done()
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+func (cp *YugabyteD) ExportSchemaCompleted(exportSchemaEvent *controlPlane.ExportSchemaCompletedEvent) {
+	cp.createAndSendEvent(&exportSchemaEvent.BaseEvent, "COMPLETED", "")
+}
 
-	invocationSequence, err := cp.getInvocationSequence(schemaAnalysisReport.MigrationUUID,
-		MIGRATION_PHASE_MAP["ANALYZE SCHEMA"])
+func (cp *YugabyteD) SchemaAnalysisStarted(schemaAnalysisEvent *controlPlane.SchemaAnalysisStartedEvent) {
 
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
+	cp.createAndSendEvent(&schemaAnalysisEvent.BaseEvent, "IN PROGRESS", "")
+}
 
-	// Create the payload from the Analysis Report object.
+func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *controlPlane.SchemaAnalysisIterationCompletedEvent) {
+
 	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)
 	if err != nil {
 		panic(err)
 	}
 	payload := string(jsonBytes)
 
-	dbPayload := CreateVisualzerDBPayload(
-		schemaAnalysisReport.MigrationUUID,
-		MIGRATION_PHASE_MAP["ANALYZE SCHEMA"],
-		invocationSequence,
-		schemaAnalysisReport.DatabaseName,
-		schemaAnalysisReport.SchemaName,
-		payload,
-		schemaAnalysisReport.DBType,
-		"COMPLETED",
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
+	cp.createAndSendEvent(&schemaAnalysisReport.BaseEvent, "COMPLETED", payload)
 }
 
-func (cp *YugabyteD) createAndSendExportSnapshotEvent(snapshotExportEvent *cp.SnapshotExportEvent,
-	status string) {
-
-	defer utils.WaitGroup.Done()
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	invocationSequence, err := cp.getInvocationSequence(snapshotExportEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["EXPORT DATA"])
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
-
-	dbPayload := CreateVisualzerDBPayload(
-		snapshotExportEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["EXPORT DATA"],
-		invocationSequence,
-		snapshotExportEvent.DatabaseName,
-		snapshotExportEvent.SchemaName,
-		"",
-		snapshotExportEvent.DBType,
-		status,
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
+func (cp *YugabyteD) SnapshotExportStarted(snapshotExportEvent *controlPlane.SnapshotExportStartedEvent) {
+	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, "IN PROGRESS", "")
 }
 
-func (cp *YugabyteD) SnapshotExportStarted(snapshotExportEvent *cp.SnapshotExportEvent) {
-	cp.createAndSendExportSnapshotEvent(snapshotExportEvent, "IN PROGRESS")
+func (cp *YugabyteD) SnapshotExportCompleted(snapshotExportEvent *controlPlane.SnapshotExportCompletedEvent) {
+	cp.createAndSendEvent(&snapshotExportEvent.BaseEvent, "COMPLETED", "")
 }
 
 func (cp *YugabyteD) UpdateExportedRowCount(
-	snapshotExportTablesMetrics []*cp.SnapshotExportTableMetrics) {
+	snapshotExportTablesMetrics []*controlPlane.UpdateExportedRowCountEvent) {
 
-	defer utils.WaitGroup.Done()
+	var updateExportedRowCountEvents []*controlPlane.BaseUpdateRowCountEvent
+	for _, updateExportedRowCountEvent := range snapshotExportTablesMetrics {
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+		cp.RWMutex.RLock()
+		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName]
+		cp.RWMutex.RUnlock()
 
-	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
-	for _, exportTableMetrics := range snapshotExportTablesMetrics {
-		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
-			exportTableMetrics.MigrationUUID,
-			exportTableMetrics.TableName,
-			exportTableMetrics.SchemaName,
-			MIGRATION_PHASE_MAP["EXPORT DATA"],
-			exportTableMetrics.Status,
-			exportTableMetrics.CountLiveRows,
-			exportTableMetrics.CountTotalRows,
-			timestamp)
-		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics,
-			snapshotMigrateTableMetrics)
+		if updateExportedRowCountEvent.Status == "COMPLETED" {
+			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
+		} else if !check {
+			cp.RWMutex.Lock()
+			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
+			cp.RWMutex.Unlock()
+
+			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
+		} else if !lastRowCountUpdateTime.Add(time.Second * 5).After(time.Now()) {
+			cp.RWMutex.Lock()
+			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
+			cp.RWMutex.Unlock()
+
+			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
+		}
+
 	}
-
-	err := cp.sendVisualizerTableMetrics(snapshotMigrateAllTableMetrics)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
+	cp.createAndSendUpdateRowCountEvent(updateExportedRowCountEvents)
 }
 
-func (cp *YugabyteD) SnapshotExportCompleted(snapshotExportEvent *cp.SnapshotExportEvent) {
-	cp.createAndSendExportSnapshotEvent(snapshotExportEvent, "COMPLETED")
+func (cp *YugabyteD) ImportSchemaStarted(importSchemaEvent *controlPlane.ImportSchemaStartedEvent) {
+	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, "IN PROGRESS", "")
 }
 
-func (cp *YugabyteD) createAndSendImportSchemaEvent(importSchemaEvent *cp.ImportSchemaEvent,
-	status string) {
-
-	defer utils.WaitGroup.Done()
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	invocationSequence, err := cp.getInvocationSequence(importSchemaEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["IMPORT SCHEMA"])
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
-
-	dbPayload := CreateVisualzerDBPayload(
-		importSchemaEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["IMPORT SCHEMA"],
-		invocationSequence,
-		importSchemaEvent.DatabaseName,
-		importSchemaEvent.SchemaName,
-		"",
-		"",
-		status,
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
-
+func (cp *YugabyteD) ImportSchemaCompleted(importSchemaEvent *controlPlane.ImportSchemaCompletedEvent) {
+	cp.createAndSendEvent(&importSchemaEvent.BaseEvent, "COMPLETED", "")
 }
 
-func (cp *YugabyteD) ImportSchemaStarted(importSchemaEvent *cp.ImportSchemaEvent) {
-	cp.createAndSendImportSchemaEvent(importSchemaEvent, "IN PROGRESS")
+func (cp *YugabyteD) SnapshotImportStarted(snapshotImportEvent *controlPlane.SnapshotImportStartedEvent) {
+	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, "IN PROGRESS", "")
 }
 
-func (cp *YugabyteD) ImportSchemaCompleted(importSchemaEvent *cp.ImportSchemaEvent) {
-	cp.createAndSendImportSchemaEvent(importSchemaEvent, "COMPLETED")
-}
-
-func (cp *YugabyteD) createAndSendImportSnapshotEvent(snapshotImportEvent *cp.SnapshotImportEvent,
-	status string) {
-
-	defer utils.WaitGroup.Done()
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-	invocationSequence, err := cp.getInvocationSequence(snapshotImportEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["IMPORT DATA"])
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-		return
-	}
-
-	dbPayload := CreateVisualzerDBPayload(
-		snapshotImportEvent.MigrationUUID,
-		MIGRATION_PHASE_MAP["IMPORT DATA"],
-		invocationSequence,
-		snapshotImportEvent.DatabaseName,
-		snapshotImportEvent.SchemaName,
-		"",
-		"",
-		status,
-		timestamp)
-
-	err = cp.sendVisualizerDBPayload(dbPayload)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
-}
-
-func (cp *YugabyteD) SnapshotImportStarted(snapshotImportEvent *cp.SnapshotImportEvent) {
-	cp.createAndSendImportSnapshotEvent(snapshotImportEvent, "IN PROGRESS")
+func (cp *YugabyteD) SnapshotImportCompleted(snapshotImportEvent *controlPlane.SnapshotImportCompletedEvent) {
+	cp.createAndSendEvent(&snapshotImportEvent.BaseEvent, "COMPLETED", "")
 }
 
 func (cp *YugabyteD) UpdateImportedRowCount(
-	snapshotImportTableMetrics []*cp.SnapshotImportTableMetrics) {
+	snapshotImportTableMetrics []*controlPlane.UpdateImportedRowCountEvent) {
 
-	defer utils.WaitGroup.Done()
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	var updateImportedRowCountEvents []*controlPlane.BaseUpdateRowCountEvent
+	for _, updateImportedRowCountEvent := range snapshotImportTableMetrics {
 
-	// var importTableMetricsList []VisualizerTableMetrics
+		cp.RWMutex.RLock()
+		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName]
+		cp.RWMutex.RUnlock()
 
-	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
-	for _, importtableMetrics := range snapshotImportTableMetrics {
-		snapshotMigrateTableMetrics := CreateVisualzerDBTableMetrics(
-			importtableMetrics.MigrationUUID,
-			importtableMetrics.TableName,
-			importtableMetrics.SchemaName,
-			MIGRATION_PHASE_MAP["IMPORT DATA"],
-			importtableMetrics.Status,
-			importtableMetrics.CountLiveRows,
-			importtableMetrics.CountTotalRows,
-			timestamp)
-		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics, snapshotMigrateTableMetrics)
+		if updateImportedRowCountEvent.Status == "COMPLETED" {
+			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
+		} else if !check {
+			cp.RWMutex.Lock()
+			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
+			cp.RWMutex.Unlock()
+
+			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
+		} else if !lastRowCountUpdateTime.Add(time.Second * 5).After(time.Now()) {
+			cp.RWMutex.Lock()
+			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
+			cp.RWMutex.Unlock()
+
+			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
+		}
+
 	}
-
-	err := cp.sendVisualizerTableMetrics(snapshotMigrateAllTableMetrics)
-
-	if err != nil {
-		log.Warnf("Cannot send metadata for visualization. %s", err)
-	}
+	cp.createAndSendUpdateRowCountEvent(updateImportedRowCountEvents)
 }
 
-func (cp *YugabyteD) SnapshotImportCompleted(snapshotImportEvent *cp.SnapshotImportEvent) {
-	cp.createAndSendImportSnapshotEvent(snapshotImportEvent, "COMPLETED")
+func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationEndedEvent) {
 }
 
-// Destroy the connection
-func (cp *YugabyteD) Finalize() {
-	cp.disconnect()
+func (cp *YugabyteD) panicHandler() {
+	if r := recover(); r != nil {
+		// Handle the panic for eventPublishers
+		log.Warnf(fmt.Sprintf("Panic occurred:%v", r))
+	}
 }
 
 func (cp *YugabyteD) getConn() (*pgxpool.Pool, error) {
@@ -391,12 +304,7 @@ func (cp *YugabyteD) connect() error {
 	if cp.conn != nil {
 		return nil
 	}
-	connectionUri := os.Getenv("TARGET_YBDB_CONN_URI")
-	if connectionUri == "" {
-		log.Warnf("Environment variable TARGET_YBDB_CONN_URI not set. " +
-			"Will not be able to visualize in yugabyted UI.")
-		return fmt.Errorf("connection uri string not set")
-	}
+	connectionUri := os.Getenv("YUGABYTED_DB_CONN_STRING")
 
 	conn, err := pgxpool.Connect(context.Background(), connectionUri)
 	if err != nil {
@@ -417,6 +325,26 @@ func (cp *YugabyteD) disconnect() {
 }
 
 const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_visualizer"
+
+// Set-up YBD database for visualisation metadata
+func (cp *YugabyteD) setupDatabase() error {
+	err := cp.createVoyagerSchema()
+	if err != nil {
+		return err
+	}
+
+	err = cp.createYugabytedMetadataTable()
+	if err != nil {
+		return err
+	}
+
+	err = cp.createYugabytedTableMetricsTable()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
 
 // Create the visualisation schema
 func (cp *YugabyteD) createVoyagerSchema() error {
@@ -483,6 +411,13 @@ func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
 
 // Get the latest invocation sequence for a given migration_uuid and migration phase
 func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, error) {
+
+	// Increment and return invocation sequence number if already initialised.
+	if cp.latestInvocationSequence > 0 {
+		cp.latestInvocationSequence += 1
+		return cp.latestInvocationSequence, nil
+	}
+
 	cmd := fmt.Sprintf(`SELECT MAX(invocation_sequence) AS latest_sequence 
 		FROM %s 
 		WHERE migration_uuid = '%s' AND migration_phase = %d`, YUGABYTED_METADATA_TABLE_NAME,
@@ -499,16 +434,19 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 	err = conn.QueryRow(context.Background(), cmd).Scan(&latestSequence)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			return 1, nil
+			cp.latestInvocationSequence = 1
+			return cp.latestInvocationSequence, nil
 		} else {
 			return 0, fmt.Errorf("couldn't get the latest sequence number: %w", err)
 		}
 	}
 
 	if latestSequence != nil {
-		return *latestSequence + 1, nil
+		cp.latestInvocationSequence = *latestSequence + 1
+		return cp.latestInvocationSequence, nil
 	} else {
-		return 1, nil
+		cp.latestInvocationSequence = 1
+		return cp.latestInvocationSequence, nil
 	}
 }
 
@@ -531,6 +469,7 @@ func (cp *YugabyteD) sendVisualizerDBPayload(
 		")", YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
+	visualizerDBPayload.MigrationDirectory = cp.migrationDirectory
 
 	var err error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
@@ -556,10 +495,6 @@ func (cp *YugabyteD) sendVisualizerDBPayload(
 		visualizerDBPayload.InvocationSequence = invocationSequence
 		visualizerDBPayload.InvocationTimestamp = timestamp
 	}
-	// err := cp.executeInsertQuery(cmd, visualizerDBPayload)
-	// if err != nil {
-	// 	return err
-	// }
 
 	return nil
 }

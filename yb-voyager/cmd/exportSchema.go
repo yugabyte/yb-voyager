@@ -20,7 +20,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 
@@ -96,11 +95,10 @@ func exportSchema() {
 	}
 
 	// Send 'IN PROGRESS' metadata for `EXPORT SCHEMA` step
-	exportSchemaStartEvent, err := createExportSchemaEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
-	}
+	exportSchemaStartEvent := createExportSchemaStartedEvent()
+
+	// utils.WaitGroup.Add(1)
+	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
 	source.DB().ExportSchema(exportDir)
 	updateIndexesInfoInMetaDB()
@@ -115,14 +113,13 @@ func exportSchema() {
 	setSchemaIsExported()
 
 	// Send 'COMPLETED' metadata for `EXPORT SCHEMA` step
-	exportSchemaCompleteEvent, err := createExportSchemaEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
-	}
+	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 
-	// Wait till the visualisation metadata is sent
-	utils.WaitGroup.Wait()
+	// utils.WaitGroup.Add(1)
+	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+
+	// // Wait till the visualisation metadata is sent
+	// utils.WaitGroup.Wait()
 }
 
 func init() {
@@ -191,23 +188,32 @@ func updateIndexesInfoInMetaDB() {
 	}
 }
 
-func createExportSchemaEvent() (cp.ExportSchemaEvent, error) {
+func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
 
-	exportSchemaEvent := cp.ExportSchemaEvent{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return exportSchemaEvent, fmt.Errorf(err)
+	result := cp.ExportSchemaStartedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "EXPORT SCHEMA",
+			MigrationUUID: migrationUUID,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+			DBType:        source.DBType,
+		},
 	}
 
-	exportSchemaEvent = cp.ExportSchemaEvent{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  source.DBName,
-		SchemaName:    source.Schema,
-		DBType:        source.DBType,
+	return result
+}
+
+func createExportSchemaCompletedEvent() cp.ExportSchemaCompletedEvent {
+
+	result := cp.ExportSchemaCompletedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "EXPORT SCHEMA",
+			MigrationUUID: migrationUUID,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+			DBType:        source.DBType,
+		},
 	}
 
-	return exportSchemaEvent, nil
+	return result
 }

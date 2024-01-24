@@ -25,7 +25,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -1045,11 +1044,9 @@ func analyzeSchema() {
 	reportFile := "schema_analysis_report." + outputFormat
 
 	// Send `IN PROGRESS` metadata for `ANALYZE SCHEMA` step
-	schemaAnalysisStartedEvent, err := createSchemaAnalysisEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
-	}
+	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
+	// utils.WaitGroup.Add(1)
+	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
@@ -1120,13 +1117,12 @@ func analyzeSchema() {
 	callhome.PackAndSendPayload(exportDir)
 
 	// Send 'COMPLETED' metadata for `ANALYZE SCHEMA` step
-	schemaAnalysisReport, err := createSchemaAnalysisReport(reportStruct)
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
-	}
-	// Wait till the visualisation metadata is sent
-	utils.WaitGroup.Wait()
+	schemaAnalysisReport := createSchemaAnalysisReport(reportStruct)
+	// utils.WaitGroup.Add(1)
+	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
+
+	// // Wait till the visualisation metadata is sent
+	// utils.WaitGroup.Wait()
 }
 
 var analyzeSchemaCmd = &cobra.Command{
@@ -1167,45 +1163,31 @@ func schemaIsAnalyzed() bool {
 	return utils.FileOrFolderExistsWithGlobPattern(path)
 }
 
-func createSchemaAnalysisEvent() (cp.SchemaAnalysisEvent, error) {
-
-	schemaAnalysisEvent := cp.SchemaAnalysisEvent{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return schemaAnalysisEvent, fmt.Errorf(err)
+func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
+	result := cp.SchemaAnalysisStartedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "ANALYZE SCHEMA",
+			MigrationUUID: migrationUUID,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+			DBType:        source.DBType},
 	}
 
-	schemaAnalysisEvent = cp.SchemaAnalysisEvent{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  source.DBName,
-		SchemaName:    source.Schema,
-		DBType:        source.DBType,
-	}
-
-	return schemaAnalysisEvent, nil
+	return result
 }
 
-func createSchemaAnalysisReport(report utils.Report) (cp.SchemaAnalysisReport, error) {
+func createSchemaAnalysisReport(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
 
-	schemaAnalysisReport := cp.SchemaAnalysisReport{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return schemaAnalysisReport, fmt.Errorf(err)
-	}
-
-	schemaAnalysisReport = cp.SchemaAnalysisReport{
-		MigrationUUID:  migrationUUID,
-		DatabaseName:   source.DBName,
-		SchemaName:     source.Schema,
-		DBType:         source.DBType,
+	result := cp.SchemaAnalysisIterationCompletedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "ANALYZE SCHEMA",
+			MigrationUUID: migrationUUID,
+			DatabaseName:  source.DBName,
+			SchemaName:    cp.GetSchemaList(source.Schema),
+			DBType:        source.DBType,
+		},
 		AnalysisReport: report,
 	}
 
-	return schemaAnalysisReport, nil
+	return result
 }

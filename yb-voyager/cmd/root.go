@@ -32,6 +32,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -72,11 +73,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			go startPprofServer()
 		}
 
-		controlPlane = yugabyted.New(exportDir)
-		err := controlPlane.Init()
-		if err != nil {
-			log.Warnf("Failed to initialize the target DB for visualization. %s", err)
-		}
+		setControlPlane()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -257,4 +254,26 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 
 func metaDBIsCreated(exportDir string) bool {
 	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
+}
+
+func setControlPlane() {
+	cpType := os.Getenv("CONTROL_PLANE_TYPE")
+
+	switch cpType {
+	case "":
+		log.Warnf("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
+		controlPlane = noopcp.New()
+	case "yugabyted":
+		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
+		if ybdConnString == "" {
+			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
+		}
+		controlPlane = yugabyted.New(exportDir)
+		log.Warnf("Migration UUID %s", migrationUUID)
+		log.Warnf("Starting Init")
+		err := controlPlane.Init()
+		if err != nil {
+			log.Warnf("Failed to initialize the target DB for visualization. %s", err)
+		}
+	}
 }

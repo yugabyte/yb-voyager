@@ -23,7 +23,6 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -80,11 +79,10 @@ func importSchema() {
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
 	// Send 'IN PROGRESS' metadata for `IMPORT SCHEMA` step
-	importSchemaStartEvent, err := createImportSchemaEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
-	}
+	importSchemaStartEvent := createImportSchemaStartedEvent()
+
+	// utils.WaitGroup.Add(1)
+	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
@@ -180,16 +178,15 @@ func importSchema() {
 	}
 
 	// Send 'COMPLETED' metadata for `IMPORT SCHEMA` step
-	importSchemaCompleteEvent, err := createImportSchemaEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
-	}
+	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
+
+	// utils.WaitGroup.Add(1)
+	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
 	callhome.PackAndSendPayload(exportDir)
 
-	// Wait till the visualisation metadata is sent
-	utils.WaitGroup.Wait()
+	// // Wait till the visualisation metadata is sent
+	// utils.WaitGroup.Wait()
 }
 
 func dumpStatements(stmts []string, filePath string) {
@@ -368,22 +365,32 @@ func isAlreadyExists(errString string) bool {
 	return false
 }
 
-func createImportSchemaEvent() (cp.ImportSchemaEvent, error) {
+func createImportSchemaStartedEvent() cp.ImportSchemaStartedEvent {
 
-	importSchemaEvent := cp.ImportSchemaEvent{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return importSchemaEvent, fmt.Errorf(err)
+	result := cp.ImportSchemaStartedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "IMPORT SCHEMA",
+			MigrationUUID: migrationUUID,
+			DBType:        tconf.TargetDBType,
+			DatabaseName:  tconf.DBName,
+			SchemaName:    []string{tconf.Schema},
+		},
 	}
 
-	importSchemaEvent = cp.ImportSchemaEvent{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  tconf.DBName,
-		SchemaName:    tconf.Schema,
+	return result
+}
+
+func createImportSchemaCompletedEvent() cp.ImportSchemaCompletedEvent {
+
+	result := cp.ImportSchemaCompletedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "IMPORT SCHEMA",
+			MigrationUUID: migrationUUID,
+			DBType:        tconf.TargetDBType,
+			DatabaseName:  tconf.DBName,
+			SchemaName:    []string{tconf.Schema},
+		},
 	}
 
-	return importSchemaEvent, nil
+	return result
 }

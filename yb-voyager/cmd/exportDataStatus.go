@@ -139,11 +139,10 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				doneCount++
 
 				// Update a table entry to `COMPLETED` once the table is exported
-				exportDataTableMetrics, err := createExportDataTableMetricsList([]string{key})
-				if err == nil {
-					utils.WaitGroup.Add(1)
-					go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
-				}
+				exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{key})
+
+				// utils.WaitGroup.Add(1)
+				controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
 
 				if doneCount == numTables {
 					break
@@ -213,19 +212,23 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
+
+			exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
+			// The metrics are sent after evry 5 secs in implementation of UpdateExportedRowCount
+			controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
 		}
 	}()
 
-	go func() { //for sending visualization table metrics every 5 secs
-		for !pbr.IsComplete() {
-			exportDataTableMetrics, err := createExportDataTableMetricsList([]string{tableName})
-			if err == nil {
-				utils.WaitGroup.Add(1)
-				go controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
-			}
-			time.Sleep(time.Second * 5)
-		}
-	}()
+	// go func() { //for sending visualization table metrics every 5 secs
+	// 	for !pbr.IsComplete() {
+	// 		exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
+
+	// 		// utils.WaitGroup.Add(1)
+	// 		controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+
+	// 		time.Sleep(time.Second * 5)
+	// 	}
+	// }()
 
 	var line string
 	insideCopyStmt := false

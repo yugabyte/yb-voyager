@@ -29,7 +29,7 @@ type VisualizerTableMetrics struct {
 	InvocationTimestamp string    `json:"invocation_timestamp"`
 }
 
-var TABLE_STATUS_MAP = map[string]int{
+var UPDATE_ROW_COUNT_STATUS_STR_TO_INT = map[string]int{
 	"NOT STARTED": 0,
 	"IN PROGRESS": 1,
 	"DONE":        2,

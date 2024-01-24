@@ -29,7 +29,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -373,11 +372,10 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	// Send 'IN PROGRESS' metadata for `IMPORT DATA` step
-	importDataStartEvent, err := createImportDataEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotImportStarted(&importDataStartEvent)
-	}
+	importDataStartEvent := createSnapshotImportStartedEvent()
+
+	// utils.WaitGroup.Add(1)
+	controlPlane.SnapshotImportStarted(&importDataStartEvent)
 
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
@@ -455,11 +453,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			// Create initial entry for each table in the table metrics table
-			importDataAllTableMetrics, err := createInitialImportDataTableMetrics(pendingTasks)
-			if err == nil {
-				utils.WaitGroup.Add(1)
-				go controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
-			}
+			importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
+
+			// utils.WaitGroup.Add(1)
+			controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 
 			for _, task := range pendingTasks {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
@@ -475,39 +472,55 @@ func importData(importFileTasks []*ImportFileTask) {
 				updateProgressFn := func(progressAmount int64) {
 					currentProgress += progressAmount
 					progressReporter.AddProgressAmount(task, progressAmount)
-				}
 
-				// For updating table metrics every 5 secs
-				go func() {
-					for totalProgressAmount > currentProgress {
+					if totalProgressAmount > currentProgress {
 						var status int
 						if currentProgress == 0 {
 							status = 0
 						} else {
 							status = 1
 						}
-						importDataTableMetrics, err := createImportDataTableMetrics(task.TableName,
+						importDataTableMetrics := createImportDataTableMetrics(task.TableName,
 							currentProgress, totalProgressAmount, status)
-						if err == nil {
-							utils.WaitGroup.Add(1)
-							go controlPlane.UpdateImportedRowCount(
-								[]*cp.SnapshotImportTableMetrics{&importDataTableMetrics})
-						}
-						time.Sleep(time.Second * 5)
+
+						// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
+						controlPlane.UpdateImportedRowCount(
+							[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
 					}
-				}()
+
+					// utils.WaitGroup.Add(1)
+				}
+
+				// // For updating table metrics every 5 secs
+				// go func() {
+				// 	for totalProgressAmount > currentProgress {
+				// 		var status int
+				// 		if currentProgress == 0 {
+				// 			status = 0
+				// 		} else {
+				// 			status = 1
+				// 		}
+				// 		importDataTableMetrics := createImportDataTableMetrics(task.TableName,
+				// 			currentProgress, totalProgressAmount, status)
+
+				// 		// utils.WaitGroup.Add(1)
+				// 		controlPlane.UpdateImportedRowCount(
+				// 			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+				// 		time.Sleep(time.Second * 5)
+				// 	}
+				// }()
 
 				importFile(state, task, updateProgressFn)
 				batchImportPool.Wait() // Wait for the file import to finish.
 
 				// Update the table entry to `COMPLETED` once the table is exported
-				importDataTableMetrics, err := createImportDataTableMetrics(task.TableName,
+				importDataTableMetrics := createImportDataTableMetrics(task.TableName,
 					currentProgress, totalProgressAmount, 3)
-				if err == nil {
-					utils.WaitGroup.Add(1)
-					go controlPlane.UpdateImportedRowCount(
-						[]*cp.SnapshotImportTableMetrics{&importDataTableMetrics})
-				}
+
+				// utils.WaitGroup.Add(1)
+				controlPlane.UpdateImportedRowCount(
+					[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+
 				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
 			time.Sleep(time.Second * 2)
@@ -571,14 +584,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	fmt.Printf("\nImport data complete.\n")
 
 	// Send 'COMPLETED' metadata for `IMPORT DATA` step
-	importDataCompletedEvent, err := createImportDataEvent()
-	if err == nil {
-		utils.WaitGroup.Add(1)
-		go controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-	}
+	importDataCompletedEvent := createSnapshotImportCompletedEvent()
+	// utils.WaitGroup.Add(1)
+	controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
 
-	// Wait till the visualisation metadata is sent
-	utils.WaitGroup.Wait()
+	// // Wait till the visualisation metadata is sent
+	// utils.WaitGroup.Wait()
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []string) {
@@ -1219,71 +1230,89 @@ func init() {
 	registerImportDataFlags(importDataToTargetCmd)
 }
 
-func createImportDataEvent() (cp.SnapshotImportEvent, error) {
+func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
 
-	dataImportEvent := cp.SnapshotImportEvent{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return dataImportEvent, fmt.Errorf(err)
+	result := cp.SnapshotImportStartedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "IMPORT DATA",
+			MigrationUUID: migrationUUID,
+			DBType:        tconf.TargetDBType,
+			DatabaseName:  tconf.DBName,
+			SchemaName:    []string{tconf.Schema},
+		},
 	}
 
-	dataImportEvent = cp.SnapshotImportEvent{
-		MigrationUUID: migrationUUID,
-		DatabaseName:  tconf.DBName,
-		SchemaName:    tconf.Schema,
-	}
-
-	return dataImportEvent, nil
+	return result
 }
 
-func createInitialImportDataTableMetrics(tasks []*ImportFileTask) ([]*cp.SnapshotImportTableMetrics, error) {
+func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
 
-	dataImportTableMetrics := []*cp.SnapshotImportTableMetrics{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return dataImportTableMetrics, fmt.Errorf(err)
+	result := cp.SnapshotImportCompletedEvent{
+		BaseEvent: cp.BaseEvent{
+			EventType:     "IMPORT DATA",
+			MigrationUUID: migrationUUID,
+			DBType:        tconf.TargetDBType,
+			DatabaseName:  tconf.DBName,
+			SchemaName:    []string{tconf.Schema},
+		},
 	}
+
+	return result
+}
+
+func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+
+	result := []*cp.UpdateImportedRowCountEvent{}
 
 	for _, task := range tasks {
-		dataImportTableMetrics = append(dataImportTableMetrics, &cp.SnapshotImportTableMetrics{
-			MigrationUUID:  migrationUUID,
-			TableName:      task.TableName,
-			SchemaName:     tconf.Schema,
-			Status:         0,
-			CountLiveRows:  0,
-			CountTotalRows: getTotalProgressAmount(task),
-		})
+
+		var schemaName, tableName string
+		if strings.Count(task.TableName, ".") == 1 {
+			schemaName, tableName = cp.SplitTableNameForPG(task.TableName)
+		} else {
+			schemaName, tableName = tconf.Schema, task.TableName
+		}
+		tableMetrics := cp.UpdateImportedRowCountEvent{
+			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+				BaseEvent: cp.BaseEvent{
+					EventType:     "IMPORT DATA",
+					MigrationUUID: migrationUUID,
+					SchemaName:    []string{schemaName},
+				},
+				TableName:         tableName,
+				Status:            cp.UPDATE_ROW_COUNT_STATUS_INT_TO_STR[0],
+				TotalRowCount:     getTotalProgressAmount(task),
+				CompletedRowCount: 0,
+			},
+		}
+		result = append(result, &tableMetrics)
 	}
 
-	return dataImportTableMetrics, nil
+	return result
 }
 
 func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
-	status int) (cp.SnapshotImportTableMetrics, error) {
+	status int) cp.UpdateImportedRowCountEvent {
 
-	dataImportTableMetrics := cp.SnapshotImportTableMetrics{}
-
-	if migrationUUID == uuid.Nil {
-		err := "MigrationUUID couldn't be retreived. Cannot send metadata for visualization"
-
-		log.Warnf(fmt.Sprint(err))
-		return dataImportTableMetrics, fmt.Errorf(err)
+	var schemaName, tableName2 string
+	if strings.Count(tableName, ".") == 1 {
+		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
+	} else {
+		schemaName, tableName2 = tconf.Schema, tableName
+	}
+	result := cp.UpdateImportedRowCountEvent{
+		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+			BaseEvent: cp.BaseEvent{
+				EventType:     "IMPORT DATA",
+				MigrationUUID: migrationUUID,
+				SchemaName:    []string{schemaName},
+			},
+			TableName:         tableName2,
+			Status:            cp.UPDATE_ROW_COUNT_STATUS_INT_TO_STR[status],
+			TotalRowCount:     countTotalRows,
+			CompletedRowCount: countLiveRows,
+		},
 	}
 
-	dataImportTableMetrics = cp.SnapshotImportTableMetrics{
-		MigrationUUID:  migrationUUID,
-		TableName:      tableName,
-		SchemaName:     tconf.Schema,
-		Status:         status,
-		CountLiveRows:  countLiveRows,
-		CountTotalRows: countTotalRows,
-	}
-
-	return dataImportTableMetrics, nil
+	return result
 }
