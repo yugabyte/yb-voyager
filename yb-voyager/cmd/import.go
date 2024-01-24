@@ -260,12 +260,12 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
-	BoolVar(cmd.Flags(), &flagPostDataSnapshortImport, "post-data-snapshot-import", false,
+	BoolVar(cmd.Flags(), &flagPostSnapshotImport, "post-snapshot-import", false,
 		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
-		"Refreshes the materialised views on target during post data snapshot import phase (default false)")
+		"Refreshes the materialised views on target during post snapshot import phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
 }

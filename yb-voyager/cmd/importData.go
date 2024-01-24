@@ -464,7 +464,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostDataSnapshotImportSqls()
+		executePostSnapshotImportSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -802,7 +802,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostDataSnapshotImportSqls() {
+func executePostSnapshotImportSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
@@ -988,7 +988,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
 
-		if bool(flagPostDataSnapshortImport) && strings.Contains(objType, "INDEX") {
+		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			//In case of index creation print the index name as index creation takes time
 			//and user can see the progress
 			if sqlInfo.objName != "" {

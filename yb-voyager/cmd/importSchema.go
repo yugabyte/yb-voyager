@@ -66,7 +66,7 @@ func init() {
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
-var flagPostDataSnapshortImport utils.BoolStr
+var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 
@@ -94,7 +94,7 @@ func importSchema() {
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.TargetDBVersion = targetDBVersion
 
-	if !flagPostDataSnapshortImport {
+	if !flagPostSnapshotImport {
 		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 		if utils.FileOrFolderExists(filePath) {
 			color.Red("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
@@ -110,7 +110,7 @@ func importSchema() {
 	var objectList []string
 
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
-	if !flagPostDataSnapshortImport { // Pre data load.
+	if !flagPostSnapshotImport { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
@@ -162,12 +162,12 @@ func importSchema() {
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 
-	if flagPostDataSnapshortImport {
+	if flagPostSnapshotImport {
 		if flagRefreshMViews {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-data-snapshot-import`.")
+		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
 
 	callhome.PackAndSendPayload(exportDir)
