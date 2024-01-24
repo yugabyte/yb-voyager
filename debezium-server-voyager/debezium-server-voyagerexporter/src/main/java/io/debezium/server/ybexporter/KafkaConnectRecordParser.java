@@ -269,5 +269,4 @@ class KafkaConnectRecordParser implements RecordParser {
             r.addValueField(f.name(), fieldValue);
         }
     }
-
 }
