@@ -216,8 +216,11 @@ class KafkaConnectRecordParser implements RecordParser {
                     if (valueAndSet == null){
                         continue;
                     }
+                } else if (r.op.equals("d") && valueAndSet == null){
+                    // in case of deletes we are using before struct which contains only delta for yb
+                    continue;
                 }
-
+                
                 if (!valueAndSet.getBoolean("set")){
                     continue;
                 }
