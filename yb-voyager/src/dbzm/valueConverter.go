@@ -16,6 +16,7 @@ limitations under the License.
 package dbzm
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"fmt"
@@ -66,7 +67,9 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
-	buf                  bytes.Buffer
+	bufReader            bufio.Reader
+	bufWriter            bufio.Writer
+	wbuf                 bytes.Buffer
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
@@ -101,7 +104,8 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues, err := csv.NewReader(strings.NewReader(row)).Read()
+	conv.bufReader.Reset(strings.NewReader(row))
+	columnValues, err := csv.NewReader(&conv.bufReader).Read()
 	if err != nil {
 		return "", fmt.Errorf("reading row: %w", err)
 	}
@@ -115,11 +119,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	csvWriter := csv.NewWriter(&conv.buf)
+	conv.bufWriter.Reset(&conv.wbuf)
+	csvWriter := csv.NewWriter(&conv.bufWriter)
 	csvWriter.Write(columnValues)
 	csvWriter.Flush()
-	transformedRow := strings.TrimSuffix(conv.buf.String(), "\n")
-	conv.buf.Reset()
+	transformedRow := strings.TrimSuffix(conv.wbuf.String(), "\n")
+	conv.wbuf.Reset()
 	return transformedRow, nil
 }
 
@@ -157,7 +162,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	// TODO: handle case sensitivity/quoted table names..
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
-	} 
+	}
 	if conv.targetDBType != tgtdb.POSTGRESQL {
 		ev.SchemaName = conv.targetSchema
 	}
