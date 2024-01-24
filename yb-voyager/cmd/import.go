@@ -265,7 +265,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
-		"Refreshes the materialised views on target during post import data phase (default false)")
+		"Refreshes the materialized views on target during post import data phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
 }
