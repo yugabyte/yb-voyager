@@ -204,32 +204,24 @@ class KafkaConnectRecordParser implements RecordParser {
             Object fieldValue;
             if (sourceType.equals("yb")){
                 // TODO: write a proper transformer for this logic
-                /* 
-                    values in the debezium connector are as follows:
-                    "val1" : {
-                        "value" : "value for val1 column",
-                        "set" : true
-                    }
-                */
-                Struct beforeValueAndStruct = null;
-                if (before != null) { // null for INSERTs
-                    beforeValueAndStruct = before.getStruct(f.name());
-                } 
-                Struct afterValueAndSet = after.getStruct(f.name());
-                // For INSERT events, there is no valueAndSet for the columns with null values
-                if (afterValueAndSet == null && r.op.equals("c")){
-                    continue;
-                } else if (!afterValueAndSet.getBoolean("set")){
-                    continue;
-                }
-
+                // values in the debezium connector are as follows:
+                // "val1" : {
+                //  "value" : "value for val1 column",
+                //  "set" : true
+                //}
+                Struct valueAndSet = after.getStruct(f.name());
                 if (r.op.equals("u")) {
-                    if (Objects.equals(afterValueAndSet.get("value"), beforeValueAndStruct.get("value"))) {
-                        // no need to record this as field is unchanged
+                    // in the default configuration of the stream, for an update, the fields in the after struct
+                    // are only the delta fields, therefore, it is possible for a field to not be there.
+                    if (valueAndSet == null){
                         continue;
                     }
                 }
-                fieldValue = afterValueAndSet.getWithoutDefault("value");
+
+                if (!valueAndSet.getBoolean("set")){
+                    continue;
+                }
+                fieldValue = valueAndSet.getWithoutDefault("value");
             }
             else{
                 if (r.op.equals("u")) {

@@ -77,6 +77,7 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 			eventsRemoved = true
 		}
 	}
+
 	if eventsRemoved {
 		c.cond.Broadcast()
 	}
@@ -86,6 +87,15 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
 		return false
 	}
+
+	/*
+		Not checking for conflict in case of export from yb because of inconsistency in before values of events from ybcdc
+		TODO(future): Fix this in our debezium voyager plugin
+	*/
+	if exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		return true
+	}
+
 	maybeQualifiedName := event1.TableName
 	if event1.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)

@@ -40,10 +40,10 @@ public class Main {
                 throw new RuntimeException("No table found with the specified name");
             }
             /*
-                EXPLICIT ALL is to enable before image for the events
+                EXPLICIT 'ALL' can enable before image for the events
                 Refer: https://docs.yugabyte.com/preview/admin/yb-admin/#enabling-before-image
             */
-            String streamID = client.createCDCStream(table, parameters.dbName, "PROTO", "EXPLICIT", "ALL").getStreamId();
+            String streamID = client.createCDCStream(table, parameters.dbName, "PROTO", "EXPLICIT", null).getStreamId();
             System.out.println("CDC Stream ID: " + streamID);
         } else if (parameters.listMasters) {
             String tserverNode = parameters.masterAddresses.split(",")[0].split(":")[0] + ":" + parameters.tserverPort;
