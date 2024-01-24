@@ -76,6 +76,8 @@ class KafkaConnectRecordParser implements RecordParser {
             // Deserialize to Connect object
             Struct value = (Struct) ((SourceRecord) valueObj).value();
             Struct key = (Struct) ((SourceRecord) valueObj).key();
+            LOGGER.debug("key={}", key);
+            LOGGER.debug("value={}", value);
             
             if (value == null) {
                 // Ideally, we should have config tombstones.on.delete=false. In case that is not set correctly,
@@ -192,15 +194,18 @@ class KafkaConnectRecordParser implements RecordParser {
         // TODO: error handle before is NULL
         Struct before = value.getStruct("before");
         
-        // in case of delete, the before struct contains the values required in cases like DELETE-INSERT conflicts(unique key columns)
-        if (r.op.equals("d") && before != null) {
-            after = before;
-        }
-        if (after == null) {
-            return;
-        }
 
-        for (Field f : after.schema().fields()) {
+        if (after == null && !r.op.equals("d")) {
+            throw new RuntimeException(String.format("after struct is null for record with op=%s", r.op));
+        }
+        if (before == null && !r.op.equals("c")){
+            throw new RuntimeException(String.format("before struct is null for record with op=%s", r.op));
+        }
+        Struct beforeOrAfter = after;
+        if (r.op.equals("d")){
+            beforeOrAfter = before;
+        }
+        for (Field f : beforeOrAfter.schema().fields()) {
             Object fieldValue;
             if (sourceType.equals("yb")){
                 // TODO: write a proper transformer for this logic
@@ -211,34 +216,68 @@ class KafkaConnectRecordParser implements RecordParser {
                         "set" : true
                     }
                 */
-                Struct beforeValueAndStruct = null;
+                Struct beforeValueAndSet = null;
+                Struct afterValueAndSet = null;
                 if (before != null) { // null for INSERTs
-                    beforeValueAndStruct = before.getStruct(f.name());
-                } 
-                Struct afterValueAndSet = after.getStruct(f.name());
-                // For INSERT events, there is no valueAndSet for the columns with null values
-                if (afterValueAndSet == null && r.op.equals("c")){
-                    continue;
-                } else if (!afterValueAndSet.getBoolean("set")){
-                    continue;
+                    beforeValueAndSet = before.getStruct(f.name());
+                }
+                if (after != null){
+                    afterValueAndSet = after.getStruct(f.name());
                 }
 
-                if (r.op.equals("u")) {
-                    if (Objects.equals(afterValueAndSet.get("value"), beforeValueAndStruct.get("value"))) {
-                        // no need to record this as field is unchanged
-                        continue;
-                    }
+                switch(r.op){
+                    case "c":
+                        if (afterValueAndSet == null) {
+                            // value is null, so we don't need to explicitly insert that value.
+                            continue;
+                        }
+                        fieldValue = afterValueAndSet.getWithoutDefault("value");
+                        break;
+                    case "d":
+                        if (beforeValueAndSet == null) {
+                            // value is null, so we include it in the fields just for completeness sake.(as opposed to skipping)
+                            fieldValue = null;
+                        } else {
+                            fieldValue = beforeValueAndSet.getWithoutDefault("value");
+                        }
+                        break;
+                    case "u":
+                        Object beforeFieldValue =null;
+                        Object afterFieldValue;
+                        if (!afterValueAndSet.getBoolean("set")){
+                            continue;
+                        }
+                        afterFieldValue = afterValueAndSet.getWithoutDefault("value");
+                        if (beforeValueAndSet != null) {
+                            beforeFieldValue = beforeValueAndSet.getWithoutDefault("value");
+                        }
+                        if (Objects.equals(beforeFieldValue, afterFieldValue)){
+                            continue;
+                        }
+                        fieldValue = afterFieldValue;
+                        break;
+                    default:
+                        throw new RuntimeException(String.format("unsupported operation type %s",r.op));
                 }
-                fieldValue = afterValueAndSet.getWithoutDefault("value");
             }
             else{
-                if (r.op.equals("u")) {
-                    if (Objects.equals(after.get(f), before.get(f))) {
-                        // no need to record this as field is unchanged
-                        continue;
-                    }
+                switch(r.op){
+                    case "c":
+                        fieldValue = after.getWithoutDefault(f.name());
+                        break;
+                    case "d":
+                        fieldValue = before.getWithoutDefault(f.name());
+                        break;
+                    case "u":
+                        if (Objects.equals(after.get(f), before.get(f))) {
+                            // no need to record this as field is unchanged
+                            continue;
+                        }
+                        fieldValue = after.getWithoutDefault(f.name());
+                        break;
+                    default:
+                        throw new RuntimeException(String.format("unsupported operation type %s",r.op));
                 }
-                fieldValue = after.getWithoutDefault(f.name());
             }
 
             r.addValueField(f.name(), fieldValue);
