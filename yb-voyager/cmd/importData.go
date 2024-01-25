@@ -177,7 +177,18 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	found := false
+	for i, envVar := range env {
+		if strings.HasPrefix(envVar, "TARGET_DB_PASSWORD=") {
+			// Change the value of TARGET_DB_PASSWORD
+			env[i] = "TARGET_DB_PASSWORD=" + tconf.Password
+			found = true
+			break
+		}
+	}
+	if !found {
+		env = append(env, "TARGET_DB_PASSWORD="+tconf.Password)
+	}
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -218,8 +229,8 @@ func discoverFilesToImport() []*ImportFileTask {
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
 		if fileEntry.RowCount == 0 {
-			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables 
-			// but pb hangs for empty so skipping empty tables in snapshot import 
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
 		task := &ImportFileTask{
