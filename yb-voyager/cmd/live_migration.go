@@ -205,7 +205,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for DELETE-INSERT conflict.
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	if TableToUniqueKeyColumns[tableName] != nil {
+	if conflictDetectionCache.tableToUniqueKeyColumns[tableName] != nil {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		} else {
