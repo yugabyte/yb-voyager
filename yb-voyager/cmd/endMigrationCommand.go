@@ -173,11 +173,11 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 
 func saveSchemaAnalysisReport() {
 	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
-	if !schemaIsAnalyzed() {
-		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
-		return
-	} else if alreadyBackedUp {
+	if alreadyBackedUp {
 		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
+		return
+	} else if !schemaIsAnalyzed() {
+		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
 	}
 	utils.PrintAndLog("saving schema analysis report...")
