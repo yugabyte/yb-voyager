@@ -304,11 +304,10 @@ func (c *Config) String() string {
 			c.RunId,
 			c.ExporterRole,
 			triggerDirPath)
-		sslConf := fmt.Sprintf(yugabyteSSLConfigTemplate, 
-			c.SSLRootCert, 
+		sslConf := fmt.Sprintf(yugabyteSSLConfigTemplate,
+			c.SSLRootCert,
 			c.SSLMode)
-		conf = conf + sslConf
-		} //TODO test SSL for other methods for yugabytedb
+		conf = conf + sslConf //TODO test SSL for other methods for yugabytedb
 		if c.SSLCertPath != "" || c.SSLKey != "" {
 			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export from target' from yugabytedb yet. Ignoring them.")
 		}
