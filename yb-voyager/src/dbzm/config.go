@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Config struct {
@@ -303,10 +304,14 @@ func (c *Config) String() string {
 			c.RunId,
 			c.ExporterRole,
 			triggerDirPath)
-		if c.SSLRootCert != "" {
-			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
-				c.SSLRootCert, c.SSLMode)
+		sslConf := fmt.Sprintf(yugabyteSSLConfigTemplate, 
+			c.SSLRootCert, 
+			c.SSLMode)
+		conf = conf + sslConf
 		} //TODO test SSL for other methods for yugabytedb
+		if c.SSLCertPath != "" || c.SSLKey != "" {
+			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export from target' from yugabytedb yet. Ignoring them.")
+		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
