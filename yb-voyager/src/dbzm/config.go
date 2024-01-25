@@ -306,7 +306,7 @@ func (c *Config) String() string {
 			triggerDirPath)
 		if c.SSLRootCert != "" {
 			if c.SSLMode == "prefer" {
-				utils.ErrExit("Error: SSL mode 'prefer' is not supported for 'export data from target' from yugabytedb. Please restart 'export data from target' with a different --target-ssl-mode flag.")
+				utils.ErrExit("Error: SSL mode 'prefer' is not supported for 'export data from target'. Please restart 'export data from target' with a different mode in `--target-ssl-mode` flag.")
 			}
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate, c.SSLMode, c.SSLRootCert)
 		}
