@@ -61,6 +61,7 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
+var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -218,8 +219,8 @@ func discoverFilesToImport() []*ImportFileTask {
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
 		if fileEntry.RowCount == 0 {
-			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables 
-			// but pb hangs for empty so skipping empty tables in snapshot import 
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
 			continue
 		}
 		task := &ImportFileTask{
@@ -472,6 +473,15 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
+
+			tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(importTableList)
+			if err != nil {
+				utils.ErrExit("failed to get table unique key columns map: %s", err)
+			}
+
+			log.Info("initializing conflict detection cache")
+			conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns)
+
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)

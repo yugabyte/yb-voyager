@@ -156,7 +156,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			exit 1
+			tail_log_file "debezium-source_db_exporter.log"
         fi
     else
         break
@@ -183,7 +183,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-import-data-to-source.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
-			exit 1
+			tail_log_file "debezium-target_db_exporter_fb.log"
         fi
     else
         break
