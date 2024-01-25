@@ -83,10 +83,10 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 	}
 
 	/*
-		Not checking for conflict in case of export from yb because of inconsistency in before values of events from ybcdc
+		Not checking for value of unique key values conflict in case of export from yb because of inconsistency in before values of events from ybcdc
 		TODO(future): Fix this in our debezium voyager plugin
 	*/
-	if exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+	if isTargetDBExporter(event2.ExporterRole) {
 		return true
 	}
 
