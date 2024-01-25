@@ -86,7 +86,9 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	source.SSLMode = targetConf.SSLMode
+	if source.SSLMode == "" {
+		source.SSLMode = targetConf.SSLMode
+	}
 	source.SSLCertPath = targetConf.SSLCertPath
 	source.SSLKey = targetConf.SSLKey
 	source.SSLRootCert = targetConf.SSLRootCert
