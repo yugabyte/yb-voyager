@@ -32,6 +32,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var targetDbPassword string
@@ -116,11 +118,20 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
-	} else {
-		utils.ErrExit("data file descriptor not found at %s for snapshot", dataFileDescriptorPath)
 	}
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	var exportSnapshotStatus *ExportSnapshotStatus
 
 	source = *msr.SourceDBConf
+	if source.DBType == POSTGRESQL {
+		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
+		if err != nil {
+			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+		}
+	}
+
+	sqlname.SourceDBType = source.DBType
 	sourceSchemaCount := len(strings.Split(source.Schema, "|"))
 
 	for i, table := range tableList {
@@ -129,7 +140,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		tableName := strings.Split(table, ".")[1]
 		schemaName := strings.Split(table, ".")[0]
-		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, snapshotDataFileDescriptor)
+		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, exportSnapshotStatus)
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
 		if sourceSchemaCount <= 1 {
@@ -200,8 +211,7 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData) {
 	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
-
-func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, snapshotDataFileDescriptor *datafile.Descriptor) {
+func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, tableName string, schemaName string, dbzmStatus *dbzm.ExportStatus, exportSnapshotStatus *ExportSnapshotStatus) {
 	// TODO: read only from one place(data file descriptor). Right now, data file descriptor does not store schema names.
 	if msr.SnapshotMechanism == "debezium" {
 		tableExportStatus := dbzmStatus.GetTableExportStatus(tableName, schemaName)
@@ -215,20 +225,9 @@ func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *
 		}
 		row.ExportedSnapshotRows = tableExportStatus.ExportedRowCountSnapshot
 	} else {
-		if msr.SourceDBConf.DBType == POSTGRESQL && schemaName != "public" && schemaName != "" {
-			//multiple schema specific
-			tableName = schemaName + "." + tableName
-		}
-		dataFile := snapshotDataFileDescriptor.GetDataFileEntryByTableName(tableName)
-		if dataFile == nil {
-			dataFile = &datafile.FileEntry{
-				FilePath:  "",
-				TableName: tableName,
-				FileSize:  0,
-				RowCount:  0,
-			}
-		}
-		row.ExportedSnapshotRows = dataFile.RowCount
+		qualifiedName := fmt.Sprintf("%s.%s", schemaName, tableName)
+		status := exportSnapshotStatus.Tables[qualifiedName]
+		row.ExportedSnapshotRows = status.ExportedRowCountSnapshot
 	}
 }
 
@@ -255,7 +254,7 @@ func updateImportedEventsCountsInTheRow(sourceDBType string, row *rowData, table
 	}
 	state := NewImportDataState(exportDir)
 
-	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific 
+	if sourceDBType == POSTGRESQL && schemaName != "public" && schemaName != "" { //multiple schema specific
 		tableName = schemaName + "." + tableName
 	}
 

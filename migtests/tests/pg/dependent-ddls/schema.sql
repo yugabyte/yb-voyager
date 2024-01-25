@@ -26,6 +26,9 @@ CREATE TABLE public.table1 (
     col4 timestamp with time zone DEFAULT statement_timestamp() NOT NULL
 );
 
+INSERT into public.table1(col1,col2,col3) values('a','b','{"c","d"}');
+INSERT into public.table1(col1,col2,col3) values('e','f','{"g","h"}');
+
 
 CREATE FUNCTION public.array_sort(anyarray) RETURNS anyarray
     LANGUAGE sql IMMUTABLE STRICT

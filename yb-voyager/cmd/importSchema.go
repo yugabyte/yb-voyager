@@ -211,7 +211,7 @@ func installOrafce(conn *pgx.Conn) {
 }
 
 func refreshMViews(conn *pgx.Conn) {
-	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
+	utils.PrintAndLog("\nRefreshing Materialized Views..\n\n")
 	var mViewNames []string
 	mViewsSqlInfoArr := getDDLStmts("MVIEW")
 	for _, eachMviewSql := range mViewsSqlInfoArr {
@@ -224,7 +224,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
