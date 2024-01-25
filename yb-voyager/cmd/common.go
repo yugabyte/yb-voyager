@@ -529,7 +529,6 @@ func getDefaultPGSchema(schema string) (string, bool) {
 }
 
 func CleanupChildProcesses() {
-	log.Info("Cleaning up child processes...")
 	myPid := os.Getpid()
 	processes, err := ps.Processes()
 	if err != nil {
@@ -538,6 +537,9 @@ func CleanupChildProcesses() {
 	childProcesses := lo.Filter(processes, func(process ps.Process, _ int) bool {
 		return process.PPid() == myPid
 	})
+	if len(childProcesses) > 0 {
+		log.Info("Cleaning up child processes...")
+	}
 	for _, process := range childProcesses {
 		pid := process.Pid()
 		log.Infof("shutting down child pid %d", pid)
