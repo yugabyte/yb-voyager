@@ -30,6 +30,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"golang.org/x/exp/slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -654,17 +655,7 @@ func startFallBackSetupIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	found := false
-	for i, e := range env {
-		if strings.HasPrefix(e, "SOURCE_DB_PASSWORD=") {
-			env[i] = "SOURCE_DB_PASSWORD=" + source.Password
-			found = true
-			break
-		}
-	}
-	if !found {
-		env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
-	}
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
