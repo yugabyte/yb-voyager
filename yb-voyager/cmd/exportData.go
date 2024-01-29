@@ -408,7 +408,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SnapshotMechanism = "pg_dump"
-		case ORACLE, MYSQL: 
+		case ORACLE, MYSQL:
 			record.SnapshotMechanism = "ora2pg"
 		}
 	})
@@ -654,7 +654,17 @@ func startFallBackSetupIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	found := false
+	for i, e := range env {
+		if strings.HasPrefix(e, "SOURCE_DB_PASSWORD=") {
+			env[i] = "SOURCE_DB_PASSWORD=" + source.Password
+			found = true
+			break
+		}
+	}
+	if !found {
+		env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	}
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
