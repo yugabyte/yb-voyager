@@ -86,7 +86,8 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
 	log.Info("initializing conflict detection cache")
-	conflictDetectionCache = NewConflictDetectionCache(evChans)
+	tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
@@ -208,10 +209,11 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for DELETE-INSERT conflict.
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	if TableToUniqueKeyColumns[tableName] != nil {
-		conflictDetectionCache.WaitUntilNoConflict(event)
+	if conflictDetectionCache.tableToUniqueKeyColumns[tableName] != nil {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
+		} else {
+			conflictDetectionCache.WaitUntilNoConflict(event)
 		}
 	}
 

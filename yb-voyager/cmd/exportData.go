@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -29,6 +30,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -40,6 +42,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -131,6 +134,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
+	} else if ProcessShutdownRequested {
+		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
@@ -250,6 +255,15 @@ func exportData() bool {
 		}
 		return true
 	} else {
+		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
+			return table.Qualified.MinQuoted //Case sensitivity
+		})
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.TableListExportedFromSource = minQuotedTableList
+		})
+		if err != nil {
+			utils.ErrExit("update table list exported from source: update migration status record: %s", err)
+		}
 		fmt.Printf("num tables to export: %d\n", len(finalTableList))
 		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
@@ -390,6 +404,18 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	initializeExportTableMetadata(finalTableList)
 
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch source.DBType {
+		case POSTGRESQL:
+			record.SnapshotMechanism = "pg_dump"
+		case ORACLE, MYSQL: 
+			record.SnapshotMechanism = "ora2pg"
+		}
+	})
+	if err != nil {
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
+	}
+
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
 
@@ -463,14 +489,30 @@ func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
 		clearDataIsExported()
-		os.Remove(dfdFilePath)
-		os.Remove(propertiesFilePath)
-		metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
+		err := os.Remove(dfdFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove data file descriptor: %s", err)
+		}
+		err = os.Remove(propertiesFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove properties file: %s", err)
+		}
+		err = exportSnapshotStatusFile.Delete()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			utils.ErrExit("Failed to remove export snapshot status file: %s", err)
+		}
+
+		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
+		if err != nil {
+			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
+		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if (changeStreamingIsEnabled(exportType)) &&

@@ -61,7 +61,7 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
-var TableToUniqueKeyColumns map[string][]string
+
 var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
@@ -475,11 +475,9 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
-			TableToUniqueKeyColumns, err = tdb.GetTableToUniqueKeyColumnsMap(importTableList)
 			if err != nil {
 				utils.ErrExit("failed to get table unique key columns map: %s", err)
 			}
-
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)

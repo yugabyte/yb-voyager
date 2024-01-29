@@ -42,6 +42,13 @@ type TableProgressMetadata struct {
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
+var TableMetadataStatusMap = map[int]string{
+	0: "NOT-STARTED", 
+	1: "EXPORTING", 
+	2: "DONE", 
+	3: "DONE",
+}
+
 type IndexInfo struct {
 	IndexName string   `json:"IndexName"`
 	IndexType string   `json:"IndexType"`

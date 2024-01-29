@@ -25,15 +25,17 @@ So, this cache stores events like event1 and wait for them to be processed befor
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
-	m       map[int64]*tgtdb.Event
-	cond    *sync.Cond
-	evChans []chan *tgtdb.Event
+	m                       map[int64]*tgtdb.Event
+	cond                    *sync.Cond
+	tableToUniqueKeyColumns map[string][]string
+	evChans                 []chan *tgtdb.Event
 }
 
-func NewConflictDetectionCache(evChans []chan *tgtdb.Event) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
+	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
 	c.evChans = evChans
 	return c
 }
@@ -89,10 +91,13 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 	}
 
 	/*
-		Not checking for conflict in case of export from yb because of inconsistency in before values of events from ybcdc
+		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
+
+		For now, we just check if the event is from same table then we consider it as a conflict
 	*/
-	if exporterRole == TARGET_DB_EXPORTER_FF_ROLE || exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+	if isTargetDBExporter(event2.ExporterRole) {
+		log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", event1.TableName, event1.Vsn, event2.Vsn)
 		return true
 	}
 
@@ -100,7 +105,7 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 	if event1.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
 	}
-	uniqueKeyColumns := TableToUniqueKeyColumns[maybeQualifiedName]
+	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
 		// if the unique key column value is same, then we have a conflict
 		if *event1.Fields[column] == *event2.Fields[column] {

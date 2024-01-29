@@ -814,6 +814,9 @@ func fetchDefaultParallelJobs(tconfs []*TargetConf, defaultParallelismFactor int
 	if totalCores == 0 { //if target is running on MacOS, we are unable to determine totalCores
 		return 3
 	}
+	if tconfs[0].TargetDBType == YUGABYTEDB {
+		return totalCores / 4
+	}
 	return totalCores / 2
 }
 
