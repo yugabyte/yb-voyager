@@ -159,7 +159,7 @@ public class ExportStatus {
         tableSchema.put("columns", fields);
         try {
             String fileName = t.tableName;
-            if ((sourceType.equals("postgresql")) && (!t.schemaName.equals("public"))){
+            if ((sourceType.equals("postgresql") || sourceType.equals("yb")) && (!t.schemaName.equals("public"))){
                 fileName = t.schemaName + "." + fileName;
             }
             String schemaFilePath = String.format("%s/schemas/%s/%s_schema.json", dataDir, exporterRole, fileName);
