@@ -172,7 +172,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
 	}
-	if conv.targetDBType != tgtdb.POSTGRESQL {
+	if conv.targetDBType != tgtdb.POSTGRESQL && conv.targetDBType != tgtdb.YUGABYTEDB {
 		ev.SchemaName = conv.targetSchema
 	}
 	return nil
