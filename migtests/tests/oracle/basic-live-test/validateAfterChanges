@@ -20,18 +20,23 @@ def main():
 		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
-	'x':5
+	'x':5,
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {
 	'x': {
 		'id': '18',
 		'id2': '43'
+	},
+	'user_table': {
+		'id': '51',
 	}
 }
 
 EXPECTED_ROW_COUNT_FF = {
-	'x':7
+	'x':7,
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
