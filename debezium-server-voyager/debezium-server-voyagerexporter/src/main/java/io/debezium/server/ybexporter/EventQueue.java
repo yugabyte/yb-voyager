@@ -280,7 +280,7 @@ public class EventQueue implements RecordWriter {
                 try {
                     input = new BufferedReader(new FileReader(currentQueueSegmentPath));
                     while ((line = input.readLine()) != null) {
-                        line.trim();
+                        line = line.trim();
                         if (line.equals("")) {
                             continue;
                         }
