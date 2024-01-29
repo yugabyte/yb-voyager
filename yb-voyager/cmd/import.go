@@ -84,9 +84,9 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
 		getTargetPassword(cmd)
-	case FF_DB_IMPORTER_ROLE:
-		getFallForwardDBPassword(cmd)
-	case FB_DB_IMPORTER_ROLE:
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		getSourceReplicaDBPassword(cmd)
+	case SOURCE_DB_IMPORTER_ROLE:
 		getSourceDBPassword(cmd)
 	}
 	return nil
@@ -144,7 +144,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 		"host on which the Source-Replica DB server is running")
 
 	cmd.Flags().IntVar(&tconf.Port, "source-replica-db-port", 0,
-		"port on which the Source-Replica DB server is running Default: ORACLE(1521)")
+		"port on which the Source-Replica DB server is running Default: ORACLE(1521), POSTGRESQL(5432)")
 
 	cmd.Flags().StringVar(&tconf.User, "source-replica-db-user", "",
 		"username with which to connect to the Source-Replica DB server")
@@ -166,7 +166,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 		"[For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases")
 
 	cmd.Flags().StringVar(&tconf.Schema, "source-replica-db-schema", "",
-		"schema name in Source-Replica DB") // TODO: add back note after we suppport PG/Mysql - `(Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)`
+		"schema name in Source-Replica DB (Note: works only for source as Oracle, in case of PostgreSQL schemas remain same as of source)")
 
 	// TODO: SSL related more args might come. Need to explore SSL part completely.
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
@@ -188,6 +188,10 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 func registerImportDataCommonFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &disablePb, "disable-pb", false,
 		"Disable progress bar/stats during data import (default false)")
+
+	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 10, "Maximum number of retries for failed event batch in live migration")
+	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors 
+	
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
@@ -261,7 +265,7 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
-		"Refreshes the materialised views on target during post import data phase (default false)")
+		"Refreshes the materialized views on target during post import data phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
 }
@@ -272,6 +276,8 @@ func validateTargetPortRange() {
 			tconf.Port = ORACLE_DEFAULT_PORT
 		} else if tconf.TargetDBType == YUGABYTEDB {
 			tconf.Port = YUGABYTEDB_YSQL_DEFAULT_PORT
+		} else if tconf.TargetDBType == POSTGRESQL {
+			tconf.Port = POSTGRES_DEFAULT_PORT
 		}
 		return
 	}
@@ -303,7 +309,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	}
 }
 
-func getFallForwardDBPassword(cmd *cobra.Command) {
+func getSourceReplicaDBPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "source-replica-db-password", "SOURCE_REPLICA_DB_PASSWORD")
 	if err != nil {
@@ -364,7 +370,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 }
 
 func validateFFDBSchemaFlag() {
-	if tconf.Schema == "" {
+	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
 		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }

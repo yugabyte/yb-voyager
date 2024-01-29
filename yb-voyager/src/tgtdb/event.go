@@ -40,20 +40,33 @@ type Event struct {
 var cachePreparedStmt = sync.Map{}
 
 func (e *Event) String() string {
-	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
-		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+	// Helper function to print a map[string]*string
+	mapStr := func(m map[string]*string) string {
+		var elements []string
+		for key, value := range m {
+			if value != nil {
+				elements = append(elements, fmt.Sprintf("%s:%s", key, *value))
+			} else {
+				elements = append(elements, fmt.Sprintf("%s:<nil>", key))
+			}
+		}
+		return "{" + strings.Join(elements, ", ") + "}"
+	}
+
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.Fields), e.ExporterRole)
 }
 
-func (e *Event) IsCutover() bool {
-	return e.Op == "cutover"
+func (e *Event) IsCutoverToTarget() bool {
+	return e.Op == "cutover.target"
 }
 
-func (e *Event) IsFallForward() bool {
-	return e.Op == "fallforward"
+func (e *Event) IsCutoverToSourceReplica() bool {
+	return e.Op == "cutover.source_replica"
 }
 
-func (e *Event) IsFallBack() bool {
-	return e.Op == "fallback"
+func (e *Event) IsCutoverToSource() bool {
+	return e.Op == "cutover.source"
 }
 
 func (e *Event) GetSQLStmt() string {
@@ -69,7 +82,7 @@ func (e *Event) GetSQLStmt() string {
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt() string {
+func (e *Event) GetPreparedSQLStmt(targetDBType string) string {
 	psName := e.GetPreparedStmtName()
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
@@ -77,7 +90,8 @@ func (e *Event) GetPreparedSQLStmt() string {
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt()
+		ps = e.getPreparedInsertStmt(targetDBType)
+
 	case "u":
 		ps = e.getPreparedUpdateStmt()
 	case "d":
@@ -174,7 +188,7 @@ func (event *Event) getDeleteStmt() string {
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt() string {
+func (event *Event) getPreparedInsertStmt(targetDBType string) string {
 	tableName := event.getTableName()
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
@@ -186,6 +200,10 @@ func (event *Event) getPreparedInsertStmt() string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	if targetDBType == POSTGRESQL {
+		keyColumns := utils.GetMapKeysSorted(event.Key)
+		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ","))
+	}
 	return stmt
 }
 

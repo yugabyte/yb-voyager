@@ -1,6 +1,7 @@
 import os
 import sys
 from typing import Any, Dict, List
+from collections import Counter
 from xmlrpc.client import boolean
 import psycopg2
 
@@ -59,6 +60,11 @@ class PostgresDB:
 		cur.execute("SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name=%s AND table_schema=%s)", (table_name, table_schema))
 		result = cur.fetchone()
 		return result[0]
+
+	def count_tables(self, schema="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=%s AND table_type='BASE TABLE'", (schema,))
+		return cur.fetchone()[0]
 
 	def get_table_names(self, schema="public") -> List[str]:
 		cur = self.conn.cursor()
@@ -211,13 +217,9 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"select {column_name} from {schema_name}.{table_name}")
 		all_values = [value[0] for value in cur.fetchall()]
-		for value in all_values:
-			if transform_func:
-				transformed_value = transform_func(value) if value else value
-			else:
-				transformed_distinct_value = value
-			print(f"{transformed_value}")
-			assert transformed_value in expected_values
+		if transform_func:
+			all_values = [transform_func(value) if value else value for value in all_values]
+		assert Counter(all_values) == Counter(expected_values)
 
 	def get_available_extensions(self) -> List[str]:
 		cur = self.conn.cursor()

@@ -37,6 +37,7 @@ var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
@@ -84,6 +85,12 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		evChans = append(evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
+	log.Info("initializing conflict detection cache")
+	tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
+	if err != nil {
+		return fmt.Errorf("get table unique key columns map: %s", err)
+	}
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
@@ -139,9 +146,9 @@ func streamChangesFromSegment(
 
 		if event == nil && segment.IsProcessed() {
 			break
-		} else if event.IsCutover() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-			event.IsFallForward() && importerRole == FF_DB_IMPORTER_ROLE ||
-			event.IsFallBack() && importerRole == FB_DB_IMPORTER_ROLE { // cutover or fall-forward command
+		} else if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
+			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 			eventQueue.EndOfQueue = true
 			segment.MarkProcessed()
 			break
@@ -170,11 +177,16 @@ func streamChangesFromSegment(
 }
 
 func shouldFormatValues(event *tgtdb.Event) bool {
-	return (tconf.TargetDBType == YUGABYTEDB && event.Op == "u") ||
-		tconf.TargetDBType == ORACLE
+	switch tconf.TargetDBType {
+	case YUGABYTEDB, POSTGRESQL:
+		return event.Op == "u"
+	case ORACLE:
+		return true
+	}
+	return false
 }
 func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
-	if event.IsCutover() || event.IsFallForward() || event.IsFallBack() {
+	if event.IsCutoverToTarget() || event.IsCutoverToSourceReplica() || event.IsCutoverToSource() {
 		// nil in case of cutover or fall_forward events for unconcerned importer
 		return nil
 	}
@@ -194,6 +206,18 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
+	}
+
+	/*
+		Checking for DELETE-INSERT conflict.
+		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+	*/
+	if conflictDetectionCache.tableToUniqueKeyColumns[tableName] != nil {
+		if event.Op == "d" {
+			conflictDetectionCache.Put(event)
+		} else {
+			conflictDetectionCache.WaitUntilNoConflict(event)
+		}
 	}
 
 	evChans[h] <- event
@@ -233,11 +257,14 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 					endOfProcessing = true
 					break Batching
 				}
+				if event == FLUSH_BATCH_EVENT {
+					break Batching
+				}
 				if event.Vsn <= lastAppliedVsn {
 					log.Tracef("ignoring event %v because event vsn <= %v", event, lastAppliedVsn)
 					continue
 				}
-				if importerRole == FB_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
+				if importerRole == SOURCE_DB_IMPORTER_ROLE && event.ExporterRole != TARGET_DB_EXPORTER_FB_ROLE {
 					log.Tracef("ignoring event %v because importer role is FB_DB_IMPORTER_ROLE and event exporter role is not TARGET_DB_EXPORTER_FB_ROLE.", event)
 					continue
 				}
@@ -257,7 +284,25 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 
 		start := time.Now()
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
-		err := tdb.ExecuteBatch(migrationUUID, eventBatch)
+		var err error
+		sleepIntervalSec := 0
+		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
+			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
+			if err == nil {
+				conflictDetectionCache.RemoveEvents(eventBatch)
+				break
+			} else if tdb.IsNonRetryableCopyError(err) {
+				break
+			}
+			log.Warnf("retriable error executing batch on channel %v (last VSN: %d): %v", chanNo, eventBatch.GetLastVsn(), err)
+			sleepIntervalSec += 10
+			if sleepIntervalSec > MAX_SLEEP_SECOND {
+				sleepIntervalSec = MAX_SLEEP_SECOND
+			}
+			log.Infof("sleep for %d seconds before retrying the batch on channel %v (attempt %d)",
+				sleepIntervalSec, chanNo, attempt)
+			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+		}
 		if err != nil {
 			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
 		}

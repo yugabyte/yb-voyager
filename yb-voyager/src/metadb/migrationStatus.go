@@ -10,31 +10,34 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID                              string            `json:"MigrationUUID"`
-	ExportType                                 string            `json:"ExportType"`
-	ArchivingEnabled                           bool              `json:"ArchivingEnabled"`
-	FallForwardEnabled                         bool              `json:"FallForwardEnabled"`
-	FallbackEnabled                            bool              `json:"FallbackEnabled"`
-	TargetDBConf                               *tgtdb.TargetConf `json:"TargetDBConf"`
-	FallForwardDBConf                          *tgtdb.TargetConf `json:"FallForwardDBConf"`
-	SourceDBAsTargetConf                       *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
-	TableListExportedFromSource                []string          `json:"TableListExportedFromSource"`
-	SourceDBConf                               *srcdb.Source     `json:"SourceDBConf"`
-	CutoverRequested                           bool              `json:"CutoverRequested"`
-	CutoverProcessedBySourceExporter           bool              `json:"CutoverProcessedBySourceExporter"`
-	CutoverProcessedByTargetImporter           bool              `json:"CutoverProcessedByTargetImporter"`
-	FallForwardSyncStarted                     bool              `json:"FallForwardSyncStarted"`
-	FallForwardSwitchRequested                 bool              `json:"FallForwardSwitchRequested"`
-	FallForwardSwitchProcessedByTargetExporter bool              `json:"FallForwardSwitchProcessedByTargetExporter"`
-	FallForwardSwitchProcessedByFFImporter     bool              `json:"FallForwardSwitchProcessedByFFImporter"`
-	FallBackSyncStarted                        bool              `json:"FallBackSyncStarted"`
-	FallBackSwitchRequested                    bool              `json:"FallBackSwitchRequested"`
-	FallBackSwitchProcessedByTargetExporter    bool              `json:"FallBackSwitchProcessedByTargetExporter"`
-	FallBackSwitchProcessedByFBImporter        bool              `json:"FallBackSwitchProcessedByFFImporter"`
-	ExportSchemaDone                           bool              `json:"ExportSchemaDone"`
-	ExportDataDone                             bool              `json:"ExportDataDone"`
-	YBCDCStreamID                              string            `json:"YBCDCStreamID"`
-	EndMigrationRequested                      bool              `json:"EndMigrationRequested"`
+	MigrationUUID                                   string            `json:"MigrationUUID"`
+	ExportType                                      string            `json:"ExportType"`
+	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
+	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
+	FallbackEnabled                                 bool              `json:"FallbackEnabled"`
+	TargetDBConf                                    *tgtdb.TargetConf `json:"TargetDBConf"`
+	SourceReplicaDBConf                             *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
+	SourceDBAsTargetConf                            *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
+	TableListExportedFromSource                     []string          `json:"TableListExportedFromSource"`
+	SourceDBConf                                    *srcdb.Source     `json:"SourceDBConf"`
+	CutoverToTargetRequested                        bool              `json:"CutoverToTargetRequested"`
+	CutoverProcessedBySourceExporter                bool              `json:"CutoverProcessedBySourceExporter"`
+	CutoverProcessedByTargetImporter                bool              `json:"CutoverProcessedByTargetImporter"`
+	ExportFromTargetFallForwardStarted              bool              `json:"ExportFromTargetFallForwardStarted"`
+	CutoverToSourceReplicaRequested                 bool              `json:"CutoverToSourceReplicaRequested"`
+	CutoverToSourceReplicaProcessedByTargetExporter bool              `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
+	CutoverToSourceReplicaProcessedBySRImporter     bool              `json:"CutoverToSourceReplicaProcessedBySRImporter"`
+	ExportFromTargetFallBackStarted                 bool              `json:"ExportFromTargetFallBackStarted"`
+	CutoverToSourceRequested                        bool              `json:"CutoverToSourceRequested"`
+	CutoverToSourceProcessedByTargetExporter        bool              `json:"CutoverToSourceProcessedByTargetExporter"`
+	CutoverToSourceProcessedBySourceImporter        bool              `json:"CutoverToSourceProcessedBySourceImporter"`
+	ExportSchemaDone                                bool              `json:"ExportSchemaDone"`
+	ExportDataDone                                  bool              `json:"ExportDataDone"`
+	YBCDCStreamID                                   string            `json:"YBCDCStreamID"`
+	EndMigrationRequested                           bool              `json:"EndMigrationRequested"`
+	PGReplicationSlotName                           string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	PGPublicationName                               string            `json:"PGPublicationName"`     // of the format voyager_<migrationUUID> (with replace "-" -> "_")
+	SnapshotMechanism                               string            `json:"SnapshotMechanism"`     // one of (debezium, pg_dump)
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

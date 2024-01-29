@@ -48,9 +48,9 @@ var exportDataFromTargetCmd = &cobra.Command{
 		exportDataCmd.PreRun(cmd, args)
 		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.FallBackSyncStarted = true
+				record.ExportFromTargetFallBackStarted = true
 			} else {
-				record.FallForwardSyncStarted = true
+				record.ExportFromTargetFallForwardStarted = true
 			}
 
 		})
@@ -74,13 +74,18 @@ func initSourceConfFromTargetConf() error {
 	if err != nil {
 		return fmt.Errorf("get migration status record: %v", err)
 	}
+	sourceDBConf := msr.SourceDBConf
 	targetConf := msr.TargetDBConf
 	source.DBType = targetConf.TargetDBType
 	source.Host = targetConf.Host
 	source.Port = targetConf.Port
 	source.User = targetConf.User
 	source.DBName = targetConf.DBName
-	source.Schema = targetConf.Schema
+	if sourceDBConf.DBType == POSTGRESQL {
+		source.Schema = sourceDBConf.Schema // in case of PG migration the tconf.Schema is public but in case of non-puclic or multiple schemas this needs to PG schemas
+	} else {
+		source.Schema = targetConf.Schema
+	}
 	source.SSLMode = targetConf.SSLMode
 	source.SSLCertPath = targetConf.SSLCertPath
 	source.SSLKey = targetConf.SSLKey

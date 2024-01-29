@@ -26,7 +26,9 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
 	log "github.com/sirupsen/logrus"
 
@@ -218,8 +220,8 @@ func (pg *PostgreSQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
-	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan)
+func (pg *PostgreSQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
+	pgdumpExportDataOffline(ctx, pg.source, pg.getConnectionUriWithoutPassword(), exportDir, tableList, quitChan, exportDataStart, exportSuccessChan, snapshotName)
 }
 
 func (pg *PostgreSQL) ExportDataPostProcessing(exportDir string, tablesProgressMetadata map[string]*utils.TableProgressMetadata) {
@@ -326,7 +328,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 		if err != nil {
 			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
 		}
-		sequenceNames = append(sequenceNames, fmt.Sprintf("%s.%s", sequenceSchema, sequenceName))
+		sequenceNames = append(sequenceNames, fmt.Sprintf(`%s."%s"`, sequenceSchema, sequenceName))
 	}
 	return sequenceNames
 }
@@ -395,22 +397,24 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
-		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
+		query := fmt.Sprintf(`SELECT
+		a.attname AS column_name,
+		COALESCE(seq.relname, '') AS sequence_name,
+		COALESCE(ns.nspname, '') AS schema_name
 		FROM pg_class AS t
-			JOIN pg_attribute AS a
-		ON a.attrelid = t.oid
-			JOIN pg_depend AS d
-		ON d.refobjid = t.oid
-			AND d.refobjsubid = a.attnum
-			JOIN pg_class AS s
-		ON s.oid = d.objid
-		WHERE d.classid = 'pg_catalog.pg_class'::regclass
-		AND d.refclassid = 'pg_catalog.pg_class'::regclass
-		AND d.deptype IN ('i', 'a')
+		JOIN pg_attribute AS a ON a.attrelid = t.oid
+		JOIN pg_namespace AS tn ON tn.oid = t.relnamespace
+		LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+		LEFT JOIN pg_depend AS d ON d.objid = ad.oid
+		LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
+		LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+	WHERE
+		tn.nspname = '%s' -- schema name
+		AND t.relname = '%s' -- table name
+		AND a.attnum > 0
+		AND NOT a.attisdropped
 		AND t.relkind IN ('r', 'P')
-		AND s.relkind = 'S'
-		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+		AND seq.relkind = 'S';`, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(context.Background(), query)
@@ -505,5 +509,66 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
+	return nil
+}
+
+func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
+	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
+}
+
+func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
+
+	if dropIfAlreadyExists {
+		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
+		err := pg.DropLogicalReplicationSlot(conn, replicationSlotName)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	log.Infof("creating replication slot %s", replicationSlotName)
+	res, err := pglogrepl.CreateReplicationSlot(context.Background(), conn, replicationSlotName, "pgoutput",
+		pglogrepl.CreateReplicationSlotOptions{Mode: pglogrepl.LogicalReplication})
+	if err != nil {
+		return nil, fmt.Errorf("create replication slot: %v", err)
+	}
+
+	return &res, nil
+}
+
+func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string) error {
+	var err error
+	if conn == nil {
+		conn, err = pg.GetReplicationConnection()
+		if err != nil {
+			utils.ErrExit("failed to create replication connection for dropping replication slot: %s", err)
+		}
+		defer conn.Close(context.Background())
+	}
+	log.Infof("dropping replication slot: %s", replicationSlotName)
+	err = pglogrepl.DropReplicationSlot(context.Background(), conn, replicationSlotName, pglogrepl.DropReplicationSlotOptions{})
+	if err != nil {
+		// ignore "does not exist" error while dropping replication slot
+		if !strings.Contains(err.Error(), "does not exist") {
+			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
+		}
+	}
+	return nil
+}
+
+func (pg *PostgreSQL) DropPublication(publicationName string) error {
+	conn, err := pgx.Connect(context.Background(), pg.getConnectionUri())
+	if err != nil {
+		utils.ErrExit("failed to connect to the source database for dropping publication: %s", err)
+	}
+	defer conn.Close(context.Background())
+
+	log.Infof("dropping publication: %s", publicationName)
+	res, err := conn.Exec(context.Background(), fmt.Sprintf("DROP PUBLICATION IF EXISTS %s", publicationName))
+	log.Infof("drop publication result: %v", res)
+	if err != nil {
+		return fmt.Errorf("drop publication(%s): %v", publicationName, err)
+	}
 	return nil
 }

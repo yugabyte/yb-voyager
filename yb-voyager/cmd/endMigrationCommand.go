@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/samber/lo"
@@ -32,6 +31,7 @@ var (
 	targetDBPassword        string
 	sourceReplicaDBPassword string
 	sourceDBPassword        string
+	streamChangesMode       bool
 )
 
 var endMigrationCmd = &cobra.Command{
@@ -67,6 +67,12 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	} else if msr == nil {
 		utils.ErrExit("migration status record not found. Is the migration initialized?")
 	}
+
+	streamChangesMode, err = checkStreamingMode()
+	if err != nil {
+		utils.ErrExit("error while checking streaming mode: %w\n", err)
+	}
+
 	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
@@ -78,7 +84,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 	// cleaning only the migration state wherever and  whatever required
 	cleanupSourceDB(msr)
 	cleanupTargetDB(msr)
-	cleanupFallForwardDB(msr)
+	cleanupSourceReplicaDB(msr)
 	cleanupFallBackDB(msr)
 
 	backupLogFilesFn()
@@ -144,8 +150,6 @@ func backupDataFilesFn() {
 	}
 }
 
-var streamChangesMode bool
-
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 	if !saveMigrationReports {
 		return
@@ -156,27 +160,24 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 		utils.ErrExit("creating reports directory for backup: %v", err)
 	}
 
-	streamChangesMode, err = checkStreamingMode()
-	if err != nil {
-		utils.ErrExit("error while checking streaming mode: %w\n", err)
-	}
-
 	saveSchemaAnalysisReport()
 	if streamChangesMode {
 		saveDataMigrationReport(msr)
 	} else { // snapshot case
-		saveDataExportReport()
+		if msr.SnapshotMechanism != "" {
+			saveDataExportReport()
+		}
 		saveDataImportReport()
 	}
 }
 
 func saveSchemaAnalysisReport() {
-	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "report.*"))
-	if !schemaIsAnalyzed() {
-		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
+	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
+	if alreadyBackedUp {
+		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "schema_analysis_report.*"))
 		return
-	} else if alreadyBackedUp {
-		utils.PrintAndLog("schema analysis report is already present at %q", filepath.Join(backupDir, "reports", "report.*"))
+	} else if !schemaIsAnalyzed() {
+		utils.PrintAndLog("no schema analysis report to save as analyze-schema command is not executed as part of migration workflow")
 		return
 	}
 	utils.PrintAndLog("saving schema analysis report...")
@@ -185,7 +186,7 @@ func saveSchemaAnalysisReport() {
 		utils.ErrExit("reading reports directory: %v", err)
 	}
 	for _, file := range files {
-		if file.IsDir() || !strings.HasPrefix(file.Name(), "report.") {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), "schema_analysis_report.") {
 			continue
 		}
 
@@ -338,6 +339,7 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	// there won't be anything required to be cleaned up in source-db(Oracle) for debezium snapshot migration
 	// TODO: verify it for PG and MySQL
 	if !streamChangesMode {
+		utils.PrintAndLog("nothing to clean up in source db for snapshot migration")
 		return
 	}
 	utils.PrintAndLog("cleaning up voyager state from source db...")
@@ -348,13 +350,13 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	}
 
 	var err error
-	source.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	source.Password = sourceDBPassword
 	err = source.DB().Connect()
 	if err != nil {
 		utils.ErrExit("connecting to source db: %v", err)
@@ -363,6 +365,37 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	err = source.DB().ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
 		utils.ErrExit("clearing migration state from source db: %v", err)
+	}
+
+	deletePGReplicationSlot(msr, source)
+	deletePGPublication(msr, source)
+}
+
+func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGReplicationSlotName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg replication slot name is not set or source db type is not postgresql. skipping deleting pg replication slot name")
+		return
+	}
+
+	log.Infof("deleting PG replication slot name %q", msr.PGReplicationSlotName)
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
+	if err != nil {
+		utils.ErrExit("dropping PG replication slot name: %v", err)
+	}
+}
+
+func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source) {
+	if msr.PGPublicationName == "" || source.DBType != POSTGRESQL {
+		log.Infof("pg publication name is not set or source db type is not postgresql. skipping deleting pg publication name")
+		return
+	}
+
+	log.Infof("deleting PG publication name %q", msr.PGPublicationName)
+	pgDB := source.DB().(*srcdb.PostgreSQL)
+	err := pgDB.DropPublication(msr.PGPublicationName)
+	if err != nil {
+		utils.ErrExit("dropping PG publication name: %v", err)
 	}
 }
 
@@ -375,13 +408,13 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	tconf := msr.TargetDBConf
-	tconf.Password = targetDBPassword
 	if targetDBPassword == "" {
-		tconf.Password, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
+		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting target db password: %v", err)
 		}
 	}
+	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
 	err = tdb.Init()
 	if err != nil {
@@ -443,21 +476,21 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 	}
 }
 
-func cleanupFallForwardDB(msr *metadb.MigrationStatusRecord) {
+func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	if !msr.FallForwardEnabled {
 		return
 	}
 
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
-	sourceReplicaconf := msr.FallForwardDBConf
-	sourceReplicaconf.Password = sourceReplicaDBPassword
+	sourceReplicaconf := msr.SourceReplicaDBConf
 	if sourceReplicaDBPassword == "" {
-		sourceReplicaconf.Password, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
+		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source-replica db password: %v", err)
 		}
 	}
+	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
 	err = sourceReplicaDB.Init()
 	if err != nil {
@@ -478,13 +511,13 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
-	fbconf.Password = sourceDBPassword
 	if sourceDBPassword == "" {
-		fbconf.Password, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
+		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
 			utils.ErrExit("getting source db password: %v", err)
 		}
 	}
+	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
 	err = fbdb.Init()
 	if err != nil {
@@ -629,37 +662,11 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
-	err = stopProcessWithPID(ongoingCmdPID, signal)
+	err = signalProcess(ongoingCmdPID, signal)
 	if err != nil {
 		log.Warnf("stopping ongoing voyager command %q with PID=%d: %v", ongoingCmd, ongoingCmdPID, err)
 	}
-}
-
-// this function wait for process to exit after signalling it to stop
-func stopProcessWithPID(pid int, signal syscall.Signal) error {
-	process, _ := os.FindProcess(pid) // Always succeeds on Unix systems
-	log.Infof("sending signal=%s to process with PID=%d", signal.String(), pid)
-	err := process.Signal(signal)
-	if err != nil {
-		return fmt.Errorf("sending signal=%s signal to process with PID=%d: %w", signal.String(), pid, err)
-	}
-
-	waitForProcessToExit(process)
-	return nil
-}
-
-func waitForProcessToExit(process *os.Process) {
-	// Reference: https://mezhenskyi.dev/posts/go-linux-processes/
-	// Poll every 2 sec to make sure process is stopped
-	// here process.Signal(syscall.Signal(0)) will return error only if process is not running
-	for {
-		time.Sleep(time.Second * 2)
-		err := process.Signal(syscall.Signal(0))
-		if err != nil {
-			log.Infof("process with PID=%d is stopped", process.Pid)
-			return
-		}
-	}
+	waitForProcessToExit(ongoingCmdPID, -1)
 }
 
 func stopDataExportCommand(lockFile *lockfile.Lockfile) {
@@ -682,8 +689,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
 	log.Infof("stopping the ongoing command: %q with PID=%d", ongoingCmd, ongoingCmdPID)
 
-	process, _ := os.FindProcess(ongoingCmdPID) // Always succeeds on Unix systems
-	waitForProcessToExit(process)
+	waitForProcessToExit(ongoingCmdPID, -1)
 }
 
 // NOTE: function is for Linux only (Windows won't work)

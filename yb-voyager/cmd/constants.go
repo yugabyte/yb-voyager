@@ -16,42 +16,42 @@ limitations under the License.
 package cmd
 
 const (
-	KB                            = 1024
-	MB                            = 1024 * 1024
-	META_INFO_DIR_NAME            = "metainfo"
-	NEWLINE                       = '\n'
-	ORACLE_DEFAULT_PORT           = 1521
-	MYSQL_DEFAULT_PORT            = 3306
-	POSTGRES_DEFAULT_PORT         = 5432
-	YUGABYTEDB_YSQL_DEFAULT_PORT  = 5433
-	YUGABYTEDB_DEFAULT_DATABASE   = "yugabyte"
-	YUGABYTEDB_DEFAULT_SCHEMA     = "public"
-	ORACLE                        = "oracle"
-	MYSQL                         = "mysql"
-	POSTGRESQL                    = "postgresql"
-	YUGABYTEDB                    = "yugabytedb"
-	LAST_SPLIT_NUM                = 0
-	SPLIT_INFO_PATTERN            = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
-	LAST_SPLIT_PATTERN            = "0.[0-9]*.[0-9]*.[0-9]*"
-	COPY_MAX_RETRY_COUNT          = 10
-	MAX_SLEEP_SECOND              = 60
-	DEFAULT_BATCH_SIZE_ORACLE     = 10000000
-	DEFAULT_BATCH_SIZE_YUGABYTEDB = 20000
-	INDEX_RETRY_COUNT             = 5
-	DDL_MAX_RETRY_COUNT           = 5
-	SCHEMA_VERSION_MISMATCH_ERR   = "Query error: schema version mismatch for table"
-	SNAPSHOT_ONLY                 = "snapshot-only"
-	SNAPSHOT_AND_CHANGES          = "snapshot-and-changes"
-	CHANGES_ONLY                  = "changes-only"
-	TARGET_DB                     = "target"
-	FF_DB                         = "ff"
-	FF_DB_IMPORTER_ROLE           = "ff_db_importer"
-	FB_DB_IMPORTER_ROLE           = "fb_db_importer"
-	TARGET_DB_IMPORTER_ROLE       = "target_db_importer"
-	SOURCE_DB_EXPORTER_ROLE       = "source_db_exporter"
-	TARGET_DB_EXPORTER_FF_ROLE    = "target_db_exporter_ff"
-	TARGET_DB_EXPORTER_FB_ROLE    = "target_db_exporter_fb"
-	IMPORT_FILE_ROLE              = "import_file"
+	KB                              = 1024
+	MB                              = 1024 * 1024
+	META_INFO_DIR_NAME              = "metainfo"
+	NEWLINE                         = '\n'
+	ORACLE_DEFAULT_PORT             = 1521
+	MYSQL_DEFAULT_PORT              = 3306
+	POSTGRES_DEFAULT_PORT           = 5432
+	YUGABYTEDB_YSQL_DEFAULT_PORT    = 5433
+	YUGABYTEDB_DEFAULT_DATABASE     = "yugabyte"
+	YUGABYTEDB_DEFAULT_SCHEMA       = "public"
+	ORACLE                          = "oracle"
+	MYSQL                           = "mysql"
+	POSTGRESQL                      = "postgresql"
+	YUGABYTEDB                      = "yugabytedb"
+	LAST_SPLIT_NUM                  = 0
+	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
+	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*"
+	COPY_MAX_RETRY_COUNT            = 10
+	MAX_SLEEP_SECOND                = 60
+	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
+	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
+	INDEX_RETRY_COUNT               = 5
+	DDL_MAX_RETRY_COUNT             = 5
+	SCHEMA_VERSION_MISMATCH_ERR     = "Query error: schema version mismatch for table"
+	SNAPSHOT_ONLY                   = "snapshot-only"
+	SNAPSHOT_AND_CHANGES            = "snapshot-and-changes"
+	CHANGES_ONLY                    = "changes-only"
+	TARGET_DB                       = "target"
+	FF_DB                           = "ff"
+	SOURCE_REPLICA_DB_IMPORTER_ROLE = "source_replica_db_importer"
+	SOURCE_DB_IMPORTER_ROLE         = "source_db_importer"
+	TARGET_DB_IMPORTER_ROLE         = "target_db_importer"
+	SOURCE_DB_EXPORTER_ROLE         = "source_db_exporter"
+	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
+	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
+	IMPORT_FILE_ROLE                = "import_file"
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
@@ -62,3 +62,5 @@ var validSSLModes = map[string][]string{
 	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 }
+
+var EVENT_BATCH_MAX_RETRY_COUNT = 50

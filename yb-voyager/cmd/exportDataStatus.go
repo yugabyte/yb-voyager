@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -30,15 +31,45 @@ import (
 	pbreporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/pb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 
 	"github.com/fatih/color"
 	"github.com/vbauerster/mpb/v8"
 )
 
+//=====================================================================================
+
+//For Non-debezium cases
+type TableExportStatus struct {
+	TableName                string `json:"table_name"` // table.Qualified.MinQuoted
+	FileName                 string `json:"file_name"`
+	Status                   string `json:"status"`
+	ExportedRowCountSnapshot int64  `json:"exported_row_count_snapshot"`
+}
+
+type ExportSnapshotStatus struct {
+	Tables map[string]*TableExportStatus `json:"tables"`
+}
+
+func NewExportSnapshotStatus() *ExportSnapshotStatus {
+	return &ExportSnapshotStatus{
+		Tables: make(map[string]*TableExportStatus),
+	}
+}
+
+//=====================================================================================
+
+var exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]
+
 func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 	tablesProgressMetadata = make(map[string]*utils.TableProgressMetadata)
 	numTables := len(tableList)
+
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
+
+	exportSnapshotStatus := NewExportSnapshotStatus()
 
 	for i := 0; i < numTables; i++ {
 		tableName := tableList[i]
@@ -54,11 +85,23 @@ func initializeExportTableMetadata(tableList []*sqlname.SourceName) {
 		tablesProgressMetadata[key].Status = 0
 		tablesProgressMetadata[key].FileOffsetToContinue = int64(0)
 		tablesProgressMetadata[key].TableName = tableName
+		exportSnapshotStatus.Tables[key] = &TableExportStatus{
+			TableName:                key,
+			FileName:                 "",
+			Status:                   utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status],
+			ExportedRowCountSnapshot: int64(0),
+		}
+	}
+	err := exportSnapshotStatusFile.Create(exportSnapshotStatus)
+	if err != nil {
+		utils.ErrExit("failed to create export status file: %v", err)
 	}
 }
 
 func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*utils.TableProgressMetadata, quitChan, exportSuccessChan chan bool, disablePb bool) {
 	defer utils.WaitGroup.Done()
+	go updateExportSnapshotStatus(ctx, tablesProgressMetadata)
+
 	// TODO: Figure out if we require quitChan2 (along with the entire goroutine below which updates quitChan).
 	quitChan2 := make(chan bool)
 	quit := false
@@ -210,6 +253,28 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 	// PB will not change from "100%" -> "completed" until this function call is made
 	pbr.SetTotalRowCount(-1, true) // Completing remaining progress bar by setting current equal to total
 	tableMetadata.Status = utils.TABLE_MIGRATION_DONE
+}
+
+func updateExportSnapshotStatus(ctx context.Context, tableMetadata map[string]*utils.TableProgressMetadata) {
+	updateTicker := time.NewTicker(1 * time.Second) //TODO: confirm if this is fine
+	defer updateTicker.Stop()
+	for range updateTicker.C {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := exportSnapshotStatusFile.Update(func(status *ExportSnapshotStatus) {
+				for key := range tablesProgressMetadata {
+					status.Tables[key].ExportedRowCountSnapshot = tablesProgressMetadata[key].CountLiveRows
+					status.Tables[key].Status = utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status]
+					status.Tables[key].FileName = tablesProgressMetadata[key].FinalFilePath
+				}
+			})
+			if err != nil {
+				utils.ErrExit("failed to update export snapshot status: %v", err)
+			}
+		}
+	}
 }
 
 func checkForEndOfFile(source *srcdb.Source, tableMetadata *utils.TableProgressMetadata, line string) bool {

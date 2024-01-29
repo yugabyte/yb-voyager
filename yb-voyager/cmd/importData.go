@@ -61,6 +61,7 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
+var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -101,11 +102,7 @@ var importDataToTargetCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-	triggerName, err := getTriggerName(importerRole)
-	if err != nil {
-		utils.ErrExit("failed to get trigger name for checking if DB is switched over: %v", err)
-	}
-	exitIfDBSwitchedOver(triggerName)
+	ExitIfAlreadyCutover(importerRole)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
@@ -126,11 +123,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	}
 
-	if importerRole == FF_DB_IMPORTER_ROLE {
+	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		if record.FallbackEnabled {
 			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
-		updateFallForwarDBExistsInMetaDB()
+		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
 	}
 
@@ -142,11 +139,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 
 	importData(importFileTasks)
 	if changeStreamingIsEnabled(importType) {
-		startFallforwardSynchronizeIfRequired()
+		startExportDataFromTargetIfRequired()
 	}
 }
 
-func startFallforwardSynchronizeIfRequired() {
+func startExportDataFromTargetIfRequired() {
 	if importerRole != TARGET_DB_IMPORTER_ROLE {
 		return
 	}
@@ -159,17 +156,12 @@ func startFallforwardSynchronizeIfRequired() {
 		return
 	}
 	tableListExportedFromSource := msr.TableListExportedFromSource
-	var unqualifiedTableList []string
-	for _, qualifiedTableName := range tableListExportedFromSource {
-		// TODO: handle case sensitivity?
-		unqualifiedTableName := sqlname.NewSourceNameFromQualifiedName(qualifiedTableName).ObjectName.Unquoted
-		unqualifiedTableList = append(unqualifiedTableList, unqualifiedTableName)
-	}
+	importTableList := getImportTableList(tableListExportedFromSource)
 
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
-		"--table-list", strings.Join(unqualifiedTableList, ","),
+		"--table-list", strings.Join(importTableList, ","),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if utils.DoNotPrompt {
@@ -183,13 +175,13 @@ func startFallforwardSynchronizeIfRequired() {
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", err)
+		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -226,6 +218,11 @@ func discoverFilesToImport() []*ImportFileTask {
 	}
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		if fileEntry.RowCount == 0 {
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
+			continue
+		}
 		task := &ImportFileTask{
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
@@ -344,11 +341,11 @@ func updateTargetConfInMigrationStatus() {
 			record.TargetDBConf = tconf.Clone()
 			record.TargetDBConf.Password = ""
 			record.TargetDBConf.Uri = ""
-		case FF_DB_IMPORTER_ROLE:
-			record.FallForwardDBConf = tconf.Clone()
-			record.FallForwardDBConf.Password = ""
-			record.FallForwardDBConf.Uri = ""
-		case FB_DB_IMPORTER_ROLE:
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+			record.SourceReplicaDBConf = tconf.Clone()
+			record.SourceReplicaDBConf.Password = ""
+			record.SourceReplicaDBConf.Uri = ""
+		case SOURCE_DB_IMPORTER_ROLE:
 			record.SourceDBAsTargetConf = tconf.Clone()
 			record.SourceDBAsTargetConf.Password = ""
 			record.SourceDBAsTargetConf.Uri = ""
@@ -373,14 +370,22 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("Failed to get migration status record: %s", err)
+	}
 	tdb = tgtdb.NewTargetDB(&tconf)
 	err = tdb.Init()
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
 	defer tdb.Finalize()
+	if msr.SnapshotMechanism == "debezium" {
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+	} else {
+		valueConverter, err = dbzm.NewNoOpValueConverter()
+	}
 
-	valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 	TableNameToSchema = valueConverter.GetTableNameToSchema()
 	if err != nil {
 		utils.ErrExit("Failed to create value converter: %s", err)
@@ -416,10 +421,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
 	sourceTableList := msr.TableListExportedFromSource
 	if msr.SourceDBConf != nil {
 		source = *msr.SourceDBConf
@@ -432,7 +433,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	defer enableGeneratedAlwaysAsIdentityColumns()
 
 	// Import snapshots
-	if importerRole != FB_DB_IMPORTER_ROLE {
+	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
 		if len(pendingTasks) == 0 {
 			utils.PrintAndLog("All the tables are already imported, nothing left to import\n")
@@ -468,10 +469,18 @@ func importData(importFileTasks []*ImportFileTask) {
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
-			if importerRole != FB_DB_IMPORTER_ROLE {
+			if importerRole != SOURCE_DB_IMPORTER_ROLE {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
+
+			if err != nil {
+				utils.ErrExit("failed to get table unique key columns map: %s", err)
+			}
+			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+			if err != nil {
+				utils.ErrExit("Failed to create value converter: %s", err)
+			}
 			err = streamChanges(state, importTableList)
 			if err != nil {
 				utils.ErrExit("Failed to stream changes to %s: %s", tconf.TargetDBType, err)
@@ -488,11 +497,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 
 			utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
-			triggerName, err := getTriggerName(importerRole)
+			err = markCutoverProcessed(importerRole)
 			if err != nil {
-				utils.ErrExit("failed to get trigger name after streaming changes: %s", err)
+				utils.ErrExit("failed to mark cutover as processed: %s", err)
 			}
-			createTriggerIfNotExists(triggerName)
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		} else {
@@ -870,8 +878,8 @@ func newTargetConn() *pgx.Conn {
 	setTargetSchema(conn)
 
 	if sourceDBType == ORACLE && enableOrafce {
-        setOrafceSearchPath(conn)
-    }
+		setOrafceSearchPath(conn)
+	}
 
 	return conn
 }
@@ -930,6 +938,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
+		if objType == "TABLE" {
+			stmt := strings.ToUpper(sqlInfo.stmt)
+			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			if skip {
+				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				continue
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
@@ -973,6 +991,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+		}
+
+		if bool(flagPostImportData) && strings.Contains(objType, "INDEX") {
+			//In case of index creation print the index name as index creation takes time
+			//and user can see the progress
+			if sqlInfo.objName != "" {
+				color.Yellow("creating index %s ...", sqlInfo.objName)
+			}
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
@@ -1038,6 +1064,14 @@ func getTargetSchemaName(tableName string) string {
 	if len(parts) == 2 {
 		return parts[0]
 	}
+	if tconf.TargetDBType == POSTGRESQL {
+		schemas := strings.Join(strings.Split(tconf.Schema, ","), "|")
+		defaultSchema, noDefaultSchema := getDefaultPGSchema(schemas)
+		if noDefaultSchema {
+			utils.ErrExit("no default schema for table %q ", tableName)
+		}
+		return defaultSchema
+	}
 	return tconf.Schema // default set to "public"
 }
 
@@ -1079,7 +1113,7 @@ func quoteIdentifierIfRequired(identifier string) string {
 		dbType = sourceDBType
 	}
 	if sqlname.IsReservedKeywordPG(identifier) ||
-		(dbType == POSTGRESQL && sqlname.IsCaseSensitive(identifier, dbType)) {
+		((dbType == POSTGRESQL || dbType == YUGABYTEDB) && sqlname.IsCaseSensitive(identifier, dbType)) {
 		return fmt.Sprintf(`"%s"`, identifier)
 	}
 	return identifier

@@ -169,7 +169,7 @@ func (ms *MySQL) GetIndexesInfo() []utils.IndexInfo {
 	return nil
 }
 
-func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
+func (ms *MySQL) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	ora2pgExportDataOffline(ctx, ms.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -244,7 +244,7 @@ func (ms *MySQL) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName, u
 		columns, dataTypes, _ := ms.GetTableColumns(tableName)
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
-			if utils.InsensitiveSliceContains(mysqlUnsupportedDataTypes, dataTypes[i]) {
+			if utils.ContainsAnySubstringFromSlice(mysqlUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {

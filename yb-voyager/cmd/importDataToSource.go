@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -31,7 +32,7 @@ var importDataToSourceCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		validateMetaDBCreated()
 		importType = SNAPSHOT_AND_CHANGES
-		importerRole = FB_DB_IMPORTER_ROLE
+		importerRole = SOURCE_DB_IMPORTER_ROLE
 		err := initTargetConfFromSourceConf()
 		if err != nil {
 			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
@@ -62,7 +63,11 @@ func initTargetConfFromSourceConf() error {
 	tconf.Port = sconf.Port
 	tconf.User = sconf.User
 	tconf.DBName = sconf.DBName
-	tconf.Schema = sconf.Schema
+	if tconf.TargetDBType == POSTGRESQL {
+		tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
+	} else {
+		tconf.Schema = sconf.Schema
+	}
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLMode = sconf.SSLMode
 	tconf.SSLCertPath = sconf.SSLCertPath

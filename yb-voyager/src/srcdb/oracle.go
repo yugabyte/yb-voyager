@@ -218,7 +218,7 @@ func (ora *Oracle) GetIndexesInfo() []utils.IndexInfo {
 	return indexesInfo
 }
 
-func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string) {
+func (ora *Oracle) ExportData(ctx context.Context, exportDir string, tableList []*sqlname.SourceName, quitChan chan bool, exportDataStart, exportSuccessChan chan bool, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) {
 	ora2pgExportDataOffline(ctx, ora.source, exportDir, tableList, tablesColumnList, quitChan, exportDataStart, exportSuccessChan)
 }
 
@@ -424,7 +424,7 @@ func (ora *Oracle) GetColumnsWithSupportedTypes(tableList []*sqlname.SourceName,
 		var supportedColumnNames []string
 		for i := 0; i < len(columns); i++ {
 			isUdtWithDebezium := (dataTypesOwner[i] == tableName.SchemaName.Unquoted) && useDebezium // datatype owner check is for UDT type detection as VARRAY are created using UDT
-			if isUdtWithDebezium || utils.InsensitiveSliceContains(oracleUnsupportedDataTypes, dataTypes[i]) {
+			if isUdtWithDebezium || utils.ContainsAnySubstringFromSlice(oracleUnsupportedDataTypes, dataTypes[i]) {
 				log.Infof("Skipping unsupproted column %s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i])
 				unsupportedColumnNames = append(unsupportedColumnNames, fmt.Sprintf("%s.%s of type %s", tableName.ObjectName.MinQuoted, columns[i], dataTypes[i]))
 			} else {

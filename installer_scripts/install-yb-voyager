@@ -42,7 +42,7 @@ DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"3a8a497a8403794d69ce2f781989ad12c40601
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"c4cad64f6d1869bcd15531c8f9cef98c651f86cc"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
-DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.31/debezium-connector-yugabytedb-1.9.5.y.31.jar"
+DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.33.2/debezium-connector-yugabytedb-1.9.5.y.33.2.jar"
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -317,7 +317,7 @@ install_debezium_local() {
 	tar -xzvf debezium.tar.gz 1>&2
 	# build
 	cd "debezium-$1"
-	mvn -ntp clean install -Dquick 1>&2
+	mvn -ntp clean install -Dquick  1>&2
 
 	# cleanup
 	cd ..
@@ -332,7 +332,7 @@ install_debezium_server_local() {
 	tar -xzvf debezium-server.tar.gz 1>&2
 	# build
 	cd "debezium-server-$1"
-	mvn -ntp clean install -Dquick 1>&2
+	mvn -ntp clean install -Dquick  1>&2
 
 	# cleanup
 	cd ..
@@ -351,8 +351,8 @@ install_debezium_server_voyager_plugin_local() {
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	# build
-	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter
-	mvn -ntp clean install -Dquick -f ${pom} 1>&2
+	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyagerexporter > /dev/null
+	mvn -ntp clean install -Dquick -f ${pom}  1>&2
 
 	popd > /dev/null
 }
@@ -368,8 +368,8 @@ assemble_debezium_server_voyager_local() {
 		dbzm_version=${DEBEZIUM_LOCAL_VERSION_1X}
 	fi
 	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
-	mvn -ntp clean install -Dquick -f ${pom} 1>&2
-	mvn -ntp package -Passembly -Dquick -f ${pom} 1>&2
+	mvn -ntp clean install -Dquick -f ${pom}  1>&2
+	mvn -ntp package -Passembly -Dquick -f ${pom}  1>&2
 
 	mkdir -p $REPO_ROOT/debezium-server-voyager/target
 	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
@@ -380,7 +380,7 @@ assemble_debezium_server_voyager_local() {
 install_yb_client_local(){
 	output "Installing yb client..."
 	pushd $REPO_ROOT/debezium-server-voyager/yb-client-cdc-stream-wrapper > /dev/null
-	mvn -ntp clean package 1>&2
+	mvn -ntp clean package  1>&2
 	popd > /dev/null
 }
 
@@ -427,6 +427,11 @@ rebuild_debezium_server_voyager_plugin_local(){
 	pushd $REPO_ROOT > /dev/null
 	sudo cp "debezium-server-voyager/debezium-server-voyagerexporter/target/debezium-server-voyagerexporter-${DEBEZIUM_LOCAL_VERSION_1X}.Final.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/lib/"
 	popd > /dev/null
+
+	install_yb_client_local
+	pushd $REPO_ROOT > /dev/null
+	sudo cp "debezium-server-voyager/yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar" "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/"
+	popd > /dev/null
 }
 
 rebuild_voyager_local() {
@@ -438,9 +443,9 @@ rebuild_voyager_local() {
 get_passed_options() {
 	if [ "$1" == "linux" ]
 	then
-		OPTS=$(getopt -o "lp", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
+		OPTS=$(getopt -o "lpv", --long install-from-local-source,only-pg-support,rebuild-voyager-local --name 'install-yb-voyager' -- $ARGS_LINUX)
 	else
-		OPTS=$(getopt  lp  $ARGS_MACOS)
+		OPTS=$(getopt  lpv  $ARGS_MACOS)
 	fi
 
 	eval set -- "$OPTS"
@@ -455,7 +460,7 @@ get_passed_options() {
 				ONLY_PG="true"; 
 				shift 
 				;;
-			--rebuild-voyager-local )
+			-v | --rebuild-voyager-local )
 				REBUILD_VOYAGER_LOCAL="true";
 				shift
 				;;

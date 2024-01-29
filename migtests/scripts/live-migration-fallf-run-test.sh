@@ -76,7 +76,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -86,7 +86,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -169,7 +169,7 @@ main() {
 	sleep 2m
 
 	step "Initiating cutover"
-	yes | yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR}
+	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
@@ -178,7 +178,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			exit 1
+			tail_log_file "debezium-source_db_exporter.log"
         fi
     else
         break
@@ -196,7 +196,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover to source-replica"
-	yes | yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR}
+	yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source-replica status: \K\S+')" != "COMPLETED" ]; then
@@ -205,7 +205,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-import-data-to-source-replica.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
-			exit 1
+			tail_log_file "debezium-target_db_exporter_ff.log"
         fi
     else
         break

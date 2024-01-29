@@ -97,8 +97,10 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		if err != nil {
 			// On err, drop the connection and clear the prepared statement cache.
 			conn.Close(context.Background())
+			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
+			pool.Unlock()
 			pool.conns <- nil
 		} else {
 			pool.conns <- conn

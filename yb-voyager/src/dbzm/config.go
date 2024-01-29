@@ -45,6 +45,7 @@ type Config struct {
 	SchemaNames                 string
 	TableList                   []string
 	ColumnSequenceMapping       string
+	InitSequenceMaxMapping      string
 	TableRenameMapping          string
 	ColumnList                  []string
 	Uri                         string
@@ -62,6 +63,8 @@ type Config struct {
 	YBStreamID            string
 	YBMasterNodes         string
 	SnapshotMode          string
+	ReplicationSlotName   string
+	PublicationName       string
 }
 
 var baseConfigTemplate = `
@@ -92,6 +95,7 @@ var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
+debezium.sink.ybexporter.sequence.max.map=%s
 debezium.sink.ybexporter.tables.rename=%s
 debezium.sink.ybexporter.queueSegmentMaxBytes=%d
 debezium.sink.ybexporter.metadata.db.path=%s
@@ -109,6 +113,7 @@ debezium.source.plugin.name=pgoutput
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.publication.autocreate.mode=filtered
 `
 
 var postgresSSLConfigTemplate = `
@@ -117,6 +122,13 @@ debezium.source.database.sslcert=%s
 debezium.source.database.sslkey=%s
 debezium.source.database.sslpassword=
 debezium.source.database.sslrootcert=%s
+`
+
+var postgresReplicationSlotNameTemplate = `
+debezium.source.slot.name=%s`
+
+var postgresPublicationNameTemplate = `
+debezium.source.publication.name=%s
 `
 
 var postgresConfigTemplate = baseConfigTemplate +
@@ -207,6 +219,7 @@ debezium.source.database.streamid=%s
 debezium.source.database.master.addresses=%s
 debezium.source.schema.include.list=%s
 debezium.source.hstore.handling.mode=map
+debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
@@ -224,8 +237,6 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-	triggerDirPath := filepath.Join(c.ExportDir, "metainfo", "triggers")
-	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
 		// defaults to 1GB
@@ -249,18 +260,24 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
 			c.SSLKey,
 			c.SSLRootCert)
 		conf = conf + sslConf
+		if c.ReplicationSlotName != "" {
+			conf = conf + fmt.Sprintf(postgresReplicationSlotNameTemplate, c.ReplicationSlotName)
+		}
+		if c.PublicationName != "" {
+			conf = conf + fmt.Sprintf(postgresPublicationNameTemplate, c.PublicationName)
+		}
 	case "yugabytedb":
 		conf = fmt.Sprintf(yugabyteConfigTemplate,
 			c.Username,
@@ -276,12 +293,12 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -300,12 +317,12 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		if c.SnapshotMode == "initial" {
 			conf = conf + oracleLiveMigrationSrcConfigTemplate
 		}
@@ -329,12 +346,12 @@ func (c *Config) String() string {
 
 			dataDir,
 			c.ColumnSequenceMapping,
+			c.InitSequenceMaxMapping,
 			c.TableRenameMapping,
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
