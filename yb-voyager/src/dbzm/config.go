@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Config struct {
@@ -230,6 +231,7 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSinkConfigTemplate
 
 var yugabyteSSLConfigTemplate = `
+debezium.source.database.sslmode=%s
 debezium.source.database.sslrootcert=%s
 `
 
@@ -300,9 +302,15 @@ func (c *Config) String() string {
 			c.RunId,
 			c.ExporterRole)
 		if c.SSLRootCert != "" {
-			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
-				c.SSLRootCert)
-		} //TODO test SSL for other methods for yugabytedb
+			if c.SSLMode == "prefer" {
+				utils.ErrExit("Error: SSL mode 'prefer' is not supported for 'export data from target'. Please restart 'export data from target' with a different mode in `--target-ssl-mode` flag.")
+			}
+			conf += fmt.Sprintf(yugabyteSSLConfigTemplate, c.SSLMode, c.SSLRootCert)
+		}
+		//TODO test SSL for other methods for yugabytedb
+		if c.SSLCertPath != "" || c.SSLKey != "" {
+			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
+		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
