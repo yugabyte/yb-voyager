@@ -46,6 +46,7 @@ func registerSignalHandlers() {
 			utils.PrintAndLog("\nReceived signal %s. Exiting...", sig)
 			cmd.ProcessShutdownRequested = true
 		case syscall.SIGUSR2:
+			cmd.ProcessShutdownRequested = true
 			utils.PrintAndLog("\nReceived signal to terminate due to end migration command. Exiting...")
 		case syscall.SIGUSR1:
 			cmd.StopArchiverSignal = true
