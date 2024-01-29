@@ -61,7 +61,6 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
-
 var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{

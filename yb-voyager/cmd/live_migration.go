@@ -87,6 +87,9 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 	}
 	log.Info("initializing conflict detection cache")
 	tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
+	if err != nil {
+		return fmt.Errorf("get table unique key columns map: %s", err)
+	}
 	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
