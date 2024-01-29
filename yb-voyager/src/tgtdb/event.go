@@ -267,6 +267,19 @@ func (event *Event) getTableName() string {
 	return tableName
 }
 
+func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
+	if event.Op != "u" {
+		return false
+	}
+
+	for _, col := range uniqueKeyCols {
+		if _, ok := event.Fields[col]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // ==============================================================================================================================
 
 type EventCounter struct {

@@ -22,6 +22,58 @@ In a concurrent environment we can't just apply the second event because both th
 and we can't guarantee the order of the events in the batches.
 
 So, this cache stores events like event1 and wait for them to be processed before processing event2.
+
+There can be total 4 types of conflicts:
+1. DELETE-INSERT
+2. DELETE-UPDATE
+3. UPDATE-INSERT
+4. UPDATE-UPDATE
+
+Case: UPDATE-INSERT conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user21@example.com');
+INSERT INTO example_table VALUES (2, 'user22@example.com');
+INSERT INTO example_table VALUES (3, 'user23@example.com');
+INSERT INTO example_table VALUES (4, 'user24@example.com');
+
+UPDATE example_table SET email = 'user224@example.com' WHERE id = 4;
+
+-- Insert a new row with the conflicting email
+INSERT INTO example_table VALUES (5, 'user24@example.com');
+
+Case: UPDATE-UPDATE conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user31@example.com');
+INSERT INTO example_table VALUES (2, 'user32@example.com');
+INSERT INTO example_table VALUES (3, 'user33@example.com');
+INSERT INTO example_table VALUES (4, 'user34@example.com');
+
+UPDATE example_table SET email = 'updated_user2@example.com' WHERE id = 2;
+
+-- Another conflicting update for id = 3, setting it to previous value of id = 2
+UPDATE example_table SET email = 'user32@example.com' WHERE id = 3;
+
+Case: DELETE-UPDATE conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user41@example.com');
+INSERT INTO example_table VALUES (2, 'user42@example.com');
+INSERT INTO example_table VALUES (3, 'user43@example.com');
+INSERT INTO example_table VALUES (4, 'user44@example.com');
+
+
+DELETE FROM example_table WHERE id = 2;
+
+-- Another conflicting update for id = 3, setting it to previous value of id = 2
+UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
