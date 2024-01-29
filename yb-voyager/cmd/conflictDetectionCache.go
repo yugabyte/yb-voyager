@@ -25,16 +25,18 @@ So, this cache stores events like event1 and wait for them to be processed befor
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
-	m                        map[int64]*tgtdb.Event
-	cond                     *sync.Cond
+	m                       map[int64]*tgtdb.Event
+	cond                    *sync.Cond
 	tableToUniqueKeyColumns map[string][]string
+	evChans                 []chan *tgtdb.Event
 }
 
-func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
+	c.evChans = evChans
 	return c
 }
 
@@ -52,6 +54,10 @@ retry:
 	for _, cachedEvent := range c.m {
 		if c.eventsConfict(cachedEvent, event) {
 			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, event.Vsn)
+			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
+			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
+				c.evChans[i] <- FLUSH_BATCH_EVENT
+			}
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 

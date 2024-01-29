@@ -474,14 +474,9 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
-			tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(importTableList)
 			if err != nil {
 				utils.ErrExit("failed to get table unique key columns map: %s", err)
 			}
-
-			log.Info("initializing conflict detection cache")
-			conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns)
-
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)

@@ -37,6 +37,7 @@ var EVENT_CHANNEL_SIZE int // has to be > MAX_EVENTS_PER_BATCH
 var MAX_EVENTS_PER_BATCH int
 var MAX_INTERVAL_BETWEEN_BATCHES int //ms
 var END_OF_QUEUE_SEGMENT_EVENT = &tgtdb.Event{Op: "end_of_source_queue_segment"}
+var FLUSH_BATCH_EVENT = &tgtdb.Event{Op: "flush_batch"}
 var eventQueue *EventQueue
 var statsReporter *reporter.StreamImportStatsReporter
 
@@ -84,6 +85,12 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		evChans = append(evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
+	log.Info("initializing conflict detection cache")
+	tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
+	if err != nil {
+		return fmt.Errorf("get table unique key columns map: %s", err)
+	}
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
@@ -248,6 +255,9 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			case event := <-evChan:
 				if event == END_OF_QUEUE_SEGMENT_EVENT {
 					endOfProcessing = true
+					break Batching
+				}
+				if event == FLUSH_BATCH_EVENT {
 					break Batching
 				}
 				if event.Vsn <= lastAppliedVsn {
