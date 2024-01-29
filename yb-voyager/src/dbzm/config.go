@@ -239,8 +239,6 @@ func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFile := filepath.Join(dataDir, "offsets.dat")
 	schemaNames := strings.Join(strings.Split(c.SchemaNames, "|"), ",")
-	triggerDirPath := filepath.Join(c.ExportDir, "metainfo", "triggers")
-	// queuedSegmentMaxBytes := int641024 * 1024 * 1024 // 1GB
 	queueSegmentMaxBytes, err := strconv.ParseInt(os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), 10, 64)
 	if err != nil {
 		// defaults to 1GB
@@ -269,8 +267,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(postgresSSLConfigTemplate,
 			c.SSLMode,
 			c.SSLCertPath,
@@ -303,8 +300,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		if c.SSLRootCert != "" {
 			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
 				c.SSLRootCert)
@@ -328,8 +324,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		if c.SnapshotMode == "initial" {
 			conf = conf + oracleLiveMigrationSrcConfigTemplate
 		}
@@ -358,8 +353,7 @@ func (c *Config) String() string {
 			queueSegmentMaxBytes,
 			c.MetadataDBPath,
 			c.RunId,
-			c.ExporterRole,
-			triggerDirPath)
+			c.ExporterRole)
 		sslConf := fmt.Sprintf(mysqlSSLConfigTemplate, c.SSLMode)
 		if c.SSLKeyStore != "" {
 			sslConf += fmt.Sprintf(mysqlSSLKeyStoreConfigTemplate,
