@@ -127,7 +127,7 @@ class KafkaConnectRecordParser implements RecordParser {
     protected void parseEventId(Struct value, Record r) {
         r.eventId = null;
         // Check if connector is in snapshot mode return
-        if (es.getMode().equals(ExportMode.STREAMING)) {
+        if (es.getMode().equals(ExportMode.SNAPSHOT)) {
             return;
         }
 
