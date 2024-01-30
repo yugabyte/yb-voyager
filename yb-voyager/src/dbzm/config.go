@@ -223,6 +223,8 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.transaction.ordering=true
+debezium.source.tasks.max=1
 `
 
 var yugabyteConfigTemplate = baseConfigTemplate +
