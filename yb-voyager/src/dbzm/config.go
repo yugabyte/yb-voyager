@@ -115,7 +115,7 @@ debezium.source.plugin.name=pgoutput
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
-debezium.source.publication.autocreate.mode=filtered
+debezium.source.publication.autocreate.mode=disabled
 `
 
 var postgresSSLConfigTemplate = `
