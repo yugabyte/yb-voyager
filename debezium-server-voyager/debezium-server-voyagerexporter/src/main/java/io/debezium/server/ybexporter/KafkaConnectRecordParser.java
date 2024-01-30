@@ -136,22 +136,24 @@ class KafkaConnectRecordParser implements RecordParser {
                 // Exit the code not the function if transaction struct is not available
                 // LOGGER.error("Transaction struct is not available in the event. Exiting.");
                 // throw new RuntimeException();
-                return
+                return;
             }
             String transactionId = transaction.getString("id");
             // if (transactionId == null) {
-            //     LOGGER.error("Transaction id is not available in the event. Exiting.");
-            //     throw new RuntimeException();
+            // LOGGER.error("Transaction id is not available in the event. Exiting.");
+            // throw new RuntimeException();
             // }
             String totalOrder = String.valueOf(transaction.getInt64("total_order"));
             // if (totalOrder == null) {
-            //     LOGGER.error("Transaction total_order is not available in the event. Exiting.");
-            //     throw new RuntimeException();
+            // LOGGER.error("Transaction total_order is not available in the event.
+            // Exiting.");
+            // throw new RuntimeException();
             // }
             String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
             // if (dataCollectionOrder == null) {
-            //     LOGGER.error("Transaction data_collection_order is not available in the event. Exiting.");
-            //     throw new RuntimeException();
+            // LOGGER.error("Transaction data_collection_order is not available in the
+            // event. Exiting.");
+            // throw new RuntimeException();
             // }
             r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
         }
