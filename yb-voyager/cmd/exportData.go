@@ -221,7 +221,6 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -290,6 +289,28 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
+
+	tablelistArr := []string{}
+	for _, tableName := range finalTableList {
+		tablelistArr = append(tablelistArr, tableName.Qualified.Quoted)
+	}
+	tablelistStr := strings.Join(tablelistArr, ",")
+
+	dropPublicationStmt := fmt.Sprintf("DROP  PUBLICATION IF EXISTS voyager_dbz_publication_%s;", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	result := replicationConn.Exec(ctx, dropPublicationStmt)
+	_, err = result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("drop publication if exists error: %v", err)
+	}
+
+	createPublicationStmt := fmt.Sprintf("CREATE PUBLICATION voyager_dbz_publication_%s FOR TABLE %s;", strings.ReplaceAll(migrationUUID.String(), "-", "_"), tablelistStr)
+	result = replicationConn.Exec(ctx, createPublicationStmt)
+	_, err = result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("create publication error: %v", err)
+	}
+	utils.PrintAndLog("created publication with stmt %s", createPublicationStmt)
+
 	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
@@ -408,7 +429,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SnapshotMechanism = "pg_dump"
-		case ORACLE, MYSQL: 
+		case ORACLE, MYSQL:
 			record.SnapshotMechanism = "ora2pg"
 		}
 	})
