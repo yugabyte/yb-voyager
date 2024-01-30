@@ -190,8 +190,8 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"Disable progress bar/stats during data import (default false)")
 
 	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 10, "Maximum number of retries for failed event batch in live migration")
-	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors 
-	
+	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors
+
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
@@ -260,12 +260,12 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
-	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
+	BoolVar(cmd.Flags(), &flagPostSnapshotImport, "post-snapshot-import", false,
 		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
-		"Refreshes the materialized views on target during post import data phase (default false)")
+		"Refreshes the materialised views on target during post snapshot import phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
 }
