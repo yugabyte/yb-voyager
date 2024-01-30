@@ -178,7 +178,8 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)

@@ -30,6 +30,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"golang.org/x/exp/slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -408,7 +409,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SnapshotMechanism = "pg_dump"
-		case ORACLE, MYSQL: 
+		case ORACLE, MYSQL:
 			record.SnapshotMechanism = "ora2pg"
 		}
 	})
@@ -648,16 +649,16 @@ func startFallBackSetupIfRequired() {
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to source - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 
