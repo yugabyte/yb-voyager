@@ -126,6 +126,11 @@ class KafkaConnectRecordParser implements RecordParser {
 
     protected void parseEventId(Struct value, Record r) {
         r.eventId = null;
+        // Check if connector is in snapshot mode return
+        if (es.getMode().equals(ExportMode.STREAMING)) {
+            return;
+        }
+
         if (sourceType.equals("oracle") || sourceType.equals("postgresql")) {
             // Extract transaction struct from value if it is available
             Struct transaction = value.getStruct("transaction");
@@ -134,27 +139,24 @@ class KafkaConnectRecordParser implements RecordParser {
             // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
             if (transaction == null) {
                 // Exit the code not the function if transaction struct is not available
-                // LOGGER.error("Transaction struct is not available in the event. Exiting.");
-                // throw new RuntimeException();
-                return;
+                LOGGER.error("Transaction struct is not available in the event. Exiting.");
+                throw new RuntimeException();
             }
             String transactionId = transaction.getString("id");
-            // if (transactionId == null) {
-            // LOGGER.error("Transaction id is not available in the event. Exiting.");
-            // throw new RuntimeException();
-            // }
+            if (transactionId == null) {
+                LOGGER.error("Transaction id is not available in the event. Exiting.");
+                throw new RuntimeException();
+            }
             String totalOrder = String.valueOf(transaction.getInt64("total_order"));
-            // if (totalOrder == null) {
-            // LOGGER.error("Transaction total_order is not available in the event.
-            // Exiting.");
-            // throw new RuntimeException();
-            // }
+            if (totalOrder == null) {
+                LOGGER.error("Transaction total_order is not available in the event. Exiting.");
+                throw new RuntimeException();
+            }
             String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
-            // if (dataCollectionOrder == null) {
-            // LOGGER.error("Transaction data_collection_order is not available in the
-            // event. Exiting.");
-            // throw new RuntimeException();
-            // }
+            if (dataCollectionOrder == null) {
+                LOGGER.error("Transaction data_collection_order is not available in the event. Exiting.");
+                throw new RuntimeException();
+            }
             r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
         }
     }
