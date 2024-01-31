@@ -271,11 +271,6 @@ func (r *Reader) readLine() ([]byte, error) {
 	}
 	r.numLine++
 	r.offset += int64(readSize)
-	// Normalize \r\n to \n on all input lines.
-	// if n := len(line); n >= 2 && line[n-2] == '\r' && line[n-1] == '\n' {
-	// 	line[n-2] = '\n'
-	// 	line = line[:n-1]
-	// }
 	return line, err
 }
 
