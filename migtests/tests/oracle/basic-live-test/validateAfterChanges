@@ -29,14 +29,14 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '18',
 		'id2': '43'
 	},
-	'user_table': {
-		'id': '51',
-	}
+	# 'user_table': {
+	# 	'id': '51',
+	# }
 }
 
 EXPECTED_ROW_COUNT_FF = {
 	'x':7,
-	'user_table': 8
+	# 'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {

@@ -138,7 +138,6 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 }
 
 func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool {
-	log.Infof("checking for conflict between event1(vsn=%d) and event2(vsn=%d)", event1.Vsn, event2.Vsn)
 	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
 		return false
 	}
@@ -154,20 +153,18 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 		return true
 	}
 
-	log.Infof("event1=%s", event1.String())
-	log.Infof("event2=%s", event2.String())
 	maybeQualifiedName := event1.TableName
 	if event1.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
-		// if the unique key column value is same, then we have a conflict
-		log.Infof("comparing column %s for event1.vsn=%d and event2.vsn=%d", column, event1.Vsn, event2.Vsn)
-		log.Infof("event1.BeforeFields[column]=%s, event2.Fields[column]=%s", *event1.BeforeFields[column], *event2.Fields[column])
+		if event1.BeforeFields[column] == nil || event2.Fields[column] == nil {
+			return false
+		}
 		if utils.CompareWithoutQuotes(*event1.BeforeFields[column], *event2.Fields[column]) {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				maybeQualifiedName, column, event1.Vsn, *event1.Fields[column], event2.Vsn, *event2.Fields[column])
+				maybeQualifiedName, column, event1.Vsn, *event1.BeforeFields[column], event2.Vsn, *event2.Fields[column])
 			return true
 		}
 	}

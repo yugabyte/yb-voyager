@@ -14,9 +14,7 @@ public class Record {
     public String eventId;
     public long vsn; // Voyager Sequence Number.
 
-     // Key and value information for 'before' struct
-    public ArrayList<String> beforeKeyColumns = new ArrayList<>();
-    public ArrayList<Object> beforeKeyValues = new ArrayList<>();
+     // Value information for 'before' struct
     public ArrayList<String> beforeValueColumns = new ArrayList<>();
     public ArrayList<Object> beforeValueValues = new ArrayList<>();
 
@@ -36,8 +34,6 @@ public class Record {
         afterValueColumns.clear();
         afterValueValues.clear();
         
-        beforeKeyColumns.clear();
-        beforeKeyValues.clear();
         beforeValueColumns.clear();
         beforeValueValues.clear();
     }
@@ -52,10 +48,6 @@ public class Record {
 
     public ArrayList<Object> getAfterValueFieldValues() {
         return afterValueValues;
-    }
-
-    public ArrayList<Object> getBeforeValueFieldValues() {
-        return beforeValueValues;
     }
 
     public void addAfterValueField(String key, Object value) {
@@ -80,8 +72,6 @@ public class Record {
                 ", snapshot='" + snapshot + '\'' +
                 ", op='" + op + '\'' +
                 ", vsn=" + vsn +
-                ", beforeKeyColumns=" + beforeKeyColumns +
-                ", beforeKeyValues=" + beforeKeyValues +
                 ", beforeValueColumns=" + beforeValueColumns +
                 ", beforeValueValues=" + beforeValueValues +
                 ", afterKeyColumns=" + afterKeyColumns +

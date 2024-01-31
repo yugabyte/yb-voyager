@@ -251,19 +251,71 @@ class KafkaConnectRecordParser implements RecordParser {
      */
     protected void parseValueFields(Struct value, Record r) {
         Struct after = value.getStruct("after");
-        // TODO: error handle before is NULL
         Struct before = value.getStruct("before");
+<<<<<<< HEAD
 
         // in case of delete, the before struct contains the values required in cases
         // like DELETE-INSERT conflicts(unique key columns)
         if (r.op.equals("d") && before != null) {
             after = before;
+=======
+        
+        if (sourceType.equals("yb")) {
+            parseValueFieldsForYB(after, r);
+        } else {
+            parseValueFieldsForOthers(after, before, r);
+>>>>>>> 4af14ba (code cleanup and error handling)
         }
+    }
+
+    private void parseValueFieldsForYB(Struct after, Record r) {
         if (after == null) {
             return;
         }
 
         for (Field f : after.schema().fields()) {
+            // TODO: write a proper transformer for this logic
+            // values in the debezium connector are as follows:
+            // "val1" : {
+            //  "value" : "value for val1 column",
+            //  "set" : true
+            //}
+            Struct valueAndSet = after.getStruct(f.name());
+            if (r.op.equals("u")) {
+                // in the default configuration of the stream, for an update, the fields in the after struct
+                // are only the delta fields, therefore, it is possible for a field to not be there.
+                if (valueAndSet == null){
+                    continue;
+                }
+            } else if (r.op.equals("d") && valueAndSet == null){
+                // in case of deletes we are using before struct which contains only delta for yb
+                continue;
+            }
+            
+            if (!valueAndSet.getBoolean("set")){
+                continue;
+            }
+            Object afterFieldValue = valueAndSet.getWithoutDefault("value");
+            r.addAfterValueField(f.name(), afterFieldValue);
+        }
+    }
+
+    private void parseValueFieldsForOthers(Struct after, Struct before, Record r) {
+        if (r.op.equals("d")){ // after is null for delete events
+            for (Field f : before.schema().fields()) {
+                Object beforeFieldValue = before.getWithoutDefault(f.name());
+                r.addBeforeValueField(f.name(), beforeFieldValue);
+            }
+            return;
+        }
+
+        for (Field f : after.schema().fields()) {
+            if (r.op.equals("u")) {
+                if (Objects.equals(after.get(f), before.get(f))) {
+                    // no need to record this as field is unchanged
+                    continue;
+                }
+            }
             Object beforeFieldValue = null;
             Object afterFieldValue;
             if (sourceType.equals("yb")){

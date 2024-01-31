@@ -215,15 +215,10 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
 	if uniqueKeyCols != nil {
 		if event.Op == "d" {
-			log.Infof("putting event(vsn=%d) into conflict detection cache", event.Vsn)
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"
-			log.Infof("checking for conflicts for event(vsn=%d)", event.Vsn)
 			conflictDetectionCache.WaitUntilNoConflict(event)
-			log.Infof("checking for uniqueKeyChanged for event(vsn=%d)", event.Vsn)
 			if event.IsUniqueKeyChanged(uniqueKeyCols) {
-				log.Infof("unique key changed for event(vsn=%d)", event.Vsn)
-				log.Infof("putting event(vsn=%d) into conflict detection cache", event.Vsn)
 				conflictDetectionCache.Put(event)
 			}
 		}
