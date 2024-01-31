@@ -335,7 +335,7 @@ func checkOrSetDefaultTargetSSLMode() {
 
 func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
-		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(20000)"))
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(%d)", DEFAULT_BATCH_SIZE_YUGABYTEDB))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+ 
 		"number of cores N and use N/4 as parallel jobs. "+
@@ -344,7 +344,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
-		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(10000000), POSTGRESQL(100000)"))
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
 		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total " + 
 		"number of cores N and use N/2 as parallel jobs else it will fall back to  8) and Oracle(16)")
