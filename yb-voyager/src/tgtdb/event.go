@@ -34,6 +34,7 @@ type Event struct {
 	TableName    string             `json:"table_name"`
 	Key          map[string]*string `json:"key"`
 	Fields       map[string]*string `json:"fields"`
+	BeforeFields map[string]*string `json:"before_fields"`
 	ExporterRole string             `json:"exporter_role"`
 }
 

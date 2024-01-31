@@ -487,3 +487,9 @@ func ReadTableNameListFromFile(filePath string) ([]string, error) {
 	}
 	return list, nil
 }
+
+func CompareWithoutQuotes(s1, s2 string) bool {
+	s1 = strings.Trim(s1, "\"'")
+	s2 = strings.Trim(s2, "\"'")
+	return strings.EqualFold(s1, s2)
+}

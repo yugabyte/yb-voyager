@@ -62,7 +62,7 @@ public class TableSnapshotWriterCSV implements RecordWriter {
     public void writeRecord(Record r) {
         // TODO: assert r.table = table
         try {
-            csvPrinter.printRecord(r.getValueFieldValues());
+            csvPrinter.printRecord(r.getAfterValueFieldValues());
             es.updateTableSnapshotRecordWritten(t);
         }
         catch (IOException e) {

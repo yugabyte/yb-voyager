@@ -192,7 +192,7 @@ public class EventQueue implements RecordWriter {
 
     @Override
     public void writeRecord(Record r) {
-        if (r.op.equals("u") && r.valueValues.size() == 0) {
+        if (r.op.equals("u") && r.afterValueValues.size() == 0) {
             LOGGER.debug("Skipping record {} as there are no values to update.", r);
             return;
         }

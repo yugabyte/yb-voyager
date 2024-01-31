@@ -105,16 +105,22 @@ public class QueueSegment {
     private HashMap<String, Object> generateCdcMessageForRecord(Record r) {
         // TODO: optimize, don't create objects every time.
         HashMap<String, Object> key = new HashMap<>();
-        HashMap<String, Object> fields = new HashMap<>();
+        HashMap<String, Object> afterFields = new HashMap<>();
+        HashMap<String, Object> beforeFields = new HashMap<>();
 
-        for (int i = 0; i < r.keyValues.size(); i++) {
-            Object formattedVal = r.keyValues.get(i);
-            key.put(r.keyColumns.get(i), formattedVal);
+        for (int i = 0; i < r.afterKeyValues.size(); i++) {
+            Object formattedVal = r.afterKeyValues.get(i);
+            key.put(r.afterKeyColumns.get(i), formattedVal);
         }
 
-        for (int i = 0; i < r.valueValues.size(); i++) {
-            Object formattedVal = r.valueValues.get(i);
-            fields.put(r.valueColumns.get(i), formattedVal);
+        for (int i = 0; i < r.afterValueValues.size(); i++) {
+            Object formattedVal = r.afterValueValues.get(i);
+            afterFields.put(r.afterValueColumns.get(i), formattedVal);
+        }
+
+        for (int i = 0; i < r.beforeValueValues.size(); i++) {
+            Object formattedVal = r.beforeValueValues.get(i);
+            beforeFields.put(r.beforeValueColumns.get(i), formattedVal);
         }
 
         HashMap<String, Object> cdcInfo = new HashMap<>();
@@ -123,7 +129,8 @@ public class QueueSegment {
         cdcInfo.put("schema_name", r.t.schemaName);
         cdcInfo.put("table_name", r.t.tableName);
         cdcInfo.put("key", key);
-        cdcInfo.put("fields", fields);
+        cdcInfo.put("fields", afterFields);
+        cdcInfo.put("before_fields", beforeFields);
         cdcInfo.put("exporter_role", exporterRole);
         cdcInfo.put("event_id", r.eventId);
         return cdcInfo;

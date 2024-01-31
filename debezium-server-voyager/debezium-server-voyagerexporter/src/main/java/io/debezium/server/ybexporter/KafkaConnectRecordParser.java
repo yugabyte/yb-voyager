@@ -238,7 +238,7 @@ class KafkaConnectRecordParser implements RecordParser {
             } else {
                 fieldValue = key.getWithoutDefault(f.name());
             }
-            r.addKeyField(f.name(), fieldValue);
+            r.addAfterKeyField(f.name(), fieldValue);
 
         }
     }
@@ -264,8 +264,9 @@ class KafkaConnectRecordParser implements RecordParser {
         }
 
         for (Field f : after.schema().fields()) {
-            Object fieldValue;
-            if (sourceType.equals("yb")) {
+            Object beforeFieldValue = null;
+            Object afterFieldValue;
+            if (sourceType.equals("yb")){
                 // TODO: write a proper transformer for this logic
                 // values in the debezium connector are as follows:
                 // "val1" : {
@@ -290,18 +291,23 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (!valueAndSet.getBoolean("set")) {
                     continue;
                 }
-                fieldValue = valueAndSet.getWithoutDefault("value");
-            } else {
+                afterFieldValue = valueAndSet.getWithoutDefault("value");
+                beforeFieldValue = null;
+            }
+            else{
                 if (r.op.equals("u")) {
                     if (Objects.equals(after.get(f), before.get(f))) {
                         // no need to record this as field is unchanged
                         continue;
                     }
                 }
-                fieldValue = after.getWithoutDefault(f.name());
+                afterFieldValue = after.getWithoutDefault(f.name());
+                if (before != null) {
+                    beforeFieldValue = before.getWithoutDefault(f.name());
+                }
             }
-
-            r.addValueField(f.name(), fieldValue);
+            r.addAfterValueField(f.name(), afterFieldValue);
+            r.addBeforeValueField(f.name(), beforeFieldValue);
         }
     }
 }
