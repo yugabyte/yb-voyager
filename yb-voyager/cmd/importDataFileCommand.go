@@ -86,7 +86,7 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to update migration status record: %v", err)
 	}
-	
+
 	dataFileList := getFileSizeInfo(importFileTasks)
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat:   fileFormat,
@@ -354,6 +354,7 @@ func init() {
 	registerCommonGlobalFlags(importDataFileCmd)
 	registerTargetDBConnFlags(importDataFileCmd)
 	registerImportDataCommonFlags(importDataFileCmd)
+	registerFlagsForTarget(importDataFileCmd)
 
 	importDataFileCmd.Flags().StringVar(&fileFormat, "format", "csv",
 		fmt.Sprintf("supported data file types: (%v)", strings.Join(supportedFileFormats, ",")))

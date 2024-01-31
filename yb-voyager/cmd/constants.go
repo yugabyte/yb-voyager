@@ -37,6 +37,7 @@ const (
 	MAX_SLEEP_SECOND                = 60
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
+	DEFAULT_BATCH_SIZE_POSTGRESQL   = 100000
 	INDEX_RETRY_COUNT               = 5
 	DDL_MAX_RETRY_COUNT             = 5
 	SCHEMA_VERSION_MISMATCH_ERR     = "Query error: schema version mismatch for table"

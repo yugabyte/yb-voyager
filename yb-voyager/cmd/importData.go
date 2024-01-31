@@ -1142,7 +1142,8 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
-
+	registerFlagsForTarget(importDataCmd)
+	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)

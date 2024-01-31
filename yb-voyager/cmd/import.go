@@ -206,20 +206,6 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of the source db table names to import data")
 
-	defaultBatchSizeMsg := fmt.Sprintf("(default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE)
-	if cmd.CommandPath() == "yb-voyager import data file" {
-		defaultBatchSizeMsg = "(default: 20000)"
-	}
-	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
-		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import %s", defaultBatchSizeMsg))
-	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
-		"Otherwise, it fall back to using twice the number of nodes in the cluster."
-	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
-		defaultParallelismMsg = "(default: 16(Oracle))"
-	}
-	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
-		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
-
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"Enable UPSERT mode on target tables")
 	BoolVar(cmd.Flags(), &tconf.UsePublicIP, "use-public-ip", false,
@@ -347,10 +333,29 @@ func checkOrSetDefaultTargetSSLMode() {
 	}
 }
 
+func registerFlagsForTarget(cmd *cobra.Command) {
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(20000)"))
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
+		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+ 
+		"number of cores N and use N/4 as parallel jobs. "+
+			"Otherwise, it fall back to using twice the number of nodes in the cluster.")
+}
+
+func registerFlagsForSourceReplica(cmd *cobra.Command) {
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(10000000), POSTGRESQL(100000)"))
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
+		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total " + 
+		"number of cores N and use N/2 as parallel jobs else it will fall back to  8) and Oracle(16)")
+}
+
 func validateBatchSizeFlag(numLinesInASplit int64) {
 	if batchSize == 0 {
 		if tconf.TargetDBType == ORACLE {
 			batchSize = DEFAULT_BATCH_SIZE_ORACLE
+		} else if tconf.TargetDBType == POSTGRESQL {
+			batchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
 		} else {
 			batchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 		}
@@ -360,6 +365,8 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 	var defaultBatchSize int64
 	if tconf.TargetDBType == ORACLE {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
+	} else if tconf.TargetDBType == POSTGRESQL {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
 	} else {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 	}
