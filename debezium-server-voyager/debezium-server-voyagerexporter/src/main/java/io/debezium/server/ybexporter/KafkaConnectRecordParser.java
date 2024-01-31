@@ -101,10 +101,10 @@ class KafkaConnectRecordParser implements RecordParser {
 
             Struct source = value.getStruct("source");
 
-            parseEventId(value, r);
-
             r.op = value.getString("op");
             r.snapshot = source.getString("snapshot");
+
+            parseEventId(value, r);
 
             // Parse table/schema the first time to be able to format specific field values
             parseTable(value, source, r);
@@ -127,13 +127,7 @@ class KafkaConnectRecordParser implements RecordParser {
     protected void parseEventId(Struct value, Record r) {
         r.eventId = null;
         // Check if connector is in snapshot mode return
-        String op = value.getString("op");
-        if (op == null) {
-            LOGGER.error("Operation is not available in the event. Exiting. Event value struct: {}",
-                    value.toString());
-            throw new RuntimeException("Operation is not available in the event. Exiting.");
-        }
-        if (es.getMode().equals(ExportMode.SNAPSHOT) && op.equals("r")) {
+        if (es.getMode().equals(ExportMode.SNAPSHOT) && r.op.equals("r")) {
             return;
         }
 
