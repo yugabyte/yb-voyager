@@ -178,7 +178,8 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -465,7 +466,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostImportDataSqls()
+		executePostSnapshotImportSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -474,14 +475,9 @@ func importData(importFileTasks []*ImportFileTask) {
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
 
-			tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(importTableList)
 			if err != nil {
 				utils.ErrExit("failed to get table unique key columns map: %s", err)
 			}
-
-			log.Info("initializing conflict detection cache")
-			conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns)
-
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)
@@ -812,7 +808,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostImportDataSqls() {
+func executePostSnapshotImportSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
@@ -998,7 +994,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
 		}
 
-		if bool(flagPostImportData) && strings.Contains(objType, "INDEX") {
+		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
 			//In case of index creation print the index name as index creation takes time
 			//and user can see the progress
 			if sqlInfo.objName != "" {
