@@ -139,23 +139,28 @@ class KafkaConnectRecordParser implements RecordParser {
             // Convert id=0200030002cf0000,total_order=1,data_collection_order=1 to string
             if (transaction == null) {
                 // Exit the code not the function if transaction struct is not available
-                LOGGER.error("Transaction struct is not available in the event. Exiting.");
-                throw new RuntimeException();
+                LOGGER.error("Transaction struct is not available in the event. Exiting. Event value struct: {}",
+                        value.toString());
+                throw new RuntimeException("Transaction struct is not available in the event. Exiting.");
             }
             String transactionId = transaction.getString("id");
             if (transactionId == null) {
-                LOGGER.error("Transaction id is not available in the event. Exiting.");
-                throw new RuntimeException();
+                LOGGER.error("Transaction id is not available in the event. Exiting. Transaction struct: {}",
+                        transaction.toString());
+                throw new RuntimeException("Transaction id is not available in the event. Exiting.");
             }
             String totalOrder = String.valueOf(transaction.getInt64("total_order"));
             if (totalOrder == null) {
-                LOGGER.error("Transaction total_order is not available in the event. Exiting.");
-                throw new RuntimeException();
+                LOGGER.error("Transaction total_order is not available in the event. Exiting. Transaction struct: {}",
+                        transaction.toString());
+                throw new RuntimeException("Transaction total_order is not available in the event. Exiting. ");
             }
             String dataCollectionOrder = String.valueOf(transaction.getInt64("data_collection_order"));
             if (dataCollectionOrder == null) {
-                LOGGER.error("Transaction data_collection_order is not available in the event. Exiting.");
-                throw new RuntimeException();
+                LOGGER.error(
+                        "Transaction data_collection_order is not available in the event. Exiting. Transaction struct: {}",
+                        transaction.toString());
+                throw new RuntimeException("Transaction data_collection_order is not available in the event. Exiting.");
             }
             r.eventId = String.format("%s,%s,%s", transactionId, totalOrder, dataCollectionOrder);
         }
