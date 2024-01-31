@@ -72,8 +72,7 @@ var baseConfigTemplate = `
 debezium.format.value=connect
 debezium.format.key=connect
 quarkus.log.console.json=false
-quarkus.log.level=trace
-quarkus.log.min-level=trace
+quarkus.log.level=info
 `
 
 var baseSrcConfigTemplate = `
