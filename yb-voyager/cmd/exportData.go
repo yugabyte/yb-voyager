@@ -178,24 +178,14 @@ func exportData() bool {
 		}
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
-			// 1. create replication slot.
+			// 1. create publication, replication slot.
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
-			// 3. start debezium with configration to read changes from the created replication slot.
+			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
-					return false
-				}
-
-				// updating the MSR with PGPublicationName
-				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-					PGPublicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-					record.PGPublicationName = PGPublicationName
-				})
-				if err != nil {
-					log.Errorf("update PGPublicationName: update migration status record: %v", err)
 					return false
 				}
 			}
@@ -289,29 +279,15 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
-
-	tablelistArr := []string{}
-	for _, tableName := range finalTableList {
-		tablelistArr = append(tablelistArr, tableName.Qualified.Quoted)
-	}
-	tablelistStr := strings.Join(tablelistArr, ",")
-
-	dropPublicationStmt := fmt.Sprintf("DROP  PUBLICATION IF EXISTS voyager_dbz_publication_%s;", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
-	result := replicationConn.Exec(ctx, dropPublicationStmt)
-	_, err = result.ReadAll()
+	// Note: publication object needs to be created before replication slot
+	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
 	if err != nil {
-		return fmt.Errorf("drop publication if exists error: %v", err)
+		return fmt.Errorf("create publication: %v", err)
 	}
-
-	createPublicationStmt := fmt.Sprintf("CREATE PUBLICATION voyager_dbz_publication_%s FOR TABLE %s;", strings.ReplaceAll(migrationUUID.String(), "-", "_"), tablelistStr)
-	result = replicationConn.Exec(ctx, createPublicationStmt)
-	_, err = result.ReadAll()
-	if err != nil {
-		return fmt.Errorf("create publication error: %v", err)
-	}
-	utils.PrintAndLog("created publication with stmt %s", createPublicationStmt)
-
-	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
@@ -322,10 +298,11 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return err
 	}
 
-	// save replication slot in MSR
+	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.PGReplicationSlotName = res.SlotName
 		record.SnapshotMechanism = "pg_dump"
+		record.PGPublicationName = publicationName
 	})
 	if err != nil {
 		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)

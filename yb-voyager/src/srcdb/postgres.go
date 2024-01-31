@@ -516,9 +516,7 @@ func (pg *PostgreSQL) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), pg.getConnectionUri()+"&replication=database")
 }
 
-func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, migrationUUID uuid.UUID, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
-	replicationSlotName := fmt.Sprintf("voyager_%s", strings.Replace(migrationUUID.String(), "-", "_", -1))
-
+func (pg *PostgreSQL) CreateLogicalReplicationSlot(conn *pgconn.PgConn, replicationSlotName string, dropIfAlreadyExists bool) (*pglogrepl.CreateReplicationSlotResult, error) {
 	if dropIfAlreadyExists {
 		log.Infof("dropping replication slot %s if already exists", replicationSlotName)
 		err := pg.DropLogicalReplicationSlot(conn, replicationSlotName)
@@ -554,6 +552,27 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 			return fmt.Errorf("delete existing replication slot(%s): %v", replicationSlotName, err)
 		}
 	}
+	return nil
+}
+
+func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []*sqlname.SourceName, dropIfAlreadyExists bool) error {
+	if dropIfAlreadyExists {
+		err := pg.DropPublication(publicationName)
+		if err != nil {
+			return fmt.Errorf("drop publication: %v", err)
+		}
+	}
+	tablelistQualifiedQuoted := []string{}
+	for _, tableName := range tableList {
+		tablelistQualifiedQuoted = append(tablelistQualifiedQuoted, tableName.Qualified.Quoted)
+	}
+	stmt := fmt.Sprintf("CREATE PUBLICATION %s FOR TABLE %s;", publicationName, strings.Join(tablelistQualifiedQuoted, ","))
+	result := conn.Exec(context.Background(), stmt)
+	_, err := result.ReadAll()
+	if err != nil {
+		return fmt.Errorf("create publication with stmt %s: %v", err, stmt)
+	}
+	log.Infof("created publication with stmt %s", stmt)
 	return nil
 }
 
