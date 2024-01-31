@@ -25,6 +25,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/stdlibcsv"
 )
 
 type ValueConverter interface {
@@ -67,7 +68,7 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
-	csvReader            *csv.Reader
+	csvReader            *stdlibcsv.Reader
 	bufReader            bufio.Reader
 	bufWriter            bufio.Writer
 	wbuf                 bytes.Buffer
@@ -109,7 +110,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
 	if conv.prevTableName != tableName {
-		conv.csvReader = csv.NewReader(&conv.bufReader)
+		conv.csvReader = stdlibcsv.NewReader(&conv.bufReader)
 		conv.csvReader.ReuseRecord = true
 	}
 	conv.bufReader.Reset(strings.NewReader(row))
