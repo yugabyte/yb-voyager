@@ -159,6 +159,9 @@ jobs:
 
     - name: "TEST: pg-hasura-ecommerce"
       run: migtests/scripts/run-test.sh pg/hasura-ecommerce
+    
+    - name: "TEST: "pg-carriage-return"
+      run: migtests/scripts/run-test.sh pg/carriage-return
 
 # Placeholder for now so that a basic test can run
     - name: Create the live migration user
