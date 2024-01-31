@@ -127,7 +127,13 @@ class KafkaConnectRecordParser implements RecordParser {
     protected void parseEventId(Struct value, Record r) {
         r.eventId = null;
         // Check if connector is in snapshot mode return
-        if (es.getMode().equals(ExportMode.SNAPSHOT) && r.op.equals("r")) {
+        String op = value.getString("op");
+        if (op == null) {
+            LOGGER.error("Operation is not available in the event. Exiting. Event value struct: {}",
+                    value.toString());
+            throw new RuntimeException("Operation is not available in the event. Exiting.");
+        }
+        if (es.getMode().equals(ExportMode.SNAPSHOT) && op.equals("r")) {
             return;
         }
 
