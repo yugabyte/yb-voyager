@@ -197,6 +197,7 @@ public class EventQueue implements RecordWriter {
             return;
         }
         if (r.eventId != null && eventDedupCache.isEventInCache(r.eventId)) {
+            LOGGER.info("Skipping record {} as it is already in the event dedup cache", r);
             return;
         }
         if (shouldRotateQueueSegment())
