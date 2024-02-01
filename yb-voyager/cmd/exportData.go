@@ -30,6 +30,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"golang.org/x/exp/slices"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -178,24 +179,14 @@ func exportData() bool {
 		}
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
-			// 1. create replication slot.
+			// 1. create publication, replication slot.
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
-			// 3. start debezium with configration to read changes from the created replication slot.
+			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
-					return false
-				}
-
-				// updating the MSR with PGPublicationName
-				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-					PGPublicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-					record.PGPublicationName = PGPublicationName
-				})
-				if err != nil {
-					log.Errorf("update PGPublicationName: update migration status record: %v", err)
 					return false
 				}
 			}
@@ -221,7 +212,6 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -290,7 +280,15 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
-	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	// Note: publication object needs to be created before replication slot
+	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	if err != nil {
+		return fmt.Errorf("create publication: %v", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
@@ -301,10 +299,11 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return err
 	}
 
-	// save replication slot in MSR
+	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.PGReplicationSlotName = res.SlotName
 		record.SnapshotMechanism = "pg_dump"
+		record.PGPublicationName = publicationName
 	})
 	if err != nil {
 		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
@@ -408,7 +407,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		switch source.DBType {
 		case POSTGRESQL:
 			record.SnapshotMechanism = "pg_dump"
-		case ORACLE, MYSQL: 
+		case ORACLE, MYSQL:
 			record.SnapshotMechanism = "ora2pg"
 		}
 	})
@@ -648,16 +647,16 @@ func startFallBackSetupIfRequired() {
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to source - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 

@@ -6,9 +6,6 @@
 package io.debezium.server.ybexporter;
 
 import java.sql.JDBCType;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
-import java.util.Locale;
 import java.util.Properties;
 
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -29,7 +26,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
 
     @Override
     public void converterFor(RelationalColumn column,
-                             ConverterRegistration<SchemaBuilder> registration) {
+            ConverterRegistration<SchemaBuilder> registration) {
 
         JDBCType jdbcType = JDBCType.valueOf(column.jdbcType());
         switch (jdbcType) {
@@ -47,11 +44,10 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
         }
     }
 
-    private Object stringify(Object x){
+    private Object stringify(Object x) {
         if (x == null) {
             return null;
-        }
-        else {
+        } else {
             return x.toString();
         }
     }

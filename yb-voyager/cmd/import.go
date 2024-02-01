@@ -190,8 +190,8 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"Disable progress bar/stats during data import (default false)")
 
 	cmd.Flags().IntVar(&EVENT_BATCH_MAX_RETRY_COUNT, "max-retries", 10, "Maximum number of retries for failed event batch in live migration")
-	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors 
-	
+	cmd.Flags().MarkHidden("max-retries") // majorly for automation as we don't want any retries to happen in automation for even retryable errors
+
 	cmd.Flags().StringVar(&tconf.ExcludeTableList, "exclude-table-list", "",
 		"comma-separated list of the source db table names to exclude while import data.\n"+
 			"Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) \n"+
@@ -205,20 +205,6 @@ func registerImportDataCommonFlags(cmd *cobra.Command) {
 		"path of the file containing for list of the source db table names to exclude while importing data")
 	cmd.Flags().StringVar(&tableListFilePath, "table-list-file-path", "",
 		"path of the file containing the list of the source db table names to import data")
-
-	defaultBatchSizeMsg := fmt.Sprintf("(default: target(%d), source-replica/source(%d))", DEFAULT_BATCH_SIZE_YUGABYTEDB, DEFAULT_BATCH_SIZE_ORACLE)
-	if cmd.CommandPath() == "yb-voyager import data file" {
-		defaultBatchSizeMsg = "(default: 20000)"
-	}
-	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
-		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import %s", defaultBatchSizeMsg))
-	defaultParallelismMsg := "By default, voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs. " +
-		"Otherwise, it fall back to using twice the number of nodes in the cluster."
-	if cmd.CommandPath() == "yb-voyager import data to source" || cmd.CommandPath() == "yb-voyager import data to source-replica" {
-		defaultParallelismMsg = "(default: 16(Oracle))"
-	}
-	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
-		"number of parallel jobs to use while importing data. "+defaultParallelismMsg)
 
 	BoolVar(cmd.Flags(), &tconf.EnableUpsert, "enable-upsert", true,
 		"Enable UPSERT mode on target tables")
@@ -260,12 +246,12 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"comma separated list of schema object types to exclude while importing schema (ignored if --object-type-list is used)")
 	BoolVar(cmd.Flags(), &importObjectsInStraightOrder, "straight-order", false,
 		"Imports the schema objects in the order specified via the --object-type-list flag (default false)")
-	BoolVar(cmd.Flags(), &flagPostImportData, "post-import-data", false,
+	BoolVar(cmd.Flags(), &flagPostSnapshotImport, "post-snapshot-import", false,
 		"Imports indexes and triggers in the target YugabyteDB after data import is complete. This argument assumes that data import is already done and imports only indexes and triggers in the YugabyteDB database.")
 	BoolVar(cmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
 	BoolVar(cmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
-		"Refreshes the materialized views on target during post import data phase (default false)")
+		"Refreshes the materialised views on target during post snapshot import phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
 }
@@ -347,10 +333,29 @@ func checkOrSetDefaultTargetSSLMode() {
 	}
 }
 
+func registerFlagsForTarget(cmd *cobra.Command) {
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(%d)", DEFAULT_BATCH_SIZE_YUGABYTEDB))
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
+		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+ 
+		"number of cores N and use N/4 as parallel jobs. "+
+			"Otherwise, it fall back to using twice the number of nodes in the cluster.")
+}
+
+func registerFlagsForSourceReplica(cmd *cobra.Command) {
+	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
+		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
+	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
+		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total " + 
+		"number of cores N and use N/2 as parallel jobs else it will fall back to  8) and Oracle(16)")
+}
+
 func validateBatchSizeFlag(numLinesInASplit int64) {
 	if batchSize == 0 {
 		if tconf.TargetDBType == ORACLE {
 			batchSize = DEFAULT_BATCH_SIZE_ORACLE
+		} else if tconf.TargetDBType == POSTGRESQL {
+			batchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
 		} else {
 			batchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 		}
@@ -360,6 +365,8 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 	var defaultBatchSize int64
 	if tconf.TargetDBType == ORACLE {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
+	} else if tconf.TargetDBType == POSTGRESQL {
+		defaultBatchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
 	} else {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 	}
