@@ -114,6 +114,7 @@ debezium.source.plugin.name=pgoutput
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.provide.transaction.metadata=true
 debezium.source.publication.autocreate.mode=disabled
 `
 
@@ -160,6 +161,7 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
+debezium.source.provide.transaction.metadata=true
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
 debezium.source.query.fetch.size=10000
