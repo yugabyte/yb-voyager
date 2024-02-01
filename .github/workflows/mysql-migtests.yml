@@ -2,119 +2,119 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   run-mysql-migration-tests:
     strategy:
       matrix:
-        version: [2.19.2.0-b121,2.16.7.0-b59,2.18.3.0-b75]
+        version: [2.19.2.0-b121, 2.16.7.0-b59, 2.18.3.0-b75]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-java@v3
-      # https://github.com/actions/setup-java
-      with:
-        distribution: 'temurin'
-        java-version: '11'
-        check-latest: true
-    - name: Install python3 and psycopg2
-      run: |
-        sudo apt install -y python3
-        sudo apt install -y libpq-dev
-        sudo pip3 install psycopg2
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        # https://github.com/actions/setup-java
+        with:
+          distribution: "temurin"
+          java-version: "11"
+          check-latest: true
+      - name: Install python3 and psycopg2
+        run: |
+          sudo apt install -y python3
+          sudo apt install -y libpq-dev
+          sudo pip3 install psycopg2
 
-    - name: Run installer script to setup voyager
-      run: |
-        yes | ./installer_scripts/install-yb-voyager --install-from-local-source
-      env:
-        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
-        DEBEZIUM_VERSION: aneesh_ff-fb-remove
-        DEBEZIUM_RELEASE_TAG: voyager-debezium
+      - name: Run installer script to setup voyager
+        run: |
+          yes | ./installer_scripts/install-yb-voyager --install-from-local-source
+        env:
+          ON_INSTALLER_ERROR_OUTPUT_LOG: Y
+          DEBEZIUM_VERSION: aneesh_ff-fb-remove
+          DEBEZIUM_RELEASE_TAG: voyager-debezium
 
-    - name: Start MySQL
-      run: |
-        sudo /etc/init.d/mysql start
-        sleep 10
+      - name: Start MySQL
+        run: |
+          sudo /etc/init.d/mysql start
+          sleep 10
 
-    - name: Test MySQL connection
-      run: |
-        mysql -uroot -proot -e 'select version();'
-    
-    - name: Create MySQL user
-      run: |
-        ./migtests/scripts/mysql/create_mysql_user
+      - name: Test MySQL connection
+        run: |
+          mysql -uroot -proot -e 'select version();'
 
-    - name: Start YugabyteDB cluster
-      run: |
-        docker pull yugabytedb/yugabyte:${{ matrix.version }}
-        VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
-        sleep 20
+      - name: Create MySQL user
+        run: |
+          ./migtests/scripts/mysql/create_mysql_user
 
-    - name: Test YugabyteDB connection
-      run: |
-        psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
+      - name: Start YugabyteDB cluster
+        run: |
+          docker pull yugabytedb/yugabyte:${{ matrix.version }}
+          VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+          sleep 20
 
-    - name: Create YugabyteDB user
-      run: |
-        ./migtests/scripts/yugabytedb/create_yb_user
+      - name: Test YugabyteDB connection
+        run: |
+          psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT version();"
 
-    - name: Enable yb-tserver-n1 name resolution
-      run: |
-        echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
-        psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+      - name: Create YugabyteDB user
+        run: |
+          ./migtests/scripts/yugabytedb/create_yb_user
 
-    - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
-      run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
+      - name: Enable yb-tserver-n1 name resolution
+        run: |
+          echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
+          psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-    - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
-      run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
-    
-    - name: "TEST: mysql-sakila"
-      run: migtests/scripts/run-test.sh mysql/sakila
+      - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
+        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
 
-    - name: "TEST: mysql-datatypes"
-      run: migtests/scripts/run-test.sh mysql/datatypes
+      - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
+        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
 
-    - name: "TEST: mysql-constraints"
-      run: migtests/scripts/run-test.sh mysql/constraints
+      - name: "TEST: mysql-sakila"
+        run: migtests/scripts/run-test.sh mysql/sakila
 
-    - name: "TEST: mysql-case-indexes"
-      run: migtests/scripts/run-test.sh mysql/indexes
+      - name: "TEST: mysql-datatypes"
+        run: migtests/scripts/run-test.sh mysql/datatypes
 
-    - name: "TEST: mysql-functions"
-      run: migtests/scripts/run-test.sh mysql/functions
+      - name: "TEST: mysql-constraints"
+        run: migtests/scripts/run-test.sh mysql/constraints
 
-    - name: "TEST: mysql-case-sequences"
-      run: migtests/scripts/run-test.sh mysql/sequences
+      - name: "TEST: mysql-case-indexes"
+        run: migtests/scripts/run-test.sh mysql/indexes
 
-    - name: "TEST: mysql-triggers-procedures"
-      run: migtests/scripts/run-test.sh mysql/triggers-procedures
+      - name: "TEST: mysql-functions"
+        run: migtests/scripts/run-test.sh mysql/functions
 
-    - name: "TEST: mysql-case-views"
-      run: migtests/scripts/run-test.sh mysql/views
+      - name: "TEST: mysql-case-sequences"
+        run: migtests/scripts/run-test.sh mysql/sequences
 
-    - name: "TEST: mysql-partitions"
-      run: migtests/scripts/run-test.sh mysql/partitions
+      - name: "TEST: mysql-triggers-procedures"
+        run: migtests/scripts/run-test.sh mysql/triggers-procedures
 
-    - name: "TEST: mysql-sample-chinook"
-      run: migtests/scripts/run-test.sh mysql/chinook
+      - name: "TEST: mysql-case-views"
+        run: migtests/scripts/run-test.sh mysql/views
 
-    - name: "TEST: mysql-misc-tests"
-      run: migtests/scripts/run-test.sh mysql/misc-tests
-    
-    -name: "TEST: mysql-carriage-return"
-      run: migtests/scripts/run-test.sh mysql/carriage-return
+      - name: "TEST: mysql-partitions"
+        run: migtests/scripts/run-test.sh mysql/partitions
 
-# Placeholder for now so that a basic test can run
-    - name: Create the live migration user
-      run: |
-        mysql -uroot -proot -e 'GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'ybvoyager'@'127.0.0.1';'      
+      - name: "TEST: mysql-sample-chinook"
+        run: migtests/scripts/run-test.sh mysql/chinook
 
-    - name: "TEST: mysql-live-migration-test"
-      run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
+      - name: "TEST: mysql-misc-tests"
+        run: migtests/scripts/run-test.sh mysql/misc-tests
+
+      - name: "TEST: mysql-carriage-return"
+        run: migtests/scripts/run-test.sh mysql/carriage-return
+
+      # Placeholder for now so that a basic test can run
+      - name: Create the live migration user
+        run: |
+          mysql -uroot -proot -e 'GRANT SELECT, RELOAD, SHOW DATABASES, REPLICATION SLAVE, REPLICATION CLIENT ON *.* TO 'ybvoyager'@'127.0.0.1';'
+
+      - name: "TEST: mysql-live-migration-test"
+        run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
