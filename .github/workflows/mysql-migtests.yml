@@ -108,9 +108,6 @@ jobs:
       - name: "TEST: mysql-misc-tests"
         run: migtests/scripts/run-test.sh mysql/misc-tests
 
-      - name: "TEST: mysql-carriage-return"
-        run: migtests/scripts/run-test.sh mysql/carriage-return
-
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user
         run: |

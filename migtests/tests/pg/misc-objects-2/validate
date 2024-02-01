@@ -13,6 +13,44 @@ EXPECTED_ROW_COUNT = {
 	'tt': 4,
 	'audit': 4,
 	'c':12,
+	'foo': 34,
+}
+
+EXPECTED_TEXT_LENGTHS = {
+    1: 13,
+    2: 13,
+    3: 14,
+    4: 14,
+    5: 14,
+    6: 16,
+    7: 12,
+    8: 23,
+    9: 23,
+    10: 24,
+    11: 24,
+    12: 24,
+    13: 26,
+    14: 23,
+    15: 22,
+    16: 23,
+    17: 23,
+    18: 23,
+    19: 25,
+    20: 22,
+    21: 22,
+    22: 23,
+    23: 23,
+    24: 23,
+    25: 25,
+    26: 35,
+    27: 35,
+    28: 36,
+    29: 36,
+    30: 36,
+    31: 38,
+    32: 13,
+    33: 12,
+    34: 24,
 }
 
 EXPECTED_TRIGGER_LIST = ["audit_trigger",]
@@ -20,7 +58,7 @@ EXPECTED_TRIGGER_LIST = ["audit_trigger",]
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
-	assert len(table_list) == 4 
+	assert len(table_list) == 5 
 
 
 	got_row_count = tgt.row_count_of_all_tables("public")
@@ -80,6 +118,12 @@ def migration_completed_checks(tgt):
 	id_returned_ext_test = tgt.execute_query(QUERY_TO_CHECK_PASSWORD_OF_ID)
 	print(f"id returned for password(johnspassword) - {id_returned_ext_test}")
 	assert id_returned_ext_test == 1
+ 
+	for i in range(1, 35):
+		text_len = tgt.get_text_length("id", i, "value", "foo", "public")
+		expected_len = EXPECTED_TEXT_LENGTHS[i]
+		print ("Text length for row %d: %d" % (i, text_len))
+		assert text_len == expected_len
 
 if __name__ == "__main__":
 	main()
