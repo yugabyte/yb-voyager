@@ -75,6 +75,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err := validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
