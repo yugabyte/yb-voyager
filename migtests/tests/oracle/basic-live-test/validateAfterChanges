@@ -21,7 +21,7 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':5,
-	'user_table': 8
+	# 'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {

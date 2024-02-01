@@ -18,19 +18,20 @@ public class Record {
     public ArrayList<String> beforeValueColumns = new ArrayList<>();
     public ArrayList<Object> beforeValueValues = new ArrayList<>();
 
-    // Key and value information for 'after' struct
-    public ArrayList<String> afterKeyColumns = new ArrayList<>();
-    public ArrayList<Object> afterKeyValues = new ArrayList<>();
+    // Value information for 'after' struct
     public ArrayList<String> afterValueColumns = new ArrayList<>();
     public ArrayList<Object> afterValueValues = new ArrayList<>();
+
+    public ArrayList<String> keyColumns = new ArrayList<>();
+    public ArrayList<Object> keyValues = new ArrayList<>();
 
     public void clear() {
         t = null;
         snapshot = "";
         op = "";
         vsn = 0;
-        afterKeyColumns.clear();
-        afterKeyValues.clear();
+        keyColumns.clear();
+        keyValues.clear();
         afterValueColumns.clear();
         afterValueValues.clear();
         
@@ -60,9 +61,9 @@ public class Record {
         beforeValueValues.add(value);
     }
 
-    public void addAfterKeyField(String key, Object value) {
-        afterKeyColumns.add(key);
-        afterKeyValues.add(value);
+    public void addKeyField(String key, Object value) {
+        keyColumns.add(key);
+        keyValues.add(value);
     }
 
     @Override
@@ -74,8 +75,8 @@ public class Record {
                 ", vsn=" + vsn +
                 ", beforeValueColumns=" + beforeValueColumns +
                 ", beforeValueValues=" + beforeValueValues +
-                ", afterKeyColumns=" + afterKeyColumns +
-                ", afterKeyValues=" + afterKeyValues +
+                ", keyColumns=" + keyColumns +
+                ", keyValues=" + keyValues +
                 ", afterValueColumns=" + afterValueColumns +
                 ", afterValueValues=" + afterValueValues +
                 '}';

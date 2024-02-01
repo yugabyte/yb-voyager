@@ -108,9 +108,9 @@ public class QueueSegment {
         HashMap<String, Object> afterFields = new HashMap<>();
         HashMap<String, Object> beforeFields = new HashMap<>();
 
-        for (int i = 0; i < r.afterKeyValues.size(); i++) {
-            Object formattedVal = r.afterKeyValues.get(i);
-            key.put(r.afterKeyColumns.get(i), formattedVal);
+        for (int i = 0; i < r.keyValues.size(); i++) {
+            Object formattedVal = r.keyValues.get(i);
+            key.put(r.keyColumns.get(i), formattedVal);
         }
 
         for (int i = 0; i < r.afterValueValues.size(); i++) {

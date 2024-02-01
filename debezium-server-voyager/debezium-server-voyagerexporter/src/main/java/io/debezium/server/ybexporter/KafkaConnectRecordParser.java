@@ -237,7 +237,7 @@ class KafkaConnectRecordParser implements RecordParser {
             } else {
                 fieldValue = key.getWithoutDefault(f.name());
             }
-            r.addAfterKeyField(f.name(), fieldValue);
+            r.addKeyField(f.name(), fieldValue);
 
         }
     }

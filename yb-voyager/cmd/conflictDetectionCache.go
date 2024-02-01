@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -142,6 +143,12 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		return false
 	}
 
+	maybeQualifiedName := cachedEvent.TableName
+	if cachedEvent.SchemaName != "public" {
+		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
+	}
+	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
+
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
@@ -149,15 +156,24 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		For now, we just check if the event is from same table then we consider it as a conflict
 	*/
 	if isTargetDBExporter(incomingEvent.ExporterRole) {
-		log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableName, cachedEvent.Vsn, incomingEvent.Vsn)
-		return true
+		conflict := false
+		if cachedEvent.Op == "d" {
+			conflict = true
+		} else if cachedEvent.Op == "u" {
+			// if both events are dealing with the same unique key columns then we consider it as a conflict
+			cachedEventCols := lo.Keys(cachedEvent.Fields)
+			incomingEventCols := lo.Keys(incomingEvent.Fields)
+			if lo.Some(cachedEventCols, uniqueKeyColumns) && lo.Some(incomingEventCols, uniqueKeyColumns) {
+				conflict = true
+			}
+		}
+
+		if conflict {
+			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableName, cachedEvent.Vsn, incomingEvent.Vsn)
+		}
+		return conflict
 	}
 
-	maybeQualifiedName := cachedEvent.TableName
-	if cachedEvent.SchemaName != "public" {
-		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
-	}
-	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false

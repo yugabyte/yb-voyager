@@ -213,7 +213,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
-	if uniqueKeyCols != nil {
+	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
 		} else { // "i" or "u"

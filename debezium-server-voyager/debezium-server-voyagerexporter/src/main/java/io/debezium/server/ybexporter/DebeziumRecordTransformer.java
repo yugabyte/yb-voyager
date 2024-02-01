@@ -32,7 +32,7 @@ public class DebeziumRecordTransformer implements RecordTransformer {
 
     @Override
     public void transformRecord(Record r) {
-        transformColumnValues(r.afterKeyColumns, r.afterKeyValues, r.t.fieldSchemas);
+        transformColumnValues(r.keyColumns, r.keyValues, r.t.fieldSchemas);
         transformColumnValues(r.afterValueColumns, r.afterValueValues, r.t.fieldSchemas);
 
         transformColumnValues(r.beforeValueColumns, r.beforeValueValues, r.t.fieldSchemas);
