@@ -257,6 +257,8 @@ public class EventQueue implements RecordWriter {
         }
 
         public void warmUp(Map<Long, Long> totalEventsPerSegment) {
+            // TODO: Move the logic to warmup the event dedup cache to EventQueue class
+            // Ticket: https://yugabyte.atlassian.net/browse/DB-9874
             if (totalEventsPerSegment.size() == 0) {
                 LOGGER.info("No queue segments found. Nothing to recover into event dedup cache");
                 return;
@@ -279,6 +281,9 @@ public class EventQueue implements RecordWriter {
                 BufferedReader input;
                 try {
                     input = new BufferedReader(new FileReader(currentQueueSegmentPath));
+                    // TODO: Move the logic for reading queue segment file to QueueSegment class and
+                    // call something like queueSegment.getNextEvent()
+                    // Ticket: https://yugabyte.atlassian.net/browse/DB-9873
                     while ((line = input.readLine()) != null) {
                         line = line.trim();
                         if (line.equals("")) {
