@@ -114,7 +114,6 @@ class KafkaConnectRecordParser implements RecordParser {
                 parseKeyFields(key, r);
             }
             parseValueFields(value, r);
-
             return r;
         } catch (
 
@@ -252,7 +251,6 @@ class KafkaConnectRecordParser implements RecordParser {
     protected void parseValueFields(Struct value, Record r) {
         Struct after = value.getStruct("after");
         Struct before = value.getStruct("before");
-        
         if (sourceType.equals("yb")) {
             parseValueFieldsForYB(after, r);
         } else {
@@ -300,7 +298,6 @@ class KafkaConnectRecordParser implements RecordParser {
             }
             return;
         }
-
         for (Field f : after.schema().fields()) {
             if (r.op.equals("u")) {
                 if (Objects.equals(after.get(f), before.get(f))) {
@@ -310,7 +307,7 @@ class KafkaConnectRecordParser implements RecordParser {
             }
             Object afterFieldValue = after.getWithoutDefault(f.name());
             Object beforeFieldValue = null;
-            if (!r.op.equals("c") && before != null) { 
+            if (!(r.op.equals("c") || r.op.equals("r"))){ 
                 // before is null for create events
                 // before can also be null if REPLICA IDENTITY is not set as 'FULL' (maybe in case of snapshot-only mode)
                 beforeFieldValue = before.getWithoutDefault(f.name());
