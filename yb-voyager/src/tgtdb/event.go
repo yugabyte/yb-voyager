@@ -269,16 +269,9 @@ func (event *Event) getTableName() string {
 }
 
 func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
-	if event.Op != "u" {
-		return false
-	}
-	// events store delta changes for UPDATEs so presence of any unique key column in Fields means it's changed
-	for _, col := range uniqueKeyCols {
-		if _, ok := event.Fields[col]; ok {
-			return true
-		}
-	}
-	return false
+	return event.Op == "u" &&
+		len(uniqueKeyCols) > 0 &&
+		lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
 }
 
 // ==============================================================================================================================

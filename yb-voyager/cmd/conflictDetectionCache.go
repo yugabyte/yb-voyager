@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 /*
@@ -178,11 +178,28 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false
 		}
-		if utils.CompareWithoutQuotes(*cachedEvent.BeforeFields[column], *incomingEvent.Fields[column]) {
+		if CompareConflictingEventValues(cachedEvent, incomingEvent, column) {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
 				maybeQualifiedName, column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
 		}
 	}
 	return false
+}
+
+func CompareConflictingEventValues(cachedEvent, incomingEvent *tgtdb.Event, column string) bool {
+	isCachedEventFormatted := shouldFormatValues(cachedEvent)
+	isIncomingEventFormatted := shouldFormatValues(incomingEvent)
+
+	val1 := *cachedEvent.BeforeFields[column]
+	if isCachedEventFormatted {
+		val1 = strings.Trim(val1, "\"'")
+	}
+
+	val2 := *incomingEvent.Fields[column]
+	if isIncomingEventFormatted {
+		val2 = strings.Trim(val2, "\"'")
+	}
+
+	return val1 == val2
 }
