@@ -46,6 +46,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private RecordTransformer recordTransformer;
     Thread flusherThread;
     boolean shutDown = false;
+    Object flushingSnapshotFilesLock = new Object();
+
 
     public YbExporterConsumer(String dataDir){
         this.dataDir = dataDir;
@@ -121,9 +123,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         }
 
         while (true) {
-            for (RecordWriter writer : snapshotWriters.values()) {
-                writer.flush();
-                writer.sync();
+            synchronized (flushingSnapshotFilesLock){
+                for (RecordWriter writer : snapshotWriters.values()) {
+                    writer.flush();
+                    writer.sync();
+                }
             }
             // TODO: doing more than flushing files to disk. maybe move this call to another thread?
             if (exportStatus != null) {
@@ -282,7 +286,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     private void handleSnapshotComplete() {
-        closeSnapshotWriters();
+        synchronized (flushingSnapshotFilesLock){
+            closeSnapshotWriters();
+        }
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();
