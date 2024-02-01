@@ -98,14 +98,14 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.m[event.Vsn] = event
 }
 
-func (c *ConflictDetectionCache) WaitUntilNoConflict(event *tgtdb.Event) {
+func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
 
 retry:
 	for _, cachedEvent := range c.m {
-		if c.eventsConfict(cachedEvent, event) {
-			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, event.Vsn)
+		if c.eventsConfict(cachedEvent, incomingEvent) {
+			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
 				c.evChans[i] <- FLUSH_BATCH_EVENT
@@ -137,8 +137,8 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 	}
 }
 
-func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool {
-	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
+func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
+	if !(cachedEvent.SchemaName == incomingEvent.SchemaName && cachedEvent.TableName == incomingEvent.TableName) {
 		return false
 	}
 
@@ -148,23 +148,23 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 
 		For now, we just check if the event is from same table then we consider it as a conflict
 	*/
-	if isTargetDBExporter(event2.ExporterRole) {
-		log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", event1.TableName, event1.Vsn, event2.Vsn)
+	if isTargetDBExporter(incomingEvent.ExporterRole) {
+		log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableName, cachedEvent.Vsn, incomingEvent.Vsn)
 		return true
 	}
 
-	maybeQualifiedName := event1.TableName
-	if event1.SchemaName != "public" {
-		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
+	maybeQualifiedName := cachedEvent.TableName
+	if cachedEvent.SchemaName != "public" {
+		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
-		if event1.BeforeFields[column] == nil || event2.Fields[column] == nil {
+		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false
 		}
-		if utils.CompareWithoutQuotes(*event1.BeforeFields[column], *event2.Fields[column]) {
+		if utils.CompareWithoutQuotes(*cachedEvent.BeforeFields[column], *incomingEvent.Fields[column]) {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				maybeQualifiedName, column, event1.Vsn, *event1.BeforeFields[column], event2.Vsn, *event2.Fields[column])
+				maybeQualifiedName, column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
 		}
 	}

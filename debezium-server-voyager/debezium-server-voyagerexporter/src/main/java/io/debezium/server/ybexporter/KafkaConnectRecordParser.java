@@ -277,9 +277,6 @@ class KafkaConnectRecordParser implements RecordParser {
                 if (valueAndSet == null){
                     continue;
                 }
-            } else if (r.op.equals("d") && valueAndSet == null){
-                // in case of deletes we are using before struct which contains only delta for yb
-                continue;
             }
             
             if (!valueAndSet.getBoolean("set")){
@@ -307,12 +304,12 @@ class KafkaConnectRecordParser implements RecordParser {
             }
             Object afterFieldValue = after.getWithoutDefault(f.name());
             Object beforeFieldValue = null;
+
+            r.addAfterValueField(f.name(), afterFieldValue);
             if (!(r.op.equals("c") || r.op.equals("r"))){ 
                 // before is null for create events
-                // before can also be null if REPLICA IDENTITY is not set as 'FULL' (maybe in case of snapshot-only mode)
                 beforeFieldValue = before.getWithoutDefault(f.name());
             }
-            r.addAfterValueField(f.name(), afterFieldValue);
             r.addBeforeValueField(f.name(), beforeFieldValue);
         }
     }
