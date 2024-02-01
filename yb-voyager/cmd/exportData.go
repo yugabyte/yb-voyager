@@ -30,7 +30,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -349,6 +348,36 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
+func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
+	//report Partitions or case sensitive tables
+	var caseSensitiveTables []string
+	var partitionedTables []string
+	for _, table := range finalTableList {
+		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+		} 
+		if source.DB().ParentTableOfPartition(table) == "" { //For root tables only
+			if len(source.DB().GetPartitions(table)) > 0 {
+				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			}
+		} else {	
+			if source.TableList != "" { //If user has passed table list with leaf partition
+				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			}
+		}
+	}
+	if len(caseSensitiveTables) > 0 {
+		if len(partitionedTables) > 0 {
+			utils.PrintAndLog("The following partitioned tables are not supported for live migration: %v", partitionedTables)
+		}
+		utils.ErrExit("The following case sensitive tables are not supported for live migration: %v", caseSensitiveTables)
+	} 
+	if len(partitionedTables) > 0 {
+		utils.ErrExit("The following partitioned tables are not supported for live migration: %v", partitionedTables)
+	}
+}
+
+
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
@@ -361,6 +390,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		reportUnsupportedTables(finalTableList)
+	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
 
 	if !changeStreamingIsEnabled(exportType) {
