@@ -165,6 +165,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
+
 	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
@@ -22,6 +23,57 @@ In a concurrent environment we can't just apply the second event because both th
 and we can't guarantee the order of the events in the batches.
 
 So, this cache stores events like event1 and wait for them to be processed before processing event2.
+
+There can be total 4 types of conflicts:
+1. DELETE-INSERT
+2. DELETE-UPDATE
+3. UPDATE-INSERT
+4. UPDATE-UPDATE
+
+Case: UPDATE-INSERT conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user21@example.com');
+INSERT INTO example_table VALUES (2, 'user22@example.com');
+INSERT INTO example_table VALUES (3, 'user23@example.com');
+INSERT INTO example_table VALUES (4, 'user24@example.com');
+
+UPDATE example_table SET email = 'user224@example.com' WHERE id = 4;
+
+-- Insert a new row with the conflicting email
+INSERT INTO example_table VALUES (5, 'user24@example.com');
+
+Case: UPDATE-UPDATE conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user31@example.com');
+INSERT INTO example_table VALUES (2, 'user32@example.com');
+INSERT INTO example_table VALUES (3, 'user33@example.com');
+INSERT INTO example_table VALUES (4, 'user34@example.com');
+
+UPDATE example_table SET email = 'updated_user2@example.com' WHERE id = 2;
+
+-- Another conflicting update for id = 3, setting it to previous value of id = 2
+UPDATE example_table SET email = 'user32@example.com' WHERE id = 3;
+
+Case: DELETE-UPDATE conflict:
+
+	example_table (id PK, email UNIQUE)
+
+// Insert initial rows
+INSERT INTO example_table VALUES (1, 'user41@example.com');
+INSERT INTO example_table VALUES (2, 'user42@example.com');
+INSERT INTO example_table VALUES (3, 'user43@example.com');
+INSERT INTO example_table VALUES (4, 'user44@example.com');
+
+DELETE FROM example_table WHERE id = 2;
+
+-- Another conflicting update for id = 3, setting it to previous value of id = 2
+UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
@@ -46,18 +98,18 @@ func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.m[event.Vsn] = event
 }
 
-func (c *ConflictDetectionCache) WaitUntilNoConflict(event *tgtdb.Event) {
+func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
 
 retry:
 	for _, cachedEvent := range c.m {
-		if c.eventsConfict(cachedEvent, event) {
-			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, event.Vsn)
+		if c.eventsConfict(cachedEvent, incomingEvent) {
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
 				c.evChans[i] <- FLUSH_BATCH_EVENT
 			}
+			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
@@ -85,10 +137,16 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 	}
 }
 
-func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool {
-	if !(event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName) {
+func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
+	if !(cachedEvent.SchemaName == incomingEvent.SchemaName && cachedEvent.TableName == incomingEvent.TableName) {
 		return false
 	}
+
+	maybeQualifiedName := cachedEvent.TableName
+	if cachedEvent.SchemaName != "public" {
+		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
+	}
+	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
@@ -96,21 +154,34 @@ func (c *ConflictDetectionCache) eventsConfict(event1, event2 *tgtdb.Event) bool
 
 		For now, we just check if the event is from same table then we consider it as a conflict
 	*/
-	if isTargetDBExporter(event2.ExporterRole) {
-		log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", event1.TableName, event1.Vsn, event2.Vsn)
-		return true
+	if isTargetDBExporter(incomingEvent.ExporterRole) {
+		conflict := false
+		if cachedEvent.Op == "d" {
+			conflict = true
+		} else if cachedEvent.Op == "u" {
+			// if both events are dealing with the same unique key columns then we consider it as a conflict
+			cachedEventCols := lo.Keys(cachedEvent.Fields)
+			incomingEventCols := lo.Keys(incomingEvent.Fields)
+			ukList := lo.Intersect(cachedEventCols, uniqueKeyColumns)
+			if lo.Some(incomingEventCols, ukList) {
+				conflict = true
+			}
+		}
+
+		if conflict {
+			log.Infof("conflict detected for table %s, between event1(vsn=%d) and event2(vsn=%d)", cachedEvent.TableName, cachedEvent.Vsn, incomingEvent.Vsn)
+		}
+		return conflict
 	}
 
-	maybeQualifiedName := event1.TableName
-	if event1.SchemaName != "public" {
-		maybeQualifiedName = fmt.Sprintf("%s.%s", event1.SchemaName, event1.TableName)
-	}
-	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
 	for _, column := range uniqueKeyColumns {
-		// if the unique key column value is same, then we have a conflict
-		if *event1.Fields[column] == *event2.Fields[column] {
+		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
+			return false
+		}
+
+		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
-				maybeQualifiedName, column, event1.Vsn, *event1.Fields[column], event2.Vsn, *event2.Fields[column])
+				maybeQualifiedName, column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
 		}
 	}

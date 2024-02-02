@@ -114,7 +114,6 @@ class KafkaConnectRecordParser implements RecordParser {
                 parseKeyFields(key, r);
             }
             parseValueFields(value, r);
-
             return r;
         } catch (
 
@@ -251,57 +250,67 @@ class KafkaConnectRecordParser implements RecordParser {
      */
     protected void parseValueFields(Struct value, Record r) {
         Struct after = value.getStruct("after");
-        // TODO: error handle before is NULL
         Struct before = value.getStruct("before");
-
-        // in case of delete, the before struct contains the values required in cases
-        // like DELETE-INSERT conflicts(unique key columns)
-        if (r.op.equals("d") && before != null) {
-            after = before;
+        if (sourceType.equals("yb")) {
+            parseValueFieldsForYB(after, r);
+        } else {
+            parseValueFieldsForOthers(after, before, r);
         }
+    }
+
+    private void parseValueFieldsForYB(Struct after, Record r) {
         if (after == null) {
             return;
         }
 
         for (Field f : after.schema().fields()) {
-            Object fieldValue;
-            if (sourceType.equals("yb")) {
-                // TODO: write a proper transformer for this logic
-                // values in the debezium connector are as follows:
-                // "val1" : {
-                // "value" : "value for val1 column",
-                // "set" : true
-                // }
-                Struct valueAndSet = after.getStruct(f.name());
-                if (r.op.equals("u")) {
-                    // in the default configuration of the stream, for an update, the fields in the
-                    // after struct
-                    // are only the delta fields, therefore, it is possible for a field to not be
-                    // there.
-                    if (valueAndSet == null) {
-                        continue;
-                    }
-                } else if (r.op.equals("d") && valueAndSet == null) {
-                    // in case of deletes we are using before struct which contains only delta for
-                    // yb
+            // TODO: write a proper transformer for this logic
+            // values in the debezium connector are as follows:
+            // "val1" : {
+            //  "value" : "value for val1 column",
+            //  "set" : true
+            //}
+            Struct valueAndSet = after.getStruct(f.name());
+            if (r.op.equals("u")) {
+                // in the default configuration of the stream, for an update, the fields in the after struct
+                // are only the delta fields, therefore, it is possible for a field to not be there.
+                if (valueAndSet == null){
                     continue;
                 }
-
-                if (!valueAndSet.getBoolean("set")) {
-                    continue;
-                }
-                fieldValue = valueAndSet.getWithoutDefault("value");
-            } else {
-                if (r.op.equals("u")) {
-                    if (Objects.equals(after.get(f), before.get(f))) {
-                        // no need to record this as field is unchanged
-                        continue;
-                    }
-                }
-                fieldValue = after.getWithoutDefault(f.name());
             }
+            
+            if (!valueAndSet.getBoolean("set")){
+                continue;
+            }
+            Object afterFieldValue = valueAndSet.getWithoutDefault("value");
+            r.addAfterValueField(f.name(), afterFieldValue);
+        }
+    }
 
-            r.addValueField(f.name(), fieldValue);
+    private void parseValueFieldsForOthers(Struct after, Struct before, Record r) {
+        if (r.op.equals("d")){ // after is null for delete events
+            for (Field f : before.schema().fields()) {
+                Object beforeFieldValue = before.getWithoutDefault(f.name());
+                r.addBeforeValueField(f.name(), beforeFieldValue);
+            }
+            return;
+        }
+        for (Field f : after.schema().fields()) {
+            if (r.op.equals("u")) {
+                if (Objects.equals(after.get(f), before.get(f))) {
+                    // no need to record this as field is unchanged
+                    continue;
+                }
+            }
+            Object afterFieldValue = after.getWithoutDefault(f.name());
+            Object beforeFieldValue = null;
+
+            r.addAfterValueField(f.name(), afterFieldValue);
+            if (!(r.op.equals("c") || r.op.equals("r"))){ 
+                // before is null for create events
+                beforeFieldValue = before.getWithoutDefault(f.name());
+            }
+            r.addBeforeValueField(f.name(), beforeFieldValue);
         }
     }
 }

@@ -202,22 +202,26 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	// which will affect hash value.
 	h := hashEvent(event)
 
+	/*
+		Checking for all possible conflicts among events
+		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
+	*/
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
+	if len(uniqueKeyCols) > 0 {
+		if event.Op == "d" {
+			conflictDetectionCache.Put(event)
+		} else { // "i" or "u"
+			conflictDetectionCache.WaitUntilNoConflict(event)
+			if event.IsUniqueKeyChanged(uniqueKeyCols) {
+				conflictDetectionCache.Put(event)
+			}
+		}
+	}
+
 	// preparing value converters for the streaming mode
 	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
 	if err != nil {
 		return fmt.Errorf("error transforming event key fields: %v", err)
-	}
-
-	/*
-		Checking for DELETE-INSERT conflict.
-		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
-	*/
-	if conflictDetectionCache.tableToUniqueKeyColumns[tableName] != nil {
-		if event.Op == "d" {
-			conflictDetectionCache.Put(event)
-		} else {
-			conflictDetectionCache.WaitUntilNoConflict(event)
-		}
 	}
 
 	evChans[h] <- event

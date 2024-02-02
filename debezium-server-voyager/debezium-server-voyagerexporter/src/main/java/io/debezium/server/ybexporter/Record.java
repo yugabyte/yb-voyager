@@ -13,10 +13,17 @@ public class Record {
     public String op;
     public String eventId;
     public long vsn; // Voyager Sequence Number.
+
+     // Value information for 'before' struct
+    public ArrayList<String> beforeValueColumns = new ArrayList<>();
+    public ArrayList<Object> beforeValueValues = new ArrayList<>();
+
+    // Value information for 'after' struct
+    public ArrayList<String> afterValueColumns = new ArrayList<>();
+    public ArrayList<Object> afterValueValues = new ArrayList<>();
+
     public ArrayList<String> keyColumns = new ArrayList<>();
     public ArrayList<Object> keyValues = new ArrayList<>();
-    public ArrayList<String> valueColumns = new ArrayList<>();
-    public ArrayList<Object> valueValues = new ArrayList<>();
 
     public void clear() {
         t = null;
@@ -25,8 +32,11 @@ public class Record {
         vsn = 0;
         keyColumns.clear();
         keyValues.clear();
-        valueColumns.clear();
-        valueValues.clear();
+        afterValueColumns.clear();
+        afterValueValues.clear();
+        
+        beforeValueColumns.clear();
+        beforeValueValues.clear();
     }
 
     public boolean isUnsupported() {
@@ -37,13 +47,18 @@ public class Record {
         return t.toString();
     }
 
-    public ArrayList<Object> getValueFieldValues() {
-        return valueValues;
+    public ArrayList<Object> getAfterValueFieldValues() {
+        return afterValueValues;
     }
 
-    public void addValueField(String key, Object value) {
-        valueColumns.add(key);
-        valueValues.add(value);
+    public void addAfterValueField(String key, Object value) {
+        afterValueColumns.add(key);
+        afterValueValues.add(value);
+    }
+
+    public void addBeforeValueField(String key, Object value) {
+        beforeValueColumns.add(key);
+        beforeValueValues.add(value);
     }
 
     public void addKeyField(String key, Object value) {
@@ -58,10 +73,12 @@ public class Record {
                 ", snapshot='" + snapshot + '\'' +
                 ", op='" + op + '\'' +
                 ", vsn=" + vsn +
+                ", beforeValueColumns=" + beforeValueColumns +
+                ", beforeValueValues=" + beforeValueValues +
                 ", keyColumns=" + keyColumns +
                 ", keyValues=" + keyValues +
-                ", valueColumns=" + valueColumns +
-                ", valueValues=" + valueValues +
+                ", afterValueColumns=" + afterValueColumns +
+                ", afterValueValues=" + afterValueValues +
                 '}';
     }
 }

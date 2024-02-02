@@ -34,6 +34,7 @@ type Event struct {
 	TableName    string             `json:"table_name"`
 	Key          map[string]*string `json:"key"`
 	Fields       map[string]*string `json:"fields"`
+	BeforeFields map[string]*string `json:"before_fields"`
 	ExporterRole string             `json:"exporter_role"`
 }
 
@@ -265,6 +266,12 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 func (event *Event) getTableName() string {
 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
 	return tableName
+}
+
+func (event *Event) IsUniqueKeyChanged(uniqueKeyCols []string) bool {
+	return event.Op == "u" &&
+		len(uniqueKeyCols) > 0 &&
+		lo.Some(lo.Keys(event.Fields), uniqueKeyCols)
 }
 
 // ==============================================================================================================================
