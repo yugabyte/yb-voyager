@@ -322,6 +322,7 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 
 	lines := strings.Split(string(data), "\n")
 	// Sample line: SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+	// last arg is `is_called``. if is_called=true, next_val= 201, if is_called=false, next_val=200
 	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
 
 	for _, line := range lines {
@@ -334,7 +335,6 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
 		}
 		args := strings.Split(matches[argsIdx], ",")
-		utils.PrintAndLog("ARGS %s", args)
 
 		seqNameRaw := args[0][1 : len(args[0])-1]
 		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
