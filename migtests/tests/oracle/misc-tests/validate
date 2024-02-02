@@ -71,7 +71,7 @@ def migration_completed_checks(tgt):
 	assert set(functions) == set(["trunc_date", "trunc_time_stamp", "insert_session_logs"])
  
 	for i in range(1, 35):
-		text_len = tgt.get_text_length("id", i, "value", "foo", "TEST_SCHEMA")
+		text_len = tgt.get_text_length("id", i, "value", "foo", "public")
 		expected_len = EXPECTED_TEXT_LENGTHS[i]
 		print ("Text length for row %d: %d" % (i, text_len))
 		assert text_len == expected_len
