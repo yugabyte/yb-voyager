@@ -163,7 +163,8 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 			// if both events are dealing with the same unique key columns then we consider it as a conflict
 			cachedEventCols := lo.Keys(cachedEvent.Fields)
 			incomingEventCols := lo.Keys(incomingEvent.Fields)
-			if lo.Some(cachedEventCols, uniqueKeyColumns) && lo.Some(incomingEventCols, uniqueKeyColumns) {
+			ukList := lo.Intersect(cachedEventCols, uniqueKeyColumns)
+			if lo.Some(incomingEventCols, ukList) {
 				conflict = true
 			}
 		}
