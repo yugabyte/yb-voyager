@@ -27,6 +27,8 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 const exportDataStatusMsg = "Export Data Status for SourceDB\n"
@@ -103,56 +105,44 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 func runExportDataStatusCmd() error {
 	tableMap := make(map[string]string)
 	dataDir := filepath.Join(exportDir, "data")
-	dbTypeFlag := GetSourceDBTypeFromMSR()
-	source.DBType = dbTypeFlag
-	if dbTypeFlag == "postgresql" {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error while getting migration status record: %v", err)
+	}
+	tableList := msr.TableListExportedFromSource
+	source = *msr.SourceDBConf
+	sqlname.SourceDBType = source.DBType
+	var finalFullTableName string
+	if source.DBType == "postgresql" {
 		tableMap = getMappingForTableNameVsTableFileName(dataDir, true)
-	} else if dbTypeFlag == "mysql" || dbTypeFlag == "oracle" {
-		files, err := filepath.Glob(filepath.Join(dataDir, "*_data.sql"))
-		if err != nil {
-			return fmt.Errorf("error while checking data directory for export data status: %v", err)
-		}
-		var fileName string
-		for _, file := range files {
-			fileName = filepath.Base(file)
-			//Sample file name: [tmp_]YB_VOYAGER_TEST_data.sql
-			if strings.HasPrefix(fileName, "tmp_") {
-				tableMap[fileName[4:]] = fileName
-			} else {
-				tableMap[fileName] = "tmp_" + fileName
-			}
-		}
-	} else {
-		return fmt.Errorf("unable to identify source-db-type")
 	}
 	var outputRows []*exportTableMigStatusOutputRow
-	var finalFullTableName string
-	for tableName := range tableMap {
-		//"_" is treated as a wildcard character in regex query for Glob
-		if tableName == "tmp_postdata.sql" || tableName == "tmp_data.sql" {
-			continue
-		}
-		if strings.HasPrefix(tableName, "public.") {
-			finalFullTableName = tableName[7:]
-		} else {
-			finalFullTableName = tableName
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
+	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
+	if err != nil {
+		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+	}
+	for _, tableName := range tableList {
+		sqlTableName := sqlname.NewSourceNameFromQualifiedName(tableName)
+		finalFullTableName = sqlTableName.ObjectName.MinQuoted
+		if source.DBType == POSTGRESQL && sqlTableName.SchemaName.MinQuoted != "public" {
+			finalFullTableName = sqlTableName.Qualified.MinQuoted
 		}
 
-		var status string
-		//postgresql map returns table names, oracle/mysql map contains file names
-		if (source.DBType == POSTGRESQL && utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)+"_data.sql")) || utils.FileOrFolderExists(filepath.Join(dataDir, finalFullTableName)) {
-			status = "DONE"
-		} else if utils.FileOrFolderExists(filepath.Join(dataDir, tableMap[tableName])) {
-			status = "EXPORTING"
-		} else {
-			status = "NOT_STARTED"
+		if source.DBType == POSTGRESQL {
+			//for the cases where partitioned table will not have datafile but we have it in tableList
+			//TODO: fix with partition fix later
+			_, ok := tableMap[sqlTableName.Qualified.MinQuoted]
+			if !ok {
+				continue
+			}
 		}
-		if source.DBType == ORACLE || source.DBType == MYSQL {
-			finalFullTableName = tableName[:len(tableName)-len("_data.sql")]
-		}
+		tableStatus := exportStatusSnapshot.Tables[sqlTableName.Qualified.MinQuoted]
 		row := &exportTableMigStatusOutputRow{
-			tableName: finalFullTableName,
-			status:    status,
+			tableName:     finalFullTableName,
+			status:        tableStatus.Status,
+			exportedCount: tableStatus.ExportedRowCountSnapshot,
 		}
 		outputRows = append(outputRows, row)
 	}
@@ -164,11 +154,7 @@ func runExportDataStatusCmd() error {
 func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 	color.Cyan(exportDataStatusMsg)
 	table := uitable.New()
-	if useDebezium {
-		addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
-	} else {
-		addHeader(table, "TABLE", "STATUS")
-	}
+	addHeader(table, "TABLE", "STATUS", "EXPORTED ROWS")
 
 	// First sort by status and then by table-name.
 	sort.Slice(rows, func(i, j int) bool {
@@ -182,11 +168,7 @@ func displayExportDataStatus(rows []*exportTableMigStatusOutputRow) {
 		}
 	})
 	for _, row := range rows {
-		if useDebezium {
-			table.AddRow(row.tableName, row.status, row.exportedCount)
-		} else {
-			table.AddRow(row.tableName, row.status)
-		}
+		table.AddRow(row.tableName, row.status, row.exportedCount)
 	}
 	if len(rows) > 0 {
 		fmt.Print("\n")

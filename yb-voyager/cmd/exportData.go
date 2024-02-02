@@ -17,17 +17,21 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
+	"golang.org/x/exp/slices"
+
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -39,6 +43,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -130,6 +135,8 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		color.Green("Export of data complete \u2705")
 		log.Info("Export of data completed.")
 		startFallBackSetupIfRequired()
+	} else if ProcessShutdownRequested {
+		log.Info("Shutting down as SIGINT/SIGTERM received.")
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details. \u274C", exportDir)
 		log.Error("Export of data failed.")
@@ -172,9 +179,9 @@ func exportData() bool {
 		}
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
-			// 1. create replication slot.
+			// 1. create publication, replication slot.
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
-			// 3. start debezium with configration to read changes from the created replication slot.
+			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
@@ -189,10 +196,22 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			// Setting up sequence values for debezium to start tracking from..
+			sequenceValueMap, err := getPGDumpSequencesAndValues()
+			if err != nil {
+				utils.ErrExit("get pg dump sequence values: %v", err)
+			}
+
+			var sequenceInitValues strings.Builder
+			for seqName, seqValue := range sequenceValueMap {
+				sequenceInitValues.WriteString(fmt.Sprintf("%s:%d,", seqName.Qualified.Quoted, seqValue))
+			}
+
 			config.SnapshotMode = "never"
 			config.ReplicationSlotName = msr.PGReplicationSlotName
+			config.PublicationName = msr.PGPublicationName
+			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -201,21 +220,42 @@ func exportData() bool {
 
 		if changeStreamingIsEnabled(exportType) {
 			log.Infof("live migration complete, proceeding to cutover")
-			err = markCutoverProcessed(exporterRole)
-			if err != nil {
-				utils.ErrExit("failed to create trigger file after data export: %v", err)
-			}
 			if isTargetDBExporter(exporterRole) {
 				err = ybCDCClient.DeleteStreamID()
 				if err != nil {
 					utils.ErrExit("failed to delete stream id after data export: %v", err)
 				}
 			}
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				msr, err := metaDB.GetMigrationStatusRecord()
+				if err != nil {
+					utils.ErrExit("get migration status record: %v", err)
+				}
+				deletePGReplicationSlot(msr, &source)
+				deletePGPublication(msr, &source)
+			}
+
+			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
+			err = markCutoverProcessed(exporterRole)
+			if err != nil {
+				utils.ErrExit("failed to create trigger file after data export: %v", err)
+			}
 			utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
 		return true
 	} else {
+		minQuotedTableList := lo.Map(finalTableList, func(table *sqlname.SourceName, _ int) string {
+			return table.Qualified.MinQuoted //Case sensitivity
+		})
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.TableListExportedFromSource = minQuotedTableList
+		})
+		if err != nil {
+			utils.ErrExit("update table list exported from source: update migration status record: %s", err)
+		}
+		fmt.Printf("num tables to export: %d\n", len(finalTableList))
+		utils.PrintAndLog("table list for data export: %v", finalTableList)
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
 			log.Errorf("Export Data failed: %v", err)
@@ -240,7 +280,15 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
-	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	// Note: publication object needs to be created before replication slot
+	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	if err != nil {
+		return fmt.Errorf("create publication: %v", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
@@ -251,16 +299,53 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return err
 	}
 
-	// save replication slot in MSR
+	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.PGReplicationSlotName = res.SlotName
 		record.SnapshotMechanism = "pg_dump"
+		record.PGPublicationName = publicationName
 	})
 	if err != nil {
-		utils.ErrExit("udpate PGReplicationSlotName: update migration status record: %s", err)
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
 	}
 	setDataIsExported()
 	return nil
+}
+
+func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
+	result := map[*sqlname.SourceName]int64{}
+	path := filepath.Join(exportDir, "data", "postdata.sql")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		utils.ErrExit("read file %q: %v", path, err)
+	}
+
+	lines := strings.Split(string(data), "\n")
+	// Sample line: SELECT pg_catalog.setval('public.actor_actor_id_seq', 200, true);
+	setvalRegex := regexp.MustCompile(`(?i)SELECT.*setval\((?P<args>.*)\)`)
+
+	for _, line := range lines {
+		matches := setvalRegex.FindStringSubmatch(line)
+		if len(matches) == 0 {
+			continue
+		}
+		argsIdx := setvalRegex.SubexpIndex("args")
+		if argsIdx > len(matches) {
+			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
+		}
+		args := strings.Split(matches[argsIdx], ",")
+
+		seqNameRaw := args[0][1 : len(args[0])-1]
+		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
+
+		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+		}
+
+		result[seqName] = seqVal
+	}
+	return result, nil
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
@@ -302,8 +387,6 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
-	fmt.Printf("num tables to export: %d\n", len(finalTableList))
-	utils.PrintAndLog("table list for data export: %v", finalTableList)
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -319,6 +402,18 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	}()
 
 	initializeExportTableMetadata(finalTableList)
+
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch source.DBType {
+		case POSTGRESQL:
+			record.SnapshotMechanism = "pg_dump"
+		case ORACLE, MYSQL:
+			record.SnapshotMechanism = "ora2pg"
+		}
+	})
+	if err != nil {
+		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
+	}
 
 	log.Infof("Export table metadata: %s", spew.Sdump(tablesProgressMetadata))
 	UpdateTableApproxRowCount(&source, exportDir, tablesProgressMetadata)
@@ -393,14 +488,30 @@ func checkDataDirs() {
 	exportDataDir := filepath.Join(exportDir, "data")
 	propertiesFilePath := filepath.Join(exportDir, "metainfo", "conf", "application.properties")
 	sslDir := filepath.Join(exportDir, "metainfo", "ssl")
+	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
+	exportSnapshotStatusFile := jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	dfdFilePath := exportDir + datafile.DESCRIPTOR_PATH
 	if startClean {
 		utils.CleanDir(exportDataDir)
 		utils.CleanDir(sslDir)
 		clearDataIsExported()
-		os.Remove(dfdFilePath)
-		os.Remove(propertiesFilePath)
-		metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
+		err := os.Remove(dfdFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove data file descriptor: %s", err)
+		}
+		err = os.Remove(propertiesFilePath)
+		if err != nil && !os.IsNotExist(err) {
+			utils.ErrExit("Failed to remove properties file: %s", err)
+		}
+		err = exportSnapshotStatusFile.Delete()
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			utils.ErrExit("Failed to remove export snapshot status file: %s", err)
+		}
+
+		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
+		if err != nil {
+			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
+		}
 	} else {
 		if !utils.IsDirectoryEmpty(exportDataDir) {
 			if (changeStreamingIsEnabled(exportType)) &&
@@ -536,16 +647,16 @@ func startFallBackSetupIfRequired() {
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
-	utils.PrintAndLog("Starting import data to target with command:\n %s", color.GreenString(cmdStr))
+	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager - %w", err)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("SOURCE_DB_PASSWORD=%s", source.Password))
+	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to target - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to source - %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 

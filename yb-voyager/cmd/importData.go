@@ -61,6 +61,7 @@ var TableToColumnNames = make(map[string][]string)         // map of table name 
 var TableToIdentityColumnNames = make(map[string][]string) // map of table name to generated always as identity column's names
 var valueConverter dbzm.ValueConverter
 var TableNameToSchema map[string]map[string]map[string]string
+var conflictDetectionCache *ConflictDetectionCache
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -177,7 +178,8 @@ func startExportDataFromTargetIfRequired() {
 		utils.ErrExit("could not find yb-voyager - %w", lookErr)
 	}
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TARGET_DB_PASSWORD=%s", tconf.Password))
+	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
@@ -217,6 +219,11 @@ func discoverFilesToImport() []*ImportFileTask {
 	}
 
 	for i, fileEntry := range dataFileDescriptor.DataFileList {
+		if fileEntry.RowCount == 0 {
+			// In case of PG Live migration  pg_dump and dbzm both are used and we don't skip empty tables
+			// but pb hangs for empty so skipping empty tables in snapshot import
+			continue
+		}
 		task := &ImportFileTask{
 			ID:        i,
 			FilePath:  fileEntry.FilePath,
@@ -459,7 +466,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	if !dbzm.IsDebeziumForDataExport(exportDir) {
-		executePostImportDataSqls()
+		executePostSnapshotImportSqls()
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	} else {
 		if changeStreamingIsEnabled(importType) {
@@ -467,6 +474,10 @@ func importData(importFileTasks []*ImportFileTask) {
 				displayImportedRowCountSnapshot(state, importFileTasks)
 			}
 			color.Blue("streaming changes to %s...", tconf.TargetDBType)
+
+			if err != nil {
+				utils.ErrExit("failed to get table unique key columns map: %s", err)
+			}
 			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)
@@ -797,7 +808,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t string,
 	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
 }
 
-func executePostImportDataSqls() {
+func executePostSnapshotImportSqls() {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
 		fmt.Printf("setting resume value for sequences %10s\n", "")
@@ -928,6 +939,16 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 			continue
 		}
 
+		if objType == "TABLE" {
+			stmt := strings.ToUpper(sqlInfo.stmt)
+			skip := strings.Contains(stmt, "ALTER TABLE") && strings.Contains(stmt, "REPLICA IDENTITY")
+			if skip {
+				//skipping DDLS like ALTER TABLE ... REPLICA IDENTITY .. as this is not supported in YB
+				log.Infof("Skipping DDL: %s", sqlInfo.stmt)
+				continue
+			}
+		}
+
 		err := executeSqlStmtWithRetries(&conn, sqlInfo, objType)
 		if err != nil {
 			conn.Close(context.Background())
@@ -971,6 +992,14 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			log.Infof("Sleep for 5 seconds before retrying for %dth time", retryCount)
 			time.Sleep(time.Second * 5)
 			log.Infof("RETRYING DDL: %q", sqlInfo.stmt)
+		}
+
+		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
+			//In case of index creation print the index name as index creation takes time
+			//and user can see the progress
+			if sqlInfo.objName != "" {
+				color.Yellow("creating index %s ...", sqlInfo.objName)
+			}
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
@@ -1113,7 +1142,8 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
-
+	registerFlagsForTarget(importDataCmd)
+	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)

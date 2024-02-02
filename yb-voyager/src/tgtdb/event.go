@@ -40,8 +40,21 @@ type Event struct {
 var cachePreparedStmt = sync.Map{}
 
 func (e *Event) String() string {
-	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v}",
-		e.Vsn, e.Op, e.SchemaName, e.TableName, e.Key, e.Fields)
+	// Helper function to print a map[string]*string
+	mapStr := func(m map[string]*string) string {
+		var elements []string
+		for key, value := range m {
+			if value != nil {
+				elements = append(elements, fmt.Sprintf("%s:%s", key, *value))
+			} else {
+				elements = append(elements, fmt.Sprintf("%s:<nil>", key))
+			}
+		}
+		return "{" + strings.Join(elements, ", ") + "}"
+	}
+
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.Fields), e.ExporterRole)
 }
 
 func (e *Event) IsCutoverToTarget() bool {
@@ -69,7 +82,7 @@ func (e *Event) GetSQLStmt(targetSchema string) string {
 	}
 }
 
-func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
+func (e *Event) GetPreparedSQLStmt(targetSchema string, targetDBType string) string {
 	psName := e.GetPreparedStmtName(targetSchema)
 	if stmt, ok := cachePreparedStmt.Load(psName); ok {
 		return stmt.(string)
@@ -77,7 +90,7 @@ func (e *Event) GetPreparedSQLStmt(targetSchema string) string {
 	var ps string
 	switch e.Op {
 	case "c":
-		ps = e.getPreparedInsertStmt(targetSchema)
+		ps = e.getPreparedInsertStmt(targetSchema, targetDBType)
 	case "u":
 		ps = e.getPreparedUpdateStmt(targetSchema)
 	case "d":
@@ -174,7 +187,7 @@ func (event *Event) getDeleteStmt(targetSchema string) string {
 	return fmt.Sprintf(deleteTemplate, tableName, whereClause)
 }
 
-func (event *Event) getPreparedInsertStmt(targetSchema string) string {
+func (event *Event) getPreparedInsertStmt(targetSchema string, targetDBType string) string {
 	tableName := event.getTableName(targetSchema)
 	columnList := make([]string, 0, len(event.Fields))
 	valueList := make([]string, 0, len(event.Fields))
@@ -186,6 +199,10 @@ func (event *Event) getPreparedInsertStmt(targetSchema string) string {
 	columns := strings.Join(columnList, ", ")
 	values := strings.Join(valueList, ", ")
 	stmt := fmt.Sprintf(insertTemplate, tableName, columns, values)
+	if targetDBType == POSTGRESQL {
+		keyColumns := utils.GetMapKeysSorted(event.Key)
+		stmt = fmt.Sprintf("%s ON CONFLICT (%s) DO NOTHING", stmt, strings.Join(keyColumns, ",")) 
+	}
 	return stmt
 }
 
@@ -246,7 +263,7 @@ func getMapValuesForQuery(m map[string]*string) []interface{} {
 
 func (event *Event) getTableName(targetSchema string) string {
 	tableName := strings.Join([]string{event.SchemaName, event.TableName}, ".")
-	if targetSchema != "" && len(strings.Split(targetSchema, ",")) <=1  {
+	if targetSchema != "" && len(strings.Split(targetSchema, ",")) <= 1 {
 		tableName = strings.Join([]string{targetSchema, event.TableName}, ".")
 	}
 	return tableName

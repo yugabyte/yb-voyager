@@ -32,6 +32,14 @@ func WritePKCS8PrivateKeyPEMasDER(sslKeyPath string, targetSslKeyPath string) er
 		return fmt.Errorf("could not convert private key from PEM to DER: %w", err)
 	}
 
+	// Remove the existing file if it exists
+	_, err = os.Stat(targetSslKeyPath)
+	if err == nil {
+		err = os.Remove(targetSslKeyPath)
+		if err != nil {
+			return fmt.Errorf("could not remove existing DER key file: %w", err)
+		}
+	}
 	err = os.WriteFile(targetSslKeyPath, privateKeyBytes, 0400)
 	if err != nil {
 		return fmt.Errorf("could not write DER key: %w", err)

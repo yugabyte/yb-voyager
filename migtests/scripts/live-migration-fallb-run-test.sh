@@ -77,7 +77,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
@@ -87,7 +87,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema
-	tail -20 ${EXPORT_DIR}/reports/report.txt
+	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.txt
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
@@ -156,7 +156,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
-			exit 1
+			tail_log_file "debezium-source_db_exporter.log"
         fi
     else
         break
@@ -183,7 +183,7 @@ main() {
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-import-data-to-source.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
-			exit 1
+			tail_log_file "debezium-target_db_exporter_fb.log"
         fi
     else
         break
@@ -191,7 +191,7 @@ main() {
 	done
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-import-data true --refresh-mviews=true
+	import_schema --post-snapshot-import true --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 

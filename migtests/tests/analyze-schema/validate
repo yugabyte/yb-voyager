@@ -3,7 +3,7 @@
 import json
 
 def main():
-	with open("dummy-export-dir/reports/report.json") as fh:
+	with open("dummy-export-dir/reports/schema_analysis_report.json") as fh:
 		report = json.load(fh)
 		print(json.dumps(report, indent=4))
 

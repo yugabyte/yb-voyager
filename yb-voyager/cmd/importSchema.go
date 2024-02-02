@@ -66,7 +66,7 @@ func init() {
 	registerImportSchemaFlags(importSchemaCmd)
 }
 
-var flagPostImportData utils.BoolStr
+var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
 
@@ -94,7 +94,7 @@ func importSchema() {
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	payload.TargetDBVersion = targetDBVersion
 
-	if !flagPostImportData {
+	if !flagPostSnapshotImport {
 		filePath := filepath.Join(exportDir, "schema", "uncategorized.sql")
 		if utils.FileOrFolderExists(filePath) {
 			color.Red("\nIMPORTANT NOTE: Please, review and manually import the DDL statements from the %q\n", filePath)
@@ -110,7 +110,7 @@ func importSchema() {
 	var objectList []string
 
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
-	if !flagPostImportData { // Pre data load.
+	if !flagPostSnapshotImport { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		objectList = utils.SetDifference(objectList, objectsToImportAfterData)
@@ -162,12 +162,12 @@ func importSchema() {
 
 	dumpStatements(failedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 
-	if flagPostImportData {
+	if flagPostSnapshotImport {
 		if flagRefreshMViews {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-import-data`.")
+		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
 
 	callhome.PackAndSendPayload(exportDir)
@@ -211,7 +211,7 @@ func installOrafce(conn *pgx.Conn) {
 }
 
 func refreshMViews(conn *pgx.Conn) {
-	utils.PrintAndLog("\nRefreshing Materialised Views..\n\n")
+	utils.PrintAndLog("\nRefreshing Materialized Views..\n\n")
 	var mViewNames []string
 	mViewsSqlInfoArr := getDDLStmts("MVIEW")
 	for _, eachMviewSql := range mViewsSqlInfoArr {
@@ -224,7 +224,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialised view %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)

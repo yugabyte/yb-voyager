@@ -21,6 +21,8 @@ import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.server.BaseChangeConsumer;
 
+import static io.debezium.server.ybexporter.SequenceObjectUpdater.initSequenceMaxpropertyName;
+
 /**
  * Implementation of the consumer that exports the messages to file in a Yugabyte-compatible form.
  */
@@ -44,6 +46,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private RecordTransformer recordTransformer;
     Thread flusherThread;
     boolean shutDown = false;
+    Object flushingSnapshotFilesLock = new Object();
+
 
     public YbExporterConsumer(String dataDir){
         this.dataDir = dataDir;
@@ -68,7 +72,8 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         parser = new KafkaConnectRecordParser(dataDir, sourceType, tableMap);
         String propertyVal = PROP_PREFIX + SequenceObjectUpdater.propertyName;
         String columnSequenceMapString = config.getOptionalValue(propertyVal, String.class).orElse(null);
-        sequenceObjectUpdater = new SequenceObjectUpdater(dataDir, sourceType, columnSequenceMapString, exportStatus.getSequenceMaxMap());
+        String sequenceMaxMapString = config.getOptionalValue(PROP_PREFIX + SequenceObjectUpdater.initSequenceMaxpropertyName, String.class).orElse(null);
+        sequenceObjectUpdater = new SequenceObjectUpdater(dataDir, sourceType, columnSequenceMapString, sequenceMaxMapString, exportStatus.getSequenceMaxMap());
         recordTransformer = new DebeziumRecordTransformer();
 
         flusherThread = new Thread(this::flush);
@@ -118,9 +123,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         }
 
         while (true) {
-            for (RecordWriter writer : snapshotWriters.values()) {
-                writer.flush();
-                writer.sync();
+            synchronized (flushingSnapshotFilesLock){
+                for (RecordWriter writer : snapshotWriters.values()) {
+                    writer.flush();
+                    writer.sync();
+                }
             }
             // TODO: doing more than flushing files to disk. maybe move this call to another thread?
             if (exportStatus != null) {
@@ -279,7 +286,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     }
 
     private void handleSnapshotComplete() {
-        closeSnapshotWriters();
+        synchronized (flushingSnapshotFilesLock){
+            closeSnapshotWriters();
+        }
         exportStatus.updateMode(ExportMode.STREAMING);
         exportStatus.flushToDisk();
         openCDCWriter();

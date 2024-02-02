@@ -16,6 +16,7 @@ limitations under the License.
 package dbzm
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/csv"
 	"fmt"
@@ -66,7 +67,11 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
-	buf                  bytes.Buffer
+	csvReader            *csv.Reader
+	bufReader            bufio.Reader
+	bufWriter            bufio.Writer
+	wbuf                 bytes.Buffer
+	prevTableName        string
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
@@ -85,7 +90,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
 
-	return &DebeziumValueConverter{
+	conv := &DebeziumValueConverter{
 		exportDir:            exportDir,
 		schemaRegistrySource: schemaRegistrySource,
 		schemaRegistryTarget: schemaRegistryTarget,
@@ -93,7 +98,9 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
-	}, nil
+	}
+
+	return conv, nil
 }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
@@ -101,7 +108,12 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
-	columnValues, err := csv.NewReader(strings.NewReader(row)).Read()
+	if conv.prevTableName != tableName {
+		conv.csvReader = csv.NewReader(&conv.bufReader)
+		conv.csvReader.ReuseRecord = true
+	}
+	conv.bufReader.Reset(strings.NewReader(row))
+	columnValues, err := conv.csvReader.Read()
 	if err != nil {
 		return "", fmt.Errorf("reading row: %w", err)
 	}
@@ -115,11 +127,13 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		}
 		columnValues[i] = transformedValue
 	}
-	csvWriter := csv.NewWriter(&conv.buf)
+	conv.bufWriter.Reset(&conv.wbuf)
+	csvWriter := csv.NewWriter(&conv.bufWriter)
 	csvWriter.Write(columnValues)
 	csvWriter.Flush()
-	transformedRow := strings.TrimSuffix(conv.buf.String(), "\n")
-	conv.buf.Reset()
+	transformedRow := strings.TrimSuffix(conv.wbuf.String(), "\n")
+	conv.wbuf.Reset()
+	conv.prevTableName = tableName
 	return transformedRow, nil
 }
 
@@ -157,7 +171,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	// TODO: handle case sensitivity/quoted table names..
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
-	} 
+	}
 	if conv.targetDBType != tgtdb.POSTGRESQL {
 		ev.SchemaName = conv.targetSchema
 	}
