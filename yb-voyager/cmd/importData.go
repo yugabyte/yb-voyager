@@ -162,6 +162,7 @@ func startExportDataFromTargetIfRequired() {
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(importTableList, ","),
+		fmt.Sprintf("--unique-key-columns-exists=%t", uniqueKeyColumnsExists),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if utils.DoNotPrompt {

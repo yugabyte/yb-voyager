@@ -53,19 +53,20 @@ type Config struct {
 	TNSAdmin                    string
 	OracleJDBCWalletLocationSet bool
 
-	SSLMode               string
-	SSLCertPath           string
-	SSLKey                string
-	SSLRootCert           string
-	SSLKeyStore           string
-	SSLKeyStorePassword   string
-	SSLTrustStore         string
-	SSLTrustStorePassword string
-	YBStreamID            string
-	YBMasterNodes         string
-	SnapshotMode          string
-	ReplicationSlotName   string
-	PublicationName       string
+	SSLMode                string
+	SSLCertPath            string
+	SSLKey                 string
+	SSLRootCert            string
+	SSLKeyStore            string
+	SSLKeyStorePassword    string
+	SSLTrustStore          string
+	SSLTrustStorePassword  string
+	YBStreamID             string
+	YBMasterNodes          string
+	SnapshotMode           string
+	ReplicationSlotName    string
+	PublicationName        string
+	UniqueKeyColumnsExists utils.BoolStr
 }
 
 var baseConfigTemplate = `
@@ -225,6 +226,9 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+`
+
+var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
 debezium.source.tasks.max=1
 `
@@ -314,6 +318,10 @@ func (c *Config) String() string {
 		//TODO test SSL for other methods for yugabytedb
 		if c.SSLCertPath != "" || c.SSLKey != "" {
 			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
+		}
+
+		if c.UniqueKeyColumnsExists {
+			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
