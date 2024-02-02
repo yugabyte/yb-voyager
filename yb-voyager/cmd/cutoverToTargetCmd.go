@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -51,6 +52,9 @@ var cutoverToTargetCmd = &cobra.Command{
 		if prepareForFallBack {
 			if msr.FallForwardEnabled {
 				utils.ErrExit("cannot prepare for fall-back. Fall-forward workflow already enabled.")
+			}
+			if msr.SourceDBConf.DBType == POSTGRESQL {
+				utils.ErrExit("Live migration with Fall-back is not supported for PostgreSQL sourceDB.")
 			}
 		}
 		err = InitiateCutover("target", bool(prepareForFallBack))
