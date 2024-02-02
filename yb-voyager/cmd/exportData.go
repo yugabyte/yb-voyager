@@ -355,25 +355,24 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
 			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
 		} 
-		if source.DB().ParentTableOfPartition(table) == "" { //For root tables only
+		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
 			if len(source.DB().GetPartitions(table)) > 0 {
 				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
 			}
-		} else {	
-			if source.TableList != "" { //If user has passed table list with leaf partition
-				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
-			}
+		} else {
+			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
 		}
+	}
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+		return
 	}
 	if len(caseSensitiveTables) > 0 {
-		if len(partitionedTables) > 0 {
-			utils.PrintAndLog("The following partitioned tables are not supported for live migration: %v", partitionedTables)
-		}
-		utils.ErrExit("The following case sensitive tables are not supported for live migration: %v", caseSensitiveTables)
-	} 
-	if len(partitionedTables) > 0 {
-		utils.ErrExit("The following partitioned tables are not supported for live migration: %v", partitionedTables)
+		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
 	}
+	if len(partitionedTables) > 0 {	
+		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
 }
 
 
