@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"golang.org/x/exp/slices"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -348,6 +347,35 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
+func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
+	//report Partitions or case sensitive tables
+	var caseSensitiveTables []string
+	var partitionedTables []string
+	for _, table := range finalTableList {
+		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+		} 
+		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+			if len(source.DB().GetPartitions(table)) > 0 {
+				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			}
+		} else {
+			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+		}
+	}
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+		return
+	}
+	if len(caseSensitiveTables) > 0 {
+		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
+	}
+	if len(partitionedTables) > 0 {	
+		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
+}
+
+
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
@@ -360,6 +388,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		reportUnsupportedTables(finalTableList)
+	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
 
 	if !changeStreamingIsEnabled(exportType) {
