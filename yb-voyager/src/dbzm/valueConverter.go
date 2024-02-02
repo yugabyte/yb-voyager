@@ -33,8 +33,8 @@ type ValueConverter interface {
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (ValueConverter, error) {
-	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
+	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole, sourceDBType)
 }
 
 func NewNoOpValueConverter() (ValueConverter, error) {
@@ -72,9 +72,10 @@ type DebeziumValueConverter struct {
 	bufWriter            bufio.Writer
 	wbuf                 bytes.Buffer
 	prevTableName        string
+	sourceDBType         string
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
 	schemaRegistrySource := NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
@@ -98,6 +99,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
+		sourceDBType:         sourceDBType,
 	}
 
 	return conv, nil
@@ -172,7 +174,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
 	}
-	if conv.targetDBType != tgtdb.POSTGRESQL {
+	if conv.sourceDBType != tgtdb.POSTGRESQL {
 		ev.SchemaName = conv.targetSchema
 	}
 	return nil

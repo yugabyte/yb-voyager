@@ -283,7 +283,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		}
 
 		start := time.Now()
-		eventBatch := tgtdb.NewEventBatch(batch, chanNo, tconf.Schema)
+		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
 		var err error
 		sleepIntervalSec := 0
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
