@@ -473,6 +473,21 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 
 	if changeStreamingIsEnabled(exportType) {
 		color.Blue("streaming changes to a local queue file...")
+		if isTargetDBExporter(exporterRole) {
+			utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+			time.Sleep(2 * time.Minute)
+		}
+		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				record.ExportFromTargetFallBackStarted = true
+			} else {
+				record.ExportFromTargetFallForwardStarted = true
+			}
+
+		})
+		if err != nil {
+			utils.ErrExit("failed to update migration status record for export data from target start: %v", err)
+		}
 		if !disablePb {
 			go reportStreamingProgress()
 		}
