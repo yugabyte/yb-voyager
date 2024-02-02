@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/samber/lo"
@@ -106,11 +105,11 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 retry:
 	for _, cachedEvent := range c.m {
 		if c.eventsConfict(cachedEvent, incomingEvent) {
-			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
 				c.evChans[i] <- FLUSH_BATCH_EVENT
 			}
+			log.Infof("waiting for event(vsn=%d) to be complete before processing event(vsn=%d)", cachedEvent.Vsn, incomingEvent.Vsn)
 			// wait will release the lock and wait for a broadcast signal
 			c.cond.Wait()
 
@@ -179,28 +178,12 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false
 		}
-		if CompareConflictingEventValues(cachedEvent, incomingEvent, column) {
+
+		if *cachedEvent.BeforeFields[column] == *incomingEvent.Fields[column] {
 			log.Infof("conflict detected for table %s, column %s, between value of event1(vsn=%d, colVal=%s) and event2(vsn=%d, colVal=%s)",
 				maybeQualifiedName, column, cachedEvent.Vsn, *cachedEvent.BeforeFields[column], incomingEvent.Vsn, *incomingEvent.Fields[column])
 			return true
 		}
 	}
 	return false
-}
-
-func CompareConflictingEventValues(cachedEvent, incomingEvent *tgtdb.Event, column string) bool {
-	isCachedEventFormatted := shouldFormatValues(cachedEvent)
-	isIncomingEventFormatted := shouldFormatValues(incomingEvent)
-
-	val1 := *cachedEvent.BeforeFields[column]
-	if isCachedEventFormatted {
-		val1 = strings.Trim(val1, "\"'")
-	}
-
-	val2 := *incomingEvent.Fields[column]
-	if isIncomingEventFormatted {
-		val2 = strings.Trim(val2, "\"'")
-	}
-
-	return val1 == val2
 }

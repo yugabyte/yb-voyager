@@ -202,12 +202,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 	// which will affect hash value.
 	h := hashEvent(event)
 
-	// preparing value converters for the streaming mode
-	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
-	if err != nil {
-		return fmt.Errorf("error transforming event key fields: %v", err)
-	}
-
 	/*
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
@@ -222,6 +216,12 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 				conflictDetectionCache.Put(event)
 			}
 		}
+	}
+
+	// preparing value converters for the streaming mode
+	err := valueConverter.ConvertEvent(event, tableName, shouldFormatValues(event))
+	if err != nil {
+		return fmt.Errorf("error transforming event key fields: %v", err)
 	}
 
 	evChans[h] <- event
