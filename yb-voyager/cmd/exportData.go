@@ -334,6 +334,7 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 			return nil, fmt.Errorf("invalid index %d for matches - %s for line %s", argsIdx, matches, line)
 		}
 		args := strings.Split(matches[argsIdx], ",")
+		utils.PrintAndLog("ARGS %s", args)
 
 		seqNameRaw := args[0][1 : len(args[0])-1]
 		seqName := sqlname.NewSourceNameFromQualifiedName(seqNameRaw)
@@ -341,6 +342,12 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+		}
+
+		isCalled := strings.TrimSpace(args[2])
+		if isCalled == "false" {
+			// we always restore sequences with is_called=true, therefore, we need to minus 1.
+			seqVal--
 		}
 
 		result[seqName] = seqVal
