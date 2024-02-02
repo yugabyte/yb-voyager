@@ -472,7 +472,6 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	}
 
 	if changeStreamingIsEnabled(exportType) {
-		color.Blue("streaming changes to a local queue file...")
 		if isTargetDBExporter(exporterRole) {
 			utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 			// only events received after yb cdc initialization will be emitted by debezium.
@@ -491,6 +490,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 				utils.ErrExit("failed to update migration status record for export data from target start: %v", err)
 			}
 		}
+		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
 			go reportStreamingProgress()
 		}
