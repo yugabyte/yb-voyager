@@ -17,7 +17,7 @@ package yugabyted
 
 import "github.com/google/uuid"
 
-type VisualizerDBPayload struct {
+type MigrationEvent struct {
 	MigrationUUID       uuid.UUID `json:"migration_uuid"`
 	MigrationPhase      int       `json:"migration_phase"`
 	InvocationSequence  int       `json:"invocation_sequence"`
@@ -36,28 +36,4 @@ var MIGRATION_PHASE_MAP = map[string]int{
 	"EXPORT DATA":    2,
 	"IMPORT SCHEMA":  3,
 	"IMPORT DATA":    4,
-}
-
-// Create a visualisation metadata struct
-func CreateVisualzerDBPayload(mUUID uuid.UUID,
-	phase int,
-	invocationSequence int,
-	dbName string,
-	schema string,
-	visualizerPayload string,
-	db_type string,
-	status string,
-	timestamp string) VisualizerDBPayload {
-
-	return VisualizerDBPayload{
-		MigrationUUID:       mUUID,
-		MigrationPhase:      phase,
-		InvocationSequence:  invocationSequence,
-		DatabaseName:        dbName,
-		SchemaName:          schema,
-		Payload:             visualizerPayload,
-		DBType:              db_type,
-		Status:              status,
-		InvocationTimestamp: timestamp,
-	}
 }

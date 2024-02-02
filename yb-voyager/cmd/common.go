@@ -40,6 +40,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -592,5 +593,25 @@ func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
 			log.Infof("force shutting down pid %d", pid)
 			process.Signal(syscall.SIGKILL)
 		}
+	}
+}
+
+func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        source.DBType,
+		DatabaseName:  source.DBName,
+		SchemaNames:   cp.GetSchemaList(source.Schema),
+	}
+}
+
+func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        tconf.TargetDBType,
+		DatabaseName:  tconf.DBName,
+		SchemaNames:   []string{tconf.Schema},
 	}
 }

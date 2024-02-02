@@ -126,12 +126,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
-	// Send 'IN PROGRESS' metadata for `EXPORT DATA` step
-	exportDataStartEvent := createSnapshotExportStartedEvent()
-
-	// utils.WaitGroup.Add(1)
-	controlPlane.SnapshotExportStarted(&exportDataStartEvent)
-
 	success := exportData()
 	if success {
 		tableRowCount := getExportedRowCountSnapshot(exportDir)
@@ -150,14 +144,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 		log.Error("Export of data failed.")
 		atexit.Exit(1)
 	}
-
-	// Send 'COMPLETED' metadata for `EXPORT DATA` step
-	exportDataCompleteEvent := createSnapshotExportCompletedEvent()
-
-	controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
-
-	// // Wait till the visualisation metadata is sent
-	// utils.WaitGroup.Wait()
 }
 
 func exportData() bool {
@@ -434,6 +420,11 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataStartEvent := createSnapshotExportStartedEvent()
+		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
+	}
+
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -479,11 +470,11 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	// Wait for the export data to start.
 	<-exportDataStart
 
-	// Create initial entry for each table in the table metrics table
-	exportDataTableMetrics := createUpdateExportedRowCountEventList(
-		utils.GetSortedKeys(tablesProgressMetadata))
-
-	controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataTableMetrics := createUpdateExportedRowCountEventList(
+			utils.GetSortedKeys(tablesProgressMetadata))
+		controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+	}
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)
@@ -497,6 +488,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	displayExportedRowCountSnapshot(false)
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataCompleteEvent := createSnapshotExportCompletedEvent()
+		controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
+	}
+
 	return nil
 }
 
@@ -753,32 +750,14 @@ func saveSourceDBConfInMSR() {
 }
 
 func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {
-
-	result := cp.SnapshotExportStartedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "EXPORT DATA",
-			MigrationUUID: migrationUUID,
-			DBType:        source.DBType,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-		},
-	}
-
+	result := cp.SnapshotExportStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT DATA")
 	return result
 }
 
 func createSnapshotExportCompletedEvent() cp.SnapshotExportCompletedEvent {
-
-	result := cp.SnapshotExportCompletedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "EXPORT DATA",
-			MigrationUUID: migrationUUID,
-			DBType:        source.DBType,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-		},
-	}
-
+	result := cp.SnapshotExportCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT DATA")
 	return result
 }
 
@@ -789,7 +768,7 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 
 	for _, tableName := range tableNames {
 		tableMetadata := tablesProgressMetadata[tableName]
-		if source.DBType == "postgresql" {
+		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
 			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
 		} else {
 			schemaName, tableName2 = source.Schema, tableName
@@ -799,10 +778,10 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 				BaseEvent: cp.BaseEvent{
 					EventType:     "EXPORT DATA",
 					MigrationUUID: migrationUUID,
-					SchemaName:    []string{schemaName},
+					SchemaNames:   []string{schemaName},
 				},
 				TableName:         tableName2,
-				Status:            cp.UPDATE_ROW_COUNT_STATUS_INT_TO_STR[tableMetadata.Status],
+				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[tableMetadata.Status],
 				TotalRowCount:     tableMetadata.CountTotalRows,
 				CompletedRowCount: tableMetadata.CountLiveRows,
 			},

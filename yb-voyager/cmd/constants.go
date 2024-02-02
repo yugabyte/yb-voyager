@@ -53,6 +53,9 @@ const (
 	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
 	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
 	IMPORT_FILE_ROLE                = "import_file"
+	ROW_UPDATE_STATUS_NOT_STARTED   = 0
+	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
+	ROW_UPDATE_STATUS_COMPLETED     = 3
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

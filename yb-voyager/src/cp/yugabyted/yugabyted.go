@@ -36,7 +36,7 @@ type YugabyteD struct {
 	sync.RWMutex
 	migrationDirectory       string
 	waitGroup                sync.WaitGroup
-	eventChan                chan (VisualizerDBPayload)
+	eventChan                chan (MigrationEvent)
 	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
 	conn                     *pgxpool.Pool
 	lastRowCountUpdate       map[string]time.Time
@@ -50,7 +50,7 @@ func New(exportDir string) *YugabyteD {
 // Initialize the target DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
 
-	cp.eventChan = make(chan VisualizerDBPayload, 100)
+	cp.eventChan = make(chan MigrationEvent, 100)
 	cp.rowCountUpdateEventChan = make(chan []VisualizerTableMetrics, 200)
 
 	err := cp.connect()
@@ -82,7 +82,7 @@ func (cp *YugabyteD) eventPublisher() {
 	defer cp.panicHandler()
 	for {
 		event := <-cp.eventChan
-		err := cp.sendVisualizerDBPayload(event)
+		err := cp.sendMigrationEvent(event)
 		if err != nil {
 			log.Warnf("Couldn't send metadata for visualization. %s", err)
 		}
@@ -115,12 +115,12 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		return
 	}
 
-	dbPayload := VisualizerDBPayload{
+	migrationEvent := MigrationEvent{
 		MigrationUUID:       event.MigrationUUID,
 		MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 		InvocationSequence:  invocationSequence,
 		DatabaseName:        event.DatabaseName,
-		SchemaName:          strings.Join(event.SchemaName[:], "|"),
+		SchemaName:          strings.Join(event.SchemaNames[:], "|"),
 		Payload:             payload,
 		DBType:              event.DBType,
 		Status:              status,
@@ -128,7 +128,7 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 	}
 
 	cp.waitGroup.Add(1)
-	cp.eventChan <- dbPayload
+	cp.eventChan <- migrationEvent
 }
 
 func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
@@ -141,7 +141,7 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 		snapshotMigrateTableMetrics := VisualizerTableMetrics{
 			MigrationUUID:       event.MigrationUUID,
 			TableName:           event.TableName,
-			Schema:              strings.Join(event.SchemaName[:], "|"),
+			Schema:              strings.Join(event.SchemaNames[:], "|"),
 			MigrationPhase:      MIGRATION_PHASE_MAP[event.EventType],
 			Status:              UPDATE_ROW_COUNT_STATUS_STR_TO_INT[event.Status],
 			CountLiveRows:       event.CompletedRowCount,
@@ -451,8 +451,8 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 }
 
 // Send visualisation metadata
-func (cp *YugabyteD) sendVisualizerDBPayload(
-	visualizerDBPayload VisualizerDBPayload) error {
+func (cp *YugabyteD) sendMigrationEvent(
+	migrationEvent MigrationEvent) error {
 	cmd := fmt.Sprintf("INSERT INTO %s ("+
 		"migration_uuid, "+
 		"migration_phase, "+
@@ -469,11 +469,11 @@ func (cp *YugabyteD) sendVisualizerDBPayload(
 		")", YUGABYTED_METADATA_TABLE_NAME)
 
 	var maxAttempts = 5
-	visualizerDBPayload.MigrationDirectory = cp.migrationDirectory
+	migrationEvent.MigrationDirectory = cp.migrationDirectory
 
 	var err error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		err = cp.executeInsertQuery(cmd, visualizerDBPayload)
+		err = cp.executeInsertQuery(cmd, migrationEvent)
 		if err == nil {
 			break
 		} else {
@@ -482,8 +482,8 @@ func (cp *YugabyteD) sendVisualizerDBPayload(
 			}
 		}
 
-		invocationSequence, err := cp.getInvocationSequence(visualizerDBPayload.MigrationUUID,
-			visualizerDBPayload.MigrationPhase)
+		invocationSequence, err := cp.getInvocationSequence(migrationEvent.MigrationUUID,
+			migrationEvent.MigrationPhase)
 
 		if err != nil {
 			log.Warnf("Cannot get invocation sequence for visualization metadata. %s", err)
@@ -492,8 +492,8 @@ func (cp *YugabyteD) sendVisualizerDBPayload(
 
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-		visualizerDBPayload.InvocationSequence = invocationSequence
-		visualizerDBPayload.InvocationTimestamp = timestamp
+		migrationEvent.InvocationSequence = invocationSequence
+		migrationEvent.InvocationTimestamp = timestamp
 	}
 
 	return nil
@@ -548,30 +548,30 @@ func (cp *YugabyteD) sendVisualizerTableMetrics(
 }
 
 func (cp *YugabyteD) executeInsertQuery(cmd string,
-	visualizerDBPayload VisualizerDBPayload) error {
+	migrationEvent MigrationEvent) error {
 
 	cp.Mutex.Lock()
 	defer cp.Mutex.Unlock()
 
 	var err error
 
-	log.Infof("Executing on target DB: [%s] for [%+v]", cmd, visualizerDBPayload)
+	log.Infof("Executing on target DB: [%s] for [%+v]", cmd, migrationEvent)
 	conn, err := cp.getConn()
 	if err != nil {
 		return err
 	}
 
 	_, err = conn.Exec(context.Background(), cmd,
-		visualizerDBPayload.MigrationUUID,
-		visualizerDBPayload.MigrationPhase,
-		visualizerDBPayload.InvocationSequence,
-		visualizerDBPayload.MigrationDirectory,
-		visualizerDBPayload.DatabaseName,
-		visualizerDBPayload.SchemaName,
-		visualizerDBPayload.Payload,
-		visualizerDBPayload.DBType,
-		visualizerDBPayload.Status,
-		visualizerDBPayload.InvocationTimestamp)
+		migrationEvent.MigrationUUID,
+		migrationEvent.MigrationPhase,
+		migrationEvent.InvocationSequence,
+		migrationEvent.MigrationDirectory,
+		migrationEvent.DatabaseName,
+		migrationEvent.SchemaName,
+		migrationEvent.Payload,
+		migrationEvent.DBType,
+		migrationEvent.Status,
+		migrationEvent.InvocationTimestamp)
 
 	if err == nil {
 		return nil

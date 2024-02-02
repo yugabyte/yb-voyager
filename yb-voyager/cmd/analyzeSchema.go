@@ -1043,9 +1043,7 @@ func analyzeSchema() {
 	}
 	reportFile := "schema_analysis_report." + outputFormat
 
-	// Send `IN PROGRESS` metadata for `ANALYZE SCHEMA` step
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
-	// utils.WaitGroup.Add(1)
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
@@ -1116,13 +1114,8 @@ func analyzeSchema() {
 
 	callhome.PackAndSendPayload(exportDir)
 
-	// Send 'COMPLETED' metadata for `ANALYZE SCHEMA` step
 	schemaAnalysisReport := createSchemaAnalysisReport(reportStruct)
-	// utils.WaitGroup.Add(1)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
-
-	// // Wait till the visualisation metadata is sent
-	// utils.WaitGroup.Wait()
 }
 
 var analyzeSchemaCmd = &cobra.Command{
@@ -1164,30 +1157,13 @@ func schemaIsAnalyzed() bool {
 }
 
 func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
-	result := cp.SchemaAnalysisStartedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "ANALYZE SCHEMA",
-			MigrationUUID: migrationUUID,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-			DBType:        source.DBType},
-	}
-
+	result := cp.SchemaAnalysisStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	return result
 }
 
 func createSchemaAnalysisReport(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
-
-	result := cp.SchemaAnalysisIterationCompletedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "ANALYZE SCHEMA",
-			MigrationUUID: migrationUUID,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-			DBType:        source.DBType,
-		},
-		AnalysisReport: report,
-	}
-
+	result := cp.SchemaAnalysisIterationCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	return result
 }

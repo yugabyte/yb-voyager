@@ -78,10 +78,7 @@ func importSchema() {
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
-	// Send 'IN PROGRESS' metadata for `IMPORT SCHEMA` step
 	importSchemaStartEvent := createImportSchemaStartedEvent()
-
-	// utils.WaitGroup.Add(1)
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
@@ -177,16 +174,10 @@ func importSchema() {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
 
-	// Send 'COMPLETED' metadata for `IMPORT SCHEMA` step
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
-
-	// utils.WaitGroup.Add(1)
 	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
 	callhome.PackAndSendPayload(exportDir)
-
-	// // Wait till the visualisation metadata is sent
-	// utils.WaitGroup.Wait()
 }
 
 func dumpStatements(stmts []string, filePath string) {
@@ -366,31 +357,13 @@ func isAlreadyExists(errString string) bool {
 }
 
 func createImportSchemaStartedEvent() cp.ImportSchemaStartedEvent {
-
-	result := cp.ImportSchemaStartedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "IMPORT SCHEMA",
-			MigrationUUID: migrationUUID,
-			DBType:        tconf.TargetDBType,
-			DatabaseName:  tconf.DBName,
-			SchemaName:    []string{tconf.Schema},
-		},
-	}
-
+	result := cp.ImportSchemaStartedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
 	return result
 }
 
 func createImportSchemaCompletedEvent() cp.ImportSchemaCompletedEvent {
-
-	result := cp.ImportSchemaCompletedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "IMPORT SCHEMA",
-			MigrationUUID: migrationUUID,
-			DBType:        tconf.TargetDBType,
-			DatabaseName:  tconf.DBName,
-			SchemaName:    []string{tconf.Schema},
-		},
-	}
-
+	result := cp.ImportSchemaCompletedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
 	return result
 }

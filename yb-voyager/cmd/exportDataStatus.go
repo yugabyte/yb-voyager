@@ -40,7 +40,7 @@ import (
 
 //=====================================================================================
 
-//For Non-debezium cases
+// For Non-debezium cases
 type TableExportStatus struct {
 	TableName                string `json:"table_name"` // table.Qualified.MinQuoted
 	FileName                 string `json:"file_name"`
@@ -138,11 +138,10 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				exportedTables = append(exportedTables, key)
 				doneCount++
 
-				// Update a table entry to `COMPLETED` once the table is exported
-				exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{key})
-
-				// utils.WaitGroup.Add(1)
-				controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+				if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+					exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{key})
+					controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+				}
 
 				if doneCount == numTables {
 					break
@@ -213,22 +212,13 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
 
-			exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
-			// The metrics are sent after evry 5 secs in implementation of UpdateExportedRowCount
-			controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
+				// The metrics are sent after evry 5 secs in implementation of UpdateExportedRowCount
+				controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+			}
 		}
 	}()
-
-	// go func() { //for sending visualization table metrics every 5 secs
-	// 	for !pbr.IsComplete() {
-	// 		exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
-
-	// 		// utils.WaitGroup.Add(1)
-	// 		controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
-
-	// 		time.Sleep(time.Second * 5)
-	// 	}
-	// }()
 
 	var line string
 	insideCopyStmt := false

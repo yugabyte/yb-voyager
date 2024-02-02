@@ -22,7 +22,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var UPDATE_ROW_COUNT_STATUS_INT_TO_STR = map[int]string{
+var EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR = map[int]string{
 	0: "NOT STARTED",
 	1: "IN PROGRESS",
 	2: "DONE",
@@ -59,7 +59,6 @@ func GetSchemaList(schema string) []string {
 
 func SplitTableNameForPG(tableName string) (string, string) {
 	splitTableName := strings.Split(tableName, ".")
-
 	return splitTableName[0], splitTableName[1]
 }
 
@@ -68,7 +67,7 @@ type BaseEvent struct {
 	MigrationUUID uuid.UUID
 	DBType        string
 	DatabaseName  string
-	SchemaName    []string
+	SchemaNames   []string
 }
 
 type BaseUpdateRowCountEvent struct {

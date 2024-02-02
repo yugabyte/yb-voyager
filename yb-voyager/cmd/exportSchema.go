@@ -94,10 +94,7 @@ func exportSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 
-	// Send 'IN PROGRESS' metadata for `EXPORT SCHEMA` step
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
-
-	// utils.WaitGroup.Add(1)
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
 	source.DB().ExportSchema(exportDir)
@@ -112,14 +109,8 @@ func exportSchema() {
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
 
-	// Send 'COMPLETED' metadata for `EXPORT SCHEMA` step
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
-
-	// utils.WaitGroup.Add(1)
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
-
-	// // Wait till the visualisation metadata is sent
-	// utils.WaitGroup.Wait()
 }
 
 func init() {
@@ -190,30 +181,14 @@ func updateIndexesInfoInMetaDB() {
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
 
-	result := cp.ExportSchemaStartedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "EXPORT SCHEMA",
-			MigrationUUID: migrationUUID,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-			DBType:        source.DBType,
-		},
-	}
-
+	result := cp.ExportSchemaStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
 	return result
 }
 
 func createExportSchemaCompletedEvent() cp.ExportSchemaCompletedEvent {
 
-	result := cp.ExportSchemaCompletedEvent{
-		BaseEvent: cp.BaseEvent{
-			EventType:     "EXPORT SCHEMA",
-			MigrationUUID: migrationUUID,
-			DatabaseName:  source.DBName,
-			SchemaName:    cp.GetSchemaList(source.Schema),
-			DBType:        source.DBType,
-		},
-	}
-
+	result := cp.ExportSchemaCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
 	return result
 }

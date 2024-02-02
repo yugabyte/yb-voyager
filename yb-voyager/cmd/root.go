@@ -261,7 +261,7 @@ func setControlPlane() {
 
 	switch cpType {
 	case "":
-		log.Warnf("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
+		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
 		controlPlane = noopcp.New()
 	case "yugabyted":
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
@@ -269,11 +269,10 @@ func setControlPlane() {
 			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
-		log.Warnf("Migration UUID %s", migrationUUID)
-		log.Warnf("Starting Init")
+		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			log.Warnf("Failed to initialize the target DB for visualization. %s", err)
+			utils.ErrExit("ERROR: Failed to initialize the target DB for visualization. %s", err)
 		}
 	}
 }
