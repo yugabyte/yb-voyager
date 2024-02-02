@@ -42,7 +42,7 @@ var tableListFilePath string
 var exportCmd = &cobra.Command{
 	Use:   "export",
 	Short: "export schema and data from compatible databases",
-	Long:  `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
+	Long: `Export has various sub-commands i.e. export schema, export data to export from various compatible source databases(Oracle, MySQL, PostgreSQL) 
 	and export data from target in case of live migration with fall-back/fall-forward workflows.`,
 }
 
@@ -119,6 +119,8 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool) {
 func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&source.Password, "target-db-password", "",
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
+	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "disable",
+		"specify the target YugabyteDB SSL mode out of: (disable, require, verify-ca, verify-full)")
 }
 
 func setExportFlagsDefaults() {

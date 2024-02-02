@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type Config struct {
@@ -113,7 +114,8 @@ debezium.source.plugin.name=pgoutput
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
-debezium.source.publication.autocreate.mode=filtered
+debezium.source.provide.transaction.metadata=true
+debezium.source.publication.autocreate.mode=disabled
 `
 
 var postgresSSLConfigTemplate = `
@@ -159,6 +161,7 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
+debezium.source.provide.transaction.metadata=true
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
 debezium.source.query.fetch.size=10000
@@ -230,6 +233,7 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSinkConfigTemplate
 
 var yugabyteSSLConfigTemplate = `
+debezium.source.database.sslmode=%s
 debezium.source.database.sslrootcert=%s
 `
 
@@ -300,9 +304,15 @@ func (c *Config) String() string {
 			c.RunId,
 			c.ExporterRole)
 		if c.SSLRootCert != "" {
-			conf += fmt.Sprintf(yugabyteSSLConfigTemplate,
-				c.SSLRootCert)
-		} //TODO test SSL for other methods for yugabytedb
+			if c.SSLMode == "prefer" {
+				utils.ErrExit("Error: SSL mode 'prefer' is not supported for 'export data from target'. Please restart 'export data from target' with a different mode in `--target-ssl-mode` flag.")
+			}
+			conf += fmt.Sprintf(yugabyteSSLConfigTemplate, c.SSLMode, c.SSLRootCert)
+		}
+		//TODO test SSL for other methods for yugabytedb
+		if c.SSLCertPath != "" || c.SSLKey != "" {
+			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
+		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
 			c.Username,
