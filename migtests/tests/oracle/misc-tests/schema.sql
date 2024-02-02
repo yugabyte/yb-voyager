@@ -245,6 +245,52 @@ SELECT
 FROM
     employees;
 
+CREATE TABLE foo (
+    id   NUMBER PRIMARY KEY,
+    value VARCHAR2(255)
+);
+
+INSERT INTO foo (id, value) VALUES (1, CHR(13) || CHR(10) || 'Text with ' || CHR(13));
+INSERT INTO foo (id, value) VALUES (2, CHR(13) || CHR(10) || 'Text with ' || CHR(10));
+INSERT INTO foo (id, value) VALUES (3, CHR(13) || CHR(10) || 'Text with ' || CHR(13) || CHR(10));
+INSERT INTO foo (id, value) VALUES (4, CHR(13) || CHR(10) || 'Text with \' || CHR(13));
+INSERT INTO foo (id, value) VALUES (5, CHR(13) || CHR(10) || 'Text with \' || CHR(10));
+INSERT INTO foo (id, value) VALUES (6, CHR(13) || CHR(10) || 'Text with \' || CHR(13) || '\' || CHR(10));
+
+INSERT INTO foo (id, value) VALUES (7, 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (8, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13));
+INSERT INTO foo (id, value) VALUES (9, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(11));
+INSERT INTO foo (id, value) VALUES (10, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (11, 'Text with ' || CHR(13) || CHR(11) || 'Text with \' || CHR(13));
+INSERT INTO foo (id, value) VALUES (12, 'Text with ' || CHR(13) || CHR(11) || 'Text with \' || CHR(11));
+INSERT INTO foo (id, value) VALUES (13, 'Text with ' || CHR(13) || CHR(11) || 'Text with \' || CHR(13) || '\' || CHR(11));
+
+INSERT INTO foo (id, value) VALUES (14, 'Text with ' || CHR(13) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (15, 'Text with ' || CHR(13) || 'Text with ' || CHR(11));
+INSERT INTO foo (id, value) VALUES (16, 'Text with ' || CHR(13) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (17, 'Text with ' || CHR(13) || 'Text with \' || CHR(13));
+INSERT INTO foo (id, value) VALUES (18, 'Text with ' || CHR(13) || 'Text with \' || CHR(11));
+INSERT INTO foo (id, value) VALUES (19, 'Text with ' || CHR(13) || 'Text with \' || CHR(13) || '\' || CHR(11));
+
+INSERT INTO foo (id, value) VALUES (20, 'Text with ' || CHR(11) || 'Text with ' || CHR(13));
+INSERT INTO foo (id, value) VALUES (21, 'Text with ' || CHR(11) || 'Text with ' || CHR(11));
+INSERT INTO foo (id, value) VALUES (22, 'Text with ' || CHR(11) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (23, 'Text with ' || CHR(11) || 'Text with \' || CHR(13));
+INSERT INTO foo (id, value) VALUES (24, 'Text with ' || CHR(11) || 'Text with \' || CHR(11));
+INSERT INTO foo (id, value) VALUES (25, 'Text with ' || CHR(11) || 'Text with \' || CHR(13) || '\' || CHR(11));
+
+INSERT INTO foo (id, value) VALUES (26, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (27, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(11) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (28, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (29, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || 'Text with \' || CHR(13) || CHR(11));
+INSERT INTO foo (id, value) VALUES (30, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(13) || 'Text with \' || CHR(11) || CHR(11));
+INSERT INTO foo (id, value) VALUES (31, 'Text with ' || CHR(13) || CHR(11) || 'Text with \' || CHR(13) || '\' || CHR(11) || 'Text with ' || CHR(13) || CHR(11));
+
+INSERT INTO foo (id, value) VALUES (32, CHR(11) || CHR(13) || 'Text with ' || CHR(13));
+INSERT INTO foo (id, value) VALUES (33, 'Text with ' || CHR(11) || CHR(13));
+INSERT INTO foo (id, value) VALUES (34, 'Text with ' || CHR(13) || CHR(11) || 'Text with ' || CHR(11) || CHR(13));
+
+
 
 
 
