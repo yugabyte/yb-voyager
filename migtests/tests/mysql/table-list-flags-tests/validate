@@ -21,14 +21,15 @@ EXPECTED_ROW_COUNT = {
 	'session_log2':100,
 	'session_log3':0,
 	'session_log4':0,
-	'case_sensitive_columns':6
+	'case_sensitive_columns':6,
+	'foo': 34,
 }
 
 def migration_completed_checks(tgt):
 	target_schema = os.getenv("TARGET_DB_SCHEMA")
 	table_list = tgt.get_table_names(target_schema)
 	print("table_list:", table_list)
-	assert len(table_list) == 12
+	assert len(table_list) == 13
 
 	got_row_count = tgt.row_count_of_all_tables(target_schema)
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
