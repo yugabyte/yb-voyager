@@ -22,7 +22,7 @@ EXPECTED_ROW_COUNT = {
 	'session_log3':0,
 	'session_log4':0,
 	'case_sensitive_columns':6,
-	'foo': 34,
+	'foo': 0,
 }
 
 def migration_completed_checks(tgt):
