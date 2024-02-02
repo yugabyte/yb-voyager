@@ -19,7 +19,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -46,17 +45,6 @@ var exportDataFromTargetCmd = &cobra.Command{
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
 		exportDataCmd.PreRun(cmd, args)
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.ExportFromTargetFallBackStarted = true
-			} else {
-				record.ExportFromTargetFallForwardStarted = true
-			}
-
-		})
-		if err != nil {
-			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
-		}
 		exportDataCmd.Run(cmd, args)
 	},
 }
