@@ -4,7 +4,7 @@ on:
   # Trigger on any tag starting with 'yb-voyager/v'
   create:
     tags:
-      - "yb-voyager/v*"
+      - 'yb-voyager/v*'
   # Manual Trigger
   workflow_dispatch:
     inputs:
