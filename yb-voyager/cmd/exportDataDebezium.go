@@ -108,7 +108,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
-
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
@@ -136,6 +135,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		SSLTrustStore:         source.SSLTrustStore,
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 		SnapshotMode:          snapshotMode,
+		TransactionOrdering:   transactionOrdering,
 	}
 	if source.DBType == "oracle" {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"

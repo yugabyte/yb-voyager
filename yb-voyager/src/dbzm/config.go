@@ -66,6 +66,7 @@ type Config struct {
 	SnapshotMode          string
 	ReplicationSlotName   string
 	PublicationName       string
+	TransactionOrdering   utils.BoolStr
 }
 
 var baseConfigTemplate = `
@@ -227,6 +228,11 @@ debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 `
 
+var yugabyteSrcTransactionOrderingConfigTemplate = `
+debezium.source.transaction.ordering=true
+debezium.source.tasks.max=1
+`
+
 var yugabyteConfigTemplate = baseConfigTemplate +
 	baseSrcConfigTemplate +
 	yugabyteSrcConfigTemplate +
@@ -312,6 +318,10 @@ func (c *Config) String() string {
 		//TODO test SSL for other methods for yugabytedb
 		if c.SSLCertPath != "" || c.SSLKey != "" {
 			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
+		}
+
+		if c.TransactionOrdering {
+			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,
