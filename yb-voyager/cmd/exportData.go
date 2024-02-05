@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"golang.org/x/exp/slices"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -579,7 +578,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return getDefaultPGSchema(source.Schema)
+		return getDefaultPGSchema(source.Schema, "|")
 	case ORACLE:
 		return source.Schema, false
 	default:

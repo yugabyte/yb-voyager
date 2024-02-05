@@ -285,9 +285,21 @@ outer:
 	return nil
 }
 
+func getDefaultPGSchema(schema string) (string, bool) {
+	schemas := strings.Split(schema, ",")
+	if len(schemas) == 1 {
+		return schema, false
+	} else if slices.Contains(schemas, "public") {
+		return "public", false
+	} else {
+		return "", true
+	}
+}
+
 func (pg *TargetPostgreSQL) qualifyTableName(tableName string) string {
+	defaultSchema, _ := getDefaultPGSchema(pg.tconf.Schema)
 	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", pg.tconf.Schema, tableName)
+		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
 	}
 	return tableName
 }

@@ -28,8 +28,9 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 const (
@@ -500,8 +501,12 @@ func (s *ImportDataState) cleanFileImportStateFromDB(filePath, tableName string)
 }
 
 func qualifyTableName(tableName string) string {
+	defaultSchema := tconf.Schema
+	if tconf.TargetDBType == POSTGRESQL {
+		defaultSchema, _ = getDefaultPGSchema(tconf.Schema, ",")
+	}
 	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", tconf.Schema, tableName)
+		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
 	}
 	return tableName
 }

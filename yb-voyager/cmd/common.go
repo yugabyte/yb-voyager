@@ -519,10 +519,10 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	schemas := strings.Split(schema, "|")
+func getDefaultPGSchema(schema string, separator string) (string, bool) {
+	schemas := strings.Split(schema, separator)
 	if len(schemas) == 1 {
-		return source.Schema, false
+		return schema, false
 	} else if slices.Contains(schemas, "public") {
 		return "public", false
 	} else {
