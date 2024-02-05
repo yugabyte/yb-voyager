@@ -282,7 +282,7 @@ func validateTargetSchemaFlag() {
 		}
 		return
 	}
-	if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
+	if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && tconf.TargetDBType == YUGABYTEDB && sourceDBType == "postgresql" {
 		utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
 	}
 }
