@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -1012,14 +1013,24 @@ SELECT tc.table_schema, tc.table_name, kcu.column_name
 FROM information_schema.table_constraints tc
 JOIN information_schema.key_column_usage kcu
     ON tc.constraint_name = kcu.constraint_name
-WHERE tc.table_schema = '%s' AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
+	AND tc.table_schema = kcu.table_schema
+    AND tc.table_name = kcu.table_name
+WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
 `
 
 func (yb *TargetYugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := yb.splitMaybeQualifiedTableName(tableList[i])
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
 
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, yb.tconf.Schema, strings.Join(tableList, ","))
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
