@@ -188,12 +188,12 @@ func checkSourceExporter(exporterRole string) bool {
 
 func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
-	targetTableName := tableName
+	tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
 		if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
-			targetTableName = fmt.Sprintf("%s.%s", eventSchema, tableName)
+			tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
 		}
 		schemaRegistry = conv.schemaRegistryTarget
 	}
@@ -202,7 +202,7 @@ func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName str
 			continue
 		}
 		columnValue := *value
-		colType, err := schemaRegistry.GetColumnType(targetTableName, column, conv.shouldFormatAsPerSourceDatatypes())
+		colType, err := schemaRegistry.GetColumnType(tableNameInSchemaRegistry, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
