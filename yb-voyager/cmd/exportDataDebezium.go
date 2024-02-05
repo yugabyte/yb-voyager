@@ -473,12 +473,18 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 
 	if changeStreamingIsEnabled(exportType) {
 		if isTargetDBExporter(exporterRole) {
-			utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
-			// only events received after yb cdc initialization will be emitted by debezium.
-			// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
-			// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
-			time.Sleep(2 * time.Minute)
-			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				return false, fmt.Errorf("failed to get migration status record: %w", err)
+			}
+			if !(msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted) {
+				utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+				// only events received after yb cdc initialization will be emitted by debezium.
+				// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
+				// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
+				time.Sleep(2 * time.Minute)
+			}
+			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 				if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
 					record.ExportFromTargetFallBackStarted = true
 				} else {
