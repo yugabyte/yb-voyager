@@ -591,3 +591,21 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	}
 	return nil
 }
+
+func (pg *PostgreSQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
+	table := tableName.ObjectName.MinQuoted
+	if tableName.SchemaName.MinQuoted != "public" {
+		table = tableName.Qualified.MinQuoted
+	}
+	query := fmt.Sprintf(`SELECT DISTINCT(conname) AS constraint_name
+	FROM pg_constraint con
+	JOIN pg_attribute a ON a.attnum = ANY(con.conkey)
+	WHERE con.contype = 'p' 
+	AND conrelid::regclass::text = '%s'`, table)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
+	}
+	defer rows.Close()
+	return !rows.Next()
+}

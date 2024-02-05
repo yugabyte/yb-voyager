@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"golang.org/x/exp/slices"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -378,6 +377,20 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
 }
 
+func reportNonPKTables(finalTableList []*sqlname.SourceName) {
+	var nonPKTables []string
+	for _, table := range finalTableList {
+		if source.DB().IsNonPKTable(table) {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	if len(nonPKTables) > 0 {
+		utils.PrintAndLog("Non Primary Key tables: %s", nonPKTables)
+		utils.ErrExit("This voyager release does not support live-migration with non-PK tables. You can exclude these tables using the --exclude-table-list argument.")
+	}
+	
+}
+
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
@@ -392,6 +405,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
 	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
+	} 
+	if changeStreamingIsEnabled(exportType) {
+		reportNonPKTables(finalTableList)
 	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
 

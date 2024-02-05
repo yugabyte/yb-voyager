@@ -351,3 +351,7 @@ func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) 
 	log.Infof("ClearMigrationState not implemented yet for MySQL")
 	return nil
 }
+
+func (ms *MySQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
+	panic("not implemented")
+}
