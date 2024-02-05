@@ -260,7 +260,11 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
-	fmt.Printf("import report\n")
+	if importerRole == IMPORT_FILE_ROLE {
+		fmt.Printf("import report\n")
+	} else {
+		fmt.Printf("snapshot import report\n")
+	}
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
