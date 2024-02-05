@@ -379,17 +379,18 @@ func getCutoverStatus() string {
 	a := msr.CutoverToTargetRequested
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
-	d := msr.ExportFromTargetFallForwardStarted
-	ffDBExists := msr.FallForwardEnabled
+
 	if !a {
 		return NOT_INITIATED
-	} else if !ffDBExists && a && b && c {
+	}
+	if msr.FallForwardEnabled && a && b && c && msr.ExportFromTargetFallForwardStarted {
 		return COMPLETED
-	} else if a && b && c && d {
+	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted {
+		return COMPLETED
+	} else if !msr.FallForwardEnabled && !msr.FallbackEnabled && a && b && c {
 		return COMPLETED
 	}
 	return INITIATED
-
 }
 
 func checkStreamingMode() (bool, error) {

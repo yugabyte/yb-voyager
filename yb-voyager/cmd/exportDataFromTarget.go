@@ -19,9 +19,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+var transactionOrdering utils.BoolStr
 
 var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -45,18 +46,8 @@ var exportDataFromTargetCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
-		exportDataCmd.PreRun(cmd, args)
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
-				record.ExportFromTargetFallBackStarted = true
-			} else {
-				record.ExportFromTargetFallForwardStarted = true
-			}
 
-		})
-		if err != nil {
-			utils.ErrExit("failed to update migration status record for fall-back sync started: %v", err)
-		}
+		exportDataCmd.PreRun(cmd, args)
 		exportDataCmd.Run(cmd, args)
 	},
 }
@@ -67,6 +58,9 @@ func init() {
 	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
 	registerExportDataFlags(exportDataFromTargetCmd)
 	hideExportFlagsInFallForwardOrBackCmds(exportDataFromTargetCmd)
+
+	BoolVar(exportDataFromTargetCmd.Flags(), &transactionOrdering, "transaction-ordering", true,
+		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
 func initSourceConfFromTargetConf() error {

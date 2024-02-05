@@ -17,3 +17,4 @@ run_psql ${SOURCE_DB_NAME} "\i pg_misc_objects2.sql;"
 
 echo "Check source database."
 run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM ext_test;"
+run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM foo;"

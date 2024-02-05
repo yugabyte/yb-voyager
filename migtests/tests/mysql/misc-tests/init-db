@@ -17,3 +17,4 @@ run_mysql ${SOURCE_DB_NAME} "SOURCE schema.sql;"
 
 echo "Check source database."
 run_mysql ${SOURCE_DB_NAME} "SELECT count(*) FROM \`order\`;"
+run_mysql ${SOURCE_DB_NAME} "SELECT count(*) FROM foo;"

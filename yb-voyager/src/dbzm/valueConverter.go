@@ -25,6 +25,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/stdlibcsv"
 )
 
 type ValueConverter interface {
@@ -33,8 +34,8 @@ type ValueConverter interface {
 	GetTableNameToSchema() map[string]map[string]map[string]string //returns table name to schema mapping
 }
 
-func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (ValueConverter, error) {
-	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole)
+func NewValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (ValueConverter, error) {
+	return NewDebeziumValueConverter(exportDir, tdb, targetConf, importerRole, sourceDBType)
 }
 
 func NewNoOpValueConverter() (ValueConverter, error) {
@@ -67,14 +68,15 @@ type DebeziumValueConverter struct {
 	valueConverterSuite  map[string]tgtdbsuite.ConverterFn
 	converterFnCache     map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
 	targetDBType         string
-	csvReader            *csv.Reader
+	csvReader            *stdlibcsv.Reader
 	bufReader            bufio.Reader
 	bufWriter            bufio.Writer
 	wbuf                 bytes.Buffer
 	prevTableName        string
+	sourceDBType         string
 }
 
-func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string) (*DebeziumValueConverter, error) {
+func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
 	schemaRegistrySource := NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
@@ -98,6 +100,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		converterFnCache:     map[string][]tgtdbsuite.ConverterFn{},
 		targetDBType:         targetConf.TargetDBType,
 		targetSchema:         targetConf.Schema,
+		sourceDBType:         sourceDBType,
 	}
 
 	return conv, nil
@@ -109,7 +112,7 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
 	if conv.prevTableName != tableName {
-		conv.csvReader = csv.NewReader(&conv.bufReader)
+		conv.csvReader = stdlibcsv.NewReader(&conv.bufReader)
 		conv.csvReader.ReuseRecord = true
 	}
 	conv.bufReader.Reset(strings.NewReader(row))
@@ -162,6 +165,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
+
 	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
@@ -172,7 +176,7 @@ func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, 
 	if conv.targetDBType == tgtdb.ORACLE {
 		ev.TableName = strings.ToUpper(ev.TableName)
 	}
-	if conv.targetDBType != tgtdb.POSTGRESQL {
+	if conv.sourceDBType != tgtdb.POSTGRESQL {
 		ev.SchemaName = conv.targetSchema
 	}
 	return nil

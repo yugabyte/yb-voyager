@@ -230,3 +230,8 @@ class PostgresDB:
 		cur = self.conn.cursor()
 		cur.execute(f"SELECT version()")
 		return cur.fetchone()[0]
+
+	def get_text_length(self, primary_key, id, column, table_name, schema_name="public") -> int:
+		cur = self.conn.cursor()
+		cur.execute(f"SELECT length({column}) FROM {schema_name}.{table_name} WHERE {primary_key} = {id}")
+		return cur.fetchone()[0]

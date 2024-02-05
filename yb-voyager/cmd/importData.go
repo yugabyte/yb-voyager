@@ -43,7 +43,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -76,6 +75,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err := validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
@@ -162,6 +162,7 @@ func startExportDataFromTargetIfRequired() {
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
 		"--table-list", strings.Join(importTableList, ","),
+		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 	}
 	if utils.DoNotPrompt {
@@ -382,7 +383,7 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 	defer tdb.Finalize()
 	if msr.SnapshotMechanism == "debezium" {
-		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+		valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, msr.SourceDBConf.DBType)
 	} else {
 		valueConverter, err = dbzm.NewNoOpValueConverter()
 	}
@@ -478,7 +479,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("failed to get table unique key columns map: %s", err)
 			}
-			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole)
+			valueConverter, err = dbzm.NewValueConverter(exportDir, tdb, tconf, importerRole, source.DBType)
 			if err != nil {
 				utils.ErrExit("Failed to create value converter: %s", err)
 			}
@@ -1142,7 +1143,8 @@ func init() {
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
-
+	registerFlagsForTarget(importDataCmd)
+	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)
 	registerCommonGlobalFlags(importDataToTargetCmd)
 	registerCommonImportFlags(importDataCmd)

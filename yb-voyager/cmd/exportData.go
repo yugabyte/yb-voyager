@@ -31,7 +31,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"golang.org/x/exp/slices"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -179,24 +178,14 @@ func exportData() bool {
 		}
 		if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
 			// pg live migration. Steps are as follows:
-			// 1. create replication slot.
+			// 1. create publication, replication slot.
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
-			// 3. start debezium with configration to read changes from the created replication slot.
+			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList)
 				if err != nil {
 					log.Errorf("export snapshot failed: %v", err)
-					return false
-				}
-
-				// updating the MSR with PGPublicationName
-				err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-					PGPublicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
-					record.PGPublicationName = PGPublicationName
-				})
-				if err != nil {
-					log.Errorf("update PGPublicationName: update migration status record: %v", err)
 					return false
 				}
 			}
@@ -222,7 +211,6 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -291,7 +279,15 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 			log.Errorf("close replication connection: %v", err)
 		}
 	}()
-	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, migrationUUID, true)
+	// Note: publication object needs to be created before replication slot
+	// https://www.postgresql.org/message-id/flat/e0885261-5723-7bab-f541-e6a260f50328%402ndquadrant.com#a5f257b667575719ad98c59281f3e191
+	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
+	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true)
+	if err != nil {
+		return fmt.Errorf("create publication: %v", err)
+	}
+	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
+	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
@@ -302,10 +298,11 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 		return err
 	}
 
-	// save replication slot in MSR
+	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.PGReplicationSlotName = res.SlotName
 		record.SnapshotMechanism = "pg_dump"
+		record.PGPublicationName = publicationName
 	})
 	if err != nil {
 		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
@@ -350,6 +347,35 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
+func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
+	//report Partitions or case sensitive tables
+	var caseSensitiveTables []string
+	var partitionedTables []string
+	for _, table := range finalTableList {
+		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+		} 
+		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+			if len(source.DB().GetPartitions(table)) > 0 {
+				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			}
+		} else {
+			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+		}
+	}
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+		return
+	}
+	if len(caseSensitiveTables) > 0 {
+		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
+	}
+	if len(partitionedTables) > 0 {	
+		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
+}
+
+
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
@@ -362,6 +388,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		reportUnsupportedTables(finalTableList)
+	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
 
 	if !changeStreamingIsEnabled(exportType) {

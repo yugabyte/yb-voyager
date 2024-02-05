@@ -50,8 +50,8 @@ func setTargetConfSpecifics(cmd *cobra.Command) {
 		if cmd.Flags().Lookup("source-replica-db-schema").Changed {
 			utils.ErrExit("cannot specify --source-replica-db-schema for PostgreSQL source")
 		} else {
-			tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"),",")
-		} 
+			tconf.Schema = strings.Join(strings.Split(sconf.Schema, "|"), ",")
+		}
 	}
 }
 
@@ -60,9 +60,18 @@ func init() {
 	registerCommonGlobalFlags(importDataToSourceReplicaCmd)
 	registerCommonImportFlags(importDataToSourceReplicaCmd)
 	registerSourceReplicaDBAsTargetConnFlags(importDataToSourceReplicaCmd)
+	registerFlagsForSourceReplica(importDataToSourceReplicaCmd)
+	registerStartCleanFlag(importDataToSourceReplicaCmd)
 	registerImportDataCommonFlags(importDataToSourceReplicaCmd)
-	registerImportDataFlags(importDataToSourceReplicaCmd)
 	hideImportFlagsInFallForwardOrBackCmds(importDataToSourceReplicaCmd)
+}
+
+func registerStartCleanFlag(cmd *cobra.Command) {
+	BoolVar(cmd.Flags(), &startClean, "start-clean", false,
+		`Starts a fresh import with exported data files present in the export-dir/data directory. 
+If any table on source-replica database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
+If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files without upsert mode.
+Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
 }
 
 func updateFallForwardEnabledInMetaDB() {

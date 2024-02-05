@@ -108,7 +108,6 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
-
 	config := &dbzm.Config{
 		RunId:          runId,
 		SourceDBType:   source.DBType,
@@ -136,6 +135,7 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		SSLTrustStore:         source.SSLTrustStore,
 		SSLTrustStorePassword: source.SSLTrustStorePassword,
 		SnapshotMode:          snapshotMode,
+		TransactionOrdering:   transactionOrdering,
 	}
 	if source.DBType == "oracle" {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"
@@ -472,6 +472,24 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 	}
 
 	if changeStreamingIsEnabled(exportType) {
+		if isTargetDBExporter(exporterRole) {
+			utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
+			// only events received after yb cdc initialization will be emitted by debezium.
+			// Therefore, we sleep to allow yb cdc connector to initialize and only then mark the cutover to be complete.
+			// Ideally, we should have a more reliable way to determine that init is complete. This is a temp solution.
+			time.Sleep(2 * time.Minute)
+			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+					record.ExportFromTargetFallBackStarted = true
+				} else {
+					record.ExportFromTargetFallForwardStarted = true
+				}
+
+			})
+			if err != nil {
+				utils.ErrExit("failed to update migration status record for export data from target start: %v", err)
+			}
+		}
 		color.Blue("streaming changes to a local queue file...")
 		if !disablePb {
 			go reportStreamingProgress()
