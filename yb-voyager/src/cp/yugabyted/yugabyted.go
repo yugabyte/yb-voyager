@@ -17,6 +17,7 @@ package yugabyted
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -47,7 +48,7 @@ func New(exportDir string) *YugabyteD {
 	return &YugabyteD{migrationDirectory: exportDir}
 }
 
-// Initialize the target DB for visualisation metadata
+// Initialize the yugabyted DB for visualisation metadata
 func (cp *YugabyteD) Init() error {
 
 	cp.eventChan = make(chan MigrationEvent, 100)
@@ -271,7 +272,7 @@ func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationE
 func (cp *YugabyteD) panicHandler() {
 	if r := recover(); r != nil {
 		// Handle the panic for eventPublishers
-		log.Errorf(fmt.Sprintf("Panic occurred:%v\n"+
+		log.Errorf(fmt.Sprintf("Panic occurred: %v. No further events will be published to YugabyteD DB.\n"+
 			"Stack trace of panic location:\n%s", r, string(debug.Stack())))
 	}
 }
@@ -295,10 +296,10 @@ func (cp *YugabyteD) reconnect() error {
 		if err == nil {
 			return nil
 		}
-		log.Infof("Failed to reconnect to the target database: %s", err)
+		log.Infof("Failed to reconnect to the yugabyted database: %s", err)
 		time.Sleep(time.Second)
 	}
-	return fmt.Errorf("reconnect to target db: %w", err)
+	return fmt.Errorf("reconnect to yugabyted db: %w", err)
 }
 
 func (cp *YugabyteD) connect() error {
@@ -309,7 +310,7 @@ func (cp *YugabyteD) connect() error {
 
 	connPool, err := pgxpool.Connect(context.Background(), connectionUri)
 	if err != nil {
-		return fmt.Errorf("Error while connecting to YugabyteD DB. Error: %w", err)
+		return fmt.Errorf("error while connecting to yugabyted db. error: %w", err)
 	}
 
 	cp.connPool = connPool
@@ -409,9 +410,9 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 		WHERE migration_uuid = '%s' AND migration_phase = %d`, YUGABYTED_METADATA_TABLE_NAME,
 		mUUID, phase)
 
-	log.Infof("Executing on target DB: [%s]", cmd)
+	log.Infof("Executing on yugabyted DB: [%s]", cmd)
 
-	var latestSequence *int
+	var latestSequence *sql.NullInt32
 	connPool, err := cp.getConnPool()
 	if err != nil {
 		return 0, err
@@ -427,8 +428,8 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 		}
 	}
 
-	if latestSequence != nil {
-		cp.latestInvocationSequence = *latestSequence + 1
+	if latestSequence.Valid {
+		cp.latestInvocationSequence = int(latestSequence.Int32) + 1
 		return cp.latestInvocationSequence, nil
 	} else {
 		cp.latestInvocationSequence = 1
@@ -464,8 +465,8 @@ func (cp *YugabyteD) sendMigrationEvent(
 			break
 		} else {
 			if attempt == maxAttempts {
-				return fmt.Errorf("Error while Migration Event Data to YugabyteD for %d max attempts"+
-					" Query: %s. Migration Event Data: %v. Error: %w", maxAttempts, cmd, migrationEvent, err)
+				return fmt.Errorf("error while sending migration event data to yugabyted for %d max attempts"+
+					" query: %s. migration event data: %v. error: %w", maxAttempts, cmd, migrationEvent, err)
 			}
 		}
 
@@ -527,7 +528,7 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 
 	var err error
 
-	log.Infof("Executing on target DB: [%s] for [%+v]", cmd, migrationEvent)
+	log.Infof("Executing on yugabyted DB: [%s] for [%+v]", cmd, migrationEvent)
 	connPool, err := cp.getConnPool()
 	if err != nil {
 		return err
@@ -552,17 +553,17 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 	time.Sleep(time.Second)
 	err2 := cp.reconnect()
 	if err2 != nil {
-		log.Warnf("Failed to reconnect to the target database: %s", err2)
+		log.Warnf("Failed to reconnect to the yugabyted database: %s", err2)
 	}
 
 	if err != nil {
-		return fmt.Errorf("couldn't excute command %s on target db. error: %w", cmd, err)
+		return fmt.Errorf("couldn't excute command %s on yugabyted db. error: %w", cmd, err)
 	}
 
 	return nil
 }
 
-// Function to execute any cmd on target DB.
+// Function to execute any cmd on yugabyted DB.
 func (cp *YugabyteD) executeCmdOnTarget(cmd string) error {
 	maxAttempts := 5
 	var err error
@@ -582,12 +583,12 @@ func (cp *YugabyteD) executeCmdOnTarget(cmd string) error {
 		time.Sleep(time.Second)
 		err2 := cp.reconnect()
 		if err2 != nil {
-			log.Warnf("Failed to reconnect to the target database: %s", err2)
+			log.Warnf("Failed to reconnect to the yugabyted database: %s", err2)
 			break
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("couldn't excute command %s on target db. error: %w", cmd, err)
+		return fmt.Errorf("couldn't excute command %s on yugabyted db. error: %w", cmd, err)
 	}
 	return nil
 }

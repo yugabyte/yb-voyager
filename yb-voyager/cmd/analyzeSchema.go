@@ -1114,7 +1114,7 @@ func analyzeSchema() {
 
 	callhome.PackAndSendPayload(exportDir)
 
-	schemaAnalysisReport := createSchemaAnalysisReport(reportStruct)
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(reportStruct)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
@@ -1162,7 +1162,7 @@ func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
 	return result
 }
 
-func createSchemaAnalysisReport(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
+func createSchemaAnalysisIterationCompletedEvent(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
 	result := cp.SchemaAnalysisIterationCompletedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	result.AnalysisReport = report
