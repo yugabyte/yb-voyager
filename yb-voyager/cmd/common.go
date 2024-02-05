@@ -346,8 +346,8 @@ func initMetaDB() {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
-		utils.ErrExit("One yb-voyager version is recommended for an export-dir to avoid any issues.\n" +
-	"Please use the same version for this export-dir or use another export-dir for changed version.")
+		utils.ErrExit("It is recommended to use a single yb-voyager version for each export-dir to prevent any issues.\n" +
+		"Please maintain the same version for this export-dir, or use a different export-dir if you need to change the version.")
 	}
 }
 
