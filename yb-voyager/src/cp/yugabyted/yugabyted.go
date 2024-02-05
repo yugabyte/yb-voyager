@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -33,12 +34,11 @@ import (
 
 type YugabyteD struct {
 	sync.Mutex
-	sync.RWMutex
 	migrationDirectory       string
 	waitGroup                sync.WaitGroup
 	eventChan                chan (MigrationEvent)
 	rowCountUpdateEventChan  chan ([]VisualizerTableMetrics)
-	conn                     *pgxpool.Pool
+	connPool                 *pgxpool.Pool
 	lastRowCountUpdate       map[string]time.Time
 	latestInvocationSequence int
 }
@@ -86,7 +86,6 @@ func (cp *YugabyteD) eventPublisher() {
 		if err != nil {
 			log.Warnf("Couldn't send metadata for visualization. %s", err)
 		}
-		log.Warnf("WaitGroup Done")
 		cp.waitGroup.Done()
 	}
 }
@@ -127,15 +126,19 @@ func (cp *YugabyteD) createAndSendEvent(event *controlPlane.BaseEvent, status st
 		InvocationTimestamp: timestamp,
 	}
 
-	cp.waitGroup.Add(1)
-	cp.eventChan <- migrationEvent
+	select {
+	case cp.eventChan <- migrationEvent:
+		cp.waitGroup.Add(1)
+	default:
+		log.Warnf("Could not publish migration event %v", migrationEvent)
+	}
 }
 
 func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.BaseUpdateRowCountEvent) {
 
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 
-	var snapshotMigrateAllTableMetrics []VisualizerTableMetrics
+	var rowCountUpdateEvent []VisualizerTableMetrics
 
 	for _, event := range events {
 		snapshotMigrateTableMetrics := VisualizerTableMetrics{
@@ -149,12 +152,16 @@ func (cp *YugabyteD) createAndSendUpdateRowCountEvent(events []*controlPlane.Bas
 			InvocationTimestamp: timestamp,
 		}
 
-		snapshotMigrateAllTableMetrics = append(snapshotMigrateAllTableMetrics,
+		rowCountUpdateEvent = append(rowCountUpdateEvent,
 			snapshotMigrateTableMetrics)
 	}
 
-	cp.waitGroup.Add(1)
-	cp.rowCountUpdateEventChan <- snapshotMigrateAllTableMetrics
+	select {
+	case cp.rowCountUpdateEventChan <- rowCountUpdateEvent:
+		cp.waitGroup.Add(1)
+	default:
+		log.Warnf("Could not publish row count update event %v", rowCountUpdateEvent)
+	}
 }
 
 func (cp *YugabyteD) ExportSchemaStarted(exportSchemaEvent *controlPlane.ExportSchemaStartedEvent) {
@@ -174,7 +181,8 @@ func (cp *YugabyteD) SchemaAnalysisIterationCompleted(schemaAnalysisReport *cont
 
 	jsonBytes, err := json.Marshal(schemaAnalysisReport.AnalysisReport)
 	if err != nil {
-		panic(err)
+		log.Warnf("%v", err)
+		return
 	}
 	payload := string(jsonBytes)
 
@@ -192,25 +200,22 @@ func (cp *YugabyteD) SnapshotExportCompleted(snapshotExportEvent *controlPlane.S
 func (cp *YugabyteD) UpdateExportedRowCount(
 	snapshotExportTablesMetrics []*controlPlane.UpdateExportedRowCountEvent) {
 
+	cp.Mutex.Lock()
+	defer cp.Mutex.Unlock()
+
 	var updateExportedRowCountEvents []*controlPlane.BaseUpdateRowCountEvent
 	for _, updateExportedRowCountEvent := range snapshotExportTablesMetrics {
 
-		cp.RWMutex.RLock()
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName]
-		cp.RWMutex.RUnlock()
 
 		if updateExportedRowCountEvent.Status == "COMPLETED" {
 			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
-			cp.RWMutex.Lock()
 			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
-			cp.RWMutex.Unlock()
 
 			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !lastRowCountUpdateTime.Add(time.Second * 5).After(time.Now()) {
-			cp.RWMutex.Lock()
 			cp.lastRowCountUpdate[updateExportedRowCountEvent.TableName] = time.Now()
-			cp.RWMutex.Unlock()
 
 			updateExportedRowCountEvents = append(updateExportedRowCountEvents, &updateExportedRowCountEvent.BaseUpdateRowCountEvent)
 		}
@@ -238,26 +243,21 @@ func (cp *YugabyteD) SnapshotImportCompleted(snapshotImportEvent *controlPlane.S
 func (cp *YugabyteD) UpdateImportedRowCount(
 	snapshotImportTableMetrics []*controlPlane.UpdateImportedRowCountEvent) {
 
+	cp.Mutex.Lock()
+	defer cp.Mutex.Unlock()
+
 	var updateImportedRowCountEvents []*controlPlane.BaseUpdateRowCountEvent
 	for _, updateImportedRowCountEvent := range snapshotImportTableMetrics {
 
-		cp.RWMutex.RLock()
 		lastRowCountUpdateTime, check := cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName]
-		cp.RWMutex.RUnlock()
 
 		if updateImportedRowCountEvent.Status == "COMPLETED" {
 			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !check {
-			cp.RWMutex.Lock()
 			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
-			cp.RWMutex.Unlock()
-
 			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
 		} else if !lastRowCountUpdateTime.Add(time.Second * 5).After(time.Now()) {
-			cp.RWMutex.Lock()
 			cp.lastRowCountUpdate[updateImportedRowCountEvent.TableName] = time.Now()
-			cp.RWMutex.Unlock()
-
 			updateImportedRowCountEvents = append(updateImportedRowCountEvents, &updateImportedRowCountEvent.BaseUpdateRowCountEvent)
 		}
 
@@ -271,19 +271,20 @@ func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationE
 func (cp *YugabyteD) panicHandler() {
 	if r := recover(); r != nil {
 		// Handle the panic for eventPublishers
-		log.Warnf(fmt.Sprintf("Panic occurred:%v", r))
+		log.Errorf(fmt.Sprintf("Panic occurred:%v\n"+
+			"Stack trace of panic location:\n%s", r, string(debug.Stack())))
 	}
 }
 
-func (cp *YugabyteD) getConn() (*pgxpool.Pool, error) {
+func (cp *YugabyteD) getConnPool() (*pgxpool.Pool, error) {
 	var err error
 	err = nil
-	if cp.conn == nil {
-		err = fmt.Errorf("called visualizer_yugabyte_db.get_conn() " +
-			"before visualizer_yugabyte_db.connect()")
+	if cp.connPool == nil {
+		log.Warnf("No Connections to YugabyteD DB found. Creating a connection pool...")
+		err = cp.connect()
 	}
 
-	return cp.conn, err
+	return cp.connPool, err
 }
 
 func (cp *YugabyteD) reconnect() error {
@@ -301,30 +302,30 @@ func (cp *YugabyteD) reconnect() error {
 }
 
 func (cp *YugabyteD) connect() error {
-	if cp.conn != nil {
+	if cp.connPool != nil {
 		return nil
 	}
 	connectionUri := os.Getenv("YUGABYTED_DB_CONN_STRING")
 
-	conn, err := pgxpool.Connect(context.Background(), connectionUri)
+	connPool, err := pgxpool.Connect(context.Background(), connectionUri)
 	if err != nil {
-		return fmt.Errorf("connect to target db: %w", err)
+		return fmt.Errorf("Error while connecting to YugabyteD DB. Error: %w", err)
 	}
 
-	cp.conn = conn
+	cp.connPool = connPool
 	return nil
 }
 
 func (cp *YugabyteD) disconnect() {
-	if cp.conn == nil {
+	if cp.connPool == nil {
 		return
 	}
 
-	cp.conn.Close()
-	cp.conn = nil
+	cp.connPool.Close()
+	cp.connPool = nil
 }
 
-const BATCH_METADATA_TABLE_SCHEMA = "ybvoyager_visualizer"
+const VISUALIZER_METADATA_SCHEMA = "ybvoyager_visualizer"
 
 // Set-up YBD database for visualisation metadata
 func (cp *YugabyteD) setupDatabase() error {
@@ -348,17 +349,12 @@ func (cp *YugabyteD) setupDatabase() error {
 
 // Create the visualisation schema
 func (cp *YugabyteD) createVoyagerSchema() error {
-	cmd := fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA)
+	cmd := fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, VISUALIZER_METADATA_SCHEMA)
 
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cp.executeCmdOnTarget(cmd)
 }
 
-const YUGABYTED_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_visualizer_metadata"
+const YUGABYTED_METADATA_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_metadata"
 
 // Create visualisation metadata table
 func (cp *YugabyteD) createYugabytedMetadataTable() error {
@@ -377,15 +373,10 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 			PRIMARY KEY (migration_uuid, migration_phase, invocation_sequence)
 			);`, YUGABYTED_METADATA_TABLE_NAME)
 
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cp.executeCmdOnTarget(cmd)
 }
 
-const YUGABYTED_TABLE_METRICS_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_visualizer_table_metrics"
+const YUGABYTED_TABLE_METRICS_TABLE_NAME = VISUALIZER_METADATA_SCHEMA + "." + "ybvoyager_visualizer_table_metrics"
 
 // Create table metrics table
 func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
@@ -401,12 +392,7 @@ func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
 			PRIMARY KEY (migration_uuid, table_name, migration_phase, schema_name)
 			);`, YUGABYTED_TABLE_METRICS_TABLE_NAME)
 
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cp.executeCmdOnTarget(cmd)
 }
 
 // Get the latest invocation sequence for a given migration_uuid and migration phase
@@ -426,12 +412,12 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 	log.Infof("Executing on target DB: [%s]", cmd)
 
 	var latestSequence *int
-	conn, err := cp.getConn()
+	connPool, err := cp.getConnPool()
 	if err != nil {
 		return 0, err
 	}
 
-	err = conn.QueryRow(context.Background(), cmd).Scan(&latestSequence)
+	err = connPool.QueryRow(context.Background(), cmd).Scan(&latestSequence)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			cp.latestInvocationSequence = 1
@@ -478,21 +464,12 @@ func (cp *YugabyteD) sendMigrationEvent(
 			break
 		} else {
 			if attempt == maxAttempts {
-				return err
+				return fmt.Errorf("Error while Migration Event Data to YugabyteD for %d max attempts"+
+					" Query: %s. Migration Event Data: %v. Error: %w", maxAttempts, cmd, migrationEvent, err)
 			}
 		}
 
-		invocationSequence, err := cp.getInvocationSequence(migrationEvent.MigrationUUID,
-			migrationEvent.MigrationPhase)
-
-		if err != nil {
-			log.Warnf("Cannot get invocation sequence for visualization metadata. %s", err)
-			return err
-		}
-
 		timestamp := time.Now().Format("2006-01-02 15:04:05")
-
-		migrationEvent.InvocationSequence = invocationSequence
 		migrationEvent.InvocationTimestamp = timestamp
 	}
 
@@ -515,16 +492,16 @@ func (cp *YugabyteD) sendVisualizerTableMetrics(
 		") VALUES ", YUGABYTED_TABLE_METRICS_TABLE_NAME)
 
 	var valuesList []string
-	for _, visualizerTableMetrics := range visualizerTableMetricsList {
+	for _, metrics := range visualizerTableMetricsList {
 		value := fmt.Sprintf("('%s', '%s', '%s', %d, %d, %d, %d, '%s')",
-			visualizerTableMetrics.MigrationUUID,
-			visualizerTableMetrics.TableName,
-			visualizerTableMetrics.Schema,
-			visualizerTableMetrics.MigrationPhase,
-			visualizerTableMetrics.Status,
-			visualizerTableMetrics.CountLiveRows,
-			visualizerTableMetrics.CountTotalRows,
-			visualizerTableMetrics.InvocationTimestamp)
+			metrics.MigrationUUID,
+			metrics.TableName,
+			metrics.Schema,
+			metrics.MigrationPhase,
+			metrics.Status,
+			metrics.CountLiveRows,
+			metrics.CountTotalRows,
+			metrics.InvocationTimestamp)
 
 		valuesList = append(valuesList, value)
 	}
@@ -539,12 +516,7 @@ func (cp *YugabyteD) sendVisualizerTableMetrics(
 		"count_total_rows = EXCLUDED.count_total_rows," +
 		"invocation_timestamp = EXCLUDED.invocation_timestamp;")
 
-	err := cp.executeCmdOnTarget(cmd)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return cp.executeCmdOnTarget(cmd)
 }
 
 func (cp *YugabyteD) executeInsertQuery(cmd string,
@@ -556,12 +528,12 @@ func (cp *YugabyteD) executeInsertQuery(cmd string,
 	var err error
 
 	log.Infof("Executing on target DB: [%s] for [%+v]", cmd, migrationEvent)
-	conn, err := cp.getConn()
+	connPool, err := cp.getConnPool()
 	if err != nil {
 		return err
 	}
 
-	_, err = conn.Exec(context.Background(), cmd,
+	_, err = connPool.Exec(context.Background(), cmd,
 		migrationEvent.MigrationUUID,
 		migrationEvent.MigrationPhase,
 		migrationEvent.InvocationSequence,
@@ -596,13 +568,13 @@ func (cp *YugabyteD) executeCmdOnTarget(cmd string) error {
 	var err error
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		log.Infof("Executing on target DB: [%s]", cmd)
-		conn, err := cp.getConn()
+		log.Infof("Executing on YugabyteD DB: [%s]", cmd)
+		connPool, err := cp.getConnPool()
 		if err != nil {
 			return err
 		}
 
-		_, err = conn.Exec(context.Background(), cmd)
+		_, err = connPool.Exec(context.Background(), cmd)
 		if err == nil {
 			return nil
 		}

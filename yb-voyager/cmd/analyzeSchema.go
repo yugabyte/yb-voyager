@@ -1165,5 +1165,6 @@ func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
 func createSchemaAnalysisReport(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
 	result := cp.SchemaAnalysisIterationCompletedEvent{}
 	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
+	result.AnalysisReport = report
 	return result
 }
