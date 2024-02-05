@@ -22,7 +22,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var uniqueKeyColumnsExists utils.BoolStr
+var transactionOrdering utils.BoolStr
 
 var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
@@ -59,11 +59,8 @@ func init() {
 	registerExportDataFlags(exportDataFromTargetCmd)
 	hideExportFlagsInFallForwardOrBackCmds(exportDataFromTargetCmd)
 
-	BoolVar(exportDataFromTargetCmd.Flags(), &uniqueKeyColumnsExists, "unique-key-columns-exists", true,
-		"Set to true if the target DB has unique key columns."+
-			"Note: This will impact the performance of events streaming from target DB because of transaction ordering enabled(mandatory to resolve conflicting events)\n"+
-			"Set to false if the unique key columns does not exists in the target tables for higher throughput.\n"+
-			"To learn more about conflict resolution by voyager, Refer: https://github.com/yugabyte/yb-voyager/blob/main/yb-voyager/cmd/conflictDetectionCache.go\n")
+	BoolVar(exportDataFromTargetCmd.Flags(), &transactionOrdering, "transaction-ordering", true,
+		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
 func initSourceConfFromTargetConf() error {

@@ -126,16 +126,16 @@ func prepareDebeziumConfig(tableList []*sqlname.SourceName, tablesColumnList map
 		ColumnSequenceMapping: columnSequenceMapping,
 		TableRenameMapping:    tableRenameMapping,
 
-		SSLMode:                source.SSLMode,
-		SSLCertPath:            source.SSLCertPath,
-		SSLKey:                 source.SSLKey,
-		SSLRootCert:            source.SSLRootCert,
-		SSLKeyStore:            source.SSLKeyStore,
-		SSLKeyStorePassword:    source.SSLKeyStorePassword,
-		SSLTrustStore:          source.SSLTrustStore,
-		SSLTrustStorePassword:  source.SSLTrustStorePassword,
-		SnapshotMode:           snapshotMode,
-		UniqueKeyColumnsExists: uniqueKeyColumnsExists,
+		SSLMode:               source.SSLMode,
+		SSLCertPath:           source.SSLCertPath,
+		SSLKey:                source.SSLKey,
+		SSLRootCert:           source.SSLRootCert,
+		SSLKeyStore:           source.SSLKeyStore,
+		SSLKeyStorePassword:   source.SSLKeyStorePassword,
+		SSLTrustStore:         source.SSLTrustStore,
+		SSLTrustStorePassword: source.SSLTrustStorePassword,
+		SnapshotMode:          snapshotMode,
+		TransactionOrdering:   transactionOrdering,
 	}
 	if source.DBType == "oracle" {
 		jdbcConnectionStringPrefix := "jdbc:oracle:thin:@"

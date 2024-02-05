@@ -53,20 +53,20 @@ type Config struct {
 	TNSAdmin                    string
 	OracleJDBCWalletLocationSet bool
 
-	SSLMode                string
-	SSLCertPath            string
-	SSLKey                 string
-	SSLRootCert            string
-	SSLKeyStore            string
-	SSLKeyStorePassword    string
-	SSLTrustStore          string
-	SSLTrustStorePassword  string
-	YBStreamID             string
-	YBMasterNodes          string
-	SnapshotMode           string
-	ReplicationSlotName    string
-	PublicationName        string
-	UniqueKeyColumnsExists utils.BoolStr
+	SSLMode               string
+	SSLCertPath           string
+	SSLKey                string
+	SSLRootCert           string
+	SSLKeyStore           string
+	SSLKeyStorePassword   string
+	SSLTrustStore         string
+	SSLTrustStorePassword string
+	YBStreamID            string
+	YBMasterNodes         string
+	SnapshotMode          string
+	ReplicationSlotName   string
+	PublicationName       string
+	TransactionOrdering   utils.BoolStr
 }
 
 var baseConfigTemplate = `
@@ -320,7 +320,7 @@ func (c *Config) String() string {
 			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
 		}
 
-		if c.UniqueKeyColumnsExists {
+		if c.TransactionOrdering {
 			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
 		}
 	case "oracle":
