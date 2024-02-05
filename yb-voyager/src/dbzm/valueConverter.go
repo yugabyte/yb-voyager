@@ -192,7 +192,7 @@ func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName str
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
-		if eventSchema != "public" {
+		if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
 			targetTableName = fmt.Sprintf("%s.%s", eventSchema, tableName)
 		}
 		schemaRegistry = conv.schemaRegistryTarget
