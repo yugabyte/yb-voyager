@@ -31,6 +31,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -1041,6 +1042,10 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	reportFile := "schema_analysis_report." + outputFormat
+
+	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
+	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
+
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
 
 	if !schemaIsExported() {
@@ -1050,6 +1055,7 @@ func analyzeSchema() {
 	analyzeSchemaInternal()
 
 	var finalReport string
+
 	switch outputFormat {
 	case "html":
 		htmlReport := generateHTMLReport(reportStruct)
@@ -1107,6 +1113,9 @@ func analyzeSchema() {
 	}
 
 	callhome.PackAndSendPayload(exportDir)
+
+	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(reportStruct)
+	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
 var analyzeSchemaCmd = &cobra.Command{
@@ -1145,4 +1154,17 @@ func validateReportOutputFormat() {
 func schemaIsAnalyzed() bool {
 	path := filepath.Join(exportDir, "reports", "schema_analysis_report.*")
 	return utils.FileOrFolderExistsWithGlobPattern(path)
+}
+
+func createSchemaAnalysisStartedEvent() cp.SchemaAnalysisStartedEvent {
+	result := cp.SchemaAnalysisStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
+	return result
+}
+
+func createSchemaAnalysisIterationCompletedEvent(report utils.Report) cp.SchemaAnalysisIterationCompletedEvent {
+	result := cp.SchemaAnalysisIterationCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
+	result.AnalysisReport = report
+	return result
 }

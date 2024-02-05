@@ -37,6 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -370,6 +371,12 @@ func importData(importFileTasks []*ImportFileTask) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		importDataStartEvent := createSnapshotImportStartedEvent()
+		controlPlane.SnapshotImportStarted(&importDataStartEvent)
+	}
+
 	payload := callhome.GetPayload(exportDir, migrationUUID)
 	updateTargetConfInMigrationStatus()
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -444,6 +451,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
+
+			if importerRole == TARGET_DB_IMPORTER_ROLE {
+				importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
+				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
+			}
+
 			for _, task := range pendingTasks {
 				// The code can produce `poolSize` number of batches at a time. But, it can consume only
 				// `parallelism` number of batches at a time.
@@ -453,12 +466,32 @@ func importData(importFileTasks []*ImportFileTask) {
 				progressReporter.ImportFileStarted(task, totalProgressAmount)
 				importedProgressAmount := getImportedProgressAmount(task, state)
 				progressReporter.AddProgressAmount(task, importedProgressAmount)
+
+				var currentProgress int64
 				updateProgressFn := func(progressAmount int64) {
+					currentProgress += progressAmount
 					progressReporter.AddProgressAmount(task, progressAmount)
+
+					if importerRole == TARGET_DB_IMPORTER_ROLE && totalProgressAmount > currentProgress {
+						importDataTableMetrics := createImportDataTableMetrics(task.TableName,
+							currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
+						// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
+						controlPlane.UpdateImportedRowCount(
+							[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+					}
 				}
+
 				importFile(state, task, updateProgressFn)
-				batchImportPool.Wait()                // Wait for the file import to finish.
-				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.
+				batchImportPool.Wait() // Wait for the file import to finish.
+
+				if importerRole == TARGET_DB_IMPORTER_ROLE {
+					importDataTableMetrics := createImportDataTableMetrics(task.TableName,
+						currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
+					controlPlane.UpdateImportedRowCount(
+						[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+				}
+
+				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
 			time.Sleep(time.Second * 2)
 		}
@@ -519,6 +552,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	}
 
 	fmt.Printf("\nImport data complete.\n")
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		importDataCompletedEvent := createSnapshotImportCompletedEvent()
+		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
+	}
 }
 
 func disableGeneratedAlwaysAsIdentityColumns(tables []string) {
@@ -1157,4 +1195,74 @@ func init() {
 	registerImportDataCommonFlags(importDataToTargetCmd)
 	registerImportDataFlags(importDataCmd)
 	registerImportDataFlags(importDataToTargetCmd)
+}
+
+func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {
+	result := cp.SnapshotImportStartedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
+	return result
+}
+
+func createSnapshotImportCompletedEvent() cp.SnapshotImportCompletedEvent {
+
+	result := cp.SnapshotImportCompletedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT DATA")
+	return result
+}
+
+func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateImportedRowCountEvent {
+
+	result := []*cp.UpdateImportedRowCountEvent{}
+
+	for _, task := range tasks {
+
+		var schemaName, tableName string
+		if strings.Count(task.TableName, ".") == 1 {
+			schemaName, tableName = cp.SplitTableNameForPG(task.TableName)
+		} else {
+			schemaName, tableName = tconf.Schema, task.TableName
+		}
+		tableMetrics := cp.UpdateImportedRowCountEvent{
+			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+				BaseEvent: cp.BaseEvent{
+					EventType:     "IMPORT DATA",
+					MigrationUUID: migrationUUID,
+					SchemaNames:   []string{schemaName},
+				},
+				TableName:         tableName,
+				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[ROW_UPDATE_STATUS_NOT_STARTED],
+				TotalRowCount:     getTotalProgressAmount(task),
+				CompletedRowCount: 0,
+			},
+		}
+		result = append(result, &tableMetrics)
+	}
+
+	return result
+}
+
+func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
+	status int) cp.UpdateImportedRowCountEvent {
+
+	var schemaName, tableName2 string
+	if strings.Count(tableName, ".") == 1 {
+		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
+	} else {
+		schemaName, tableName2 = tconf.Schema, tableName
+	}
+	result := cp.UpdateImportedRowCountEvent{
+		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+			BaseEvent: cp.BaseEvent{
+				EventType:     "IMPORT DATA",
+				MigrationUUID: migrationUUID,
+				SchemaNames:   []string{schemaName},
+			},
+			TableName:         tableName2,
+			Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[status],
+			TotalRowCount:     countTotalRows,
+			CompletedRowCount: countLiveRows,
+		},
+	}
+
+	return result
 }

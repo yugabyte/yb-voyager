@@ -161,12 +161,12 @@ func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 }
 
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
-	err := conv.convertMap(table, ev.Key, ev.ExporterRole, formatIfRequired)
+	err := conv.convertMap(ev.SchemaName, table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event key: %w", err)
 	}
 
-	err = conv.convertMap(table, ev.Fields, ev.ExporterRole, formatIfRequired)
+	err = conv.convertMap(ev.SchemaName, table, ev.Fields, ev.ExporterRole, formatIfRequired)
 	if err != nil {
 		return fmt.Errorf("convert event fields: %w", err)
 	}
@@ -186,11 +186,15 @@ func checkSourceExporter(exporterRole string) bool {
 	return exporterRole == "source_db_exporter"
 }
 
-func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
+func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
 	var schemaRegistry *SchemaRegistry
+	tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
 	} else {
+		if conv.sourceDBType != "postgresql" && eventSchema != "public" { // In case of non-PG source and target-db-schema is non-public
+			tableNameInSchemaRegistry = fmt.Sprintf("%s.%s", eventSchema, tableName)
+		}
 		schemaRegistry = conv.schemaRegistryTarget
 	}
 	for column, value := range m {
@@ -198,7 +202,7 @@ func (conv *DebeziumValueConverter) convertMap(tableName string, m map[string]*s
 			continue
 		}
 		columnValue := *value
-		colType, err := schemaRegistry.GetColumnType(tableName, column, conv.shouldFormatAsPerSourceDatatypes())
+		colType, err := schemaRegistry.GetColumnType(tableNameInSchemaRegistry, column, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return fmt.Errorf("fetch column schema: %w", err)
 		}
