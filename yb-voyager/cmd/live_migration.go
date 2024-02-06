@@ -27,6 +27,7 @@ import (
 	"time"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -86,11 +87,12 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
 	log.Info("initializing conflict detection cache")
-	tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
+	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB()
+	// tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
 	if err != nil {
 		return fmt.Errorf("get table unique key columns map: %s", err)
 	}
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans)
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBType)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
@@ -207,6 +209,7 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
+	log.Infof("uniqueKeyCols for table %s: %v", tableName, uniqueKeyCols)
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -315,4 +318,17 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			chanNo, len(batch), time.Since(start).String())
 	}
 	done <- true
+}
+
+func getTableToUniqueKeyColumnsMapFromMetaDB() (map[string][]string, error) {
+	var res map[string][]string
+	found, err := metaDB.GetJsonObject(nil, metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, &res)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
+	}
+	log.Infof("Table to unique key columns map: %v", res)
+	return res, nil
 }

@@ -218,7 +218,7 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
-		saveTableToUniqueKeyColumnsMappingInMetaDB(finalTableList)
+		saveTableToUniqueKeyColumnsMapInMetaDB(finalTableList)
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -821,6 +821,14 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	return result
 }
 
-func saveTableToUniqueKeyColumnsMappingInMetaDB(finalTableList []*sqlname.SourceName) {
-	source.DB().GetTableToUniqueKeyColumnsMap(finalTableList)
+func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []*sqlname.SourceName) {
+	res, err := source.DB().GetTableToUniqueKeyColumnsMap(tableList)
+	if err != nil {
+		utils.ErrExit("get table to unique key columns map: %v", err)
+	}
+
+	err = metaDB.InsertJsonObject(nil, metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, res)
+	if err != nil {
+		utils.ErrExit("insert table to unique key columns map: %v", err)
+	}
 }

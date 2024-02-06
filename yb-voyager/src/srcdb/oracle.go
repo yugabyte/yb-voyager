@@ -450,7 +450,7 @@ func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.Sourc
 	panic("not implemented")
 }
 
-func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
 	result := make(map[string][]string)
 	queryTemplate := `
 		SELECT TABLE_NAME, COLUMN_NAME
@@ -459,9 +459,16 @@ func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string
 			SELECT CONSTRAINT_NAME
 			FROM ALL_CONSTRAINTS
 			WHERE CONSTRAINT_TYPE = 'U'
+			AND OWNER = '%s'
 			AND TABLE_NAME IN ('%s')
 		)`
-	query := fmt.Sprintf(queryTemplate, strings.Join(tableList, "','"))
+
+	var queryTableList []string
+	for _, table := range tableList {
+		queryTableList = append(queryTableList, table.ObjectName.Unquoted)
+	}
+	query := fmt.Sprintf(queryTemplate, ora.source.Schema, strings.Join(queryTableList, "','"))
+	log.Infof("query to get unique key columns for tables: %q", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
