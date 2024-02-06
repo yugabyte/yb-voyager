@@ -209,7 +209,6 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
-	log.Infof("uniqueKeyCols for table %s: %v", tableName, uniqueKeyCols)
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -321,6 +320,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 }
 
 func getTableToUniqueKeyColumnsMapFromMetaDB() (map[string][]string, error) {
+	log.Infof("fetching table to unique key columns map from metaDB")
 	var res map[string][]string
 	found, err := metaDB.GetJsonObject(nil, metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, &res)
 	if err != nil {
@@ -329,6 +329,6 @@ func getTableToUniqueKeyColumnsMapFromMetaDB() (map[string][]string, error) {
 	if !found {
 		return nil, fmt.Errorf("table to unique key columns map not found in metaDB")
 	}
-	log.Infof("Table to unique key columns map: %v", res)
+	log.Infof("fetched table to unique key columns map: %v", res)
 	return res, nil
 }

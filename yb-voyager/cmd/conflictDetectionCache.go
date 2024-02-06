@@ -95,7 +95,6 @@ func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, e
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
-	log.Infof("putting event(vsn=%d) in conflict detection cache", event.Vsn)
 	c.Lock()
 	defer c.Unlock()
 	c.m[event.Vsn] = event
@@ -141,7 +140,6 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 }
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
-	log.Infof("checking for conflict between event1(%v) and event2(%v)", cachedEvent.String(), incomingEvent.String())
 	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
 	}
@@ -151,7 +149,6 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
-	log.Infof("uniqueKeyColumns for maybeQualifiedName=%s are %v", maybeQualifiedName, uniqueKeyColumns)
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
@@ -179,7 +176,6 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 	}
 
 	for _, column := range uniqueKeyColumns {
-		log.Infof("comparing column %s for event1.BeforeFields[%s]=%+v and event2.Fields[%s]=%+v", column, column, cachedEvent.BeforeFields[column], column, incomingEvent.Fields[column])
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false
 		}
