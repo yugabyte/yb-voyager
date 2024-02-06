@@ -827,6 +827,7 @@ func saveTableToUniqueKeyColumnsMapInMetaDB(tableList []*sqlname.SourceName) {
 		utils.ErrExit("get table to unique key columns map: %v", err)
 	}
 
+	log.Infof("updating metaDB with table to unique key columns map: %v", res)
 	err = metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, func(record *map[string][]string) {
 		*record = res
 	})
