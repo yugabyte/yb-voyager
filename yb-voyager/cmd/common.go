@@ -520,6 +520,8 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 }
 
 func getDefaultPGSchema(schema string, separator string) (string, bool) {
+	// second return value is true if public is not included in the schema
+	// which indicates that the no default schema
 	schemas := strings.Split(schema, separator)
 	if len(schemas) == 1 {
 		return schema, false
