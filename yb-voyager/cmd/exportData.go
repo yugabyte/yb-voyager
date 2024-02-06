@@ -154,7 +154,7 @@ func exportData() bool {
 	checkSourceDBCharset()
 	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
-	saveExportTypeInMetaDB()
+	saveExportTypeInMSR()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -218,6 +218,7 @@ func exportData() bool {
 			config.PublicationName = msr.PGPublicationName
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
+		saveTableToUniqueKeyColumnsMappingInMetaDB(finalTableList)
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -269,7 +270,6 @@ func exportData() bool {
 		}
 		return true
 	}
-
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string) error {
@@ -819,4 +819,8 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 	}
 
 	return result
+}
+
+func saveTableToUniqueKeyColumnsMappingInMetaDB(finalTableList []*sqlname.SourceName) {
+	source.DB().GetTableToUniqueKeyColumnsMap(finalTableList)
 }

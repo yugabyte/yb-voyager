@@ -450,6 +450,42 @@ func (ora *Oracle) GetPartitions(tableName *sqlname.SourceName) []*sqlname.Sourc
 	panic("not implemented")
 }
 
+func (ora *Oracle) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
+	result := make(map[string][]string)
+	queryTemplate := `
+		SELECT TABLE_NAME, COLUMN_NAME
+		FROM ALL_CONS_COLUMNS
+		WHERE CONSTRAINT_NAME IN (
+			SELECT CONSTRAINT_NAME
+			FROM ALL_CONSTRAINTS
+			WHERE CONSTRAINT_TYPE = 'U'
+			AND TABLE_NAME IN ('%s')
+		)`
+	query := fmt.Sprintf(queryTemplate, strings.Join(tableList, "','"))
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns for tables: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tableName string
+		var columnName string
+		err := rows.Scan(&tableName, &columnName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		result[tableName] = append(result[tableName], columnName)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
+	log.Infof("unique key columns for tables: %+v", result)
+	return result, nil
+}
+
 func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("Clearing migration state for migration %q", migrationUUID)
 	log.Infof("Dropping table LOG_MINING_FLUSH")
