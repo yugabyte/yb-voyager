@@ -3,7 +3,7 @@ source migtests/scripts/yugabytedb/env.sh
 source migtests/scripts/functions.sh
 
 cat > yb-create-user.sql << EOF
-SELECT 'CREATE USER ${TARGET_DB_USER} SUPERUSER REPLICATION PASSWORD ''${TARGET_DB_PASSWORD}'''
+SELECT 'CREATE USER ${TARGET_DB_USER} SUPERUSER PASSWORD ''${TARGET_DB_PASSWORD}'''
 WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${TARGET_DB_USER}')\gexec
 EOF
 
