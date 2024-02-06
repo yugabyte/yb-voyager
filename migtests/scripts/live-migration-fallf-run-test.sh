@@ -27,11 +27,12 @@ source ${TEST_DIR}/env.sh
 
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 then
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
+    source ${SCRIPTS}/${SOURCE_DB_TYPE}/live_env.sh 
 else
-	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+    source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
+
+source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
@@ -51,9 +52,12 @@ main() {
 
 	pushd ${TEST_DIR}
 
-	step "Setup Fall Forward environment"
-	create_ff_schema ${SOURCE_REPLICA_DB_NAME}
-	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		step "Setup Fall Forward environment for Oracle"
+		create_ff_schema ${SOURCE_REPLICA_DB_NAME}
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
+	fi
 
 	step "Initialise source and fall forward database."
 	./init-db
@@ -152,11 +156,13 @@ main() {
 	# Storing the pid for the fall forward setup command
 	ffs_pid=$!
 
-	# Updating the trap command to include the ff setup
-	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
-
 	step "Archive Changes."
 	archive_changes &
+
+	archive_changes_pid=$!
+
+	# Updating the trap command to include the ff setup
+	trap "kill_process -${exp_pid} ; kill_process -${imp_pid} ; kill_process -${ffs_pid} ; kill_process -${archive_changes_pid}; exit 1" SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	sleep 1m
 
@@ -174,7 +180,7 @@ main() {
 	for ((i = 0; i < 5; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
-        sleep 20
+        sleep 40
         if [ "$i" -eq 4 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"

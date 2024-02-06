@@ -166,3 +166,6 @@ jobs:
 
       - name: "TEST: pg-live-migration-test"
         run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
+
+      - name: "TEST: pg-live-migration-fall-forward-test"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-test

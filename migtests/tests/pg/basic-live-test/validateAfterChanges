@@ -9,8 +9,14 @@ def main():
 	parser = argparse.ArgumentParser(description='Process an argument.')
 	parser.add_argument('--ff_fb_enabled', type=str, help='An argument for checking the if fall-forward/fall-back is enabled or not')
 	args = parser.parse_args()
-	
-	yb.run_checks(migration_completed_checks)
+	ff_fb_enabled = args.ff_fb_enabled
+
+	if ff_fb_enabled == 'true':
+		change_expected_values()
+		migration_completed_checks_yb()
+		migration_completed_checks_pg()
+	else:
+		migration_completed_checks_yb()
 
 EXPECTED_ROW_COUNT = {
 	'x':5,
@@ -38,6 +44,37 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '51',
 	}
 }
+
+EXPECTED_ROW_COUNT_FF = {
+	'x':7,
+	'user_table': 8
+}
+
+EXPECTED_SUM_OF_COLUMN_FF = {
+	'x': {
+		'id': '130',
+		'id2': '44'
+	},
+	'user_table': {
+		'id': '49',
+	}
+}
+
+def change_expected_values():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN_FF.items():
+		for column, sum in column_names_with_sum.items():
+			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts

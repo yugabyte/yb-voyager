@@ -15,8 +15,11 @@ def main():
 	live_migration = args.live_migration
 	global ff_enabled
 	ff_enabled = args.ff_enabled
-	
-	yb.run_checks(migration_completed_checks)
+
+	migration_completed_checks_yb()
+
+	if ff_enabled == 'true':
+		migration_completed_checks_pg()
 
 EXPECTED_ROW_COUNT = {
 	'x':3,
@@ -44,6 +47,14 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '36',
 	}
 }
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts

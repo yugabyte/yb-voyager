@@ -387,13 +387,16 @@ import_data_to_source_replica() {
 	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
 	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
-	--source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
 	--max-retries 1 
 	"
+	if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]
+	then
+		args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
+	fi
 	yb-voyager import data to source-replica ${args} $*
 }
 
