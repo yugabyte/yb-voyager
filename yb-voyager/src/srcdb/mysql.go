@@ -355,7 +355,7 @@ func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) 
 func (ms *MySQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
 	query := fmt.Sprintf("SELECT count(*)" +
 	"FROM information_schema.KEY_COLUMN_USAGE" +
-	"WHERE TABLE_NAME = '%s' AND TABLE_SCHEMA = '%s' AND CONSTRAINT_NAME = 'PRIMARY'", tableName.ObjectName.MinQuoted, source.DBName)
+	"WHERE TABLE_NAME = '%s' AND TABLE_SCHEMA = '%s' AND CONSTRAINT_NAME = 'PRIMARY'", tableName.ObjectName.MinQuoted, tableName.SchemaName.MinQuoted)
 	count := 0
 	err := ms.db.QueryRow(query).Scan(&count)
 	if err != nil {

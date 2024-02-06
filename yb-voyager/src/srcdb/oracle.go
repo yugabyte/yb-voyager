@@ -466,7 +466,7 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 }
 
 func (ora *Oracle) IsNonPKTable(tableName *sqlname.SourceName) bool {
-	query := fmt.Sprintf("select constraint_name from all_constraints where constraint_type='P' and owner='%s' and table_name='%s' ;", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
+	query := fmt.Sprintf("SELECT constraint_name from ALL_CONSTRAINTS where constraint_type='P' and OWNER='%s' and TABLE_NAME='%s' ;", tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
 	isNonPKTable := ""
 	err := ora.db.QueryRow(query).Scan(&isNonPKTable)
 	if err != nil && err != sql.ErrNoRows {
