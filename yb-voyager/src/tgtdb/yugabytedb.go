@@ -224,6 +224,7 @@ const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const ALTER_QUERY_RETRY_COUNT = 5
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -1066,24 +1067,33 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
 			batch.Queue(query)
 		}
-
-		err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			br := conn.SendBatch(context.Background(), &batch)
-			for i := 0; i < batch.Len(); i++ {
-				_, err := br.Exec()
-				if err != nil {
-					log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
-					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+		sleepIntervalSec := 10
+		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				br := conn.SendBatch(context.Background(), &batch)
+				for i := 0; i < batch.Len(); i++ {
+					_, err := br.Exec()
+					if err != nil {
+						log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+					}
 				}
+				if err := br.Close(); err != nil {
+					log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
+					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
+				}
+				return false, nil
+			})
+			if err != nil {
+				log.Errorf("error in altering columns for table(%s): %v", qualifiedTableName, err)
+				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+					return err
+				}
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, qualifiedTableName)
+				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+				continue
 			}
-			if err := br.Close(); err != nil {
-				log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
-				return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
-			}
-			return false, nil
-		})
-		if err != nil {
-			return err
+			break
 		}
 	}
 	return nil
