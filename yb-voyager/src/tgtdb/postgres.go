@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -710,9 +711,16 @@ func (pg *TargetPostgreSQL) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := pg.splitMaybeQualifiedTableName(tableList[i])
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
 
-	// Construct a single parameterized query for all tables with the specified schema
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, pg.tconf.Schema, strings.Join(tableList, ","))
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
 	rows, err := pg.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
@@ -735,7 +743,7 @@ func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (m
 	if err != nil {
 		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
 	}
-	log.Infof("unique key columns for tables: %+v", result)
+	log.Infof("unique key columns for tables: %v", result)
 	return result, nil
 }
 
