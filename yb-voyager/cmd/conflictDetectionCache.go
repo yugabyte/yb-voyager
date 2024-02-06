@@ -81,18 +81,21 @@ type ConflictDetectionCache struct {
 	cond                    *sync.Cond
 	tableToUniqueKeyColumns map[string][]string
 	evChans                 []chan *tgtdb.Event
+	sourceDBType            string
 }
 
-func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
 	c.evChans = evChans
+	c.sourceDBType = sourceDBType
 	return c
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
+	log.Infof("putting event(vsn=%d) in conflict detection cache", event.Vsn)
 	c.Lock()
 	defer c.Unlock()
 	c.m[event.Vsn] = event
@@ -138,16 +141,17 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 }
 
 func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
-	if !(cachedEvent.SchemaName == incomingEvent.SchemaName && cachedEvent.TableName == incomingEvent.TableName) {
+	log.Infof("checking for conflict between event1(%v) and event2(%v)", cachedEvent.String(), incomingEvent.String())
+	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
 	}
 
 	maybeQualifiedName := cachedEvent.TableName
-	if cachedEvent.SchemaName != "public" {
+	if c.sourceDBType == "postgresql" && cachedEvent.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
-
+	log.Infof("uniqueKeyColumns for maybeQualifiedName=%s are %v", maybeQualifiedName, uniqueKeyColumns)
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
@@ -175,6 +179,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 	}
 
 	for _, column := range uniqueKeyColumns {
+		log.Infof("comparing column %s for event1.BeforeFields[%s]=%+v and event2.Fields[%s]=%+v", column, column, cachedEvent.BeforeFields[column], column, incomingEvent.Fields[column])
 		if cachedEvent.BeforeFields[column] == nil || incomingEvent.Fields[column] == nil {
 			return false
 		}
@@ -186,4 +191,15 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		}
 	}
 	return false
+}
+
+func (c *ConflictDetectionCache) eventsAreOfSameTable(event1, event2 *tgtdb.Event) bool {
+	switch c.sourceDBType {
+	case "oracle":
+		return event1.TableName == event2.TableName
+	case "postgresql":
+		return event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName
+	default:
+		panic(fmt.Sprintf("unknown source database type %q for unique key conflict detection", c.sourceDBType))
+	}
 }

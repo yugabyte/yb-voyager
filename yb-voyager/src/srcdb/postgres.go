@@ -30,6 +30,7 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mcuadros/go-version"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -508,8 +509,43 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
-func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
-	return nil, nil
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	log.Infof("getting unique key columns for tables: %v", tableList)
+	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := tableList[i].SchemaName.Unquoted, tableList[i].ObjectName.Unquoted
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
+
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
+	rows, err := pg.db.Query(context.Background(), query)
+	if err != nil {
+		return nil, fmt.Errorf("querying unique key columns: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var schemaName, tableName, colName string
+		err := rows.Scan(&schemaName, &tableName, &colName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for unique key column name: %w", err)
+		}
+		if schemaName != "public" {
+			tableName = fmt.Sprintf("%s.%s", schemaName, tableName)
+		}
+		result[tableName] = append(result[tableName], colName)
+	}
+
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("error iterating over rows for unique key columns: %w", err)
+	}
+	log.Infof("unique key columns for tables: %v", result)
+	return result, nil
 }
 
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

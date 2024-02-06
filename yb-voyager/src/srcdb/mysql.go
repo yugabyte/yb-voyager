@@ -347,7 +347,7 @@ func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceN
 	panic("not implemented")
 }
 
-func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
+func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
 	return nil, nil
 }
 
