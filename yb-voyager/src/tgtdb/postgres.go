@@ -286,11 +286,28 @@ outer:
 	return nil
 }
 
-func (pg *TargetPostgreSQL) qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", pg.tconf.Schema, tableName)
+func getDefaultPGSchema(schema string) (string, bool) {
+	// second return value is true if public is not included in schema list 
+	// which indicates noDefaultSchema
+	schemas := strings.Split(schema, ",")
+	if len(schemas) == 1 {
+		return schema, false
+	} else if slices.Contains(schemas, "public") {
+		return "public", false
+	} else {
+		return "", true
 	}
-	return tableName
+}
+
+func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
+	defaultSchema, noDefaultSchema := getDefaultPGSchema(pg.tconf.Schema)
+	if len(strings.Split(tableName, ".")) != 2 {
+		if noDefaultSchema {
+			return "", fmt.Errorf("object name %q does not have schema name and public schema is not included in the schema list", tableName)
+		}
+		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
+	} 
+	return tableName, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []string) []string {
@@ -482,7 +499,10 @@ func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) 
 			continue
 		}
 		// same function logic will work for sequences as well
-		sequenceName = pg.qualifyTableName(sequenceName)
+		sequenceName, err := pg.qualifyTableName(sequenceName)
+		if err != nil {
+			return fmt.Errorf("qualify sequence name: %w", err)
+		}
 		log.Infof("restore sequence %s to %d", sequenceName, lastValue)
 		batch.Queue(fmt.Sprintf(restoreStmt, sequenceName, lastValue))
 	}
@@ -572,7 +592,10 @@ func (pg *TargetPostgreSQL) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 
 		tableNames := batch.GetTableNames()
 		for _, tableName := range tableNames {
-			tableName := pg.qualifyTableName(tableName)
+			tableName, err := pg.qualifyTableName(tableName)
+			if err != nil {
+				return false, fmt.Errorf("qualify table name: %w", err)
+			}
 			updateTableStatsQuery := batch.GetQueriesToUpdateEventStatsByTable(migrationUUID, tableName)
 			res, err = tx.Exec(context.Background(), updateTableStatsQuery)
 			if err != nil {
@@ -750,14 +773,17 @@ func (pg *TargetPostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (m
 func (pg *TargetPostgreSQL) alterColumns(tableColumnsMap map[string][]string, alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	for table, columns := range tableColumnsMap {
-		qualifiedTableName := pg.qualifyTableName(table)
+		qualifiedTableName, err := pg.qualifyTableName(table)
+		if err != nil {
+			return fmt.Errorf("qualify table name: %w", err)
+		}
 		batch := pgx.Batch{}
 		for _, column := range columns {
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
 			batch.Queue(query)
 		}
 
-		err := pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+		err = pg.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 			br := conn.SendBatch(context.Background(), &batch)
 			for i := 0; i < batch.Len(); i++ {
 				_, err := br.Exec()
