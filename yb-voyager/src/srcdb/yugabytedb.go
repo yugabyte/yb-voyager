@@ -359,22 +359,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []*sqlname.SourceName) ma
 	for _, table := range tableList {
 		// query to find out column name vs sequence name for a table
 		// this query also covers the case of identity columns
-		query := fmt.Sprintf(`SELECT a.attname AS column_name, s.relname AS sequence_name,
-		s.relnamespace::pg_catalog.regnamespace::text AS schema_name
-		FROM pg_class AS t
-			JOIN pg_attribute AS a
-		ON a.attrelid = t.oid
-			JOIN pg_depend AS d
-		ON d.refobjid = t.oid
-			AND d.refobjsubid = a.attnum
-			JOIN pg_class AS s
-		ON s.oid = d.objid
-		WHERE d.classid = 'pg_catalog.pg_class'::regclass
-		AND d.refclassid = 'pg_catalog.pg_class'::regclass
-		AND d.deptype IN ('i', 'a')
-		AND t.relkind IN ('r', 'P')
-		AND s.relkind = 'S'
-		AND t.oid = '%s'::regclass;`, table.Qualified.MinQuoted)
+		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, table.SchemaName.Unquoted, table.ObjectName.Unquoted)
 
 		var columeName, sequenceName, schemaName string
 		rows, err := yb.conn.Query(context.Background(), query)
