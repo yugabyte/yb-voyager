@@ -834,6 +834,10 @@ func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
+func (pg *TargetPostgreSQL) InvalidIndexExists(indexName string) bool {
+	return false
+}
+
 func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
 	schema := BATCH_METADATA_TABLE_SCHEMA

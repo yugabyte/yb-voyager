@@ -105,14 +105,10 @@ func importSchema() {
 		}
 
 		createTargetSchemas(conn)
-
-		if sourceDBType == ORACLE && enableOrafce {
-			// Install Orafce extension in target YugabyteDB.
-			installOrafce(conn)
-		}
+		installOrafceIfRequired(conn)
 	}
-	var objectList []string
 
+	var objectList []string
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
 	if !flagPostSnapshotImport { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
@@ -125,8 +121,7 @@ func importSchema() {
 		objectList = objectsToImportAfterData
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
-	log.Infof("List of schema objects to import: %v", objectList)
-
+	log.Infof("list of schema objects to import: %v", objectList)
 	// Import some statements only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
@@ -209,7 +204,12 @@ func dumpStatements(stmts []string, filePath string) {
 	log.Info(msg)
 }
 
-func installOrafce(conn *pgx.Conn) {
+// installs Orafce extension in target YugabyteDB.
+func installOrafceIfRequired(conn *pgx.Conn) {
+	if sourceDBType != ORACLE || !enableOrafce {
+		return
+	}
+
 	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
 	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
 	if err != nil {

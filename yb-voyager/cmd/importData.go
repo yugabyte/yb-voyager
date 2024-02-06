@@ -1034,11 +1034,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
-			//In case of index creation print the index name as index creation takes time
-			//and user can see the progress
-			if sqlInfo.objName != "" {
-				color.Yellow("creating index %s ...", sqlInfo.objName)
-			}
+			handleIndexCreation(sqlInfo, conn, objType)
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
@@ -1096,6 +1092,21 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 	}
 	return err
+}
+
+func handleIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) {
+	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
+	if err != nil {
+		utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+	}
+
+	// check if even it exists or not
+	if tdb.InvalidIndexExists(sqlInfo.objName) {
+		dropIdx(*conn, fullyQualifiedObjName)
+	}
+
+	// print the index name as index creation takes time and user can see the progress
+	color.Yellow("creating index %s ...", fullyQualifiedObjName)
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.

@@ -1128,6 +1128,20 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
+func (yb *TargetYugabyteDB) InvalidIndexExists(indexName string) bool {
+	var indexIsValid bool
+	query := fmt.Sprintf("SELECT indisvalid from pg_index where indexrelid = '%s'::regclass", indexName)
+	err := yb.QueryRow(query).Scan(&indexIsValid)
+	if err != nil {
+		// ignore if index doesn't exists error
+		if strings.Contains(err.Error(), "does not exist") {
+			return false
+		}
+		utils.ErrExit("error checking if index %s is valid: %v", indexName, err)
+	}
+	return !indexIsValid
+}
+
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
 	schema := BATCH_METADATA_TABLE_SCHEMA

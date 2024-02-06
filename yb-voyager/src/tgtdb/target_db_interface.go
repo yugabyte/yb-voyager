@@ -48,7 +48,7 @@ type TargetDB interface {
 	EnableGeneratedByDefaultAsIdentityColumns(tableColumnsMap map[string][]string) error
 	GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
-
+	InvalidIndexExists(indexName string) bool
 	// NOTE: The following four methods should not be used for arbitrary query
 	// execution on TargetDB. The should be only used from higher level
 	// abstractions like ImportDataState.

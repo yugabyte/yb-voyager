@@ -754,6 +754,10 @@ func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
+func (tdb *TargetOracleDB) InvalidIndexExists(indexName string) bool {
+	return false
+}
+
 // this will be only called by FallForward or FallBack DBs
 func (tdb *TargetOracleDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
