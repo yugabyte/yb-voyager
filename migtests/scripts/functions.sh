@@ -507,3 +507,21 @@ create_ff_schema(){
 EOF
 	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
 }
+
+set_replica_identity(){
+	
+    cat > alter_replica_identity.sql <<EOF
+    DO \$CUSTOM\$ 
+    DECLARE
+        table_name_var text;
+    BEGIN
+        FOR table_name_var IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        LOOP
+            EXECUTE 'ALTER TABLE ' || table_name_var || ' REPLICA IDENTITY FULL';
+        END LOOP;
+    END \$CUSTOM\$;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
+}
+
+

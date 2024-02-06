@@ -1,10 +1,25 @@
 #!/usr/bin/env python3
 
+import argparse
+import os
 import yb
+import collections
 
 def main():
-	yb.run_checks(migration_completed_checks)
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
+	args = parser.parse_args()
+	global live_migration 
+	live_migration = args.live_migration
+	global ff_enabled
+	ff_enabled = args.ff_enabled
 
+	migration_completed_checks_yb()
+
+	if ff_enabled == 'true':
+		migration_completed_checks_pg()
 
 #=============================================================================
 
@@ -24,7 +39,7 @@ EXPECTED_SUM_OF_COLUMN = {
 		'v2': '-3380617',
 		'v3': '564312385451',
 		'v4': '993.999',
-		'v5': '9992334.5429',
+		'v5': ['9992334.5429','9992334.54290'],
 		'v6': '-$12,000,369.60'
 	},
 	'decimal_types': {
@@ -35,6 +50,14 @@ EXPECTED_SUM_OF_COLUMN = {
 
 EXPECTED_ENUM_VALUES = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 EXPECTED_BYTE_TYPE_VALUES = ['3031303130', '2d61626364', '34343538']
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="source")
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
@@ -50,8 +73,12 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name} ---- ")
 		for column, sum in column_names_with_sum.items():
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			if column == 'v5':
+				expected_values = column_names_with_sum[column]
+				assert str(col_sum) in expected_values
+			else:
+				assert str(col_sum) == sum
 			print(f"column_name: {column}, sum: {col_sum}")
-			assert sum == str(col_sum)
 
 	distinct_values_enum_types = tgt.get_distinct_values__of_column_of_table("datatypes1", "enum_type", "public")
 	print(f"distinct_enum_values:")

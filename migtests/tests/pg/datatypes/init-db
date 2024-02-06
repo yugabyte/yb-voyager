@@ -5,6 +5,9 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
+echo "Assigning permissions to the validate files"
+chmod +x ${TEST_DIR}/validate
+chmod +x ${TEST_DIR}/validateAfterChanges
 
 echo "Creating ${SOURCE_DB_NAME} database on source"
 run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
@@ -17,3 +20,11 @@ run_psql ${SOURCE_DB_NAME} "\i pg_datatypes_data.sql;"
 
 echo "Check source database."
 run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM num_types;"
+
+if [ -n "${SOURCE_REPLICA_DB_NAME}" ] && [ "${SOURCE_REPLICA_DB_NAME}" != "${SOURCE_DB_NAME}" ];
+then
+	echo "Initialising FF database"
+	run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_REPLICA_DB_NAME};"
+    run_psql postgres "CREATE DATABASE ${SOURCE_REPLICA_DB_NAME};"
+    run_psql ${SOURCE_REPLICA_DB_NAME} "\i pg_datatypes_schema.sql;"
+fi

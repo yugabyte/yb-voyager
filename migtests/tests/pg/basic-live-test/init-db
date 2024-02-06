@@ -5,6 +5,9 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
+echo "Assigning permissions to the validate files"
+chmod +x ${TEST_DIR}/validate
+chmod +x ${TEST_DIR}/validateAfterChanges
 
 echo "Creating ${SOURCE_DB_NAME} database on source"
 run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_DB_NAME};"
