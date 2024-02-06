@@ -66,6 +66,7 @@ main() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
 		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
 	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]
 	then
 		set_replica_identity
