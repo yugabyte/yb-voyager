@@ -508,6 +508,10 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
+func (pg *PostgreSQL) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
+	return nil, nil
+}
+
 func (pg *PostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for PostgreSQL")
 	return nil

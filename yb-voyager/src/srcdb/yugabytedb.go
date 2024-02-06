@@ -434,6 +434,10 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tableName.ObjectName
 	return partitions
 }
 
+func (yb *YugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
+	return nil, nil
+}
+
 func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for YugabyteDB")
 	return nil
