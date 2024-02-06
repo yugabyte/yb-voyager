@@ -22,6 +22,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var transactionOrdering utils.BoolStr
+
 var exportDataFromTargetCmd = &cobra.Command{
 	Use:   "target",
 	Short: "Export data from target Yugabyte DB in the fall-back/fall-forward workflows.",
@@ -44,6 +46,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
+
 		exportDataCmd.PreRun(cmd, args)
 		exportDataCmd.Run(cmd, args)
 	},
@@ -55,6 +58,9 @@ func init() {
 	registerTargetDBAsSourceConnFlags(exportDataFromTargetCmd)
 	registerExportDataFlags(exportDataFromTargetCmd)
 	hideExportFlagsInFallForwardOrBackCmds(exportDataFromTargetCmd)
+
+	BoolVar(exportDataFromTargetCmd.Flags(), &transactionOrdering, "transaction-ordering", true,
+		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
 func initSourceConfFromTargetConf() error {

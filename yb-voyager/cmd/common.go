@@ -261,7 +261,11 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
-	fmt.Printf("import report\n")
+	if importerRole == IMPORT_FILE_ROLE {
+		fmt.Printf("import report\n")
+	} else {
+		fmt.Printf("snapshot import report\n")
+	}
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
@@ -519,10 +523,12 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	schemas := strings.Split(schema, "|")
+func getDefaultPGSchema(schema string, separator string) (string, bool) {
+	// second return value is true if public is not included in the schema
+	// which indicates that the no default schema
+	schemas := strings.Split(schema, separator)
 	if len(schemas) == 1 {
-		return source.Schema, false
+		return schema, false
 	} else if slices.Contains(schemas, "public") {
 		return "public", false
 	} else {

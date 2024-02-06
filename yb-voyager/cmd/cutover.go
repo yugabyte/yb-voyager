@@ -57,13 +57,15 @@ func InitiateCutover(dbRole string, prepareforFallback bool) error {
 		utils.PrintAndLog("Aborting %s", userFacingActionMsg)
 		return nil
 	}
+	alreadyInitiated := false
 	alreadyInitiatedMsg := fmt.Sprintf("cutover to %s already initiated, wait for it to complete", dbRole)
 
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		switch dbRole {
 		case "target":
 			if record.CutoverToTargetRequested {
-				utils.PrintAndLog(alreadyInitiatedMsg)
+				alreadyInitiated = true
+				return
 			}
 			record.CutoverToTargetRequested = true
 			if prepareforFallback {
@@ -71,21 +73,27 @@ func InitiateCutover(dbRole string, prepareforFallback bool) error {
 			}
 		case "source-replica":
 			if record.CutoverToSourceReplicaRequested {
-				utils.PrintAndLog(alreadyInitiatedMsg)
+				alreadyInitiated = true
+				return
 			}
 			record.CutoverToSourceReplicaRequested = true
 		case "source":
 			if record.CutoverToSourceRequested {
-				utils.PrintAndLog(alreadyInitiatedMsg)
+				alreadyInitiated = true
+				return
 			}
 			record.CutoverToSourceRequested = true
 		}
-
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update MSR: %w", err)
 	}
-	utils.PrintAndLog("%s initiated, wait for it to complete", userFacingActionMsg)
+
+	if alreadyInitiated {
+		utils.PrintAndLog(alreadyInitiatedMsg)
+	} else {
+		utils.PrintAndLog("%s initiated, wait for it to complete", userFacingActionMsg)
+	}
 	return nil
 }
 
