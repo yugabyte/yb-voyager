@@ -1012,7 +1012,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 	}
 
 	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
-
 	for index, part := range parts {
 		if strings.EqualFold(part, "ON") {
 			tableName := parts[index+1]
@@ -1049,7 +1048,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			*conn = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			objType == "INDEX" || objType == "PARTITION_INDEX" { // retriable error
+			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
@@ -1095,13 +1094,16 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 }
 
 func handleIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) {
+	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
+		return
+	}
 	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 	if err != nil {
 		utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
 	}
-
 	// check if even it exists or not
-	if tdb.InvalidIndexExists(sqlInfo.objName) {
+	if tdb.InvalidIndexExists(fullyQualifiedObjName) {
+		log.Infof("Invalid index %q already exists, dropping it", fullyQualifiedObjName)
 		dropIdx(*conn, fullyQualifiedObjName)
 	}
 
