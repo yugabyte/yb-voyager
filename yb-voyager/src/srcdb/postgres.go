@@ -592,7 +592,7 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	return nil
 }
 
-var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT DISTINCT(conname) AS constraint_name
+var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT COUNT(conname)
 FROM pg_constraint con
 JOIN pg_attribute a ON a.attnum = ANY(con.conkey)
 WHERE con.contype = 'p' 
@@ -603,11 +603,11 @@ func (pg *PostgreSQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
 	if tableName.SchemaName.MinQuoted != "public" {
 		table = tableName.Qualified.MinQuoted
 	}
+	count := 0
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, table)
-	rows, err := pg.db.Query(context.Background(), query)
+	err := pg.db.QueryRow(context.Background(), query).Scan(&count)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
 	}
-	defer rows.Close()
-	return !rows.Next()
+	return count == 0
 }

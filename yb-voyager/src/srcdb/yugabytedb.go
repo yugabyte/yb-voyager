@@ -458,11 +458,11 @@ func (yb *YugabyteDB) IsNonPKTable(tableName *sqlname.SourceName) bool {
 	if tableName.SchemaName.MinQuoted != "public" {
 		table = tableName.Qualified.MinQuoted
 	}
+	count := 0
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, table)
-	rows, err := yb.conn.Query(context.Background(), query)
+	err := yb.conn.QueryRow(context.Background(), query).Scan(&count)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
 	}
-	defer rows.Close()
-	return !rows.Next()
+	return count == 0
 }
