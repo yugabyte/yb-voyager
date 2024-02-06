@@ -1056,7 +1056,7 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
 			batch.Queue(query)
 		}
-		var sleepIntervalSec = 0
+		sleepIntervalSec := 10
 		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
 			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
 				br := conn.SendBatch(context.Background(), &batch)
@@ -1078,12 +1078,11 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
 					return err
 				}
-				sleepIntervalSec += 10
 				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, qualifiedTableName)
 				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-			} else {
-				break
+				continue
 			}
+			break
 		}
 	}
 	return nil
