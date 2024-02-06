@@ -71,6 +71,8 @@ jobs:
         run: |
           docker pull yugabytedb/yugabyte:${{ matrix.version }}
           VERSION=${{ matrix.version }} docker-compose -f migtests/setup/yb-docker-compose.yaml up -d
+          sudo bash -c 'echo "127.0.0.1 yb-tserver-n1" >> /etc/hosts'
+          sudo bash -c 'echo "127.0.0.1 yb-master-n1" >> /etc/hosts'
           sleep 20
 
       - name: Test YugabyteDB connection
