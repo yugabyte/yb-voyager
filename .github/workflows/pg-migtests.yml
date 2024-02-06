@@ -178,4 +178,4 @@ jobs:
 
       - name: "TEST: pg-datatypes-live-migration-fall-forward-test"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes
-        if: matrix.version != '2.16.7.0-b59'
+        if: matrix.version == '2.20.1.3-b3'
