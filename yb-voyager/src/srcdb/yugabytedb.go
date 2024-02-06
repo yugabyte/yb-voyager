@@ -453,7 +453,7 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 	return nil
 }
 
-func (yb *PostgreSQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
+func (yb *YugabyteDB) IsNonPKTable(tableName *sqlname.SourceName) bool {
 	table := tableName.ObjectName.MinQuoted
 	if tableName.SchemaName.MinQuoted != "public" {
 		table = tableName.Qualified.MinQuoted
@@ -463,7 +463,7 @@ func (yb *PostgreSQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
 	JOIN pg_attribute a ON a.attnum = ANY(con.conkey)
 	WHERE con.contype = 'p' 
 	AND conrelid::regclass::text = '%s'`, table)
-	rows, err := pg.db.Query(context.Background(), query)
+	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
 	}
