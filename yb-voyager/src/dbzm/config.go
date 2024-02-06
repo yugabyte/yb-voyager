@@ -66,6 +66,7 @@ type Config struct {
 	SnapshotMode          string
 	ReplicationSlotName   string
 	PublicationName       string
+	TransactionOrdering   utils.BoolStr
 }
 
 var baseConfigTemplate = `
@@ -114,6 +115,7 @@ debezium.source.plugin.name=pgoutput
 debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+debezium.source.provide.transaction.metadata=true
 debezium.source.publication.autocreate.mode=disabled
 `
 
@@ -160,6 +162,7 @@ debezium.source.log.mining.batch.size.default=10000
 debezium.source.log.mining.query.filter.mode=in
 debezium.source.log.mining.sleep.time.default.ms=200
 debezium.source.log.mining.sleep.time.max.ms=400
+debezium.source.provide.transaction.metadata=true
 debezium.source.max.batch.size=10000
 debezium.source.max.queue.size=50000
 debezium.source.query.fetch.size=10000
@@ -223,6 +226,11 @@ debezium.source.hstore.handling.mode=map
 debezium.source.decimal.handling.mode=precise
 debezium.source.converters=postgres_source_converter
 debezium.source.postgres_source_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
+`
+
+var yugabyteSrcTransactionOrderingConfigTemplate = `
+debezium.source.transaction.ordering=true
+debezium.source.tasks.max=1
 `
 
 var yugabyteConfigTemplate = baseConfigTemplate +
@@ -310,6 +318,10 @@ func (c *Config) String() string {
 		//TODO test SSL for other methods for yugabytedb
 		if c.SSLCertPath != "" || c.SSLKey != "" {
 			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
+		}
+
+		if c.TransactionOrdering {
+			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
 		}
 	case "oracle":
 		conf = fmt.Sprintf(oracleConfigTemplate,

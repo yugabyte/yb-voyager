@@ -19,13 +19,19 @@ def main():
 	yb.run_checks(migration_completed_checks)
 
 EXPECTED_ROW_COUNT = {
-	'x':3
+	'x':3,
+ 	'user_table': 8
 }
 
 EXPECTED_DATA_TYPES = {
 	'x': {
 		'id': 'integer',
 		'id2': 'integer'
+	},
+	'user_table': {
+		'id': 'integer',
+		'email': 'character varying',
+		'status': 'character varying'
 	}
 }
 
@@ -33,6 +39,9 @@ EXPECTED_SUM_OF_COLUMN = {
 	'x': {
 		'id': '6',
 		'id2': '9'
+	},
+	'user_table': {
+		'id': '36',
 	}
 }
 

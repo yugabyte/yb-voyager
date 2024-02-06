@@ -40,6 +40,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -260,7 +261,11 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 }
 
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
-	fmt.Printf("import report\n")
+	if importerRole == IMPORT_FILE_ROLE {
+		fmt.Printf("import report\n")
+	} else {
+		fmt.Printf("snapshot import report\n")
+	}
 	tableList := importFileTasksToTableNames(tasks)
 	err := retrieveMigrationUUID()
 	if err != nil {
@@ -379,17 +384,18 @@ func getCutoverStatus() string {
 	a := msr.CutoverToTargetRequested
 	b := msr.CutoverProcessedBySourceExporter
 	c := msr.CutoverProcessedByTargetImporter
-	d := msr.ExportFromTargetFallForwardStarted
-	ffDBExists := msr.FallForwardEnabled
+
 	if !a {
 		return NOT_INITIATED
-	} else if !ffDBExists && a && b && c {
+	}
+	if msr.FallForwardEnabled && a && b && c && msr.ExportFromTargetFallForwardStarted {
 		return COMPLETED
-	} else if a && b && c && d {
+	} else if msr.FallbackEnabled && a && b && c && msr.ExportFromTargetFallBackStarted {
+		return COMPLETED
+	} else if !msr.FallForwardEnabled && !msr.FallbackEnabled && a && b && c {
 		return COMPLETED
 	}
 	return INITIATED
-
 }
 
 func checkStreamingMode() (bool, error) {
@@ -517,10 +523,12 @@ func hideExportFlagsInFallForwardOrBackCmds(cmd *cobra.Command) {
 	}
 }
 
-func getDefaultPGSchema(schema string) (string, bool) {
-	schemas := strings.Split(schema, "|")
+func getDefaultPGSchema(schema string, separator string) (string, bool) {
+	// second return value is true if public is not included in the schema
+	// which indicates that the no default schema
+	schemas := strings.Split(schema, separator)
 	if len(schemas) == 1 {
-		return source.Schema, false
+		return schema, false
 	} else if slices.Contains(schemas, "public") {
 		return "public", false
 	} else {
@@ -591,5 +599,25 @@ func waitForProcessToExit(pid int, forceShutdownAfterSeconds int) {
 			log.Infof("force shutting down pid %d", pid)
 			process.Signal(syscall.SIGKILL)
 		}
+	}
+}
+
+func initBaseSourceEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        source.DBType,
+		DatabaseName:  source.DBName,
+		SchemaNames:   cp.GetSchemaList(source.Schema),
+	}
+}
+
+func initBaseTargetEvent(bev *cp.BaseEvent, eventType string) {
+	*bev = cp.BaseEvent{
+		EventType:     eventType,
+		MigrationUUID: migrationUUID,
+		DBType:        tconf.TargetDBType,
+		DatabaseName:  tconf.DBName,
+		SchemaNames:   []string{tconf.Schema},
 	}
 }

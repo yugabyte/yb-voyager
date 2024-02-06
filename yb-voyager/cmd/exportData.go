@@ -31,13 +31,13 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
 	"golang.org/x/exp/slices"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -124,6 +124,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
 	success := exportData()
 	if success {
 		tableRowCount := getExportedRowCountSnapshot(exportDir)
@@ -355,6 +356,34 @@ func getPGDumpSequencesAndValues() (map[*sqlname.SourceName]int64, error) {
 	return result, nil
 }
 
+func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
+	//report Partitions or case sensitive tables
+	var caseSensitiveTables []string
+	var partitionedTables []string
+	for _, table := range finalTableList {
+		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+		}
+		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+			if len(source.DB().GetPartitions(table)) > 0 {
+				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+			}
+		} else {
+			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+		}
+	}
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+		return
+	}
+	if len(caseSensitiveTables) > 0 {
+		utils.PrintAndLog("Case sensitive table names: %s", caseSensitiveTables)
+	}
+	if len(partitionedTables) > 0 {
+		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
+}
+
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
 	var tableList []*sqlname.SourceName
 	// store table list after filtering unsupported or unnecessary tables
@@ -367,6 +396,9 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		reportUnsupportedTables(finalTableList)
+	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
 
 	if !changeStreamingIsEnabled(exportType) {
@@ -394,6 +426,11 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []*sqlname.SourceName, tablesColumnList map[*sqlname.SourceName][]string, snapshotName string) error {
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataStartEvent := createSnapshotExportStartedEvent()
+		controlPlane.SnapshotExportStarted(&exportDataStartEvent)
+	}
+
 	exportDataStart := make(chan bool)
 	quitChan := make(chan bool)             //for checking failure/errors of the parallel goroutines
 	exportSuccessChan := make(chan bool, 1) //Check if underlying tool has exited successfully.
@@ -439,6 +476,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	// Wait for the export data to start.
 	<-exportDataStart
 
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataTableMetrics := createUpdateExportedRowCountEventList(
+			utils.GetSortedKeys(tablesProgressMetadata))
+		controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+	}
+
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
 	utils.WaitGroup.Add(1)
 	exportDataStatus(ctx, tablesProgressMetadata, quitChan, exportSuccessChan, bool(disablePb))
@@ -451,6 +494,12 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	source.DB().ExportDataPostProcessing(exportDir, tablesProgressMetadata)
 	displayExportedRowCountSnapshot(false)
+
+	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+		exportDataCompleteEvent := createSnapshotExportCompletedEvent()
+		controlPlane.SnapshotExportCompleted(&exportDataCompleteEvent)
+	}
+
 	return nil
 }
 
@@ -536,7 +585,7 @@ func getDefaultSourceSchemaName() (string, bool) {
 	case MYSQL:
 		return source.DBName, false
 	case POSTGRESQL, YUGABYTEDB:
-		return getDefaultPGSchema(source.Schema)
+		return getDefaultPGSchema(source.Schema, "|")
 	case ORACLE:
 		return source.Schema, false
 	default:
@@ -704,4 +753,47 @@ func saveSourceDBConfInMSR() {
 		record.SourceDBConf.Password = ""
 		record.SourceDBConf.Uri = ""
 	})
+}
+
+func createSnapshotExportStartedEvent() cp.SnapshotExportStartedEvent {
+	result := cp.SnapshotExportStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT DATA")
+	return result
+}
+
+func createSnapshotExportCompletedEvent() cp.SnapshotExportCompletedEvent {
+	result := cp.SnapshotExportCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT DATA")
+	return result
+}
+
+func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExportedRowCountEvent {
+
+	result := []*cp.UpdateExportedRowCountEvent{}
+	var schemaName, tableName2 string
+
+	for _, tableName := range tableNames {
+		tableMetadata := tablesProgressMetadata[tableName]
+		if source.DBType == "postgresql" && strings.Count(tableName, ".") == 1 {
+			schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
+		} else {
+			schemaName, tableName2 = source.Schema, tableName
+		}
+		tableMetrics := cp.UpdateExportedRowCountEvent{
+			BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
+				BaseEvent: cp.BaseEvent{
+					EventType:     "EXPORT DATA",
+					MigrationUUID: migrationUUID,
+					SchemaNames:   []string{schemaName},
+				},
+				TableName:         tableName2,
+				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[tableMetadata.Status],
+				TotalRowCount:     tableMetadata.CountTotalRows,
+				CompletedRowCount: tableMetadata.CountLiveRows,
+			},
+		}
+		result = append(result, &tableMetrics)
+	}
+
+	return result
 }

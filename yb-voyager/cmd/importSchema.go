@@ -29,6 +29,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -45,6 +46,7 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		sourceDBType = GetSourceDBTypeFromMSR()
 		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
@@ -53,7 +55,6 @@ var importSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		tconf.ImportMode = true
-		sourceDBType = GetSourceDBTypeFromMSR()
 		importSchema()
 	},
 }
@@ -76,6 +77,9 @@ func importSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
+
+	importSchemaStartEvent := createImportSchemaStartedEvent()
+	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
@@ -169,6 +173,9 @@ func importSchema() {
 	} else {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
+
+	importSchemaCompleteEvent := createImportSchemaCompletedEvent()
+	controlPlane.ImportSchemaCompleted(&importSchemaCompleteEvent)
 
 	callhome.PackAndSendPayload(exportDir)
 }
@@ -347,4 +354,16 @@ func isAlreadyExists(errString string) bool {
 		}
 	}
 	return false
+}
+
+func createImportSchemaStartedEvent() cp.ImportSchemaStartedEvent {
+	result := cp.ImportSchemaStartedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
+	return result
+}
+
+func createImportSchemaCompletedEvent() cp.ImportSchemaCompletedEvent {
+	result := cp.ImportSchemaCompletedEvent{}
+	initBaseTargetEvent(&result.BaseEvent, "IMPORT SCHEMA")
+	return result
 }

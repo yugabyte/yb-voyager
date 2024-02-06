@@ -40,7 +40,7 @@ import (
 
 //=====================================================================================
 
-//For Non-debezium cases
+// For Non-debezium cases
 type TableExportStatus struct {
 	TableName                string `json:"table_name"` // table.Qualified.MinQuoted
 	FileName                 string `json:"file_name"`
@@ -137,6 +137,12 @@ func exportDataStatus(ctx context.Context, tablesProgressMetadata map[string]*ut
 				tablesProgressMetadata[key].Status = utils.TABLE_MIGRATION_COMPLETED
 				exportedTables = append(exportedTables, key)
 				doneCount++
+
+				if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+					exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{key})
+					controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+				}
+
 				if doneCount == numTables {
 					break
 				}
@@ -184,6 +190,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.Qualified.MinQuoted)
 		pbr.SetTotalRowCount(actualRowCount, false)
+		tableMetadata.CountTotalRows = actualRowCount
 	}()
 
 	tableDataFileName := tableMetadata.InProgressFilePath
@@ -204,6 +211,12 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 		for !pbr.IsComplete() {
 			pbr.SetExportedRowCount(tableMetadata.CountLiveRows)
 			time.Sleep(time.Millisecond * 500)
+
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
+				exportDataTableMetrics := createUpdateExportedRowCountEventList([]string{tableName})
+				// The metrics are sent after evry 5 secs in implementation of UpdateExportedRowCount
+				controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
+			}
 		}
 	}()
 

@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -91,6 +93,10 @@ func exportSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
+
+	exportSchemaStartEvent := createExportSchemaStartedEvent()
+	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
+
 	source.DB().ExportSchema(exportDir)
 	updateIndexesInfoInMetaDB()
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n", filepath.Join(exportDir, "schema"))
@@ -102,6 +108,9 @@ func exportSchema() {
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
+
+	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
+	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
 }
 
 func init() {
@@ -168,4 +177,18 @@ func updateIndexesInfoInMetaDB() {
 	if err != nil {
 		utils.ErrExit("update indexes info in meta db: %s", err)
 	}
+}
+
+func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
+
+	result := cp.ExportSchemaStartedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
+	return result
+}
+
+func createExportSchemaCompletedEvent() cp.ExportSchemaCompletedEvent {
+
+	result := cp.ExportSchemaCompletedEvent{}
+	initBaseSourceEvent(&result.BaseEvent, "EXPORT SCHEMA")
+	return result
 }

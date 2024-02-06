@@ -28,8 +28,9 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
 
 const (
@@ -451,7 +452,10 @@ func (s *ImportDataState) getEventChannelsRowCount(migrationUUID uuid.UUID) (int
 func (s *ImportDataState) initEventStatsByTableMetainfo(migrationUUID uuid.UUID, tableNames []string, numChans int) error {
 	return tdb.WithTx(func(tx tgtdb.Tx) error {
 		for _, tableName := range tableNames {
-			tableName := qualifyTableName(tableName)
+			tableName, err := qualifyTableName(tableName)
+			if err != nil {
+				return fmt.Errorf("error qualifying table name %s: %w", tableName, err)
+			}
 			rowCount, err := s.getLiveMigrationMetaInfoByTable(migrationUUID, tableName)
 			if err != nil {
 				return fmt.Errorf("error getting channels meta info for %s: %w", EVENT_CHANNELS_METADATA_TABLE_NAME, err)
@@ -499,11 +503,19 @@ func (s *ImportDataState) cleanFileImportStateFromDB(filePath, tableName string)
 	return nil
 }
 
-func qualifyTableName(tableName string) string {
-	if len(strings.Split(tableName, ".")) != 2 {
-		tableName = fmt.Sprintf("%s.%s", tconf.Schema, tableName)
+func qualifyTableName(tableName string) (string, error) {
+	defaultSchema := tconf.Schema
+	noDefaultSchema := false
+	if tconf.TargetDBType == POSTGRESQL {
+		defaultSchema, noDefaultSchema = getDefaultPGSchema(tconf.Schema, ",")
 	}
-	return tableName
+	if len(strings.Split(tableName, ".")) != 2 {
+		if noDefaultSchema {
+			return "", fmt.Errorf("table name %s does not have schema name", tableName)
+		}
+		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
+	}
+	return tableName, nil
 }
 
 func (s *ImportDataState) GetImportedSnapshotRowCountForTable(tableName string) (int64, error) {
@@ -548,11 +560,14 @@ func (s *ImportDataState) GetEventChannelsMetaInfo(migrationUUID uuid.UUID) (map
 
 func (s *ImportDataState) GetImportedEventsStatsForTable(tableName string, migrationUUID uuid.UUID) (*tgtdb.EventCounter, error) {
 	var eventCounter tgtdb.EventCounter
-	tableName = qualifyTableName(tableName)
+	tableName, err := qualifyTableName(tableName)
+	if err != nil {
+		return nil, fmt.Errorf("error in qualifying table name: %w", err)
+	}
 	query := fmt.Sprintf(`SELECT SUM(total_events), SUM(num_inserts), SUM(num_updates), SUM(num_deletes) FROM %s 
 		WHERE table_name='%s' AND migration_uuid='%s'`, EVENTS_PER_TABLE_METADATA_TABLE_NAME, tableName, migrationUUID)
 	log.Infof("query to get import stats for table %s: %s", tableName, query)
-	err := tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
+	err = tdb.QueryRow(query).Scan(&eventCounter.TotalEvents,
 		&eventCounter.NumInserts, &eventCounter.NumUpdates, &eventCounter.NumDeletes)
 	if err != nil {
 		log.Errorf("error in getting import stats from target db: %v", err)

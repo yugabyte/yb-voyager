@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 
 	"github.com/google/uuid"
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -30,6 +31,9 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/yugabyted"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -42,6 +46,7 @@ var (
 	migrationUUID            uuid.UUID
 	perfProfile              utils.BoolStr
 	ProcessShutdownRequested bool
+	controlPlane             cp.ControlPlane
 )
 
 var rootCmd = &cobra.Command{
@@ -68,6 +73,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			go startPprofServer()
 		}
 
+		setControlPlane()
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -82,6 +88,9 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			lockFile.Unlock()
 		}
 		atexit.Exit(0)
+		if shouldRunPersistentPreRun(cmd) {
+			controlPlane.Finalize()
+		}
 	},
 }
 
@@ -245,4 +254,25 @@ func BoolVar(flagSet *pflag.FlagSet, p *utils.BoolStr, name string, value bool, 
 
 func metaDBIsCreated(exportDir string) bool {
 	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
+}
+
+func setControlPlane() {
+	cpType := os.Getenv("CONTROL_PLANE_TYPE")
+
+	switch cpType {
+	case "":
+		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
+		controlPlane = noopcp.New()
+	case "yugabyted":
+		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
+		if ybdConnString == "" {
+			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
+		}
+		controlPlane = yugabyted.New(exportDir)
+		log.Infof("Migration UUID %s", migrationUUID)
+		err := controlPlane.Init()
+		if err != nil {
+			utils.ErrExit("ERROR: Failed to initialize the target DB for visualization. %s", err)
+		}
+	}
 }

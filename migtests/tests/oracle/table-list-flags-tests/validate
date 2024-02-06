@@ -20,6 +20,7 @@ EXPECTED_ROW_COUNT = {
 	'c': 12,
 	'c1': 0,
 	'c2':2,
+	'foo': 0,
 }
 
 def migration_completed_checks(tgt):

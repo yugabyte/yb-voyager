@@ -119,7 +119,7 @@ public class SequenceObjectUpdater {
             // prior create/update events.
             return;
         }
-        for(int i = 0; i < r.valueColumns.size(); i++){
+        for(int i = 0; i < r.afterValueColumns.size(); i++){
             String schemaOrDbname;
             if (sourceType.equals("mysql")){
                 schemaOrDbname = r.t.dbName;
@@ -127,9 +127,9 @@ public class SequenceObjectUpdater {
             else {
                 schemaOrDbname = r.t.schemaName;
             }
-            String seqName = getFromColumnSequenceMap(schemaOrDbname, r.t.tableName, r.valueColumns.get(i));
+            String seqName = getFromColumnSequenceMap(schemaOrDbname, r.t.tableName, r.afterValueColumns.get(i));
             if (seqName != null){
-                Long columnValue = Long.valueOf(r.valueValues.get(i).toString());
+                Long columnValue = Long.valueOf(r.afterValueValues.get(i).toString());
                 sequenceMax.put(seqName, Math.max(sequenceMax.get(seqName), columnValue));
             }
         }

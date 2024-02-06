@@ -31,6 +31,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
@@ -223,6 +224,7 @@ const BATCH_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager
 const EVENT_CHANNELS_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_import_data_event_channels_metainfo"
 const EVENTS_PER_TABLE_METADATA_TABLE_NAME = BATCH_METADATA_TABLE_SCHEMA + "." + "ybvoyager_imported_event_count_by_table"
 const YB_DEFAULT_PARALLELISM_FACTOR = 2 // factor for default parallelism in case fetchDefaultParallelJobs() is not able to get the no of cores
+const ALTER_QUERY_RETRY_COUNT = 5
 
 func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 	cmds := []string{
@@ -524,13 +526,14 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
-			stmt := event.GetSQLStmt(yb.tconf.Schema)
+			stmt := event.GetSQLStmt()
 			ybBatch.Queue(stmt)
 		} else {
-			stmt := event.GetPreparedSQLStmt(yb.tconf.Schema, yb.tconf.TargetDBType)
+			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
+
 			params := event.GetParams()
 			if _, ok := stmtToPrepare[stmt]; !ok {
-				stmtToPrepare[event.GetPreparedStmtName(yb.tconf.Schema)] = stmt
+				stmtToPrepare[event.GetPreparedStmtName()] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
 		}
@@ -1011,14 +1014,24 @@ SELECT tc.table_schema, tc.table_name, kcu.column_name
 FROM information_schema.table_constraints tc
 JOIN information_schema.key_column_usage kcu
     ON tc.constraint_name = kcu.constraint_name
-WHERE tc.table_schema = '%s' AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
+	AND tc.table_schema = kcu.table_schema
+    AND tc.table_name = kcu.table_name
+WHERE tc.table_schema = ANY('{%s}') AND tc.table_name = ANY('{%s}') AND tc.constraint_type = 'UNIQUE';
 `
 
 func (yb *TargetYugabyteDB) GetTableToUniqueKeyColumnsMap(tableList []string) (map[string][]string, error) {
 	log.Infof("getting unique key columns for tables: %v", tableList)
 	result := make(map[string][]string)
+	var querySchemaList, queryTableList []string
+	for i := 0; i < len(tableList); i++ {
+		schema, table := yb.splitMaybeQualifiedTableName(tableList[i])
+		querySchemaList = append(querySchemaList, schema)
+		queryTableList = append(queryTableList, table)
+	}
 
-	query := fmt.Sprintf(ybQueryTmplForUniqCols, yb.tconf.Schema, strings.Join(tableList, ","))
+	querySchemaList = lo.Uniq(querySchemaList)
+	query := fmt.Sprintf(ybQueryTmplForUniqCols, strings.Join(querySchemaList, ","), strings.Join(queryTableList, ","))
+	log.Infof("query to get unique key columns: %s", query)
 	rows, err := yb.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("querying unique key columns: %w", err)
@@ -1054,24 +1067,33 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap map[string][]string, al
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, qualifiedTableName, column, alterAction)
 			batch.Queue(query)
 		}
-
-		err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			br := conn.SendBatch(context.Background(), &batch)
-			for i := 0; i < batch.Len(); i++ {
-				_, err := br.Exec()
-				if err != nil {
-					log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
-					return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+		sleepIntervalSec := 10
+		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+				br := conn.SendBatch(context.Background(), &batch)
+				for i := 0; i < batch.Len(); i++ {
+					_, err := br.Exec()
+					if err != nil {
+						log.Errorf("executing query to alter columns for table(%s): %v", qualifiedTableName, err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", qualifiedTableName, err)
+					}
 				}
+				if err := br.Close(); err != nil {
+					log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
+					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
+				}
+				return false, nil
+			})
+			if err != nil {
+				log.Errorf("error in altering columns for table(%s): %v", qualifiedTableName, err)
+				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+					return err
+				}
+				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, qualifiedTableName)
+				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+				continue
 			}
-			if err := br.Close(); err != nil {
-				log.Errorf("closing batch of queries to alter columns for table(%s): %v", qualifiedTableName, err)
-				return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", qualifiedTableName, err)
-			}
-			return false, nil
-		})
-		if err != nil {
-			return err
+			break
 		}
 	}
 	return nil

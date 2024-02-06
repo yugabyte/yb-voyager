@@ -282,8 +282,12 @@ func validateTargetSchemaFlag() {
 		}
 		return
 	}
-	if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
-		utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+
+	// do not check for source and source-replica imports
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
+			utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+		}
 	}
 }
 
@@ -337,8 +341,8 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default(%d)", DEFAULT_BATCH_SIZE_YUGABYTEDB))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
-		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+ 
-		"number of cores N and use N/4 as parallel jobs. "+
+		"number of parallel jobs to use while importing data. By default, voyager will try if it can determine the total "+
+			"number of cores N and use N/4 as parallel jobs. "+
 			"Otherwise, it fall back to using twice the number of nodes in the cluster.")
 }
 
@@ -346,8 +350,8 @@ func registerFlagsForSourceReplica(cmd *cobra.Command) {
 	cmd.Flags().Int64Var(&batchSize, "batch-size", 0,
 		fmt.Sprintf("Size of batches in the number of rows generated for ingestion during import. default: ORACLE(%d), POSTGRESQL(%d)", DEFAULT_BATCH_SIZE_ORACLE, DEFAULT_BATCH_SIZE_POSTGRESQL))
 	cmd.Flags().IntVar(&tconf.Parallelism, "parallel-jobs", 0,
-		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total " + 
-		"number of cores N and use N/2 as parallel jobs else it will fall back to  8) and Oracle(16)")
+		"number of parallel jobs to use while importing data. default: For PostgreSQL(voyager will try if it can determine the total "+
+			"number of cores N and use N/2 as parallel jobs else it will fall back to 8) and Oracle(16)")
 }
 
 func validateBatchSizeFlag(numLinesInASplit int64) {
