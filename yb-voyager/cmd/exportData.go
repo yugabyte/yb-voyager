@@ -159,6 +159,11 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		if len(strings.Split(source.Schema, "|")) > 1 {
+			utils.ErrExit("This voyager release does not support live-migration for more than one schema in --source-db-schema.")
+		}
+	}
 	finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
