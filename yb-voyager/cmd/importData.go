@@ -947,13 +947,14 @@ func setTargetSchema(conn *pgx.Conn) {
 	}
 }
 
-func dropIdx(conn *pgx.Conn, idxName string) {
+func dropIdx(conn *pgx.Conn, idxName string) error {
 	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
 	log.Infof("Dropping index: %q", dropIdxQuery)
 	_, err := conn.Exec(context.Background(), dropIdxQuery)
 	if err != nil {
-		utils.ErrExit("Failed in dropping index %q: %v", idxName, err)
+		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
 	}
+	return nil
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
@@ -1012,7 +1013,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 	}
 
 	parts := strings.FieldsFunc(sqlQuery, func(c rune) bool { return unicode.IsSpace(c) || c == '(' || c == ')' })
-
 	for index, part := range parts {
 		if strings.EqualFold(part, "ON") {
 			tableName := parts[index+1]
@@ -1034,10 +1034,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
-			//In case of index creation print the index name as index creation takes time
-			//and user can see the progress
-			if sqlInfo.objName != "" {
-				color.Yellow("creating index %s ...", sqlInfo.objName)
+			err = beforeIndexCreation(sqlInfo, conn, objType)
+			if err != nil {
+				return fmt.Errorf("before index creation: %w", err)
 			}
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
@@ -1053,7 +1052,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			*conn = newTargetConn()
 			continue
 		} else if strings.Contains(strings.ToLower(err.Error()), strings.ToLower(SCHEMA_VERSION_MISMATCH_ERR)) &&
-			objType == "INDEX" || objType == "PARTITION_INDEX" { // retriable error
+			(objType == "INDEX" || objType == "PARTITION_INDEX") { // retriable error
 			// creating fresh connection
 			(*conn).Close(context.Background())
 			*conn = newTargetConn()
@@ -1065,7 +1064,11 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			}
 
 			// DROP INDEX in case INVALID index got created
-			dropIdx(*conn, fullyQualifiedObjName)
+			// `err` is already being used for retries, so using `err2`
+			err2 := dropIdx(*conn, fullyQualifiedObjName)
+			if err2 != nil {
+				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
+			}
 			continue
 		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
@@ -1096,6 +1099,36 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 	}
 	return err
+}
+
+func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
+	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
+		return nil
+	}
+	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
+	if err != nil {
+		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
+	}
+
+	if invalidTargetIndexesCache == nil {
+		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
+		if err != nil {
+			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
+		}
+	}
+
+	// check if even it exists or not
+	if invalidTargetIndexesCache[fullyQualifiedObjName] {
+		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
+		err = dropIdx(*conn, fullyQualifiedObjName)
+		if err != nil {
+			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
+		}
+	}
+
+	// print the index name as index creation takes time and user can see the progress
+	color.Yellow("creating index %s ...", fullyQualifiedObjName)
+	return nil
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
