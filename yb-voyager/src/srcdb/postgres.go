@@ -605,7 +605,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v\n", query, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v", query, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -613,7 +613,7 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		var pkCount int
 		err := rows.Scan(&schemaName, &tableName, &pkCount)
 		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for primary key: %v\n", err)
+			return nil, fmt.Errorf("error in scanning query rows for primary key: %v", err)
 		}
 		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 		if pkCount == 0 {
