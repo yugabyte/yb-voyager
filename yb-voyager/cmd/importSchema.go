@@ -86,11 +86,6 @@ func importSchema() {
 		if err != nil {
 			utils.ErrExit("failed to initialize the target DB: %s", err)
 		}
-
-		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
-		if err != nil {
-			utils.ErrExit("failed to get invalid indexes: %s", err)
-		}
 	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()

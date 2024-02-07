@@ -1064,9 +1064,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			}
 
 			// DROP INDEX in case INVALID index got created
+			// `err` is already being used for retries, so using `err2`
 			err2 := dropIdx(*conn, fullyQualifiedObjName)
 			if err2 != nil {
-				utils.ErrExit("%v: %v", err, err2)
+				return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err2)
 			}
 			continue
 		} else if missingRequiredSchemaObject(err) {
@@ -1108,6 +1109,14 @@ func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error
 	if err != nil {
 		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
+
+	if invalidTargetIndexesCache == nil {
+		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
+		if err != nil {
+			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
+		}
+	}
+
 	// check if even it exists or not
 	if invalidTargetIndexesCache[fullyQualifiedObjName] {
 		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
