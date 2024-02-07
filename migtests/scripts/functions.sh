@@ -524,4 +524,20 @@ EOF
     run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
 }
 
+grant_permissions_for_live_migration() {
+    if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
+        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+        set_replica_identity
+        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+        grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+        if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
+            run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
+        fi
+    else
+        echo "Invalid source database."
+    fi
+}
+
 

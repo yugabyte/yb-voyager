@@ -57,7 +57,7 @@ def migration_completed_checks_yb():
 
 def migration_completed_checks_pg():
 	print("Running tests on PG")
-	yb.run_checks(migration_completed_checks, db_type="source")
+	yb.run_checks(migration_completed_checks, db_type="postgres")
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")

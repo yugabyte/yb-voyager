@@ -6,10 +6,10 @@ from xmlrpc.client import boolean
 import psycopg2
 
 
-def run_checks(checkFn, db_type="target"):
-	if db_type == "source":
-		tgt = new_source_db()
-	elif db_type == "target":
+def run_checks(checkFn, db_type="yb"):
+	if db_type == "postgres":
+		tgt = new_source_replica_db()
+	elif db_type == "yb":
 		tgt = new_target_db()
 	else:
 		raise ValueError("Invalid database type. Use 'source' or 'target'.")
@@ -29,7 +29,7 @@ def new_target_db():
 		env.get("TARGET_DB_PASSWORD", ""),
 		env["TARGET_DB_NAME"])
 
-def new_source_db():
+def new_source_replica_db():
     env = os.environ
     return PostgresDB(
         env.get("SOURCE_REPLICA_DB_HOST", "127.0.0.1"),
