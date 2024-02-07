@@ -56,13 +56,8 @@ main() {
 	step "Initialise source database."
 	./init-db
 
-	step "Grant source database user permissions"
-	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
-	then
-		grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
-	else
-		grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
-	fi
+	step "Grant source database user permissions for live migration"	
+	grant_permissions_for_live_migration
 
 	step "Setup Fall Back environment"
 	run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql

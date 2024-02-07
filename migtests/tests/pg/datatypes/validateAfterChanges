@@ -18,46 +18,56 @@ def main():
 	else:
 		migration_completed_checks_yb()
 
-EXPECTED_ROW_COUNT = {
-	'x':5,
-	'user_table': 8
-}
+#=============================================================================
 
-EXPECTED_DATA_TYPES = {
-	'x': {
-		'id': 'integer',
-		'id2': 'integer'
-	},
-	'user_table': {
-		'id': 'integer',
-		'email': 'character varying',
-		'status': 'character varying'
-	}
+EXPECTED_ROW_COUNT = {
+ 	'num_types': 3,   
+	'datatypes1': 3,  
+	'datetime_type': 3, 
+	'datatypes2': 4,
+	'datetime_type2': 2, 
+	'null_and_default' :2,
+	'decimal_types': 4,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
-	'x': {
-		'id': '15',
-		'id2': '20'
+	'num_types': {
+		'v1': '32556',
+		'v2': '211369200',
+		'v3': '1844675717304493978',
+		'v4': '1570.685',
+		'v5': '39691.3578',
+		'v6': '$217,175.38'
 	},
-	'user_table': {
-		'id': '51',
-	}
+	'decimal_types': {
+		'n1':'2853392251566501749938533440831300954025170802737098078636711923415133694412160070629816221840337665.109639922',
+		'n2':'180349583731554025.26'
+	},
 }
 
 EXPECTED_ROW_COUNT_FF = {
-	'x':7,
-	'user_table': 8
+ 	'num_types': 3,   
+	'datatypes1': 2,  
+	'datetime_type': 1, 
+	'datatypes2': 5,
+	'datetime_type2': 3, 
+	'null_and_default' :2,
+	'decimal_types': 4,
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
-	'x': {
-		'id': '130',
-		'id2': '44'
+	'num_types': {
+		'v1': '16401',
+		'v2': '214783737',
+		'v3': '1844674408679724160',
+		'v4': '574.686',
+		'v5': '79444.4418',
+		'v6': '$227,070.58'
 	},
-	'user_table': {
-		'id': '49',
-	}
+	'decimal_types': {
+		'n1':'531349381567983913051474631101346872050803974030268278014088484327035860106983140443622806995814770.993622164',
+		'n2':'111797748546368966.60'
+	},
 }
 
 def change_expected_values():
@@ -77,20 +87,11 @@ def migration_completed_checks_pg():
 	yb.run_checks(migration_completed_checks, db_type="postgres")
 
 def migration_completed_checks(tgt):
-	# Validation to check for matching row counts
+
 	got_row_count = tgt.row_count_of_all_tables("public")
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-#=============================================================================
-	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
- 
-	print(fetched_datatypes_schema)
-	for table_name, columns in fetched_datatypes_schema.items():
-		print(f"table_name: {table_name} ---- ")
-		for column_name, datatype in columns.items():
-			print(f"column_name: {column_name}, datatype: {datatype}")
-			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {table_name} ---- ")

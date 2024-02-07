@@ -387,13 +387,16 @@ import_data_to_source_replica() {
 	--source-replica-db-host ${SOURCE_REPLICA_DB_HOST} 
 	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
-	--source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA} 
 	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
 	--max-retries 1 
 	"
+	if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]
+	then
+		args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
+	fi
 	yb-voyager import data to source-replica ${args} $*
 }
 
@@ -504,3 +507,37 @@ create_ff_schema(){
 EOF
 	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
 }
+
+set_replica_identity(){
+	
+    cat > alter_replica_identity.sql <<EOF
+    DO \$CUSTOM\$ 
+    DECLARE
+        table_name_var text;
+    BEGIN
+        FOR table_name_var IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        LOOP
+            EXECUTE 'ALTER TABLE ' || table_name_var || ' REPLICA IDENTITY FULL';
+        END LOOP;
+    END \$CUSTOM\$;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
+}
+
+grant_permissions_for_live_migration() {
+    if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
+        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+        set_replica_identity
+        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+        grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+        if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
+            run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
+        fi
+    else
+        echo "Invalid source database."
+    fi
+}
+
+
