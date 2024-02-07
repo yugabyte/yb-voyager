@@ -11,6 +11,7 @@ import (
 
 type MigrationStatusRecord struct {
 	MigrationUUID                                   string            `json:"MigrationUUID"`
+	VoyagerVersion                                  string            `json:"VoyagerVersion"`
 	ExportType                                      string            `json:"ExportType"`
 	ArchivingEnabled                                bool              `json:"ArchivingEnabled"`
 	FallForwardEnabled                              bool              `json:"FallForwardEnabled"`
@@ -63,6 +64,10 @@ func (m *MetaDB) InitMigrationStatusRecord() error {
 		if record != nil && record.MigrationUUID != "" {
 			return // already initialized
 		}
+		if record.VoyagerVersion == "" {
+			record.VoyagerVersion = utils.YB_VOYAGER_VERSION
+		}
+
 		record.MigrationUUID = uuid.New().String()
 		record.ExportType = utils.SNAPSHOT_ONLY
 	})
