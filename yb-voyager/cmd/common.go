@@ -346,8 +346,10 @@ func initMetaDB() {
 		utils.ErrExit("get migration status record: %v", err)
 	}
 	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
-		utils.ErrExit("It is recommended to use a single yb-voyager version for each export-dir to prevent any issues.\n" +
-		"Please maintain the same version for this export-dir, or use a different export-dir if you need to change the version.")
+		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
+		"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh" + 
+		"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+		utils.ErrExit(userFacingMsg)
 	}
 }
 
