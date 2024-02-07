@@ -30,11 +30,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"golang.org/x/exp/slices"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -293,6 +293,9 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
+	utils.PrintAndLog(color.YellowString(fmt.Sprintf("Created replication slot '%s' on source PG database. "+
+		"Be sure to run 'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"This is important to avoid filling up disk space.", replicationSlotName)))
 	// pg_dump
 	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
 	if err != nil {
