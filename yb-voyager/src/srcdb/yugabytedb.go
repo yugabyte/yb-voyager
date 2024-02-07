@@ -454,16 +454,25 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 	return nil
 }
 
-func (yb *YugabyteDB) IsNonPKTable(tableName *sqlname.SourceName) bool {
-	table := tableName.ObjectName.MinQuoted
-	if tableName.SchemaName.MinQuoted != "public" {
-		table = tableName.Qualified.MinQuoted
-	}
-	count := 0
-	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, table)
-	err := yb.conn.QueryRow(context.Background(), query).Scan(&count)
+func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
+	var nonPKTables []string
+	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, yb.source.Schema)
+	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
 	}
-	return count == 0
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName, tableName string
+		var pkCount int
+		err := rows.Scan(&schemaName, &tableName, &pkCount)
+		if err != nil {
+			utils.ErrExit("error in scanning query rows for primary key: %v\n", err)
+		}
+		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+		if pkCount == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

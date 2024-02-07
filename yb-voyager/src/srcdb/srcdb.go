@@ -49,7 +49,7 @@ type SourceDB interface {
 	GetServers() []string
 	GetPartitions(table *sqlname.SourceName) []*sqlname.SourceName
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
-	IsNonPKTable(tableName *sqlname.SourceName) bool
+	GetNonPKTables() ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

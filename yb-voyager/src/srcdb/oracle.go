@@ -465,13 +465,33 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 	return nil
 }
 
-func (ora *Oracle) IsNonPKTable(tableName *sqlname.SourceName) bool {
-	query := fmt.Sprintf(`SELECT count(constraint_name) from ALL_CONSTRAINTS where constraint_type='P' 
-	and OWNER='%s' and TABLE_NAME='%s'`, tableName.SchemaName.Unquoted, tableName.ObjectName.Unquoted)
-	count := 0
-	err := ora.db.QueryRow(query).Scan(&count)
-	if err != nil && err != sql.ErrNoRows {
-		utils.ErrExit("error in query to check if table %v is a non-pk table: %v", tableName, err)
+func (ora *Oracle) GetNonPKTables() ([]string, error) {
+	query := fmt.Sprintf(`SELECT NVL(pk_count.count, 0) AS pk_count, at.table_name
+	FROM ALL_TABLES at
+	LEFT JOIN (
+		SELECT COUNT(constraint_name) AS count, table_name
+		FROM ALL_CONSTRAINTS
+		WHERE constraint_type = 'P' AND owner = 'ADMIN'
+		GROUP BY table_name
+	) pk_count ON at.table_name = pk_count.table_name
+	WHERE at.owner = '%s'`, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
 	}
-	return count == 0
+	defer rows.Close()
+	var unsupportedTables []string
+	for rows.Next() {
+		var count int
+		var tableName string
+		err = rows.Scan(&count, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %v", err)
+		}
+		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
+		if count == 0 {
+			unsupportedTables = append(unsupportedTables, table.Qualified.MinQuoted)
+		}
+	}
+	return unsupportedTables, nil
 }

@@ -592,22 +592,33 @@ func (pg *PostgreSQL) DropPublication(publicationName string) error {
 	return nil
 }
 
-var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT COUNT(conname)
-FROM pg_constraint con
-JOIN pg_attribute a ON a.attnum = ANY(con.conkey)
-WHERE con.contype = 'p' 
-AND conrelid::regclass::text = '%s'`
+var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname AS table_name, COUNT(conname) AS pk_count
+FROM pg_class c
+LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
+LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
+GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
-func (pg *PostgreSQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
-	table := tableName.ObjectName.MinQuoted
-	if tableName.SchemaName.MinQuoted != "public" {
-		table = tableName.Qualified.MinQuoted
-	}
-	count := 0
-	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, table)
-	err := pg.db.QueryRow(context.Background(), query).Scan(&count)
+func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
+	var nonPKTables []string
+	schemaList := strings.Split(pg.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
+	rows, err := pg.db.Query(context.Background(), query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for primary key: %v\n", query, err)
 	}
-	return count == 0
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName, tableName string
+		var pkCount int
+		err := rows.Scan(&schemaName, &tableName, &pkCount)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for primary key: %v\n", err)
+		}
+		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+		if pkCount == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
 }

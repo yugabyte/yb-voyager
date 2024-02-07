@@ -352,14 +352,43 @@ func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) 
 	return nil
 }
 
-func (ms *MySQL) IsNonPKTable(tableName *sqlname.SourceName) bool {
-	query := fmt.Sprintf(`SELECT count(*) 
-	FROM information_schema.KEY_COLUMN_USAGE 
-	WHERE TABLE_NAME = '%s' AND TABLE_SCHEMA = '%s' AND CONSTRAINT_NAME = 'PRIMARY'`, tableName.ObjectName.MinQuoted, tableName.SchemaName.MinQuoted)
-	count := 0
-	err := ms.db.QueryRow(query).Scan(&count)
+func (ms *MySQL) GetNonPKTables() ([]string, error) {
+	query := fmt.Sprintf(`SELECT 
+		IFNULL(pk_count.count, 0) AS pk_count, 
+		t.table_name
+	FROM 
+		information_schema.TABLES t
+	LEFT JOIN (
+		SELECT 
+			COUNT(CONSTRAINT_NAME) AS count, 
+			table_name
+		FROM 
+			information_schema.KEY_COLUMN_USAGE
+		WHERE 
+			TABLE_SCHEMA = 'release_qual' 
+			AND CONSTRAINT_NAME = 'PRIMARY' 
+		GROUP BY 
+			table_name
+	) pk_count ON t.table_name = pk_count.table_name
+	WHERE 
+		t.TABLE_SCHEMA = '%s'`, ms.source.DBName)
+	rows, err := ms.db.Query(query)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for primary key of %q: %s", query, tableName.String(), err)
+		return nil, fmt.Errorf("failed to query %q for primary key of %q: %w", query, ms.source.DBName, err)
 	}
-	return count == 0
+	defer rows.Close()
+	var unsupportedTables []string
+	for rows.Next() {
+		var count int
+		var tableName string
+		err = rows.Scan(&count, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan count from output of query %q: %w", query, err)
+		}
+		table := sqlname.NewSourceName(ms.source.DBName, tableName)
+		if count == 0 {
+			unsupportedTables = append(unsupportedTables, table.Qualified.MinQuoted)
+		}
+	}
+	return unsupportedTables, nil
 }

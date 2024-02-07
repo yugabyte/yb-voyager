@@ -365,6 +365,10 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	//report Partitions or case sensitive tables
 	var caseSensitiveTables []string
 	var partitionedTables []string
+	allNonPKTables, err := source.DB().GetNonPKTables()
+	if err != nil {
+		utils.ErrExit("get non-pk tables: %v", err)
+	}
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if source.DBType == POSTGRESQL {
@@ -379,7 +383,7 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
 			}
 		}
-		if source.DB().IsNonPKTable(table) {
+		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
 			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
 	}
@@ -396,7 +400,7 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
 	}
 	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key, tables with case sensitive name and partitioned tables.\n" +
-	"You can exclude these tables using the --exclude-table-list argument.")
+		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
