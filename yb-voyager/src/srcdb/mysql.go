@@ -377,7 +377,7 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 		return nil, fmt.Errorf("failed to query %q for primary key of %q: %w", query, ms.source.DBName, err)
 	}
 	defer rows.Close()
-	var unsupportedTables []string
+	var nonPKTables []string
 	for rows.Next() {
 		var count int
 		var tableName string
@@ -387,8 +387,8 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(ms.source.DBName, tableName)
 		if count == 0 {
-			unsupportedTables = append(unsupportedTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
 	}
-	return unsupportedTables, nil
+	return nonPKTables, nil
 }

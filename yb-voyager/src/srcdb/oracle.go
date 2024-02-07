@@ -480,7 +480,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
 	}
 	defer rows.Close()
-	var unsupportedTables []string
+	var nonPKTables []string
 	for rows.Next() {
 		var count int
 		var tableName string
@@ -490,8 +490,8 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		}
 		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {
-			unsupportedTables = append(unsupportedTables, table.Qualified.MinQuoted)
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
 	}
-	return unsupportedTables, nil
+	return nonPKTables, nil
 }
