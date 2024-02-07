@@ -24,12 +24,16 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-// value converter Function type
-type ConverterFn func(v string, formatIfRequired bool) (string, error)
+var BIT_VARYING_MAX_LEN = 2147483647 // max len for datatype like bit varying without n 
 
-func quoteValueIfRequired(value string, formatIfRequired bool) (string, error) {
+// value converter Function type
+type ConverterFn func(v string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error)
+
+func quoteValueIfRequired(value string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 	if formatIfRequired {
 		return fmt.Sprintf("'%s'", value), nil
 	}
@@ -37,28 +41,28 @@ func quoteValueIfRequired(value string, formatIfRequired bool) (string, error) {
 }
 
 var YBValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.data.Json": quoteValueIfRequired,
-	"io.debezium.data.Enum": quoteValueIfRequired,
+	"io.debezium.data.Json":     quoteValueIfRequired,
+	"io.debezium.data.Enum":     quoteValueIfRequired,
 	"io.debezium.time.Interval": quoteValueIfRequired,
-	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
 		}
 		epochSecs := epochDays * 24 * 60 * 60
 		date := time.Unix(int64(epochSecs), 0).UTC().Format(time.DateOnly)
-		return quoteValueIfRequired(date, formatIfRequired)
+		return quoteValueIfRequired(date, formatIfRequired, dbzmSchema)
 	},
-	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timestamp := time.Unix(epochSecs, 0).UTC().Format(time.DateTime)
-		return quoteValueIfRequired(timestamp, formatIfRequired)
+		return quoteValueIfRequired(timestamp, formatIfRequired, dbzmSchema)
 	},
-	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
@@ -66,9 +70,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochMicroSecs / 1000000
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999")
-		return quoteValueIfRequired(timestamp, formatIfRequired)
+		return quoteValueIfRequired(timestamp, formatIfRequired, dbzmSchema)
 	},
-	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch nanoseconds: %v", err)
@@ -76,19 +80,19 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochSeconds := epochNanoSecs / 1000000000
 		epochNanos := epochNanoSecs % 1000000000
 		timestamp := time.Unix(epochSeconds, epochNanos).UTC().Format("2006-01-02T15:04:05.999999999")
-		return quoteValueIfRequired(timestamp, formatIfRequired)
+		return quoteValueIfRequired(timestamp, formatIfRequired, dbzmSchema)
 	},
 	"io.debezium.time.ZonedTimestamp": quoteValueIfRequired,
-	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.Time": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
 		epochSecs := epochMilliSecs / 1000
 		timeValue := time.Unix(epochSecs, 0).UTC().Format(time.TimeOnly)
-		return quoteValueIfRequired(timeValue, formatIfRequired)
+		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
-	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.time.MicroTime": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
@@ -97,9 +101,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		epochNanos := (epochMicroSecs % 1000000) * 1000
 		MICRO_TIME_FORMAT := "15:04:05.000000"
 		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
-		return quoteValueIfRequired(timeValue, formatIfRequired)
+		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
 	},
-	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
 		bytes, err := base64.StdEncoding.DecodeString(columnValue)
 		if err != nil {
 			return columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
@@ -112,31 +116,42 @@ var YBValueConverterSuite = map[string]ConverterFn{
 				data |= uint64(b) << (8 * i)
 			}
 		}
+		n, ok := dbzmSchema.Parameters["length"]
+		bitVal := fmt.Sprintf("%b", data)
+		bitLen, err := strconv.Atoi(n)
+		if err != nil {
+			return columnValue, fmt.Errorf("parsing bit length: %v", err)
+		}
+		if ok && bitLen != BIT_VARYING_MAX_LEN && len(bitVal) < bitLen { 
+			//No need to pad in max length case
+			bitVal = fmt.Sprintf("%0*s", bitLen, bitVal) // Left padding with zeros
+		}
+
 		if formatIfRequired {
-			return fmt.Sprintf("'%b'", data), nil
+			return fmt.Sprintf("'%s'", bitVal), nil
 		} else {
-			return fmt.Sprintf("%b", data), nil
+			return fmt.Sprintf("%s", bitVal), nil
 		}
 	},
-	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.
 		return columnValue, nil
 	},
-	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geometry": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis geometry point.
 		return columnValue, nil
 	},
-	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.geometry.Geography": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		//TODO: figure out if we want to represent it as a postgres native geography or postgis geometry geography.
 		return columnValue, nil
 	},
-	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool) (string, error) {
+	"org.apache.kafka.connect.data.Decimal": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool) (string, error) {
+	"io.debezium.data.VariableScaleDecimal": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		return columnValue, nil //handled in exporter plugin
 	},
-	"BYTES": func(columnValue string, formatIfRequired bool) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -155,7 +170,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, _ bool) (string, error) {
+	"MAP": func(columnValue string, _ bool, _ *utils.ColumnSchema) (string, error) {
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
 		if err != nil {
@@ -167,7 +182,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
 	},
-	"STRING": func(columnValue string, formatIfRequired bool) (string, error) {
+	"STRING": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
 		if formatIfRequired {
 			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
 			return fmt.Sprintf("'%s'", formattedColumnValue), nil
