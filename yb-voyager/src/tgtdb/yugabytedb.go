@@ -1128,18 +1128,25 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
-func (yb *TargetYugabyteDB) InvalidIndexExists(indexName string) bool {
-	var indexIsValid bool
-	query := fmt.Sprintf("SELECT indisvalid from pg_index where indexrelid = '%s'::regclass", indexName)
-	err := yb.QueryRow(query).Scan(&indexIsValid)
+func (yb *TargetYugabyteDB) InvalidIndexes() (map[string]bool, error) {
+	var result = make(map[string]bool)
+	// NOTE: this won't fetch any valid index like pg_catalog schema indexes or index of other successful migrations
+	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
+	rows, err := yb.Query(query)
 	if err != nil {
-		// ignore if index doesn't exists error
-		if strings.Contains(err.Error(), "does not exist") {
-			return false
-		}
-		utils.ErrExit("error checking if index %s is valid: %v", indexName, err)
+		return nil, fmt.Errorf("querying invalid indexes: %w", err)
 	}
-	return !indexIsValid
+	defer rows.Close()
+
+	for rows.Next() {
+		var fullyQualifiedIndexName string
+		err := rows.Scan(&fullyQualifiedIndexName)
+		if err != nil {
+			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
+		}
+		result[fullyQualifiedIndexName] = true
+	}
+	return result, nil
 }
 
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

@@ -287,7 +287,7 @@ outer:
 }
 
 func getDefaultPGSchema(schema string) (string, bool) {
-	// second return value is true if public is not included in schema list 
+	// second return value is true if public is not included in schema list
 	// which indicates noDefaultSchema
 	schemas := strings.Split(schema, ",")
 	if len(schemas) == 1 {
@@ -306,7 +306,7 @@ func (pg *TargetPostgreSQL) qualifyTableName(tableName string) (string, error) {
 			return "", fmt.Errorf("object name %q does not have schema name and public schema is not included in the schema list", tableName)
 		}
 		tableName = fmt.Sprintf("%s.%s", defaultSchema, tableName)
-	} 
+	}
 	return tableName, nil
 }
 
@@ -834,8 +834,8 @@ func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
-func (pg *TargetPostgreSQL) InvalidIndexExists(indexName string) bool {
-	return false
+func (pg *TargetPostgreSQL) InvalidIndexes() (map[string]bool, error) {
+	return nil, nil
 }
 
 func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {

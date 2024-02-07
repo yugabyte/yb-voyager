@@ -754,8 +754,8 @@ func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
-func (tdb *TargetOracleDB) InvalidIndexExists(indexName string) bool {
-	return false
+func (tdb *TargetOracleDB) InvalidIndexes() (map[string]bool, error) {
+	return nil, nil
 }
 
 // this will be only called by FallForward or FallBack DBs

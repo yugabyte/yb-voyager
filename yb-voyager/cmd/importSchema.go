@@ -71,6 +71,7 @@ func init() {
 var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
+var invalidTargetIndexesCache = make(map[string]bool)
 
 func importSchema() {
 	err := retrieveMigrationUUID()
@@ -83,7 +84,12 @@ func importSchema() {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err = tdb.Init()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
+			utils.ErrExit("failed to initialize the target DB: %s", err)
+		}
+
+		invalidTargetIndexesCache, err = tdb.InvalidIndexes()
+		if err != nil {
+			utils.ErrExit("failed to get invalid indexes: %s", err)
 		}
 	}
 
@@ -290,7 +296,6 @@ func createTargetSchemas(conn *pgx.Conn) {
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLog("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
-
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)

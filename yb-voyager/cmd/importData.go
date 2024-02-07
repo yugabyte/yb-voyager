@@ -947,13 +947,14 @@ func setTargetSchema(conn *pgx.Conn) {
 	}
 }
 
-func dropIdx(conn *pgx.Conn, idxName string) {
+func dropIdx(conn *pgx.Conn, idxName string) error {
 	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
 	log.Infof("Dropping index: %q", dropIdxQuery)
 	_, err := conn.Exec(context.Background(), dropIdxQuery)
 	if err != nil {
-		utils.ErrExit("Failed in dropping index %q: %v", idxName, err)
+		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
 	}
+	return nil
 }
 
 func executeSqlFile(file string, objType string, skipFn func(string, string) bool) {
@@ -1033,7 +1034,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 		}
 
 		if bool(flagPostSnapshotImport) && strings.Contains(objType, "INDEX") {
-			handleIndexCreation(sqlInfo, conn, objType)
+			err = beforeIndexCreation(sqlInfo, conn, objType)
+			if err != nil {
+				return fmt.Errorf("before index creation: %w", err)
+			}
 		}
 		_, err = (*conn).Exec(context.Background(), sqlInfo.formattedStmt)
 		if err == nil {
@@ -1060,7 +1064,10 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			}
 
 			// DROP INDEX in case INVALID index got created
-			dropIdx(*conn, fullyQualifiedObjName)
+			err2 := dropIdx(*conn, fullyQualifiedObjName)
+			if err2 != nil {
+				utils.ErrExit("%v: %v", err, err2)
+			}
 			continue
 		} else if missingRequiredSchemaObject(err) {
 			log.Infof("deffering execution of SQL: %s", sqlInfo.formattedStmt)
@@ -1093,22 +1100,26 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
-func handleIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) {
+func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
 	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
-		return
+		return nil
 	}
 	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
 	if err != nil {
-		utils.ErrExit("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 	}
 	// check if even it exists or not
-	if tdb.InvalidIndexExists(fullyQualifiedObjName) {
-		log.Infof("Invalid index %q already exists, dropping it", fullyQualifiedObjName)
-		dropIdx(*conn, fullyQualifiedObjName)
+	if invalidTargetIndexesCache[fullyQualifiedObjName] {
+		log.Infof("invalid index %q already exists, dropping it", fullyQualifiedObjName)
+		err = dropIdx(*conn, fullyQualifiedObjName)
+		if err != nil {
+			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
+		}
 	}
 
 	// print the index name as index creation takes time and user can see the progress
 	color.Yellow("creating index %s ...", fullyQualifiedObjName)
+	return nil
 }
 
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
