@@ -222,7 +222,9 @@ func (cp *YugabyteD) UpdateExportedRowCount(
 		}
 
 	}
-	cp.createAndSendUpdateRowCountEvent(updateExportedRowCountEvents)
+	if len(updateExportedRowCountEvents) > 0 {
+		cp.createAndSendUpdateRowCountEvent(updateExportedRowCountEvents)
+	}
 }
 
 func (cp *YugabyteD) ImportSchemaStarted(importSchemaEvent *controlPlane.ImportSchemaStartedEvent) {
@@ -263,7 +265,9 @@ func (cp *YugabyteD) UpdateImportedRowCount(
 		}
 
 	}
-	cp.createAndSendUpdateRowCountEvent(updateImportedRowCountEvents)
+	if len(updateImportedRowCountEvents) > 0 {
+		cp.createAndSendUpdateRowCountEvent(updateImportedRowCountEvents)
+	}
 }
 
 func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationEndedEvent) {
@@ -418,7 +422,7 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 		return 0, err
 	}
 
-	err = connPool.QueryRow(context.Background(), cmd).Scan(&latestSequence)
+	err = connPool.QueryRow(context.Background(), cmd).Scan(latestSequence)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			cp.latestInvocationSequence = 1

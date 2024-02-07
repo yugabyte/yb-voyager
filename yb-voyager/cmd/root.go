@@ -87,10 +87,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		if shouldLock(cmd) {
 			lockFile.Unlock()
 		}
-		atexit.Exit(0)
 		if shouldRunPersistentPreRun(cmd) {
 			controlPlane.Finalize()
 		}
+		atexit.Exit(0)
 	},
 }
 
