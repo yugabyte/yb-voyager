@@ -471,10 +471,10 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	LEFT JOIN (
 		SELECT COUNT(constraint_name) AS count, table_name
 		FROM ALL_CONSTRAINTS
-		WHERE constraint_type = 'P' AND owner = 'ADMIN'
+		WHERE constraint_type = 'P' AND owner = '%s'
 		GROUP BY table_name
 	) pk_count ON at.table_name = pk_count.table_name
-	WHERE at.owner = '%s'`, ora.source.Schema)
+	WHERE at.owner = '%s'`, ora.source.Schema, ora.source.Schema)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)

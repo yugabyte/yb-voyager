@@ -456,7 +456,9 @@ func (yb *YugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir str
 
 func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	var nonPKTables []string
-	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, yb.source.Schema)
+	schemaList := strings.Split(yb.source.Schema, "|")
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.conn.Query(context.Background(), query)
 	if err != nil {
 		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)

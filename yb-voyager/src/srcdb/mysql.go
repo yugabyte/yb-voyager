@@ -365,13 +365,13 @@ func (ms *MySQL) GetNonPKTables() ([]string, error) {
 		FROM 
 			information_schema.KEY_COLUMN_USAGE
 		WHERE 
-			TABLE_SCHEMA = 'release_qual' 
+			TABLE_SCHEMA = '%s' 
 			AND CONSTRAINT_NAME = 'PRIMARY' 
 		GROUP BY 
 			table_name
 	) pk_count ON t.table_name = pk_count.table_name
 	WHERE 
-		t.TABLE_SCHEMA = '%s'`, ms.source.DBName)
+		t.TABLE_SCHEMA = '%s'`, ms.source.DBName, ms.source.DBName)
 	rows, err := ms.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query %q for primary key of %q: %w", query, ms.source.DBName, err)
