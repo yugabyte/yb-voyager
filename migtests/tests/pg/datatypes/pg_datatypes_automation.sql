@@ -64,8 +64,8 @@ drop table if exists datatypes2;
 create table datatypes2(v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][]);
 
 insert into datatypes2 values ('{"key1": "value1", "key2": "value2"}',B'1001100101','{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {“FD”, “Property”}}');
-insert into datatypes2 values ('["a","b","c",1,2,3]',B'0001010101'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}');
-insert into datatypes2 values (null,B'1001000101'),null, '{{“FD”}, {"act"}}');
+insert into datatypes2 values ('["a","b","c",1,2,3]',B'0001010101','{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}');
+insert into datatypes2 values (null,B'1001000101',null, '{{“FD”}, {"act"}}');
 
 
 \d datatypes2

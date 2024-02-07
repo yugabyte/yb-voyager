@@ -75,7 +75,7 @@ def migration_completed_checks(tgt):
 
 	print(f"distinct_bit10_values:")
 	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
-		transform_func=str, expected_distinct_values=['1000000000','1000110000'])
+		transform_func=str, expected_distinct_values=['1001100101','0001010101','1001000101'])
 
 	print(f"distinct_int[]_values:")
 	tgt.assert_distinct_values_of_col("datatypes2", "v3", "public", 
