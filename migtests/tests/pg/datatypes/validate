@@ -73,6 +73,8 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name} ---- ")
 		for column, sum in column_names_with_sum.items():
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			# YB returns .5429 and PG returns .54290. Thus this fails during string comparison
+			# TODO Add proper handling for the case
 			if column == 'v5':
 				expected_values = column_names_with_sum[column]
 				assert str(col_sum) in expected_values
