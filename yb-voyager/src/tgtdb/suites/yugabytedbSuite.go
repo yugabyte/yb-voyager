@@ -130,7 +130,7 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		if formatIfRequired {
 			return fmt.Sprintf("'%s'", bitVal), nil
 		} else {
-			return fmt.Sprintf("%s", bitVal), nil
+			return bitVal, nil
 		}
 	},
 	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool, _ *utils.ColumnSchema) (string, error) {
