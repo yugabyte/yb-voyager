@@ -222,7 +222,9 @@ func (cp *YugabyteD) UpdateExportedRowCount(
 		}
 
 	}
-	cp.createAndSendUpdateRowCountEvent(updateExportedRowCountEvents)
+	if len(updateExportedRowCountEvents) > 0 {
+		cp.createAndSendUpdateRowCountEvent(updateExportedRowCountEvents)
+	}
 }
 
 func (cp *YugabyteD) ImportSchemaStarted(importSchemaEvent *controlPlane.ImportSchemaStartedEvent) {
@@ -263,7 +265,9 @@ func (cp *YugabyteD) UpdateImportedRowCount(
 		}
 
 	}
-	cp.createAndSendUpdateRowCountEvent(updateImportedRowCountEvents)
+	if len(updateImportedRowCountEvents) > 0 {
+		cp.createAndSendUpdateRowCountEvent(updateImportedRowCountEvents)
+	}
 }
 
 func (cp *YugabyteD) MigrationEnded(migrationEndedEvent *controlPlane.MigrationEndedEvent) {
@@ -412,7 +416,7 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 
 	log.Infof("Executing on yugabyted DB: [%s]", cmd)
 
-	var latestSequence *sql.NullInt32
+	var latestSequence sql.NullInt32
 	connPool, err := cp.getConnPool()
 	if err != nil {
 		return 0, err
