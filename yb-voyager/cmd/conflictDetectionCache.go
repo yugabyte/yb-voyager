@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -77,7 +78,11 @@ UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
-	m                       map[int64]*tgtdb.Event
+	/*
+		m caches separte copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
+		ConvertEvent() in some case modifies schemaName, tableName and before after values
+	*/
+	m                       map[int64]tgtdb.Event
 	cond                    *sync.Cond
 	tableToUniqueKeyColumns map[string][]string
 	evChans                 []chan *tgtdb.Event
@@ -86,18 +91,22 @@ type ConflictDetectionCache struct {
 
 func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
-	c.m = make(map[int64]*tgtdb.Event)
+	c.m = make(map[int64]tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
-	c.evChans = evChans
 	c.sourceDBType = sourceDBType
+	c.evChans = evChans
 	return c
+}
+
+func (c *ConflictDetectionCache) String() string {
+	return spew.Sdump(c)
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
-	c.m[event.Vsn] = event
+	c.m[event.Vsn] = *event
 }
 
 func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
@@ -139,13 +148,12 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 	}
 }
 
-func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
+func (c *ConflictDetectionCache) eventsConfict(cachedEvent tgtdb.Event, incomingEvent *tgtdb.Event) bool {
 	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
 	}
-
 	maybeQualifiedName := cachedEvent.TableName
-	if c.sourceDBType == "postgresql" && cachedEvent.SchemaName != "public" {
+	if (c.sourceDBType == "postgresql" || c.sourceDBType == "yugabytedb") && cachedEvent.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
@@ -189,11 +197,11 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 	return false
 }
 
-func (c *ConflictDetectionCache) eventsAreOfSameTable(event1, event2 *tgtdb.Event) bool {
+func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 tgtdb.Event, event2 *tgtdb.Event) bool {
 	switch c.sourceDBType {
 	case "oracle":
 		return event1.TableName == event2.TableName
-	case "postgresql":
+	case "postgresql", "yugabytedb":
 		return event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName
 	default:
 		panic(fmt.Sprintf("unknown source database type %q for unique key conflict detection", c.sourceDBType))
