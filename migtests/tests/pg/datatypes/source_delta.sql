@@ -41,15 +41,15 @@ VALUES ('2024-02-07 12:00:00');
 
 DELETE FROM datetime_type2 WHERE v1 = '2024-02-07 12:00:00';
 
-INSERT INTO datatypes2(v1, v2, v3, v4)
-VALUES ('{"key": "value"}', B'1010101010', ARRAY[1, 2, 3, 4], '{{"a", "b"}, {"c", "d"}}');
+INSERT INTO datatypes2(v1, v2, v3, v4, v5)
+VALUES ('{"key": "value"}', B'1010101010', ARRAY[1, 2, 3, 4], '{{"a", "b"}, {"c", "d"}}', B'001010101');
 
-INSERT INTO datatypes2(v1, v2, v3, v4)
-VALUES ('{"key": "value"}', B'0000101010', ARRAY[1, 2, 3, 4], '{{"a", "b"}, {"c", "d"}}');
+INSERT INTO datatypes2(v1, v2, v3, v4, v5)
+VALUES ('{"key": "value"}', B'0000101010', ARRAY[1, 2, 3, 4], '{{"a", "b"}, {"c", "d"}}', B'1010101010101010101010');
 
--- UPDATE datatypes2
--- SET v1 = '{"updated": true}', v2 = B'0101010101', v3 = ARRAY[5, 6, 7, 8], v4 = '{{"e", "f"}, {"g", "h"}}'
--- WHERE v1 IS NULL;
+UPDATE datatypes2
+SET v1 = '{"updated": true}', v2 = B'0101010101', v5 = B'101010101010101010101010101010', v3 = ARRAY[5, 6, 7, 8], v4 = '{{"e", "f"}, {"g", "h"}}'
+WHERE v1 IS NULL;
 
 
 

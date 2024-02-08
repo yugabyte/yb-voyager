@@ -34,7 +34,7 @@ create table datetime_type2(id serial primary key, v1 timestamp);
 
 drop table if exists datatypes2;
 
-create table datatypes2(id serial primary key, v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][]);
+create table datatypes2(id serial primary key, v1 json, v2 BIT(10), v3 int ARRAY[4], v4 text[][], v5 BIT VARYING);
 
 \d datatypes2
 

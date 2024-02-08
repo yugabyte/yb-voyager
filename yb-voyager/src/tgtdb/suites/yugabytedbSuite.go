@@ -120,7 +120,11 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		quote := lo.Ternary(formatIfRequired, "'", "") 
 		strLength, ok := dbzmSchema.Parameters["length"]
 		length := lo.Ternary(ok, lo.Must(strconv.Atoi(strLength)), BIT_VARYING_MAX_LEN)
-		return fmt.Sprintf("%s%0*b%s", quote, length, data, quote), nil
+		if length == BIT_VARYING_MAX_LEN {
+			return fmt.Sprintf("%s%b%s", quote, data, quote), nil
+		} else {
+			return fmt.Sprintf("%s%0*b%s", quote, length, data, quote), nil	
+		}
 	},
 	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.

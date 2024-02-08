@@ -222,7 +222,7 @@ func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName str
 		}
 		converterFn := conv.valueConverterSuite[colType]
 		if converterFn != nil {
-			columnValue, err = converterFn(columnValue, formatIfRequired, colDbzmSchema) // Fix: Pass the value of colDbzmSchema instead of the pointer
+			columnValue, err = converterFn(columnValue, formatIfRequired, colDbzmSchema)
 			if err != nil {
 				return fmt.Errorf("error while converting %s.%s of type %s in event: %w", tableName, column, colType, err) // TODO - add event id in log msg
 			}
