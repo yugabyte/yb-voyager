@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package dbzm
+package schemareg
 
 import (
 	"encoding/json"
@@ -40,22 +40,22 @@ type TableSchema struct {
 	Columns []Column `json:"columns"`
 }
 
-func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequired bool) (string, error) {
+func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequired bool) (string, *ColumnSchema, error) {
 	for _, colSchema := range ts.Columns {
 		if colSchema.Name == columnName { //TODO: store the column names in map for faster lookup
 			if dbColType, ok := colSchema.Schema.Parameters["__debezium.source.column.type"]; ok && getSourceDatatypeIfRequired &&
 				(strings.Contains(dbColType, "DATE") || strings.Contains(dbColType, "INTERVAL")) {
 				//in case oracle import for DATE and INTERVAL types, need to use the original type from source
-				return dbColType, nil
+				return dbColType, &colSchema.Schema, nil
 			} else if colSchema.Schema.Name != "" { // in case Kafka speicfic type which start with io.debezium...
-				return colSchema.Schema.Name, nil
+				return colSchema.Schema.Name, &colSchema.Schema, nil
 			} else {
-				return colSchema.Schema.Type, nil // in case of Primitive types e.g. BYTES/STRING..
+				return colSchema.Schema.Type, &colSchema.Schema, nil // in case of Primitive types e.g. BYTES/STRING..
 			}
 
 		}
 	}
-	return "", fmt.Errorf("Column %s not found in table schema %v", columnName, ts)
+	return "", nil, fmt.Errorf("Column %s not found in table schema %v", columnName, ts)
 }
 
 //===========================================================
@@ -63,42 +63,43 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
-	tableNameToSchema map[string]*TableSchema
+	TableNameToSchema map[string]*TableSchema
 }
 
 func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
 	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
-		tableNameToSchema: make(map[string]*TableSchema),
+		TableNameToSchema: make(map[string]*TableSchema),
 	}
 }
 
-func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, error) {
-	tableSchema := sreg.tableNameToSchema[tableName]
+func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+	tableSchema := sreg.TableNameToSchema[tableName]
 	if tableSchema == nil {
-		return nil, fmt.Errorf("table %s not found in schema registry", tableName)
+		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
 	}
 	columnTypes := make([]string, len(columnNames))
+	columnSchemas := make([]*ColumnSchema, len(columnNames))
 	for idx, columnName := range columnNames {
 		var err error
-		columnTypes[idx], err = tableSchema.getColumnType(columnName, getSourceDatatypes)
+		columnTypes[idx], columnSchemas[idx], err = tableSchema.getColumnType(columnName, getSourceDatatypes)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableName, columnName, err)
+			return nil, nil, fmt.Errorf("failed to get column type for table %s, column %s: %w", tableName, columnName, err)
 		}
 	}
-	return columnTypes, nil
+	return columnTypes, columnSchemas, nil
 }
 
-func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
 	var err error
-	tableSchema = sreg.tableNameToSchema[tableName]
+	tableSchema = sreg.TableNameToSchema[tableName]
 	if tableSchema == nil {
 		// check on disk
 		tableSchema, err = sreg.getAndStoreTableSchema(tableName)
 		if err != nil {
-			return "", fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
+			return "", nil, fmt.Errorf("table %s not found in schema registry:%w", tableName, err)
 		}
 	}
 	return tableSchema.getColumnType(columnName, getSourceDatatype)
@@ -122,7 +123,7 @@ func (sreg *SchemaRegistry) Init() error {
 			return fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 		}
 		table := strings.TrimSuffix(filepath.Base(schemaFile.Name()), "_schema.json")
-		sreg.tableNameToSchema[table] = &tableSchema
+		sreg.TableNameToSchema[table] = &tableSchema
 		schemaFile.Close()
 	}
 	return nil
@@ -142,6 +143,6 @@ func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSche
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode table schema file %s: %w", schemaFilePath, err)
 	}
-	sreg.tableNameToSchema[tableName] = &tableSchema
+	sreg.TableNameToSchema[tableName] = &tableSchema
 	return &tableSchema, nil
 }

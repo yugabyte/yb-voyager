@@ -24,7 +24,7 @@ EXPECTED_ROW_COUNT = {
  	'num_types': 3,   
 	'datatypes1': 3,  
 	'datetime_type': 3, 
-	'datatypes2': 4,
+	'datatypes2': 5,
 	'datetime_type2': 2, 
 	'null_and_default' :2,
 	'decimal_types': 4,
@@ -45,11 +45,22 @@ EXPECTED_SUM_OF_COLUMN = {
 	},
 }
 
+EXPECTED_DISNTICT_VALUES = {
+	'v2' : ['1001100101','0001010101','0101010101','1010101010','0000101010'],
+	'v5': ['0001010101','0001010','101010101010101010101010101010','1010101','1010101010101010101010']
+}
+
+EXPECTED_DISNTICT_VALUES_FF = {
+	'v2' : ['1001100101','0001010101','0101010101','1111000011','0000101010','0101010101','1101010101'],
+	'v5': ['0001010101','0001010','101010101010101010101010101010','00101010010101010101010101001','1010101010101010101010','10101010101010101','01001010101010101000101010']
+}
+
+
 EXPECTED_ROW_COUNT_FF = {
  	'num_types': 3,   
 	'datatypes1': 2,  
 	'datetime_type': 1, 
-	'datatypes2': 5,
+	'datatypes2': 6,
 	'datetime_type2': 3, 
 	'null_and_default' :2,
 	'decimal_types': 4,
@@ -78,6 +89,9 @@ def change_expected_values():
 		for column, sum in column_names_with_sum.items():
 			EXPECTED_SUM_OF_COLUMN[table_name][column] = sum
 
+	for column_name, distinct_values in EXPECTED_DISNTICT_VALUES_FF.items():
+		EXPECTED_DISNTICT_VALUES[column_name] = distinct_values
+
 def migration_completed_checks_yb():
 	print("Running tests on YB")
 	yb.run_checks(migration_completed_checks)
@@ -99,6 +113,16 @@ def migration_completed_checks(tgt):
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
 			print(f"column_name: {column}, sum: {col_sum}")
 			assert sum == str(col_sum)
+
+	print(f"distinct_bit10_values:")
+	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v2']
+	tgt.assert_distinct_values_of_col("datatypes2", "v2", "public", 
+		transform_func=str, expected_distinct_values = expected_distinct_values)
+	
+	print(f"distinct_bit_varying_values:")
+	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v5']
+	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
+		None, expected_distinct_values = expected_distinct_values)
 
 if __name__ == "__main__":
 	main()

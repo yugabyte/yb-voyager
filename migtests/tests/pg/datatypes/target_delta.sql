@@ -45,17 +45,19 @@ VALUES ('2024-04-22 09:15:00');
 UPDATE datetime_type2
 SET v1 = '2024-03-16 20:45:00' where id = 2;
 
-INSERT INTO datatypes2(v1, v2, v3, v4)
-VALUES ('{"name": "John", "age": 30}', B'1100110011', ARRAY[5, 6, 7, 8], '{{"e", "f"}, {"g", "h"}}');
+INSERT INTO datatypes2(v1, v2, v3, v4,v5)
+VALUES ('{"name": "John", "age": 30}', B'1100110011', ARRAY[5, 6, 7, 8], '{{"e", "f"}, {"g", "h"}}', B'00101010101010101010101010001010100101010101010101000');
 
-INSERT INTO datatypes2(v1, v2, v3, v4)
-VALUES ('{"status": "active", "count": 42}', B'0101010101', ARRAY[9, 10, 11, 12], '{{"i", "j"}, {"k", "l"}}');
+INSERT INTO datatypes2(v1, v2, v3, v4, v5)
+VALUES ('{"status": "active", "count": 42}', B'0101010101', ARRAY[9, 10, 11, 12], '{{"i", "j"}, {"k", "l"}}', B'10101010101010101');
+INSERT INTO datatypes2(v1, v2, v3, v4,v5)
+VALUES ('{"status": "active", "count": 42}', B'1101010101', ARRAY[9, 10, 11, 12], '{{"i", "j"}, {"k", "l"}}', B'01001010101010101000101010');
 
 UPDATE datatypes2
 SET v1 = '{"modified": false}', v2 = B'0011001100', v3 = ARRAY[1, 2, 3, 4], v4 = null where id=4;
 
 UPDATE datatypes2
-SET v1 = '{"new": "data"}', v2 = B'1111000011', v3 = ARRAY[9, 10, 11, 12], v4 = '{{"i", "j"}, {"k", "l"}}' where id=4;
+SET v1 = '{"new": "data"}', v2 = B'1111000011', v5=B'00101010010101010101010101001', v3 = ARRAY[9, 10, 11, 12], v4 = '{{"i", "j"}, {"k", "l"}}' where id=4;
 
 DELETE FROM datatypes2
 WHERE 5 = ANY(v3);

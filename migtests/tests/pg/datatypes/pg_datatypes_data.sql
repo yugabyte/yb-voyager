@@ -25,9 +25,9 @@ insert into datetime_type2(v1) values('2022-11-01 15:58:02');
 
 select * from datetime_type2;
 
-insert into datatypes2(v1, v2, v3, v4) values ('{"key1": "value1", "key2": "value2"}',B'10'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {“FD”, “Property”}}');
-insert into datatypes2(v1, v2, v3, v4) values ('["a","b","c",1,2,3]',B'100011'::bit(10),'{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}');
-insert into datatypes2(v1, v2, v3, v4) values (null,B'1'::bit(10),null, '{{“FD”}, {"act"}}');
+insert into datatypes2(v1,v2,v3,v4,v5) values ('{"key1": "value1", "key2": "value2"}',B'1001100101','{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {“FD”, “Property”}}',B'0001010101');
+insert into datatypes2(v1,v2,v3,v4,v5) values ('["a","b","c",1,2,3]',B'0001010101','{20000, 14600, 23500, 13250}', '{{“FD”, “MF”}, {"act","two"}}',B'0001010');
+insert into datatypes2(v1,v2,v3,v4,v5) values (null,B'1001000101',null, '{{“FD”}, {"act"}}', B'00101010101010101010101010001010100101010101010101000');
 
 select * from datatypes2;
 
