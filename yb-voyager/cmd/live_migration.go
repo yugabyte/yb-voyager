@@ -86,13 +86,6 @@ func streamChanges(state *ImportDataState, tableNames []string) error {
 		evChans = append(evChans, make(chan *tgtdb.Event, EVENT_CHANNEL_SIZE))
 		processingDoneChans = append(processingDoneChans, make(chan bool, 1))
 	}
-	log.Info("initializing conflict detection cache")
-	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB()
-	// tableToUniqueKeyColumns, err := tdb.GetTableToUniqueKeyColumnsMap(tableNames)
-	if err != nil {
-		return fmt.Errorf("get table unique key columns map: %s", err)
-	}
-	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBType)
 
 	log.Infof("streaming changes from %s", eventQueue.QueueDirPath)
 	for !eventQueue.EndOfQueue { // continuously get next segments to stream
@@ -140,10 +133,27 @@ func streamChangesFromSegment(
 	}
 
 	log.Infof("streaming changes for segment %s", segment.FilePath)
+	segmentFirstEvent := true
 	for !segment.IsProcessed() {
 		event, err := segment.NextEvent()
 		if err != nil {
 			return err
+		}
+
+		// possibility of cutover(for example: source changed from PG to YB)
+		if segmentFirstEvent {
+			segmentFirstEvent = false
+			/*
+				Note: `sourceDBType` is a global variable, which always represent the initial source db type
+				it does not change even after cutover to target but for conflict detection cache,
+				we need to use the actual source db type at the moment since we save information live TableToUniqueKeyColumns during export
+				to reuse it during import
+			*/
+			sourceDBTypeForConflictCache := sourceDBType
+			if isTargetDBExporter(event.ExporterRole) {
+				sourceDBTypeForConflictCache = "yugabytedb"
+			}
+			initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
 		}
 
 		if event == nil && segment.IsProcessed() {
@@ -208,7 +218,12 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		Checking for all possible conflicts among events
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
-	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableName]
+	tableNameForUniqueKeyColumns := tableName
+	if event.ExporterRole == TARGET_DB_EXPORTER_FF_ROLE || event.ExporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+		tableNameForUniqueKeyColumns = event.SchemaName + "." + tableName
+	}
+	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
+	log.Infof("unique key columns for table %s: %v", tableNameForUniqueKeyColumns, uniqueKeyCols)
 	if len(uniqueKeyCols) > 0 {
 		if event.Op == "d" {
 			conflictDetectionCache.Put(event)
@@ -319,10 +334,21 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 	done <- true
 }
 
-func getTableToUniqueKeyColumnsMapFromMetaDB() (map[string][]string, error) {
+func initializeConflictDetectionCache(evChans []chan *tgtdb.Event, exporterRole string, sourceDBTypeForConflictCache string) {
+	tableToUniqueKeyColumns, err := getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole)
+	if err != nil {
+		utils.ErrExit("get table unique key columns map: %s", err)
+	}
+	log.Infof("initializing conflict detection cache")
+	conflictDetectionCache = NewConflictDetectionCache(tableToUniqueKeyColumns, evChans, sourceDBTypeForConflictCache)
+}
+
+func getTableToUniqueKeyColumnsMapFromMetaDB(exporterRole string) (map[string][]string, error) {
 	log.Infof("fetching table to unique key columns map from metaDB")
 	var res map[string][]string
-	found, err := metaDB.GetJsonObject(nil, metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, &res)
+
+	key := fmt.Sprintf("%s_%s", metadb.TABLE_TO_UNIQUE_KEY_COLUMNS_KEY, exporterRole)
+	found, err := metaDB.GetJsonObject(nil, key, &res)
 	if err != nil {
 		return nil, err
 	}
