@@ -162,7 +162,7 @@ func startExportDataFromTargetIfRequired() {
 	lockFile.Unlock() // unlock export dir from import data cmd before switching current process to ff/fb sync cmd
 
 	if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
-		utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you dont want these settings you can restart the 'export data from target' with the --target-ssl-mode flag.", source.SSLMode))
+		utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you dont want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
 		tconf.SSLMode = "disable"
 	}
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
@@ -171,6 +171,7 @@ func startExportDataFromTargetIfRequired() {
 		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 		"--target-ssl-mode", tconf.SSLMode,
+		"--target-ssl-root-cert", tconf.SSLRootCert,
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")

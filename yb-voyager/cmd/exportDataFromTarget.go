@@ -42,6 +42,10 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
+		err = verifySSLFlags()
+		if err != nil {
+			utils.ErrExit("failed to verify SSL flags: %v", err)
+		}
 		err = initSourceConfFromTargetConf()
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
@@ -61,6 +65,17 @@ func init() {
 
 	BoolVar(exportDataFromTargetCmd.Flags(), &transactionOrdering, "transaction-ordering", true,
 		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
+}
+
+func verifySSLFlags() error {
+	if source.SSLMode != "disable" && source.SSLMode != "require" && source.SSLMode != "verify-ca" && source.SSLMode != "verify-full" {
+		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
+
+	}
+	if (source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full") && source.SSLRootCert == "" {
+		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+	}
+	return nil
 }
 
 func initSourceConfFromTargetConf() error {
@@ -88,7 +103,6 @@ func initSourceConfFromTargetConf() error {
 			}
 		}
 	}
-	source.SSLRootCert = targetConf.SSLRootCert
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri

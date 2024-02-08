@@ -238,8 +238,10 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 	yugabyteSrcConfigTemplate +
 	baseSinkConfigTemplate
 
-var yugabyteSSLConfigTemplate = `
+var yugabyteSSLModeTemplate = `
 debezium.source.database.sslmode=%s
+`
+var yugabyteSSLRootCertTemplate = `
 debezium.source.database.sslrootcert=%s
 `
 
@@ -309,9 +311,11 @@ func (c *Config) String() string {
 			c.MetadataDBPath,
 			c.RunId,
 			c.ExporterRole)
+		sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
 		if c.SSLRootCert != "" {
-			conf += fmt.Sprintf(yugabyteSSLConfigTemplate, c.SSLMode, c.SSLRootCert)
+			sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
 		}
+		conf = conf + sslConf
 		//TODO test SSL for other methods for yugabytedb
 		if c.TransactionOrdering {
 			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate

@@ -121,6 +121,8 @@ func registerTargetDBAsSourceConnFlags(cmd *cobra.Command) {
 		"password with which to connect to the target YugabyteDB server. Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.")
 	cmd.Flags().StringVar(&source.SSLMode, "target-ssl-mode", "disable",
 		"specify the target YugabyteDB SSL mode out of: (disable, require, verify-ca, verify-full)")
+	cmd.Flags().StringVar(&source.SSLRootCert, "target-ssl-root-cert", "",
+		"Path of the file containing target YugabyteDB SSL Root Certificate")
 }
 
 func setExportFlagsDefaults() {
