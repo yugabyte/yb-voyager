@@ -50,6 +50,8 @@ VALUES ('{"name": "John", "age": 30}', B'1100110011', ARRAY[5, 6, 7, 8], '{{"e",
 
 INSERT INTO datatypes2(v1, v2, v3, v4)
 VALUES ('{"status": "active", "count": 42}', B'0101010101', ARRAY[9, 10, 11, 12], '{{"i", "j"}, {"k", "l"}}');
+INSERT INTO datatypes2(v1, v2, v3, v4)
+VALUES ('{"status": "active", "count": 42}', B'1101010101', ARRAY[9, 10, 11, 12], '{{"i", "j"}, {"k", "l"}}');
 
 UPDATE datatypes2
 SET v1 = '{"modified": false}', v2 = B'0011001100', v3 = ARRAY[1, 2, 3, 4], v4 = null where id=4;
