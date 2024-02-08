@@ -464,3 +464,34 @@ func (ora *Oracle) ClearMigrationState(migrationUUID uuid.UUID, exportDir string
 	}
 	return nil
 }
+
+func (ora *Oracle) GetNonPKTables() ([]string, error) {
+	query := fmt.Sprintf(`SELECT NVL(pk_count.count, 0) AS pk_count, at.table_name
+	FROM ALL_TABLES at
+	LEFT JOIN (
+		SELECT COUNT(constraint_name) AS count, table_name
+		FROM ALL_CONSTRAINTS
+		WHERE constraint_type = 'P' AND owner = '%s'
+		GROUP BY table_name
+	) pk_count ON at.table_name = pk_count.table_name
+	WHERE at.owner = '%s'`, ora.source.Schema, ora.source.Schema)
+	rows, err := ora.db.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
+	}
+	defer rows.Close()
+	var nonPKTables []string
+	for rows.Next() {
+		var count int
+		var tableName string
+		err = rows.Scan(&count, &tableName)
+		if err != nil {
+			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %v", err)
+		}
+		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
+		if count == 0 {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
+		}
+	}
+	return nonPKTables, nil
+}

@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -48,6 +49,7 @@ type SourceDB interface {
 	GetServers() []string
 	GetPartitions(table *sqlname.SourceName) []*sqlname.SourceName
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
+	GetNonPKTables() ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {

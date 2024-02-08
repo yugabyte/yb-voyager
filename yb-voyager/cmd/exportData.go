@@ -159,6 +159,11 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		if len(strings.Split(source.Schema, "|")) > 1 {
+			utils.ErrExit("This voyager release does not support live-migration for more than one schema in --source-db-schema.")
+		}
+	}
 	finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
@@ -364,19 +369,29 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	//report Partitions or case sensitive tables
 	var caseSensitiveTables []string
 	var partitionedTables []string
+	allNonPKTables, err := source.DB().GetNonPKTables()
+	if err != nil {
+		utils.ErrExit("get non-pk tables: %v", err)
+	}
+	var nonPKTables []string
 	for _, table := range finalTableList {
-		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
-			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-		}
-		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
-			if len(source.DB().GetPartitions(table)) > 0 {
+		if source.DBType == POSTGRESQL {
+			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+			}
+			if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+				if len(source.DB().GetPartitions(table)) > 0 {
+					partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+				}
+			} else {
 				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
 			}
-		} else {
-			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+		}
+		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
 	}
-	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 && len(nonPKTables) == 0 {
 		return
 	}
 	if len(caseSensitiveTables) > 0 {
@@ -385,7 +400,11 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	if len(partitionedTables) > 0 {
 		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
 	}
-	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
+	if len(nonPKTables) > 0 {
+		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key, tables with case sensitive name and partitioned tables.\n" +
+		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
@@ -400,7 +419,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
 	log.Infof("initial all tables table list for data export: %v", tableList)
