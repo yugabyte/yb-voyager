@@ -219,8 +219,8 @@ func handleEvent(event *tgtdb.Event, evChans []chan *tgtdb.Event) error {
 		For more details about ConflictDetectionCache see the comment on line 11 in [conflictDetectionCache.go](../conflictDetectionCache.go)
 	*/
 	tableNameForUniqueKeyColumns := tableName
-	if isTargetDBExporter(event.ExporterRole) {
-		tableNameForUniqueKeyColumns = event.SchemaName + "." + tableName
+	if isTargetDBExporter(event.ExporterRole) && event.SchemaName != "public" {
+		tableNameForUniqueKeyColumns = event.SchemaName + "." + event.TableName
 	}
 	uniqueKeyCols := conflictDetectionCache.tableToUniqueKeyColumns[tableNameForUniqueKeyColumns]
 	if len(uniqueKeyCols) > 0 {
