@@ -24,11 +24,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
 var OraValueConverterSuite = map[string]ConverterFn{
-	"DATE": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"DATE": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		// from oracle for DATE type debezium gives epoch milliseconds with type `io.debezium.time.Timestamp`
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64) 
 		if err != nil {
@@ -46,7 +46,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedDate, nil
 	},
-	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch seconds: %v", err)
@@ -60,7 +60,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedDate, nil
 	},
-	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"io.debezium.time.Timestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
@@ -74,7 +74,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedTimestamp, nil
 	},
-	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"io.debezium.time.MicroTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochMicroSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch microseconds: %v", err)
@@ -89,7 +89,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedTimestamp, nil
 	},
-	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"io.debezium.time.NanoTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		epochNanoSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return "", fmt.Errorf("parsing epoch nanoseconds: %v", err)
@@ -104,7 +104,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedTimestamp, nil
 	},
-	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"io.debezium.time.ZonedTimestamp": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		debeziumFormat := "2006-01-02T15:04:05Z07:00"
 
 		parsedTime, err := time.Parse(debeziumFormat, columnValue)
@@ -120,7 +120,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return formattedTimestamp, nil
 	},
-	"BYTES": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"BYTES": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		//decode base64 string to bytes
 		decodedBytes, err := base64.StdEncoding.DecodeString(columnValue) //e.g.`////wv==` -> `[]byte{0x00, 0x00, 0x00, 0x00}`
 		if err != nil {
@@ -137,7 +137,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, _ bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"MAP": func(columnValue string, _ bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		mapValue := make(map[string]interface{})
 		err := json.Unmarshal([]byte(columnValue), &mapValue)
 		if err != nil {
@@ -149,7 +149,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
 	},
-	"STRING": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"STRING": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		if formatIfRequired {
 			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
 			return fmt.Sprintf("'%s'", formattedColumnValue), nil
@@ -157,7 +157,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			return columnValue, nil
 		}
 	},
-	"INTERVAL YEAR TO MONTH": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"INTERVAL YEAR TO MONTH": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		// for INTERVAL types of oracle with default precision
 		// columnValue format: P-1Y-5M0DT0H0M0S
 		splits := strings.Split(strings.TrimPrefix(columnValue, "P"), "M") // ["-1Y-5", "0DT0H0M0S"]
@@ -182,7 +182,7 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return columnValue, nil
 	},
-	"INTERVAL DAY TO SECOND": func(columnValue string, formatIfRequired bool, dbzmSchema *utils.ColumnSchema) (string, error) {
+	"INTERVAL DAY TO SECOND": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		//columnValue format: P0Y0M24DT23H34M5.878667S //TODO check regex will be better or not
 		splits := strings.Split(strings.TrimPrefix(columnValue, "P"), "M") // ["0Y0M", "24DT23H34, 5.878667S"]
 		daysTime := strings.Split(splits[1], "DT")                         // ["24", "23H34M5.878667S"]

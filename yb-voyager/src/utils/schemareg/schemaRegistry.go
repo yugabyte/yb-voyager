@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package utils
+package schemareg
 
 import (
 	"encoding/json"
@@ -60,21 +60,21 @@ func (ts *TableSchema) getColumnType(columnName string, getSourceDatatypeIfRequi
 
 //===========================================================
 
-type DbzmSchemaRegistry struct {
+type SchemaRegistry struct {
 	exportDir         string
 	exporterRole      string
 	TableNameToSchema map[string]*TableSchema
 }
 
-func NewDbzmSchemaRegistry(exportDir string, exporterRole string) *DbzmSchemaRegistry {
-	return &DbzmSchemaRegistry{
+func NewSchemaRegistry(exportDir string, exporterRole string) *SchemaRegistry {
+	return &SchemaRegistry{
 		exportDir:         exportDir,
 		exporterRole:      exporterRole,
 		TableNameToSchema: make(map[string]*TableSchema),
 	}
 }
 
-func (sreg *DbzmSchemaRegistry) GetColumnTypesWithDbzmSchemas(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
+func (sreg *SchemaRegistry) GetColumnTypes(tableName string, columnNames []string, getSourceDatatypes bool) ([]string, []*ColumnSchema, error) {
 	tableSchema := sreg.TableNameToSchema[tableName]
 	if tableSchema == nil {
 		return nil, nil, fmt.Errorf("table %s not found in schema registry", tableName)
@@ -91,7 +91,7 @@ func (sreg *DbzmSchemaRegistry) GetColumnTypesWithDbzmSchemas(tableName string, 
 	return columnTypes, columnSchemas, nil
 }
 
-func (sreg *DbzmSchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
+func (sreg *SchemaRegistry) GetColumnType(tableName, columnName string, getSourceDatatype bool) (string, *ColumnSchema, error) {
 	var tableSchema *TableSchema
 	var err error
 	tableSchema = sreg.TableNameToSchema[tableName]
@@ -105,7 +105,7 @@ func (sreg *DbzmSchemaRegistry) GetColumnType(tableName, columnName string, getS
 	return tableSchema.getColumnType(columnName, getSourceDatatype)
 }
 
-func (sreg *DbzmSchemaRegistry) Init() error {
+func (sreg *SchemaRegistry) Init() error {
 	schemaDir := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole)
 	schemaFiles, err := os.ReadDir(schemaDir)
 	if err != nil {
@@ -129,7 +129,7 @@ func (sreg *DbzmSchemaRegistry) Init() error {
 	return nil
 }
 
-func (sreg *DbzmSchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
+func (sreg *SchemaRegistry) getAndStoreTableSchema(tableName string) (*TableSchema, error) {
 	schemaFilePath := filepath.Join(sreg.exportDir, "data", "schemas", sreg.exporterRole, fmt.Sprintf("%s_schema.json", tableName))
 	schemaFile, err := os.Open(schemaFilePath)
 	defer func() {

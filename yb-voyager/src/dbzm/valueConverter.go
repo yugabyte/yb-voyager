@@ -25,6 +25,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	tgtdbsuite "github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb/suites"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/stdlibcsv"
 )
 
@@ -62,12 +63,12 @@ func (nvc *NoOpValueConverter) GetTableNameToSchema() map[string]map[string]map[
 
 type DebeziumValueConverter struct {
 	exportDir              string
-	schemaRegistrySource   *utils.DbzmSchemaRegistry
-	schemaRegistryTarget   *utils.DbzmSchemaRegistry
+	schemaRegistrySource   *schemareg.SchemaRegistry
+	schemaRegistryTarget   *schemareg.SchemaRegistry
 	targetSchema           string
 	valueConverterSuite    map[string]tgtdbsuite.ConverterFn
 	converterFnCache       map[string][]tgtdbsuite.ConverterFn //stores table name to converter functions for each column
-	dbzmColumnSchemasCache map[string][]*utils.ColumnSchema
+	dbzmColumnSchemasCache map[string][]*schemareg.ColumnSchema
 	targetDBType           string
 	csvReader              *stdlibcsv.Reader
 	bufReader              bufio.Reader
@@ -78,17 +79,17 @@ type DebeziumValueConverter struct {
 }
 
 func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf tgtdb.TargetConf, importerRole string, sourceDBType string) (*DebeziumValueConverter, error) {
-	schemaRegistrySource := utils.NewDbzmSchemaRegistry(exportDir, "source_db_exporter")
+	schemaRegistrySource := schemareg.NewSchemaRegistry(exportDir, "source_db_exporter")
 	err := schemaRegistrySource.Init()
 	if err != nil {
 		return nil, fmt.Errorf("initializing schema registry: %w", err)
 	}
-	var schemaRegistryTarget *utils.DbzmSchemaRegistry
+	var schemaRegistryTarget *schemareg.SchemaRegistry
 	switch importerRole {
 	case "source_replica_db_importer":
-		schemaRegistryTarget = utils.NewDbzmSchemaRegistry(exportDir, "target_db_exporter_ff")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(exportDir, "target_db_exporter_ff")
 	case "source_db_importer":
-		schemaRegistryTarget = utils.NewDbzmSchemaRegistry(exportDir, "target_db_exporter_fb")
+		schemaRegistryTarget = schemareg.NewSchemaRegistry(exportDir, "target_db_exporter_fb")
 	}
 
 	tdbValueConverterSuite := tdb.GetDebeziumValueConverterSuite()
@@ -99,7 +100,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 		schemaRegistryTarget:   schemaRegistryTarget,
 		valueConverterSuite:    tdbValueConverterSuite,
 		converterFnCache:       map[string][]tgtdbsuite.ConverterFn{},
-		dbzmColumnSchemasCache: map[string][]*utils.ColumnSchema{},
+		dbzmColumnSchemasCache: map[string][]*schemareg.ColumnSchema{},
 		targetDBType:           targetConf.TargetDBType,
 		targetSchema:           targetConf.Schema,
 		sourceDBType:           sourceDBType,
@@ -109,7 +110,7 @@ func NewDebeziumValueConverter(exportDir string, tdb tgtdb.TargetDB, targetConf 
 }
 
 func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []string, row string) (string, error) {
-	converterFns, dbzmColumnSchemas, err := conv.getConverterFnsWithDbzmSchemas(tableName, columnNames)
+	converterFns, dbzmColumnSchemas, err := conv.getConverterFns(tableName, columnNames)
 	if err != nil {
 		return "", fmt.Errorf("fetching converter functions: %w", err)
 	}
@@ -142,13 +143,13 @@ func (conv *DebeziumValueConverter) ConvertRow(tableName string, columnNames []s
 	return transformedRow, nil
 }
 
-func (conv *DebeziumValueConverter) getConverterFnsWithDbzmSchemas(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, []*utils.ColumnSchema, error) {
+func (conv *DebeziumValueConverter) getConverterFns(tableName string, columnNames []string) ([]tgtdbsuite.ConverterFn, []*schemareg.ColumnSchema, error) {
 	result := conv.converterFnCache[tableName]
 	colSchemas := conv.dbzmColumnSchemasCache[tableName]
 	var colTypes []string
 	var err error
 	if result == nil {
-		colTypes, colSchemas, err = conv.schemaRegistrySource.GetColumnTypesWithDbzmSchemas(tableName, columnNames, conv.shouldFormatAsPerSourceDatatypes())
+		colTypes, colSchemas, err = conv.schemaRegistrySource.GetColumnTypes(tableName, columnNames, conv.shouldFormatAsPerSourceDatatypes())
 		if err != nil {
 			return nil, nil, fmt.Errorf("get types of columns of table %s: %w", tableName, err)
 		}
@@ -193,7 +194,7 @@ func checkSourceExporter(exporterRole string) bool {
 }
 
 func (conv *DebeziumValueConverter) convertMap(eventSchema string, tableName string, m map[string]*string, exportSourceType string, formatIfRequired bool) error {
-	var schemaRegistry *utils.DbzmSchemaRegistry
+	var schemaRegistry *schemareg.SchemaRegistry
 	tableNameInSchemaRegistry := tableName
 	if checkSourceExporter(exportSourceType) {
 		schemaRegistry = conv.schemaRegistrySource
