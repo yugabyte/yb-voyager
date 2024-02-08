@@ -30,11 +30,11 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"golang.org/x/exp/slices"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/tebeka/atexit"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -159,6 +159,11 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+		if len(strings.Split(source.Schema, "|")) > 1 {
+			utils.ErrExit("This voyager release does not support live-migration for more than one schema in --source-db-schema.")
+		}
+	}
 	finalTableList, tablesColumnList := getFinalTableColumnList()
 
 	if len(finalTableList) == 0 {
@@ -293,6 +298,10 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	if err != nil {
 		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
 	}
+	yellowBold := color.New(color.FgYellow, color.Bold)
+	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
+		"Be sure to run 'initiate cutover to target'/'end migration' command after completing/aborting this migration to drop the replication slot. "+
+		"This is important to avoid filling up disk space.", replicationSlotName))
 	// pg_dump
 	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
 	if err != nil {
@@ -360,19 +369,29 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	//report Partitions or case sensitive tables
 	var caseSensitiveTables []string
 	var partitionedTables []string
+	allNonPKTables, err := source.DB().GetNonPKTables()
+	if err != nil {
+		utils.ErrExit("get non-pk tables: %v", err)
+	}
+	var nonPKTables []string
 	for _, table := range finalTableList {
-		if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
-			caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
-		}
-		if source.DB().ParentTableOfPartition(table) == "" { //For root tables
-			if len(source.DB().GetPartitions(table)) > 0 {
+		if source.DBType == POSTGRESQL {
+			if table.ObjectName.MinQuoted != table.ObjectName.Unquoted {
+				caseSensitiveTables = append(caseSensitiveTables, table.Qualified.MinQuoted)
+			}
+			if source.DB().ParentTableOfPartition(table) == "" { //For root tables
+				if len(source.DB().GetPartitions(table)) > 0 {
+					partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+				}
+			} else {
 				partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
 			}
-		} else {
-			partitionedTables = append(partitionedTables, table.Qualified.MinQuoted)
+		}
+		if lo.Contains(allNonPKTables, table.Qualified.MinQuoted) {
+			nonPKTables = append(nonPKTables, table.Qualified.MinQuoted)
 		}
 	}
-	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 {
+	if len(caseSensitiveTables) == 0 && len(partitionedTables) == 0 && len(nonPKTables) == 0 {
 		return
 	}
 	if len(caseSensitiveTables) > 0 {
@@ -381,7 +400,11 @@ func reportUnsupportedTables(finalTableList []*sqlname.SourceName) {
 	if len(partitionedTables) > 0 {
 		utils.PrintAndLog("Partition/Partitioned tables names: %s", partitionedTables)
 	}
-	utils.ErrExit("This voyager release does not support live-migration with case sensitive or partitioned tables. You can exclude these tables using the --exclude-table-list argument.")
+	if len(nonPKTables) > 0 {
+		utils.PrintAndLog("Table names without a Primary key: %s", nonPKTables)
+	}
+	utils.ErrExit("This voyager release does not support live-migration for tables without a primary key, tables with case sensitive name and partitioned tables.\n" +
+		"You can exclude these tables using the --exclude-table-list argument.")
 }
 
 func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][]string) {
@@ -396,7 +419,7 @@ func getFinalTableColumnList() ([]*sqlname.SourceName, map[*sqlname.SourceName][
 		tableList = fullTableList
 	}
 	finalTableList = sqlname.SetDifference(tableList, excludeTableList)
-	if source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType) {
+	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
 	log.Infof("initial all tables table list for data export: %v", tableList)

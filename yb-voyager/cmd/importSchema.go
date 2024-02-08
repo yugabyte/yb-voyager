@@ -31,6 +31,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -70,6 +71,7 @@ func init() {
 var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
 var flagRefreshMViews utils.BoolStr
+var invalidTargetIndexesCache = make(map[string]bool)
 
 func importSchema() {
 	err := retrieveMigrationUUID()
@@ -77,6 +79,14 @@ func importSchema() {
 		utils.ErrExit("failed to get migration UUID: %w", err)
 	}
 	tconf.Schema = strings.ToLower(tconf.Schema)
+
+	if flagPostSnapshotImport {
+		tdb = tgtdb.NewTargetDB(&tconf)
+		err = tdb.Init()
+		if err != nil {
+			utils.ErrExit("failed to initialize the target DB: %s", err)
+		}
+	}
 
 	importSchemaStartEvent := createImportSchemaStartedEvent()
 	controlPlane.ImportSchemaStarted(&importSchemaStartEvent)
@@ -105,14 +115,10 @@ func importSchema() {
 		}
 
 		createTargetSchemas(conn)
-
-		if sourceDBType == ORACLE && enableOrafce {
-			// Install Orafce extension in target YugabyteDB.
-			installOrafce(conn)
-		}
+		installOrafceIfRequired(conn)
 	}
-	var objectList []string
 
+	var objectList []string
 	objectsToImportAfterData := []string{"INDEX", "FTS_INDEX", "PARTITION_INDEX", "TRIGGER"}
 	if !flagPostSnapshotImport { // Pre data load.
 		// This list also has defined the order to create object type in target YugabyteDB.
@@ -125,8 +131,7 @@ func importSchema() {
 		objectList = objectsToImportAfterData
 	}
 	objectList = applySchemaObjectFilterFlags(objectList)
-	log.Infof("List of schema objects to import: %v", objectList)
-
+	log.Infof("list of schema objects to import: %v", objectList)
 	// Import some statements only after importing everything else
 	isSkipStatement := func(objType, stmt string) bool {
 		stmt = strings.ToUpper(strings.TrimSpace(stmt))
@@ -209,7 +214,12 @@ func dumpStatements(stmts []string, filePath string) {
 	log.Info(msg)
 }
 
-func installOrafce(conn *pgx.Conn) {
+// installs Orafce extension in target YugabyteDB.
+func installOrafceIfRequired(conn *pgx.Conn) {
+	if sourceDBType != ORACLE || !enableOrafce {
+		return
+	}
+
 	utils.PrintAndLog("Installing Orafce extension in target YugabyteDB")
 	_, err := conn.Exec(context.Background(), "CREATE EXTENSION IF NOT EXISTS orafce")
 	if err != nil {
@@ -281,7 +291,6 @@ func createTargetSchemas(conn *pgx.Conn) {
 	targetSchemas = utils.ToCaseInsensitiveNames(targetSchemas)
 
 	utils.PrintAndLog("schemas to be present in target database %q: %v\n", tconf.DBName, targetSchemas)
-
 	for _, targetSchema := range targetSchemas {
 		//check if target schema exists or not
 		schemaExists := checkIfTargetSchemaExists(conn, targetSchema)

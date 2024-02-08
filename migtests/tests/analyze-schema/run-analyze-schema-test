@@ -19,6 +19,9 @@ main() {
 	pushd ${TEST_DIR}
 	[ -d ${EXPORT_DIR}/reports ] || mkdir ${EXPORT_DIR}/reports
 
+	export version=$(yb-voyager version | awk -F'=' '/VERSION/ {print $2}')
+	sqlite3 ${EXPORT_DIR}/metainfo/meta.db "UPDATE json_objects SET json_text = json_set(json_text, '$.VoyagerVersion', '$version') WHERE key='migration_status';"
+
 	step "Run analyze schema"
 	analyze_schema --output-format json
 

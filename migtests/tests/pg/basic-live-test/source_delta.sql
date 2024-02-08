@@ -24,6 +24,5 @@ UPDATE user_table SET email = 'user3@example.com' WHERE id = 5;
 UPDATE user_table SET email = 'updated_user4@example.com' WHERE id = 4;
 UPDATE user_table SET email = 'user4@example.com' WHERE id = 6;
 
-
 -- events with NULL value for unique key columns
 UPDATE user_table SET status = 'inactive' where id > 0;

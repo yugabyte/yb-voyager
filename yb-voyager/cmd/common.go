@@ -346,6 +346,16 @@ func initMetaDB() {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("get migration status record: %v", err)
+	}
+	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
+		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n" +
+		"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh" + 
+		"with a new export-dir.", exportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
+		utils.ErrExit(userFacingMsg)
+	}
 }
 
 // sets the global variable migrationUUID after retrieving it from MigrationStatusRecord
