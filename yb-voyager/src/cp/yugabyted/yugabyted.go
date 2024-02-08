@@ -416,13 +416,13 @@ func (cp *YugabyteD) getInvocationSequence(mUUID uuid.UUID, phase int) (int, err
 
 	log.Infof("Executing on yugabyted DB: [%s]", cmd)
 
-	var latestSequence *sql.NullInt32
+	var latestSequence sql.NullInt32
 	connPool, err := cp.getConnPool()
 	if err != nil {
 		return 0, err
 	}
 
-	err = connPool.QueryRow(context.Background(), cmd).Scan(latestSequence)
+	err = connPool.QueryRow(context.Background(), cmd).Scan(&latestSequence)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			cp.latestInvocationSequence = 1
