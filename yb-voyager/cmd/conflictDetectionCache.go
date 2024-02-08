@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -97,10 +96,6 @@ func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, e
 	c.sourceDBType = sourceDBType
 	c.evChans = evChans
 	return c
-}
-
-func (c *ConflictDetectionCache) String() string {
-	return spew.Sdump(c)
 }
 
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
