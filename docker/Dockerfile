@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y curl perl make libdbi-perl locales && \
     apt-get install -y tzdata wget openjdk-17-jre git sudo gcc && \
     apt-get upgrade -y binutils && \
     curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
-    git clone https://github.com/yugabyte/yb-voyager.git --branch shivansh/docker-script-env-yugabyted && \
+    git clone https://github.com/yugabyte/yb-voyager.git && \
     cd yb-voyager/installer_scripts && \
     locale-gen en_US.UTF-8 && \
     yes | ./install-yb-voyager && \
