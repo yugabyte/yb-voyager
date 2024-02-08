@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -68,11 +69,10 @@ func init() {
 }
 
 func verifySSLFlags() error {
-	if source.SSLMode != "disable" && source.SSLMode != "require" && source.SSLMode != "verify-ca" && source.SSLMode != "verify-full" {
+	if !lo.Contains([]string{"disable", "require", "verify-ca", "verify-full"}, source.SSLMode) {
 		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
-
 	}
-	if (source.SSLMode == "require" || source.SSLMode == "verify-ca" || source.SSLMode == "verify-full") && source.SSLRootCert == "" {
+	if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
 		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
 	}
 	return nil
@@ -95,7 +95,7 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	if targetConf.SSLCertPath != "" || targetConf.SSLKey != "" {
+	if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
 		if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
 			{
 				fmt.Println("Exiting...")

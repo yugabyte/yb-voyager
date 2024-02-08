@@ -171,7 +171,9 @@ func startExportDataFromTargetIfRequired() {
 		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
 		"--target-ssl-mode", tconf.SSLMode,
-		"--target-ssl-root-cert", tconf.SSLRootCert,
+	}
+	if tconf.SSLRootCert != "" {
+		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
