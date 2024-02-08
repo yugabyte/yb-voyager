@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -42,6 +43,10 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
+		err = verifySSLFlags()
+		if err != nil {
+			utils.ErrExit("failed to verify SSL flags: %v", err)
+		}
 		err = initSourceConfFromTargetConf()
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
@@ -63,6 +68,16 @@ func init() {
 		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
+func verifySSLFlags() error {
+	if !lo.Contains([]string{"disable", "require", "verify-ca", "verify-full"}, source.SSLMode) {
+		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
+	}
+	if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
+		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+	}
+	return nil
+}
+
 func initSourceConfFromTargetConf() error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
@@ -80,12 +95,14 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	if source.SSLMode == "" {
-		source.SSLMode = targetConf.SSLMode
+	if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
+		if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
+			{
+				fmt.Println("Exiting...")
+				return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+			}
+		}
 	}
-	source.SSLCertPath = targetConf.SSLCertPath
-	source.SSLKey = targetConf.SSLKey
-	source.SSLRootCert = targetConf.SSLRootCert
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri

@@ -238,8 +238,10 @@ var yugabyteConfigTemplate = baseConfigTemplate +
 	yugabyteSrcConfigTemplate +
 	baseSinkConfigTemplate
 
-var yugabyteSSLConfigTemplate = `
+var yugabyteSSLModeTemplate = `
 debezium.source.database.sslmode=%s
+`
+var yugabyteSSLRootCertTemplate = `
 debezium.source.database.sslrootcert=%s
 `
 
@@ -309,17 +311,12 @@ func (c *Config) String() string {
 			c.MetadataDBPath,
 			c.RunId,
 			c.ExporterRole)
+		sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
 		if c.SSLRootCert != "" {
-			if c.SSLMode == "prefer" {
-				utils.ErrExit("Error: SSL mode 'prefer' is not supported for 'export data from target'. Please restart 'export data from target' with a different mode in `--target-ssl-mode` flag.")
-			}
-			conf += fmt.Sprintf(yugabyteSSLConfigTemplate, c.SSLMode, c.SSLRootCert)
+			sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
 		}
+		conf = conf + sslConf
 		//TODO test SSL for other methods for yugabytedb
-		if c.SSLCertPath != "" || c.SSLKey != "" {
-			utils.PrintAndLog("Warning: SSL cert and key are not supported for 'export data from target' from yugabytedb yet. Ignoring them.")
-		}
-
 		if c.TransactionOrdering {
 			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate
 		}
