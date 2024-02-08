@@ -37,8 +37,8 @@ func quoteValueIfRequired(value string, formatIfRequired bool) (string, error) {
 }
 
 var YBValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.data.Json": quoteValueIfRequired,
-	"io.debezium.data.Enum": quoteValueIfRequired,
+	"io.debezium.data.Json":     quoteValueIfRequired,
+	"io.debezium.data.Enum":     quoteValueIfRequired,
 	"io.debezium.time.Interval": quoteValueIfRequired,
 	"io.debezium.time.Date": func(columnValue string, formatIfRequired bool) (string, error) {
 		epochDays, err := strconv.ParseInt(columnValue, 10, 64)
