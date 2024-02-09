@@ -1,3 +1,5 @@
+set search_path to non_public;
+
 insert into x values(9,10);
 insert into x values(11,15);
 update x set id2=10 where id=9;
