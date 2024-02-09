@@ -81,7 +81,7 @@ type ConflictDetectionCache struct {
 		m caches separte copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
 		ConvertEvent() in some case modifies schemaName, tableName and before after values
 	*/
-	m                       map[int64]tgtdb.Event
+	m                       map[int64]*tgtdb.Event
 	cond                    *sync.Cond
 	tableToUniqueKeyColumns map[string][]string
 	evChans                 []chan *tgtdb.Event
@@ -90,7 +90,7 @@ type ConflictDetectionCache struct {
 
 func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
-	c.m = make(map[int64]tgtdb.Event)
+	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
 	c.sourceDBType = sourceDBType
@@ -110,7 +110,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 
 retry:
 	for _, cachedEvent := range c.m {
-		if c.eventsConfict(&cachedEvent, incomingEvent) {
+		if c.eventsConfict(cachedEvent, incomingEvent) {
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
 				c.evChans[i] <- FLUSH_BATCH_EVENT

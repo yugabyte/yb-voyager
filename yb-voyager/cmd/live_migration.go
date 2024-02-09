@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	reporter "github.com/yugabyte/yb-voyager/yb-voyager/src/reporter/stats"
@@ -153,14 +154,12 @@ func streamChangesFromSegment(
 				we need to use the actual source db type at the moment since we save information like
 				TableToUniqueKeyColumns during export(from source/target) to reuse it during import
 			*/
-			if isTargetDBExporter(event.ExporterRole) {
-				sourceDBTypeForConflictCache := "yugabytedb"
-				err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
-				if err != nil {
-					return fmt.Errorf("error initializing conflict detection cache: %w", err)
-				}
-				prevExporterRole = event.ExporterRole
+			sourceDBTypeForConflictCache := lo.Ternary(isTargetDBExporter(event.ExporterRole), "yugabytedb", sourceDBType)
+			err = initializeConflictDetectionCache(evChans, event.ExporterRole, sourceDBTypeForConflictCache)
+			if err != nil {
+				return fmt.Errorf("error initializing conflict detection cache: %w", err)
 			}
+			prevExporterRole = event.ExporterRole
 		}
 
 		if event.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
