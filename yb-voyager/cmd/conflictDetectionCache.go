@@ -101,7 +101,7 @@ func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, e
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
-	c.m[event.Vsn] = *event
+	c.m[event.Vsn] = event.Copy()
 }
 
 func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
@@ -110,7 +110,7 @@ func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event)
 
 retry:
 	for _, cachedEvent := range c.m {
-		if c.eventsConfict(cachedEvent, incomingEvent) {
+		if c.eventsConfict(&cachedEvent, incomingEvent) {
 			// flushing all the batches in channels instead of waiting for MAX_INTERVAL_BETWEEN_BATCHES
 			for i := 0; i < NUM_EVENT_CHANNELS; i++ {
 				c.evChans[i] <- FLUSH_BATCH_EVENT
@@ -138,12 +138,13 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 		}
 	}
 
+	// if we removed any event then broadcast to all waiting threads to check for conflicts again
 	if eventsRemoved {
 		c.cond.Broadcast()
 	}
 }
 
-func (c *ConflictDetectionCache) eventsConfict(cachedEvent tgtdb.Event, incomingEvent *tgtdb.Event) bool {
+func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
 	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
 	}
@@ -192,7 +193,7 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent tgtdb.Event, incoming
 	return false
 }
 
-func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 tgtdb.Event, event2 *tgtdb.Event) bool {
+func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
 	switch c.sourceDBType {
 	case "oracle":
 		return event1.TableName == event2.TableName

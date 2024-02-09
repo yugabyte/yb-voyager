@@ -58,6 +58,31 @@ func (e *Event) String() string {
 		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
 }
 
+func (e *Event) Copy() Event {
+	keyCopy := make(map[string]*string, len(e.Key))
+	for k, v := range e.Key {
+		keyCopy[k] = v
+	}
+	fieldsCopy := make(map[string]*string, len(e.Fields))
+	for k, v := range e.Fields {
+		fieldsCopy[k] = v
+	}
+	beforeFieldsCopy := make(map[string]*string, len(e.BeforeFields))
+	for k, v := range e.BeforeFields {
+		beforeFieldsCopy[k] = v
+	}
+	return Event{
+		Vsn:          e.Vsn,
+		Op:           e.Op,
+		SchemaName:   e.SchemaName,
+		TableName:    e.TableName,
+		Key:          keyCopy,
+		Fields:       fieldsCopy,
+		BeforeFields: beforeFieldsCopy,
+		ExporterRole: e.ExporterRole,
+	}
+}
+
 func (e *Event) IsCutoverToTarget() bool {
 	return e.Op == "cutover.target"
 }
