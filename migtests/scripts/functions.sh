@@ -54,6 +54,43 @@ grant_user_permission_postgresql() {
 	done
 }
 
+grant_permissions_for_live_migration_pg() {
+	db_name=$1
+	schema=$2
+	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}" 
+
+	grant_user_permission_postgresql ${db_name}
+
+	commands=(
+		"CREATE ROLE replication_group;"
+		"GRANT replication_group TO postgres;"
+		"GRANT ${SOURCE_DB_USER} TO replication_group;"
+		"GRANT CREATE ON DATABASE ${db_name} TO ${SOURCE_DB_USER} ;"
+		)
+	for command in "${commands[@]}"; do
+		echo "${command}" | psql "${conn_string}" 
+	done
+	
+	
+	cat > alter_ownership.sql <<EOF
+		DO \$CUSTOM\$
+		DECLARE 
+		r RECORD; 
+		BEGIN 
+		FOR r IN (
+			SELECT table_schema, table_name
+			FROM information_schema.tables
+			WHERE table_schema = '${schema}'
+		)
+		LOOP 
+			EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.table_name || ' OWNER TO replication_group'; 
+		END LOOP; 
+		END \$CUSTOM\$;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_ownership.sql)"
+
+}
+
 run_pg_restore() {
 	db_name=$1
 	file_name=$2
@@ -248,7 +285,7 @@ export_data() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--disable-pb=true
-		--send-diagnostics=false
+		--send-diagnostics=true
 		--yes
 		--start-clean 1
 	"
@@ -504,3 +541,38 @@ create_ff_schema(){
 EOF
 	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
 }
+
+set_replica_identity(){
+	
+    cat > alter_replica_identity.sql <<EOF
+    DO \$CUSTOM\$ 
+    DECLARE
+		r record;
+    BEGIN
+        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        LOOP
+            EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.table_name || ' REPLICA IDENTITY FULL';
+        END LOOP;
+    END \$CUSTOM\$;
+EOF
+    run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
+}
+
+grant_permissions_for_live_migration() {
+    if [ "${SOURCE_DB_TYPE}" = "mysql" ]; then
+        grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+        set_replica_identity
+        # grant_permissions ${SOURCE_DB_NAME} ${SOURCE_DB_TYPE} ${SOURCE_DB_SCHEMA}
+		grant_permissions_for_live_migration_pg ${SOURCE_DB_NAME} ${SOURCE_DB_SCHEMA}
+    elif [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
+        grant_permissions_for_live_migration_oracle ${ORACLE_CDB_NAME} ${SOURCE_DB_NAME}
+        if [ -n "${SOURCE_REPLICA_DB_NAME}" ]; then
+            run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/fall_forward_prep.sql
+        fi
+    else
+        echo "Invalid source database."
+    fi
+}
+
+

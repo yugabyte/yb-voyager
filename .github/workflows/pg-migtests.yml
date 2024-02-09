@@ -65,7 +65,7 @@ jobs:
 
       - name: Create PostgreSQL user
         run: |
-          ./migtests/scripts/postgresql/create_pg_user
+          ./migtests/scripts/postgresql/create_pg_user ybvoyager
 
       - name: Start YugabyteDB cluster
         run: |
@@ -79,7 +79,7 @@ jobs:
 
       - name: Create YugabyteDB user
         run: |
-          ./migtests/scripts/yugabytedb/create_yb_user
+          ./migtests/scripts/yugabytedb/create_yb_user 
 
       - name: Enable yb-tserver-n1 name resolution
         run: |
@@ -162,7 +162,7 @@ jobs:
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
+          ./migtests/scripts/postgresql/create_pg_live_user 
 
       - name: "TEST: pg-live-migration-test"
         run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
