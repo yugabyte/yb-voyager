@@ -39,6 +39,7 @@ var (
 	TARGET_DB_IDENTITY_COLUMNS_KEY             = "target_db_identity_columns_key"
 	FF_DB_IDENTITY_COLUMNS_KEY                 = "ff_db_identity_columns_key"
 	SOURCE_INDEXES_INFO_KEY                    = "source_indexes_info_key"
+	TABLE_TO_UNIQUE_KEY_COLUMNS_KEY            = "table_to_unique_key_columns_key"
 	ErrNoQueueSegmentsFound                    = errors.New("no queue segments found")
 )
 

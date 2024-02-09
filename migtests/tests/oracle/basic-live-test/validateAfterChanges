@@ -21,7 +21,7 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'x':5,
-	# 'user_table': 8
+	'user_table': 8
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -29,20 +29,23 @@ EXPECTED_SUM_OF_COLUMN = {
 		'id': '18',
 		'id2': '43'
 	},
-	# 'user_table': {
-	# 	'id': '51',
-	# }
+	'user_table': {
+		'id': '51',
+	}
 }
 
 EXPECTED_ROW_COUNT_FF = {
 	'x':7,
-	# 'user_table': 8
+	'user_table': 10
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
 	'x': {
 		'id': '133',
 		'id2': '53'
+	},
+	'user_table': {
+		'id': '85',
 	}
 }
 

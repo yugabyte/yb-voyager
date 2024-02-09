@@ -170,7 +170,7 @@ func (conv *DebeziumValueConverter) shouldFormatAsPerSourceDatatypes() bool {
 func (conv *DebeziumValueConverter) ConvertEvent(ev *tgtdb.Event, table string, formatIfRequired bool) error {
 	err := conv.convertMap(ev.SchemaName, table, ev.Key, ev.ExporterRole, formatIfRequired)
 	if err != nil {
-		return fmt.Errorf("convert event key: %w", err)
+		return fmt.Errorf("convert event(vsn=%d) key: %w", ev.Vsn, err)
 	}
 
 	err = conv.convertMap(ev.SchemaName, table, ev.Fields, ev.ExporterRole, formatIfRequired)

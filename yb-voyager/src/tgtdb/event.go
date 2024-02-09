@@ -54,8 +54,24 @@ func (e *Event) String() string {
 		return "{" + strings.Join(elements, ", ") + "}"
 	}
 
-	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, fields=%v, exporter_role=%v}",
-		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.Fields), e.ExporterRole)
+	return fmt.Sprintf("Event{vsn=%v, op=%v, schema=%v, table=%v, key=%v, before_fields=%v, fields=%v, exporter_role=%v}",
+		e.Vsn, e.Op, e.SchemaName, e.TableName, mapStr(e.Key), mapStr(e.BeforeFields), mapStr(e.Fields), e.ExporterRole)
+}
+
+func (e *Event) Copy() *Event {
+	idFn := func(k string, v *string) (string, *string) {
+		return k, v
+	}
+	return &Event{
+		Vsn:          e.Vsn,
+		Op:           e.Op,
+		SchemaName:   e.SchemaName,
+		TableName:    e.TableName,
+		Key:          lo.MapEntries(e.Key, idFn),
+		Fields:       lo.MapEntries(e.Fields, idFn),
+		BeforeFields: lo.MapEntries(e.BeforeFields, idFn),
+		ExporterRole: e.ExporterRole,
+	}
 }
 
 func (e *Event) IsCutoverToTarget() bool {

@@ -170,11 +170,13 @@ main() {
 	step "Initiating cutover"
 	yb-voyager initiate cutover to target --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 5; i++)); do
+	# max sleep time = 15 * 20s = 5 minutes, but that much sleep will be in failure cases
+	# in success case it will exit as soon as cutover is COMPLETED + 20sec
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to target status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for cutover to be COMPLETED..."
-        sleep 1m
-        if [ "$i" -eq 4 ]; then
+        sleep 20
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
@@ -197,11 +199,11 @@ main() {
 	step "Initiating cutover to source-replica"
 	yb-voyager initiate cutover to source-replica --export-dir ${EXPORT_DIR} --yes
 
-	for ((i = 0; i < 5; i++)); do
+	for ((i = 0; i < 15; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep -oP 'cutover to source-replica status: \K\S+')" != "COMPLETED" ]; then
         echo "Waiting for switchover to be COMPLETED..."
         sleep 20
-        if [ "$i" -eq 4 ]; then
+        if [ "$i" -eq 14 ]; then
             tail_log_file "yb-voyager-import-data-to-source-replica.log"
             tail_log_file "yb-voyager-export-data-from-target.log"
 			tail_log_file "debezium-target_db_exporter_ff.log"

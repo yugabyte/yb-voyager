@@ -77,17 +77,23 @@ UPDATE example_table SET email = 'user42@example.com' WHERE id = 3;
 */
 type ConflictDetectionCache struct {
 	sync.Mutex
+	/*
+		m caches separte copy of events not pointer, otherwise it will be modified by ConvertEvent() causing issue in events comparison for conflict detection
+		ConvertEvent() in some case modifies schemaName, tableName and before after values
+	*/
 	m                       map[int64]*tgtdb.Event
 	cond                    *sync.Cond
 	tableToUniqueKeyColumns map[string][]string
 	evChans                 []chan *tgtdb.Event
+	sourceDBType            string
 }
 
-func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event) *ConflictDetectionCache {
+func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, evChans []chan *tgtdb.Event, sourceDBType string) *ConflictDetectionCache {
 	c := &ConflictDetectionCache{}
 	c.m = make(map[int64]*tgtdb.Event)
 	c.cond = sync.NewCond(&c.Mutex)
 	c.tableToUniqueKeyColumns = tableToIdentityColumnNames
+	c.sourceDBType = sourceDBType
 	c.evChans = evChans
 	return c
 }
@@ -95,7 +101,7 @@ func NewConflictDetectionCache(tableToIdentityColumnNames map[string][]string, e
 func (c *ConflictDetectionCache) Put(event *tgtdb.Event) {
 	c.Lock()
 	defer c.Unlock()
-	c.m[event.Vsn] = event
+	c.m[event.Vsn] = event.Copy()
 }
 
 func (c *ConflictDetectionCache) WaitUntilNoConflict(incomingEvent *tgtdb.Event) {
@@ -132,22 +138,21 @@ func (c *ConflictDetectionCache) RemoveEvents(batch *tgtdb.EventBatch) {
 		}
 	}
 
+	// if we removed any event then broadcast to all waiting threads to check for conflicts again
 	if eventsRemoved {
 		c.cond.Broadcast()
 	}
 }
 
-func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb.Event) bool {
-	if !(cachedEvent.SchemaName == incomingEvent.SchemaName && cachedEvent.TableName == incomingEvent.TableName) {
+func (c *ConflictDetectionCache) eventsConfict(cachedEvent *tgtdb.Event, incomingEvent *tgtdb.Event) bool {
+	if !c.eventsAreOfSameTable(cachedEvent, incomingEvent) {
 		return false
 	}
-
 	maybeQualifiedName := cachedEvent.TableName
-	if cachedEvent.SchemaName != "public" {
+	if (c.sourceDBType == "postgresql" || c.sourceDBType == "yugabytedb") && cachedEvent.SchemaName != "public" {
 		maybeQualifiedName = fmt.Sprintf("%s.%s", cachedEvent.SchemaName, cachedEvent.TableName)
 	}
 	uniqueKeyColumns := c.tableToUniqueKeyColumns[maybeQualifiedName]
-
 	/*
 		Not checking for value of unique key values conflict in case of export from yb because of inconsistency issues in before values of events provided by yb-cdc
 		TODO(future): Fix this in our debezium voyager plugin
@@ -186,4 +191,15 @@ func (c *ConflictDetectionCache) eventsConfict(cachedEvent, incomingEvent *tgtdb
 		}
 	}
 	return false
+}
+
+func (c *ConflictDetectionCache) eventsAreOfSameTable(event1 *tgtdb.Event, event2 *tgtdb.Event) bool {
+	switch c.sourceDBType {
+	case "oracle":
+		return event1.TableName == event2.TableName
+	case "postgresql", "yugabytedb":
+		return event1.SchemaName == event2.SchemaName && event1.TableName == event2.TableName
+	default:
+		panic(fmt.Sprintf("unknown source database type %q for unique key conflict detection", c.sourceDBType))
+	}
 }

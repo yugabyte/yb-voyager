@@ -347,6 +347,10 @@ func (ms *MySQL) GetPartitions(tableName *sqlname.SourceName) []*sqlname.SourceN
 	panic("not implemented")
 }
 
+func (ms *MySQL) GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error) {
+	return nil, nil
+}
+
 func (ms *MySQL) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("ClearMigrationState not implemented yet for MySQL")
 	return nil

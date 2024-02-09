@@ -48,6 +48,7 @@ type SourceDB interface {
 	GetAllSequences() []string
 	GetServers() []string
 	GetPartitions(table *sqlname.SourceName) []*sqlname.SourceName
+	GetTableToUniqueKeyColumnsMap(tableList []*sqlname.SourceName) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
 }
