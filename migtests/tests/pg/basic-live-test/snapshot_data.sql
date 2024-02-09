@@ -1,4 +1,4 @@
-set search_path to non_public;git
+set search_path to non_public;
 
 insert into x values(1,2);
 insert into x values(2,3);
