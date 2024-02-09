@@ -274,6 +274,13 @@ func validateTargetPortRange() {
 }
 
 func validateTargetSchemaFlag() {
+	// do not check for source and source-replica imports
+	if importerRole == TARGET_DB_IMPORTER_ROLE {
+		if tconf.Schema != "" && sourceDBType == "postgresql" {
+			utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+		}
+	}
+
 	if tconf.Schema == "" {
 		if tconf.TargetDBType == YUGABYTEDB {
 			tconf.Schema = YUGABYTEDB_DEFAULT_SCHEMA
@@ -281,13 +288,6 @@ func validateTargetSchemaFlag() {
 			tconf.Schema = tconf.User
 		}
 		return
-	}
-
-	// do not check for source and source-replica imports
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
-		if tconf.Schema != YUGABYTEDB_DEFAULT_SCHEMA && sourceDBType == "postgresql" {
-			utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
-		}
 	}
 }
 

@@ -1,3 +1,5 @@
+create schema non_public;
+set search_path to non_public;
 create table x(id int primary key,id2 int);
 
 CREATE TABLE user_table (

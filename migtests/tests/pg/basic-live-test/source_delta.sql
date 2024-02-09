@@ -1,3 +1,5 @@
+set search_path to non_public;
+
 insert into x values(5,6);
 insert into x values(4,5);
 

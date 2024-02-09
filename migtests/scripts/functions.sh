@@ -332,12 +332,17 @@ import_schema() {
 		--target-db-port ${TARGET_DB_PORT} 
 		--target-db-user ${TARGET_DB_USER} 
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
-		--target-db-name ${TARGET_DB_NAME} 
-		--target-db-schema ${TARGET_DB_SCHEMA} 
+		--target-db-name ${TARGET_DB_NAME}	
 		--yes
 		--send-diagnostics=false
 		--start-clean 1
 		"
+
+		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+		then
+			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+		fi
+
 		yb-voyager import schema ${args} $*
 }
 
@@ -348,14 +353,18 @@ import_data() {
 		--target-db-port ${TARGET_DB_PORT} 
 		--target-db-user ${TARGET_DB_USER} 
 		--target-db-password ${TARGET_DB_PASSWORD:-''} 
-		--target-db-name ${TARGET_DB_NAME} 
-		--target-db-schema ${TARGET_DB_SCHEMA}
+		--target-db-name ${TARGET_DB_NAME}
 		--disable-pb true
 		--send-diagnostics=false 
 		--start-clean 1
 		--truncate-splits true
 		--max-retries 1
 		"
+
+		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+		then
+			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+		fi
 
 		if [ "${IMPORT_TABLE_LIST}" != "" ]
 		then
@@ -513,11 +522,11 @@ set_replica_identity(){
     cat > alter_replica_identity.sql <<EOF
     DO \$CUSTOM\$ 
     DECLARE
-        table_name_var text;
+		r record;
     BEGIN
-        FOR table_name_var IN (SELECT table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
+        FOR r IN (SELECT table_schema,table_name FROM information_schema.tables WHERE table_schema = '${SOURCE_DB_SCHEMA}' AND table_type = 'BASE TABLE') 
         LOOP
-            EXECUTE 'ALTER TABLE ' || table_name_var || ' REPLICA IDENTITY FULL';
+            EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.table_name || ' REPLICA IDENTITY FULL';
         END LOOP;
     END \$CUSTOM\$;
 EOF
