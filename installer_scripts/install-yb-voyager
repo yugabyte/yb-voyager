@@ -264,7 +264,7 @@ install_debezium_server_latest_release() {
 	output "Installing debezium:${DEBEZIUM_VERSION}"
 	debezium_server_filename="debezium-server.tar.gz"
 	# download
-	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager%2F${VOYAGER_RELEASE_TAG}/${debezium_server_filename}"
+	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_TAG}/${debezium_server_filename}"
 	# delete contents of /opt/yb-voyager/debezium-server if exists. 
 	# This is done to ensure that older version jars are not left behind in the lib dir.
 	if [ -d /opt/yb-voyager/debezium-server ]
