@@ -11,11 +11,11 @@ ARGS_LINUX=$@
 VERSION="latest"
 
 # This needs to be changed to the latest debezium release tag
-DEBEZIUM_RELEASE_TAG=${DEBEZIUM_RELEASE_TAG:-"2.2.0-1.6.1"}
-DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.2.0-1.6.1"}
+VOYAGER_RELEASE_TAG=${VOYAGER_RELEASE_TAG:-"v1.6.5-rc1"}
+DEBEZIUM_VERSION=${DEBEZIUM_VERSION:-"2.3.3-1.6.5-rc1"}
 
-# the hash corresponds to the yb-voyager/v1.6.1 tag
-YB_VOYAGER_GIT_HASH="4cd97f913ca383fb3791f467ace351dd62e80d8b" 
+# the hash corresponds to the yb-voyager/v1.6.5-rc1 tag
+YB_VOYAGER_GIT_HASH="6b712234f645f64080537a8583cfba0373105c0c" 
 
 
 ONLY_PG="false"
@@ -262,9 +262,9 @@ install_debezium_server(){
 
 install_debezium_server_latest_release() {
 	output "Installing debezium:${DEBEZIUM_VERSION}"
-	debezium_server_filename="debezium-server-${DEBEZIUM_VERSION}.tar.gz"
+	debezium_server_filename="debezium-server.tar.gz"
 	# download
-	wget -nv "https://github.com/yugabyte/debezium/releases/download/${DEBEZIUM_RELEASE_TAG}/${debezium_server_filename}"
+	wget -nv "https://github.com/yugabyte/yb-voyager/releases/download/yb-voyager/${VOYAGER_RELEASE_TAG}/${debezium_server_filename}"
 	# delete contents of /opt/yb-voyager/debezium-server if exists. 
 	# This is done to ensure that older version jars are not left behind in the lib dir.
 	if [ -d /opt/yb-voyager/debezium-server ]
