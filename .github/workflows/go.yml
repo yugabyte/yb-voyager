@@ -2,39 +2,38 @@ name: Go
 
 on:
   push:
-    branches: [ main ]
+    branches: [1.6-dev2]
   pull_request:
-    branches: [ main ]
+    branches: [1.6-dev2]
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Go
-      uses: actions/setup-go@v3
-      with:
-        go-version: "1.20"
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.20"
 
-    - name: Build
-      run: |
-        cd yb-voyager
-        go build -v ./...
+      - name: Build
+        run: |
+          cd yb-voyager
+          go build -v ./...
 
-    - name: Test
-      run: |
-        cd yb-voyager
-        go test -v ./...
-        
-    - name: Vet
-      run: |
-        cd yb-voyager
-        go vet ./...
+      - name: Test
+        run: |
+          cd yb-voyager
+          go test -v ./...
 
-    - name: Run staticcheck
-      run: |
-        cd yb-voyager
-        go install honnef.co/go/tools/cmd/staticcheck@latest
-        staticcheck ./...
+      - name: Vet
+        run: |
+          cd yb-voyager
+          go vet ./...
+
+      - name: Run staticcheck
+        run: |
+          cd yb-voyager
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...

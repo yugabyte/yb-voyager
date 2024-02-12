@@ -2,9 +2,9 @@ name: "PG: Migration Tests"
 
 on:
   push:
-    branches: [main]
+    branches: [1.6-dev2]
   pull_request:
-    branches: [main]
+    branches: [1.6-dev2]
 
 jobs:
   run-pg-migration-tests:
@@ -171,7 +171,7 @@ jobs:
       - name: "TEST: pg-basic-live-migration-fall-forward-test"
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-test
         if: matrix.version != '2.16.7.0-b59'
-      
+
       - name: "TEST: pg-datatypes-live-migration-test"
         run: migtests/scripts/live-migration-run-test.sh pg/datatypes
         if: matrix.version != '2.16.7.0-b59' && matrix.BETA_FAST_DATA_EXPORT == 0 #TODO: fix its validation
