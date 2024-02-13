@@ -1,4 +1,4 @@
-version: '2'
+version: '2.1'
 
 volumes:
   yb-master-data-1:
