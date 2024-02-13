@@ -33,7 +33,7 @@ import (
 var DEBEZIUM_DIST_DIR, DEBEZIUM_CONF_FILEPATH string
 
 // These versions need to be changed at the time of a release
-const DEBEZIUM_VERSION = "2.3.3-1.6.5-rc1"
+const DEBEZIUM_VERSION = "2.3.3-1.6.5"
 
 type Debezium struct {
 	*Config
