@@ -302,12 +302,6 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
 		"Be sure to run 'initiate cutover to target'/'end migration' command after completing/aborting this migration to drop the replication slot. "+
 		"This is important to avoid filling up disk space.", replicationSlotName))
-	// pg_dump
-	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
-	if err != nil {
-		log.Errorf("Export Data failed: %v", err)
-		return err
-	}
 
 	// save replication slot, publication name in MSR
 	err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -318,6 +312,14 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	if err != nil {
 		utils.ErrExit("update PGReplicationSlotName: update migration status record: %s", err)
 	}
+
+	// pg_dump
+	err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, res.SnapshotName)
+	if err != nil {
+		log.Errorf("Export Data failed: %v", err)
+		return err
+	}
+
 	setDataIsExported()
 	return nil
 }
