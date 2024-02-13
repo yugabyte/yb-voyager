@@ -457,8 +457,8 @@ func (m *MetaDB) GetSegmentsToBeDeleted() ([]utils.Segment, error) {
 }
 
 func (m *MetaDB) GetPendingSegments(importCount int) ([]utils.Segment, error) {
-	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < %d)) OR
-		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_ff_db_importer + imported_by_fb_db_importer < 1))`, importCount)
+	predicate := fmt.Sprintf(`(exporter_role == 'source_db_exporter' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < %d)) OR
+		(exporter_role LIKE 'target_db_exporter%%' AND (imported_by_target_db_importer + imported_by_source_replica_db_importer + imported_by_source_db_importer < 1))`, importCount)
 	segments, err := m.querySegments(predicate)
 	if err != nil {
 		return nil, fmt.Errorf("fetch pending segments: %v", err)

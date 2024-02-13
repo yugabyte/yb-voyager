@@ -229,7 +229,8 @@ func registerExportDataFlags(cmd *cobra.Command) {
 		"path of the file containing comma-separated list of table names to export data")
 
 	cmd.Flags().IntVar(&source.NumConnections, "parallel-jobs", 4,
-		"number of Parallel Jobs to extract data from source database")
+		"number of Parallel Jobs to extract data from source database.\n"+
+			"In case of BETA_FAST_DATA_EXPORT=1 or --export-type=snapshot-and-changes or --export-type=changes-only, this flag has no effect and the number of parallel jobs is fixed to 1.")
 
 	cmd.Flags().StringVar(&exportType, "export-type", SNAPSHOT_ONLY,
 		fmt.Sprintf("export type: (%s, %s[TECH PREVIEW])", SNAPSHOT_ONLY, SNAPSHOT_AND_CHANGES))
