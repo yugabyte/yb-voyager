@@ -144,7 +144,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		updateExportedSnapshotRowsInTheRow(msr, &row, tableName, schemaName, dbzmStatus, exportSnapshotStatus)
 		row.ImportedSnapshotRows = 0
 		row.TableName = table
-		if sourceSchemaCount <= 1 {
+		if sourceSchemaCount <= 1 && source.DBType != POSTGRESQL { //this check is for Oracle case 
 			schemaName = ""
 			row.TableName = tableName
 		}
@@ -307,6 +307,9 @@ func updateExportedEventsCountsInTheRow(row *rowData, tableName string, schemaNa
 		} else if fBEnabled {
 			exporterRole = TARGET_DB_EXPORTER_FB_ROLE
 		}
+	}
+	if len(strings.Split(source.Schema, "|")) <=1 {
+		schemaName = ""
 	}
 	eventCounter, err := metaDB.GetExportedEventsStatsForTableAndExporterRole(exporterRole, schemaName, tableName)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
