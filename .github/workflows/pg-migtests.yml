@@ -165,11 +165,18 @@ jobs:
         run: |
           psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "ALTER ROLE ybvoyager WITH SUPERUSER;"
 
-      - name: "TEST: pg-basic-live-migration-test"
-        run: migtests/scripts/live-migration-run-test.sh pg/basic-live-test
+      - name: "TEST: pg-basic-live-migration-non-public-schema-test"
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-live-non-public-schema-test
 
-      - name: "TEST: pg-basic-live-migration-fall-forward-test"
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-test
+      - name: "TEST: pg-basic-live-migration-public-schema-test"
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-live-public-schema-test
+
+      - name: "TEST: pg-basic-live-non-public-migration-fall-forward-test"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-non-public-schema-test
+        if: matrix.version != '2.16.7.0-b59'
+
+      - name: "TEST: pg-basic-live-public-migration-fall-forward-test"
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-live-public-schema-test
         if: matrix.version != '2.16.7.0-b59'
       
       - name: "TEST: pg-datatypes-live-migration-test"
