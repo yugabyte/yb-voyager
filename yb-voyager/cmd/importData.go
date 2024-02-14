@@ -1110,6 +1110,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 	return err
 }
 
+// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
 func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
 	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
 		return nil
