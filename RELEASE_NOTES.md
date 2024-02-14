@@ -4,6 +4,32 @@
 
 Included here are the release notes for the [YugabyteDB Voyager](https://docs.yugabyte.com/preview/migrate/) v1 release series. Content will be added as new notable features and changes are available in the patch releases of the YugabyteDB v1 series.
 
+
+## v1.6.5 - February 13, 2024
+
+### New features
+
+- Support for [live migration](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/) from Postgresg databases [[TECH PREVIEW](https://docs.yugabyte.com/preview/releases/versioning/#feature-availability)] with the option of [fall-forward](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/), wherein you can switch to a source-replica postgres database if an issue arises during migration. 
+
+### Enhancements
+
+- The live migration workflow has been optimized with respect to the step of [Importing indexes and triggers](../migrate/live-migrate/#import-indexes-and-triggers) on target DB. Instead of creating indexes on target after cutover, they can now be created concurrently with the CDC phase of `import-data-to-target`. This ensures that the time-taking task of creating indexes on target DB is completed before the cutover process.
+- The `--post-import-data` flag of import schema has been renamed to `--post-snapshot-import` in order to incorporate live migration workflows.
+- Enhanced analyze-schema to report the unsupported extensions on YugabyteDB.
+- Improved UX of `yb-voyager get data-migration-report` for large set of tables by adding pagination.
+- The YugabyteDB debezium connector version is upgraded to v1.9.5.y.33.2 to leverage support for precise decimal type handling with YugabyteDB versions 2.20.1.1  and later.
+- Enhanced `export data status` command to report number of rows exported for each table in case of snapshot-only migration.
+- Reduced default value of `--parallel-jobs` for import data to target YugabyteDB to 0.25 of total cores (from 0.5) to improve stability of target Yugabyte DB.
+
+### Bug fixes
+
+- Fixed a bug in the cdc phase of import data where parallel ingestion of events with different primary keys but same unique keys was leading to unique constraint errors.
+- Fixed an issue in `yb-voyager initiate cutover to target` where fallback intent is stored even if user decides to abort the process in the confirmation prompt.
+- Fixed an issue in yb-voyager end migration where source DB is not cleaned up if `--save-migration-reports` flag is provided as false
+- yb-voyager now gracefully shuts down all child processes on exit, in order to prevent orphan processes.
+- Fixed a bug in snapshot data migration where "\r\n" in text data was silently converted to "\n". This was affecting snapshot phase of live migration as well as snapshot-only migration with BETA_FAST_DATA_EXPORT.
+
+
 ## v1.6.1 - December 15, 2023
 ### Bug fixes
 
@@ -18,7 +44,7 @@ Included here are the release notes for the [YugabyteDB Voyager](https://docs.yu
 
 - Live migration
 
-  - Support for [live migration](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/) from Oracle databases (with the option of [fall-back](../migrate/live-fall-back/)) [[TECH PREVIEW](https://docs.yugabyte.com/preview/releases/versioning/#feature-availability)] , using which you can fall back to the original source database if an issue arises during live migration.
+  - Support for [live migration](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/) from Oracle databases (with the option of [fall-back](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/)) [[TECH PREVIEW](https://docs.yugabyte.com/preview/releases/versioning/#feature-availability)] , using which you can fall back to the original source database if an issue arises during live migration.
 
   - Various commands that are used in live migration workflows (including [fall-forward](https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/)) have been modified. Yugabyte is transitioning from the use of the term "fall-forward database" to the more preferred "source-replica database" terminology. The following table includes the list of modified commands.
 
