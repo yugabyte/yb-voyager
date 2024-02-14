@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import yb
+import collections
+
+def main():
+	parser = argparse.ArgumentParser(description='Process an argument.')
+	parser.add_argument('--live_migration', type=str, help='An argument for checking the if live migration is enabled or not')
+	parser.add_argument('--ff_enabled', type=str, help='An argument for checking the if fall-forward is enabled or not')
+	parser.add_argument('--fb_enabled', type=str, help='An argument for checking the if fall-back is enabled or not')
+	args = parser.parse_args()
+	global live_migration 
+	live_migration = args.live_migration
+	global ff_enabled
+	ff_enabled = args.ff_enabled
+
+	migration_completed_checks_yb()
+
+	if ff_enabled == 'true':
+		migration_completed_checks_pg()
+
+EXPECTED_ROW_COUNT = {
+	'x':3,
+ 	'user_table': 8
+}
+
+EXPECTED_DATA_TYPES = {
+	'x': {
+		'id': 'integer',
+		'id2': 'integer'
+	},
+	'user_table': {
+		'id': 'integer',
+		'email': 'character varying',
+		'status': 'character varying'
+	}
+}
+
+EXPECTED_SUM_OF_COLUMN = {
+	'x': {
+		'id': '6',
+		'id2': '9'
+	},
+	'user_table': {
+		'id': '36',
+	}
+}
+
+def migration_completed_checks_yb():
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_pg():
+	print("Running tests on PG")
+	yb.run_checks(migration_completed_checks, db_type="postgres")
+
+def migration_completed_checks(tgt):
+	# Validation to check for matching row counts
+	got_row_count = tgt.row_count_of_all_tables("public")
+	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
+		assert row_count == got_row_count[table_name]
+#=============================================================================
+	fetched_datatypes_schema = tgt.get_column_to_data_type_mapping("public")
+ 
+	print(fetched_datatypes_schema)
+	for table_name, columns in fetched_datatypes_schema.items():
+		print(f"table_name: {table_name} ---- ")
+		for column_name, datatype in columns.items():
+			print(f"column_name: {column_name}, datatype: {datatype}")
+			assert datatype == EXPECTED_DATA_TYPES[table_name][column_name]
+
+	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
+		print(f"table_name: {table_name} ---- ")
+		for column, sum in column_names_with_sum.items():
+			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
+			print(f"column_name: {column}, sum: {col_sum}")
+			assert sum == str(col_sum)
+
+if __name__ == "__main__":
+	main()
