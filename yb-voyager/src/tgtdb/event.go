@@ -361,7 +361,7 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
-func (eb *EventBatch) GetEventID() string {
+func (eb *EventBatch) ID() string {
 	return fmt.Sprintf("%d-%d", eb.Events[0].Vsn, eb.GetLastVsn())
 }
 

@@ -322,7 +322,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			for _, e := range batch {
 				vsns = append(vsns, e.Vsn)
 			}
-			log.Warnf("retriable error executing batch on channel %v (batch id: %s), vsns in batch - (%v): %v", chanNo, eventBatch.GetEventID(), vsns, err)
+			log.Warnf("retriable error executing batch on channel %v (batch id: %s), vsns in batch - (%v): %v", chanNo, eventBatch.ID(), vsns, err)
 			sleepIntervalSec += 10
 			if sleepIntervalSec > MAX_SLEEP_SECOND {
 				sleepIntervalSec = MAX_SLEEP_SECOND
