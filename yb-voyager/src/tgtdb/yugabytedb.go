@@ -575,6 +575,9 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			case res.Update():
 				numUpdates+= res.RowsAffected()
 			}
+			if res.RowsAffected() != 1 {
+				log.Warnf("unexpected rows affected for event with vsn(%d) in batch(%s): %d", batch.Events[i].Vsn, batch.ID(), res.RowsAffected())
+			}
 		}
 		if err = br.Close(); err != nil {
 			log.Errorf("error closing batch(%s): %v", batch.ID(), err)
