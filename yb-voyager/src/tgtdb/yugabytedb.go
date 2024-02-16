@@ -560,11 +560,20 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 
 		br := conn.SendBatch(ctx, &ybBatch)
+		var numInserts, numDeletes, numUpdates int64
 		for i := 0; i < len(batch.Events); i++ {
-			_, err := br.Exec()
+			res, err := br.Exec()
 			if err != nil {
 				log.Errorf("error executing stmt for event with vsn(%d) in batch(%s): %v", batch.Events[i].Vsn, batch.ID(), err)
 				return false, fmt.Errorf("error executing stmt for event with vsn(%d): %v", batch.Events[i].Vsn, err)
+			}
+			switch true {
+			case res.Insert():
+				numInserts+= res.RowsAffected()
+			case res.Delete():
+				numDeletes+= res.RowsAffected()
+			case res.Update():
+				numUpdates+= res.RowsAffected()
 			}
 		}
 		if err = br.Close(); err != nil {
@@ -605,7 +614,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
-
+		log.Infof("committed transaction for batch(%s) with numInserts(%d), numDeletes(%d) and numUpdates(%d)", batch.ID(), numInserts, numDeletes, numUpdates)
 		return false, err
 	})
 	if err != nil {
