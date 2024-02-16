@@ -361,6 +361,10 @@ func (eb *EventBatch) GetChannelMetadataUpdateQuery(migrationUUID uuid.UUID) str
 		migrationUUID, eb.ChanNo)
 }
 
+func (eb *EventBatch) GetEventID() string {
+	return fmt.Sprintf("%d-%d", eb.Events[0].Vsn, eb.GetLastVsn())
+}
+
 func (eb *EventBatch) GetQueriesToUpdateEventStatsByTable(migrationUUID uuid.UUID, tableName string) string {
 	queryTemplate := `UPDATE %s 
 	SET 

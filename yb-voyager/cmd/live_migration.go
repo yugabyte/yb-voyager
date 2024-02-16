@@ -318,7 +318,12 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break
 			}
-			log.Warnf("retriable error executing batch on channel %v (last VSN: %d): %v", chanNo, eventBatch.GetLastVsn(), err)
+			log.Warnf("retriable error executing batch on channel %v (batch id: %s): %v", chanNo, eventBatch.GetEventID(), err)
+			vsns := make([]int64, 0, len(batch))
+			for _, e := range batch {
+				vsns = append(vsns, e.Vsn)
+			}
+			log.Warnf("vsns of events in the batch id (%s): %v", eventBatch.GetEventID(), vsns)
 			sleepIntervalSec += 10
 			if sleepIntervalSec > MAX_SLEEP_SECOND {
 				sleepIntervalSec = MAX_SLEEP_SECOND

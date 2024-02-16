@@ -545,8 +545,12 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err != nil {
 			return false, fmt.Errorf("error creating tx: %w", err)
 		}
-		defer tx.Rollback(ctx)
-
+		defer func() {
+			err = tx.Rollback(ctx)
+			if err != nil && err != pgx.ErrTxClosed {
+				log.Errorf("error rolling back tx for batch id (%s): %v", batch.GetEventID(), err)
+			}
+		}()
 		for name, stmt := range stmtToPrepare {
 			err := yb.connPool.PrepareStatement(conn, name, stmt)
 			if err != nil {
@@ -565,7 +569,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		}
 		if err = br.Close(); err != nil {
 			log.Errorf("error closing batch: %v", err)
-			return false, fmt.Errorf("error closing batch: %v", err)
+			return false, fmt.Errorf("error closing batch id (%s): %v", batch.GetEventID(), err)
 		}
 
 		updateVsnQuery := batch.GetChannelMetadataUpdateQuery(migrationUUID)
