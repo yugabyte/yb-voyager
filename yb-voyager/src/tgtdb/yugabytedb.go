@@ -617,7 +617,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 		if err = tx.Commit(ctx); err != nil {
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
-		log.Infof("committed transaction for batch(%s) with numInserts(%d), numDeletes(%d) and numUpdates(%d)", batch.ID(), numInserts, numDeletes, numUpdates)
+		log.Infof("Committed batch(%s): batch-size %d numInserts=%d, numDeletes=%d numUpdates=%d", batch.ID(), len(batch.Events), numInserts, numDeletes, numUpdates)
 		return false, err
 	})
 	if err != nil {
