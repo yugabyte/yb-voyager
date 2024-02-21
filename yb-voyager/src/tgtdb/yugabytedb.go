@@ -523,7 +523,7 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 	ybBatch := pgx.Batch{}
 	selectBatch := &pgx.Batch{}
-	queries := make([]string, 0, len(batch.Events))
+	queries := make(map[string]string)
 	stmtToPrepare := make(map[string]string)
 	stmts := make([]string, 0, len(batch.Events))
 	// processing batch events to convert into prepared or unprepared statements based on Op type
@@ -547,23 +547,25 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			}
 			stmtWithParams := fmt.Sprintf("%s with params: %v", stmt, stringParams)
 			stmts = append(stmts, stmtWithParams)
-			if event.Op == "c" {
-				table := event.TableName
-				whereClauses := make([]string, 0, len(event.Key))
-				keys := utils.GetMapKeysSorted(event.Key)
-				// selectParams := make([]interface{}, 0, len(event.Key))
-				for _, key := range keys {
-					value := event.Key[key]
-					nullString := "NULL"
-					if event.Key[key] == nil {
-						value = &nullString
-					}
-					whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", key, *value))
+			table := event.TableName
+			whereClauses := make([]string, 0, len(event.Key))
+			keys := utils.GetMapKeysSorted(event.Key)
+			// selectParams := make([]interface{}, 0, len(event.Key))
+			for _, key := range keys {
+				value := event.Key[key]
+				nullString := "NULL"
+				if event.Key[key] == nil {
+					value = &nullString
 				}
-				whereClause := strings.Join(whereClauses, " AND ")
-				query := fmt.Sprintf("SELECT * FROM %s WHERE %s", table, whereClause)
-				selectBatch.Queue(query)
-				queries = append(queries, query)
+				whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", key, *value))
+			}
+			whereClause := strings.Join(whereClauses, " AND ")
+			if event.Op == "c" {
+				queries[table] = whereClause
+			} else {
+				if ok := queries[table]; ok != "" {
+					queries[table] = ""
+				}
 			}
 		}
 	}
@@ -664,7 +666,15 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
 	err = yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
-		err = yb.checkEventsAppliedOnTarget(conn, queries, selectBatch, batch)
+		var finalQueries []string
+		for table, whereClause := range queries {
+			if whereClause != "" {
+				selectStmt := fmt.Sprintf("SELECT * FROM %s WHERE %s", table, whereClause)
+				selectBatch.Queue(selectStmt)
+				finalQueries = append(finalQueries, selectStmt)
+			}
+		}
+		err = yb.checkEventsAppliedOnTarget(conn, finalQueries, selectBatch, batch)
 		if err != nil {
 			log.Infof("events not applied on target for batch(%s) with stmts %v: %v", batch.ID(), stmts, err)
 			return false, fmt.Errorf("events not applied on target for batch(%s): %s", batch.ID(), err)
@@ -683,7 +693,7 @@ func (yb *TargetYugabyteDB) checkEventsAppliedOnTarget(conn *pgx.Conn, queries [
 	for i := 0; i < selectBatch.Len(); i++ {
 		rows, err := br.Query()
 		if err != nil {
-			return fmt.Errorf("error checking event applied on target: %w", err)
+			return fmt.Errorf("error checking event applied on target stmt (%s): %w", queries[i], err)
 		}
 		if !rows.Next() {
 			return fmt.Errorf("event not applied on target: %s", queries[i])
