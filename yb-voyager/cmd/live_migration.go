@@ -310,6 +310,10 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 		eventBatch := tgtdb.NewEventBatch(batch, chanNo)
 		var err error
 		sleepIntervalSec := 0
+		vsns := make([]int64, 0, len(batch))
+		for _, e := range batch {
+			vsns = append(vsns, e.Vsn)
+		}
 		for attempt := 0; attempt < EVENT_BATCH_MAX_RETRY_COUNT; attempt++ {
 			err = tdb.ExecuteBatch(migrationUUID, eventBatch)
 			if err == nil {
@@ -317,10 +321,6 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 				break
 			} else if tdb.IsNonRetryableCopyError(err) {
 				break
-			}
-			vsns := make([]int64, 0, len(batch))
-			for _, e := range batch {
-				vsns = append(vsns, e.Vsn)
 			}
 			log.Warnf("retriable error executing batch on channel %v (batch id: %s), vsns in batch - (%v): %v", chanNo, eventBatch.ID(), vsns, err)
 			sleepIntervalSec += 10
@@ -332,7 +332,7 @@ func processEvents(chanNo int, evChan chan *tgtdb.Event, lastAppliedVsn int64, d
 			time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
 		}
 		if err != nil {
-			utils.ErrExit("error executing batch on channel %v: %v", chanNo, err)
+			utils.ErrExit("error executing batch on channel %v (batch id: %s), vsns in batch - %v: %v", chanNo, eventBatch.ID(), vsns, err)
 		}
 		statsReporter.BatchImported(eventBatch.EventCounts.NumInserts, eventBatch.EventCounts.NumUpdates, eventBatch.EventCounts.NumDeletes)
 		log.Debugf("processEvents from channel %v: Executed Batch of size - %d successfully in time %s",

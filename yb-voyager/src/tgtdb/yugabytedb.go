@@ -470,6 +470,7 @@ var NonRetryCopyErrors = []string{
 	"invalid input syntax",
 	"violates unique constraint",
 	"syntax error at",
+	"applied on target",
 }
 
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
@@ -521,13 +522,17 @@ and needs to be prepared again
 func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error {
 	log.Infof("executing batch(%s) of %d events", batch.ID(), len(batch.Events))
 	ybBatch := pgx.Batch{}
+	selectBatch := &pgx.Batch{}
+	queries := make([]string, 0, len(batch.Events))
 	stmtToPrepare := make(map[string]string)
+	stmts := make([]string, 0, len(batch.Events))
 	// processing batch events to convert into prepared or unprepared statements based on Op type
 	for i := 0; i < len(batch.Events); i++ {
 		event := batch.Events[i]
 		if event.Op == "u" {
 			stmt := event.GetSQLStmt()
 			ybBatch.Queue(stmt)
+			stmts = append(stmts, stmt)
 		} else {
 			stmt := event.GetPreparedSQLStmt(yb.tconf.TargetDBType)
 
@@ -536,6 +541,30 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 				stmtToPrepare[event.GetPreparedStmtName()] = stmt
 			}
 			ybBatch.Queue(stmt, params...)
+			stringParams := make([]string, len(params))
+			for i, p := range params {
+				stringParams[i] = fmt.Sprintf("%v", p)
+			}
+			stmtWithParams := fmt.Sprintf("%s with params: %v", stmt, stringParams)
+			stmts = append(stmts, stmtWithParams)
+			if event.Op == "c" {
+				table := event.TableName
+				whereClauses := make([]string, 0, len(event.Key))
+				keys := utils.GetMapKeysSorted(event.Key)
+				// selectParams := make([]interface{}, 0, len(event.Key))
+				for _, key := range keys {
+					value := event.Key[key]
+					nullString := "NULL"
+					if event.Key[key] == nil {
+						value = &nullString
+					}
+					whereClauses = append(whereClauses, fmt.Sprintf("%s = %s", key, *value))
+				}
+				whereClause := strings.Join(whereClauses, " AND ")
+				query := fmt.Sprintf("SELECT * FROM %s WHERE %s", table, whereClause)
+				selectBatch.Queue(query)
+				queries = append(queries, query)
+			}
 		}
 	}
 
@@ -618,6 +647,10 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 			return false, fmt.Errorf("failed to commit transaction : %w", err)
 		}
 		log.Infof("Committed batch(%s): batch-size %d numInserts=%d, numDeletes=%d numUpdates=%d", batch.ID(), len(batch.Events), numInserts, numDeletes, numUpdates)
+		if numInserts + numDeletes + numUpdates != int64(len(batch.Events)) {
+			log.Infof("unexpected rows affected for batch(%s): numInserts=%d, numDeletes=%d, numUpdates=%d", batch.ID(), numInserts, numDeletes, numUpdates)
+		}
+
 		return false, err
 	})
 	if err != nil {
@@ -630,7 +663,36 @@ func (yb *TargetYugabyteDB) ExecuteBatch(migrationUUID uuid.UUID, batch *EventBa
 	// successful even if the row already exists.
 	// DELETE does NOT fail if the row does not exist. Rows affected will be 0.
 	// UPDATE statement does not fail if the row does not exist. Rows affected will be 0.
+	err = yb.connPool.WithConn(func(conn *pgx.Conn) (retry bool, err error) {
+		err = yb.checkEventsAppliedOnTarget(conn, queries, selectBatch, batch)
+		if err != nil {
+			log.Infof("events not applied on target for batch(%s) with stmts %v: %v", batch.ID(), stmts, err)
+			return false, fmt.Errorf("events not applied on target for batch(%s): %s", batch.ID(), err)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return fmt.Errorf("error checking events applied on target: %w", err)
+	}
+	return nil
+}
 
+func (yb *TargetYugabyteDB) checkEventsAppliedOnTarget(conn *pgx.Conn, queries []string, selectBatch *pgx.Batch, batch *EventBatch) (error) {
+	log.Infof("checking events applied on target for batch(%s) with stmts %v", batch.ID(), queries)
+	br := conn.SendBatch(context.Background(), selectBatch)
+	for i := 0; i < selectBatch.Len(); i++ {
+		rows, err := br.Query()
+		if err != nil {
+			return fmt.Errorf("error checking event applied on target: %w", err)
+		}
+		if !rows.Next() {
+			return fmt.Errorf("event not applied on target: %s", queries[i])
+		}
+		rows.Close()
+	}
+	if err := br.Close(); err != nil {
+		return fmt.Errorf("error closing batch: %w", err)
+	}
 	return nil
 }
 
